@@ -1,23 +1,23 @@
-# Use Node 20 image
+# Use Node 20
 FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files first (for caching)
+COPY package.json package-lock.json* ./
 
-# Install dependencies (including devDependencies for TS build)
+# Install all dependencies
 RUN npm install
 
-# Copy source code
+# Copy all source code
 COPY . .
 
 # Build TypeScript
 RUN npm run build
 
-# Expose port
+# Expose server port
 EXPOSE 5000
 
-# Start backend
-CMD ["npm", "run", "start"]
+# Start server
+CMD ["npm", "start"]
