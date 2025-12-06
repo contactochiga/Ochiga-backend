@@ -1,19 +1,19 @@
 # Use Node 20 image
 FROM node:20-alpine
 
-# Set workdir
+# Set working directory
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install deps
+# Install dependencies (including devDependencies for TS build)
 RUN npm install
 
 # Copy source code
 COPY . .
 
-# Build (if needed)
+# Build TypeScript
 RUN npm run build
 
 # Expose port
