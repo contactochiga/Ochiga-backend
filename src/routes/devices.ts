@@ -29,7 +29,7 @@ export type Device = {
   signalStrength?: number;
   latency?: number;
   reliability?: number;
-  estate_id?: string; // optional for emitting to correct estate
+  estate_id?: string;
 };
 
 // -------------------------------------------------
@@ -78,7 +78,7 @@ export async function evaluateConnectivity(device: Device): Promise<Device> {
 
   for (const proto of device.supportedProtocols) {
     let signal = 50,
-      latencyMs = 50,
+      latencyMs: number = 50,
       reliability = 80;
 
     switch (proto) {
@@ -86,16 +86,27 @@ export async function evaluateConnectivity(device: Device): Promise<Device> {
       case "mqtt":
         if (device.ip) {
           const res = await ping.promise.probe(device.ip, { timeout: 2 });
+
           signal = res.alive ? 80 : 20;
-          latencyMs = res.time || 100;
+
+          // FIX: Convert "unknown" → -1
+          latencyMs =
+            res.time === "unknown"
+              ? -1
+              : typeof res.time === "number"
+              ? res.time
+              : 100;
+
           reliability = res.alive ? 90 : 20;
         }
         break;
+
       case "ble":
         signal = Math.floor(Math.random() * 50 + 50);
         latencyMs = Math.floor(Math.random() * 20 + 10);
         reliability = Math.floor(Math.random() * 40 + 60);
         break;
+
       case "zigbee":
       case "zwave":
         signal = Math.floor(Math.random() * 60 + 40);
@@ -121,18 +132,14 @@ export async function evaluateConnectivity(device: Device): Promise<Device> {
   device.latency = best.latency;
   device.reliability = best.reliability;
 
-  // Emit real-time update after scoring
   emitDeviceUpdate(device);
 
   return device;
 }
 
 // -------------------------------------------------
-// PING SWEEP, SSDP, MQTT DISCOVERY etc.
-// (keep your existing discovery logic as is)
+// PING SWEEP
 // -------------------------------------------------
-
-// Example: pingSweep
 export async function pingSweep(limit = 254): Promise<Device[]> {
   const found: Device[] = [];
   const info = getLocalNetworkInfo();
@@ -143,6 +150,7 @@ export async function pingSweep(limit = 254): Promise<Device[]> {
   const jobs = Array.from({ length: limit }).map(async (_, i) => {
     const ip = `${base}.${i + 1}`;
     const res = await ping.promise.probe(ip, { timeout: 2 });
+
     if (res.alive) {
       const device: Device = {
         id: ip,
@@ -153,6 +161,7 @@ export async function pingSweep(limit = 254): Promise<Device[]> {
         status: "found",
         icon: DEFAULT_ICON,
       };
+
       found.push(await evaluateConnectivity(device));
     }
   });
