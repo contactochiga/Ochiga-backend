@@ -2,12 +2,12 @@
 import { createClient } from "redis";
 
 export const redis = createClient({
-  password: process.env.REDIS_PASSWORD,
   socket: {
     host: process.env.REDIS_HOST,
     port: Number(process.env.REDIS_PORT),
-    tls: process.env.REDIS_TLS === "true"   // <-- FIXED
-  }
+    tls: process.env.REDIS_TLS === "true"
+  },
+  password: process.env.REDIS_PASSWORD
 });
 
 redis.on("connect", () => {
@@ -22,6 +22,6 @@ redis.on("error", (err) => {
   try {
     await redis.connect();
   } catch (err) {
-    console.error("❌ Redis connection failed:", err);
+    console.error("❌ Redis initial connection error:", err);
   }
 })();
