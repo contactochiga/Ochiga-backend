@@ -14,4 +14,9 @@ redis.on("error", (err) => {
   console.error("❌ Redis Error:", err);
 });
 
-await redis.connect();
+// Proper function for connecting Redis without top-level await
+export async function initRedis() {
+  if (!redis.isOpen) {
+    await redis.connect();
+  }
+}
