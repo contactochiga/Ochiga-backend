@@ -3,25 +3,17 @@ import { createClient } from "redis";
 
 export const redis = createClient({
   socket: {
-    host: process.env.REDIS_HOST,
-    port: Number(process.env.REDIS_PORT),
-    tls: process.env.REDIS_TLS === "true"
+    host: process.env.REDIS_HOST!,
+    port: parseInt(process.env.REDIS_PORT || "6379", 10),
+    tls: process.env.REDIS_TLS === "true" ? {} : undefined,  // IMPORTANT FIX
   },
-  password: process.env.REDIS_PASSWORD
+  password: process.env.REDIS_PASSWORD!,
 });
 
 redis.on("connect", () => {
-  console.log("✅ Redis connected to cloud");
+  console.log("✅ Redis connected (TLS active)");
 });
 
 redis.on("error", (err) => {
   console.error("❌ Redis Error:", err);
 });
-
-(async () => {
-  try {
-    await redis.connect();
-  } catch (err) {
-    console.error("❌ Redis initial connection error:", err);
-  }
-})();
