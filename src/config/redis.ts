@@ -1,14 +1,13 @@
 // src/config/redis.ts
 import { createClient } from "redis";
 
-// Redis Cloud requires TLS + password
 export const redis = createClient({
   password: process.env.REDIS_PASSWORD,
   socket: {
     host: process.env.REDIS_HOST,
     port: Number(process.env.REDIS_PORT),
-    tls: process.env.REDIS_TLS === "true" ? {} : undefined,
-  },
+    tls: process.env.REDIS_TLS === "true"   // <-- FIXED
+  }
 });
 
 redis.on("connect", () => {
