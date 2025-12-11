@@ -10,8 +10,10 @@ import app from "./app";
 // ENV + PORT CONFIG
 import { PORT } from "./config/env";
 
+// REDIS (with new init function)
+import { initRedis } from "./config/redis";
+
 // BACKGROUND SERVICES
-import { redis } from "./config/redis";
 import { startEventProcessor } from "./event-processor/eventProcessor";
 import { initRuleEngine } from "./event-processor/rule-engine/rules";
 
@@ -52,12 +54,14 @@ io.on("connection", (socket) => {
 httpServer.listen(PORT, async () => {
   console.log(`🚀 HTTP + WebSocket server running on port ${PORT}`);
 
-  // Connect Redis
+  // ---------------------------
+  // CONNECT REDIS (NEW METHOD)
+  // ---------------------------
   try {
-    await redis.connect();
-    console.log("🟢 Redis connected");
+    await initRedis();
+    console.log("🟢 Redis initialized & connected");
   } catch (error) {
-    console.error("🔴 Redis connection failed →", error);
+    console.error("🔴 Redis initialization failed →", error);
   }
 
   // Start MQTT Event Processor
