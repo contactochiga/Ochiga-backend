@@ -2,21 +2,26 @@
 import { createClient } from "redis";
 
 export const redis = createClient({
-  url: `rediss://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
-  password: process.env.REDIS_PASSWORD,
+  socket: {
+    host: process.env.REDIS_HOST!,
+    port: Number(process.env.REDIS_PORT!),
+    tls: {}, // REQUIRED FOR Redis Cloud (Fixes SSL wrong version error)
+  },
+  password: process.env.REDIS_PASSWORD!,
 });
 
 redis.on("connect", () => {
-  console.log("✅ Redis connected (TLS)");
+  console.log("🟢 Redis connected");
 });
 
 redis.on("error", (err) => {
-  console.error("❌ Redis Error:", err);
+  console.error("🔴 Redis Error:", err);
 });
 
-// Proper function for connecting Redis without top-level await
 export async function initRedis() {
-  if (!redis.isOpen) {
+  try {
     await redis.connect();
+  } catch (error) {
+    console.error("🔴 Redis connection failed:", error);
   }
 }
