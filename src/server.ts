@@ -10,12 +10,11 @@ import app from "./app";
 // ENV + PORT CONFIG
 import { PORT } from "./config/env";
 
-// REDIS (correct import)
+// REDIS
 import { redis } from "./config/redis";
 
 // BACKGROUND SERVICES
 import { startEventProcessor } from "./event-processor/eventProcessor";
-import { initRuleEngine } from "./event-processor/rule-engine/rules";
 
 // MQTT BRIDGE
 import { initMqttBridge } from "./device/bridge";
@@ -35,9 +34,11 @@ export const io = new IOServer(httpServer, {
   },
 });
 
-// Socket.io Connection
+// ---------------------------
+// SOCKET.IO CONNECTIONS
+// ---------------------------
 io.on("connection", (socket) => {
-  console.log("Socket connected →", socket.id);
+  console.log("🔌 Socket connected →", socket.id);
 
   socket.on("subscribe:estate", (estateId: string) => {
     socket.join(`estate:${estateId}`);
@@ -45,6 +46,10 @@ io.on("connection", (socket) => {
 
   socket.on("subscribe:user", (userId: string) => {
     socket.join(`user:${userId}`);
+  });
+
+  socket.on("subscribe:room", (roomId: string) => {
+    socket.join(`room:${roomId}`);
   });
 });
 
@@ -55,7 +60,7 @@ httpServer.listen(PORT, async () => {
   console.log(`🚀 HTTP + WebSocket server running on port ${PORT}`);
 
   // ---------------------------
-  // CONNECT REDIS (CORRECT METHOD)
+  // CONNECT REDIS
   // ---------------------------
   try {
     await redis.connect();
@@ -64,23 +69,19 @@ httpServer.listen(PORT, async () => {
     console.error("🔴 Redis connection failed →", error);
   }
 
-  // Start MQTT Event Processor
+  // ---------------------------
+  // START EVENT PROCESSOR
+  // ---------------------------
   try {
-    startEventProcessor(); // no await → non-blocking
+    startEventProcessor(); // non-blocking
     console.log("🟢 Event processor started");
   } catch (error) {
     console.error("🔴 Event processor failed →", error);
   }
 
-  // Load Rule Engine
-  try {
-    initRuleEngine();
-    console.log("🟢 Rule engine initialized");
-  } catch (error) {
-    console.error("🔴 Rule engine failed →", error);
-  }
-
-  // Start MQTT Bridge
+  // ---------------------------
+  // START MQTT BRIDGE
+  // ---------------------------
   try {
     await initMqttBridge();
     console.log("🟢 MQTT bridge initialized");
@@ -88,7 +89,9 @@ httpServer.listen(PORT, async () => {
     console.error("🔴 MQTT bridge failed →", error);
   }
 
-  // Start BullMQ Workers
+  // ---------------------------
+  // START WORKERS
+  // ---------------------------
   try {
     await startWorkers();
     console.log("🟢 Workers started");
