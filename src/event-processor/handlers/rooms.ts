@@ -1,6 +1,6 @@
 // src/event-processor/handlers/rooms.ts
 import { supabaseAdmin } from "../../supabase/client";
-import { io } from "../../server";  // ✅ FIXED PATH
+import { io } from "../../server";
 
 export interface RoomEvent {
   deviceId: string;
@@ -11,7 +11,7 @@ export interface RoomEvent {
 export async function handleRoomEvent(event: RoomEvent) {
   const { deviceId, type } = event;
 
-  // Get device → must have room_id
+  // Resolve device → room
   const { data: device, error: deviceError } = await supabaseAdmin
     .from("devices")
     .select("id, external_id, room_id")
@@ -20,27 +20,33 @@ export async function handleRoomEvent(event: RoomEvent) {
 
   if (deviceError || !device?.room_id) return;
 
-  // Fetch the room + AI profile
+  // Fetch room (used only for context, not decisions)
   const { data: room, error: roomError } = await supabaseAdmin
     .from("rooms")
-    .select("*")
+    .select("id, ai_profile")
     .eq("id", device.room_id)
     .single();
 
   if (roomError || !room) return;
 
-  // ⚡ Handle Motion Events
-  if (type === "motion_detected" && room.ai_profile?.auto_lights) {
-    io.to(`room:${room.id}`).emit("ai:light:on", {
+  // ─────────────────────────────
+  // SIGNALS (NO COMMANDS)
+  // ─────────────────────────────
+
+  if (type === "motion_detected") {
+    io.to(`room:${room.id}`).emit("signal:room:motion", {
       roomId: room.id,
-      reason: "motion_detected",
+      deviceId,
+      payload: event.payload,
+      timestamp: new Date().toISOString(),
     });
   }
 
-  // ⚡ Handle User Leaving
-  if (type === "user_left" && room.ai_profile?.energy_save_mode) {
-    io.to(`room:${room.id}`).emit("ai:power:save", {
+  if (type === "user_left") {
+    io.to(`room:${room.id}`).emit("signal:room:empty", {
       roomId: room.id,
+      deviceId,
+      timestamp: new Date().toISOString(),
     });
   }
 }
