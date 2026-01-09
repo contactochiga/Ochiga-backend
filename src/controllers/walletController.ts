@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import axios from "axios";
 import crypto from "crypto";
-import { NotificationService, NotificationPayload } from "../services/NotificationService";
+import { handleSignal } from "../core/control-plane";
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY!;
 
@@ -15,40 +15,10 @@ const paystack = axios.create({
   },
 });
 
-/** Get wallet for logged-in user */
-export async function getWallet(req: Request, res: Response) {
-  const userId = (req as any).user.id;
+/* =================================================
+ * WALLET CREDIT (WEBHOOK)
+ * ================================================= */
 
-  const { data, error } = await supabaseAdmin
-    .from("wallets")
-    .select("*")
-    .eq("user_id", userId)
-    .single();
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json(data);
-}
-
-/** Initialize Paystack Payment */
-export async function initPayment(req: Request, res: Response) {
-  const userId = (req as any).user.id;
-  const { amount, email } = req.body;
-
-  try {
-    const response = await paystack.post("/transaction/initialize", {
-      email,
-      amount: Number(amount) * 100,
-      metadata: { userId },
-    });
-
-    res.json(response.data);
-  } catch (err: any) {
-    res.status(500).json({ error: err?.response?.data || err.message });
-  }
-}
-
-/** Paystack Webhook Handler */
 export async function handleWebhook(req: Request, res: Response) {
   const signature = req.headers["x-paystack-signature"] as string;
 
@@ -71,55 +41,54 @@ export async function handleWebhook(req: Request, res: Response) {
       .eq("user_id", userId)
       .single();
 
-    if (wallet) {
-      const credited = Number(data.amount) / 100;
-      const newBalance = Number(wallet.balance) + credited;
+    if (!wallet) return res.sendStatus(200);
 
-      await supabaseAdmin
-        .from("wallets")
-        .update({ balance: newBalance })
-        .eq("id", wallet.id);
+    const credited = Number(data.amount) / 100;
+    const newBalance = Number(wallet.balance) + credited;
 
-      await supabaseAdmin.from("wallet_transactions").insert([
-        {
-          wallet_id: wallet.id,
-          type: "credit",
-          amount: credited,
-          reference: data.reference,
-          status: "completed",
-          created_at: new Date().toISOString(),
-        },
-      ]);
+    await supabaseAdmin
+      .from("wallets")
+      .update({ balance: newBalance })
+      .eq("id", wallet.id);
 
-      // 🔔 Notify user
-      const payload: NotificationPayload = {
-        title: "Wallet Credited",
-        message: `Your wallet has been credited with ₦${credited}.`,
-        type: "wallet",
-        entityId: wallet.id,
-        payload: { newBalance },
-      };
+    await supabaseAdmin.from("wallet_transactions").insert({
+      wallet_id: wallet.id,
+      type: "credit",
+      amount: credited,
+      reference: data.reference,
+      status: "completed",
+    });
 
-      await NotificationService.sendToUser(userId, payload);
-    }
+    // 🔔 EMIT SIGNAL
+    await handleSignal({
+      type: "wallet.funded",
+      schemaVersion: 1,
+      source: "wallet",
+      walletId: wallet.id,
+      userId,
+      amount: credited,
+      balance: newBalance,
+      method: "paystack",
+      timestamp: new Date().toISOString(),
+    });
   }
 
   res.sendStatus(200);
 }
 
-/** Manually credit wallet */
+/* =================================================
+ * MANUAL CREDIT / DEBIT
+ * ================================================= */
+
 export async function creditWallet(req: Request, res: Response) {
-  const userId = (req as any).user.id;
+  const userId = req.user!.id;
   const { amount, reference } = req.body;
 
-  const { data: wallet, error: walletError } = await supabaseAdmin
+  const { data: wallet } = await supabaseAdmin
     .from("wallets")
     .select("*")
     .eq("user_id", userId)
     .single();
-
-  if (walletError || !wallet)
-    return res.status(404).json({ error: "Wallet not found" });
 
   const newBalance = Number(wallet.balance) + Number(amount);
 
@@ -128,51 +97,30 @@ export async function creditWallet(req: Request, res: Response) {
     .update({ balance: newBalance })
     .eq("id", wallet.id);
 
-  const { data: tx } = await supabaseAdmin
-    .from("wallet_transactions")
-    .insert([
-      {
-        wallet_id: wallet.id,
-        type: "credit",
-        amount,
-        reference,
-        status: "completed",
-        created_at: new Date().toISOString(),
-      },
-    ])
-    .select()
-    .single();
-
-  // 🔔 Notify user
-  const payload: NotificationPayload = {
-    title: "Wallet Credited",
-    message: `Your wallet has been manually credited with ₦${amount}.`,
-    type: "wallet",
-    entityId: wallet.id,
-    payload: { newBalance, transaction: tx },
-  };
-
-  await NotificationService.sendToUser(userId, payload);
-
-  res.json({
-    wallet: { ...wallet, balance: newBalance },
-    transaction: tx,
+  await handleSignal({
+    type: "wallet.credited",
+    schemaVersion: 1,
+    source: "wallet",
+    walletId: wallet.id,
+    userId,
+    amount,
+    balance: newBalance,
+    reference,
+    timestamp: new Date().toISOString(),
   });
+
+  res.json({ balance: newBalance });
 }
 
-/** Debit wallet */
 export async function debitWallet(req: Request, res: Response) {
-  const userId = (req as any).user.id;
+  const userId = req.user!.id;
   const { amount, reference } = req.body;
 
-  const { data: wallet, error: walletError } = await supabaseAdmin
+  const { data: wallet } = await supabaseAdmin
     .from("wallets")
     .select("*")
     .eq("user_id", userId)
     .single();
-
-  if (walletError || !wallet)
-    return res.status(404).json({ error: "Wallet not found" });
 
   if (Number(wallet.balance) < Number(amount))
     return res.status(400).json({ error: "Insufficient funds" });
@@ -184,34 +132,17 @@ export async function debitWallet(req: Request, res: Response) {
     .update({ balance: newBalance })
     .eq("id", wallet.id);
 
-  const { data: tx } = await supabaseAdmin
-    .from("wallet_transactions")
-    .insert([
-      {
-        wallet_id: wallet.id,
-        type: "debit",
-        amount,
-        reference,
-        status: "completed",
-        created_at: new Date().toISOString(),
-      },
-    ])
-    .select()
-    .single();
-
-  // 🔔 Notify user
-  const payload: NotificationPayload = {
-    title: "Wallet Debited",
-    message: `Your wallet has been debited by ₦${amount}.`,
-    type: "wallet",
-    entityId: wallet.id,
-    payload: { newBalance, transaction: tx },
-  };
-
-  await NotificationService.sendToUser(userId, payload);
-
-  res.json({
-    wallet: { ...wallet, balance: newBalance },
-    transaction: tx,
+  await handleSignal({
+    type: "wallet.debited",
+    schemaVersion: 1,
+    source: "wallet",
+    walletId: wallet.id,
+    userId,
+    amount,
+    balance: newBalance,
+    reference,
+    timestamp: new Date().toISOString(),
   });
+
+  res.json({ balance: newBalance });
 }
