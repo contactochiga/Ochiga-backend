@@ -1,6 +1,8 @@
-import { Signal } from "../signal.types";
-import { Intent } from "../intent.types";
-import { INTENT_SCHEMA_VERSION } from "../contracts";
+// src/core/control-plane/policies/visitor.policy.ts
+
+import { Signal } from "../contracts/signal.types";
+import { Intent } from "../contracts/intent.types";
+import { INTENT_SCHEMA_VERSION } from "../contracts/versions";
 
 export function visitorPolicy(signal: Signal): Intent[] {
   if (signal.type !== "visitor.arrived") return [];
