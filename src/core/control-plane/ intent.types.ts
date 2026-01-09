@@ -1,4 +1,4 @@
-import { INTENT_SCHEMA_VERSION } from "./contracts";
+import { INTENT_SCHEMA_VERSION } from "./versions";
 
 export type IntentTarget = "device" | "notification" | "system";
 
