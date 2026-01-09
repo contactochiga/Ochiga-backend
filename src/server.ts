@@ -34,6 +34,7 @@ import { initMqttBridge } from "./device/bridge";
 // ---------------------------
 import { startWorkers as startAutomationWorkers } from "./workers/automationWorker";
 import { startIntentWorker } from "./workers/intentWorker";
+import { startIntentDlqWorker } from "./workers/intentDlqWorker";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -83,17 +84,17 @@ httpServer.listen(PORT, async () => {
   }
 
   // ---------------------------
-  // START EVENT PROCESSOR (MQTT → SIGNALS)
+  // START EVENT PROCESSOR
   // ---------------------------
   try {
-    startEventProcessor(); // non-blocking
+    startEventProcessor();
     console.log("🟢 Event processor started");
   } catch (error) {
     console.error("🔴 Event processor failed →", error);
   }
 
   // ---------------------------
-  // START MQTT BRIDGE (OUTBOUND)
+  // START MQTT BRIDGE
   // ---------------------------
   try {
     await initMqttBridge();
@@ -113,12 +114,22 @@ httpServer.listen(PORT, async () => {
   }
 
   // ---------------------------
-  // START INTENT WORKER (EXECUTION PLANE)
+  // START INTENT WORKER (Execution Plane)
   // ---------------------------
   try {
     await startIntentWorker();
-    console.log("🧠 Intent worker (Execution Plane) started");
+    console.log("🧠 Intent worker started");
   } catch (error) {
     console.error("🔴 Intent worker startup failed →", error);
+  }
+
+  // ---------------------------
+  // START DLQ WORKER (Safety Plane)
+  // ---------------------------
+  try {
+    await startIntentDlqWorker();
+    console.log("🧯 Intent DLQ worker started");
+  } catch (error) {
+    console.error("🔴 DLQ worker startup failed →", error);
   }
 });
