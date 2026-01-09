@@ -1,15 +1,14 @@
 // src/workers/intentDlqWorker.ts
-
 import { Worker, Queue, Job } from "bullmq";
-import IORedis from "ioredis";
-
 import { Intent } from "../core/control-plane/contracts/intent.types";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
 // ------------------------------------
-// Redis connection
+// Redis connection (BullMQ SAFE)
 // ------------------------------------
-const connection = new IORedis(process.env.REDIS_URL!);
+const connection = {
+  url: process.env.REDIS_URL!,
+};
 
 // ------------------------------------
 // DLQ Queue
@@ -33,16 +32,12 @@ export function startIntentDlqWorker() {
         attempts: job.attemptsMade,
       });
 
-      // 1️⃣ Persist failed intent for audit & replay
       await supabaseAdmin.from("failed_intents").insert({
         intent,
         reason: job.failedReason,
         attempts: job.attemptsMade,
         failed_at: new Date().toISOString(),
       });
-
-      // 2️⃣ (Optional) Notify ops / admins
-      // await notifyOpsTeam(intent);
 
       return true;
     },
