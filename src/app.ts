@@ -4,44 +4,53 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 
+// -------------------------------
 // ROUTES
+// -------------------------------
 import authRoutes from "./routes/auth";
 import estatesRoutes from "./routes/estates";
 import residentsRoutes from "./routes/residents";
 import devicesRoutes from "./routes/devices";
 import onboardingRoutes from "./routes/onboarding";
-import visitorRoutes from "./routes/visitors"; // <-- NEW Visitor Access 2.0
+import visitorRoutes from "./routes/visitors";
+import signalRoutes from "./routes/signals"; // ✅ CONTROL PLANE ENTRY
 
 const app = express();
 
-// Security Middleware
+// -------------------------------
+// SECURITY MIDDLEWARE
+// -------------------------------
 app.use(helmet());
 
 // -------------------------------
-// ⭐ FIXED CORS FOR CODESPACES
+// ⭐ CORS (Codespaces + Local)
 // -------------------------------
 app.use(
   cors({
     origin: [
       "https://crispy-succotash-x5799wg49j5qhpxx6-3000.app.github.dev",
       /\.(github|githubusercontent)\.dev$/,
-      "http://localhost:3000"
+      "http://localhost:3000",
     ],
     credentials: true,
   })
 );
 
+// -------------------------------
+// BODY PARSING & LOGGING
+// -------------------------------
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 
-// Root Route
-app.get("/", (req, res) => {
+// -------------------------------
+// ROOT & HEALTH
+// -------------------------------
+app.get("/", (_req, res) => {
   res.send("🔥 Ochiga Backend API is running");
 });
 
-// Health Check
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     message: "Ochiga Backend Connected 🔥",
@@ -50,16 +59,19 @@ app.get("/health", (req, res) => {
 });
 
 // -------------------------------
-// Mount Routes
+// ROUTE MOUNTING
 // -------------------------------
 app.use("/auth", authRoutes);
 app.use("/auth/onboard", onboardingRoutes);
 app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);
 app.use("/devices", devicesRoutes);
-app.use("/visitors", visitorRoutes); // <-- NEW
+app.use("/visitors", visitorRoutes);
+app.use("/signals", signalRoutes); // ✅ HTTP SIGNAL INGESTION
 
-// 404 Handler
+// -------------------------------
+// 404 HANDLER
+// -------------------------------
 app.use((req, res) => {
   res.status(404).json({
     status: "error",
