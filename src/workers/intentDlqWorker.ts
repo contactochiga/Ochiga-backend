@@ -1,14 +1,13 @@
 // src/workers/intentDlqWorker.ts
 import { Worker, Queue, Job } from "bullmq";
+import IORedis from "ioredis";
 import { Intent } from "../core/control-plane/contracts/intent.types";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
 // ------------------------------------
-// Redis connection (BullMQ SAFE)
+// Redis connection
 // ------------------------------------
-const connection = {
-  url: process.env.REDIS_URL!,
-};
+const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379");
 
 // ------------------------------------
 // DLQ Queue
@@ -26,7 +25,7 @@ export function startIntentDlqWorker() {
     async (job: Job<Intent>) => {
       const intent = job.data;
 
-      console.error("🧨 INTENT MOVED TO DLQ", {
+      console.error("🧨 INTENT SENT TO DLQ", {
         intent,
         reason: job.failedReason,
         attempts: job.attemptsMade,
