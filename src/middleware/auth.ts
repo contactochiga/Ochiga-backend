@@ -8,7 +8,7 @@ if (!APP_JWT_SECRET) {
 }
 
 /* ---------------------------------------------------------
- * TYPES
+ * AUTH USER (SINGLE SOURCE OF TRUTH)
  * --------------------------------------------------------- */
 export interface AuthUser {
   id: string;
@@ -20,8 +20,7 @@ export interface AuthUser {
 }
 
 /* ---------------------------------------------------------
- * 🔥 EXPRESS DECLARATION MERGING (CRITICAL)
- * This makes req.user visible everywhere
+ * 🔥 EXPRESS DECLARATION MERGING (ONLY PLACE)
  * --------------------------------------------------------- */
 declare global {
   namespace Express {
@@ -37,7 +36,6 @@ declare global {
 function extractToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
-
   const [, token] = authHeader.split(" ");
   return token || null;
 }
@@ -73,8 +71,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 /* ---------------------------------------------------------
- * ROLE GUARD (LOW-LEVEL)
- * Prefer using middleware/roles.ts in routes
+ * LOW-LEVEL ROLE GUARD (ADMIN OVERRIDE)
  * --------------------------------------------------------- */
 export function requireRole(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -84,7 +81,10 @@ export function requireRole(...roles: UserRole[]) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    if (!roles.includes(user.role) && user.role !== "system_admin") {
+    // 👑 Platform admin override
+    if (user.role === "admin") return next();
+
+    if (!roles.includes(user.role)) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
 
