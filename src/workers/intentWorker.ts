@@ -1,5 +1,7 @@
 // src/workers/intentWorker.ts
 import { Worker, Queue, Job } from "bullmq";
+import IORedis from "ioredis";
+
 import {
   Intent,
   NotifyIntent,
@@ -11,11 +13,9 @@ import { publishDeviceAction } from "../device/bridge";
 import { intentDlqQueue } from "./intentDlqWorker";
 
 // ------------------------------------
-// Redis connection (BullMQ SAFE)
+// Redis connection
 // ------------------------------------
-const connection = {
-  url: process.env.REDIS_URL!,
-};
+const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379");
 
 // ------------------------------------
 // Intent Queue
@@ -25,19 +25,23 @@ export const intentQueue = new Queue<Intent>("intents", {
 });
 
 // ------------------------------------
-// Enqueue Intent
+// Enqueue Intent (🔥 FIXED)
 // ------------------------------------
 export async function enqueueIntent(intent: Intent) {
-  await intentQueue.add(intent, {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 2000 },
-    removeOnComplete: true,
-    removeOnFail: false, // REQUIRED for DLQ
-  });
+  await intentQueue.add(
+    "execute",
+    intent,
+    {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 2000 },
+      removeOnComplete: true,
+      removeOnFail: false, // keep for DLQ
+    }
+  );
 }
 
 // ------------------------------------
-// Worker (Execution Plane)
+// Worker
 // ------------------------------------
 export function startIntentWorker() {
   const worker = new Worker<Intent>(
@@ -62,15 +66,17 @@ export function startIntentWorker() {
   );
 
   // ------------------------------------
-  // DLQ HANDOFF
+  // DLQ HANDOFF (🔥 FIXED)
   // ------------------------------------
   worker.on("failed", async (job) => {
     if (!job) return;
 
     if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
-      await intentDlqQueue.add(job.data, {
-        removeOnComplete: true,
-      });
+      await intentDlqQueue.add(
+        "dlq",
+        job.data,
+        { removeOnComplete: true }
+      );
     }
   });
 
