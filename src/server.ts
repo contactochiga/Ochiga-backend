@@ -4,22 +4,34 @@ import { Server as IOServer } from "socket.io";
 import dotenv from "dotenv";
 dotenv.config();
 
+// ---------------------------
 // EXPRESS APP
+// ---------------------------
 import app from "./app";
 
+// ---------------------------
 // ENV + PORT CONFIG
+// ---------------------------
 import { PORT } from "./config/env";
 
+// ---------------------------
 // REDIS
+// ---------------------------
 import { redis } from "./config/redis";
 
+// ---------------------------
 // BACKGROUND SERVICES
+// ---------------------------
 import { startEventProcessor } from "./event-processor/eventProcessor";
 
+// ---------------------------
 // MQTT BRIDGE
+// ---------------------------
 import { initMqttBridge } from "./device/bridge";
 
+// ---------------------------
 // WORKERS
+// ---------------------------
 import { startWorkers as startAutomationWorkers } from "./workers/automationWorker";
 import { startIntentWorker } from "./workers/intentWorker";
 
@@ -71,7 +83,7 @@ httpServer.listen(PORT, async () => {
   }
 
   // ---------------------------
-  // START EVENT PROCESSOR
+  // START EVENT PROCESSOR (MQTT → SIGNALS)
   // ---------------------------
   try {
     startEventProcessor(); // non-blocking
@@ -81,7 +93,7 @@ httpServer.listen(PORT, async () => {
   }
 
   // ---------------------------
-  // START MQTT BRIDGE
+  // START MQTT BRIDGE (OUTBOUND)
   // ---------------------------
   try {
     await initMqttBridge();
@@ -101,11 +113,11 @@ httpServer.listen(PORT, async () => {
   }
 
   // ---------------------------
-  // START INTENT WORKER (CONTROL PLANE)
+  // START INTENT WORKER (EXECUTION PLANE)
   // ---------------------------
   try {
     await startIntentWorker();
-    console.log("🧠 Intent worker (Control Plane) started");
+    console.log("🧠 Intent worker (Execution Plane) started");
   } catch (error) {
     console.error("🔴 Intent worker startup failed →", error);
   }
