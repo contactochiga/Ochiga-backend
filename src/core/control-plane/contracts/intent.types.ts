@@ -1,4 +1,5 @@
 import { INTENT_SCHEMA_VERSION } from "./versions";
+import { NotificationType } from "../../../services/NotificationService";
 
 export type IntentTarget = "device" | "notification" | "system";
 
@@ -18,6 +19,10 @@ export interface BaseIntent {
   context: IntentContext;
 }
 
+/**
+ * Notification Intent
+ * MUST align with NotificationService
+ */
 export interface NotifyIntent extends BaseIntent {
   target: "notification";
   audience: "resident" | "manager" | "operator";
@@ -26,10 +31,15 @@ export interface NotifyIntent extends BaseIntent {
   payload: {
     title: string;
     message: string;
-    type: string;
+    type: NotificationType; // ✅ FIXED
+    payload?: Record<string, any>;
+    entityId?: string;
   };
 }
 
+/**
+ * Device Command Intent
+ */
 export interface DeviceCommandIntent extends BaseIntent {
   target: "device";
   deviceId: string;
