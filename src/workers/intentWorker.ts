@@ -1,5 +1,3 @@
-// src/workers/intentWorker.ts
-
 import { Worker, Queue } from "bullmq";
 import IORedis from "ioredis";
 
@@ -13,7 +11,7 @@ import { NotificationService } from "../services/NotificationService";
 import { publishDeviceAction } from "../device/bridge";
 
 // ------------------------------------
-// Redis connection (Execution Plane)
+// Redis connection
 // ------------------------------------
 const connection = new IORedis(process.env.REDIS_URL!);
 
@@ -32,12 +30,12 @@ export async function enqueueIntent(intent: Intent) {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
     removeOnComplete: true,
-    removeOnFail: false, // DLQ-ready
+    removeOnFail: false, // DLQ ready
   });
 }
 
 // ------------------------------------
-// Intent Worker
+// Worker (Execution Plane)
 // ------------------------------------
 export function startIntentWorker() {
   return new Worker<Intent>(
@@ -63,9 +61,8 @@ export function startIntentWorker() {
 }
 
 // ------------------------------------
-// Handlers
+// Notification Handler
 // ------------------------------------
-
 async function handleNotificationIntent(intent: NotifyIntent) {
   const { scope, referenceId, payload } = intent;
 
@@ -80,7 +77,7 @@ async function handleNotificationIntent(intent: NotifyIntent) {
       return NotificationService.sendToEstate(referenceId, payload);
 
     case "region":
-      return NotificationService.sendToRegion(referenceId, payload);
+      return NotificationService.sendToRole(referenceId, "resident", payload);
 
     default: {
       const _never: never = scope;
@@ -89,6 +86,9 @@ async function handleNotificationIntent(intent: NotifyIntent) {
   }
 }
 
+// ------------------------------------
+// Device Handler
+// ------------------------------------
 async function handleDeviceIntent(intent: DeviceCommandIntent) {
   const topic = `ochiga/device/${intent.deviceId}/set`;
   return publishDeviceAction(topic, intent.command);
