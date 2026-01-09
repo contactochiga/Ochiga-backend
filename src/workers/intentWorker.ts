@@ -13,7 +13,7 @@ import { NotificationService } from "../services/NotificationService";
 import { publishDeviceAction } from "../device/bridge";
 
 // ------------------------------------
-// Redis connection (shared execution plane)
+// Redis connection (Execution Plane)
 // ------------------------------------
 const connection = new IORedis(process.env.REDIS_URL!);
 
@@ -32,12 +32,12 @@ export async function enqueueIntent(intent: Intent) {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
     removeOnComplete: true,
-    removeOnFail: false, // keep failed jobs for DLQ / inspection
+    removeOnFail: false, // DLQ-ready
   });
 }
 
 // ------------------------------------
-// Intent Worker (Execution Plane)
+// Intent Worker
 // ------------------------------------
 export function startIntentWorker() {
   return new Worker<Intent>(
@@ -53,7 +53,6 @@ export function startIntentWorker() {
           return handleDeviceIntent(intent);
 
         default: {
-          // Exhaustiveness guard (future-proof)
           const _never: never = intent;
           throw new Error("Unhandled intent target");
         }
@@ -64,7 +63,7 @@ export function startIntentWorker() {
 }
 
 // ------------------------------------
-// Intent Handlers
+// Handlers
 // ------------------------------------
 
 async function handleNotificationIntent(intent: NotifyIntent) {
