@@ -1,53 +1,39 @@
 // src/event-processor/eventProcessor.ts
 import { mqttClient } from "../mqtt";
-import { handleRoomEvent } from "./handlers/rooms";
+import { handleSignal } from "../core/control-plane";
+import { Signal } from "../core/control-plane/signal.types";
 
-export interface EventPayload {
-  source: "device" | "system";
-  deviceId: string;
-  type: string;
-  payload?: any;
-  timestamp?: string;
-}
-
-export async function processEvent(event: EventPayload): Promise<void> {
-  try {
-    console.log("📥 Incoming event:", event);
-
-    // Dispatch ONLY — no decisions
-    switch (event.type) {
-      case "motion_detected":
-      case "user_left":
-        await handleRoomEvent({
-          deviceId: event.deviceId,
-          type: event.type as any,
-          payload: event.payload,
-        });
-        break;
-
-      default:
-        console.log("ℹ️ No handler for event type:", event.type);
-    }
-  } catch (err) {
-    console.error("❌ Error in processEvent:", err);
-  }
-}
-
+// Start background processor
 export function startEventProcessor() {
-  console.log("🚀 Event Processor started — waiting for real device events...");
+  console.log("🚀 Event Processor started — listening for real device events");
 
+  // Subscribe once
   mqttClient.subscribe("ochiga/events/#", (err) => {
-    if (err) console.error("❌ MQTT subscription failed:", err);
-    else console.log("📡 Subscribed to ochiga/events/#");
+    if (err) {
+      console.error("❌ MQTT subscription failed:", err);
+    } else {
+      console.log("📡 Subscribed to ochiga/events/#");
+    }
   });
 
-  mqttClient.on("message", (topic, message) => {
+  mqttClient.on("message", async (topic, message) => {
     try {
-      const event: EventPayload = JSON.parse(message.toString());
-      console.log(`📩 MQTT Event Received | Topic: ${topic}`);
-      processEvent(event);
+      const raw = JSON.parse(message.toString());
+
+      // 🔹 Normalize into a Signal
+      const signal: Signal = {
+        source: "device",
+        type: raw.type,
+        timestamp: new Date().toISOString(),
+        ...raw,
+      };
+
+      console.log("📥 Signal received:", signal);
+
+      // 🔹 Hand off to Control Plane
+      await handleSignal(signal);
     } catch (err) {
-      console.error("❌ Failed to parse MQTT message:", err);
+      console.error("❌ Failed to process MQTT message:", err);
     }
   });
 }
