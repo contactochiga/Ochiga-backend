@@ -2,17 +2,26 @@ import { Signal } from "./signal.types";
 import { Intent } from "./intent.types";
 
 import { visitorPolicy } from "./policies/visitor.policy";
+import { energyPolicy } from "./policies/energy.policy";
+import { securityPolicy } from "./policies/security.policy";
+
+type Policy = (signal: Signal) => Intent[];
 
 export function evaluateSignal(signal: Signal): Intent[] {
-  const policies = [visitorPolicy];
+  const policies: Policy[] = [
+    visitorPolicy,
+    energyPolicy,
+    securityPolicy,
+  ];
 
   const intents: Intent[] = [];
 
   for (const policy of policies) {
     try {
-      intents.push(...policy(signal));
+      const result = policy(signal);
+      if (Array.isArray(result)) intents.push(...result);
     } catch (err) {
-      console.error("Policy failed safely:", policy.name, err);
+      console.error(`Policy failed safely: ${policy.name}`, err);
     }
   }
 
