@@ -12,6 +12,7 @@ export async function enqueueIntent(intent: Intent) {
   await intentQueue.add("execute", intent, {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
+    removeOnComplete: true,
   });
 }
 
@@ -35,7 +36,7 @@ export function startIntentWorker() {
           );
 
         default:
-          throw new Error("Unknown intent target");
+          throw new Error(`Unknown intent target: ${intent["target"]}`);
       }
     },
     { connection }
