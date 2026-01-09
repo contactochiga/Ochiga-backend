@@ -1,5 +1,7 @@
-import { Signal } from "./signal.types";
-import { Intent } from "./intent.types";
+// src/core/control-plane/decisionEngine.ts
+
+import { Signal } from "./contracts/signal.types";
+import { Intent } from "./contracts/intent.types";
 
 import { visitorPolicy } from "./policies/visitor.policy";
 import { energyPolicy } from "./policies/energy.policy";
@@ -19,9 +21,11 @@ export function evaluateSignal(signal: Signal): Intent[] {
   for (const policy of policies) {
     try {
       const result = policy(signal);
-      if (Array.isArray(result)) intents.push(...result);
+      if (Array.isArray(result)) {
+        intents.push(...result);
+      }
     } catch (err) {
-      console.error(`Policy failed safely: ${policy.name}`, err);
+      console.error(`❌ Policy failed safely: ${policy.name}`, err);
     }
   }
 
