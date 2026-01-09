@@ -9,7 +9,10 @@ export function requireRole(...roles: UserRole[]) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    if (!roles.includes(user.role) && user.role !== "system_admin") {
+    // 👑 Admin bypass
+    if (user.role === "admin") return next();
+
+    if (!roles.includes(user.role)) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
 
