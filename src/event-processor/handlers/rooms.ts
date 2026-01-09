@@ -1,34 +1,60 @@
-import { handleSignal } from "../../core/control-plane";
-import { SIGNAL_SCHEMA_VERSION } from "../../core/control-plane/contracts";
-import { Signal } from "../../core/control-plane/signal.types";
+// src/event-processor/handlers/rooms.ts
 
-export async function handleRoomEvent(event: {
-  deviceId: string;
-  roomId: string;
-  type: "motion_detected" | "user_left";
-}) {
+import { handleSignal } from "../../core/control-plane";
+
+import {
+  SIGNAL_SCHEMA_VERSION,
+} from "../../core/control-plane/contracts/versions";
+
+import {
+  Signal,
+  RoomMotionSignal,
+  RoomEmptySignal,
+} from "../../core/control-plane/contracts/signal.types";
+
+type RoomEvent =
+  | {
+      type: "motion_detected";
+      roomId: string;
+      deviceId: string;
+    }
+  | {
+      type: "user_left";
+      roomId: string;
+    };
+
+/**
+ * Translate low-level room events into Control Plane Signals
+ */
+export async function handleRoomEvent(event: RoomEvent) {
+  const base = {
+    schemaVersion: SIGNAL_SCHEMA_VERSION,
+    source: "device" as const,
+    timestamp: new Date().toISOString(),
+  };
+
   let signal: Signal | null = null;
 
-  if (event.type === "motion_detected") {
-    signal = {
-      schemaVersion: SIGNAL_SCHEMA_VERSION,
-      source: "device",
-      type: "room.motion",
-      timestamp: new Date().toISOString(),
-      roomId: event.roomId,
-      deviceId: event.deviceId,
-    };
+  switch (event.type) {
+    case "motion_detected":
+      signal = {
+        ...base,
+        type: "room.motion",
+        roomId: event.roomId,
+        deviceId: event.deviceId,
+      } satisfies RoomMotionSignal;
+      break;
+
+    case "user_left":
+      signal = {
+        ...base,
+        type: "room.empty",
+        roomId: event.roomId,
+      } satisfies RoomEmptySignal;
+      break;
   }
 
-  if (event.type === "user_left") {
-    signal = {
-      schemaVersion: SIGNAL_SCHEMA_VERSION,
-      source: "device",
-      type: "room.empty",
-      timestamp: new Date().toISOString(),
-      roomId: event.roomId,
-    };
+  if (signal) {
+    await handleSignal(signal);
   }
-
-  if (signal) await handleSignal(signal);
 }
