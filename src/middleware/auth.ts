@@ -20,7 +20,8 @@ export interface AuthUser {
 }
 
 /* ---------------------------------------------------------
- * 🔥 EXPRESS DECLARATION MERGING (CRITICAL FIX)
+ * 🔥 EXPRESS DECLARATION MERGING (CRITICAL)
+ * This makes req.user visible everywhere
  * --------------------------------------------------------- */
 declare global {
   namespace Express {
@@ -36,6 +37,7 @@ declare global {
 function extractToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
+
   const [, token] = authHeader.split(" ");
   return token || null;
 }
@@ -71,16 +73,18 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 /* ---------------------------------------------------------
- * ROLE GUARDS
+ * ROLE GUARD (LOW-LEVEL)
+ * Prefer using middleware/roles.ts in routes
  * --------------------------------------------------------- */
 export function requireRole(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = req.user;
+
     if (!user) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    if (!roles.includes(user.role) && user.role !== "admin") {
+    if (!roles.includes(user.role) && user.role !== "system_admin") {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
 
@@ -89,7 +93,7 @@ export function requireRole(...roles: UserRole[]) {
 }
 
 /* ---------------------------------------------------------
- * OPTIONAL USER ATTACH
+ * OPTIONAL USER ATTACH (NON-BLOCKING)
  * --------------------------------------------------------- */
 export function attachUser(req: Request, _res: Response, next: NextFunction) {
   try {
