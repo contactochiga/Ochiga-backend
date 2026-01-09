@@ -1,3 +1,5 @@
+// src/workers/intentWorker.ts
+
 import { Worker, Queue } from "bullmq";
 import IORedis from "ioredis";
 
@@ -9,6 +11,7 @@ import {
 
 import { NotificationService } from "../services/NotificationService";
 import { publishDeviceAction } from "../device/bridge";
+import { intentDlqQueue } from "./intentDlqWorker";
 
 // ------------------------------------
 // Redis connection
@@ -30,7 +33,7 @@ export async function enqueueIntent(intent: Intent) {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
     removeOnComplete: true,
-    removeOnFail: false, // DLQ ready
+    removeOnFail: false, // REQUIRED for DLQ
   });
 }
 
@@ -38,7 +41,7 @@ export async function enqueueIntent(intent: Intent) {
 // Worker (Execution Plane)
 // ------------------------------------
 export function startIntentWorker() {
-  return new Worker<Intent>(
+  const worker = new Worker<Intent>(
     "intents",
     async (job) => {
       const intent = job.data;
@@ -58,6 +61,21 @@ export function startIntentWorker() {
     },
     { connection }
   );
+
+  // ------------------------------------
+  // DLQ HANDOFF (after retries exhausted)
+  // ------------------------------------
+  worker.on("failed", async (job) => {
+    if (!job) return;
+
+    if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
+      await intentDlqQueue.add("dlq", job.data, {
+        removeOnComplete: true,
+      });
+    }
+  });
+
+  return worker;
 }
 
 // ------------------------------------
@@ -77,6 +95,7 @@ async function handleNotificationIntent(intent: NotifyIntent) {
       return NotificationService.sendToEstate(referenceId, payload);
 
     case "region":
+      // region == estate-level ops routing for now
       return NotificationService.sendToRole(referenceId, "resident", payload);
 
     default: {
