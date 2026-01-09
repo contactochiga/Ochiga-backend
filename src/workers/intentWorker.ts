@@ -1,8 +1,5 @@
 // src/workers/intentWorker.ts
-
-import { Worker, Queue } from "bullmq";
-import IORedis from "ioredis";
-
+import { Worker, Queue, Job } from "bullmq";
 import {
   Intent,
   NotifyIntent,
@@ -14,9 +11,11 @@ import { publishDeviceAction } from "../device/bridge";
 import { intentDlqQueue } from "./intentDlqWorker";
 
 // ------------------------------------
-// Redis connection
+// Redis connection (BullMQ SAFE)
 // ------------------------------------
-const connection = new IORedis(process.env.REDIS_URL!);
+const connection = {
+  url: process.env.REDIS_URL!,
+};
 
 // ------------------------------------
 // Intent Queue
@@ -29,7 +28,7 @@ export const intentQueue = new Queue<Intent>("intents", {
 // Enqueue Intent
 // ------------------------------------
 export async function enqueueIntent(intent: Intent) {
-  await intentQueue.add("execute", intent, {
+  await intentQueue.add(intent, {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
     removeOnComplete: true,
@@ -43,7 +42,7 @@ export async function enqueueIntent(intent: Intent) {
 export function startIntentWorker() {
   const worker = new Worker<Intent>(
     "intents",
-    async (job) => {
+    async (job: Job<Intent>) => {
       const intent = job.data;
 
       switch (intent.target) {
@@ -63,13 +62,13 @@ export function startIntentWorker() {
   );
 
   // ------------------------------------
-  // DLQ HANDOFF (after retries exhausted)
+  // DLQ HANDOFF
   // ------------------------------------
   worker.on("failed", async (job) => {
     if (!job) return;
 
     if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
-      await intentDlqQueue.add("dlq", job.data, {
+      await intentDlqQueue.add(job.data, {
         removeOnComplete: true,
       });
     }
@@ -95,7 +94,6 @@ async function handleNotificationIntent(intent: NotifyIntent) {
       return NotificationService.sendToEstate(referenceId, payload);
 
     case "region":
-      // region == estate-level ops routing for now
       return NotificationService.sendToRole(referenceId, "resident", payload);
 
     default: {
