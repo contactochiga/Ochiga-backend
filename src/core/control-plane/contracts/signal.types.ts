@@ -1,5 +1,3 @@
-// src/core/control-plane/contracts/signal.types.ts
-
 import { SIGNAL_SCHEMA_VERSION } from "./versions";
 import { DeviceSignal } from "./device.signal.types";
 
@@ -40,4 +38,4 @@ export type Signal =
   | RoomMotionSignal
   | RoomEmptySignal
   | VisitorArrivedSignal
-  | DeviceSignal; // 👈 THIS IS THE FIX
+  | DeviceSignal;
