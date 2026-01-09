@@ -1,12 +1,6 @@
-// src/core/control-plane/signal.types.ts
+import { SIGNAL_SCHEMA_VERSION } from "./contracts";
 
-export const SIGNAL_SCHEMA_VERSION = "v1";
-
-export type SignalSource =
-  | "device"
-  | "system"
-  | "user"
-  | "network";
+export type SignalSource = "device" | "system" | "user" | "network";
 
 export interface BaseSignal {
   schemaVersion: typeof SIGNAL_SCHEMA_VERSION;
