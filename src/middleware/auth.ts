@@ -1,11 +1,7 @@
-// src/middleware/auth.ts
-
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
+import { UserRole } from "../types/user";
 
-/* ---------------------------------------------------------
- * ENV
- * --------------------------------------------------------- */
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
 if (!APP_JWT_SECRET) {
   console.warn("⚠️ APP_JWT_SECRET is missing in .env");
@@ -14,13 +10,6 @@ if (!APP_JWT_SECRET) {
 /* ---------------------------------------------------------
  * TYPES
  * --------------------------------------------------------- */
-
-/**
- * Canonical user type used across backend
- * IMPORTANT: role is now a UNION, not string
- */
-export type UserRole = "resident" | "manager" | "operator" | "estate_admin";
-
 export interface AuthUser {
   id: string;
   email?: string;
@@ -30,128 +19,87 @@ export interface AuthUser {
   home_id?: string;
 }
 
-/**
- * Express request augmented with auth context
- */
-export interface AuthRequest extends Request {
-  user?: AuthUser;
+/* ---------------------------------------------------------
+ * 🔥 EXPRESS DECLARATION MERGING (CRITICAL FIX)
+ * --------------------------------------------------------- */
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthUser;
+    }
+  }
 }
 
 /* ---------------------------------------------------------
- * INTERNAL: Token extraction + verification
+ * TOKEN EXTRACTION
  * --------------------------------------------------------- */
 function extractToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
-
-  const [scheme, token] = authHeader.split(" ");
-  if (scheme !== "Bearer" || !token) return null;
-
-  return token;
-}
-
-function decodeToken(token: string): AuthUser {
-  return jwt.verify(token, APP_JWT_SECRET) as AuthUser;
+  const [, token] = authHeader.split(" ");
+  return token || null;
 }
 
 /* ---------------------------------------------------------
- * CORE: Attach user or fail
+ * VERIFY TOKEN
  * --------------------------------------------------------- */
-function authenticate(req: AuthRequest, res: Response): AuthUser | null {
+function verifyToken(req: Request, res: Response): AuthUser | null {
   try {
     const token = extractToken(req);
     if (!token) {
-      res.status(401).json({ error: "Missing or invalid Authorization header" });
+      res.status(401).json({ error: "Missing token" });
       return null;
     }
 
-    const user = decodeToken(token);
-    req.user = user;
-    return user;
+    const decoded = jwt.verify(token, APP_JWT_SECRET) as AuthUser;
+    req.user = decoded;
+    return decoded;
   } catch (err) {
-    console.error("JWT verification failed:", err);
+    console.error("JWT Error:", err);
     res.status(401).json({ error: "Invalid or expired token" });
     return null;
   }
 }
 
 /* ---------------------------------------------------------
- * 1️⃣ requireAuth — must be logged in
+ * REQUIRE AUTH
  * --------------------------------------------------------- */
-export function requireAuth(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) {
-  const user = authenticate(req, res);
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const user = verifyToken(req, res);
   if (!user) return;
   next();
 }
 
 /* ---------------------------------------------------------
- * 2️⃣ Role Guards
+ * ROLE GUARDS
  * --------------------------------------------------------- */
-export function requireResident(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) {
-  const user = authenticate(req, res);
-  if (!user) return;
+export function requireRole(...roles: UserRole[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
 
-  if (user.role !== "resident") {
-    return res.status(403).json({ error: "Residents only" });
-  }
+    if (!roles.includes(user.role) && user.role !== "admin") {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
 
-  next();
-}
-
-export function requireManager(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) {
-  const user = authenticate(req, res);
-  if (!user) return;
-
-  if (user.role !== "manager" && user.role !== "estate_admin") {
-    return res.status(403).json({ error: "Managers only" });
-  }
-
-  next();
-}
-
-export function requireOperator(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) {
-  const user = authenticate(req, res);
-  if (!user) return;
-
-  if (user.role !== "operator") {
-    return res.status(403).json({ error: "Operators only" });
-  }
-
-  next();
+    next();
+  };
 }
 
 /* ---------------------------------------------------------
- * 3️⃣ attachUser — optional auth (non-blocking)
+ * OPTIONAL USER ATTACH
  * --------------------------------------------------------- */
-export function attachUser(
-  req: AuthRequest,
-  _res: Response,
-  next: NextFunction
-) {
+export function attachUser(req: Request, _res: Response, next: NextFunction) {
   try {
     const token = extractToken(req);
     if (!token) return next();
 
-    const user = decodeToken(token);
-    req.user = user;
+    const decoded = jwt.verify(token, APP_JWT_SECRET) as AuthUser;
+    req.user = decoded;
   } catch {
-    // silently ignore invalid tokens
+    // ignore invalid token
   }
 
   next();
