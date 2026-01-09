@@ -1,28 +1,30 @@
 // src/routes/geo.ts
 import { Router } from "express";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
+import { requireRole } from "../middleware/roles";
 
 import {
   setEstateBoundary,
   getEstateBoundary,
   updateVisitorLocation,
-  updateDeviceLocation
+  updateDeviceLocation,
 } from "../controllers/geoController";
 
 const router = Router();
 
 /**
  * POST /geo/estate/:estateId
- * Estate admins set/update estate boundary coordinates
+ * Estate admins / managers set or update estate boundary coordinates
  */
 router.post(
   "/estate/:estateId",
   requireAuth,
-  async (req: AuthRequest, res) => {
+  requireRole("estate_admin", "manager", "operator"),
+  async (req, res) => {
     try {
       return setEstateBoundary(req, res);
     } catch (err: any) {
-      console.error("Error in /geo/estate route:", err);
+      console.error("Error in POST /geo/estate:", err);
       return res.status(500).json({ error: err.message });
     }
   }
@@ -35,11 +37,11 @@ router.post(
 router.get(
   "/estate/:estateId",
   requireAuth,
-  async (req: AuthRequest, res) => {
+  async (req, res) => {
     try {
       return getEstateBoundary(req, res);
     } catch (err: any) {
-      console.error("Error in GET /geo/estate route:", err);
+      console.error("Error in GET /geo/estate:", err);
       return res.status(500).json({ error: err.message });
     }
   }
@@ -48,6 +50,7 @@ router.get(
 /**
  * POST /geo/visitor/:visitorId
  * Update live visitor location
+ * (used by QR check-in, gate scanners, etc.)
  */
 router.post(
   "/visitor/:visitorId",
@@ -55,7 +58,7 @@ router.post(
     try {
       return updateVisitorLocation(req, res);
     } catch (err: any) {
-      console.error("Error in /geo/visitor route:", err);
+      console.error("Error in POST /geo/visitor:", err);
       return res.status(500).json({ error: err.message });
     }
   }
@@ -68,11 +71,12 @@ router.post(
 router.post(
   "/device/:deviceId",
   requireAuth,
+  requireRole("estate_admin", "manager", "operator"),
   async (req, res) => {
     try {
       return updateDeviceLocation(req, res);
     } catch (err: any) {
-      console.error("Error in /geo/device route:", err);
+      console.error("Error in POST /geo/device:", err);
       return res.status(500).json({ error: err.message });
     }
   }
