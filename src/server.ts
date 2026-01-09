@@ -20,7 +20,8 @@ import { startEventProcessor } from "./event-processor/eventProcessor";
 import { initMqttBridge } from "./device/bridge";
 
 // WORKERS
-import { startWorkers } from "./workers/automationWorker";
+import { startWorkers as startAutomationWorkers } from "./workers/automationWorker";
+import { startIntentWorker } from "./workers/intentWorker";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -90,12 +91,22 @@ httpServer.listen(PORT, async () => {
   }
 
   // ---------------------------
-  // START WORKERS
+  // START AUTOMATION WORKERS
   // ---------------------------
   try {
-    await startWorkers();
-    console.log("🟢 Workers started");
+    await startAutomationWorkers();
+    console.log("🟢 Automation workers started");
   } catch (error) {
-    console.error("🔴 Worker startup failed →", error);
+    console.error("🔴 Automation worker startup failed →", error);
+  }
+
+  // ---------------------------
+  // START INTENT WORKER (CONTROL PLANE)
+  // ---------------------------
+  try {
+    await startIntentWorker();
+    console.log("🧠 Intent worker (Control Plane) started");
+  } catch (error) {
+    console.error("🔴 Intent worker startup failed →", error);
   }
 });
