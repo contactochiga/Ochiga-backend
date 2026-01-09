@@ -1,6 +1,6 @@
 // src/routes/notifications.ts
 import express from "express";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
 const router = express.Router();
@@ -8,16 +8,23 @@ const router = express.Router();
 // =============================
 // GET notifications for user
 // =============================
-router.get("/", requireAuth, async (req: AuthRequest, res) => {
-  const userId = req.user!.id;
+router.get("/", requireAuth, async (req, res) => {
+  const user = req.user;
+
+  if (!user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
 
   const { data, error } = await supabaseAdmin
     .from("notifications")
     .select("*")
-    .eq("user_id", userId)
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
   res.json(data);
 });
 
@@ -25,7 +32,12 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 // MARK notification as read
 // =============================
 router.post("/read/:id", requireAuth, async (req, res) => {
+  const user = req.user;
   const { id } = req.params;
+
+  if (!user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
 
   const { data, error } = await supabaseAdmin
     .from("notifications")
@@ -34,10 +46,14 @@ router.post("/read/:id", requireAuth, async (req, res) => {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
+    .eq("user_id", user.id) // 🔒 ownership enforcement
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
   res.json(data);
 });
 
