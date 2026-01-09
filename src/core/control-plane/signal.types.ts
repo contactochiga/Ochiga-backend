@@ -1,5 +1,7 @@
 // src/core/control-plane/signal.types.ts
 
+export const SIGNAL_SCHEMA_VERSION = "v1";
+
 export type SignalSource =
   | "device"
   | "system"
@@ -7,10 +9,11 @@ export type SignalSource =
   | "network";
 
 export interface BaseSignal {
+  schemaVersion: typeof SIGNAL_SCHEMA_VERSION;
   source: SignalSource;
   type: string;
   timestamp: string;
-  metadata?: any;
+  metadata?: Record<string, any>;
 }
 
 export interface RoomMotionSignal extends BaseSignal {
