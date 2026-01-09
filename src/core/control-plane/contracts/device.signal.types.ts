@@ -1,5 +1,5 @@
-import { SIGNAL_SCHEMA_VERSION } from "./versions";
 import { BaseSignal } from "./signal.types";
+import { UserRole } from "../../../types/user";
 
 export interface DeviceDiscoveredSignal extends BaseSignal {
   type: "device.discovered";
@@ -20,7 +20,7 @@ export interface DeviceCommandRequestedSignal extends BaseSignal {
   command: Record<string, any>;
   requestedBy: {
     userId: string;
-    role: "resident" | "manager" | "operator";
+    role: UserRole;
   };
 }
 
