@@ -30,9 +30,9 @@ import { startEventProcessor } from "./event-processor/eventProcessor";
 import { initMqttBridge } from "./device/bridge";
 
 // ---------------------------
-// WORKERS
+// WORKERS (✅ FIXED IMPORTS)
 // ---------------------------
-import { startWorkers as startAutomationWorkers } from "./workers/automationWorker";
+import { startAutomationWorker } from "./workers/automationWorker";
 import { startIntentWorker } from "./workers/intentWorker";
 import { startIntentDlqWorker } from "./workers/intentDlqWorker";
 
@@ -104,11 +104,11 @@ httpServer.listen(PORT, async () => {
   }
 
   // ---------------------------
-  // START AUTOMATION WORKERS
+  // START AUTOMATION WORKER
   // ---------------------------
   try {
-    await startAutomationWorkers();
-    console.log("🟢 Automation workers started");
+    startAutomationWorker();
+    console.log("🟢 Automation worker started");
   } catch (error) {
     console.error("🔴 Automation worker startup failed →", error);
   }
@@ -117,7 +117,7 @@ httpServer.listen(PORT, async () => {
   // START INTENT WORKER (Execution Plane)
   // ---------------------------
   try {
-    await startIntentWorker();
+    startIntentWorker();
     console.log("🧠 Intent worker started");
   } catch (error) {
     console.error("🔴 Intent worker startup failed →", error);
@@ -127,7 +127,7 @@ httpServer.listen(PORT, async () => {
   // START DLQ WORKER (Safety Plane)
   // ---------------------------
   try {
-    await startIntentDlqWorker();
+    startIntentDlqWorker();
     console.log("🧯 Intent DLQ worker started");
   } catch (error) {
     console.error("🔴 DLQ worker startup failed →", error);
