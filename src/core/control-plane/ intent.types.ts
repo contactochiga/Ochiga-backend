@@ -1,25 +1,21 @@
-// src/core/control-plane/intent.types.ts
+import { INTENT_SCHEMA_VERSION } from "./contracts";
 
-export const INTENT_SCHEMA_VERSION = "v1";
+export type IntentTarget = "device" | "notification" | "system";
 
-export type IntentTarget =
-  | "device"
-  | "notification"
-  | "system";
-
-export interface BaseIntent {
-  schemaVersion: typeof INTENT_SCHEMA_VERSION;
-
-  target: IntentTarget;
-  reason: string;
-  priority: "low" | "normal" | "high" | "critical";
-
-  // ---- control-plane metadata ----
+export interface IntentContext {
   region_id?: string | null;
   estate_id?: string | null;
   zone_id?: string | null;
-  source_signal?: string;
-  created_at?: string;
+  source_signal: string;
+  created_at: string;
+}
+
+export interface BaseIntent {
+  schemaVersion: typeof INTENT_SCHEMA_VERSION;
+  target: IntentTarget;
+  reason: string;
+  priority: "low" | "normal" | "high" | "critical";
+  context: IntentContext;
 }
 
 export interface NotifyIntent extends BaseIntent {
@@ -37,9 +33,7 @@ export interface NotifyIntent extends BaseIntent {
 export interface DeviceCommandIntent extends BaseIntent {
   target: "device";
   deviceId: string;
-  command: unknown;
+  command: Record<string, any>;
 }
 
-export type Intent =
-  | NotifyIntent
-  | DeviceCommandIntent;
+export type Intent = NotifyIntent | DeviceCommandIntent;
