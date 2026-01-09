@@ -1,52 +1,36 @@
 // src/event-processor/handlers/rooms.ts
-import { supabaseAdmin } from "../../supabase/client";
-import { io } from "../../server";
+import { handleSignal } from "../../core/control-plane";
+import { Signal } from "../../core/control-plane/signal.types";
 
 export interface RoomEvent {
   deviceId: string;
-  type: "motion_detected" | "user_left" | string;
-  payload?: any;
+  roomId: string;
+  type: "motion_detected" | "user_left";
 }
 
 export async function handleRoomEvent(event: RoomEvent) {
-  const { deviceId, type } = event;
+  let signal: Signal | null = null;
 
-  // Resolve device → room
-  const { data: device, error: deviceError } = await supabaseAdmin
-    .from("devices")
-    .select("id, external_id, room_id")
-    .eq("external_id", deviceId)
-    .single();
-
-  if (deviceError || !device?.room_id) return;
-
-  // Fetch room (used only for context, not decisions)
-  const { data: room, error: roomError } = await supabaseAdmin
-    .from("rooms")
-    .select("id, ai_profile")
-    .eq("id", device.room_id)
-    .single();
-
-  if (roomError || !room) return;
-
-  // ─────────────────────────────
-  // SIGNALS (NO COMMANDS)
-  // ─────────────────────────────
-
-  if (type === "motion_detected") {
-    io.to(`room:${room.id}`).emit("signal:room:motion", {
-      roomId: room.id,
-      deviceId,
-      payload: event.payload,
+  if (event.type === "motion_detected") {
+    signal = {
+      source: "device",
+      type: "room.motion",
       timestamp: new Date().toISOString(),
-    });
+      roomId: event.roomId,
+      deviceId: event.deviceId,
+    };
   }
 
-  if (type === "user_left") {
-    io.to(`room:${room.id}`).emit("signal:room:empty", {
-      roomId: room.id,
-      deviceId,
+  if (event.type === "user_left") {
+    signal = {
+      source: "device",
+      type: "room.empty",
       timestamp: new Date().toISOString(),
-    });
+      roomId: event.roomId,
+    };
+  }
+
+  if (signal) {
+    await handleSignal(signal);
   }
 }
