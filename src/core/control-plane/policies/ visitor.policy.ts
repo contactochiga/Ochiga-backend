@@ -7,12 +7,15 @@ export function visitorPolicy(signal: Signal): Intent[] {
 
   return [
     {
+      schemaVersion: "v1",
       target: "notification",
       priority: "high",
       reason: "visitor_arrival",
+
       audience: "resident",
       scope: "home",
       referenceId: signal.homeId,
+
       payload: {
         title: "Visitor at the gate",
         message: "A visitor has arrived and requires approval.",
