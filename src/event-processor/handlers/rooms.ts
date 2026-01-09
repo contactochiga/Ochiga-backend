@@ -1,18 +1,17 @@
-// src/event-processor/handlers/rooms.ts
 import { handleSignal } from "../../core/control-plane";
+import { SIGNAL_SCHEMA_VERSION } from "../../core/control-plane/contracts";
 import { Signal } from "../../core/control-plane/signal.types";
 
-export interface RoomEvent {
+export async function handleRoomEvent(event: {
   deviceId: string;
   roomId: string;
   type: "motion_detected" | "user_left";
-}
-
-export async function handleRoomEvent(event: RoomEvent) {
+}) {
   let signal: Signal | null = null;
 
   if (event.type === "motion_detected") {
     signal = {
+      schemaVersion: SIGNAL_SCHEMA_VERSION,
       source: "device",
       type: "room.motion",
       timestamp: new Date().toISOString(),
@@ -23,6 +22,7 @@ export async function handleRoomEvent(event: RoomEvent) {
 
   if (event.type === "user_left") {
     signal = {
+      schemaVersion: SIGNAL_SCHEMA_VERSION,
       source: "device",
       type: "room.empty",
       timestamp: new Date().toISOString(),
@@ -30,7 +30,5 @@ export async function handleRoomEvent(event: RoomEvent) {
     };
   }
 
-  if (signal) {
-    await handleSignal(signal);
-  }
+  if (signal) await handleSignal(signal);
 }
