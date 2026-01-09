@@ -6,10 +6,24 @@ import { visitorPolicy } from "./policies/visitor.policy";
 import { securityPolicy } from "./policies/security.policy";
 import { energyPolicy } from "./policies/energy.policy";
 
+type PolicyFn = (signal: Signal) => Intent[];
+
+const policies: PolicyFn[] = [
+  visitorPolicy,
+  securityPolicy,
+  energyPolicy,
+];
+
 export function evaluateSignal(signal: Signal): Intent[] {
-  return [
-    ...visitorPolicy(signal),
-    ...securityPolicy(signal),
-    ...energyPolicy(signal),
-  ];
+  const intents: Intent[] = [];
+
+  for (const policy of policies) {
+    try {
+      intents.push(...policy(signal));
+    } catch (err) {
+      console.error("❌ Policy failed:", policy.name, err);
+    }
+  }
+
+  return intents;
 }
