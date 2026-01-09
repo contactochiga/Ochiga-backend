@@ -1,15 +1,10 @@
 // src/core/control-plane/contracts/signal.types.ts
+
 import { SIGNAL_SCHEMA_VERSION } from "./versions";
 import { DeviceSignal } from "./device.signal.types";
 
-/**
- * Who emitted the signal
- */
 export type SignalSource = "device" | "system" | "user" | "network";
 
-/**
- * Base signal shared by all signals
- */
 export interface BaseSignal {
   schemaVersion: typeof SIGNAL_SCHEMA_VERSION;
   source: SignalSource;
@@ -18,9 +13,9 @@ export interface BaseSignal {
   metadata?: Record<string, any>;
 }
 
-/**
- * Room signals
- */
+// --------------------
+// Non-device signals
+// --------------------
 export interface RoomMotionSignal extends BaseSignal {
   type: "room.motion";
   roomId: string;
@@ -32,21 +27,17 @@ export interface RoomEmptySignal extends BaseSignal {
   roomId: string;
 }
 
-/**
- * Visitor signals
- */
 export interface VisitorArrivedSignal extends BaseSignal {
   type: "visitor.arrived";
   visitorId: string;
   homeId: string;
 }
 
-/**
- * 🧠 SYSTEM-WIDE SIGNAL UNION
- * This is what the control plane consumes
- */
+// --------------------
+// MASTER SIGNAL UNION
+// --------------------
 export type Signal =
   | RoomMotionSignal
   | RoomEmptySignal
   | VisitorArrivedSignal
-  | DeviceSignal;
+  | DeviceSignal; // 👈 THIS IS THE FIX
