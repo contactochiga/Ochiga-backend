@@ -1,26 +1,27 @@
 // src/workers/automationWorker.ts
 import { Worker, Queue, Job } from "bullmq";
+import IORedis from "ioredis";
 import { supabaseAdmin } from "../supabase/client";
 import { publishDeviceAction } from "../device/bridge";
 
 // ------------------------------------
-// Redis connection (BullMQ SAFE)
+// Redis connection (BullMQ compatible)
 // ------------------------------------
-const connection = {
-  url: process.env.REDIS_URL!,
-};
+const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379");
 
 // ------------------------------------
-// Queue
+// Automation Queue
 // ------------------------------------
-export const automationQueue = new Queue("automations", { connection });
+export const automationQueue = new Queue("automations", {
+  connection,
+});
 
 // ------------------------------------
 // Enqueue automation
 // ------------------------------------
 export async function enqueueAutomation(automationId: string) {
   await automationQueue.add(
-    "run",
+    "run_automation",
     { automationId },
     {
       removeOnComplete: true,
@@ -35,7 +36,7 @@ export async function enqueueAutomation(automationId: string) {
 export function startAutomationWorker() {
   const worker = new Worker(
     "automations",
-    async (job: Job) => {
+    async (job: Job<{ automationId: string }>) => {
       const { automationId } = job.data;
 
       const { data: automation, error } = await supabaseAdmin
@@ -48,7 +49,7 @@ export function startAutomationWorker() {
         throw new Error("Automation not found");
       }
 
-      // Only device actions supported
+      // Only device automations supported for now
       if (automation.action?.type === "device") {
         const { device_id, command, topic } = automation.action;
 
@@ -56,21 +57,18 @@ export function startAutomationWorker() {
           topic ||
           `ochiga/estate/${automation.estate_id}/device/${device_id}/set`;
 
-        // Publish to device
         publishDeviceAction(deviceTopic, command);
 
-        // Log event
-        await supabaseAdmin.from("device_events").insert({
-          device_id,
-          user_id: automation.created_by,
-          action: "automation_run",
-          params: command,
-        });
+        await supabaseAdmin.from("device_events").insert([
+          {
+            device_id,
+            user_id: automation.created_by,
+            action: "automation_run",
+            params: command,
+          },
+        ]);
       } else {
-        console.warn(
-          "Unsupported automation action:",
-          automation.action?.type
-        );
+        console.warn("Unsupported automation action", automation.action);
       }
     },
     { connection }
