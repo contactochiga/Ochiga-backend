@@ -3,31 +3,42 @@
 import { Worker, Queue } from "bullmq";
 import IORedis from "ioredis";
 
-import { Intent } from "../core/control-plane/contracts/intent.types";
+import {
+  Intent,
+  NotifyIntent,
+  DeviceCommandIntent,
+} from "../core/control-plane/contracts/intent.types";
+
 import { NotificationService } from "../services/NotificationService";
 import { publishDeviceAction } from "../device/bridge";
 
+// ------------------------------------
+// Redis connection (shared execution plane)
+// ------------------------------------
 const connection = new IORedis(process.env.REDIS_URL!);
 
+// ------------------------------------
+// Intent Queue
+// ------------------------------------
 export const intentQueue = new Queue<Intent>("intents", {
   connection,
 });
 
-/**
- * Enqueue an Intent for execution
- */
+// ------------------------------------
+// Enqueue Intent
+// ------------------------------------
 export async function enqueueIntent(intent: Intent) {
   await intentQueue.add("execute", intent, {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
     removeOnComplete: true,
-    removeOnFail: false, // keep failed jobs for DLQ inspection
+    removeOnFail: false, // keep failed jobs for DLQ / inspection
   });
 }
 
-/**
- * Start Intent Worker (Execution Plane)
- */
+// ------------------------------------
+// Intent Worker (Execution Plane)
+// ------------------------------------
 export function startIntentWorker() {
   return new Worker<Intent>(
     "intents",
@@ -35,28 +46,51 @@ export function startIntentWorker() {
       const intent = job.data;
 
       switch (intent.target) {
-        case "notification": {
-          // scope routing handled by NotificationService
-          return NotificationService.sendToHome(
-            intent.referenceId,
-            intent.payload
-          );
-        }
+        case "notification":
+          return handleNotificationIntent(intent);
 
-        case "device": {
-          return publishDeviceAction(
-            `ochiga/device/${intent.deviceId}/set`,
-            intent.command
-          );
-        }
+        case "device":
+          return handleDeviceIntent(intent);
 
         default: {
           // Exhaustiveness guard (future-proof)
-          const _exhaustive: never = intent;
-          throw new Error(`Unhandled intent target`);
+          const _never: never = intent;
+          throw new Error("Unhandled intent target");
         }
       }
     },
     { connection }
   );
+}
+
+// ------------------------------------
+// Intent Handlers
+// ------------------------------------
+
+async function handleNotificationIntent(intent: NotifyIntent) {
+  const { scope, referenceId, payload } = intent;
+
+  switch (scope) {
+    case "user":
+      return NotificationService.sendToUser(referenceId, payload);
+
+    case "home":
+      return NotificationService.sendToHome(referenceId, payload);
+
+    case "estate":
+      return NotificationService.sendToEstate(referenceId, payload);
+
+    case "region":
+      return NotificationService.sendToRegion(referenceId, payload);
+
+    default: {
+      const _never: never = scope;
+      throw new Error("Unhandled notification scope");
+    }
+  }
+}
+
+async function handleDeviceIntent(intent: DeviceCommandIntent) {
+  const topic = `ochiga/device/${intent.deviceId}/set`;
+  return publishDeviceAction(topic, intent.command);
 }
