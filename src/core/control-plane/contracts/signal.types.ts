@@ -1,4 +1,6 @@
-import { SIGNAL_SCHEMA_VERSION } from "./contracts";
+// src/core/control-plane/contracts/signal.types.ts
+
+import { SIGNAL_SCHEMA_VERSION } from "./versions";
 
 export type SignalSource = "device" | "system" | "user" | "network";
 
