@@ -1,38 +1,32 @@
 // src/workers/automationWorker.ts
 import { Worker, Queue, Job } from "bullmq";
-import IORedis from "ioredis";
 import { supabaseAdmin } from "../supabase/client";
 import { publishDeviceAction } from "../device/bridge";
 
-// ------------------------------------
-// Redis connection (BullMQ compatible)
-// ------------------------------------
-const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379");
+// ✅ BullMQ connection config (NOT ioredis instance)
+const connection = {
+  url: process.env.REDIS_URL || "redis://localhost:6379",
+};
 
-// ------------------------------------
+// -----------------------------
 // Automation Queue
-// ------------------------------------
-export const automationQueue = new Queue("automations", {
-  connection,
-});
+// -----------------------------
+export const automationQueue = new Queue("automations", { connection });
 
-// ------------------------------------
+// -----------------------------
 // Enqueue automation
-// ------------------------------------
+// -----------------------------
 export async function enqueueAutomation(automationId: string) {
   await automationQueue.add(
     "run_automation",
     { automationId },
-    {
-      removeOnComplete: true,
-      removeOnFail: true,
-    }
+    { removeOnComplete: true, removeOnFail: true }
   );
 }
 
-// ------------------------------------
+// -----------------------------
 // Worker
-// ------------------------------------
+// -----------------------------
 export function startAutomationWorker() {
   const worker = new Worker(
     "automations",
@@ -49,7 +43,7 @@ export function startAutomationWorker() {
         throw new Error("Automation not found");
       }
 
-      // Only device automations supported for now
+      // Only device actions supported for now
       if (automation.action?.type === "device") {
         const { device_id, command, topic } = automation.action;
 
@@ -67,8 +61,6 @@ export function startAutomationWorker() {
             params: command,
           },
         ]);
-      } else {
-        console.warn("Unsupported automation action", automation.action);
       }
     },
     { connection }
