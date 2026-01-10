@@ -8,6 +8,7 @@ const router = Router();
 
 /**
  * Adapter-based device discovery
+ *
  * Example:
  *   GET /devices/discover?adapter=tuya
  */
