@@ -1,5 +1,8 @@
+// src/core/control-plane/contracts/signal.types.ts
+
 import { SIGNAL_SCHEMA_VERSION } from "./versions";
 import { DeviceSignal } from "./device.signal.types";
+import { WalletSignal } from "./wallet.signal.types";
 
 export type SignalSource = "device" | "system" | "user" | "network";
 
@@ -38,4 +41,5 @@ export type Signal =
   | RoomMotionSignal
   | RoomEmptySignal
   | VisitorArrivedSignal
-  | DeviceSignal;
+  | DeviceSignal
+  | WalletSignal;
