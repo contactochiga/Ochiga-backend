@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import axios from "axios";
 import crypto from "crypto";
 import { handleSignal } from "../core/control-plane";
+import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY!;
 
@@ -71,8 +72,8 @@ export async function handleWebhook(req: Request, res: Response) {
 
     if (!wallet) return res.sendStatus(200);
 
-    const credited = Number(data.amount) / 100;
-    const balance = Number(wallet.balance) + credited;
+    const amount = Number(data.amount) / 100;
+    const balance = Number(wallet.balance) + amount;
 
     await supabaseAdmin
       .from("wallets")
@@ -81,12 +82,14 @@ export async function handleWebhook(req: Request, res: Response) {
 
     await handleSignal({
       type: "wallet.funded",
-      schemaVersion: 1,
+      schemaVersion: SIGNAL_SCHEMA_VERSION,
       source: "system",
       walletId: wallet.id,
       userId,
-      amount: credited,
-      balance,
+      amount,
+      currency: "NGN",
+      method: "card",
+      reference: data.reference,
       timestamp: new Date().toISOString(),
     });
   }
@@ -94,40 +97,10 @@ export async function handleWebhook(req: Request, res: Response) {
   res.sendStatus(200);
 }
 
-/** MANUAL CREDIT */
-export async function creditWallet(req: Request, res: Response) {
-  const user = req.user!;
-  const { amount, reference } = req.body;
-
-  const { data: wallet } = await supabaseAdmin
-    .from("wallets")
-    .select("*")
-    .eq("user_id", user.id)
-    .single();
-
-  const balance = Number(wallet.balance) + Number(amount);
-
-  await supabaseAdmin.from("wallets").update({ balance }).eq("id", wallet.id);
-
-  await handleSignal({
-    type: "wallet.credited",
-    schemaVersion: 1,
-    source: "user",
-    walletId: wallet.id,
-    userId: user.id,
-    amount,
-    balance,
-    reference,
-    timestamp: new Date().toISOString(),
-  });
-
-  res.json({ balance });
-}
-
 /** MANUAL DEBIT */
 export async function debitWallet(req: Request, res: Response) {
   const user = req.user!;
-  const { amount, reference } = req.body;
+  const { amount, reason } = req.body;
 
   const { data: wallet } = await supabaseAdmin
     .from("wallets")
@@ -135,22 +108,26 @@ export async function debitWallet(req: Request, res: Response) {
     .eq("user_id", user.id)
     .single();
 
-  if (Number(wallet.balance) < Number(amount))
+  if (Number(wallet.balance) < Number(amount)) {
     return res.status(400).json({ error: "Insufficient funds" });
+  }
 
   const balance = Number(wallet.balance) - Number(amount);
 
-  await supabaseAdmin.from("wallets").update({ balance }).eq("id", wallet.id);
+  await supabaseAdmin
+    .from("wallets")
+    .update({ balance })
+    .eq("id", wallet.id);
 
   await handleSignal({
     type: "wallet.debited",
-    schemaVersion: 1,
+    schemaVersion: SIGNAL_SCHEMA_VERSION,
     source: "user",
     walletId: wallet.id,
     userId: user.id,
     amount,
-    balance,
-    reference,
+    currency: "NGN",
+    reason: reason ?? "manual_debit",
     timestamp: new Date().toISOString(),
   });
 
