@@ -3,6 +3,7 @@
 import { SIGNAL_SCHEMA_VERSION } from "./versions";
 import { DeviceSignal } from "./device.signal.types";
 import { WalletSignal } from "./wallet.signal.types";
+import { CommunitySignal } from "./community.signal.types"; // 👈 MISSING LINE
 
 export type SignalSource = "device" | "system" | "user" | "network";
 
@@ -35,11 +36,12 @@ export interface VisitorArrivedSignal extends BaseSignal {
 }
 
 // --------------------
-// MASTER SIGNAL UNION
+// MASTER SIGNAL UNION (SOURCE OF TRUTH)
 // --------------------
 export type Signal =
   | RoomMotionSignal
   | RoomEmptySignal
   | VisitorArrivedSignal
   | DeviceSignal
-  | WalletSignal;
+  | WalletSignal
+  | CommunitySignal; // ✅ THIS IS THE FIX
