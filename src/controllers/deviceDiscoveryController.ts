@@ -21,7 +21,8 @@ export async function discoverTuyaDevices(req: Request, res: Response) {
     },
   };
 
-  const adapter = new TuyaAdapter(); // ✅ NO ARGUMENTS
+  // ✅ DO NOT PASS CONTEXT INTO CONSTRUCTOR
+  const adapter = new TuyaAdapter();
 
   const devices = await adapter.discover(context);
 
