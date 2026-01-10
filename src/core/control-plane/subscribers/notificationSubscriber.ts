@@ -1,56 +1,74 @@
-import { Signal } from "../contracts/signal.types";
-import { NotificationService } from "../../services/NotificationService";
+// src/core/control-plane/subscribers/notificationSubscriber.ts
 
-export async function notificationSubscriber(signal: Signal) {
+import { Signal } from "../contracts/signal.types";
+import { NotificationService } from "../../../services/NotificationService";
+
+export function notificationSubscriber(signal: Signal) {
   switch (signal.type) {
     /* ---------------- COMMUNITY ---------------- */
 
-    case "community.post.created":
+    case "community.post.created": {
       return NotificationService.sendToEstate(signal.estateId, {
         title: "New Community Post",
-        message: signal.title,
+        message: "A new post was created in your estate",
         type: "community",
-        payload: { postId: signal.postId },
+        payload: {
+          postId: signal.postId,
+          authorId: signal.authorId,
+        },
       });
+    }
 
-    case "community.comment.created":
+    case "community.comment.created": {
       return NotificationService.sendToEstate(signal.estateId, {
         title: "New Comment",
-        message: "Someone commented on a post",
+        message: "Someone commented on a community post",
         type: "community",
         payload: {
           postId: signal.postId,
           commentId: signal.commentId,
         },
       });
+    }
 
-    case "community.post.flagged":
-      return NotificationService.sendToRole("estate_admin", {
+    case "community.post.flagged": {
+      return NotificationService.sendToRole(signal.estateId, "estate_admin", {
         title: "Post Flagged",
         message: "A community post was flagged for review",
         type: "moderation",
         payload: {
           postId: signal.postId,
-          reason: signal.reason,
         },
       });
+    }
 
     /* ---------------- WALLET ---------------- */
 
-    case "wallet.funded":
+    case "wallet.funded": {
       return NotificationService.sendToUser(signal.userId, {
         title: "Wallet Funded",
         message: `₦${signal.amount} added to your wallet`,
         type: "wallet",
-        payload: { walletId: signal.walletId },
+        payload: {
+          walletId: signal.walletId,
+          amount: signal.amount,
+        },
       });
+    }
 
-    case "wallet.debited":
+    case "wallet.debited": {
       return NotificationService.sendToUser(signal.userId, {
         title: "Wallet Debited",
-        message: `₦${signal.amount} deducted`,
+        message: `₦${signal.amount} deducted from your wallet`,
         type: "wallet",
-        payload: { walletId: signal.walletId },
+        payload: {
+          walletId: signal.walletId,
+          amount: signal.amount,
+        },
       });
+    }
+
+    default:
+      return;
   }
 }
