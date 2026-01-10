@@ -1,9 +1,10 @@
 // src/utils/connectivity.ts
+
 import ping from "ping";
-import { Device } from "../routes/devices";
+import { DiscoveredDevice, DeviceProtocol } from "../device/adapters/types";
 
 export interface ConnectivityScore {
-  protocol: string;
+  protocol: DeviceProtocol;
   signalStrength: number;
   latency: number;
   reliability: number;
@@ -14,14 +15,14 @@ export interface ConnectivityScore {
  * Evaluate all supported protocols for a given device
  */
 export async function evaluateDeviceConnectivity(
-  device: Device
+  device: DiscoveredDevice & { ip?: string }
 ): Promise<ConnectivityScore[]> {
   const scores: ConnectivityScore[] = [];
 
-  for (const proto of device.supportedProtocols || []) {
-    let signal = 50,
-      latencyMs: number = 50,
-      reliability = 80;
+  for (const proto of device.protocols || []) {
+    let signal = 50;
+    let latencyMs = 50;
+    let reliability = 80;
 
     switch (proto) {
       case "wifi":
@@ -31,7 +32,6 @@ export async function evaluateDeviceConnectivity(
 
           signal = res.alive ? 80 : 20;
 
-          // FIX: handle "unknown"
           latencyMs =
             res.time === "unknown"
               ? -1
@@ -50,11 +50,15 @@ export async function evaluateDeviceConnectivity(
         break;
 
       case "zigbee":
-      case "zwave":
         signal = Math.floor(Math.random() * 60 + 40);
         latencyMs = Math.floor(Math.random() * 30 + 20);
         reliability = Math.floor(Math.random() * 50 + 50);
         break;
+
+      default:
+        signal = 40;
+        latencyMs = 80;
+        reliability = 60;
     }
 
     scores.push({
@@ -75,7 +79,8 @@ export async function evaluateDeviceConnectivity(
 export function chooseBestProtocol(
   scores: ConnectivityScore[]
 ): ConnectivityScore {
-  if (!scores || scores.length === 0)
+  if (!scores.length) {
     throw new Error("No protocol scores available");
+  }
   return scores[0];
 }
