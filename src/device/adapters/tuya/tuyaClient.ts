@@ -4,32 +4,50 @@ import crypto from "crypto";
 import axios, { AxiosInstance } from "axios";
 
 /* ------------------------------------------------
- * ENV (LOCKED + TYPE-SAFE)
+ * ENV (LAZY + TYPE-SAFE)
  * ------------------------------------------------ */
 const TUYA_ACCESS_ID = process.env.TUYA_ACCESS_ID;
 const TUYA_ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
 const TUYA_BASE_URL = process.env.TUYA_BASE_URL;
 
-if (!TUYA_ACCESS_ID || !TUYA_ACCESS_SECRET || !TUYA_BASE_URL) {
-  throw new Error("❌ Tuya env vars missing");
-}
-
 /**
- * 🔒 Lock envs as guaranteed strings
- * TypeScript now understands they are safe
+ * 🔒 Internal helper to guarantee env safety
+ * Called ONLY when TuyaClient is instantiated
  */
-const ACCESS_ID: string = TUYA_ACCESS_ID;
-const ACCESS_SECRET: string = TUYA_ACCESS_SECRET;
-const BASE_URL: string = TUYA_BASE_URL;
+function assertTuyaEnv(): {
+  ACCESS_ID: string;
+  ACCESS_SECRET: string;
+  BASE_URL: string;
+} {
+  if (!TUYA_ACCESS_ID || !TUYA_ACCESS_SECRET || !TUYA_BASE_URL) {
+    throw new Error(
+      "❌ TuyaClient misconfigured: missing TUYA_ACCESS_ID, TUYA_ACCESS_SECRET or TUYA_BASE_URL"
+    );
+  }
+
+  return {
+    ACCESS_ID: TUYA_ACCESS_ID,
+    ACCESS_SECRET: TUYA_ACCESS_SECRET,
+    BASE_URL: TUYA_BASE_URL,
+  };
+}
 
 export class TuyaClient {
   private client: AxiosInstance;
   private accessToken?: string;
   private tokenExpireAt = 0;
 
+  private readonly ACCESS_ID: string;
+  private readonly ACCESS_SECRET: string;
+
   constructor() {
+    const env = assertTuyaEnv();
+
+    this.ACCESS_ID = env.ACCESS_ID;
+    this.ACCESS_SECRET = env.ACCESS_SECRET;
+
     this.client = axios.create({
-      baseURL: BASE_URL,
+      baseURL: env.BASE_URL,
       timeout: 15000,
     });
   }
@@ -57,13 +75,13 @@ export class TuyaClient {
     ].join("\n");
 
     const signStr =
-      ACCESS_ID +
+      this.ACCESS_ID +
       accessToken +
       t +
       stringToSign;
 
     return crypto
-      .createHmac("sha256", ACCESS_SECRET) // ✅ FIXED
+      .createHmac("sha256", this.ACCESS_SECRET)
       .update(signStr)
       .digest("hex")
       .toUpperCase();
@@ -85,7 +103,7 @@ export class TuyaClient {
       headers: {
         t,
         sign,
-        client_id: ACCESS_ID,
+        client_id: this.ACCESS_ID,
         sign_method: "HMAC-SHA256",
       },
     });
@@ -130,7 +148,7 @@ export class TuyaClient {
       headers: {
         t,
         sign,
-        client_id: ACCESS_ID,
+        client_id: this.ACCESS_ID,
         access_token: accessToken,
         sign_method: "HMAC-SHA256",
         "Content-Type": "application/json",
