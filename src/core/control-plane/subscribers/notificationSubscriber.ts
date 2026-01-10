@@ -1,16 +1,16 @@
 // src/core/control-plane/subscribers/notificationSubscriber.ts
 
 import { Signal } from "../contracts/signal.types";
-import { NotificationService } from "../../../services/NotificationService";
+import { NotificationService } from "../../services/NotificationService";
 
-export function notificationSubscriber(signal: Signal) {
+export async function notificationSubscriber(signal: Signal) {
   switch (signal.type) {
-    /* ---------------- COMMUNITY ---------------- */
+    /* ================= COMMUNITY ================= */
 
     case "community.post.created": {
       return NotificationService.sendToEstate(signal.estateId, {
         title: "New Community Post",
-        message: "A new post was created in your estate",
+        message: "A new post was created",
         type: "community",
         payload: {
           postId: signal.postId,
@@ -22,27 +22,17 @@ export function notificationSubscriber(signal: Signal) {
     case "community.comment.created": {
       return NotificationService.sendToEstate(signal.estateId, {
         title: "New Comment",
-        message: "Someone commented on a community post",
+        message: "Someone commented on a post",
         type: "community",
         payload: {
           postId: signal.postId,
           commentId: signal.commentId,
+          authorId: signal.authorId,
         },
       });
     }
 
-    case "community.post.flagged": {
-      return NotificationService.sendToRole(signal.estateId, "estate_admin", {
-        title: "Post Flagged",
-        message: "A community post was flagged for review",
-        type: "moderation",
-        payload: {
-          postId: signal.postId,
-        },
-      });
-    }
-
-    /* ---------------- WALLET ---------------- */
+    /* ================= WALLET ================= */
 
     case "wallet.funded": {
       return NotificationService.sendToUser(signal.userId, {
@@ -51,7 +41,6 @@ export function notificationSubscriber(signal: Signal) {
         type: "wallet",
         payload: {
           walletId: signal.walletId,
-          amount: signal.amount,
         },
       });
     }
@@ -63,7 +52,6 @@ export function notificationSubscriber(signal: Signal) {
         type: "wallet",
         payload: {
           walletId: signal.walletId,
-          amount: signal.amount,
         },
       });
     }
