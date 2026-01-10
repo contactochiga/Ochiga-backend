@@ -1,7 +1,7 @@
 // src/core/control-plane/subscribers/notificationSubscriber.ts
 
 import { Signal } from "../contracts/signal.types";
-import { NotificationService } from "../../services/notificationService";
+import { NotificationService } from "../../services/NotificationService";
 
 export async function notificationSubscriber(signal: Signal) {
   switch (signal.type) {
