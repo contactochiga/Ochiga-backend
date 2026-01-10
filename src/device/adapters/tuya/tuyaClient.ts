@@ -15,7 +15,11 @@ if (!TUYA_ACCESS_ID || !TUYA_ACCESS_SECRET || !TUYA_BASE_URL) {
 
 export class TuyaClient {
   private client: AxiosInstance;
-  private accessToken: string | null = null;
+
+  /** Cached access token */
+  private accessToken?: string;
+
+  /** Expiry timestamp (ms) */
   private tokenExpireAt = 0;
 
   constructor() {
@@ -26,7 +30,7 @@ export class TuyaClient {
   }
 
   /* ------------------------------------------------
-   * AUTH
+   * SIGNATURE
    * ------------------------------------------------ */
   private sign(
     method: string,
@@ -34,7 +38,7 @@ export class TuyaClient {
     body = "",
     t = Date.now().toString(),
     accessToken = ""
-  ) {
+  ): string {
     const contentHash = crypto
       .createHash("sha256")
       .update(body)
@@ -54,13 +58,16 @@ export class TuyaClient {
       stringToSign;
 
     return crypto
-      .createHmac("sha256", TUYA_ACCESS_SECRET!)
+      .createHmac("sha256", TUYA_ACCESS_SECRET)
       .update(signStr)
       .digest("hex")
       .toUpperCase();
   }
 
-  private async getAccessToken() {
+  /* ------------------------------------------------
+   * AUTH
+   * ------------------------------------------------ */
+  private async getAccessToken(): Promise<string> {
     if (this.accessToken && Date.now() < this.tokenExpireAt) {
       return this.accessToken;
     }
@@ -78,15 +85,17 @@ export class TuyaClient {
       },
     });
 
-    if (!res.data?.result?.access_token) {
-      throw new Error("❌ Failed to get Tuya access token");
+    const token = res.data?.result?.access_token;
+    const expire = res.data?.result?.expire_time;
+
+    if (!token || !expire) {
+      throw new Error("❌ Failed to obtain Tuya access token");
     }
 
-    this.accessToken = res.data.result.access_token;
-    this.tokenExpireAt =
-      Date.now() + res.data.result.expire_time * 1000;
+    this.accessToken = token;
+    this.tokenExpireAt = Date.now() + expire * 1000;
 
-    return this.accessToken;
+    return token;
   }
 
   /* ------------------------------------------------
@@ -97,10 +106,17 @@ export class TuyaClient {
     path: string,
     body?: any
   ): Promise<T> {
-    const accessToken = await this.getAccessToken();
+    const accessToken = await this.getAccessToken(); // ✅ ALWAYS string
     const t = Date.now().toString();
     const bodyStr = body ? JSON.stringify(body) : "";
-    const sign = this.sign(method, path, bodyStr, t, accessToken);
+
+    const sign = this.sign(
+      method,
+      path,
+      bodyStr,
+      t,
+      accessToken
+    );
 
     const res = await this.client.request({
       method,
