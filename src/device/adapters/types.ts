@@ -2,38 +2,58 @@
 
 /**
  * ================================
+ * DEVICE PROTOCOLS (CANONICAL)
+ * ================================
+ */
+export type DeviceProtocol =
+  | "wifi"
+  | "zigbee"
+  | "ble"
+  | "cloud"
+  | "mqtt"
+  | "modbus"
+  | "http"
+  | "other";
+
+/**
+ * ================================
+ * DEVICE CATEGORIES
+ * ================================
+ */
+export type DeviceCategory =
+  | "light"
+  | "switch"
+  | "socket"
+  | "sensor"
+  | "lock"
+  | "camera"
+  | "thermostat"
+  | "gateway"
+  | "unknown";
+
+/**
+ * ================================
  * DISCOVERED DEVICE (CANONICAL)
  * ================================
- * Vendor-agnostic device identity
- * produced by any adapter
  */
 export interface DiscoveredDevice {
   /** Vendor / gateway specific ID */
   externalId: string;
 
-  /** Which adapter discovered it (tuya, zigbee, ble, wifi, mqtt, etc.) */
+  /** Which adapter discovered it */
   adapter: string;
 
   /** Human-friendly name */
   name: string;
 
   /** Device category */
-  category:
-    | "light"
-    | "switch"
-    | "socket"
-    | "sensor"
-    | "lock"
-    | "camera"
-    | "thermostat"
-    | "gateway"
-    | "unknown";
+  category: DeviceCategory;
 
   /** Supported commands / states */
   capabilities: string[];
 
   /** Communication protocols */
-  protocols: Array<"wifi" | "zigbee" | "ble" | "cloud" | "mqtt" | string>;
+  protocols: DeviceProtocol[];
 
   /** Online / reachable */
   online: boolean;
@@ -52,20 +72,12 @@ export interface DiscoveredDevice {
  * ================================
  * ADAPTER CONTEXT
  * ================================
- * Boundary info passed into adapters
- * (NO control-plane imports here)
  */
 export interface AdapterContext {
-  /** Estate boundary */
   estateId: string;
-
-  /** Optional home/unit boundary */
   homeId?: string;
-
-  /** User initiating discovery */
   userId: string;
 
-  /** Adapter-specific credentials */
   credentials: {
     apiKey?: string;
     apiSecret?: string;
