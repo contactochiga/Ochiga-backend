@@ -1,5 +1,4 @@
 // src/workers/intentWorker.ts
-
 import { Worker, Queue, Job } from "bullmq";
 import {
   Intent,
@@ -10,100 +9,77 @@ import { NotificationService } from "../services/NotificationService";
 import { publishDeviceAction } from "../device/bridge";
 import { intentDlqQueue } from "./intentDlqWorker";
 
-/**
- * ============================================
- * REDIS CONNECTION (BullMQ compatible)
- * ============================================
- */
 const connection = {
   url: process.env.REDIS_URL || "redis://localhost:6379",
 };
 
-/**
- * ============================================
- * INTENT QUEUE
- * ⚠️ Queue name MUST NOT contain colon
- * ============================================
- */
-export const intentQueue = new Queue<Intent>("intent_queue", {
-  connection,
-});
+// -----------------------------
+// Intent Queue
+// -----------------------------
+export const intentQueue = new Queue<Intent>("intents", { connection });
 
-/**
- * ============================================
- * ENQUEUE INTENT
- * ============================================
- */
+// -----------------------------
+// Enqueue Intent
+// -----------------------------
 export async function enqueueIntent(intent: Intent) {
   await intentQueue.add("execute", intent, {
     attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 2000,
-    },
+    backoff: { type: "exponential", delay: 2000 },
     removeOnComplete: true,
-    removeOnFail: false, // DLQ handles final failure
+    removeOnFail: false,
   });
 }
 
-/**
- * ============================================
- * INTENT WORKER
- * ============================================
- */
+// -----------------------------
+// Worker
+// -----------------------------
 export function startIntentWorker() {
   const worker = new Worker<Intent>(
-    "intent_queue",
+    "intents",
     async (job: Job<Intent>) => {
       const intent = job.data;
 
-      switch (intent.target) {
-        case "notification":
-          return handleNotificationIntent(intent as NotifyIntent);
-
-        case "device":
-          return handleDeviceIntent(intent as DeviceCommandIntent);
-
-        default:
-          throw new Error(`Unhandled intent target: ${intent.target}`);
+      if (isNotificationIntent(intent)) {
+        return handleNotificationIntent(intent);
       }
+
+      if (isDeviceIntent(intent)) {
+        return handleDeviceIntent(intent);
+      }
+
+      throw new Error("Unhandled intent shape");
     },
     { connection }
   );
 
-  /**
-   * ============================================
-   * DLQ HANDOFF (FINAL FAILURE ONLY)
-   * ============================================
-   */
+  // -----------------------------
+  // DLQ handoff
+  // -----------------------------
   worker.on("failed", async (job) => {
     if (!job) return;
 
-    const maxAttempts = job.opts.attempts ?? 1;
-
-    if (job.attemptsMade >= maxAttempts) {
-      await intentDlqQueue.add("dlq", job.data, {
-        removeOnComplete: true,
-      });
+    if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
+      await intentDlqQueue.add("dlq", job.data);
     }
-  });
-
-  worker.on("completed", (job) => {
-    console.log("✅ Intent processed:", job.id);
-  });
-
-  worker.on("error", (err) => {
-    console.error("❌ Intent worker error:", err.message);
   });
 
   return worker;
 }
 
-/**
- * ============================================
- * INTENT HANDLERS
- * ============================================
- */
+// -----------------------------
+// Type Guards (VERY IMPORTANT)
+// -----------------------------
+function isNotificationIntent(intent: Intent): intent is NotifyIntent {
+  return (intent as NotifyIntent).payload !== undefined;
+}
+
+function isDeviceIntent(intent: Intent): intent is DeviceCommandIntent {
+  return (intent as DeviceCommandIntent).deviceId !== undefined;
+}
+
+// -----------------------------
+// Handlers
+// -----------------------------
 async function handleNotificationIntent(intent: NotifyIntent) {
   const { scope, referenceId, payload } = intent;
 
@@ -121,7 +97,7 @@ async function handleNotificationIntent(intent: NotifyIntent) {
       return NotificationService.sendToRole(referenceId, "resident", payload);
 
     default:
-      throw new Error(`Unhandled notification scope: ${scope}`);
+      throw new Error("Unhandled notification scope");
   }
 }
 
