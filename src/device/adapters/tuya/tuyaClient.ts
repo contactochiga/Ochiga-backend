@@ -3,28 +3,33 @@
 import crypto from "crypto";
 import axios, { AxiosInstance } from "axios";
 
-const {
-  TUYA_ACCESS_ID,
-  TUYA_ACCESS_SECRET,
-  TUYA_BASE_URL,
-} = process.env;
+/* ------------------------------------------------
+ * ENV (LOCKED + TYPE-SAFE)
+ * ------------------------------------------------ */
+const TUYA_ACCESS_ID = process.env.TUYA_ACCESS_ID;
+const TUYA_ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
+const TUYA_BASE_URL = process.env.TUYA_BASE_URL;
 
 if (!TUYA_ACCESS_ID || !TUYA_ACCESS_SECRET || !TUYA_BASE_URL) {
   throw new Error("❌ Tuya env vars missing");
 }
 
+/**
+ * 🔒 Lock envs as guaranteed strings
+ * TypeScript now understands they are safe
+ */
+const ACCESS_ID: string = TUYA_ACCESS_ID;
+const ACCESS_SECRET: string = TUYA_ACCESS_SECRET;
+const BASE_URL: string = TUYA_BASE_URL;
+
 export class TuyaClient {
   private client: AxiosInstance;
-
-  /** Cached access token */
   private accessToken?: string;
-
-  /** Expiry timestamp (ms) */
   private tokenExpireAt = 0;
 
   constructor() {
     this.client = axios.create({
-      baseURL: TUYA_BASE_URL,
+      baseURL: BASE_URL,
       timeout: 15000,
     });
   }
@@ -52,13 +57,13 @@ export class TuyaClient {
     ].join("\n");
 
     const signStr =
-      TUYA_ACCESS_ID +
+      ACCESS_ID +
       accessToken +
       t +
       stringToSign;
 
     return crypto
-      .createHmac("sha256", TUYA_ACCESS_SECRET)
+      .createHmac("sha256", ACCESS_SECRET) // ✅ FIXED
       .update(signStr)
       .digest("hex")
       .toUpperCase();
@@ -80,7 +85,7 @@ export class TuyaClient {
       headers: {
         t,
         sign,
-        client_id: TUYA_ACCESS_ID,
+        client_id: ACCESS_ID,
         sign_method: "HMAC-SHA256",
       },
     });
@@ -106,7 +111,7 @@ export class TuyaClient {
     path: string,
     body?: any
   ): Promise<T> {
-    const accessToken = await this.getAccessToken(); // ✅ ALWAYS string
+    const accessToken = await this.getAccessToken();
     const t = Date.now().toString();
     const bodyStr = body ? JSON.stringify(body) : "";
 
@@ -125,7 +130,7 @@ export class TuyaClient {
       headers: {
         t,
         sign,
-        client_id: TUYA_ACCESS_ID,
+        client_id: ACCESS_ID,
         access_token: accessToken,
         sign_method: "HMAC-SHA256",
         "Content-Type": "application/json",
