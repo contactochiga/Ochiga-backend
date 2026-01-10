@@ -1,42 +1,35 @@
 // src/config/redis.ts
 import { createClient } from "redis";
 
-function requireNumber(name: string, fallback?: number): number {
-  const raw = process.env[name];
-
-  if (!raw) {
-    if (fallback !== undefined) return fallback;
-    throw new Error(`❌ Missing required env var: ${name}`);
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`❌ Missing env var: ${name}`);
   }
-
-  const value = Number(raw);
-  if (Number.isNaN(value)) {
-    throw new Error(`❌ Env var ${name} must be a number. Got: ${raw}`);
-  }
-
   return value;
 }
 
-const REDIS_HOST = process.env.REDIS_HOST || "127.0.0.1";
-const REDIS_PORT = requireNumber("REDIS_PORT", 6379);
+const REDIS_HOST = requireEnv("REDIS_HOST");
+const REDIS_PORT = Number(requireEnv("REDIS_PORT"));
+const REDIS_PASSWORD = requireEnv("REDIS_PASSWORD");
 const REDIS_TLS = process.env.REDIS_TLS === "true";
-const REDIS_PASSWORD = process.env.REDIS_PASSWORD;
 
 export const redis = createClient({
   socket: {
     host: REDIS_HOST,
     port: REDIS_PORT,
-    tls: REDIS_TLS || undefined, // IMPORTANT: undefined if false
+    tls: REDIS_TLS,
   },
   password: REDIS_PASSWORD,
 });
 
 redis.on("connect", () => {
-  console.log(`🟢 Redis connected (${REDIS_HOST}:${REDIS_PORT})`);
+  console.log("🟢 Redis connected");
 });
 
 redis.on("error", (err) => {
-  console.error("🔴 Redis Error:", err.message);
+  console.error("🔴 Redis error:", err.message);
+  process.exit(1); // ⛔ STOP infinite loops
 });
 
 export default redis;
