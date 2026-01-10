@@ -1,35 +1,69 @@
 // src/mqtt.ts
-import mqtt from "mqtt";
+import mqtt, { MqttClient } from "mqtt";
 
-const host = process.env.MQTT_HOST;
-const port = Number(process.env.MQTT_PORT || 8883);
-const username = process.env.MQTT_USERNAME;
-const password = process.env.MQTT_PASSWORD;
-const clientId = process.env.MQTT_CLIENT_ID || "ochiga_event_processor";
-
-if (!host) {
-  console.error("❌ MQTT_HOST is missing in environment variables");
+/* ---------------------------------------
+ * ENV VALIDATION (FAIL FAST)
+ * ------------------------------------- */
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`❌ Missing required env var: ${name}`);
+  }
+  return value;
 }
 
-export const mqttClient = mqtt.connect({
-  host,
-  port,
-  protocol: "mqtts",        // TLS required for HiveMQ Cloud
-  username,
-  password,
-  clientId,
-  reconnectPeriod: 2000,
-  connectTimeout: 30000,
+function requireNumber(name: string, fallback?: number): number {
+  const raw = process.env[name];
+  if (!raw && fallback !== undefined) return fallback;
+  const value = Number(raw);
+  if (Number.isNaN(value)) {
+    throw new Error(`❌ Env var ${name} must be a number`);
+  }
+  return value;
+}
+
+const MQTT_HOST = requireEnv("MQTT_HOST");
+const MQTT_PORT = requireNumber("MQTT_PORT", 8883);
+const MQTT_USERNAME = requireEnv("MQTT_USERNAME");
+const MQTT_PASSWORD = requireEnv("MQTT_PASSWORD");
+const MQTT_CLIENT_ID =
+  process.env.MQTT_CLIENT_ID || "ochiga_event_processor";
+
+/* ---------------------------------------
+ * CONNECTION URL (RECOMMENDED)
+ * ------------------------------------- */
+const MQTT_URL = `mqtts://${MQTT_HOST}:${MQTT_PORT}`;
+
+/* ---------------------------------------
+ * CLIENT (NO AUTO RECONNECT IN DEV)
+ * ------------------------------------- */
+export const mqttClient: MqttClient = mqtt.connect(MQTT_URL, {
+  username: MQTT_USERNAME,
+  password: MQTT_PASSWORD,
+  clientId: MQTT_CLIENT_ID,
+
+  // ⛔ disable silent infinite loops
+  reconnectPeriod: 0,
+
+  // Fail fast
+  connectTimeout: 15_000,
+
+  // TLS for HiveMQ Cloud
+  protocol: "mqtts",
 });
 
+/* ---------------------------------------
+ * EVENTS
+ * ------------------------------------- */
 mqttClient.on("connect", () => {
-  console.log(`✅ Connected to HiveMQ Cloud MQTT at ${host}:${port}`);
+  console.log(`🟢 MQTT connected → ${MQTT_URL}`);
 });
 
 mqttClient.on("error", (err) => {
-  console.error("❌ MQTT client error:", err.message);
+  console.error("🔴 MQTT connection error:", err.message);
+  mqttClient.end(true); // stop completely
 });
 
-mqttClient.on("reconnect", () => {
-  console.log("🔄 Reconnecting to HiveMQ Cloud...");
+mqttClient.on("close", () => {
+  console.warn("🟠 MQTT connection closed");
 });
