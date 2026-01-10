@@ -16,7 +16,7 @@ const connection = {
 /**
  * ============================================
  * DLQ QUEUE
- * ⚠️ NO colon allowed in BullMQ queue names
+ * ⚠️ BullMQ queue names MUST NOT contain :
  * ============================================
  */
 export const intentDlqQueue = new Queue<Intent>("intent_dlq", {
@@ -35,15 +35,14 @@ export function startIntentDlqWorker() {
       const intent = job.data;
 
       console.error("🧨 INTENT DLQ EVENT", {
-        intentId: intent?.id,
-        type: intent?.type,
-        reason: job.failedReason,
+        reason: job.failedReason ?? "unknown",
         attempts: job.attemptsMade,
+        intent, // log full payload safely
       });
 
       await supabaseAdmin.from("failed_intents").insert({
-        intent,
-        reason: job.failedReason || "unknown",
+        intent, // store full intent object
+        reason: job.failedReason ?? "unknown",
         attempts: job.attemptsMade,
         failed_at: new Date().toISOString(),
       });
