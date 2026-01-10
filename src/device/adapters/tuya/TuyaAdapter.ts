@@ -1,8 +1,9 @@
-// src/device/adapters/tuya/TuyaAdapter.ts
+/// src/device/adapters/tuya/TuyaAdapter.ts
 
 import { TuyaClient } from "./tuyaClient";
 import { DeviceAdapter } from "../DeviceAdapter";
 import { AdapterContext, DiscoveredDevice } from "../types";
+import { Signal } from "../../../core/control-plane/contracts/signal.types";
 
 export class TuyaAdapter implements DeviceAdapter {
   readonly name = "tuya";
@@ -18,7 +19,7 @@ export class TuyaAdapter implements DeviceAdapter {
   /* ------------------------------------------------
    * DISCOVERY
    * ------------------------------------------------ */
-  async discover(context: AdapterContext): Promise<DiscoveredDevice[]> {
+  async discover(_context: AdapterContext): Promise<DiscoveredDevice[]> {
     const devices = await this.client.request<any[]>(
       "GET",
       "/v1.0/iot-03/devices"
@@ -30,13 +31,10 @@ export class TuyaAdapter implements DeviceAdapter {
       name: d.name || d.local_name || "Unknown device",
       category: (d.category as any) || "unknown",
       online: Boolean(d.online),
-
       capabilities: Array.isArray(d.functions)
         ? d.functions.map((f: any) => f.code)
         : [],
-
       protocols: ["cloud", "wifi"],
-
       metadata: {
         manufacturer: "Tuya",
         model: d.model,
@@ -50,10 +48,10 @@ export class TuyaAdapter implements DeviceAdapter {
    * BIND
    * ------------------------------------------------ */
   async bindDevice(
-    device: DiscoveredDevice,
-    context: AdapterContext
+    _device: DiscoveredDevice,
+    _context: AdapterContext
   ): Promise<void> {
-    // Tuya cloud devices are already bound at vendor level
+    // Tuya devices are already vendor-bound
     return;
   }
 
@@ -63,7 +61,7 @@ export class TuyaAdapter implements DeviceAdapter {
   async executeCommand(
     deviceId: string,
     command: Record<string, any>,
-    context: AdapterContext
+    _context: AdapterContext
   ): Promise<void> {
     const commands = Object.entries(command).map(([code, value]) => ({
       code,
@@ -78,10 +76,17 @@ export class TuyaAdapter implements DeviceAdapter {
   }
 
   /* ------------------------------------------------
-   * EVENT STREAM (NEXT PHASE)
+   * EVENT STREAM (REQUIRED BY INTERFACE)
    * ------------------------------------------------ */
-  async startEventStream(): Promise<void> {
-    // Will hook Tuya Message Service / MQTT later
+  async startEventStream(
+    _context: AdapterContext,
+    _emit: (signal: Signal) => Promise<void>
+  ): Promise<void> {
+    // Tuya Message Service / MQTT will be wired here later
+    return;
+  }
+
+  async shutdown(): Promise<void> {
     return;
   }
 }
