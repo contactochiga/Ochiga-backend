@@ -1,27 +1,77 @@
 // src/device/adapters/types.ts
 
-import { Signal } from "../../core/control-plane/contracts/signal.types";
-
 /**
- * Device identity as seen by the platform
- * (vendor-agnostic)
+ * ================================
+ * DISCOVERED DEVICE (CANONICAL)
+ * ================================
+ * Vendor-agnostic device identity
+ * produced by any adapter
  */
 export interface DiscoveredDevice {
-  externalId: string;        // vendor / gateway ID
+  /** Vendor / gateway specific ID */
+  externalId: string;
+
+  /** Which adapter discovered it (tuya, zigbee, ble, wifi, mqtt, etc.) */
+  adapter: string;
+
+  /** Human-friendly name */
   name: string;
-  category: string;          // light, switch, lock, camera, etc.
-  capabilities: string[];    // on/off, dim, lock, temperature, etc.
-  protocols: string[];       // wifi, zigbee, ble, cloud
-  metadata?: Record<string, any>;
+
+  /** Device category */
+  category:
+    | "light"
+    | "switch"
+    | "socket"
+    | "sensor"
+    | "lock"
+    | "camera"
+    | "thermostat"
+    | "gateway"
+    | "unknown";
+
+  /** Supported commands / states */
+  capabilities: string[];
+
+  /** Communication protocols */
+  protocols: Array<"wifi" | "zigbee" | "ble" | "cloud" | "mqtt" | string>;
+
+  /** Online / reachable */
+  online: boolean;
+
+  /** Vendor payload & diagnostics */
+  metadata?: {
+    manufacturer?: string;
+    model?: string;
+    firmwareVersion?: string;
+    signalStrength?: number;
+    raw?: Record<string, any>;
+  };
 }
 
 /**
- * Context passed to adapters
- * (estate / home / user boundary)
+ * ================================
+ * ADAPTER CONTEXT
+ * ================================
+ * Boundary info passed into adapters
+ * (NO control-plane imports here)
  */
 export interface AdapterContext {
+  /** Estate boundary */
   estateId: string;
+
+  /** Optional home/unit boundary */
   homeId?: string;
+
+  /** User initiating discovery */
   userId: string;
-  credentials: Record<string, any>; // API keys, tokens, gateway IDs
+
+  /** Adapter-specific credentials */
+  credentials: {
+    apiKey?: string;
+    apiSecret?: string;
+    accessToken?: string;
+    refreshToken?: string;
+    gatewayId?: string;
+    [key: string]: any;
+  };
 }
