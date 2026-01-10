@@ -3,7 +3,7 @@
 import { SIGNAL_SCHEMA_VERSION } from "./versions";
 import { DeviceSignal } from "./device.signal.types";
 import { WalletSignal } from "./wallet.signal.types";
-import { CommunitySignal } from "./community.signal.types"; // 👈 MISSING LINE
+import { CommunitySignal } from "./community.signal.types";
 
 export type SignalSource = "device" | "system" | "user" | "network";
 
@@ -44,4 +44,4 @@ export type Signal =
   | VisitorArrivedSignal
   | DeviceSignal
   | WalletSignal
-  | CommunitySignal; // ✅ THIS IS THE FIX
+  | CommunitySignal;
