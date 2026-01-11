@@ -4,8 +4,15 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+
+    "dev:workers": "ts-node-dev --respawn --transpile-only src/worker.ts",
+    "dev:events": "ts-node-dev --respawn --transpile-only src/events.ts",
+
     "build": "tsc -p .",
-    "start": "node dist/server.js"
+
+    "start": "node dist/server.js",
+    "start:workers": "node dist/worker.js",
+    "start:events": "node dist/events.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
