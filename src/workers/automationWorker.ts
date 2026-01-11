@@ -1,7 +1,7 @@
 // src/workers/automationWorker.ts
 
 import { Worker, Queue, Job } from "bullmq";
-import { supabaseAdmin } from "../supabase/client";
+import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishDeviceAction } from "../device/bridge";
 
 /**
