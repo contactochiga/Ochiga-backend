@@ -2,7 +2,7 @@
 
 import { Worker, Queue, Job } from "bullmq";
 import { Intent } from "../core/control-plane/contracts/intent.types";
-import { supabaseAdmin } from "../supabase/client";
+import { supabaseAdmin } from "../supabase/supabaseClient";
 
 /**
  * ============================================
