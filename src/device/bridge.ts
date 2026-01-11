@@ -1,7 +1,7 @@
 // src/device/bridge.ts
 import mqtt from "mqtt";
 import { io } from "../server";
-import { supabaseAdmin } from "../supabase/client";
+import { supabaseAdmin } from "../supabase/supabaseClient";
 
 const MQTT_URL = process.env.MQTT_URL || "";
 const MQTT_USERNAME = process.env.MQTT_USERNAME || undefined;
