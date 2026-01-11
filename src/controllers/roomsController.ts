@@ -1,6 +1,6 @@
 // src/controllers/roomsController.ts
 import { Request, Response } from "express";
-import { supabaseAdmin } from "../supabase/client";
+import { supabaseAdmin } from "../supabase/supabaseClient";
 import { notifyUser, NotificationPayload } from "../services/NotificationService";
 
 export async function getRooms(req: Request, res: Response) {
