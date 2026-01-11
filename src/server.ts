@@ -15,26 +15,9 @@ import app from "./app";
 import { PORT } from "./config/env";
 
 // ---------------------------
-// REDIS
+// REDIS (shared infra – OK)
 // ---------------------------
 import { redis } from "./config/redis";
-
-// ---------------------------
-// BACKGROUND SERVICES
-// ---------------------------
-import { startEventProcessor } from "./event-processor/eventProcessor";
-
-// ---------------------------
-// MQTT BRIDGE
-// ---------------------------
-import { initMqttBridge } from "./device/bridge";
-
-// ---------------------------
-// WORKERS (✅ FIXED IMPORTS)
-// ---------------------------
-import { startAutomationWorker } from "./workers/automationWorker";
-import { startIntentWorker } from "./workers/intentWorker";
-import { startIntentDlqWorker } from "./workers/intentDlqWorker";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -68,68 +51,19 @@ io.on("connection", (socket) => {
 });
 
 // ---------------------------
-// START SERVER + SERVICES
+// START HTTP SERVER ONLY
 // ---------------------------
 httpServer.listen(PORT, async () => {
   console.log(`🚀 HTTP + WebSocket server running on port ${PORT}`);
 
   // ---------------------------
-  // CONNECT REDIS
+  // CONNECT REDIS (shared)
   // ---------------------------
   try {
     await redis.connect();
     console.log("🟢 Redis connected successfully");
   } catch (error) {
     console.error("🔴 Redis connection failed →", error);
-  }
-
-  // ---------------------------
-  // START EVENT PROCESSOR
-  // ---------------------------
-  try {
-    startEventProcessor();
-    console.log("🟢 Event processor started");
-  } catch (error) {
-    console.error("🔴 Event processor failed →", error);
-  }
-
-  // ---------------------------
-  // START MQTT BRIDGE
-  // ---------------------------
-  try {
-    await initMqttBridge();
-    console.log("🟢 MQTT bridge initialized");
-  } catch (error) {
-    console.error("🔴 MQTT bridge failed →", error);
-  }
-
-  // ---------------------------
-  // START AUTOMATION WORKER
-  // ---------------------------
-  try {
-    startAutomationWorker();
-    console.log("🟢 Automation worker started");
-  } catch (error) {
-    console.error("🔴 Automation worker startup failed →", error);
-  }
-
-  // ---------------------------
-  // START INTENT WORKER (Execution Plane)
-  // ---------------------------
-  try {
-    startIntentWorker();
-    console.log("🧠 Intent worker started");
-  } catch (error) {
-    console.error("🔴 Intent worker startup failed →", error);
-  }
-
-  // ---------------------------
-  // START DLQ WORKER (Safety Plane)
-  // ---------------------------
-  try {
-    startIntentDlqWorker();
-    console.log("🧯 Intent DLQ worker started");
-  } catch (error) {
-    console.error("🔴 DLQ worker startup failed →", error);
+    process.exit(1); // fail fast
   }
 });
