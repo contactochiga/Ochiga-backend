@@ -1,35 +1,35 @@
 // src/config/redis.ts
 import { createClient } from "redis";
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`❌ Missing env var: ${name}`);
-  }
-  return value;
+/**
+ * Redis MUST be configured via REDIS_URL
+ * Example:
+ * redis://:password@host:port
+ */
+const REDIS_URL = process.env.REDIS_URL;
+
+if (!REDIS_URL) {
+  throw new Error("❌ Missing env var: REDIS_URL");
 }
 
-const REDIS_HOST = requireEnv("REDIS_HOST");
-const REDIS_PORT = Number(requireEnv("REDIS_PORT"));
-const REDIS_PASSWORD = requireEnv("REDIS_PASSWORD");
-const REDIS_TLS = process.env.REDIS_TLS === "true";
-
 export const redis = createClient({
-  socket: {
-    host: REDIS_HOST,
-    port: REDIS_PORT,
-    tls: REDIS_TLS,
-  },
-  password: REDIS_PASSWORD,
+  url: REDIS_URL,
 });
 
+/* -----------------------
+ * EVENTS
+ * --------------------- */
 redis.on("connect", () => {
   console.log("🟢 Redis connected");
 });
 
+redis.on("ready", () => {
+  console.log("⚡ Redis ready");
+});
+
 redis.on("error", (err) => {
   console.error("🔴 Redis error:", err.message);
-  process.exit(1); // ⛔ STOP infinite loops
+  process.exit(1); // ⛔ fail fast, no infinite loops
 });
 
 export default redis;
