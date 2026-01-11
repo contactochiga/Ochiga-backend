@@ -1,6 +1,6 @@
 // src/automations/automations.route.ts
 import express from "express";
-import { supabaseAdmin } from "../supabase/client";
+import { supabaseAdmin } from "../supabase/supabaseClient";
 import { requireAuth } from "../middleware/auth";
 import { requireRole } from "../middleware/roles";
 import { nluToAutomation } from "../utils/ai";
