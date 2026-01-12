@@ -15,9 +15,15 @@ import app from "./app";
 import { PORT } from "./config/env";
 
 // ---------------------------
-// REDIS (shared infra – OK)
+// REDIS (shared infra)
 // ---------------------------
 import { redis } from "./config/redis";
+
+// ---------------------------
+// MQTT + EVENT PROCESSOR
+// ---------------------------
+import { initMqttBridge } from "./device/bridge";
+import { startEventProcessor } from "./event-processor/eventProcessor";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -51,19 +57,34 @@ io.on("connection", (socket) => {
 });
 
 // ---------------------------
-// START HTTP SERVER ONLY
+// START FULL BACKEND STACK
 // ---------------------------
 httpServer.listen(PORT, async () => {
   console.log(`🚀 HTTP + WebSocket server running on port ${PORT}`);
 
-  // ---------------------------
-  // CONNECT REDIS (shared)
-  // ---------------------------
   try {
+    // ---------------------------
+    // CONNECT REDIS
+    // ---------------------------
     await redis.connect();
     console.log("🟢 Redis connected successfully");
+
+    // ---------------------------
+    // START MQTT BRIDGE
+    // ---------------------------
+    await initMqttBridge();
+    console.log("🟢 MQTT bridge initialized");
+
+    // ---------------------------
+    // START EVENT PROCESSOR
+    // ---------------------------
+    startEventProcessor();
+    console.log("📡 Event processor running");
+
+    console.log("✅ Ochiga backend fully online");
+
   } catch (error) {
-    console.error("🔴 Redis connection failed →", error);
-    process.exit(1); // fail fast
+    console.error("🔴 Backend startup failed →", error);
+    process.exit(1);
   }
 });
