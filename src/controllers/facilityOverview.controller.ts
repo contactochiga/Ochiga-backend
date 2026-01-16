@@ -1,5 +1,5 @@
 // src/controllers/facilityOverview.controller.ts
-import { supabase } from "../lib/supabaseClient";
+import { supabaseAdmin } from "../supabase/supabaseClient";
 
 export const getFacilityOverview = async (req, res) => {
   try {
