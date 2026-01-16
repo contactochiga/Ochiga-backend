@@ -13,24 +13,37 @@ import residentsRoutes from "./routes/residents";
 import devicesRoutes from "./routes/devices";
 import onboardingRoutes from "./routes/onboarding";
 import visitorRoutes from "./routes/visitors";
-import signalRoutes from "./routes/signals"; // ✅ CONTROL PLANE ENTRY
+import signalRoutes from "./routes/signals";
+import facilityRoutes from "./routes/facility.routes"; // ✅ FACILITY MGMT
 
 const app = express();
 
 // -------------------------------
-// SECURITY MIDDLEWARE
+// SECURITY
 // -------------------------------
 app.use(helmet());
 
 // -------------------------------
-// ⭐ CORS (Codespaces + Local)
+// ⭐ CORS (PRODUCTION-READY)
 // -------------------------------
 app.use(
   cors({
     origin: [
-      "https://crispy-succotash-x5799wg49j5qhpxx6-3000.app.github.dev",
-      /\.(github|githubusercontent)\.dev$/,
       "http://localhost:3000",
+      "http://localhost:3001",
+
+      // Main consumer app
+      "https://oyi.com",
+      "https://www.oyi.com",
+
+      // Facility management app
+      "https://facility.oyi.com",
+
+      // Render backend (safe to include)
+      "https://oyi-os.onrender.com",
+
+      // Allow GitHub Codespaces generically (not hard-coded)
+      /\.github\.dev$/,
     ],
     credentials: true,
   })
@@ -63,11 +76,14 @@ app.get("/health", (_req, res) => {
 // -------------------------------
 app.use("/auth", authRoutes);
 app.use("/auth/onboard", onboardingRoutes);
+
 app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);
 app.use("/devices", devicesRoutes);
 app.use("/visitors", visitorRoutes);
-app.use("/signals", signalRoutes); // ✅ HTTP SIGNAL INGESTION
+
+app.use("/facility", facilityRoutes); // ✅ FACILITY DASHBOARD API
+app.use("/signals", signalRoutes);     // ✅ CONTROL PLANE ENTRY
 
 // -------------------------------
 // 404 HANDLER
