@@ -63,7 +63,8 @@ create table if not exists users (
   username text,
   full_name text,
 
-  password_hash text not null,
+  -- IMPORTANT: allow null for invite/OTP users (no password)
+  password_hash text,
 
   role text not null default 'resident',
   -- resident | estate_admin | security | platform_admin
@@ -78,9 +79,18 @@ create index if not exists idx_users_estate on users(estate_id);
 create index if not exists idx_users_home on users(home_id);
 
 -- Link homes.resident_id properly now that users exists
-alter table if exists homes
-  add constraint if not exists fk_homes_resident_id
-  foreign key (resident_id) references users(id) on delete set null;
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fk_homes_resident_id'
+  ) then
+    alter table homes
+      add constraint fk_homes_resident_id
+      foreign key (resident_id) references users(id) on delete set null;
+  end if;
+end $$;
 
 -- =====================================================
 -- PASSWORD ISSUE SAFETY (legacy cleanup)
@@ -97,12 +107,27 @@ begin
   end if;
 end $$;
 
--- Ensure password_hash exists and is NOT NULL
+-- Ensure password_hash exists (and keep it NULLABLE for scalability)
 alter table if exists users
   add column if not exists password_hash text;
 
-alter table if exists users
-  alter column password_hash set not null;
+-- If it was previously NOT NULL, relax it (prevents "contains null values" error)
+do $$
+begin
+  -- only try if column exists
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_name='users' and column_name='password_hash'
+  ) then
+    begin
+      alter table users alter column password_hash drop not null;
+    exception when others then
+      -- ignore if already nullable
+      null;
+    end;
+  end if;
+end $$;
 
 -- =====================================================
 -- 4. ROOMS
@@ -378,7 +403,7 @@ begin
   end if;
 end$$;
 
--- 16B) Estate memberships (facility access control)
+-- 16B) Estate memberships
 create table if not exists estate_memberships (
   id uuid default gen_random_uuid() primary key,
 
@@ -400,7 +425,7 @@ create index if not exists idx_estate_memberships_estate on estate_memberships(e
 create index if not exists idx_estate_memberships_user on estate_memberships(user_id);
 create index if not exists idx_estate_memberships_role on estate_memberships(role);
 
--- 16C) Home memberships (family/household access control)
+-- 16C) Home memberships
 create table if not exists home_memberships (
   id uuid default gen_random_uuid() primary key,
 
