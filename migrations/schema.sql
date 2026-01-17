@@ -1,3 +1,5 @@
+begin;
+
 -- =====================================================
 -- EXTENSIONS
 -- =====================================================
@@ -15,32 +17,12 @@ create table if not exists estates (
   created_at timestamptz default now()
 );
 
--- =====================================================
--- 2. USERS (AUTH CANONICAL)
--- =====================================================
-create table if not exists users (
-  id uuid default gen_random_uuid() primary key,
-  email text unique not null,
-
-  username text,
-  full_name text,
-
-  password_hash text not null,
-
-  role text not null default 'resident', 
-  -- resident | estate_admin | security | platform_admin
-
-  estate_id uuid references estates(id) on delete set null,
-  home_id uuid references homes(id) on delete set null,
-
-  created_at timestamptz default now()
-);
-
-create index if not exists idx_users_estate on users(estate_id);
-create index if not exists idx_users_home on users(home_id);
+-- Generic infra-ready type (estate | hotel | school | market | campus)
+alter table if exists estates
+  add column if not exists type text default 'estate';
 
 -- =====================================================
--- 3. HOMES (UNITS)
+-- 2. HOMES (UNITS)
 -- =====================================================
 create table if not exists homes (
   id uuid default gen_random_uuid() primary key,
@@ -59,13 +41,68 @@ create table if not exists homes (
   lat numeric,
   lng numeric,
 
-  resident_id uuid references users(id) on delete set null,
+  resident_id uuid, -- FK added after users table exists
 
   created_at timestamptz default now()
 );
 
+-- Generic infra-ready type (home | apartment | room | suite | shop | office)
+alter table if exists homes
+  add column if not exists type text default 'home';
+
 create index if not exists idx_homes_estate on homes(estate_id);
 create index if not exists idx_homes_resident on homes(resident_id);
+
+-- =====================================================
+-- 3. USERS (AUTH CANONICAL)
+-- =====================================================
+create table if not exists users (
+  id uuid default gen_random_uuid() primary key,
+  email text unique not null,
+
+  username text,
+  full_name text,
+
+  password_hash text not null,
+
+  role text not null default 'resident',
+  -- resident | estate_admin | security | platform_admin
+
+  estate_id uuid references estates(id) on delete set null,
+  home_id uuid references homes(id) on delete set null,
+
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_users_estate on users(estate_id);
+create index if not exists idx_users_home on users(home_id);
+
+-- Link homes.resident_id properly now that users exists
+alter table if exists homes
+  add constraint if not exists fk_homes_resident_id
+  foreign key (resident_id) references users(id) on delete set null;
+
+-- =====================================================
+-- PASSWORD ISSUE SAFETY (legacy cleanup)
+-- =====================================================
+-- If an old "password" column exists, drop it (non-breaking for your current code)
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_name='users' and column_name='password'
+  ) then
+    alter table users drop column password;
+  end if;
+end $$;
+
+-- Ensure password_hash exists and is NOT NULL
+alter table if exists users
+  add column if not exists password_hash text;
+
+alter table if exists users
+  alter column password_hash set not null;
 
 -- =====================================================
 -- 4. ROOMS
@@ -216,6 +253,13 @@ create table if not exists notifications (
 
 create index if not exists idx_notifications_user on notifications(user_id);
 
+-- Add estate scope (needed for facility alerts query pattern)
+alter table if exists notifications
+  add column if not exists estate_id uuid references estates(id) on delete cascade;
+
+create index if not exists idx_notifications_estate on notifications(estate_id);
+create index if not exists idx_notifications_status on notifications(status);
+
 -- =====================================================
 -- 11. USER WALLETS (1:1)
 -- =====================================================
@@ -230,6 +274,8 @@ create table if not exists wallets (
   updated_at timestamptz default now()
 );
 
+create index if not exists idx_wallets_user on wallets(user_id);
+
 -- =====================================================
 -- 12. ESTATE WALLETS
 -- =====================================================
@@ -243,6 +289,8 @@ create table if not exists estate_wallets (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+create index if not exists idx_estate_wallets_estate on estate_wallets(estate_id);
 
 -- =====================================================
 -- 13. WALLET TRANSACTIONS
@@ -265,6 +313,7 @@ create table if not exists wallet_transactions (
 );
 
 create index if not exists idx_wallet_tx_wallet on wallet_transactions(wallet_id);
+create index if not exists idx_wallet_tx_status on wallet_transactions(status);
 
 -- =====================================================
 -- 14. ESTATE SERVICES (UTILITIES)
@@ -306,3 +355,103 @@ create table if not exists maintenance_requests (
 
 create index if not exists idx_maintenance_estate on maintenance_requests(estate_id);
 create index if not exists idx_maintenance_status on maintenance_requests(status);
+
+-- =====================================================
+-- 16. MEMBERSHIPS + INVITES (NEW)
+-- =====================================================
+
+-- 16A) Membership role enum (safe create)
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'membership_role') then
+    create type membership_role as enum (
+      'owner',
+      'admin',
+      'manager',
+      'security',
+      'resident',
+      'member',
+      'guest',
+      'staff',
+      'viewer'
+    );
+  end if;
+end$$;
+
+-- 16B) Estate memberships (facility access control)
+create table if not exists estate_memberships (
+  id uuid default gen_random_uuid() primary key,
+
+  estate_id uuid not null references estates(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+
+  role membership_role not null default 'resident',
+  status text not null default 'active', -- active | invited | suspended
+
+  permissions jsonb default '{}'::jsonb,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+
+  constraint uq_estate_memberships unique (estate_id, user_id)
+);
+
+create index if not exists idx_estate_memberships_estate on estate_memberships(estate_id);
+create index if not exists idx_estate_memberships_user on estate_memberships(user_id);
+create index if not exists idx_estate_memberships_role on estate_memberships(role);
+
+-- 16C) Home memberships (family/household access control)
+create table if not exists home_memberships (
+  id uuid default gen_random_uuid() primary key,
+
+  home_id uuid not null references homes(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+
+  role membership_role not null default 'member',
+  status text not null default 'active', -- active | invited | suspended
+
+  permissions jsonb default '{}'::jsonb,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+
+  constraint uq_home_memberships unique (home_id, user_id)
+);
+
+create index if not exists idx_home_memberships_home on home_memberships(home_id);
+create index if not exists idx_home_memberships_user on home_memberships(user_id);
+create index if not exists idx_home_memberships_role on home_memberships(role);
+
+-- 16D) Invites (QR/link/email onboarding)
+create table if not exists invites (
+  id uuid default gen_random_uuid() primary key,
+
+  created_by uuid references users(id) on delete set null,
+
+  estate_id uuid references estates(id) on delete cascade,
+  home_id uuid references homes(id) on delete cascade,
+  room_id uuid references rooms(id) on delete cascade,
+
+  role membership_role not null default 'resident',
+  invite_type text not null default 'link', -- link | qr | email
+
+  token_hash text not null,
+  invited_email text,
+
+  status text not null default 'pending', -- pending | accepted | revoked | expired
+  expires_at timestamptz not null default (now() + interval '7 days'),
+
+  claimed_by uuid references users(id) on delete set null,
+  claimed_at timestamptz,
+
+  created_at timestamptz default now()
+);
+
+create unique index if not exists uq_invites_token_hash on invites(token_hash);
+create index if not exists idx_invites_estate on invites(estate_id);
+create index if not exists idx_invites_home on invites(home_id);
+create index if not exists idx_invites_room on invites(room_id);
+create index if not exists idx_invites_status on invites(status);
+create index if not exists idx_invites_email on invites(invited_email);
+
+commit;
