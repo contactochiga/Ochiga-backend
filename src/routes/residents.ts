@@ -1,97 +1,121 @@
+// src/routes/residents.ts
 import express from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { requireAuth } from "../middleware/auth";
 import { requireRole } from "../middleware/roles";
 import crypto from "crypto";
 import QRCode from "qrcode";
-import bcrypt from "bcrypt";
 
 const router = express.Router();
 
 /**
  * POST /residents
- * Create resident + onboarding
- *
- * Allowed roles:
- * - estate_admin
- * - manager
- * - system_admin (implicit override)
+ * Creates a resident (invite-based: no password stored).
  */
 router.post(
   "/",
   requireAuth,
   requireRole("estate_admin", "manager"),
   async (req, res) => {
-    const { email, estateId, homeId, fullName, phone } = req.body;
+    const { email, estateId, homeId, fullName } = req.body;
 
     if (!email || !estateId) {
-      return res.status(400).json({
-        error: "email and estateId required",
-      });
+      return res.status(400).json({ error: "email and estateId required" });
     }
 
     try {
-      // 1 — Generate temporary password
-      const tempPassword = "OC-" + Math.floor(10000 + Math.random() * 90000);
-      const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
-      // 2 — Create resident user
-      const { data: user, error: userError } = await supabaseAdmin
+      // 1) Find or create user
+      const { data: existingUser, error: findErr } = await supabaseAdmin
         .from("users")
-        .insert([
-          {
+        .select("*")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (findErr) return res.status(500).json({ error: findErr.message });
+
+      let user = existingUser;
+
+      if (!user) {
+        const { data: created, error: createErr } = await supabaseAdmin
+          .from("users")
+          .insert({
             email,
-            password: hashedPassword,
             full_name: fullName || null,
-            phone: phone || null,
+            password_hash: null, // ✅ invite-based
             role: "resident",
+
+            // keep legacy columns if you still use them
             estate_id: estateId,
             home_id: homeId || null,
-          },
-        ])
-        .select()
-        .single();
+          })
+          .select()
+          .single();
 
-      if (userError) {
-        return res.status(500).json({ error: userError.message });
+        if (createErr) return res.status(500).json({ error: createErr.message });
+        user = created;
       }
 
-      // 3 — Create onboarding token
-      const token = crypto.randomUUID();
-
-      const { error: tokenError } = await supabaseAdmin
-        .from("onboarding_tokens")
-        .insert([
+      // 2) Upsert estate membership
+      const { error: emErr } = await supabaseAdmin
+        .from("estate_memberships")
+        .upsert(
           {
+            estate_id: estateId,
             user_id: user.id,
-            token,
-            used: false,
+            role: "resident",
+            status: "active",
           },
-        ]);
+          { onConflict: "estate_id,user_id" }
+        );
 
-      if (tokenError) {
-        return res.status(500).json({ error: tokenError.message });
+      if (emErr) return res.status(500).json({ error: emErr.message });
+
+      // 3) If homeId, upsert home membership too
+      if (homeId) {
+        const { error: hmErr } = await supabaseAdmin
+          .from("home_memberships")
+          .upsert(
+            {
+              home_id: homeId,
+              user_id: user.id,
+              role: "member",
+              status: "active",
+            },
+            { onConflict: "home_id,user_id" }
+          );
+
+        if (hmErr) return res.status(500).json({ error: hmErr.message });
       }
 
-      // 4 — Generate onboarding URL
-      const onboardingUrl = `https://your-domain.com/onboard/${token}`;
+      // 4) Create invite
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-      // 5 — Generate QR code
-      const qrDataUrl = await QRCode.toDataURL(onboardingUrl);
+      const { error: inviteErr } = await supabaseAdmin.from("invites").insert({
+        created_by: req.user?.id || null,
+        estate_id: estateId,
+        home_id: homeId || null,
+        role: homeId ? "member" : "resident",
+        invite_type: "link",
+        token_hash: tokenHash,
+        invited_email: email,
+        status: "pending",
+      });
+
+      if (inviteErr) return res.status(500).json({ error: inviteErr.message });
+
+      const inviteUrl = `${process.env.VISITOR_LINK_BASE || "https://oyi.com"}/auth/invite?token=${rawToken}`;
+      const qrDataUrl = await QRCode.toDataURL(inviteUrl);
 
       return res.json({
-        message: "Resident created successfully",
+        message: "Resident created + membership granted + invite generated",
         user,
-        onboardingUrl,
+        inviteUrl,
         qrDataUrl,
-        tempPassword, // optional: remove in production
       });
     } catch (err: any) {
       console.error("Create resident error:", err);
-      return res.status(500).json({
-        error: "Server error",
-        details: err.message,
-      });
+      return res.status(500).json({ error: "Server error", details: err.message });
     }
   }
 );
