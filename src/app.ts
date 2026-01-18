@@ -26,41 +26,52 @@ app.use(helmet());
 // -------------------------------
 // ⭐ CORS (PRODUCTION-READY + VERCEL-SAFE)
 // -------------------------------
+const allowList = new Set([
+  "http://localhost:3000",
+  "http://localhost:3001",
+
+  // Main consumer app
+  "https://oyi.com",
+  "https://www.oyi.com",
+
+  // Facility management custom domain
+  "https://facility.oyi.com",
+
+  // Render backend (safe to include)
+  "https://oyi-os.onrender.com",
+]);
+
+function isAllowedOrigin(origin: string) {
+  // ✅ Allow explicit allow-list
+  if (allowList.has(origin)) return true;
+
+  // ✅ Allow all Vercel deployments (preview + production)
+  // e.g. https://facility-oyi-xxxxx.vercel.app
+  if (origin.endsWith(".vercel.app")) return true;
+
+  // ✅ Allow GitHub Codespaces + VSCode web
+  if (origin.endsWith(".github.dev")) return true;
+
+  return false;
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow server-to-server / health checks / Postman (no Origin header)
+      // Allow server-to-server / health checks / curl / Postman (no Origin header)
       if (!origin) return callback(null, true);
 
-      const allowList = [
-        "http://localhost:3000",
-        "http://localhost:3001",
+      if (isAllowedOrigin(origin)) return callback(null, true);
 
-        // Main consumer app
-        "https://oyi.com",
-        "https://www.oyi.com",
-
-        // Facility management custom domain
-        "https://facility.oyi.com",
-
-        // Render backend (safe to include)
-        "https://oyi-os.onrender.com",
-      ];
-
-      // ✅ Allow all Vercel deployments (preview + production)
-      if (origin.endsWith(".vercel.app")) return callback(null, true);
-
-      // ✅ Allow GitHub Codespaces
-      if (origin.endsWith(".github.dev")) return callback(null, true);
-
-      // ✅ Allow explicit allow-list
-      if (allowList.includes(origin)) return callback(null, true);
-
-      // ❌ Block everything else
       console.error("❌ CORS blocked:", origin);
       return callback(new Error("CORS blocked"));
     },
     credentials: true,
+
+    // ✅ Make preflight fast + stable on Vercel browsers
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -97,8 +108,8 @@ app.use("/residents", residentsRoutes);
 app.use("/devices", devicesRoutes);
 app.use("/visitors", visitorRoutes);
 
-app.use("/facility", facilityRoutes); // ✅ FACILITY DASHBOARD API
-app.use("/signals", signalRoutes); // ✅ CONTROL PLANE ENTRY
+app.use("/facility", facilityRoutes); // ✅ FACILITY DASHBOARD + MGMT API
+app.use("/signals", signalRoutes);    // ✅ CONTROL PLANE ENTRY
 
 // -------------------------------
 // 404 HANDLER
