@@ -24,30 +24,58 @@ const app = express();
 app.use(helmet());
 
 // -------------------------------
-// ⭐ CORS (PRODUCTION-READY)
+// ⭐ CORS (VERCEL + CODESPACES SAFE)
 // -------------------------------
+const ALLOWED_ORIGINS = new Set<string>([
+  "http://localhost:3000",
+  "http://localhost:3001",
+
+  // Main consumer app (prod domains)
+  "https://oyi.com",
+  "https://www.oyi.com",
+
+  // Facility management app (prod custom domain)
+  "https://facility.oyi.com",
+
+  // ✅ Vercel production domain (YOU MUST INCLUDE THIS)
+  "https://facility-oyi.vercel.app",
+
+  // (Optional) your render backend (not necessary, but harmless)
+  "https://oyi-os.onrender.com",
+]);
+
+function isAllowedOrigin(origin?: string | null) {
+  if (!origin) return true; // allow server-to-server / Postman / curl
+
+  // Exact allowlist
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+
+  // ✅ Allow Vercel Preview URLs for this project
+  // e.g. https://facility-oyi-abc123.vercel.app
+  if (/^https:\/\/facility-oyi-[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true;
+
+  // ✅ Allow GitHub Codespaces / github.dev
+  // typical: https://<something>-3001.app.github.dev
+  if (/^https:\/\/.*\.app\.github\.dev$/i.test(origin)) return true;
+  if (/^https:\/\/.*\.github\.dev$/i.test(origin)) return true;
+
+  return false;
+}
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-
-      // Main consumer app
-      "https://oyi.com",
-      "https://www.oyi.com",
-
-      // Facility management app
-      "https://facility.oyi.com",
-
-      // Render backend (safe to include)
-      "https://oyi-os.onrender.com",
-
-      // Allow GitHub Codespaces generically (not hard-coded)
-      /\.github\.dev$/,
-    ],
+    origin: (origin, cb) => {
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked: ${origin}`));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// ✅ handle preflight explicitly (important for some browsers/proxies)
+app.options("*", cors());
 
 // -------------------------------
 // BODY PARSING & LOGGING
@@ -83,7 +111,7 @@ app.use("/devices", devicesRoutes);
 app.use("/visitors", visitorRoutes);
 
 app.use("/facility", facilityRoutes); // ✅ FACILITY DASHBOARD API
-app.use("/signals", signalRoutes);     // ✅ CONTROL PLANE ENTRY
+app.use("/signals", signalRoutes); // ✅ CONTROL PLANE ENTRY
 
 // -------------------------------
 // 404 HANDLER
