@@ -1,6 +1,6 @@
 // src/routes/facility.routes.ts
 import express from "express";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { getFacilityOverview } from "../controllers/facilityOverview.controller";
 
 import {
@@ -18,38 +18,39 @@ import {
 const router = express.Router();
 
 /**
- * Existing
+ * Overview (requires user to have estate_id, otherwise controller returns 400)
  */
 router.get("/overview", requireAuth, getFacilityOverview);
 
 /**
- * ---------------------------
- * CREATION MODEL (Facility)
- * ---------------------------
- */
-
-/** Estates
+ * Estates
  * ✅ Any authenticated user can create an estate (bootstrap).
- * They become "owner" automatically inside createEstate().
  */
 router.post("/estates", requireAuth, createEstate);
 router.get("/estates", requireAuth, listMyEstates);
 
-/** Homes (Units) */
-router.post("/homes", requireAuth, requireRole("admin", "estate_admin", "manager", "owner"), createHome);
+/**
+ * Homes (Units)
+ * ✅ Controller enforces estate membership via assertCanManageEstate()
+ */
+router.post("/homes", requireAuth, createHome);
 router.get("/estates/:estateId/homes", requireAuth, listEstateHomes);
 
-/** Rooms */
-router.post("/rooms", requireAuth, requireRole("admin", "estate_admin", "manager", "owner"), createRoom);
+/**
+ * Rooms
+ */
+router.post("/rooms", requireAuth, createRoom);
 router.get("/homes/:homeId/rooms", requireAuth, listHomeRooms);
 
-/** Invites (Estate/Home membership) */
-router.post("/invites", requireAuth, requireRole("admin", "estate_admin", "manager", "owner"), inviteUser);
-
-/** Accept invite */
+/**
+ * Invites
+ */
+router.post("/invites", requireAuth, inviteUser);
 router.post("/invites/accept", requireAuth, acceptInvite);
 
-/** Room assignment */
-router.post("/rooms/assign", requireAuth, requireRole("admin", "estate_admin", "manager", "owner"), assignUserToRoom);
+/**
+ * Room assignment
+ */
+router.post("/rooms/assign", requireAuth, assignUserToRoom);
 
 export default router;
