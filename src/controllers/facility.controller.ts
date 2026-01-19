@@ -34,25 +34,49 @@ function compact<T extends Record<string, any>>(obj: T): Partial<T> {
   return out as Partial<T>;
 }
 
-// Extract missing column name from Supabase schema-cache error
+/**
+ * Extract missing column name from common Supabase / PostgREST error formats.
+ * We see at least these in the wild:
+ * 1) "Could not find the 'type' column of 'homes' in the schema cache"
+ * 2) 'column "type" of relation "homes" does not exist'
+ * 3) 'Could not find the "type" column ...' (double quotes)
+ * 4) PostgREST code PGRST204 sometimes appears with a message mentioning "column"
+ */
 function extractMissingColumnName(msg: string): string | null {
-  // e.g. "Could not find the 'type' column of 'homes' in the schema cache"
-  const m = msg.match(/Could not find the '([^']+)' column/i);
-  return m?.[1] || null;
+  if (!msg) return null;
+
+  // Format 1
+  let m = msg.match(/Could not find the ['"]([^'"]+)['"] column/i);
+  if (m?.[1]) return m[1];
+
+  // Format 2
+  m = msg.match(/column\s+"([^"]+)"\s+of\s+relation/i);
+  if (m?.[1]) return m[1];
+
+  // Generic: "unknown column: type" / "missing column type"
+  m = msg.match(/(?:unknown|missing)\s+column[:\s]+([a-zA-Z0-9_]+)/i);
+  if (m?.[1]) return m[1];
+
+  return null;
 }
 
 /**
- * Insert with fallback:
- * If Supabase complains "Could not find the 'X' column ...",
- * drop that key and retry (up to 5 times).
+ * Insert with schema fallback:
+ * If Supabase complains a column doesn't exist, drop that key and retry.
+ * After retries, we surface the LAST real error message (not a generic one).
  */
 async function insertWithSchemaFallback<T>(
   table: string,
-  row: Record<string, any>
+  row: Record<string, any>,
+  maxAttempts = 8
 ): Promise<T> {
-  let payload = { ...row };
+  // make a working copy; ensure undefined removed
+  let payload: Record<string, any> = { ...(compact(row) as any) };
 
-  for (let attempt = 0; attempt < 5; attempt++) {
+  let lastErrorMsg = "";
+  let lastErrorCode = "";
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const { data, error } = await supabaseAdmin
       .from(table)
       .insert(payload)
@@ -61,20 +85,42 @@ async function insertWithSchemaFallback<T>(
 
     if (!error) return data as T;
 
-    const msg = String(error.message || "");
+    const msg = String((error as any)?.message || "");
+    const code = String((error as any)?.code || "");
+    lastErrorMsg = msg;
+    lastErrorCode = code;
+
+    // Detect missing column from message OR PostgREST-ish hints
     const missingCol = extractMissingColumnName(msg);
 
-    // If it's a missing column schema-cache error, drop and retry
+    // If it's a missing column error and we can drop it, do it and retry
     if (missingCol && Object.prototype.hasOwnProperty.call(payload, missingCol)) {
       delete payload[missingCol];
       continue;
     }
 
-    // Otherwise, fail fast
-    throw new Error(error.message);
+    // Sometimes PostgREST returns a missing-column-like error without matching above,
+    // but the message still contains "schema cache" and points at a column name.
+    if (/schema cache/i.test(msg)) {
+      const col = extractMissingColumnName(msg);
+      if (col && Object.prototype.hasOwnProperty.call(payload, col)) {
+        delete payload[col];
+        continue;
+      }
+    }
+
+    // Not a schema mismatch: fail fast with the real error
+    throw new Error(msg || "Insert failed");
   }
 
-  throw new Error("Insert failed after removing missing columns.");
+  // Retries exhausted: show what we last saw
+  throw new Error(
+    lastErrorMsg
+      ? `Insert failed after removing missing columns. Last error: ${lastErrorMsg}${
+          lastErrorCode ? ` (${lastErrorCode})` : ""
+        }`
+      : "Insert failed after removing missing columns."
+  );
 }
 
 // ---------------------------
@@ -90,19 +136,14 @@ export async function createEstate(req: any, res: Response) {
     const { name, address, lat, lng, type } = req.body;
     if (!name) return res.status(400).json({ error: "name is required" });
 
-    // IMPORTANT:
-    // Some deployments might not have estates.type yet.
-    // We still accept it from frontend, but we insert with schema fallback.
-    const estate = await insertWithSchemaFallback<any>(
-      "estates",
-      compact({
-        name,
-        address: address || null,
-        lat: lat ?? null,
-        lng: lng ?? null,
-        type: type || "estate",
-      })
-    );
+    // Some deployments might not have estates.type yet -> schema fallback handles it.
+    const estate = await insertWithSchemaFallback<any>("estates", {
+      name,
+      address: address || null,
+      lat: lat ?? null,
+      lng: lng ?? null,
+      type: type || "estate",
+    });
 
     // Add membership
     const { error: memErr } = await supabaseAdmin.from("estate_memberships").upsert(
@@ -140,7 +181,6 @@ export async function listMyEstates(req: any, res: Response) {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    // normalize
     const estates = (data || [])
       .filter((m: any) => m.estates)
       .map((m: any) => ({
@@ -168,10 +208,13 @@ export async function createHome(req: any, res: Response) {
       unit,
       block,
       description,
-      type, // may not exist in homes table
+
+      // may not exist depending on your schema
+      type,
+
       resident_id,
 
-      // optional fields (your UI collects them)
+      // optional fields (UI collects them)
       electricity_meter,
       water_meter,
       internet_id,
@@ -189,33 +232,34 @@ export async function createHome(req: any, res: Response) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
-    // IMPORTANT:
-    // Some deployments might not have homes.type yet.
-    // Insert with schema fallback so it auto-drops missing columns (like "type").
-    const home = await insertWithSchemaFallback<any>(
-      "homes",
-      compact({
-        estate_id,
-        name,
-        unit: unit || null,
-        block: block || null,
-        description: description || null,
+    /**
+     * IMPORTANT:
+     * Your DB currently complains about missing columns (like homes.type earlier).
+     * We insert with schema fallback so it auto-drops any missing keys and retries.
+     *
+     * If it STILL fails after dropping missing columns, you'll now see the REAL error.
+     */
+    const home = await insertWithSchemaFallback<any>("homes", {
+      estate_id,
+      name,
+      unit: unit || null,
+      block: block || null,
+      description: description || null,
 
-        // will be dropped automatically if column doesn't exist
-        type: type || "home",
+      // will be dropped if homes.type doesn't exist
+      type: type || "home",
 
-        resident_id: resident_id || null,
+      resident_id: resident_id || null,
 
-        // meters + ids (will be inserted if columns exist)
-        electricity_meter: electricity_meter || null,
-        water_meter: water_meter || null,
-        internet_id: internet_id || null,
-        gate_code: gate_code || null,
+      // will be dropped if the columns don't exist
+      electricity_meter: electricity_meter || null,
+      water_meter: water_meter || null,
+      internet_id: internet_id || null,
+      gate_code: gate_code || null,
 
-        lat: lat ?? null,
-        lng: lng ?? null,
-      })
-    );
+      lat: lat ?? null,
+      lng: lng ?? null,
+    });
 
     // If resident_id provided, also ensure home membership
     if (resident_id) {
@@ -233,7 +277,9 @@ export async function createHome(req: any, res: Response) {
     return res.json({ message: "Home created", home });
   } catch (e: any) {
     console.error("createHome error:", e);
-    return res.status(500).json({ error: e.message || "Server error" });
+
+    // Surface the real supabase error message to frontend
+    return res.status(400).json({ error: e.message || "Failed to create home" });
   }
 }
 
@@ -288,23 +334,19 @@ export async function createRoom(req: any, res: Response) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
-    // Use fallback as well, in case rooms.type isn't present in some schemas
-    const room = await insertWithSchemaFallback<any>(
-      "rooms",
-      compact({
-        estate_id,
-        home_id,
-        name,
-        type: type || null,
-        floor: floor ?? null,
-        ai_profile: ai_profile || {},
-      })
-    );
+    const room = await insertWithSchemaFallback<any>("rooms", {
+      estate_id,
+      home_id,
+      name,
+      type: type || null,
+      floor: floor ?? null,
+      ai_profile: ai_profile || {},
+    });
 
     return res.json({ message: "Room created", room });
   } catch (e: any) {
     console.error("createRoom error:", e);
-    return res.status(500).json({ error: e.message || "Server error" });
+    return res.status(400).json({ error: e.message || "Failed to create room" });
   }
 }
 
