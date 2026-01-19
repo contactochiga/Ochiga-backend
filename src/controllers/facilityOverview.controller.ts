@@ -2,33 +2,33 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
-// ---------------------------
-// TYPES
-// ---------------------------
 type AuthenticatedRequest = Request & {
-  user?: {
-    id: string;
-    estate_id?: string;
-    role?: string;
-  };
+  user?: { id: string; estate_id?: string; role?: string };
 };
 
-type AmountRow = {
-  amount: number;
-};
+type AmountRow = { amount: number };
 
-// ---------------------------
-// CONTROLLER
-// ---------------------------
-export const getFacilityOverview = async (
-  req: AuthenticatedRequest,
-  res: Response
-) => {
+export const getFacilityOverview = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const estateId = req.user?.estate_id;
+    let estateId = req.user?.estate_id;
+
+    // ✅ Fallback: membership-driven estate selection
+    if (!estateId && req.user?.id) {
+      const { data: mem, error: memErr } = await supabaseAdmin
+        .from("estate_memberships")
+        .select("estate_id, status")
+        .eq("user_id", req.user.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (memErr) return res.status(500).json({ error: memErr.message });
+      estateId = mem?.estate_id || undefined;
+    }
 
     if (!estateId) {
-      return res.status(400).json({ error: "Estate not linked to user" });
+      return res.status(400).json({ error: "No estate linked. Create or join an estate." });
     }
 
     // 1. Total Homes
@@ -73,7 +73,7 @@ export const getFacilityOverview = async (
       .from("estate_wallets")
       .select("balance")
       .eq("estate_id", estateId)
-      .single();
+      .maybeSingle();
 
     const { data: dues } = await supabaseAdmin
       .from("dues")
@@ -88,16 +88,10 @@ export const getFacilityOverview = async (
       .gte("created_at", `${today.slice(0, 7)}-01`);
 
     const totalOutstanding =
-      (dues as AmountRow[] | null)?.reduce(
-        (sum: number, d: AmountRow) => sum + d.amount,
-        0
-      ) || 0;
+      (dues as AmountRow[] | null)?.reduce((sum, d) => sum + d.amount, 0) || 0;
 
     const collectedThisMonth =
-      (payments as AmountRow[] | null)?.reduce(
-        (sum: number, p: AmountRow) => sum + p.amount,
-        0
-      ) || 0;
+      (payments as AmountRow[] | null)?.reduce((sum, p) => sum + p.amount, 0) || 0;
 
     return res.json({
       estate_id: estateId,
@@ -114,8 +108,6 @@ export const getFacilityOverview = async (
     });
   } catch (error) {
     console.error("Facility overview error:", error);
-    return res
-      .status(500)
-      .json({ error: "Failed to load facility overview" });
+    return res.status(500).json({ error: "Failed to load facility overview" });
   }
 };
