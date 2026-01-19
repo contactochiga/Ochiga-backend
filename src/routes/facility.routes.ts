@@ -15,6 +15,13 @@ import {
   assignUserToRoom,
 } from "../controllers/facility.controller";
 
+// ✅ Estate users (roles + membership management)
+import {
+  listEstateUsers,
+  updateEstateUser,
+  removeEstateUser,
+} from "../controllers/estateUsers.controller";
+
 // ✅ FACILITY DEVICE ROUTES (discover, command, geo)
 import facilityDevicesRoutes from "./facilityDevices.routes";
 
@@ -55,6 +62,13 @@ router.post("/invites/accept", requireAuth, acceptInvite);
  * Room assignment
  */
 router.post("/rooms/assign", requireAuth, assignUserToRoom);
+
+/**
+ * 👥 Estate users (roles + status + removal)
+ */
+router.get("/estate-users", requireAuth, listEstateUsers);
+router.patch("/estate-users/:membershipId", requireAuth, updateEstateUser);
+router.delete("/estate-users/:membershipId", requireAuth, removeEstateUser);
 
 /**
  * ---------------------------
