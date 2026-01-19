@@ -6,8 +6,6 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 
 // Helper: check estate access for a manager/admin
 async function assertCanManageEstate(userId: string, estateId: string) {
-  // Platform admin bypass is handled in middleware, but we still allow here too.
-  // If your role system uses "admin" for platform_admin.
   const { data, error } = await supabaseAdmin
     .from("estate_memberships")
     .select("id, role, status")
@@ -25,22 +23,29 @@ async function assertCanManageEstate(userId: string, estateId: string) {
 
 /**
  * POST /facility/estates
- * Create estate + automatically make creator owner/admin in estate_memberships
+ * Create estate + automatically make creator owner in estate_memberships
+ *
+ * NOTE:
+ * Your Supabase 'estates' table currently DOES NOT have a 'type' column.
+ * So we MUST NOT insert 'type' here (or Supabase throws "Could not find the 'type' column...").
  */
 export async function createEstate(req: any, res: Response) {
   try {
-    const { name, address, lat, lng, type } = req.body;
+    const { name, address, lat, lng } = req.body;
+
     if (!name) return res.status(400).json({ error: "name is required" });
+
+    // ✅ Do NOT include 'type' (column doesn't exist)
+    const insertPayload: Record<string, any> = {
+      name,
+      address: address || null,
+      lat: lat ?? null,
+      lng: lng ?? null,
+    };
 
     const { data: estate, error: estateErr } = await supabaseAdmin
       .from("estates")
-      .insert({
-        name,
-        address: address || null,
-        lat: lat || null,
-        lng: lng || null,
-        type: type || "estate",
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -60,10 +65,7 @@ export async function createEstate(req: any, res: Response) {
     if (memErr) return res.status(500).json({ error: memErr.message });
 
     // Optional: keep legacy columns synced
-    await supabaseAdmin
-      .from("users")
-      .update({ estate_id: estate.id })
-      .eq("id", req.user.id);
+    await supabaseAdmin.from("users").update({ estate_id: estate.id }).eq("id", req.user.id);
 
     return res.json({ message: "Estate created", estate });
   } catch (e: any) {
@@ -109,12 +111,15 @@ export async function listMyEstates(req: any, res: Response) {
 export async function createHome(req: any, res: Response) {
   try {
     const { estate_id, name, unit, block, description, type, resident_id } = req.body;
-    if (!estate_id || !name)
+
+    if (!estate_id || !name) {
       return res.status(400).json({ error: "estate_id and name are required" });
+    }
 
     const canManage = await assertCanManageEstate(req.user.id, estate_id);
-    if (!canManage && req.user.role !== "admin")
+    if (!canManage && req.user.role !== "admin") {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
+    }
 
     const { data, error } = await supabaseAdmin
       .from("homes")
@@ -168,8 +173,9 @@ export async function listEstateHomes(req: any, res: Response) {
       .maybeSingle();
 
     if (memErr) return res.status(500).json({ error: memErr.message });
-    if (!member || member.status !== "active")
+    if (!member || member.status !== "active") {
       return res.status(403).json({ error: "No access to this estate" });
+    }
 
     const { data, error } = await supabaseAdmin
       .from("homes")
@@ -192,12 +198,15 @@ export async function listEstateHomes(req: any, res: Response) {
 export async function createRoom(req: any, res: Response) {
   try {
     const { estate_id, home_id, name, type, floor, ai_profile } = req.body;
-    if (!estate_id || !home_id || !name)
+
+    if (!estate_id || !home_id || !name) {
       return res.status(400).json({ error: "estate_id, home_id and name are required" });
+    }
 
     const canManage = await assertCanManageEstate(req.user.id, estate_id);
-    if (!canManage && req.user.role !== "admin")
+    if (!canManage && req.user.role !== "admin") {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
+    }
 
     const { data, error } = await supabaseAdmin
       .from("rooms")
@@ -228,8 +237,6 @@ export async function listHomeRooms(req: any, res: Response) {
   try {
     const { homeId } = req.params;
 
-    // Must be in home OR be estate manager/admin
-    // We'll allow if user has membership in estate of this home
     const { data: home, error: homeErr } = await supabaseAdmin
       .from("homes")
       .select("id, estate_id")
@@ -246,8 +253,7 @@ export async function listHomeRooms(req: any, res: Response) {
       .maybeSingle();
 
     if (memErr) return res.status(500).json({ error: memErr.message });
-    if (!member || member.status !== "active")
-      return res.status(403).json({ error: "No access" });
+    if (!member || member.status !== "active") return res.status(403).json({ error: "No access" });
 
     const { data, error } = await supabaseAdmin
       .from("rooms")
@@ -273,14 +279,16 @@ export async function inviteUser(req: any, res: Response) {
     const { email, estate_id, home_id, role } = req.body;
 
     if (!email) return res.status(400).json({ error: "email is required" });
-    if (!estate_id && !home_id)
+    if (!estate_id && !home_id) {
       return res.status(400).json({ error: "estate_id or home_id is required" });
+    }
 
     // If invite is estate-scoped, ensure manager rights
     if (estate_id) {
       const canManage = await assertCanManageEstate(req.user.id, estate_id);
-      if (!canManage && req.user.role !== "admin")
+      if (!canManage && req.user.role !== "admin") {
         return res.status(403).json({ error: "Not allowed to invite to this estate" });
+      }
     }
 
     // Find or create user
@@ -309,7 +317,7 @@ export async function inviteUser(req: any, res: Response) {
       user = created;
     }
 
-    // Pre-grant membership as "invited" (so backend can check status)
+    // Pre-grant membership as "invited"
     if (estate_id) {
       await supabaseAdmin.from("estate_memberships").upsert(
         {
@@ -369,8 +377,6 @@ export async function inviteUser(req: any, res: Response) {
 
 /**
  * POST /facility/invites/accept
- * Accepts invite using raw token. Requires logged-in user (resident already authenticated).
- * In future you can allow OTP flow here.
  */
 export async function acceptInvite(req: any, res: Response) {
   try {
@@ -430,8 +436,10 @@ export async function acceptInvite(req: any, res: Response) {
 export async function assignUserToRoom(req: any, res: Response) {
   try {
     const { room_id, user_id, role, permissions } = req.body;
-    if (!room_id || !user_id)
+
+    if (!room_id || !user_id) {
       return res.status(400).json({ error: "room_id and user_id are required" });
+    }
 
     // Validate room -> estate for permission check
     const { data: room, error: roomErr } = await supabaseAdmin
@@ -443,8 +451,9 @@ export async function assignUserToRoom(req: any, res: Response) {
     if (roomErr || !room) return res.status(404).json({ error: "Room not found" });
 
     const canManage = await assertCanManageEstate(req.user.id, room.estate_id);
-    if (!canManage && req.user.role !== "admin")
+    if (!canManage && req.user.role !== "admin") {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
+    }
 
     const { data, error } = await supabaseAdmin
       .from("room_assignments")
