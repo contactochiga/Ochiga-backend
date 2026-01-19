@@ -15,6 +15,9 @@ import {
   assignUserToRoom,
 } from "../controllers/facility.controller";
 
+// ✅ FACILITY DEVICE ROUTES (discover, command, geo)
+import facilityDevicesRoutes from "./facilityDevices.routes";
+
 const router = express.Router();
 
 /**
@@ -52,5 +55,19 @@ router.post("/invites/accept", requireAuth, acceptInvite);
  * Room assignment
  */
 router.post("/rooms/assign", requireAuth, assignUserToRoom);
+
+/**
+ * ---------------------------
+ * FACILITY DEVICES (NEW)
+ * Base: /facility/devices
+ * ---------------------------
+ *
+ * Examples:
+ *   GET   /facility/devices/discover?adapter=tuya
+ *   POST  /facility/devices/:deviceId/command
+ *   PATCH /facility/devices/:deviceId/location
+ *   GET   /facility/devices/near?lat=...&lng=...&radius=100
+ */
+router.use("/devices", facilityDevicesRoutes);
 
 export default router;
