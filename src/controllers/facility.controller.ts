@@ -4,6 +4,10 @@ import crypto from "crypto";
 import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
+// ---------------------------
+// Helpers
+// ---------------------------
+
 // Helper: check estate access for a manager/admin
 async function assertCanManageEstate(userId: string, estateId: string) {
   const { data, error } = await supabaseAdmin
@@ -21,35 +25,84 @@ async function assertCanManageEstate(userId: string, estateId: string) {
   return manageRoles.includes(String(data.role));
 }
 
+// Drop undefined keys so we don’t send junk to Supabase
+function compact<T extends Record<string, any>>(obj: T): Partial<T> {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out as Partial<T>;
+}
+
+// Extract missing column name from Supabase schema-cache error
+function extractMissingColumnName(msg: string): string | null {
+  // e.g. "Could not find the 'type' column of 'homes' in the schema cache"
+  const m = msg.match(/Could not find the '([^']+)' column/i);
+  return m?.[1] || null;
+}
+
 /**
- * POST /facility/estates
- * Create estate + automatically make creator owner in estate_memberships
- *
- * NOTE:
- * Your Supabase 'estates' table currently DOES NOT have a 'type' column.
- * So we MUST NOT insert 'type' here (or Supabase throws "Could not find the 'type' column...").
+ * Insert with fallback:
+ * If Supabase complains "Could not find the 'X' column ...",
+ * drop that key and retry (up to 5 times).
  */
-export async function createEstate(req: any, res: Response) {
-  try {
-    const { name, address, lat, lng } = req.body;
+async function insertWithSchemaFallback<T>(
+  table: string,
+  row: Record<string, any>
+): Promise<T> {
+  let payload = { ...row };
 
-    if (!name) return res.status(400).json({ error: "name is required" });
-
-    // ✅ Do NOT include 'type' (column doesn't exist)
-    const insertPayload: Record<string, any> = {
-      name,
-      address: address || null,
-      lat: lat ?? null,
-      lng: lng ?? null,
-    };
-
-    const { data: estate, error: estateErr } = await supabaseAdmin
-      .from("estates")
-      .insert(insertPayload)
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data, error } = await supabaseAdmin
+      .from(table)
+      .insert(payload)
       .select()
       .single();
 
-    if (estateErr) return res.status(400).json({ error: estateErr.message });
+    if (!error) return data as T;
+
+    const msg = String(error.message || "");
+    const missingCol = extractMissingColumnName(msg);
+
+    // If it's a missing column schema-cache error, drop and retry
+    if (missingCol && Object.prototype.hasOwnProperty.call(payload, missingCol)) {
+      delete payload[missingCol];
+      continue;
+    }
+
+    // Otherwise, fail fast
+    throw new Error(error.message);
+  }
+
+  throw new Error("Insert failed after removing missing columns.");
+}
+
+// ---------------------------
+// Controllers
+// ---------------------------
+
+/**
+ * POST /facility/estates
+ * Create estate + automatically make creator owner in estate_memberships
+ */
+export async function createEstate(req: any, res: Response) {
+  try {
+    const { name, address, lat, lng, type } = req.body;
+    if (!name) return res.status(400).json({ error: "name is required" });
+
+    // IMPORTANT:
+    // Some deployments might not have estates.type yet.
+    // We still accept it from frontend, but we insert with schema fallback.
+    const estate = await insertWithSchemaFallback<any>(
+      "estates",
+      compact({
+        name,
+        address: address || null,
+        lat: lat ?? null,
+        lng: lng ?? null,
+        type: type || "estate",
+      })
+    );
 
     // Add membership
     const { error: memErr } = await supabaseAdmin.from("estate_memberships").upsert(
@@ -106,11 +159,26 @@ export async function listMyEstates(req: any, res: Response) {
 /**
  * POST /facility/homes
  * Create a home under an estate
- * Also optionally set resident_id if provided (legacy convenience)
  */
 export async function createHome(req: any, res: Response) {
   try {
-    const { estate_id, name, unit, block, description, type, resident_id } = req.body;
+    const {
+      estate_id,
+      name,
+      unit,
+      block,
+      description,
+      type, // may not exist in homes table
+      resident_id,
+
+      // optional fields (your UI collects them)
+      electricity_meter,
+      water_meter,
+      internet_id,
+      gate_code,
+      lat,
+      lng,
+    } = req.body;
 
     if (!estate_id || !name) {
       return res.status(400).json({ error: "estate_id and name are required" });
@@ -121,27 +189,39 @@ export async function createHome(req: any, res: Response) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
-    const { data, error } = await supabaseAdmin
-      .from("homes")
-      .insert({
+    // IMPORTANT:
+    // Some deployments might not have homes.type yet.
+    // Insert with schema fallback so it auto-drops missing columns (like "type").
+    const home = await insertWithSchemaFallback<any>(
+      "homes",
+      compact({
         estate_id,
         name,
         unit: unit || null,
         block: block || null,
         description: description || null,
-        type: type || "home",
-        resident_id: resident_id || null,
-      })
-      .select()
-      .single();
 
-    if (error) return res.status(400).json({ error: error.message });
+        // will be dropped automatically if column doesn't exist
+        type: type || "home",
+
+        resident_id: resident_id || null,
+
+        // meters + ids (will be inserted if columns exist)
+        electricity_meter: electricity_meter || null,
+        water_meter: water_meter || null,
+        internet_id: internet_id || null,
+        gate_code: gate_code || null,
+
+        lat: lat ?? null,
+        lng: lng ?? null,
+      })
+    );
 
     // If resident_id provided, also ensure home membership
     if (resident_id) {
       await supabaseAdmin.from("home_memberships").upsert(
         {
-          home_id: data.id,
+          home_id: home.id,
           user_id: resident_id,
           role: "owner",
           status: "active",
@@ -150,7 +230,7 @@ export async function createHome(req: any, res: Response) {
       );
     }
 
-    return res.json({ message: "Home created", home: data });
+    return res.json({ message: "Home created", home });
   } catch (e: any) {
     console.error("createHome error:", e);
     return res.status(500).json({ error: e.message || "Server error" });
@@ -208,22 +288,20 @@ export async function createRoom(req: any, res: Response) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
-    const { data, error } = await supabaseAdmin
-      .from("rooms")
-      .insert({
+    // Use fallback as well, in case rooms.type isn't present in some schemas
+    const room = await insertWithSchemaFallback<any>(
+      "rooms",
+      compact({
         estate_id,
         home_id,
         name,
         type: type || null,
-        floor: floor || null,
+        floor: floor ?? null,
         ai_profile: ai_profile || {},
       })
-      .select()
-      .single();
+    );
 
-    if (error) return res.status(400).json({ error: error.message });
-
-    return res.json({ message: "Room created", room: data });
+    return res.json({ message: "Room created", room });
   } catch (e: any) {
     console.error("createRoom error:", e);
     return res.status(500).json({ error: e.message || "Server error" });
@@ -272,7 +350,6 @@ export async function listHomeRooms(req: any, res: Response) {
 
 /**
  * POST /facility/invites
- * Creates invite for estate or home membership (QR/link)
  */
 export async function inviteUser(req: any, res: Response) {
   try {
@@ -283,7 +360,6 @@ export async function inviteUser(req: any, res: Response) {
       return res.status(400).json({ error: "estate_id or home_id is required" });
     }
 
-    // If invite is estate-scoped, ensure manager rights
     if (estate_id) {
       const canManage = await assertCanManageEstate(req.user.id, estate_id);
       if (!canManage && req.user.role !== "admin") {
@@ -291,7 +367,6 @@ export async function inviteUser(req: any, res: Response) {
       }
     }
 
-    // Find or create user
     const { data: existingUser, error: findErr } = await supabaseAdmin
       .from("users")
       .select("*")
@@ -317,7 +392,6 @@ export async function inviteUser(req: any, res: Response) {
       user = created;
     }
 
-    // Pre-grant membership as "invited"
     if (estate_id) {
       await supabaseAdmin.from("estate_memberships").upsert(
         {
@@ -342,7 +416,6 @@ export async function inviteUser(req: any, res: Response) {
       );
     }
 
-    // Create invite record
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
@@ -395,7 +468,6 @@ export async function acceptInvite(req: any, res: Response) {
     if (!invite) return res.status(404).json({ error: "Invite not found" });
     if (invite.status !== "pending") return res.status(400).json({ error: "Invite not active" });
 
-    // Activate memberships
     if (invite.estate_id) {
       await supabaseAdmin
         .from("estate_memberships")
@@ -412,7 +484,6 @@ export async function acceptInvite(req: any, res: Response) {
         .eq("user_id", req.user.id);
     }
 
-    // Mark invite accepted
     await supabaseAdmin
       .from("invites")
       .update({
@@ -431,17 +502,14 @@ export async function acceptInvite(req: any, res: Response) {
 
 /**
  * POST /facility/rooms/assign
- * Assign user to room (room_assignments.user_id)
  */
 export async function assignUserToRoom(req: any, res: Response) {
   try {
     const { room_id, user_id, role, permissions } = req.body;
-
     if (!room_id || !user_id) {
       return res.status(400).json({ error: "room_id and user_id are required" });
     }
 
-    // Validate room -> estate for permission check
     const { data: room, error: roomErr } = await supabaseAdmin
       .from("rooms")
       .select("id, estate_id")
