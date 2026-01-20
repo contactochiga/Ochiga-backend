@@ -15,33 +15,38 @@ import {
   assignUserToRoom,
 } from "../controllers/facility.controller";
 
-// ✅ Estate users (roles + membership management)
+// ✅ FACILITY DEVICE ROUTES (discover, command, geo)
+import facilityDevicesRoutes from "./facilityDevices.routes";
+
+// ✅ HOME USERS ROUTES
+import homeUsersRoutes from "./homeUsers.routes";
+import {
+  updateHomeUser,
+  removeHomeUser,
+} from "../controllers/homeUsers.controller";
+
+// ✅ ESTATE USERS ROUTES
 import {
   listEstateUsers,
   updateEstateUser,
   removeEstateUser,
 } from "../controllers/estateUsers.controller";
 
-// ✅ FACILITY DEVICE ROUTES (discover, command, geo)
-import facilityDevicesRoutes from "./facilityDevices.routes";
-
 const router = express.Router();
 
 /**
- * Overview (requires user to have estate_id, otherwise controller returns 400)
+ * Overview
  */
 router.get("/overview", requireAuth, getFacilityOverview);
 
 /**
  * Estates
- * ✅ Any authenticated user can create an estate (bootstrap).
  */
 router.post("/estates", requireAuth, createEstate);
 router.get("/estates", requireAuth, listMyEstates);
 
 /**
- * Homes (Units)
- * ✅ Controller enforces estate membership via assertCanManageEstate()
+ * Homes
  */
 router.post("/homes", requireAuth, createHome);
 router.get("/estates/:estateId/homes", requireAuth, listEstateHomes);
@@ -53,7 +58,7 @@ router.post("/rooms", requireAuth, createRoom);
 router.get("/homes/:homeId/rooms", requireAuth, listHomeRooms);
 
 /**
- * Invites
+ * Invites (estate/home via facility.controller.ts)
  */
 router.post("/invites", requireAuth, inviteUser);
 router.post("/invites/accept", requireAuth, acceptInvite);
@@ -64,7 +69,18 @@ router.post("/invites/accept", requireAuth, acceptInvite);
 router.post("/rooms/assign", requireAuth, assignUserToRoom);
 
 /**
- * 👥 Estate users (roles + status + removal)
+ * ---------------------------
+ * FACILITY DEVICES
+ * Base: /facility/devices
+ * ---------------------------
+ */
+router.use("/devices", facilityDevicesRoutes);
+
+/**
+ * ---------------------------
+ * ESTATE USERS (NEW)
+ * Base: /facility/estate-users
+ * ---------------------------
  */
 router.get("/estate-users", requireAuth, listEstateUsers);
 router.patch("/estate-users/:membershipId", requireAuth, updateEstateUser);
@@ -72,16 +88,15 @@ router.delete("/estate-users/:membershipId", requireAuth, removeEstateUser);
 
 /**
  * ---------------------------
- * FACILITY DEVICES (NEW)
- * Base: /facility/devices
+ * HOME USERS (NEW)
+ * Base:
+ *   /facility/homes/:homeId/users
+ *   /facility/homes/:homeId/invite
+ *   /facility/home-users/:membershipId
  * ---------------------------
- *
- * Examples:
- *   GET   /facility/devices/discover?adapter=tuya
- *   POST  /facility/devices/:deviceId/command
- *   PATCH /facility/devices/:deviceId/location
- *   GET   /facility/devices/near?lat=...&lng=...&radius=100
  */
-router.use("/devices", facilityDevicesRoutes);
+router.use("/homes", homeUsersRoutes);
+router.patch("/home-users/:membershipId", requireAuth, updateHomeUser);
+router.delete("/home-users/:membershipId", requireAuth, removeHomeUser);
 
 export default router;
