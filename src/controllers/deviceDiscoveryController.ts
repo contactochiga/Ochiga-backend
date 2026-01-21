@@ -1,66 +1,87 @@
 // src/controllers/deviceDiscoveryController.ts
 
 import { Request, Response } from "express";
-import { TuyaAdapter } from "../device/adapters/tuya/TuyaAdapter";
 import { AdapterContext } from "../device/adapters/types";
+import { adapterRegistry } from "../device/adapters/registry";
+import { initAdaptersOnce } from "../device/adapters/initAdapters";
 
 /**
  * Generic device discovery entrypoint
  * Supports multiple adapters via query param
  *
- *   GET /devices/discover?adapter=tuya
+ *   GET /facility/devices/discover?adapter=tuya
+ *   GET /facility/devices/discover?adapter=ssdp
+ *   GET /facility/devices/discover?adapter=onvif&cidr=192.168.1.0/24
+ *   GET /facility/devices/discover?adapter=ipscan&cidr=192.168.1.0/24
  */
 export async function discoverDevices(req: Request, res: Response) {
-  const user = req.user!;
-  const adapterName = String(req.query.adapter || "").toLowerCase();
+  try {
+    // ensure adapters are registered
+    initAdaptersOnce();
 
-  if (!user?.estate_id) {
-    return res.status(400).json({ error: "User has no estate" });
-  }
+    const user = req.user!;
+    const adapterName = String(req.query.adapter || "").toLowerCase().trim();
 
-  if (!adapterName) {
-    return res.status(400).json({
-      error: "adapter query param required (e.g. ?adapter=tuya)",
-    });
-  }
+    if (!user?.estate_id) {
+      return res.status(400).json({ error: "User has no estate" });
+    }
 
-  // -------------------------------
-  // Adapter context (boundary-safe)
-  // -------------------------------
-  const context: AdapterContext = {
-    estateId: user.estate_id,
-    homeId: user.home_id,
-    userId: user.id,
-    credentials: {
-      apiKey: process.env.TUYA_ACCESS_ID,
-      apiSecret: process.env.TUYA_ACCESS_SECRET,
-    },
-  };
+    if (!adapterName) {
+      return res.status(400).json({
+        error: "adapter query param required (e.g. ?adapter=tuya)",
+      });
+    }
 
-  // -------------------------------
-  // Adapter selection
-  // -------------------------------
-  let adapter;
+    // -------------------------------
+    // Adapter context (boundary-safe)
+    // -------------------------------
+    // NOTE: we reuse `credentials` as a flexible "adapter options" bag too.
+    const context: AdapterContext = {
+      estateId: user.estate_id,
+      homeId: user.home_id,
+      userId: user.id,
+      credentials: {
+        // Tuya (cloud)
+        apiKey: process.env.TUYA_ACCESS_ID,
+        apiSecret: process.env.TUYA_ACCESS_SECRET,
 
-  switch (adapterName) {
-    case "tuya":
-      adapter = new TuyaAdapter();
-      break;
+        // Network discovery knobs (SSDP/IPSCAN/ONVIF)
+        cidr: req.query.cidr ? String(req.query.cidr) : undefined,
+        timeoutMs: req.query.timeoutMs ? Number(req.query.timeoutMs) : undefined,
 
-    default:
+        // ONVIF optional auth (if you pass it from frontend/admin)
+        onvifUser: req.query.onvifUser ? String(req.query.onvifUser) : undefined,
+        onvifPass: req.query.onvifPass ? String(req.query.onvifPass) : undefined,
+      },
+    };
+
+    // -------------------------------
+    // Adapter selection (registry)
+    // -------------------------------
+    let adapter;
+    try {
+      adapter = adapterRegistry.get(adapterName);
+    } catch {
       return res.status(400).json({
         error: `Unsupported adapter: ${adapterName}`,
+        supported: adapterRegistry.list().map((a) => a.name),
       });
+    }
+
+    // -------------------------------
+    // Discover devices
+    // -------------------------------
+    const devices = await adapter.discover(context);
+
+    return res.json({
+      adapter: adapterName,
+      count: devices.length,
+      devices,
+    });
+  } catch (err: any) {
+    console.error("discoverDevices error:", err);
+    return res.status(500).json({
+      error: err?.message || "Discovery failed",
+    });
   }
-
-  // -------------------------------
-  // Discover devices
-  // -------------------------------
-  const devices = await adapter.discover(context);
-
-  return res.json({
-    adapter: adapterName,
-    count: devices.length,
-    devices,
-  });
 }
