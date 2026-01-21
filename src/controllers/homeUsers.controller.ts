@@ -8,13 +8,30 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
  * Rules:
  * - Home Users are PRIVATE by default.
  * - Only:
- *    - Estate owner/admin (estate_memberships)
+ *    - Estate owner/admin/manager/security (estate_memberships)
  *    - Home owner (home_memberships role=owner)
  *   can manage home users.
  */
 
 type ReqAny = any;
 
+/** -----------------------------
+ * Types (fix TS2345 properly)
+ * ---------------------------- */
+type AccessDenied = { ok: false; code: number; error: string };
+type AccessOk = {
+  ok: true;
+  home: { id: string; estate_id: string | null };
+  canView: boolean;
+  canManage: boolean;
+  estateRole: string | null;
+  homeRole: string | null;
+};
+type AccessResult = AccessDenied | AccessOk;
+
+/** -----------------------------
+ * Helpers
+ * ---------------------------- */
 function extractMissingColumnName(msg: string): string | null {
   const m = msg.match(/Could not find the '([^']+)' column/i);
   return m?.[1] || null;
@@ -57,7 +74,10 @@ async function insertWithSchemaFallback<T>(
   throw new Error("Insert failed after removing missing columns.");
 }
 
-async function assertHomeAccess(userId: string, homeId: string) {
+/** -----------------------------
+ * Access Guard (typed properly)
+ * ---------------------------- */
+async function assertHomeAccess(userId: string, homeId: string): Promise<AccessResult> {
   // 1) Load home -> estate_id
   const { data: home, error: homeErr } = await supabaseAdmin
     .from("homes")
@@ -79,7 +99,8 @@ async function assertHomeAccess(userId: string, homeId: string) {
 
   const estateRole = String(estMem?.role || "");
   const estateActive = estMem?.status === "active";
-  const estateCanManage = estateActive && ["owner", "admin", "manager", "security"].includes(estateRole);
+  const estateCanManage =
+    estateActive && ["owner", "admin", "manager", "security"].includes(estateRole);
 
   // 3) Home membership (owner/staff/resident)
   const { data: homeMem, error: homeErr2 } = await supabaseAdmin
@@ -217,11 +238,9 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
         user_id: user.id,
         role: role || "resident",
         status: "invited",
-        // will auto-drop if column doesn't exist
         permissions: permissions || {},
       })
     ).catch(async () => {
-      // If insert fails due to unique constraint, upsert it:
       const { data: up, error: upErr } = await supabaseAdmin
         .from("home_memberships")
         .upsert(
@@ -379,10 +398,7 @@ export async function removeHomeUser(req: ReqAny, res: Response) {
       }
     }
 
-    const { error } = await supabaseAdmin
-      .from("home_memberships")
-      .delete()
-      .eq("id", membershipId);
+    const { error } = await supabaseAdmin.from("home_memberships").delete().eq("id", membershipId);
 
     if (error) return res.status(500).json({ error: error.message });
 
