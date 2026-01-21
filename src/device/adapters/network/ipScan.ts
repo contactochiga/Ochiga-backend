@@ -1,54 +1,32 @@
 // src/device/adapters/network/ipScan.ts
-
 import net from "net";
-import ip from "ip";
+import * as ip from "ip";
+import IPCIDR from "ip-cidr";
 
 /**
- * Convert CIDR to IP list (e.g. "192.168.1.0/24")
- * Hard limits to avoid scanning the whole world by mistake.
- *
- * NOTE:
- * - We exclude network + broadcast where applicable.
- * - We cap total hosts with maxHosts.
+ * Enumerate IPs from CIDR (e.g. 192.168.1.0/24)
+ * Hard-limits to avoid scanning the whole world by mistake.
  */
 export function cidrToIps(cidr: string, maxHosts = 512): string[] {
-  const subnet = ip.cidrSubnet(cidr);
-  if (!subnet || !subnet.networkAddress) {
-    throw new Error(`Invalid CIDR: ${cidr}`);
-  }
+  const c = new IPCIDR(cidr);
+  if (!c.isValid()) throw new Error(`Invalid CIDR: ${cidr}`);
 
-  const networkLong = ip.toLong(subnet.networkAddress);
-  const broadcastLong = ip.toLong(subnet.broadcastAddress);
+  const ips = c.toArray({ type: "addressObject" }).map((x: any) => x.address);
 
-  // If something is weird, fail safely
-  if (!Number.isFinite(networkLong) || !Number.isFinite(broadcastLong)) {
-    throw new Error(`Invalid CIDR: ${cidr}`);
-  }
+  // remove network & broadcast
+  const trimmed = ips.slice(1, ips.length - 1);
 
-  // Typical usable range: network+1 ... broadcast-1
-  let start = networkLong + 1;
-  let end = broadcastLong - 1;
-
-  // /32 or tiny ranges: just return what we can
-  if (end < start) {
-    start = networkLong;
-    end = broadcastLong;
-  }
-
-  const total = end - start + 1;
-  const capped = Math.min(total, Math.max(1, maxHosts));
-
-  const out: string[] = [];
-  for (let i = 0; i < capped; i++) {
-    out.push(ip.fromLong(start + i));
-  }
-  return out;
+  return trimmed.length > maxHosts ? trimmed.slice(0, maxHosts) : trimmed;
 }
 
 /**
  * TCP port probe
  */
-export function probeTcp(ipAddr: string, port: number, timeoutMs = 450): Promise<boolean> {
+export function probeTcp(
+  ipAddr: string,
+  port: number,
+  timeoutMs = 450
+): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     let done = false;
@@ -72,20 +50,19 @@ export function probeTcp(ipAddr: string, port: number, timeoutMs = 450): Promise
 }
 
 /**
- * Concurrency limiter (simple)
+ * Concurrency limiter
  */
 export async function mapLimit<T, R>(
   items: T[],
   limit: number,
   fn: (item: T) => Promise<R>
 ): Promise<R[]> {
-  const results: R[] = new Array(items.length);
+  const results: R[] = [];
   let i = 0;
 
   const workers = Array.from({ length: Math.max(1, limit) }).map(async () => {
-    while (true) {
+    while (i < items.length) {
       const idx = i++;
-      if (idx >= items.length) break;
       results[idx] = await fn(items[idx]);
     }
   });
