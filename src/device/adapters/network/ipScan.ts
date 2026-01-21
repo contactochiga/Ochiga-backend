@@ -1,80 +1,70 @@
-// src/device/adapters/network/IPScanAdapter.ts
+// src/device/adapters/network/ipScan.ts
 
-import { DeviceAdapter } from "../DeviceAdapter";
-import { AdapterContext, DiscoveredDevice } from "../types";
-import { Signal } from "../../../core/control-plane/contracts/signal.types";
-import { cidrToIps, probeTcp, mapLimit } from "./ipScan";
+import net from "net";
+import IPCIDR from "ip-cidr";
 
-function guessCategory(openPorts: number[]): DiscoveredDevice["category"] {
-  // very simple heuristics (good enough for v1)
-  if (openPorts.includes(554) || openPorts.includes(8554)) return "camera"; // RTSP
-  if (openPorts.includes(80) || openPorts.includes(8080) || openPorts.includes(8000)) return "unknown";
-  return "unknown";
+/**
+ * Enumerate IPs from CIDR (e.g. 192.168.1.0/24)
+ * Hard-limits to avoid scanning the whole world by mistake.
+ */
+export function cidrToIps(cidr: string, maxHosts = 512): string[] {
+  const c = new IPCIDR(cidr);
+  if (!c.isValid()) throw new Error(`Invalid CIDR: ${cidr}`);
+
+  const ips = c.toArray({ type: "addressObject" }).map((x: any) => x.address);
+
+  // remove network/broadcast if present
+  const trimmed = ips.length >= 2 ? ips.slice(1, ips.length - 1) : ips;
+
+  if (trimmed.length > maxHosts) return trimmed.slice(0, maxHosts);
+  return trimmed;
 }
 
-export class IPScanAdapter implements DeviceAdapter {
-  readonly name = "ipscan";
-  readonly vendor = "Network Scanner";
-  readonly protocols = ["http", "other"];
+/**
+ * TCP port probe
+ */
+export function probeTcp(ip: string, port: number, timeoutMs = 450): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let done = false;
 
-  async discover(context: AdapterContext): Promise<DiscoveredDevice[]> {
-    const cidr = (context.credentials?.cidr as string | undefined) || "";
-    const timeoutMs = Number(context.credentials?.timeoutMs || 450);
+    const finish = (ok: boolean) => {
+      if (done) return;
+      done = true;
+      try {
+        socket.destroy();
+      } catch {}
+      resolve(ok);
+    };
 
-    if (!cidr) {
-      // we need a boundary, to avoid “scan the world”
-      // You pass ?cidr=192.168.1.0/24 from the controller
-      return [];
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+
+    socket.connect(port, ip);
+  });
+}
+
+/**
+ * Concurrency limiter (simple)
+ */
+export async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let i = 0;
+
+  const workers = Array.from({ length: Math.max(1, limit) }).map(async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) break;
+      results[idx] = await fn(items[idx]);
     }
+  });
 
-    const ips = cidrToIps(cidr, 512);
-
-    // common ports we care about in estates (expand later)
-    const portsToProbe = [80, 443, 554, 8000, 8080, 8899, 8554];
-
-    // Step 1: for each IP, probe ports
-    const results = await mapLimit(ips, 80, async (ip) => {
-      const open: number[] = [];
-      for (const p of portsToProbe) {
-        const ok = await probeTcp(ip, p, timeoutMs);
-        if (ok) open.push(p);
-      }
-      if (!open.length) return null;
-
-      const category = guessCategory(open);
-
-      const device: DiscoveredDevice = {
-        externalId: ip, // for network scan, we use ip as unique external id
-        adapter: this.name,
-        name: category === "camera" ? `IP Camera ${ip}` : `IP Device ${ip}`,
-        category,
-        online: true,
-        capabilities: category === "camera" ? ["stream.rtsp"] : [],
-        protocols: ["http", "other"],
-        metadata: {
-          raw: {
-            ip,
-            openPorts: open,
-            cidr,
-          },
-        },
-      };
-
-      return device;
-    });
-
-    return results.filter(Boolean) as DiscoveredDevice[];
-  }
-
-  async bindDevice(): Promise<void> {
-    return;
-  }
-
-  async executeCommand(): Promise<void> {
-    throw new Error("IPScan adapter is discovery-only");
-  }
-
-  async startEventStream(_context: AdapterContext, _emit: (signal: Signal) => Promise<void>) {
-    return;
-  }
+  await Promise.all(workers);
+  return results;
 }
