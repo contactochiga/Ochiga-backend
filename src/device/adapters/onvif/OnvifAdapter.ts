@@ -1,70 +1,42 @@
 // src/device/adapters/onvif/OnvifAdapter.ts
 
 import { DeviceAdapter } from "../DeviceAdapter";
-import { AdapterContext, DiscoveredDevice } from "../types";
-import { Signal } from "../../../core/control-plane/contracts/signal.types";
+import type { AdapterContext, DiscoveredDevice } from "../types";
+import type { Signal } from "../../../core/control-plane/contracts/signal.types";
 import { probeTcp, cidrToIps, mapLimit } from "../network/ipScan";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const onvif = require("onvif");
 
-/**
- * ONVIF discovery in Node:
- * - If CIDR is provided, we do a fast IP scan (port probe) then attempt ONVIF connect.
- * - If CIDR is NOT provided, fallback to WS-Discovery probe (multicast).
- *
- * Credentials:
- * - Accepts BOTH styles to avoid mismatch:
- *   - context.credentials.username / password
- *   - context.credentials.onvifUser / onvifPass
- */
 export class OnvifAdapter implements DeviceAdapter {
   readonly name = "onvif";
   readonly vendor = "ONVIF";
   readonly protocols = ["http", "other"];
 
   async discover(context: AdapterContext): Promise<DiscoveredDevice[]> {
-    const cidr = (context.credentials?.cidr as string | undefined) || undefined;
-
-    // ✅ accept both keys
-    const username =
-      (context.credentials?.username as string | undefined) ||
-      (context.credentials?.onvifUser as string | undefined);
-
-    const password =
-      (context.credentials?.password as string | undefined) ||
-      (context.credentials?.onvifPass as string | undefined);
-
-    // Optional tuning
-    const maxHosts = Number(context.credentials?.maxHosts ?? 512);
-    const probeTimeoutMs = Number(context.credentials?.probeTimeoutMs ?? 350);
-    const ipConcurrency = Number(context.credentials?.ipConcurrency ?? 64);
-    const onvifConcurrency = Number(context.credentials?.onvifConcurrency ?? 20);
+    const cidr = (context.credentials?.cidr as string | undefined)?.trim();
+    const username = (context.credentials?.username as string | undefined)?.trim();
+    const password = (context.credentials?.password as string | undefined)?.trim();
 
     if (!cidr) {
-      // fallback: use onvif.Discovery.probe() which uses WS-Discovery multicast
-      // Works only on LAN and when multicast is allowed.
       return await this.discoverViaProbe(username, password);
     }
 
-    const ips = cidrToIps(cidr, maxHosts);
-
-    // common camera ports (RTSP is 554). Many ONVIF cams still answer HTTP/ONVIF on 80/8080/8000.
+    const ips = cidrToIps(cidr, 512);
     const ports = [80, 8000, 8080, 8899, 554];
 
-    // quick filter: if none of these ports respond, skip
-    const candidates = await mapLimit(ips, ipConcurrency, async (ip) => {
+    const candidates = await mapLimit(ips, 80, async (ip) => {
       for (const p of ports) {
-        const ok = await probeTcp(ip, p, probeTimeoutMs);
+        const ok = await probeTcp(ip, p, 350);
         if (ok) return ip;
       }
       return null;
     });
 
     const live = candidates.filter(Boolean) as string[];
+    if (!live.length) return [];
 
-    // Try ONVIF connect per IP
-    const devices = await mapLimit(live, onvifConcurrency, async (ip) => {
+    const devices = await mapLimit(live, 20, async (ip) => {
       try {
         const cam = await this.connectOnvif(ip, username, password);
         const info = await this.getDeviceInfo(cam);
@@ -74,26 +46,23 @@ export class OnvifAdapter implements DeviceAdapter {
           ? `${info.manufacturer || "Camera"} ${info.model}`
           : `ONVIF Camera ${ip}`;
 
-        return {
+        const d: DiscoveredDevice = {
           externalId: `${ip}`,
           adapter: this.name,
           name,
           category: "camera",
           online: true,
-          capabilities: ["stream.rtsp", "onvif"],
+          capabilities: ["onvif", ...(rtsp ? ["stream.rtsp"] : [])],
           protocols: ["http", "other"],
           metadata: {
             manufacturer: info?.manufacturer,
             model: info?.model,
             firmwareVersion: info?.firmwareVersion,
-            raw: {
-              ip,
-              rtsp,
-              onvif: info,
-              cidr,
-            },
+            raw: { ip, rtsp, onvif: info },
           },
-        } satisfies DiscoveredDevice;
+        };
+
+        return d;
       } catch {
         return null;
       }
@@ -102,10 +71,7 @@ export class OnvifAdapter implements DeviceAdapter {
     return devices.filter(Boolean) as DiscoveredDevice[];
   }
 
-  private discoverViaProbe(
-    username?: string,
-    password?: string
-  ): Promise<DiscoveredDevice[]> {
+  private discoverViaProbe(username?: string, password?: string): Promise<DiscoveredDevice[]> {
     return new Promise((resolve) => {
       onvif.Discovery.probe(async (err: any, cams: any[]) => {
         if (err || !Array.isArray(cams)) return resolve([]);
@@ -113,8 +79,7 @@ export class OnvifAdapter implements DeviceAdapter {
         const out: DiscoveredDevice[] = [];
 
         for (const c of cams) {
-          // onvif module returns { address, port, ... } commonly
-          const ip = c?.address || c?.ip;
+          const ip = c?.address;
           if (!ip) continue;
 
           try {
@@ -130,7 +95,7 @@ export class OnvifAdapter implements DeviceAdapter {
                 : `ONVIF Camera ${ip}`,
               category: "camera",
               online: true,
-              capabilities: ["stream.rtsp", "onvif"],
+              capabilities: ["onvif", ...(rtsp ? ["stream.rtsp"] : [])],
               protocols: ["http", "other"],
               metadata: {
                 manufacturer: info?.manufacturer,
@@ -140,7 +105,7 @@ export class OnvifAdapter implements DeviceAdapter {
               },
             });
           } catch {
-            // ignore single camera failures
+            // ignore
           }
         }
 
@@ -149,14 +114,11 @@ export class OnvifAdapter implements DeviceAdapter {
     });
   }
 
-  private connectOnvif(
-    ip: string,
-    username?: string,
-    password?: string
-  ): Promise<any> {
+  private connectOnvif(ip: string, username?: string, password?: string): Promise<any> {
     return new Promise((resolve, reject) => {
       const Cam = onvif.Cam;
 
+      // eslint-disable-next-line no-new
       new Cam(
         {
           hostname: ip,
@@ -164,19 +126,19 @@ export class OnvifAdapter implements DeviceAdapter {
           password: password || "",
           timeout: 5000,
         },
-        function (err: any) {
+        function (this: any, err: any) {
           if (err) return reject(err);
-          // eslint-disable-next-line @typescript-eslint/no-this-alias
-          const self = this;
-          resolve(self);
+          resolve(this);
         }
       );
     });
   }
 
-  private getDeviceInfo(
-    cam: any
-  ): Promise<{ manufacturer?: string; model?: string; firmwareVersion?: string }> {
+  private getDeviceInfo(cam: any): Promise<{
+    manufacturer?: string;
+    model?: string;
+    firmwareVersion?: string;
+  }> {
     return new Promise((resolve) => {
       cam.getDeviceInformation((err: any, info: any) => {
         if (err) return resolve({});
@@ -205,15 +167,10 @@ export class OnvifAdapter implements DeviceAdapter {
   }
 
   async executeCommand(): Promise<void> {
-    throw new Error(
-      "ONVIF adapter currently supports discovery only (stream URI)."
-    );
+    throw new Error("ONVIF adapter currently supports discovery only (stream URI).");
   }
 
-  async startEventStream(
-    _context: AdapterContext,
-    _emit: (signal: Signal) => Promise<void>
-  ): Promise<void> {
+  async startEventStream(_context: AdapterContext, _emit: (signal: Signal) => Promise<void>) {
     return;
   }
 }
