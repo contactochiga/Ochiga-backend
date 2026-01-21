@@ -6,14 +6,14 @@ import IPCIDR from "ip-cidr";
  * Hard-limits to avoid scanning the whole world by mistake.
  */
 export function cidrToIps(cidr: string, maxHosts = 512): string[] {
-  const c = new IPCIDR(cidr);
+  let ips: string[];
 
-  // ✅ correct validation
-  if (!c.isValidCIDR()) {
+  try {
+    // ✅ ip-cidr validates implicitly here
+    ips = new IPCIDR(cidr).toArray();
+  } catch {
     throw new Error(`Invalid CIDR: ${cidr}`);
   }
-
-  const ips = c.toArray(); // returns string[]
 
   // remove network & broadcast safely
   const trimmed = ips.length > 2 ? ips.slice(1, ips.length - 1) : ips;
