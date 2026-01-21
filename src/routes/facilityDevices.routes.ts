@@ -1,8 +1,17 @@
+// src/routes/facilityDevices.routes.ts
+
 import express from "express";
 import { requireAuth } from "../middleware/auth";
+
 import { discoverDevices } from "../controllers/deviceDiscoveryController";
 import { requestDeviceCommand } from "../controllers/deviceCommandController";
 import { updateDeviceLocation, getDevicesNearPoint } from "../controllers/deviceGeoController";
+
+import {
+  listRegisteredDevices,
+  registerDevice,
+  assignDevice,
+} from "../controllers/deviceRegistryController";
 
 const router = express.Router();
 
@@ -12,20 +21,22 @@ const router = express.Router();
  *
  * Discovery example:
  *   GET /facility/devices/discover?adapter=tuya
+ *   GET /facility/devices/discover?adapter=ssdp
+ *   GET /facility/devices/discover?adapter=onvif&cidr=192.168.1.0/24
  */
+
+/** Discover */
 router.get("/discover", requireAuth, discoverDevices);
 
-/**
- * Commands (queued into signal plane)
- *   POST /facility/devices/:deviceId/command
- */
+/** Registry */
+router.get("/", requireAuth, listRegisteredDevices);
+router.post("/register", requireAuth, registerDevice);
+router.patch("/:deviceId/assign", requireAuth, assignDevice);
+
+/** Commands (queued into signal plane) */
 router.post("/:deviceId/command", requireAuth, requestDeviceCommand);
 
-/**
- * Geo / Placement
- *   PATCH /facility/devices/:deviceId/location
- *   GET   /facility/devices/near?lat=...&lng=...&radius=100
- */
+/** Geo / Placement */
 router.patch("/:deviceId/location", requireAuth, updateDeviceLocation);
 router.get("/near", requireAuth, getDevicesNearPoint);
 
