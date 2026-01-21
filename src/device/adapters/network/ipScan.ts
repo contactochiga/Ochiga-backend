@@ -4,8 +4,7 @@ import net from "net";
 import IPCIDR from "ip-cidr";
 
 /**
- * Enumerate IPs from CIDR (e.g. 192.168.1.0/24)
- * Hard-limits to avoid scanning the whole world by mistake.
+ * Convert CIDR (e.g. 192.168.1.0/24) to IP list
  */
 export function cidrToIps(cidr: string, maxHosts = 512): string[] {
   const c = new IPCIDR(cidr);
@@ -13,17 +12,19 @@ export function cidrToIps(cidr: string, maxHosts = 512): string[] {
 
   const ips = c.toArray({ type: "addressObject" }).map((x: any) => x.address);
 
-  // remove network/broadcast if present
-  const trimmed = ips.length >= 2 ? ips.slice(1, ips.length - 1) : ips;
-
-  if (trimmed.length > maxHosts) return trimmed.slice(0, maxHosts);
-  return trimmed;
+  // remove network + broadcast
+  const usable = ips.slice(1, ips.length - 1);
+  return usable.slice(0, maxHosts);
 }
 
 /**
- * TCP port probe
+ * Probe TCP port
  */
-export function probeTcp(ip: string, port: number, timeoutMs = 450): Promise<boolean> {
+export function probeTcp(
+  ip: string,
+  port: number,
+  timeoutMs = 400
+): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     let done = false;
@@ -47,21 +48,20 @@ export function probeTcp(ip: string, port: number, timeoutMs = 450): Promise<boo
 }
 
 /**
- * Concurrency limiter (simple)
+ * Simple async concurrency limiter
  */
 export async function mapLimit<T, R>(
   items: T[],
   limit: number,
   fn: (item: T) => Promise<R>
 ): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let i = 0;
+  const results: R[] = [];
+  let index = 0;
 
-  const workers = Array.from({ length: Math.max(1, limit) }).map(async () => {
-    while (true) {
-      const idx = i++;
-      if (idx >= items.length) break;
-      results[idx] = await fn(items[idx]);
+  const workers = Array.from({ length: limit }).map(async () => {
+    while (index < items.length) {
+      const i = index++;
+      results[i] = await fn(items[i]);
     }
   });
 
