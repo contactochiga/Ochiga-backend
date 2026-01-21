@@ -16,7 +16,6 @@ import { initAdaptersOnce } from "../device/adapters/initAdapters";
  */
 export async function discoverDevices(req: Request, res: Response) {
   try {
-    // ensure adapters are registered
     initAdaptersOnce();
 
     const user = req.user!;
@@ -32,32 +31,25 @@ export async function discoverDevices(req: Request, res: Response) {
       });
     }
 
-    // -------------------------------
-    // Adapter context (boundary-safe)
-    // -------------------------------
-    // NOTE: we reuse `credentials` as a flexible "adapter options" bag too.
     const context: AdapterContext = {
       estateId: user.estate_id,
       homeId: user.home_id,
       userId: user.id,
       credentials: {
-        // Tuya (cloud)
+        // Tuya cloud
         apiKey: process.env.TUYA_ACCESS_ID,
         apiSecret: process.env.TUYA_ACCESS_SECRET,
 
-        // Network discovery knobs (SSDP/IPSCAN/ONVIF)
+        // Network discovery
         cidr: req.query.cidr ? String(req.query.cidr) : undefined,
         timeoutMs: req.query.timeoutMs ? Number(req.query.timeoutMs) : undefined,
 
-        // ONVIF optional auth (if you pass it from frontend/admin)
+        // ONVIF optional credentials
         onvifUser: req.query.onvifUser ? String(req.query.onvifUser) : undefined,
         onvifPass: req.query.onvifPass ? String(req.query.onvifPass) : undefined,
       },
     };
 
-    // -------------------------------
-    // Adapter selection (registry)
-    // -------------------------------
     let adapter;
     try {
       adapter = adapterRegistry.get(adapterName);
@@ -68,9 +60,6 @@ export async function discoverDevices(req: Request, res: Response) {
       });
     }
 
-    // -------------------------------
-    // Discover devices
-    // -------------------------------
     const devices = await adapter.discover(context);
 
     return res.json({
@@ -80,8 +69,6 @@ export async function discoverDevices(req: Request, res: Response) {
     });
   } catch (err: any) {
     console.error("discoverDevices error:", err);
-    return res.status(500).json({
-      error: err?.message || "Discovery failed",
-    });
+    return res.status(500).json({ error: err?.message || "Discovery failed" });
   }
 }
