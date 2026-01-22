@@ -15,6 +15,7 @@ import onboardingRoutes from "./routes/onboarding";
 import visitorRoutes from "./routes/visitors";
 import signalRoutes from "./routes/signals";
 import facilityRoutes from "./routes/facility.routes"; // ✅ FACILITY MGMT
+import aiRoutes from "./routes/aiRoutes"; // ✅ AI ROUTES
 
 const app = express();
 
@@ -106,6 +107,9 @@ app.use("/auth/onboard", onboardingRoutes);
 app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);
 app.use("/devices", devicesRoutes);
+
+app.use("/ai", aiRoutes); // ✅ AI CHAT / NLU ROUTES
+
 app.use("/visitors", visitorRoutes);
 
 app.use("/facility", facilityRoutes); // ✅ FACILITY DASHBOARD + MGMT API
