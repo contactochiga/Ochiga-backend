@@ -25,7 +25,7 @@ import { redis } from "./config/redis";
 import { initMqttBridge } from "./device/bridge";
 import { startEventProcessor } from "./event-processor/eventProcessor";
 
-// ✅ INTENT WORKER
+// ✅ INTENT WORKER (BullMQ)
 import { startIntentWorker } from "./workers/intentWorker";
 
 // ---------------------------
@@ -72,9 +72,11 @@ httpServer.listen(PORT, async () => {
     await redis.connect();
     console.log("🟢 Redis connected successfully");
 
-    // ✅ START INTENT WORKER (BullMQ consumer)
+    // ---------------------------
+    // START INTENT WORKER (BullMQ)
+    // ---------------------------
     startIntentWorker();
-    console.log("🧠 Intent worker running");
+    console.log("🟢 Intent worker running");
 
     // ---------------------------
     // START MQTT BRIDGE
