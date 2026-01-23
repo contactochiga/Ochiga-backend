@@ -17,6 +17,11 @@ import signalRoutes from "./routes/signals";
 import facilityRoutes from "./routes/facility.routes"; // ✅ FACILITY MGMT
 import aiRoutes from "./routes/aiRoutes"; // ✅ AI ROUTES
 
+// ✅ ADD THESE (consumer / estate ops)
+import communityRoutes from "./routes/community";
+import walletRoutes from "./routes/wallets";
+import roomsRoutes from "./routes/rooms";
+
 const app = express();
 
 // -------------------------------
@@ -111,6 +116,11 @@ app.use("/devices", devicesRoutes);
 app.use("/ai", aiRoutes); // ✅ AI CHAT / NLU ROUTES
 
 app.use("/visitors", visitorRoutes);
+
+// ✅ ADD THESE (now your consumer panels can talk properly)
+app.use("/community", communityRoutes);
+app.use("/wallets", walletRoutes);
+app.use("/rooms", roomsRoutes);
 
 app.use("/facility", facilityRoutes); // ✅ FACILITY DASHBOARD + MGMT API
 app.use("/signals", signalRoutes);    // ✅ CONTROL PLANE ENTRY
