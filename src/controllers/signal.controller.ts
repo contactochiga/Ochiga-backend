@@ -1,11 +1,10 @@
 // src/controllers/signal.controller.ts
 import { Request, Response } from "express";
-
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import { Signal } from "../core/control-plane/contracts/signal.types";
 
-export async function ingestSignal(req: Request, res: Response) {
+export async function ingestSignal(req: any, res: Response) {
   try {
     const raw = req.body;
 
@@ -13,15 +12,31 @@ export async function ingestSignal(req: Request, res: Response) {
       return res.status(400).json({ error: "Invalid signal payload" });
     }
 
-    const signal: Signal = {
+    // ✅ Normalize common aliases
+    let type = raw.type;
+    if (type === "device.command") type = "device.command.requested";
+
+    const signal: any = {
       schemaVersion: SIGNAL_SCHEMA_VERSION,
       source: raw.source ?? "user",
-      type: raw.type,
+      type,
       timestamp: new Date().toISOString(),
       ...raw,
     };
 
-    await handleSignal(signal);
+    // ✅ If device command and requestedBy missing, derive from auth user
+    if (
+      signal.type === "device.command.requested" &&
+      !signal.requestedBy &&
+      req.user
+    ) {
+      signal.requestedBy = {
+        userId: req.user.id,
+        role: req.user.role,
+      };
+    }
+
+    await handleSignal(signal as Signal);
 
     return res.status(202).json({
       status: "accepted",
