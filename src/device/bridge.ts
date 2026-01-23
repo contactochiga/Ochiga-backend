@@ -1,7 +1,14 @@
 // src/device/bridge.ts
 import mqtt from "mqtt";
-import { io } from "../server";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+
+// ✅ Use IO registry (prevents circular imports)
+import { getIO } from "../realtime/io";
+
+// ✅ Convert incoming telemetry into control-plane signals
+import { handleSignal } from "../core/control-plane";
+import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
+import type { Signal } from "../core/control-plane/contracts/signal.types";
 
 const MQTT_URL = process.env.MQTT_URL || "";
 const MQTT_USERNAME = process.env.MQTT_USERNAME || undefined;
@@ -21,8 +28,50 @@ function parseTopic(topic: string) {
   };
 }
 
+function safeJson(payload: Buffer) {
+  const msg = payload.toString();
+  try {
+    return JSON.parse(msg);
+  } catch {
+    return { raw: msg };
+  }
+}
+
+function emitLegacyDeviceUpdate(estateId: string | null, deviceId: string, state: any, topic: string) {
+  // ✅ Keep backward compatibility for any existing dashboards listening to device:update
+  const io = getIO();
+  if (!io) return;
+
+  if (estateId) {
+    io.to(`estate:${estateId}`).emit("device:update", { deviceId, state, topic });
+  } else {
+    io.to(`device:${deviceId}`).emit("device:update", { deviceId, state, topic });
+  }
+}
+
+function buildDeviceStateSignal(args: {
+  estateId?: string | null;
+  deviceId: string;
+  state: any;
+  source?: string;
+}): Signal {
+  return {
+    schemaVersion: SIGNAL_SCHEMA_VERSION,
+    source: args.source ?? "mqtt",
+    type: "device.state.reported",
+    timestamp: new Date().toISOString(),
+
+    // payload (contract uses deviceId + state)
+    deviceId: args.deviceId,
+    state: args.state,
+
+    // routing context (helps realtime subscriber target rooms)
+    estateId: args.estateId ?? undefined,
+  } as any;
+}
+
 export async function initMqttBridge() {
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<void>((resolve) => {
     if (!MQTT_URL) {
       console.warn("MQTT_URL not set — MQTT bridge disabled");
       return resolve();
@@ -36,47 +85,66 @@ export async function initMqttBridge() {
 
     client.on("connect", () => {
       console.log("MQTT connected to", MQTT_URL);
-      // subscribe to convention
+
+      // ✅ Subscribe to both conventions:
+      // 1) preferred: ochiga/estate/:estateId/device/:deviceId/state
+      // 2) fallback older: ochiga/+/device/+/state
+      client?.subscribe("ochiga/estate/+/device/+/state", { qos: 0 }, (err) => {
+        if (err) console.error("MQTT subscribe error", err);
+      });
       client?.subscribe("ochiga/+/device/+/state", { qos: 0 }, (err) => {
         if (err) console.error("MQTT subscribe error", err);
       });
+
       resolve();
     });
 
     client.on("message", async (topic, payload) => {
       try {
         const parsedTopic = parseTopic(topic);
-        const estateId = parsedTopic.estateId;
+        let estateId = parsedTopic.estateId;
         const deviceId = parsedTopic.deviceId;
         if (!deviceId) return;
-        const msg = payload.toString();
-        let status: any;
-        try {
-          status = JSON.parse(msg);
-        } catch {
-          status = { raw: msg };
+
+        const status = safeJson(payload);
+
+        // ✅ Persist state
+        await supabaseAdmin
+          .from("device_states")
+          .upsert(
+            {
+              device_id: deviceId,
+              status,
+              last_seen: new Date().toISOString(),
+            },
+            { onConflict: "device_id" }
+          );
+
+        // If estate missing from topic, resolve it once
+        if (!estateId) {
+          const { data: device } = await supabaseAdmin
+            .from("devices")
+            .select("estate_id")
+            .eq("id", deviceId)
+            .limit(1)
+            .single();
+
+          estateId = device?.estate_id ?? null;
         }
 
-        // upsert device_states
-        await supabaseAdmin.from("device_states").upsert(
-          {
-            device_id: deviceId,
-            status,
-            last_seen: new Date().toISOString(),
-          },
-          { onConflict: "device_id" }
+        // ✅ 1) Emit legacy websocket event (backwards compatible)
+        emitLegacyDeviceUpdate(estateId, deviceId, status, topic);
+
+        // ✅ 2) Emit as Control-Plane signal (single truth)
+        // This will also trigger your realtimeSubscriber (signal stream)
+        await handleSignal(
+          buildDeviceStateSignal({
+            estateId,
+            deviceId,
+            state: status,
+            source: "mqtt",
+          })
         );
-
-        // emit to websocket clients in estate room
-        if (estateId) {
-          io.to(`estate:${estateId}`).emit("device:update", { deviceId, state: status, topic });
-        } else {
-          // fallback: try to find estate for device
-          const { data: device } = await supabaseAdmin.from("devices").select("estate_id").eq("id", deviceId).limit(1).single();
-          if (device?.estate_id) {
-            io.to(`estate:${device.estate_id}`).emit("device:update", { deviceId, state: status, topic });
-          }
-        }
       } catch (err) {
         console.error("Error processing MQTT message", err);
       }
