@@ -25,8 +25,8 @@ import { redis } from "./config/redis";
 import { initMqttBridge } from "./device/bridge";
 import { startEventProcessor } from "./event-processor/eventProcessor";
 
-// ✅ Realtime IO registry (NEW)
-import { setIO } from "./realtime/io";
+// ✅ INTENT WORKER
+import { startIntentWorker } from "./workers/intentWorker";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -39,9 +39,6 @@ export const io = new IOServer(httpServer, {
     credentials: true,
   },
 });
-
-// ✅ Register io globally for control-plane subscribers
-setIO(io);
 
 // ---------------------------
 // SOCKET.IO CONNECTIONS
@@ -60,15 +57,6 @@ io.on("connection", (socket) => {
   socket.on("subscribe:room", (roomId: string) => {
     socket.join(`room:${roomId}`);
   });
-
-  // ✅ Optional: device channel (handy for targeted streams)
-  socket.on("subscribe:device", (deviceId: string) => {
-    socket.join(`device:${deviceId}`);
-  });
-
-  socket.on("disconnect", (reason) => {
-    console.log("🔌 Socket disconnected →", socket.id, reason);
-  });
 });
 
 // ---------------------------
@@ -83,6 +71,10 @@ httpServer.listen(PORT, async () => {
     // ---------------------------
     await redis.connect();
     console.log("🟢 Redis connected successfully");
+
+    // ✅ START INTENT WORKER (BullMQ consumer)
+    startIntentWorker();
+    console.log("🧠 Intent worker running");
 
     // ---------------------------
     // START MQTT BRIDGE
