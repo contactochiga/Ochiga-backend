@@ -5,6 +5,44 @@ import { DeviceAdapter } from "../DeviceAdapter";
 import { AdapterContext, DiscoveredDevice } from "../types";
 import { Signal } from "../../../core/control-plane/contracts/signal.types";
 
+type TuyaDevice = {
+  id: string;
+  name?: string;
+  local_name?: string;
+  category?: string;
+  online?: boolean;
+  model?: string;
+  firmware_version?: string;
+  functions?: Array<{ code: string }>;
+};
+
+function unwrapTuyaResult<T>(res: any): T {
+  // Tuya responses commonly look like:
+  // { success: true, result: ... }
+  // { result: { list: [...] } }
+  if (!res) return res;
+
+  if (typeof res === "object" && "result" in res) return res.result as T;
+  return res as T;
+}
+
+function normalizeDeviceList(res: any): TuyaDevice[] {
+  const result = unwrapTuyaResult<any>(res);
+
+  // possibilities:
+  // 1) result is an array
+  if (Array.isArray(result)) return result as TuyaDevice[];
+
+  // 2) result.list
+  if (result?.list && Array.isArray(result.list)) return result.list as TuyaDevice[];
+
+  // 3) result.devices
+  if (result?.devices && Array.isArray(result.devices)) return result.devices as TuyaDevice[];
+
+  // 4) fallback
+  return [];
+}
+
 export class TuyaAdapter implements DeviceAdapter {
   readonly name = "tuya";
   readonly vendor = "Tuya";
@@ -20,10 +58,19 @@ export class TuyaAdapter implements DeviceAdapter {
    * DISCOVERY
    * ------------------------------------------------ */
   async discover(_context: AdapterContext): Promise<DiscoveredDevice[]> {
-    const devices = await this.client.request<any[]>(
+    // IMPORTANT:
+    // - Use paging params (no device_ids) to avoid Tuya 1109 issues.
+    // - Your TuyaClient should put these in querystring for GET.
+    const res = await this.client.request<any>(
       "GET",
-      "/v1.0/iot-03/devices"
+      "/v1.0/iot-03/devices",
+      {
+        page_no: 1,
+        page_size: 100,
+      }
     );
+
+    const devices = normalizeDeviceList(res);
 
     return devices.map((d) => ({
       externalId: d.id,
