@@ -20,18 +20,35 @@ export class TuyaAdapter implements DeviceAdapter {
    * DISCOVERY
    * ------------------------------------------------ */
   async discover(_context: AdapterContext): Promise<DiscoveredDevice[]> {
-    // Tuya device-list endpoints often return { list: [...] } (not a raw array)
-    const result = await this.client.request<any>("GET", "/v1.0/iot-03/devices");
+    // Tuya commonly requires pagination params here
+    // and returns { list: [...], total: n, page_no, page_size }
+    const pageSize = 100;
+    let pageNo = 1;
 
-    const list: any[] = Array.isArray(result)
-      ? result
-      : Array.isArray(result?.list)
+    const all: any[] = [];
+
+    while (true) {
+      const path = `/v1.0/iot-03/devices?page_no=${pageNo}&page_size=${pageSize}`;
+      const result = await this.client.request<any>("GET", path);
+
+      const list: any[] = Array.isArray(result?.list)
         ? result.list
-        : Array.isArray(result?.devices)
-          ? result.devices
+        : Array.isArray(result)
+          ? result
           : [];
 
-    return list.map((d) => ({
+      all.push(...list);
+
+      // Stop if returned less than pageSize (no more pages)
+      if (list.length < pageSize) break;
+
+      pageNo += 1;
+
+      // safety break (avoid infinite loop)
+      if (pageNo > 50) break;
+    }
+
+    return all.map((d) => ({
       externalId: d.id,
       adapter: this.name,
       name: d.name || d.local_name || "Unknown device",
@@ -50,10 +67,16 @@ export class TuyaAdapter implements DeviceAdapter {
     }));
   }
 
+  /* ------------------------------------------------
+   * BIND
+   * ------------------------------------------------ */
   async bindDevice(_device: DiscoveredDevice, _context: AdapterContext): Promise<void> {
     return;
   }
 
+  /* ------------------------------------------------
+   * COMMAND
+   * ------------------------------------------------ */
   async executeCommand(
     deviceId: string,
     command: Record<string, any>,
@@ -68,6 +91,9 @@ export class TuyaAdapter implements DeviceAdapter {
     );
   }
 
+  /* ------------------------------------------------
+   * EVENT STREAM
+   * ------------------------------------------------ */
   async startEventStream(
     _context: AdapterContext,
     _emit: (signal: Signal) => Promise<void>
