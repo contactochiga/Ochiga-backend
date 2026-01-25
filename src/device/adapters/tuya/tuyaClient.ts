@@ -32,54 +32,14 @@ function assertTuyaEnv(): {
   };
 }
 
-/* ------------------------------------------------
- * QUERY HELPERS (Tuya expects sorted query in signature)
- * ------------------------------------------------ */
-function normalizeParams(input?: Record<string, any>): Record<string, string> | undefined {
-  if (!input || typeof input !== "object") return undefined;
+type TuyaResponse<T> = {
+  success: boolean;
+  t?: number;
+  result?: T;
+  code?: number;
+  msg?: string;
+};
 
-  const out: Record<string, string> = {};
-
-  for (const [k, v] of Object.entries(input)) {
-    if (v === undefined || v === null) continue;
-
-    // remove empty strings
-    if (typeof v === "string" && v.trim() === "") continue;
-
-    // arrays -> comma string (Tuya expects device_ids=id1,id2,...)
-    if (Array.isArray(v)) {
-      const cleaned = v
-        .map((x) => (x === null || x === undefined ? "" : String(x).trim()))
-        .filter(Boolean);
-
-      if (!cleaned.length) continue;
-      out[k] = cleaned.join(",");
-      continue;
-    }
-
-    // numbers/bools -> string
-    out[k] = String(v);
-  }
-
-  // extra safety: never send illegal device_ids
-  if ("device_ids" in out && !out.device_ids.trim()) {
-    delete out.device_ids;
-  }
-
-  return Object.keys(out).length ? out : undefined;
-}
-
-function buildSortedQuery(params?: Record<string, string>) {
-  if (!params) return "";
-
-  const keys = Object.keys(params).sort(); // IMPORTANT for signature consistency
-  const parts = keys.map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`);
-  return parts.length ? `?${parts.join("&")}` : "";
-}
-
-/* ------------------------------------------------
- * CLIENT
- * ------------------------------------------------ */
 export class TuyaClient {
   private client: AxiosInstance;
   private accessToken?: string;
@@ -112,6 +72,7 @@ export class TuyaClient {
   ): string {
     const contentHash = crypto.createHash("sha256").update(body).digest("hex");
 
+    // IMPORTANT: Tuya signs the "path + query" (exactly as you send it)
     const stringToSign = [method, contentHash, "", pathWithQuery].join("\n");
 
     const signStr = this.ACCESS_ID + accessToken + t + stringToSign;
@@ -135,7 +96,7 @@ export class TuyaClient {
     const path = "/v1.0/token?grant_type=1";
     const sign = this.sign("GET", path, "", t);
 
-    const res = await this.client.get(path, {
+    const res = await this.client.get<TuyaResponse<{ access_token: string; expire_time: number }>>(path, {
       headers: {
         t,
         sign,
@@ -148,7 +109,7 @@ export class TuyaClient {
     const expire = res.data?.result?.expire_time;
 
     if (!token || !expire) {
-      throw new Error("❌ Failed to obtain Tuya access token");
+      throw new Error(`❌ Failed to obtain Tuya access token: ${JSON.stringify(res.data)}`);
     }
 
     this.accessToken = token;
@@ -159,31 +120,18 @@ export class TuyaClient {
 
   /* ------------------------------------------------
    * REQUEST
-   * - GET: third arg is query params
-   * - POST: third arg is JSON body
    * ------------------------------------------------ */
-  async request<T = any>(
-    method: "GET" | "POST",
-    path: string,
-    payload?: any
-  ): Promise<T> {
+  async request<T = any>(method: "GET" | "POST", pathWithQuery: string, body?: any): Promise<T> {
     const accessToken = await this.getAccessToken();
     const t = Date.now().toString();
+    const bodyStr = body ? JSON.stringify(body) : "";
 
-    const isGet = method === "GET";
-
-    const params = isGet ? normalizeParams(payload) : undefined;
-    const query = isGet ? buildSortedQuery(params) : "";
-    const pathWithQuery = `${path}${query}`;
-
-    const bodyStr = isGet ? "" : payload ? JSON.stringify(payload) : "";
     const sign = this.sign(method, pathWithQuery, bodyStr, t, accessToken);
 
-    const res = await this.client.request({
+    const res = await this.client.request<TuyaResponse<T>>({
       method,
-      url: path, // axios will append params itself
-      params, // ✅ query params for GET
-      data: isGet ? undefined : payload, // ✅ body only for POST
+      url: pathWithQuery,
+      data: body,
       headers: {
         t,
         sign,
@@ -196,8 +144,8 @@ export class TuyaClient {
 
     if (!res.data?.success) {
       const code = res.data?.code;
-      const msg = res.data?.msg || res.data?.message || "Unknown Tuya error";
-      throw new Error(`❌ Tuya API error${code ? ` (${code})` : ""}: ${msg}`);
+      const msg = res.data?.msg || "Unknown Tuya error";
+      throw new Error(`❌ Tuya API error (${code ?? "?"}): ${msg}`);
     }
 
     return res.data.result as T;
