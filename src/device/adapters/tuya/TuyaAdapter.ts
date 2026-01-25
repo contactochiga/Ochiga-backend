@@ -1,16 +1,9 @@
-// src/device/adapters/tuya/TuyaAdapter.ts
+/// src/device/adapters/tuya/TuyaAdapter.ts
 
 import { TuyaClient } from "./tuyaClient";
 import { DeviceAdapter } from "../DeviceAdapter";
 import { AdapterContext, DiscoveredDevice } from "../types";
 import { Signal } from "../../../core/control-plane/contracts/signal.types";
-
-type TuyaDeviceListResult = {
-  list: any[];
-  has_more?: boolean;
-  last_row_key?: string;
-  total?: number;
-};
 
 export class TuyaAdapter implements DeviceAdapter {
   readonly name = "tuya";
@@ -27,16 +20,18 @@ export class TuyaAdapter implements DeviceAdapter {
    * DISCOVERY
    * ------------------------------------------------ */
   async discover(_context: AdapterContext): Promise<DiscoveredDevice[]> {
-    // ✅ Use the documented endpoint and DON'T send device_ids at all.
-    // ✅ Ask for a big page_size to reduce paging headaches.
-    const res = await this.client.request<TuyaDeviceListResult>(
-      "GET",
-      "/v1.2/iot-03/devices?page_size=200"
-    );
+    // Tuya device-list endpoints often return { list: [...] } (not a raw array)
+    const result = await this.client.request<any>("GET", "/v1.0/iot-03/devices");
 
-    const devices = Array.isArray(res?.list) ? res.list : [];
+    const list: any[] = Array.isArray(result)
+      ? result
+      : Array.isArray(result?.list)
+        ? result.list
+        : Array.isArray(result?.devices)
+          ? result.devices
+          : [];
 
-    return devices.map((d) => ({
+    return list.map((d) => ({
       externalId: d.id,
       adapter: this.name,
       name: d.name || d.local_name || "Unknown device",
