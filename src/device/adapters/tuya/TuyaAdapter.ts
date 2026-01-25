@@ -1,26 +1,23 @@
-// src/device/adapters/tuya/TuyaAdapter.ts
+/// src/device/adapters/tuya/TuyaAdapter.ts
 
 import { TuyaClient } from "./tuyaClient";
 import { DeviceAdapter } from "../DeviceAdapter";
 import { AdapterContext, DiscoveredDevice } from "../types";
 import { Signal } from "../../../core/control-plane/contracts/signal.types";
 
-type TuyaDevice = {
-  id: string;
-  name?: string;
-  category?: string;
-  online?: boolean;
-  model?: string;
-  firmware_version?: string;
-  local_name?: string;
-};
+function normalizeList(result: any): any[] {
+  if (!result) return [];
+  if (Array.isArray(result)) return result;
 
-type CursorPage<T> = {
-  list?: T[];
-  has_more?: boolean;
-  last_row_key?: string;
-  total?: number;
-};
+  // common Tuya shapes
+  if (Array.isArray(result.list)) return result.list;
+  if (Array.isArray(result.devices)) return result.devices;
+
+  // sometimes nested again
+  if (result.result) return normalizeList(result.result);
+
+  return [];
+}
 
 export class TuyaAdapter implements DeviceAdapter {
   readonly name = "tuya";
@@ -33,61 +30,33 @@ export class TuyaAdapter implements DeviceAdapter {
     this.client = client ?? new TuyaClient();
   }
 
-  /* ------------------------------------------------
-   * DISCOVERY
-   * ------------------------------------------------ */
-  async discover(context: AdapterContext): Promise<DiscoveredDevice[]> {
-    // Optional: let you filter devices by dimension (recommended for real Tuya Smart app devices)
-    // Tuya docs: source_type + source_id control which “dimension” you list devices from.  [oai_citation:1‡Tuya Developer](https://developer.tuya.com/en/docs/cloud/0f866b1299?id=Kb3d6972ym5np)
-    const sourceType =
-      (context as any)?.credentials?.tuya_source_type ||
-      process.env.TUYA_SOURCE_TYPE ||
-      undefined;
+  async discover(_context: AdapterContext): Promise<DiscoveredDevice[]> {
+    // add page_size to avoid default tiny pages on some Tuya configs
+    const result = await this.client.request<any>(
+      "GET",
+      "/v1.0/iot-03/devices?page_size=100"
+    );
 
-    const sourceId =
-      (context as any)?.credentials?.tuya_source_id ||
-      process.env.TUYA_SOURCE_ID ||
-      undefined;
+    const list = normalizeList(result);
 
-    const pageSize = 200;
+    // ✅ DEBUG: prove what Tuya is returning (so we stop guessing)
+    console.log("[TuyaAdapter.discover] raw result keys:", result ? Object.keys(result) : null);
+    console.log("[TuyaAdapter.discover] normalized list length:", list.length);
 
-    const all: TuyaDevice[] = [];
-    let lastRowKey: string | undefined;
-
-    while (true) {
-      const qs = new URLSearchParams();
-      qs.set("page_size", String(pageSize));
-      if (sourceType) qs.set("source_type", String(sourceType));
-      if (sourceId) qs.set("source_id", String(sourceId));
-      if (lastRowKey) qs.set("last_row_key", lastRowKey);
-
-      // ✅ Correct version for iot-03 device list
-      const path = `/v1.2/iot-03/devices?${qs.toString()}`;
-
-      const page = await this.client.request<CursorPage<TuyaDevice>>("GET", path);
-
-      const list = Array.isArray(page?.list) ? page.list : [];
-      all.push(...list);
-
-      const hasMore = Boolean(page?.has_more);
-      lastRowKey = page?.last_row_key;
-
-      if (!hasMore || !lastRowKey) break;
-    }
-
-    return all.map((d) => ({
+    return list.map((d: any) => ({
       externalId: d.id,
       adapter: this.name,
       name: d.name || d.local_name || "Unknown device",
-      category: (d.category as any) || "unknown",
+      category: d.category || "unknown",
       online: Boolean(d.online),
-      // device list endpoint doesn’t always include "functions" — keep safe
-      capabilities: [],
+      capabilities: Array.isArray(d.functions)
+        ? d.functions.map((f: any) => f.code)
+        : [],
       protocols: ["cloud", "wifi"],
       metadata: {
         manufacturer: "Tuya",
         model: d.model,
-        firmwareVersion: (d as any).firmware_version,
+        firmwareVersion: d.firmware_version,
         raw: d,
       },
     }));
@@ -104,12 +73,17 @@ export class TuyaAdapter implements DeviceAdapter {
   ): Promise<void> {
     const commands = Object.entries(command).map(([code, value]) => ({ code, value }));
 
-    await this.client.request("POST", `/v1.0/iot-03/devices/${deviceId}/commands`, {
-      commands,
-    });
+    await this.client.request(
+      "POST",
+      `/v1.0/iot-03/devices/${deviceId}/commands`,
+      { commands }
+    );
   }
 
-  async startEventStream(_context: AdapterContext, _emit: (signal: Signal) => Promise<void>) {
+  async startEventStream(
+    _context: AdapterContext,
+    _emit: (signal: Signal) => Promise<void>
+  ): Promise<void> {
     return;
   }
 
