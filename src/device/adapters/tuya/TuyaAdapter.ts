@@ -5,28 +5,35 @@ import { DeviceAdapter } from "../DeviceAdapter";
 import { AdapterContext, DiscoveredDevice } from "../types";
 import { Signal } from "../../../core/control-plane/contracts/signal.types";
 
-function normalizeList(result: any): any[] {
-  if (!result) return [];
-  if (Array.isArray(result)) return result;
-
-  // common Tuya shapes
-  if (Array.isArray(result.list)) return result.list;
-  if (Array.isArray(result.devices)) return result.devices;
-
-  // some Tuya SDKs / wrappers nest again
-  if (result.result) return normalizeList(result.result);
-
-  return [];
-}
-
-function safeKeys(o: any) {
-  if (!o || typeof o !== "object") return [];
-  return Object.keys(o);
-}
-
-function pickFirstDeviceId(d: any) {
-  return d?.id || d?.device_id || d?.devId || d?.externalId || "-";
-}
+type TuyaDeviceListPage = {
+  has_more: boolean;
+  list: Array<{
+    id: string;
+    name?: string;
+    category?: string;
+    product_id?: string;
+    product_name?: string;
+    model?: string;
+    online?: boolean;
+    ip?: string;
+    icon?: string;
+    owner_id?: string;
+    asset_id?: string;
+    uuid?: string;
+    sub?: boolean;
+    gateway_id?: string;
+    node_id?: string;
+    time_zone?: string;
+    lon?: string;
+    lat?: string;
+    create_time?: number;
+    update_time?: number;
+    active_time?: number;
+    [k: string]: any;
+  }>;
+  last_row_key?: string;
+  total?: number;
+};
 
 export class TuyaAdapter implements DeviceAdapter {
   readonly name = "tuya";
@@ -42,75 +49,90 @@ export class TuyaAdapter implements DeviceAdapter {
   /* ------------------------------------------------
    * DISCOVERY
    * ------------------------------------------------ */
-  async discover(_context: AdapterContext): Promise<DiscoveredDevice[]> {
-    // NOTE:
-    // - "/v1.0/iot-03/devices" is valid for many Tuya IoT projects (cloud devices under project).
-    // - If your project isn’t linked to any devices, it will return 200 with empty list.
-    // - If your devices live only in Smart Life/Tuya App, you may need TUYA_UID fallback.
-
-    const projectPath = "/v1.0/iot-03/devices?page_size=100";
-
+  async discover(context: AdapterContext): Promise<DiscoveredDevice[]> {
     console.log("[TuyaAdapter.discover] starting…");
-    console.log("[TuyaAdapter.discover] using project path:", projectPath);
 
-    const result = await this.client.request<any>("GET", projectPath);
+    // Optional: allow forcing a specific listing dimension if your project needs it
+    // Docs: source_type defaults to "asset" if omitted.  [oai_citation:1‡Tuya Developer](https://developer.tuya.com/en/docs/cloud/dc413408fe?id=Kc09y2ons2i3b)
+    const sourceType =
+      (process.env.TUYA_SOURCE_TYPE || "").trim() || undefined; // asset | homeApp | tuyaUser | product
+    const sourceId = (process.env.TUYA_SOURCE_ID || "").trim() || undefined;
 
-    const list = normalizeList(result);
-
-    // ✅ DEBUG LOGS (paste these back to me)
-    console.log("[TuyaAdapter.discover] raw result keys:", safeKeys(result));
-    console.log("[TuyaAdapter.discover] normalized list length:", list.length);
-    console.log("[TuyaAdapter.discover] sample device id:", list[0] ? pickFirstDeviceId(list[0]) : "none");
-    console.log(
-      "[TuyaAdapter.discover] sample device keys:",
-      list[0] ? safeKeys(list[0]) : "none"
+    const pageSize = Math.min(
+      200,
+      Math.max(1, Number(process.env.TUYA_PAGE_SIZE || 200))
     );
 
-    // ✅ Optional fallback to App-user devices (ONLY if you set TUYA_UID)
-    // This is useful when project device list is empty but you actually have devices in Smart Life.
-    let finalList = list;
+    const all: TuyaDeviceListPage["list"] = [];
+    let lastRowKey: string | undefined = undefined;
+    let safety = 0;
 
-    if (!finalList.length && process.env.TUYA_UID) {
-      const uid = String(process.env.TUYA_UID).trim();
-      const userPath = `/v1.0/users/${uid}/devices`;
+    while (safety++ < 50) {
+      const qs = new URLSearchParams();
+      qs.set("page_size", String(pageSize));
+      if (lastRowKey) qs.set("last_row_key", lastRowKey);
+      if (sourceType) qs.set("source_type", sourceType);
+      if (sourceType && sourceId) qs.set("source_id", sourceId);
 
-      console.log("[TuyaAdapter.discover] project list empty → trying TUYA_UID fallback");
-      console.log("[TuyaAdapter.discover] using user path:", userPath);
+      const path = `/v1.3/iot-03/devices?${qs.toString()}`;
 
-      try {
-        const byUser = await this.client.request<any>("GET", userPath);
-        const userList = normalizeList(byUser);
+      console.log("[TuyaAdapter.discover] requesting:", path);
 
-        console.log("[TuyaAdapter.discover] user result keys:", safeKeys(byUser));
-        console.log("[TuyaAdapter.discover] user normalized length:", userList.length);
-        console.log("[TuyaAdapter.discover] user sample device id:", userList[0] ? pickFirstDeviceId(userList[0]) : "none");
+      const page = await this.client.request<TuyaDeviceListPage>("GET", path);
 
-        finalList = userList;
-      } catch (e: any) {
-        console.log("[TuyaAdapter.discover] TUYA_UID fallback failed:", e?.message || e);
-        // keep empty finalList
-      }
+      const list = Array.isArray(page?.list) ? page.list : [];
+      all.push(...list);
+
+      console.log(
+        "[TuyaAdapter.discover] page:",
+        "got=",
+        list.length,
+        "totalSoFar=",
+        all.length,
+        "has_more=",
+        Boolean(page?.has_more),
+        "last_row_key=",
+        page?.last_row_key || "-"
+      );
+
+      if (!page?.has_more) break;
+      if (!page?.last_row_key) break;
+
+      lastRowKey = page.last_row_key;
     }
 
-    return finalList.map((d: any) => ({
-      externalId: d.id || d.device_id || d.devId || d.externalId,
+    // Map Tuya -> your DiscoveredDevice canonical shape
+    const discovered: DiscoveredDevice[] = all.map((d) => ({
+      externalId: d.id,
       adapter: this.name,
-      name: d.name || d.local_name || "Unknown device",
-      category: d.category || d.product_id || "unknown",
-      online: Boolean(d.online ?? d.isOnline ?? d.status === "online"),
-      capabilities: Array.isArray(d.functions)
-        ? d.functions.map((f: any) => f.code)
-        : Array.isArray(d.capabilities)
-        ? d.capabilities
-        : [],
+      name: d.name || "Unknown device",
+      category: d.category || "unknown",
+      online: Boolean(d.online),
+      capabilities: [], // v1.3 list does NOT return functions/spec; keep empty for now
       protocols: ["cloud", "wifi"],
       metadata: {
         manufacturer: "Tuya",
-        model: d.model || d.product_name || d?.metadata?.model,
-        firmwareVersion: d.firmware_version || d?.metadata?.firmwareVersion,
+        model: d.model,
+        product_id: d.product_id,
+        product_name: d.product_name,
+        ip: d.ip,
+        icon: d.icon,
+        owner_id: d.owner_id,
+        asset_id: d.asset_id,
         raw: d,
+        context: {
+          estateId: context?.estateId,
+          homeId: context?.homeId,
+          userId: context?.userId,
+        },
       },
     }));
+
+    console.log("[TuyaAdapter.discover] done. devices=", discovered.length);
+
+    // If you’re still seeing 0, it often means your project has no devices under the default dimension (asset).
+    // In that case, set TUYA_SOURCE_TYPE + TUYA_SOURCE_ID (see note below).
+    return discovered;
   }
 
   /* ------------------------------------------------
@@ -129,10 +151,7 @@ export class TuyaAdapter implements DeviceAdapter {
     command: Record<string, any>,
     _context: AdapterContext
   ): Promise<void> {
-    const commands = Object.entries(command).map(([code, value]) => ({
-      code,
-      value,
-    }));
+    const commands = Object.entries(command).map(([code, value]) => ({ code, value }));
 
     await this.client.request(
       "POST",
