@@ -5,6 +5,10 @@ import { DeviceAdapter } from "../DeviceAdapter";
 import { AdapterContext, DiscoveredDevice } from "../types";
 import { Signal } from "../../../core/control-plane/contracts/signal.types";
 
+// ✅ IMPORTANT: adjust this import path to wherever your DeviceCategory lives.
+// In many codebases it's in adapters/types or core device/types.
+import type { DeviceCategory } from "../types";
+
 type TuyaDeviceListPage = {
   has_more: boolean;
   list: Array<{
@@ -35,6 +39,26 @@ type TuyaDeviceListPage = {
   total?: number;
 };
 
+// ✅ Map Tuya categories into your strict DeviceCategory union
+function toDeviceCategory(raw?: string): DeviceCategory {
+  const c = String(raw || "").toLowerCase().trim();
+
+  // Common Tuya categories → typical platform categories
+  // Change the returned values to match YOUR union if needed.
+  if (["light", "lighting", "ceiling_light", "lamp"].includes(c)) return "light" as DeviceCategory;
+  if (["switch", "switch_1", "switch_2", "switch_3", "switch_4"].includes(c)) return "switch" as DeviceCategory;
+  if (["socket", "plug", "smart_plug", "outlet"].includes(c)) return "plug" as DeviceCategory;
+  if (["camera", "ipc", "ipcamera"].includes(c)) return "camera" as DeviceCategory;
+  if (["doorlock", "lock"].includes(c)) return "lock" as DeviceCategory;
+  if (["sensor", "pir", "motion", "smoke_sensor", "gas_sensor"].includes(c)) return "sensor" as DeviceCategory;
+  if (["curtain", "blind", "shade"].includes(c)) return "curtain" as DeviceCategory;
+  if (["thermostat", "temp_humidity_sensor"].includes(c)) return "thermostat" as DeviceCategory;
+
+  // ✅ Fallback — MUST be a valid DeviceCategory in your project.
+  // If your union does NOT include "unknown", change this line to e.g. "other".
+  return "unknown" as DeviceCategory;
+}
+
 export class TuyaAdapter implements DeviceAdapter {
   readonly name = "tuya";
   readonly vendor = "Tuya";
@@ -52,16 +76,10 @@ export class TuyaAdapter implements DeviceAdapter {
   async discover(context: AdapterContext): Promise<DiscoveredDevice[]> {
     console.log("[TuyaAdapter.discover] starting…");
 
-    // Optional: allow forcing a specific listing dimension if your project needs it
-    // Docs: source_type defaults to "asset" if omitted.  [oai_citation:1‡Tuya Developer](https://developer.tuya.com/en/docs/cloud/dc413408fe?id=Kc09y2ons2i3b)
-    const sourceType =
-      (process.env.TUYA_SOURCE_TYPE || "").trim() || undefined; // asset | homeApp | tuyaUser | product
+    const sourceType = (process.env.TUYA_SOURCE_TYPE || "").trim() || undefined;
     const sourceId = (process.env.TUYA_SOURCE_ID || "").trim() || undefined;
 
-    const pageSize = Math.min(
-      200,
-      Math.max(1, Number(process.env.TUYA_PAGE_SIZE || 200))
-    );
+    const pageSize = Math.min(200, Math.max(1, Number(process.env.TUYA_PAGE_SIZE || 200)));
 
     const all: TuyaDeviceListPage["list"] = [];
     let lastRowKey: string | undefined = undefined;
@@ -74,6 +92,7 @@ export class TuyaAdapter implements DeviceAdapter {
       if (sourceType) qs.set("source_type", sourceType);
       if (sourceType && sourceId) qs.set("source_id", sourceId);
 
+      // ✅ Correct Tuya device list endpoint (v1.3)
       const path = `/v1.3/iot-03/devices?${qs.toString()}`;
 
       console.log("[TuyaAdapter.discover] requesting:", path);
@@ -101,14 +120,13 @@ export class TuyaAdapter implements DeviceAdapter {
       lastRowKey = page.last_row_key;
     }
 
-    // Map Tuya -> your DiscoveredDevice canonical shape
     const discovered: DiscoveredDevice[] = all.map((d) => ({
       externalId: d.id,
       adapter: this.name,
       name: d.name || "Unknown device",
-      category: d.category || "unknown",
+      category: toDeviceCategory(d.category), // ✅ fixed typing here
       online: Boolean(d.online),
-      capabilities: [], // v1.3 list does NOT return functions/spec; keep empty for now
+      capabilities: [], // v1.3 list doesn’t include functions/spec
       protocols: ["cloud", "wifi"],
       metadata: {
         manufacturer: "Tuya",
@@ -129,9 +147,6 @@ export class TuyaAdapter implements DeviceAdapter {
     }));
 
     console.log("[TuyaAdapter.discover] done. devices=", discovered.length);
-
-    // If you’re still seeing 0, it often means your project has no devices under the default dimension (asset).
-    // In that case, set TUYA_SOURCE_TYPE + TUYA_SOURCE_ID (see note below).
     return discovered;
   }
 
@@ -139,7 +154,6 @@ export class TuyaAdapter implements DeviceAdapter {
    * BIND
    * ------------------------------------------------ */
   async bindDevice(_device: DiscoveredDevice, _context: AdapterContext): Promise<void> {
-    // Tuya devices are already vendor-bound
     return;
   }
 
@@ -153,21 +167,16 @@ export class TuyaAdapter implements DeviceAdapter {
   ): Promise<void> {
     const commands = Object.entries(command).map(([code, value]) => ({ code, value }));
 
-    await this.client.request(
-      "POST",
-      `/v1.0/iot-03/devices/${deviceId}/commands`,
-      { commands }
-    );
+    await this.client.request("POST", `/v1.0/iot-03/devices/${deviceId}/commands`, { commands });
   }
 
   /* ------------------------------------------------
-   * EVENT STREAM (REQUIRED BY INTERFACE)
+   * EVENT STREAM
    * ------------------------------------------------ */
   async startEventStream(
     _context: AdapterContext,
     _emit: (signal: Signal) => Promise<void>
   ): Promise<void> {
-    // Tuya Message Service / MQTT will be wired here later
     return;
   }
 
