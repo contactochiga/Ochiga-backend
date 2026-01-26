@@ -1,55 +1,63 @@
 // src/services/otpService.ts
+import crypto from "crypto";
 import { redis } from "../config/redis";
-import { sendEmail } from "./emailService";
 
-const OTP_TTL_SECONDS = Number(process.env.OTP_TTL_SECONDS || 600); // 10 mins default
+type Purpose = "signup" | "login";
 
-function otpKey(email: string) {
-  return `otp:signup:${email.toLowerCase()}`;
+const OTP_TTL_SECONDS = 10 * 60; // 10 mins
+const RATE_LIMIT_SECONDS = 30;   // 1 OTP per 30s per email+purpose
+
+function otpKey(email: string, purpose: Purpose) {
+  return `otp:${purpose}:${email}`;
 }
 
-function generateOtp(len = 6) {
-  let out = "";
-  for (let i = 0; i < len; i++) out += Math.floor(Math.random() * 10);
-  return out;
+function rlKey(email: string, purpose: Purpose) {
+  return `otp:rl:${purpose}:${email}`;
 }
 
-export const otpService = {
-  async sendSignupOtp(email: string) {
-    const code = generateOtp(6);
+function hashCode(code: string) {
+  const pepper = process.env.OTP_PEPPER || "ochiga-otp-pepper";
+  return crypto.createHash("sha256").update(`${pepper}:${code}`).digest("hex");
+}
 
-    // store in redis with TTL
-    await redis.set(otpKey(email), code, { EX: OTP_TTL_SECONDS });
+export function generateOtpCode(length = 6) {
+  // numeric only
+  const min = 10 ** (length - 1);
+  const max = 10 ** length - 1;
+  return crypto.randomInt(min, max).toString();
+}
 
-    const subject = "Your Ochiga verification code";
-    const html = `
-      <div style="font-family: Inter, Arial, sans-serif; line-height:1.6;">
-        <h2 style="margin:0 0 8px;">Verify your email</h2>
-        <p style="margin:0 0 16px;">Use this code to complete your signup:</p>
-        <div style="font-size:28px; font-weight:700; letter-spacing:6px; padding:14px 16px; background:#0b0f19; border-radius:12px; display:inline-block; color:#fff;">
-          ${code}
-        </div>
-        <p style="margin:16px 0 0; color:#6b7280; font-size:12px;">
-          This code expires in ${Math.ceil(OTP_TTL_SECONDS / 60)} minutes.
-        </p>
-      </div>
-    `;
+export async function canSendOtp(email: string, purpose: Purpose) {
+  // if key exists => too soon
+  const key = rlKey(email, purpose);
+  const exists = await redis.exists(key);
+  if (exists) return false;
 
-    await sendEmail({
-      to: email,
-      subject,
-      html,
-    });
-  },
+  // set rate limit marker
+  await redis.set(key, "1", { EX: RATE_LIMIT_SECONDS });
+  return true;
+}
 
-  async verifyOtp(email: string, code: string) {
-    const saved = await redis.get(otpKey(email));
-    if (!saved) return false;
+export async function saveOtp(email: string, purpose: Purpose, code: string) {
+  const key = otpKey(email, purpose);
+  const hashed = hashCode(code);
 
-    const ok = saved === code;
-    if (ok) {
-      await redis.del(otpKey(email)); // one-time use
-    }
-    return ok;
-  },
-};
+  // store hash with expiry
+  await redis.set(key, hashed, { EX: OTP_TTL_SECONDS });
+}
+
+export async function verifyOtpCode(email: string, purpose: Purpose, code: string) {
+  const key = otpKey(email, purpose);
+  const stored = await redis.get(key);
+  if (!stored) return false;
+
+  const incoming = hashCode(code);
+  const ok = stored === incoming;
+
+  if (ok) {
+    // one-time use
+    await redis.del(key);
+  }
+
+  return ok;
+}
