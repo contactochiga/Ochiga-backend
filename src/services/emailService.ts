@@ -1,7 +1,7 @@
 // src/services/emailService.ts
 import { sendWithResend } from "./mailer/resendMailer";
 
-export type SendEmailArgs = {
+type SendEmailArgs = {
   to: string;
   subject: string;
   html: string;
