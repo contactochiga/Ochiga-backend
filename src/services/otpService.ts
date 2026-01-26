@@ -1,66 +1,55 @@
-import crypto from "crypto";
+// src/services/otpService.ts
 import { redis } from "../config/redis";
+import { sendEmail } from "./emailService";
 
-const ttl = Number(process.env.OTP_TTL_SECONDS || 600); // 10 mins default
-const cooldown = Number(process.env.OTP_COOLDOWN_SECONDS || 45);
-const maxAttempts = Number(process.env.OTP_MAX_VERIFY_ATTEMPTS || 6);
+const OTP_TTL_SECONDS = Number(process.env.OTP_TTL_SECONDS || 600); // 10 mins default
 
 function otpKey(email: string) {
-  return `otp:email:${email.toLowerCase()}`;
-}
-function cooldownKey(email: string) {
-  return `otp:cooldown:${email.toLowerCase()}`;
+  return `otp:signup:${email.toLowerCase()}`;
 }
 
-function sha(code: string) {
-  return crypto.createHash("sha256").update(code).digest("hex");
+function generateOtp(len = 6) {
+  let out = "";
+  for (let i = 0; i < len; i++) out += Math.floor(Math.random() * 10);
+  return out;
 }
 
-export function generateOtpCode() {
-  const n = crypto.randomInt(0, 1000000);
-  return String(n).padStart(6, "0");
-}
+export const otpService = {
+  async sendSignupOtp(email: string) {
+    const code = generateOtp(6);
 
-export async function canSendOtp(email: string) {
-  const cd = await redis.get(cooldownKey(email));
-  return !cd;
-}
+    // store in redis with TTL
+    await redis.set(otpKey(email), code, { EX: OTP_TTL_SECONDS });
 
-export async function saveOtp(email: string, code: string) {
-  const payload = JSON.stringify({
-    hash: sha(code),
-    attempts: 0,
-    createdAt: Date.now(),
-  });
+    const subject = "Your Ochiga verification code";
+    const html = `
+      <div style="font-family: Inter, Arial, sans-serif; line-height:1.6;">
+        <h2 style="margin:0 0 8px;">Verify your email</h2>
+        <p style="margin:0 0 16px;">Use this code to complete your signup:</p>
+        <div style="font-size:28px; font-weight:700; letter-spacing:6px; padding:14px 16px; background:#0b0f19; border-radius:12px; display:inline-block; color:#fff;">
+          ${code}
+        </div>
+        <p style="margin:16px 0 0; color:#6b7280; font-size:12px;">
+          This code expires in ${Math.ceil(OTP_TTL_SECONDS / 60)} minutes.
+        </p>
+      </div>
+    `;
 
-  // redis v4 options style
-  await redis.set(otpKey(email), payload, { EX: ttl });
-  await redis.set(cooldownKey(email), "1", { EX: cooldown });
-}
+    await sendEmail({
+      to: email,
+      subject,
+      html,
+    });
+  },
 
-export async function verifyOtp(email: string, code: string) {
-  const raw = await redis.get(otpKey(email));
-  if (!raw) return { ok: false as const, reason: "expired" as const };
+  async verifyOtp(email: string, code: string) {
+    const saved = await redis.get(otpKey(email));
+    if (!saved) return false;
 
-  const data = JSON.parse(raw) as {
-    hash: string;
-    attempts: number;
-    createdAt: number;
-  };
-
-  if (data.attempts >= maxAttempts) {
-    await redis.del(otpKey(email));
-    return { ok: false as const, reason: "too_many_attempts" as const };
-  }
-
-  const match = data.hash === sha(code);
-
-  if (!match) {
-    data.attempts += 1;
-    await redis.set(otpKey(email), JSON.stringify(data), { EX: ttl });
-    return { ok: false as const, reason: "invalid" as const };
-  }
-
-  await redis.del(otpKey(email));
-  return { ok: true as const };
-}
+    const ok = saved === code;
+    if (ok) {
+      await redis.del(otpKey(email)); // one-time use
+    }
+    return ok;
+  },
+};
