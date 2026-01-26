@@ -1,61 +1,61 @@
 // src/services/mailer/resendMailer.ts
 import { Resend } from "resend";
+import type { OtpPurpose } from "../otpService";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-
-// This must be a verified domain in Resend (you already verified ochiga.com.ng)
-// Example: "Oyi OS <no-reply@ochiga.com.ng>"
-const OTP_FROM = process.env.OTP_FROM || "Ochiga <no-reply@ochiga.com.ng>";
+const EMAIL_FROM = process.env.EMAIL_FROM || "no-reply@ochiga.com.ng";
 
 if (!RESEND_API_KEY) {
-  console.warn("⚠️ Missing env var: RESEND_API_KEY (OTP emails will fail)");
+  console.warn("⚠️ Missing RESEND_API_KEY (emails will fail until set).");
 }
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
-export type OtpPurpose = "signup" | "login" | "password_reset";
+type SendWithResendArgs = {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  from?: string;
+};
 
-function purposeLabel(purpose: OtpPurpose) {
-  if (purpose === "signup") return "Verify your email";
-  if (purpose === "login") return "Login verification";
-  return "Reset your password";
+export async function sendWithResend(args: SendWithResendArgs) {
+  if (!resend) throw new Error("RESEND_API_KEY not set");
+
+  return resend.emails.send({
+    from: args.from || EMAIL_FROM,
+    to: args.to,
+    subject: args.subject,
+    html: args.html,
+    text: args.text,
+  });
 }
 
-export async function sendOtpEmail(to: string, code: string, purpose: OtpPurpose) {
-  if (!resend) throw new Error("RESEND_API_KEY not configured");
-
-  const subject = `${purposeLabel(purpose)} · ${code}`;
+export async function sendOtpEmail(args: {
+  to: string;
+  code: string;
+  purpose: OtpPurpose;
+}) {
+  const subject =
+    args.purpose === "signup" ? "Verify your Ochiga account" : "Your login code";
 
   const html = `
-  <div style="font-family: Arial, sans-serif; line-height:1.5; color:#111;">
-    <h2 style="margin:0 0 12px 0;">${purposeLabel(purpose)}</h2>
-    <p style="margin:0 0 12px 0;">Your one-time code is:</p>
-    <div style="
-      font-size:28px;
-      letter-spacing:6px;
-      font-weight:700;
-      padding:14px 16px;
-      border-radius:12px;
-      background:#0b1220;
-      color:#fff;
-      display:inline-block;">
-      ${code}
+    <div style="font-family: Inter, Arial, sans-serif; line-height:1.5; color:#111;">
+      <h2 style="margin:0 0 8px;">Your verification code</h2>
+      <p style="margin:0 0 16px;">Use this code to continue:</p>
+      <div style="font-size:28px; font-weight:700; letter-spacing:6px; padding:14px 16px; background:#f3f4f6; border-radius:12px; display:inline-block;">
+        ${args.code}
+      </div>
+      <p style="margin:16px 0 0; color:#666; font-size:12px;">
+        This code expires in 10 minutes.
+      </p>
     </div>
-    <p style="margin:16px 0 0 0; color:#444;">
-      This code expires in 10 minutes. If you didn’t request it, ignore this email.
-    </p>
-  </div>`;
+  `;
 
-  const { error } = await resend.emails.send({
-    from: OTP_FROM,
-    to,
+  return sendWithResend({
+    to: args.to,
     subject,
     html,
+    text: `Your code is ${args.code}`,
   });
-
-  if (error) {
-    throw new Error(`Resend error: ${error.message}`);
-  }
-
-  return true;
 }
