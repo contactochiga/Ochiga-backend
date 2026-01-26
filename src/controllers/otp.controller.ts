@@ -1,5 +1,6 @@
 // src/controllers/otp.controller.ts
 import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
 import {
   canSendOtp,
   generateOtpCode,
@@ -8,7 +9,11 @@ import {
   type OtpPurpose,
 } from "../services/otpService";
 import { sendOtpEmail } from "../services/mailer/resendMailer";
-import { confirmSupabaseEmailByEmail } from "../services/userVerificationService";
+
+const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
+if (!APP_JWT_SECRET) {
+  console.warn("⚠️ APP_JWT_SECRET is missing in env");
+}
 
 const PURPOSES = new Set<OtpPurpose>(["signup", "login"]);
 
@@ -64,21 +69,14 @@ export async function verifyOtpHandler(req: Request, res: Response) {
       return res.status(401).json({ ok: false, message: `OTP ${result.reason}` });
     }
 
-    // ✅ KEY NEXT STEP: if this is signup verification, confirm Supabase email
-    // so both Facility app and Consumer app can rely on one truth (Supabase).
-    if (purpose === "signup") {
-      const confirmed = await confirmSupabaseEmailByEmail(email);
-      if (!confirmed.ok) {
-        // You can decide if you want to fail verification here or just warn.
-        // I recommend failing so you never have "OTP ok but Supabase not confirmed".
-        return res.status(404).json({
-          ok: false,
-          message: "OTP verified but Supabase user not found for this email",
-        });
-      }
-    }
+    // ✅ Issue a short-lived OTP gate token (used ONLY to allow signup/login)
+    const otpToken = jwt.sign(
+      { typ: "otp", email, purpose },
+      APP_JWT_SECRET,
+      { expiresIn: "10m" }
+    );
 
-    return res.json({ ok: true, message: "OTP verified" });
+    return res.json({ ok: true, message: "OTP verified", otpToken });
   } catch (err: any) {
     console.error("verifyOtp error:", err?.message || err);
     return res.status(500).json({ ok: false, message: "Failed to verify OTP" });
