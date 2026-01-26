@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { canSendOtp, generateOtpCode, saveOtp, verifyOtp, type OtpPurpose } from "../services/otpService";
 import { sendOtpEmail } from "../services/mailer/resendMailer";
 
-const PURPOSES = new Set<OtpPurpose>(["signup", "login", "facility_signup", "consumer_signup"]);
+const PURPOSES = new Set<OtpPurpose>(["signup", "login"]);
 
 function normalizePurpose(p: any): OtpPurpose {
   const v = (p || "signup").toString().toLowerCase();
@@ -39,7 +39,7 @@ export async function sendOtp(req: Request, res: Response) {
   }
 }
 
-export async function verifyOtpController(req: Request, res: Response) {
+export async function verifyOtpHandler(req: Request, res: Response) {
   try {
     const email = (req.body?.email || "").toString().trim().toLowerCase();
     const code = (req.body?.code || "").toString().trim();
@@ -53,7 +53,6 @@ export async function verifyOtpController(req: Request, res: Response) {
     }
 
     const result = await verifyOtp(email, purpose, code);
-
     if (!result.ok) {
       return res.status(401).json({ ok: false, message: `OTP ${result.reason}` });
     }
