@@ -1,36 +1,37 @@
+// src/services/mailer/resendMailer.ts
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-export async function sendOtpEmail(params: { to: string; code: string }) {
-  const from = process.env.MAIL_FROM || "Oyi <no-reply@ochiga.com.ng>";
-  const replyTo = process.env.MAIL_REPLY_TO || undefined;
+function requireEnv(name: string, value?: string) {
+  if (!value) throw new Error(`❌ Missing env var: ${name}`);
+  return value;
+}
 
-  const { to, code } = params;
+export async function sendWithResend(args: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  from?: string;
+}) {
+  requireEnv("RESEND_API_KEY", RESEND_API_KEY);
 
-  const ttlSeconds = Number(process.env.OTP_TTL_SECONDS || 600);
-  const ttlMins = Math.max(1, Math.round(ttlSeconds / 60));
+  const resend = new Resend(RESEND_API_KEY);
 
-  const subject = `Your Oyi verification code: ${code}`;
+  const from = args.from || process.env.EMAIL_FROM || "no-reply@ochiga.com.ng";
 
-  const html = `
-  <div style="font-family: ui-sans-serif,system-ui,-apple-system; line-height:1.5; color:#111;">
-    <h2 style="margin:0 0 12px;">Verify your email</h2>
-    <p style="margin:0 0 14px;">Use this code to verify your account:</p>
-    <div style="font-size:28px; font-weight:700; letter-spacing:6px; padding:14px 16px; background:#f4f4f5; border-radius:12px; display:inline-block;">
-      ${code}
-    </div>
-    <p style="margin:14px 0 0; color:#666; font-size:13px;">
-      This code expires in ${ttlMins} minutes.
-    </p>
-  </div>
-  `;
-
-  await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from,
-    to,
-    subject,
-    html,
-    replyTo: replyTo ? [replyTo] : undefined,
+    to: args.to,
+    subject: args.subject,
+    html: args.html,
+    text: args.text,
   });
+
+  if (error) {
+    throw new Error(error.message || "Resend send failed");
+  }
+
+  return data;
 }
