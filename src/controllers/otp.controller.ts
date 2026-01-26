@@ -1,7 +1,14 @@
 // src/controllers/otp.controller.ts
 import { Request, Response } from "express";
-import { canSendOtp, generateOtpCode, saveOtp, verifyOtp, type OtpPurpose } from "../services/otpService";
+import {
+  canSendOtp,
+  generateOtpCode,
+  saveOtp,
+  verifyOtp,
+  type OtpPurpose,
+} from "../services/otpService";
 import { sendOtpEmail } from "../services/mailer/resendMailer";
+import { markSupabaseEmailVerified } from "../services/userVerificationService";
 
 const PURPOSES = new Set<OtpPurpose>(["signup", "login"]);
 
@@ -35,7 +42,7 @@ export async function sendOtp(req: Request, res: Response) {
     return res.json({ ok: true, message: "OTP sent" });
   } catch (err: any) {
     console.error("sendOtp error:", err?.message || err);
-    return res.status(500).json({ ok: false, message: "Failed to send OTP" });
+    return res.status(500).json({ ok: false, message: err?.message || "Failed to send OTP" });
   }
 }
 
@@ -57,9 +64,15 @@ export async function verifyOtpHandler(req: Request, res: Response) {
       return res.status(401).json({ ok: false, message: `OTP ${result.reason}` });
     }
 
-    return res.json({ ok: true, message: "OTP verified" });
+    // ✅ Link OTP verification -> Supabase Auth email confirmation
+    // Only do this for signup purpose (recommended)
+    if (purpose === "signup") {
+      await markSupabaseEmailVerified(email);
+    }
+
+    return res.json({ ok: true, message: "Email verified" });
   } catch (err: any) {
     console.error("verifyOtp error:", err?.message || err);
-    return res.status(500).json({ ok: false, message: "Failed to verify OTP" });
+    return res.status(500).json({ ok: false, message: err?.message || "Failed to verify OTP" });
   }
 }
