@@ -5,11 +5,59 @@ import jwt from "jsonwebtoken";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
 const router = Router();
-const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
 
-// Token signer
+const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
+if (!APP_JWT_SECRET) {
+  console.warn("⚠️ APP_JWT_SECRET is missing in .env");
+}
+
+// Token signer (your app session token)
 function signToken(payload: any) {
   return jwt.sign(payload, APP_JWT_SECRET, { expiresIn: "30d" });
+}
+
+// ✅ OTP gate verifier (short-lived token from /auth/otp/verify)
+function requireOtpGate(
+  req: any,
+  res: any,
+  expectedPurpose: "signup" | "login"
+) {
+  const otpToken =
+    (req.headers["x-otp-token"] as string) ||
+    (req.body?.otpToken as string) ||
+    "";
+
+  if (!otpToken) {
+    res.status(401).json({ error: "OTP required. Please verify your email first." });
+    return null;
+  }
+
+  try {
+    const decoded = jwt.verify(otpToken, APP_JWT_SECRET) as any;
+
+    if (decoded?.typ !== "otp") {
+      res.status(401).json({ error: "Invalid OTP token" });
+      return null;
+    }
+
+    if (!decoded?.email || !decoded?.purpose) {
+      res.status(401).json({ error: "Invalid OTP token payload" });
+      return null;
+    }
+
+    if (decoded.purpose !== expectedPurpose) {
+      res.status(401).json({ error: `OTP token purpose mismatch (${expectedPurpose} required)` });
+      return null;
+    }
+
+    return {
+      email: String(decoded.email).trim().toLowerCase(),
+      purpose: decoded.purpose,
+    };
+  } catch (e) {
+    res.status(401).json({ error: "OTP token expired or invalid. Please verify again." });
+    return null;
+  }
 }
 
 // ---------------------- SIGNUP ----------------------
@@ -17,16 +65,25 @@ router.post("/signup", async (req, res) => {
   try {
     const { email, password, full_name } = req.body;
 
-    // ✅ basic validation (prevents weird null inserts)
-    if (!email || !password || !full_name) {
+    // ✅ OTP MUST be verified before signup
+    const gate = requireOtpGate(req, res, "signup");
+    if (!gate) return;
+
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!cleanEmail || !password || !full_name) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // ✅ Make sure the email used for signup matches OTP email
+    if (cleanEmail !== gate.email) {
+      return res.status(400).json({ error: "Email mismatch (OTP email must match signup email)" });
     }
 
     // 1) Check if user exists
     const { data: existing, error: existErr } = await supabaseAdmin
       .from("users")
       .select("id")
-      .eq("email", email)
+      .eq("email", cleanEmail)
       .maybeSingle();
 
     if (existErr) return res.status(500).json({ error: existErr.message });
@@ -38,10 +95,11 @@ router.post("/signup", async (req, res) => {
     const { data: createdUser, error: createErr } = await supabaseAdmin
       .from("users")
       .insert({
-        email,
+        email: cleanEmail,
         full_name,
-        password_hash: hash, // ✅ requires this column (you just added it)
-        role: "resident", // temporary until estate is created/linked
+        password_hash: hash,
+        role: "resident",
+        email_verified: true, // ✅ if you have this column (recommended)
       })
       .select()
       .single();
@@ -49,16 +107,13 @@ router.post("/signup", async (req, res) => {
     if (createErr) return res.status(500).json({ error: createErr.message });
 
     // 3) Create estate for the user (Option A)
-    // ⚠️ If your estates table uses different column names, adjust here:
-    // - name (text)
-    // - owner_id (uuid) OR created_by (uuid)
     const estateName = `${full_name} Estate`;
 
     const { data: estate, error: estateErr } = await supabaseAdmin
       .from("estates")
       .insert({
         name: estateName,
-        owner_id: createdUser.id, // change to created_by if your schema uses that
+        owner_id: createdUser.id,
       })
       .select()
       .single();
@@ -78,7 +133,7 @@ router.post("/signup", async (req, res) => {
 
     if (linkErr) return res.status(500).json({ error: linkErr.message });
 
-    // 5) Token includes estate_id so the Overview stops saying "Estate not linked"
+    // 5) Token includes estate_id so consumer UI sees the estate link
     const token = signToken({
       id: updatedUser.id,
       role: updatedUser.role,
@@ -104,20 +159,34 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      return res.status(400).json({ error: "Missing email or password" });
+    }
+
     const { data: user, error } = await supabaseAdmin
       .from("users")
       .select("*")
-      .eq("email", email)
+      .eq("email", cleanEmail)
       .single();
 
-    if (error || !user)
-      return res.status(400).json({ error: "Invalid email or password" });
+    if (error || !user) return res.status(400).json({ error: "Invalid email or password" });
 
-    if (!user.password_hash)
-      return res.status(400).json({ error: "Account not fully set up" });
+    if (!user.password_hash) return res.status(400).json({ error: "Account not fully set up" });
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(400).json({ error: "Invalid email or password" });
+
+    // OPTIONAL: enforce OTP on login too (if you want)
+    // - set REQUIRE_OTP_LOGIN=true in env if you want it strict
+    const requireLoginOtp = String(process.env.REQUIRE_OTP_LOGIN || "").toLowerCase() === "true";
+    if (requireLoginOtp) {
+      const gate = requireOtpGate(req, res, "login");
+      if (!gate) return;
+      if (gate.email !== cleanEmail) {
+        return res.status(400).json({ error: "Email mismatch (OTP email must match login email)" });
+      }
+    }
 
     const token = signToken({
       id: user.id,
