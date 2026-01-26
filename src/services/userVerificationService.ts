@@ -1,26 +1,74 @@
 // src/services/userVerificationService.ts
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
-export async function markSupabaseEmailVerified(email: string) {
-  const cleanEmail = email.trim().toLowerCase();
+function cleanEmail(email: string) {
+  return String(email || "").trim().toLowerCase();
+}
 
-  // 1) Find user by email
-  const { data, error } = await supabaseAdmin.auth.admin.getUserByEmail(cleanEmail);
+function isConfirmed(user: any) {
+  // Gotrue fields differ by version; support both.
+  return Boolean(user?.email_confirmed_at || user?.confirmed_at);
+}
 
-  if (error) throw new Error(`Supabase getUserByEmail failed: ${error.message}`);
-  if (!data?.user) throw new Error("Supabase user not found for this email");
+/**
+ * Supabase Admin API (in your SDK) does NOT expose getUserByEmail.
+ * So we page through listUsers() and match email.
+ *
+ * This is fine for now (early-stage). Later, we optimize by storing user_id
+ * alongside email in your own "profiles/users" table.
+ */
+export async function findSupabaseUserByEmail(email: string) {
+  const target = cleanEmail(email);
+  if (!target || !target.includes("@")) return null;
 
-  // 2) Mark email as confirmed
-  const { data: updated, error: updateError } =
-    await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
-      email_confirm: true,
+  const perPage = 1000;
+  const maxPages = 20; // safety cap
+
+  for (let page = 1; page <= maxPages; page++) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+      page,
+      perPage,
     });
 
-  if (updateError) throw new Error(`Supabase updateUserById failed: ${updateError.message}`);
+    if (error) throw error;
+
+    const users = data?.users || [];
+    const found = users.find(
+      (u: any) => cleanEmail(u?.email) === target
+    );
+
+    if (found) return found;
+
+    // if fewer than perPage returned, no more pages
+    if (users.length < perPage) break;
+  }
+
+  return null;
+}
+
+export async function confirmSupabaseEmailByEmail(email: string) {
+  const user = await findSupabaseUserByEmail(email);
+
+  if (!user) {
+    return { ok: false as const, reason: "user_not_found" as const };
+  }
+
+  if (isConfirmed(user)) {
+    return { ok: true as const, already: true as const, userId: user.id };
+  }
+
+  // This is the correct way to mark confirmed with Admin API
+  const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
+    user.id,
+    { email_confirm: true }
+  );
+
+  if (error) throw error;
 
   return {
-    userId: data.user.id,
-    email: updated?.user?.email || cleanEmail,
-    email_confirmed_at: updated?.user?.email_confirmed_at || null,
+    ok: true as const,
+    already: false as const,
+    userId: user.id,
+    user: data?.user,
   };
 }
