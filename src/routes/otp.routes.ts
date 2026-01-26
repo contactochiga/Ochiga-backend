@@ -1,14 +1,19 @@
 // src/routes/otp.routes.ts
-import express from "express";
-import { requestOtp, verifyOtp } from "../controllers/otp.controller";
+import { Router } from "express";
+import { sendOtp, verifyOtp } from "../controllers/otp.controller";
 
-const router = express.Router();
+const router = Router();
 
 /**
- * POST /auth/otp/request   { email, purpose? }
- * POST /auth/otp/verify    { email, code, purpose? }
+ * POST /otp/send
+ * body: { email: string, purpose?: "signup" | "login" }
  */
-router.post("/request", requestOtp);
+router.post("/send", sendOtp);
+
+/**
+ * POST /otp/verify
+ * body: { email: string, code: string, purpose?: "signup" | "login" }
+ */
 router.post("/verify", verifyOtp);
 
 export default router;
