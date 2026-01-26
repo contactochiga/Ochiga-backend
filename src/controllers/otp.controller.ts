@@ -8,7 +8,7 @@ import {
   type OtpPurpose,
 } from "../services/otpService";
 import { sendOtpEmail } from "../services/mailer/resendMailer";
-import { markSupabaseEmailVerified } from "../services/userVerificationService";
+import { confirmSupabaseEmailByEmail } from "../services/userVerificationService";
 
 const PURPOSES = new Set<OtpPurpose>(["signup", "login"]);
 
@@ -42,7 +42,7 @@ export async function sendOtp(req: Request, res: Response) {
     return res.json({ ok: true, message: "OTP sent" });
   } catch (err: any) {
     console.error("sendOtp error:", err?.message || err);
-    return res.status(500).json({ ok: false, message: err?.message || "Failed to send OTP" });
+    return res.status(500).json({ ok: false, message: "Failed to send OTP" });
   }
 }
 
@@ -64,15 +64,23 @@ export async function verifyOtpHandler(req: Request, res: Response) {
       return res.status(401).json({ ok: false, message: `OTP ${result.reason}` });
     }
 
-    // ✅ Link OTP verification -> Supabase Auth email confirmation
-    // Only do this for signup purpose (recommended)
+    // ✅ KEY NEXT STEP: if this is signup verification, confirm Supabase email
+    // so both Facility app and Consumer app can rely on one truth (Supabase).
     if (purpose === "signup") {
-      await markSupabaseEmailVerified(email);
+      const confirmed = await confirmSupabaseEmailByEmail(email);
+      if (!confirmed.ok) {
+        // You can decide if you want to fail verification here or just warn.
+        // I recommend failing so you never have "OTP ok but Supabase not confirmed".
+        return res.status(404).json({
+          ok: false,
+          message: "OTP verified but Supabase user not found for this email",
+        });
+      }
     }
 
-    return res.json({ ok: true, message: "Email verified" });
+    return res.json({ ok: true, message: "OTP verified" });
   } catch (err: any) {
     console.error("verifyOtp error:", err?.message || err);
-    return res.status(500).json({ ok: false, message: err?.message || "Failed to verify OTP" });
+    return res.status(500).json({ ok: false, message: "Failed to verify OTP" });
   }
 }
