@@ -1,10 +1,11 @@
+// src/middleware/auth.ts
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { UserRole } from "../types/user";
 
-const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
+const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 if (!APP_JWT_SECRET) {
-  console.warn("⚠️ APP_JWT_SECRET is missing in .env");
+  console.warn("⚠️ APP_JWT_SECRET is missing in env");
 }
 
 /* ---------------------------------------------------------
@@ -31,13 +32,33 @@ declare global {
 }
 
 /* ---------------------------------------------------------
- * TOKEN EXTRACTION
+ * TOKEN EXTRACTION (Bearer / raw / cookie)
  * --------------------------------------------------------- */
 function extractToken(req: Request): string | null {
+  // 1) Authorization header
   const authHeader = req.headers.authorization;
-  if (!authHeader) return null;
-  const [, token] = authHeader.split(" ");
-  return token || null;
+  if (authHeader) {
+    // supports:
+    // - "Bearer <token>"
+    // - "bearer <token>"
+    // - "<token>"
+    const parts = authHeader.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0] || null;
+    if (parts.length >= 2) return parts[1] || null;
+  }
+
+  // 2) Cookie-based token (if you later set it)
+  // requires cookie-parser middleware in app.ts (you already have it in deps, not sure mounted)
+  const anyReq = req as any;
+  const cookieToken =
+    anyReq?.cookies?.token ||
+    anyReq?.cookies?.access_token ||
+    anyReq?.cookies?.jwt ||
+    null;
+
+  if (cookieToken && typeof cookieToken === "string") return cookieToken;
+
+  return null;
 }
 
 /* ---------------------------------------------------------
@@ -45,6 +66,11 @@ function extractToken(req: Request): string | null {
  * --------------------------------------------------------- */
 function verifyToken(req: Request, res: Response): AuthUser | null {
   try {
+    if (!APP_JWT_SECRET) {
+      res.status(500).json({ error: "Server misconfigured (APP_JWT_SECRET missing)" });
+      return null;
+    }
+
     const token = extractToken(req);
     if (!token) {
       res.status(401).json({ error: "Missing token" });
@@ -52,6 +78,13 @@ function verifyToken(req: Request, res: Response): AuthUser | null {
     }
 
     const decoded = jwt.verify(token, APP_JWT_SECRET) as AuthUser;
+
+    // minimal shape check
+    if (!decoded?.id || !decoded?.role) {
+      res.status(401).json({ error: "Invalid token payload" });
+      return null;
+    }
+
     req.user = decoded;
     return decoded;
   } catch (err) {
@@ -97,11 +130,13 @@ export function requireRole(...roles: UserRole[]) {
  * --------------------------------------------------------- */
 export function attachUser(req: Request, _res: Response, next: NextFunction) {
   try {
+    if (!APP_JWT_SECRET) return next();
+
     const token = extractToken(req);
     if (!token) return next();
 
     const decoded = jwt.verify(token, APP_JWT_SECRET) as AuthUser;
-    req.user = decoded;
+    if (decoded?.id && decoded?.role) req.user = decoded;
   } catch {
     // ignore invalid token
   }
