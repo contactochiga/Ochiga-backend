@@ -23,19 +23,19 @@
     "express": "^4.18.2",
     "helmet": "^7.0.0",
     "ioredis": "^5.4.1",
+    "ip-cidr": "^3.1.0",
     "jsonwebtoken": "^9.0.2",
     "mqtt": "^5.3.3",
     "morgan": "^1.10.0",
     "node-ssdp": "^4.0.1",
     "onvif": "^0.6.3",
-    "ip-cidr": "^3.1.0",
     "openai": "^4.58.1",
     "ping": "^0.4.4",
     "qrcode": "^1.5.3",
     "redis": "^4.6.13",
+    "resend": "^4.0.0",
     "socket.io": "^4.7.5",
-    "zod": "^3.23.8",
-    "resend": "^4.0.0"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -45,9 +45,9 @@
     "@types/jsonwebtoken": "^9.0.5",
     "@types/morgan": "^1.9.4",
     "@types/node": "^20.12.12",
-    "@types/qrcode": "^1.4.2",
-    "@types/ping": "^0.4.2",
     "@types/node-ssdp": "^4.0.1",
+    "@types/ping": "^0.4.2",
+    "@types/qrcode": "^1.4.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
   }
