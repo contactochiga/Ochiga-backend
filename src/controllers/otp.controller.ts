@@ -3,56 +3,66 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { otpService } from "../services/otpService";
 
-const RequestSchema = z.object({
+const requestSchema = z.object({
   email: z.string().email(),
-  purpose: z.string().optional().default("verify"),
 });
 
-const VerifySchema = z.object({
+const verifySchema = z.object({
   email: z.string().email(),
-  code: z.string().min(4).max(8),
-  purpose: z.string().optional().default("verify"),
+  code: z.string().min(4).max(10),
 });
 
 export async function requestOtp(req: Request, res: Response) {
+  const parsed = requestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ status: "error", message: "Invalid payload" });
+  }
+
+  const { email } = parsed.data;
+
   try {
-    const { email, purpose } = RequestSchema.parse(req.body);
+    await otpService.sendSignupOtp(email);
 
-    await otpService.sendOtp(email, purpose);
-
-    return res.status(200).json({
-      ok: true,
+    return res.json({
+      status: "ok",
       message: "OTP sent",
     });
   } catch (e: any) {
-    return res.status(400).json({
-      ok: false,
-      error: e?.message || "Failed to send OTP",
+    console.error("requestOtp error:", e?.message || e);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to send OTP",
     });
   }
 }
 
 export async function verifyOtp(req: Request, res: Response) {
-  try {
-    const { email, code, purpose } = VerifySchema.parse(req.body);
+  const parsed = verifySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ status: "error", message: "Invalid payload" });
+  }
 
-    const ok = await otpService.verifyOtp(email, code, purpose);
+  const { email, code } = parsed.data;
+
+  try {
+    const ok = await otpService.verifyOtp(email, code);
 
     if (!ok) {
-      return res.status(400).json({
-        ok: false,
-        error: "Invalid or expired OTP",
+      return res.status(401).json({
+        status: "error",
+        message: "Invalid or expired OTP",
       });
     }
 
-    return res.status(200).json({
-      ok: true,
-      verified: true,
+    return res.json({
+      status: "ok",
+      message: "Email verified",
     });
   } catch (e: any) {
-    return res.status(400).json({
-      ok: false,
-      error: e?.message || "OTP verification failed",
+    console.error("verifyOtp error:", e?.message || e);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to verify OTP",
     });
   }
 }
