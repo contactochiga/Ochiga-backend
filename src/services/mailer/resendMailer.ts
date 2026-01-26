@@ -8,6 +8,9 @@ export async function sendOtpEmail(params: { to: string; code: string }) {
 
   const { to, code } = params;
 
+  const ttlSeconds = Number(process.env.OTP_TTL_SECONDS || 600);
+  const ttlMins = Math.max(1, Math.round(ttlSeconds / 60));
+
   const subject = `Your Oyi verification code: ${code}`;
 
   const html = `
@@ -18,7 +21,7 @@ export async function sendOtpEmail(params: { to: string; code: string }) {
       ${code}
     </div>
     <p style="margin:14px 0 0; color:#666; font-size:13px;">
-      This code expires in ${Math.round((Number(process.env.OTP_TTL_SECONDS || 600)) / 60)} minutes.
+      This code expires in ${ttlMins} minutes.
     </p>
   </div>
   `;
