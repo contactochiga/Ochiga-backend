@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import cookieParser from "cookie-parser";
 
 // -------------------------------
 // ROUTES
@@ -21,8 +22,11 @@ import communityRoutes from "./routes/community";
 import walletRoutes from "./routes/wallets";
 import roomsRoutes from "./routes/rooms";
 
-// ✅ NEW: OTP routes (email verification)
+// ✅ OTP routes (email verification)
 import otpRoutes from "./routes/otp.routes";
+
+// ✅ Invites routes
+import invitesRoutes from "./routes/invites.routes";
 
 const app = express();
 
@@ -64,14 +68,12 @@ const corsMiddleware = cors({
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  // ✅ IMPORTANT: allow the OTP gate header
+  // ✅ allow OTP + common ajax headers
   allowedHeaders: ["Content-Type", "Authorization", "x-otp-token", "X-Requested-With"],
   optionsSuccessStatus: 204,
 });
 
 app.use(corsMiddleware);
-
-// ✅ Ensure preflight always succeeds
 app.options("*", corsMiddleware);
 
 // -------------------------------
@@ -79,6 +81,7 @@ app.options("*", corsMiddleware);
 // -------------------------------
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser()); // ✅ required for req.cookies
 app.use(morgan("dev"));
 
 // -------------------------------
@@ -101,16 +104,15 @@ app.get("/health", (_req, res) => {
 // -------------------------------
 app.use("/auth", authRoutes);
 app.use("/auth/onboard", onboardingRoutes);
-
-// ✅ NEW OTP endpoints (doesn't touch existing auth)
 app.use("/auth/otp", otpRoutes);
+
+app.use("/invites", invitesRoutes); // ✅ NEW
 
 app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);
 app.use("/devices", devicesRoutes);
 
 app.use("/ai", aiRoutes);
-
 app.use("/visitors", visitorRoutes);
 
 app.use("/community", communityRoutes);
