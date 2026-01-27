@@ -16,7 +16,7 @@ const router = Router();
 router.post(
   "/",
   requireAuth,
-  requireRole("estate_admin", "facility_admin", "manager", "admin"),
+  requireRole("estate_admin", "manager", "operator", "admin"),
   createInviteHandler
 );
 
