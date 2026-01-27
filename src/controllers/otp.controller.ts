@@ -11,9 +11,7 @@ import {
 import { sendOtpEmail } from "../services/mailer/resendMailer";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
-if (!APP_JWT_SECRET) {
-  console.warn("⚠️ APP_JWT_SECRET is missing in .env");
-}
+if (!APP_JWT_SECRET) console.warn("⚠️ APP_JWT_SECRET is missing in .env");
 
 const PURPOSES = new Set<OtpPurpose>(["signup", "login"]);
 
@@ -23,11 +21,11 @@ function normalizePurpose(p: any): OtpPurpose {
 }
 
 function signOtpToken(email: string, purpose: OtpPurpose) {
-  // short lived token used ONLY to pass /auth/signup or /auth/login gate
+  // short-lived OTP gate token (used only to unlock /auth/signup or /auth/login)
   return jwt.sign(
     { typ: "otp", email, purpose },
     APP_JWT_SECRET,
-    { expiresIn: "10m" } // must be <= your OTP TTL
+    { expiresIn: "10m" } // same as OTP expiry; you can reduce to 5m if you want
   );
 }
 
@@ -74,15 +72,11 @@ export async function verifyOtpHandler(req: Request, res: Response) {
     }
 
     const result = await verifyOtp(email, purpose, code);
-
     if (!result.ok) {
-      return res.status(401).json({
-        ok: false,
-        message: result.reason === "expired" ? "OTP expired" : "OTP invalid",
-      });
+      return res.status(401).json({ ok: false, message: `OTP ${result.reason}` });
     }
 
-    // ✅ THIS IS THE KEY: return otpToken so /auth/signup can pass gate
+    // ✅ THIS IS THE FIX: give frontend an otpToken to unlock signup/login
     const otpToken = signOtpToken(email, purpose);
 
     return res.json({ ok: true, message: "OTP verified", otpToken });
