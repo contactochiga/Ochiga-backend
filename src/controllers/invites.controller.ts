@@ -1,11 +1,23 @@
 // src/controllers/invites.controller.ts
 import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
+import { supabaseAdmin } from "../supabase/supabaseClient";
 import {
   acceptInvite,
   createInvite,
   declineInvite,
   listInvitesForEmail,
 } from "../services/invitesService";
+
+const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
+if (!APP_JWT_SECRET) {
+  console.warn("⚠️ APP_JWT_SECRET is missing in env");
+}
+
+function signToken(payload: any) {
+  if (!APP_JWT_SECRET) throw new Error("APP_JWT_SECRET missing");
+  return jwt.sign(payload, APP_JWT_SECRET, { expiresIn: "30d" });
+}
 
 /**
  * POST /invites
@@ -23,7 +35,7 @@ export async function createInviteHandler(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Optional: basic tenancy guard (only if you want strict)
+    // Optional: strict tenancy guard
     // if (user.estate_id && user.estate_id !== estate_id) {
     //   return res.status(403).json({ error: "Estate mismatch" });
     // }
@@ -75,13 +87,16 @@ export async function listMyInvitesHandler(req: Request, res: Response) {
 /**
  * POST /invites/:inviteId/accept
  * Consumer accepts invite
+ *
+ * ✅ Returns fresh token so consumer session updates instantly:
+ * { ok: true, token, user, membership? }
  */
 export async function acceptInviteHandler(req: Request, res: Response) {
   try {
-    const user = req.user;
-    if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+    const authed = req.user;
+    if (!authed?.id) return res.status(401).json({ error: "Not authenticated" });
 
-    const email = (user.email || "").trim().toLowerCase();
+    const email = (authed.email || "").trim().toLowerCase();
     if (!email) return res.status(400).json({ error: "No email on session token" });
 
     const inviteId = String(req.params.inviteId || "");
@@ -89,7 +104,7 @@ export async function acceptInviteHandler(req: Request, res: Response) {
 
     const result = await acceptInvite({
       inviteId,
-      userId: user.id,
+      userId: authed.id,
       userEmail: email,
     });
 
@@ -97,7 +112,35 @@ export async function acceptInviteHandler(req: Request, res: Response) {
       return res.status(400).json({ error: result.error });
     }
 
-    return res.json({ ok: true });
+    // ✅ pull fresh user record (so estate_id/home_id are current)
+    const { data: user, error: userErr } = await supabaseAdmin
+      .from("users")
+      .select("id,email,role,estate_id,home_id")
+      .eq("id", authed.id)
+      .single();
+
+    if (userErr || !user) {
+      return res.status(500).json({ error: userErr?.message || "Failed to load user" });
+    }
+
+    // ✅ sign refreshed app token
+    const token = signToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      estate_id: user.estate_id,
+      home_id: user.home_id,
+    });
+
+    // Optional: also return membership row (best effort)
+    const { data: membership } = await supabaseAdmin
+      .from("home_memberships")
+      .select("*")
+      .eq("home_id", user.home_id ?? "")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    return res.json({ ok: true, token, user, membership: membership || null });
   } catch (e: any) {
     console.error("acceptInviteHandler error:", e);
     return res.status(500).json({ error: "Unexpected server error" });
