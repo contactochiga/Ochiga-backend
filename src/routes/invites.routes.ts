@@ -1,9 +1,6 @@
 // src/routes/invites.routes.ts
 import { Router } from "express";
 import { requireAuth, requireRole } from "../middleware/auth";
-
-// If your controllers exist, keep these imports.
-// If you don't have controllers yet, comment them and wire later.
 import {
   createInviteHandler,
   listMyInvitesHandler,
@@ -14,7 +11,7 @@ import {
 const router = Router();
 
 /**
- * Facility/admin creates invite
+ * Facility/Admin creates an invite for a home
  */
 router.post(
   "/",
@@ -24,7 +21,7 @@ router.post(
 );
 
 /**
- * Consumer lists their invites
+ * Consumer lists their invites (matched by token email)
  */
 router.get("/mine", requireAuth, listMyInvitesHandler);
 
