@@ -1,95 +1,137 @@
 // src/controllers/invites.controller.ts
+import { Request, Response } from "express";
 import {
   acceptInvite,
-  createHomeInvite,
+  createInvite,
   declineInvite,
-  listMyInvites,
-  revokeInvite,
+  listInvitesForEmail,
 } from "../services/invitesService";
-import { emitToUser } from "../realtime/realtime";
 
-export async function createInviteHandler(req: any, res: any) {
+/**
+ * POST /invites
+ * Facility/Admin creates an invite for a home
+ * Body: { estate_id, home_id, invited_email, role?, expires_at? }
+ */
+export async function createInviteHandler(req: Request, res: Response) {
   try {
-    const homeId = String(req.params.homeId || "");
-    const { email, role } = req.body;
+    const user = req.user;
+    if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-    if (!homeId) return res.status(400).json({ error: "Missing homeId" });
-    if (!email) return res.status(400).json({ error: "Missing email" });
+    const { estate_id, home_id, invited_email, role, expires_at } = req.body || {};
 
-    const estateId = req.user?.estate_id ?? null;
-
-    const { invite, invitedUser } = await createHomeInvite({
-      homeId,
-      estateId,
-      email,
-      role: role || "resident",
-      createdBy: req.user?.id ?? null,
-    });
-
-    // realtime push to user if they already exist
-    if (invitedUser?.id) {
-      emitToUser(invitedUser.id, "invite.created", {
-        id: invite.id,
-        home_id: invite.home_id,
-        estate_id: invite.estate_id,
-        role: invite.role,
-        email: invite.email,
-        status: invite.status,
-        expires_at: invite.expires_at,
-        created_at: invite.created_at,
-      });
+    if (!estate_id || !home_id || !invited_email) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
-    return res.json({ message: "Invite created", invite });
+    // Optional: basic tenancy guard (only if you want strict)
+    // if (user.estate_id && user.estate_id !== estate_id) {
+    //   return res.status(403).json({ error: "Estate mismatch" });
+    // }
+
+    const result = await createInvite({
+      estate_id: String(estate_id),
+      home_id: String(home_id),
+      invited_email: String(invited_email),
+      role: role as any,
+      created_by: user.id,
+      expires_at: expires_at ? String(expires_at) : undefined,
+    });
+
+    if ("error" in result) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.json({ ok: true, invite: result.invite });
   } catch (e: any) {
-    return res.status(400).json({ error: e?.message || "Failed to create invite" });
+    console.error("createInviteHandler error:", e);
+    return res.status(500).json({ error: "Unexpected server error" });
   }
 }
 
-export async function myInvitesHandler(req: any, res: any) {
+/**
+ * GET /invites/mine
+ * Consumer lists invites for their email (from JWT payload)
+ */
+export async function listMyInvitesHandler(req: Request, res: Response) {
   try {
-    const invites = await listMyInvites(req.user.id, req.user.email);
-    return res.json({ invites });
+    const user = req.user;
+    if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+    const email = (user.email || "").trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: "No email on session token" });
+
+    const result = await listInvitesForEmail(email);
+    if ("error" in result) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.json({ ok: true, invites: result.invites });
   } catch (e: any) {
-    return res.status(400).json({ error: e?.message || "Failed to fetch invites" });
+    console.error("listMyInvitesHandler error:", e);
+    return res.status(500).json({ error: "Unexpected server error" });
   }
 }
 
-export async function acceptInviteHandler(req: any, res: any) {
+/**
+ * POST /invites/:inviteId/accept
+ * Consumer accepts invite
+ */
+export async function acceptInviteHandler(req: Request, res: Response) {
   try {
-    const id = String(req.params.id || "");
-    if (!id) return res.status(400).json({ error: "Missing invite id" });
+    const user = req.user;
+    if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-    const updated = await acceptInvite(id, req.user.id, req.user.email);
+    const email = (user.email || "").trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: "No email on session token" });
 
-    return res.json({ message: "Invite accepted", invite: updated });
+    const inviteId = String(req.params.inviteId || "");
+    if (!inviteId) return res.status(400).json({ error: "Missing inviteId" });
+
+    const result = await acceptInvite({
+      inviteId,
+      userId: user.id,
+      userEmail: email,
+    });
+
+    if ("error" in result) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.json({ ok: true });
   } catch (e: any) {
-    return res.status(400).json({ error: e?.message || "Failed to accept invite" });
+    console.error("acceptInviteHandler error:", e);
+    return res.status(500).json({ error: "Unexpected server error" });
   }
 }
 
-export async function declineInviteHandler(req: any, res: any) {
+/**
+ * POST /invites/:inviteId/decline
+ * Consumer declines invite
+ */
+export async function declineInviteHandler(req: Request, res: Response) {
   try {
-    const id = String(req.params.id || "");
-    if (!id) return res.status(400).json({ error: "Missing invite id" });
+    const user = req.user;
+    if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-    const updated = await declineInvite(id, req.user.id, req.user.email);
+    const email = (user.email || "").trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: "No email on session token" });
 
-    return res.json({ message: "Invite declined", invite: updated });
+    const inviteId = String(req.params.inviteId || "");
+    if (!inviteId) return res.status(400).json({ error: "Missing inviteId" });
+
+    const result = await declineInvite({
+      inviteId,
+      userId: user.id,
+      userEmail: email,
+    });
+
+    if ("error" in result) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.json({ ok: true });
   } catch (e: any) {
-    return res.status(400).json({ error: e?.message || "Failed to decline invite" });
-  }
-}
-
-export async function revokeInviteHandler(req: any, res: any) {
-  try {
-    const id = String(req.params.id || "");
-    if (!id) return res.status(400).json({ error: "Missing invite id" });
-
-    const updated = await revokeInvite(id, req.user.id);
-
-    return res.json({ message: "Invite revoked", invite: updated });
-  } catch (e: any) {
-    return res.status(400).json({ error: e?.message || "Failed to revoke invite" });
+    console.error("declineInviteHandler error:", e);
+    return res.status(500).json({ error: "Unexpected server error" });
   }
 }
