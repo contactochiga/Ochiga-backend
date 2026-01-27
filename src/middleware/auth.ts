@@ -47,10 +47,11 @@ function extractToken(req: Request): string | null {
     if (parts.length >= 2) return parts[1] || null;
   }
 
-  // 2) Cookie-based token (if you later set it)
-  // requires cookie-parser middleware in app.ts (you already have it in deps, not sure mounted)
+  // 2) Cookie-based token (requires cookie-parser middleware in app.ts)
   const anyReq = req as any;
   const cookieToken =
+    anyReq?.cookies?.oyi_facility_token || // ✅ facility cookie
+    anyReq?.cookies?.oyi_consumer_token || // ✅ consumer cookie
     anyReq?.cookies?.token ||
     anyReq?.cookies?.access_token ||
     anyReq?.cookies?.jwt ||
@@ -67,7 +68,9 @@ function extractToken(req: Request): string | null {
 function verifyToken(req: Request, res: Response): AuthUser | null {
   try {
     if (!APP_JWT_SECRET) {
-      res.status(500).json({ error: "Server misconfigured (APP_JWT_SECRET missing)" });
+      res
+        .status(500)
+        .json({ error: "Server misconfigured (APP_JWT_SECRET missing)" });
       return null;
     }
 
