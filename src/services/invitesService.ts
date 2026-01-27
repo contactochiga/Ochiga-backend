@@ -1,180 +1,178 @@
 // src/services/invitesService.ts
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
-export type InviteStatus = "pending" | "accepted" | "declined" | "revoked" | "expired";
+export type InviteStatus = "pending" | "accepted" | "declined" | "expired";
+export type HomeRole = "resident" | "home_member" | "home_admin";
 
-export async function findUserByEmail(email: string) {
-  const clean = String(email || "").trim().toLowerCase();
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("id,email,estate_id,home_id,role,full_name")
-    .eq("email", clean)
-    .maybeSingle();
+export type CreateInviteInput = {
+  estate_id: string;
+  home_id: string;
+  invited_email: string;
+  role?: HomeRole;
+  created_by: string; // user id
+  expires_at?: string; // ISO string
+};
 
-  if (error) throw new Error(error.message);
-  return data || null;
+function cleanEmail(email: string) {
+  return String(email || "").trim().toLowerCase();
 }
 
-export async function createHomeInvite(args: {
-  homeId: string;
-  estateId?: string | null;
-  email: string;
-  role?: string;
-  createdBy?: string | null;
-}) {
-  const cleanEmail = String(args.email || "").trim().toLowerCase();
-  if (!cleanEmail.includes("@")) throw new Error("Invalid email");
+/**
+ * Create a home invite (facility/admin side)
+ */
+export async function createInvite(input: CreateInviteInput) {
+  const invited_email = cleanEmail(input.invited_email);
+  if (!invited_email.includes("@")) {
+    return { error: "Invalid invited email" as const };
+  }
 
-  const user = await findUserByEmail(cleanEmail);
+  const payload = {
+    estate_id: input.estate_id,
+    home_id: input.home_id,
+    invited_email,
+    role: input.role || "home_member",
+    status: "pending" as InviteStatus,
+    created_by: input.created_by,
+    expires_at: input.expires_at || null,
+  };
 
   const { data, error } = await supabaseAdmin
     .from("home_invites")
-    .insert({
-      home_id: args.homeId,
-      estate_id: args.estateId ?? null,
-      email: cleanEmail,
-      invited_user_id: user?.id ?? null,
-      role: args.role || "resident",
-      status: "pending",
-      created_by: args.createdBy ?? null,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    })
-    .select()
+    .insert(payload)
+    .select("*")
     .single();
 
-  if (error) throw new Error(error.message);
-  return { invite: data, invitedUser: user };
+  if (error) return { error: error.message as const };
+  return { invite: data };
 }
 
-export async function listMyInvites(userId: string, email: string) {
-  const cleanEmail = String(email || "").trim().toLowerCase();
+/**
+ * List invites for a user (consumer side)
+ * - We match by email (most reliable early on)
+ */
+export async function listInvitesForEmail(email: string) {
+  const invited_email = cleanEmail(email);
 
   const { data, error } = await supabaseAdmin
     .from("home_invites")
     .select("*")
-    .eq("status", "pending")
-    .or(`invited_user_id.eq.${userId},email.eq.${cleanEmail}`)
+    .eq("invited_email", invited_email)
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(error.message);
-  return data || [];
+  if (error) return { error: error.message as const };
+  return { invites: data || [] };
 }
 
-export async function acceptInvite(inviteId: string, userId: string, email: string) {
-  const cleanEmail = String(email || "").trim().toLowerCase();
+/**
+ * Accept invite:
+ * - checks pending
+ * - checks expiry (if expires_at exists)
+ * - creates membership in home_memberships
+ * - marks invite as accepted
+ */
+export async function acceptInvite(args: {
+  inviteId: string;
+  userId: string;
+  userEmail: string;
+}) {
+  const inviteId = args.inviteId;
+  const userEmail = cleanEmail(args.userEmail);
 
   // 1) load invite
-  const { data: invite, error: invErr } = await supabaseAdmin
+  const { data: invite, error: inviteErr } = await supabaseAdmin
     .from("home_invites")
     .select("*")
     .eq("id", inviteId)
     .single();
 
-  if (invErr || !invite) throw new Error("Invite not found");
+  if (inviteErr || !invite) return { error: inviteErr?.message || "Invite not found" as const };
 
-  // 2) validate
-  if (invite.status !== "pending") throw new Error(`Invite is ${invite.status}`);
-  if (new Date(invite.expires_at).getTime() < Date.now()) {
-    // mark expired
-    await supabaseAdmin.from("home_invites").update({ status: "expired" }).eq("id", inviteId);
-    throw new Error("Invite expired");
+  // 2) validate invite
+  if (invite.status !== "pending") {
+    return { error: "Invite is not pending" as const };
   }
 
-  const matchesUser =
-    (invite.invited_user_id && invite.invited_user_id === userId) ||
-    String(invite.email || "").toLowerCase() === cleanEmail;
+  if (invite.invited_email && cleanEmail(invite.invited_email) !== userEmail) {
+    return { error: "This invite was not sent to your email" as const };
+  }
 
-  if (!matchesUser) throw new Error("This invite is not for your account");
+  if (invite.expires_at) {
+    const exp = new Date(invite.expires_at).getTime();
+    if (Number.isFinite(exp) && Date.now() > exp) {
+      // mark expired (best effort)
+      await supabaseAdmin.from("home_invites").update({ status: "expired" }).eq("id", inviteId);
+      return { error: "Invite expired" as const };
+    }
+  }
 
-  // 3) create membership (idempotent)
+  // 3) create membership (NO `.catch` — use {data,error})
+  // NOTE: adjust column names if your schema differs.
+  const membershipPayload = {
+    estate_id: invite.estate_id,
+    home_id: invite.home_id,
+    user_id: args.userId,
+    role: invite.role || "home_member",
+  };
+
   const { error: memErr } = await supabaseAdmin
     .from("home_memberships")
-    .insert({
-      home_id: invite.home_id,
-      user_id: userId,
-      role: invite.role || "resident",
+    .upsert(membershipPayload, { onConflict: "home_id,user_id" });
+
+  if (memErr) return { error: memErr.message as const };
+
+  // 4) mark invite accepted
+  const { error: updErr } = await supabaseAdmin
+    .from("home_invites")
+    .update({
+      status: "accepted",
+      accepted_by: args.userId,
+      accepted_at: new Date().toISOString(),
     })
-    .throwOnError()
-    .catch((e) => e); // ignore duplicates
+    .eq("id", inviteId);
 
-  // 4) update user.home_id (optional but useful for consumer context)
-  // only set if user has no home_id yet
-  const { data: userRow } = await supabaseAdmin
-    .from("users")
-    .select("home_id")
-    .eq("id", userId)
-    .maybeSingle();
+  if (updErr) return { error: updErr.message as const };
 
-  if (!userRow?.home_id) {
-    await supabaseAdmin.from("users").update({ home_id: invite.home_id }).eq("id", userId);
-  }
-
-  // 5) mark invite accepted
-  const { data: updated, error: upErr } = await supabaseAdmin
-    .from("home_invites")
-    .update({ status: "accepted", responded_at: new Date().toISOString(), invited_user_id: userId })
-    .eq("id", inviteId)
-    .select()
-    .single();
-
-  if (upErr) throw new Error(upErr.message);
-
-  return updated;
+  return { ok: true as const };
 }
 
-export async function declineInvite(inviteId: string, userId: string, email: string) {
-  const cleanEmail = String(email || "").trim().toLowerCase();
+/**
+ * Decline invite:
+ * - checks pending
+ * - marks declined
+ */
+export async function declineInvite(args: {
+  inviteId: string;
+  userId: string;
+  userEmail: string;
+}) {
+  const userEmail = cleanEmail(args.userEmail);
 
-  const { data: invite, error: invErr } = await supabaseAdmin
+  const { data: invite, error: inviteErr } = await supabaseAdmin
     .from("home_invites")
     .select("*")
-    .eq("id", inviteId)
+    .eq("id", args.inviteId)
     .single();
 
-  if (invErr || !invite) throw new Error("Invite not found");
+  if (inviteErr || !invite) return { error: inviteErr?.message || "Invite not found" as const };
 
-  const matchesUser =
-    (invite.invited_user_id && invite.invited_user_id === userId) ||
-    String(invite.email || "").toLowerCase() === cleanEmail;
-
-  if (!matchesUser) throw new Error("This invite is not for your account");
-
-  if (invite.status !== "pending") throw new Error(`Invite is ${invite.status}`);
-
-  const { data: updated, error } = await supabaseAdmin
-    .from("home_invites")
-    .update({ status: "declined", responded_at: new Date().toISOString(), invited_user_id: userId })
-    .eq("id", inviteId)
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-  return updated;
-}
-
-export async function revokeInvite(inviteId: string, requesterId: string) {
-  const { data: invite, error: invErr } = await supabaseAdmin
-    .from("home_invites")
-    .select("*")
-    .eq("id", inviteId)
-    .single();
-
-  if (invErr || !invite) throw new Error("Invite not found");
-
-  // allow: creator can revoke, or any estate admin endpoint can do role checks before calling
-  if (invite.created_by && invite.created_by !== requesterId) {
-    throw new Error("Only the inviter can revoke this invite");
+  if (invite.status !== "pending") {
+    return { error: "Invite is not pending" as const };
   }
 
-  if (invite.status !== "pending") throw new Error(`Invite is ${invite.status}`);
+  if (invite.invited_email && cleanEmail(invite.invited_email) !== userEmail) {
+    return { error: "This invite was not sent to your email" as const };
+  }
 
-  const { data: updated, error } = await supabaseAdmin
+  const { error: updErr } = await supabaseAdmin
     .from("home_invites")
-    .update({ status: "revoked", responded_at: new Date().toISOString() })
-    .eq("id", inviteId)
-    .select()
-    .single();
+    .update({
+      status: "declined",
+      declined_by: args.userId,
+      declined_at: new Date().toISOString(),
+    })
+    .eq("id", args.inviteId);
 
-  if (error) throw new Error(error.message);
-  return updated;
+  if (updErr) return { error: updErr.message as const };
+
+  return { ok: true as const };
 }
