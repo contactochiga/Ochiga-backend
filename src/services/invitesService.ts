@@ -23,7 +23,7 @@ function cleanEmail(email: string) {
 export async function createInvite(input: CreateInviteInput) {
   const invited_email = cleanEmail(input.invited_email);
   if (!invited_email.includes("@")) {
-    return { error: "Invalid invited email" as const };
+    return { error: "Invalid invited email" };
   }
 
   const payload = {
@@ -42,7 +42,7 @@ export async function createInvite(input: CreateInviteInput) {
     .select("*")
     .single();
 
-  if (error) return { error: error.message as const };
+  if (error) return { error: error.message };
   return { invite: data };
 }
 
@@ -59,7 +59,7 @@ export async function listInvitesForEmail(email: string) {
     .eq("invited_email", invited_email)
     .order("created_at", { ascending: false });
 
-  if (error) return { error: error.message as const };
+  if (error) return { error: error.message };
   return { invites: data || [] };
 }
 
@@ -85,23 +85,29 @@ export async function acceptInvite(args: {
     .eq("id", inviteId)
     .single();
 
-  if (inviteErr || !invite) return { error: inviteErr?.message || "Invite not found" as const };
+  if (inviteErr || !invite) {
+    return { error: inviteErr?.message || "Invite not found" };
+  }
 
   // 2) validate invite
   if (invite.status !== "pending") {
-    return { error: "Invite is not pending" as const };
+    return { error: "Invite is not pending" };
   }
 
   if (invite.invited_email && cleanEmail(invite.invited_email) !== userEmail) {
-    return { error: "This invite was not sent to your email" as const };
+    return { error: "This invite was not sent to your email" };
   }
 
   if (invite.expires_at) {
     const exp = new Date(invite.expires_at).getTime();
     if (Number.isFinite(exp) && Date.now() > exp) {
       // mark expired (best effort)
-      await supabaseAdmin.from("home_invites").update({ status: "expired" }).eq("id", inviteId);
-      return { error: "Invite expired" as const };
+      await supabaseAdmin
+        .from("home_invites")
+        .update({ status: "expired" })
+        .eq("id", inviteId);
+
+      return { error: "Invite expired" };
     }
   }
 
@@ -111,14 +117,14 @@ export async function acceptInvite(args: {
     estate_id: invite.estate_id,
     home_id: invite.home_id,
     user_id: args.userId,
-    role: invite.role || "home_member",
+    role: (invite.role as HomeRole) || "home_member",
   };
 
   const { error: memErr } = await supabaseAdmin
     .from("home_memberships")
     .upsert(membershipPayload, { onConflict: "home_id,user_id" });
 
-  if (memErr) return { error: memErr.message as const };
+  if (memErr) return { error: memErr.message };
 
   // 4) mark invite accepted
   const { error: updErr } = await supabaseAdmin
@@ -130,9 +136,9 @@ export async function acceptInvite(args: {
     })
     .eq("id", inviteId);
 
-  if (updErr) return { error: updErr.message as const };
+  if (updErr) return { error: updErr.message };
 
-  return { ok: true as const };
+  return { ok: true };
 }
 
 /**
@@ -153,14 +159,16 @@ export async function declineInvite(args: {
     .eq("id", args.inviteId)
     .single();
 
-  if (inviteErr || !invite) return { error: inviteErr?.message || "Invite not found" as const };
+  if (inviteErr || !invite) {
+    return { error: inviteErr?.message || "Invite not found" };
+  }
 
   if (invite.status !== "pending") {
-    return { error: "Invite is not pending" as const };
+    return { error: "Invite is not pending" };
   }
 
   if (invite.invited_email && cleanEmail(invite.invited_email) !== userEmail) {
-    return { error: "This invite was not sent to your email" as const };
+    return { error: "This invite was not sent to your email" };
   }
 
   const { error: updErr } = await supabaseAdmin
@@ -172,7 +180,7 @@ export async function declineInvite(args: {
     })
     .eq("id", args.inviteId);
 
-  if (updErr) return { error: updErr.message as const };
+  if (updErr) return { error: updErr.message };
 
-  return { ok: true as const };
+  return { ok: true };
 }
