@@ -1,43 +1,42 @@
 // src/routes/invites.routes.ts
 import { Router } from "express";
-import { requireAuth, requireAnyRole } from "../middleware/requireAuth";
 import {
-  acceptInviteHandler,
   createInviteHandler,
+  listMyInvitesHandler,
+  acceptInviteHandler,
   declineInviteHandler,
-  myInvitesHandler,
-  revokeInviteHandler,
 } from "../controllers/invites.controller";
+import { requireAuth, requireRole } from "../middleware/auth";
 
 const router = Router();
 
 /**
- * Consumer:
- * GET /invites/my
- * POST /invites/:id/accept
- * POST /invites/:id/decline
- */
-router.get("/my", requireAuth, myInvitesHandler);
-router.post("/:id/accept", requireAuth, acceptInviteHandler);
-router.post("/:id/decline", requireAuth, declineInviteHandler);
-
-/**
- * Facility/Estate admin:
- * POST /invites/home/:homeId   (invite someone to a home)
- * POST /invites/:id/revoke
+ * Facility/Admin creates invite for a user (by email)
+ * - Protected
  */
 router.post(
-  "/home/:homeId",
+  "/",
   requireAuth,
-  requireAnyRole(["estate_admin", "facility_admin", "manager"]),
+  requireRole("estate_admin", "facility_admin", "manager", "admin"),
   createInviteHandler
 );
 
-router.post(
-  "/:id/revoke",
-  requireAuth,
-  requireAnyRole(["estate_admin", "facility_admin", "manager"]),
-  revokeInviteHandler
-);
+/**
+ * Consumer: list invites for the logged-in user
+ * - Protected
+ */
+router.get("/mine", requireAuth, listMyInvitesHandler);
+
+/**
+ * Consumer: accept an invite
+ * - Protected
+ */
+router.post("/:inviteId/accept", requireAuth, acceptInviteHandler);
+
+/**
+ * Consumer: decline an invite
+ * - Protected
+ */
+router.post("/:inviteId/decline", requireAuth, declineInviteHandler);
 
 export default router;
