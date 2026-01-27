@@ -55,20 +55,24 @@ function isAllowedOrigin(origin: string) {
   return false;
 }
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (isAllowedOrigin(origin)) return callback(null, true);
-      console.error("❌ CORS blocked:", origin);
-      return callback(new Error("CORS blocked"));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    optionsSuccessStatus: 204,
-  })
-);
+const corsMiddleware = cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    console.error("❌ CORS blocked:", origin);
+    return callback(new Error("CORS blocked"));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  // ✅ IMPORTANT: allow the OTP gate header
+  allowedHeaders: ["Content-Type", "Authorization", "x-otp-token", "X-Requested-With"],
+  optionsSuccessStatus: 204,
+});
+
+app.use(corsMiddleware);
+
+// ✅ Ensure preflight always succeeds
+app.options("*", corsMiddleware);
 
 // -------------------------------
 // BODY PARSING & LOGGING
