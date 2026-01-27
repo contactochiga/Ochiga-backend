@@ -12,7 +12,7 @@ import { sendOtpEmail } from "../services/mailer/resendMailer";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
 if (!APP_JWT_SECRET) {
-  console.warn("⚠️ APP_JWT_SECRET is missing in env");
+  console.warn("⚠️ APP_JWT_SECRET is missing in .env");
 }
 
 const PURPOSES = new Set<OtpPurpose>(["signup", "login"]);
@@ -20,6 +20,15 @@ const PURPOSES = new Set<OtpPurpose>(["signup", "login"]);
 function normalizePurpose(p: any): OtpPurpose {
   const v = (p || "signup").toString().toLowerCase();
   return PURPOSES.has(v as OtpPurpose) ? (v as OtpPurpose) : "signup";
+}
+
+function signOtpToken(email: string, purpose: OtpPurpose) {
+  // short lived token used ONLY to pass /auth/signup or /auth/login gate
+  return jwt.sign(
+    { typ: "otp", email, purpose },
+    APP_JWT_SECRET,
+    { expiresIn: "10m" } // must be <= your OTP TTL
+  );
 }
 
 export async function sendOtp(req: Request, res: Response) {
@@ -65,16 +74,16 @@ export async function verifyOtpHandler(req: Request, res: Response) {
     }
 
     const result = await verifyOtp(email, purpose, code);
+
     if (!result.ok) {
-      return res.status(401).json({ ok: false, message: `OTP ${result.reason}` });
+      return res.status(401).json({
+        ok: false,
+        message: result.reason === "expired" ? "OTP expired" : "OTP invalid",
+      });
     }
 
-    // ✅ Issue a short-lived OTP gate token (used ONLY to allow signup/login)
-    const otpToken = jwt.sign(
-      { typ: "otp", email, purpose },
-      APP_JWT_SECRET,
-      { expiresIn: "10m" }
-    );
+    // ✅ THIS IS THE KEY: return otpToken so /auth/signup can pass gate
+    const otpToken = signOtpToken(email, purpose);
 
     return res.json({ ok: true, message: "OTP verified", otpToken });
   } catch (err: any) {
