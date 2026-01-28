@@ -67,7 +67,7 @@ export async function listInvitesForEmail(email: string) {
  * Accept invite:
  * - checks pending
  * - checks expiry (if expires_at exists)
- * - creates membership in home_memberships
+ * - creates/updates membership in home_memberships
  * - marks invite as accepted
  */
 export async function acceptInvite(args: {
@@ -111,13 +111,14 @@ export async function acceptInvite(args: {
     }
   }
 
-  // 3) create membership (NO `.catch` — use {data,error})
-  // NOTE: adjust column names if your schema differs.
+  // 3) create membership
+  // ✅ IMPORTANT: set status to "active" when user accepts
   const membershipPayload = {
     estate_id: invite.estate_id,
     home_id: invite.home_id,
     user_id: args.userId,
     role: (invite.role as HomeRole) || "home_member",
+    status: "active", // ✅ patch
   };
 
   const { error: memErr } = await supabaseAdmin
