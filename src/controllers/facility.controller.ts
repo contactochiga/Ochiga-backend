@@ -261,6 +261,23 @@ export async function createHome(req: any, res: Response) {
       lng: lng ?? null,
     });
 
+    // ✅ IMPORTANT PATCH:
+    // Always ensure the creator becomes the ACTIVE OWNER of this home.
+    // This is what unlocks /facility/homes/:homeId/users + invites.
+    const { error: ownerErr } = await supabaseAdmin.from("home_memberships").upsert(
+      {
+        estate_id,
+        home_id: home.id,
+        user_id: req.user.id,
+        role: "owner",
+        status: "active",
+        permissions: {},
+      },
+      { onConflict: "home_id,user_id" }
+    );
+
+    if (ownerErr) return res.status(500).json({ error: ownerErr.message });
+
     // If resident_id provided, also ensure home membership
     if (resident_id) {
       await supabaseAdmin.from("home_memberships").upsert(
