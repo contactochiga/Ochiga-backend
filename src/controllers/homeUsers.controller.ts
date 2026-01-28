@@ -1,15 +1,20 @@
 // src/controllers/homeUsers.controller.ts
 import { Response } from "express";
+import crypto from "crypto";
+import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { createInvite } from "../services/invitesService"; // ✅ use the SAME home_invites flow consumer uses
 
 /**
  * Rules:
  * - Home Users are PRIVATE by default.
  * - Only:
- *    - Estate owner/admin/manager/security/operator/estate_admin (estate_memberships)
+ *    - Estate owner/admin/manager/security (estate_memberships)
  *    - Home owner (home_memberships role=owner)
  *   can manage home users.
+ *
+ * IMPORTANT (YOUR SCHEMA):
+ * - home_memberships has NO estate_id column.
+ * - invites table is `invites` (NOT home_invites).
  */
 
 type ReqAny = any;
@@ -86,7 +91,7 @@ async function assertHomeAccess(userId: string, homeId: string): Promise<AccessR
 
   if (homeErr || !home) return { ok: false, code: 404, error: "Home not found" };
 
-  // 2) Estate membership (match *your* real roles)
+  // 2) Estate membership (owner/admin/manager/security)
   const { data: estMem, error: estErr } = await supabaseAdmin
     .from("estate_memberships")
     .select("role, status")
@@ -98,11 +103,8 @@ async function assertHomeAccess(userId: string, homeId: string): Promise<AccessR
 
   const estateRole = String(estMem?.role || "");
   const estateActive = estMem?.status === "active";
-
-  // ✅ FIX: include estate_admin + operator (and keep the old ones)
   const estateCanManage =
-    estateActive &&
-    ["owner", "admin", "estate_admin", "manager", "operator", "security"].includes(estateRole);
+    estateActive && ["owner", "admin", "manager", "security"].includes(estateRole);
 
   // 3) Home membership (owner/staff/resident)
   const { data: homeMem, error: homeErr2 } = await supabaseAdmin
@@ -136,7 +138,6 @@ async function assertHomeAccess(userId: string, homeId: string): Promise<AccessR
 
 /**
  * GET /facility/homes/:homeId/users
- * Lists users & roles in a home.
  */
 export async function listHomeUsers(req: ReqAny, res: Response) {
   try {
@@ -183,11 +184,12 @@ export async function listHomeUsers(req: ReqAny, res: Response) {
 
 /**
  * POST /facility/homes/:homeId/invite
- * Invite user to a home.
  * Body: { email, role?, permissions? }
  *
- * ✅ This now writes to home_invites (same flow consumer uses)
- * ✅ and also upserts home_memberships as "invited" for facility UI.
+ * ✅ Uses YOUR schema:
+ * - Writes membership to `home_memberships` (NO estate_id)
+ * - Creates invite in `invites` table
+ * - Returns inviteUrl + qrDataUrl
  */
 export async function inviteHomeUser(req: ReqAny, res: Response) {
   try {
@@ -196,18 +198,17 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
     const userId = req.user?.id;
 
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
-    if (!email) return res.status(400).json({ error: "email is required" });
 
-    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedEmail = String(email || "").trim().toLowerCase();
     if (!normalizedEmail.includes("@")) {
-      return res.status(400).json({ error: "Invalid email" });
+      return res.status(400).json({ error: "Valid email is required" });
     }
 
     const access = await assertHomeAccess(userId, homeId);
     if (!access.ok) return res.status(access.code).json({ error: access.error });
     if (!access.canManage) return res.status(403).json({ error: "Insufficient permissions" });
 
-    // Load home again (need estate_id)
+    // Load home for estate_id
     const { data: home, error: homeErr } = await supabaseAdmin
       .from("homes")
       .select("id, estate_id")
@@ -215,9 +216,8 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
       .single();
 
     if (homeErr || !home) return res.status(404).json({ error: "Home not found" });
-    if (!home.estate_id) return res.status(400).json({ error: "Home has no estate_id" });
 
-    // Optional: ensure user exists (nice for membership UI join)
+    // Find or create user (so facility UI can show it immediately)
     const { data: existingUser, error: findErr } = await supabaseAdmin
       .from("users")
       .select("id, email")
@@ -226,7 +226,7 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
 
     if (findErr) return res.status(500).json({ error: findErr.message });
 
-    let invitedUserId: string | null = existingUser?.id || null;
+    let invitedUserId = existingUser?.id as string | undefined;
 
     if (!invitedUserId) {
       const created = await insertWithSchemaFallback<any>(
@@ -238,46 +238,56 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
           onboarding_complete: false,
         })
       );
-      invitedUserId = created?.id || null;
+      invitedUserId = created?.id;
     }
 
-    // ✅ Upsert membership as invited (so facility “Home Users” page shows it)
-    if (invitedUserId) {
-      const { error: memErr } = await supabaseAdmin
-        .from("home_memberships")
-        .upsert(
-          compact({
-            estate_id: home.estate_id,
-            home_id: homeId,
-            user_id: invitedUserId,
-            role: role || "resident",
-            status: "invited",
-            permissions: permissions || {},
-          }),
-          { onConflict: "home_id,user_id" }
-        );
+    // ✅ Upsert membership as invited (NO estate_id in your schema)
+    const { data: membership, error: memErr } = await supabaseAdmin
+      .from("home_memberships")
+      .upsert(
+        compact({
+          home_id: homeId,
+          user_id: invitedUserId,
+          role: role || "resident",
+          status: "invited",
+          permissions: permissions || {},
+        }),
+        { onConflict: "home_id,user_id" }
+      )
+      .select()
+      .single();
 
-      if (memErr) return res.status(500).json({ error: memErr.message });
-    }
+    if (memErr) return res.status(500).json({ error: memErr.message });
 
-    // ✅ Create the REAL invite record consumer reads (/invites/mine)
-    const invRes = await createInvite({
-      estate_id: String(home.estate_id),
-      home_id: String(homeId),
-      invited_email: normalizedEmail,
-      role: (role || "home_member") as any, // home_invites roles
+    // Create invite record in `invites`
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+    const { error: inviteErr } = await supabaseAdmin.from("invites").insert({
       created_by: userId,
-      // expires_at: new Date(Date.now() + 7*864e5).toISOString(), // optional
+      estate_id: home.estate_id || null,
+      home_id: homeId,
+      role: role || "resident",
+      invite_type: "link",
+      token_hash: tokenHash,
+      invited_email: normalizedEmail,
+      status: "pending",
+      // expires_at uses DB default (7 days) unless you want to set it
     });
 
-    if ("error" in invRes) {
-      return res.status(400).json({ error: invRes.error });
-    }
+    if (inviteErr) return res.status(500).json({ error: inviteErr.message });
+
+    // Build link to your consumer app invite screen
+    const base = process.env.VISITOR_LINK_BASE || process.env.CONSUMER_APP_BASE || "https://oyi.com";
+    const inviteUrl = `${base}/auth/invite?token=${rawToken}`;
+    const qrDataUrl = await QRCode.toDataURL(inviteUrl);
 
     return res.json({
-      message: "Home invite created (consumer will see it in-app)",
-      invite: invRes.invite,
+      message: "Home invite created",
+      inviteUrl,
+      qrDataUrl,
       invited_user_id: invitedUserId,
+      membership,
     });
   } catch (err: any) {
     console.error("inviteHomeUser error:", err);
@@ -287,7 +297,6 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
 
 /**
  * PATCH /facility/home-users/:membershipId
- * Update home membership: role / status / permissions
  */
 export async function updateHomeUser(req: ReqAny, res: Response) {
   try {
@@ -302,7 +311,7 @@ export async function updateHomeUser(req: ReqAny, res: Response) {
 
     const { data: mem, error: memErr } = await supabaseAdmin
       .from("home_memberships")
-      .select("id, home_id, role, status, user_id")
+      .select("id, home_id, role, status")
       .eq("id", membershipId)
       .single();
 
@@ -312,6 +321,7 @@ export async function updateHomeUser(req: ReqAny, res: Response) {
     if (!access.ok) return res.status(access.code).json({ error: access.error });
     if (!access.canManage) return res.status(403).json({ error: "Insufficient permissions" });
 
+    // prevent removing last owner
     if (role && String(mem.role) === "owner" && role !== "owner") {
       const { count, error: cErr } = await supabaseAdmin
         .from("home_memberships")
@@ -350,7 +360,6 @@ export async function updateHomeUser(req: ReqAny, res: Response) {
 
 /**
  * DELETE /facility/home-users/:membershipId
- * Remove user from home
  */
 export async function removeHomeUser(req: ReqAny, res: Response) {
   try {
@@ -371,6 +380,7 @@ export async function removeHomeUser(req: ReqAny, res: Response) {
     if (!access.ok) return res.status(access.code).json({ error: access.error });
     if (!access.canManage) return res.status(403).json({ error: "Insufficient permissions" });
 
+    // prevent deleting last owner
     if (String(mem.role) === "owner" && mem.status === "active") {
       const { count, error: cErr } = await supabaseAdmin
         .from("home_memberships")
@@ -385,11 +395,7 @@ export async function removeHomeUser(req: ReqAny, res: Response) {
       }
     }
 
-    const { error } = await supabaseAdmin
-      .from("home_memberships")
-      .delete()
-      .eq("id", membershipId);
-
+    const { error } = await supabaseAdmin.from("home_memberships").delete().eq("id", membershipId);
     if (error) return res.status(500).json({ error: error.message });
 
     return res.json({ message: "User removed from home" });
