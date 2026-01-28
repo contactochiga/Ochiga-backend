@@ -8,7 +8,11 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 // Helpers
 // ---------------------------
 
-// Helper: check estate access for a manager/admin
+function cleanEmail(email: string) {
+  return String(email || "").trim().toLowerCase();
+}
+
+// Helper: check estate access for a manager/admin (estate membership-based)
 async function assertCanManageEstate(userId: string, estateId: string) {
   const { data, error } = await supabaseAdmin
     .from("estate_memberships")
@@ -20,8 +24,9 @@ async function assertCanManageEstate(userId: string, estateId: string) {
   if (error) throw new Error(error.message);
   if (!data || data.status !== "active") return false;
 
-  // Only certain roles can manage
-  const manageRoles = ["owner", "admin", "manager", "security"];
+  // ✅ Include estate_admin + operator (and keep old ones)
+  // NOTE: If your enum doesn't include these, they just won't appear in DB anyway.
+  const manageRoles = ["owner", "admin", "manager", "security", "estate_admin", "operator"];
   return manageRoles.includes(String(data.role));
 }
 
@@ -34,9 +39,6 @@ function compact<T extends Record<string, any>>(obj: T): Partial<T> {
   return out as Partial<T>;
 }
 
-/**
- * Extract missing column name from common Supabase / PostgREST error formats.
- */
 function extractMissingColumnName(msg: string): string | null {
   if (!msg) return null;
 
@@ -52,10 +54,6 @@ function extractMissingColumnName(msg: string): string | null {
   return null;
 }
 
-/**
- * Insert with schema fallback:
- * If Supabase complains a column doesn't exist, drop that key and retry.
- */
 async function insertWithSchemaFallback<T>(
   table: string,
   row: Record<string, any>,
@@ -81,7 +79,6 @@ async function insertWithSchemaFallback<T>(
     lastErrorCode = code;
 
     const missingCol = extractMissingColumnName(msg);
-
     if (missingCol && Object.prototype.hasOwnProperty.call(payload, missingCol)) {
       delete payload[missingCol];
       continue;
@@ -105,6 +102,28 @@ async function insertWithSchemaFallback<T>(
         }`
       : "Insert failed after removing missing columns."
   );
+}
+
+// Map role strings into safe membership roles (your enum set)
+function normalizeMembershipRole(input?: string) {
+  const r = String(input || "").trim().toLowerCase();
+  const allowed = new Set([
+    "owner",
+    "admin",
+    "manager",
+    "security",
+    "resident",
+    "member",
+    "guest",
+    "staff",
+    "viewer",
+    // if you later add these to enum, they’ll work too:
+    "estate_admin",
+    "operator",
+    "home_admin",
+    "home_member",
+  ]);
+  return allowed.has(r) ? r : undefined;
 }
 
 // ---------------------------
@@ -178,7 +197,6 @@ export async function listMyEstates(req: any, res: Response) {
 
 /**
  * POST /facility/homes
- * Create a home under an estate
  */
 export async function createHome(req: any, res: Response) {
   try {
@@ -215,35 +233,18 @@ export async function createHome(req: any, res: Response) {
       description: description || null,
       type: type || "home",
       resident_id: resident_id || null,
-
       electricity_meter: electricity_meter || null,
       water_meter: water_meter || null,
       internet_id: internet_id || null,
       gate_code: gate_code || null,
-
       lat: lat ?? null,
       lng: lng ?? null,
     });
 
-    // ✅ IMPORTANT FIX:
-    // home_memberships DOES NOT HAVE estate_id in your DB.
-    // So we only write home_id/user_id/role/status.
-    const { error: ownerErr } = await supabaseAdmin.from("home_memberships").upsert(
-      {
-        home_id: home.id,
-        user_id: req.user.id,
-        role: "owner",
-        status: "active",
-        permissions: {},
-      },
-      { onConflict: "home_id,user_id" }
-    );
-
-    if (ownerErr) return res.status(500).json({ error: ownerErr.message });
-
-    // If resident_id provided, also ensure home membership
+    // ✅ IMPORTANT: do NOT write estate_id into home_memberships (it doesn't exist)
+    // If resident_id provided, ensure membership row exists as owner
     if (resident_id) {
-      const { error: resMemErr } = await supabaseAdmin.from("home_memberships").upsert(
+      const { error: hmErr } = await supabaseAdmin.from("home_memberships").upsert(
         {
           home_id: home.id,
           user_id: resident_id,
@@ -252,8 +253,7 @@ export async function createHome(req: any, res: Response) {
         },
         { onConflict: "home_id,user_id" }
       );
-
-      if (resMemErr) return res.status(500).json({ error: resMemErr.message });
+      if (hmErr) return res.status(500).json({ error: hmErr.message });
     }
 
     return res.json({ message: "Home created", home });
@@ -371,13 +371,16 @@ export async function listHomeRooms(req: any, res: Response) {
 
 /**
  * POST /facility/invites
- * (legacy link invite flow)
+ * Creates a link/QR invite into `invites`
  */
 export async function inviteUser(req: any, res: Response) {
   try {
     const { email, estate_id, home_id, role } = req.body;
 
-    if (!email) return res.status(400).json({ error: "email is required" });
+    const invitedEmail = cleanEmail(email);
+    if (!invitedEmail) return res.status(400).json({ error: "email is required" });
+    if (!invitedEmail.includes("@")) return res.status(400).json({ error: "Invalid email" });
+
     if (!estate_id && !home_id) {
       return res.status(400).json({ error: "estate_id or home_id is required" });
     }
@@ -389,10 +392,11 @@ export async function inviteUser(req: any, res: Response) {
       }
     }
 
+    // Find or create user row
     const { data: existingUser, error: findErr } = await supabaseAdmin
       .from("users")
       .select("*")
-      .eq("email", email)
+      .eq("email", invitedEmail)
       .maybeSingle();
 
     if (findErr) return res.status(500).json({ error: findErr.message });
@@ -400,60 +404,64 @@ export async function inviteUser(req: any, res: Response) {
     let user = existingUser;
 
     if (!user) {
-      const { data: created, error: createErr } = await supabaseAdmin
-        .from("users")
-        .insert({
-          email,
-          password_hash: null,
-          role: "resident",
-        })
-        .select()
-        .single();
-
-      if (createErr) return res.status(500).json({ error: createErr.message });
+      // Keep minimal columns (your real schema still has legacy password column)
+      const created = await insertWithSchemaFallback<any>("users", {
+        email: invitedEmail,
+        role: "resident",
+        password_hash: null,
+      });
       user = created;
     }
 
+    const safeRole = normalizeMembershipRole(role);
+
+    // Estate membership invited
     if (estate_id) {
-      await supabaseAdmin.from("estate_memberships").upsert(
+      const { error: emErr } = await supabaseAdmin.from("estate_memberships").upsert(
         {
           estate_id,
           user_id: user.id,
-          role: role || "resident",
+          role: safeRole || "resident",
           status: "invited",
+          permissions: {},
         },
         { onConflict: "estate_id,user_id" }
       );
+      if (emErr) return res.status(500).json({ error: emErr.message });
     }
 
+    // Home membership invited (✅ NO estate_id column here)
     if (home_id) {
-      // ✅ FIX: no estate_id here
-      await supabaseAdmin.from("home_memberships").upsert(
+      const { error: hmErr } = await supabaseAdmin.from("home_memberships").upsert(
         {
           home_id,
           user_id: user.id,
-          role: role || "member",
+          role: safeRole || "member",
           status: "invited",
+          permissions: {},
         },
         { onConflict: "home_id,user_id" }
       );
+      if (hmErr) return res.status(500).json({ error: hmErr.message });
     }
 
+    // Create invite token
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-    const { error: inviteErr } = await supabaseAdmin.from("invites").insert({
+    const inviteInsert = await supabaseAdmin.from("invites").insert({
       created_by: req.user.id,
       estate_id: estate_id || null,
       home_id: home_id || null,
-      role: role || (home_id ? "member" : "resident"),
+      role: safeRole || (home_id ? "member" : "resident"),
       invite_type: "link",
       token_hash: tokenHash,
-      invited_email: email,
+      invited_email: invitedEmail,
       status: "pending",
+      // expires_at handled by DB default
     });
 
-    if (inviteErr) return res.status(500).json({ error: inviteErr.message });
+    if (inviteInsert.error) return res.status(500).json({ error: inviteInsert.error.message });
 
     const base = process.env.VISITOR_LINK_BASE || "https://oyi.com";
     const inviteUrl = `${base}/auth/invite?token=${rawToken}`;
@@ -473,6 +481,7 @@ export async function inviteUser(req: any, res: Response) {
 
 /**
  * POST /facility/invites/accept
+ * Accepts token and activates memberships
  */
 export async function acceptInvite(req: any, res: Response) {
   try {
@@ -491,23 +500,36 @@ export async function acceptInvite(req: any, res: Response) {
     if (!invite) return res.status(404).json({ error: "Invite not found" });
     if (invite.status !== "pending") return res.status(400).json({ error: "Invite not active" });
 
+    // ✅ UPSERT memberships as ACTIVE (update-only can silently do nothing)
     if (invite.estate_id) {
-      await supabaseAdmin
-        .from("estate_memberships")
-        .update({ status: "active" })
-        .eq("estate_id", invite.estate_id)
-        .eq("user_id", req.user.id);
+      const { error: emErr } = await supabaseAdmin.from("estate_memberships").upsert(
+        {
+          estate_id: invite.estate_id,
+          user_id: req.user.id,
+          role: String(invite.role || "resident"),
+          status: "active",
+          permissions: {},
+        },
+        { onConflict: "estate_id,user_id" }
+      );
+      if (emErr) return res.status(500).json({ error: emErr.message });
     }
 
     if (invite.home_id) {
-      await supabaseAdmin
-        .from("home_memberships")
-        .update({ status: "active" })
-        .eq("home_id", invite.home_id)
-        .eq("user_id", req.user.id);
+      const { error: hmErr } = await supabaseAdmin.from("home_memberships").upsert(
+        {
+          home_id: invite.home_id,
+          user_id: req.user.id,
+          role: String(invite.role || "member"),
+          status: "active",
+          permissions: {},
+        },
+        { onConflict: "home_id,user_id" }
+      );
+      if (hmErr) return res.status(500).json({ error: hmErr.message });
     }
 
-    await supabaseAdmin
+    const { error: updErr } = await supabaseAdmin
       .from("invites")
       .update({
         status: "accepted",
@@ -515,6 +537,8 @@ export async function acceptInvite(req: any, res: Response) {
         claimed_at: new Date().toISOString(),
       })
       .eq("id", invite.id);
+
+    if (updErr) return res.status(500).json({ error: updErr.message });
 
     return res.json({ message: "Invite accepted", invite });
   } catch (e: any) {
