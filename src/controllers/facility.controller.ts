@@ -36,24 +36,16 @@ function compact<T extends Record<string, any>>(obj: T): Partial<T> {
 
 /**
  * Extract missing column name from common Supabase / PostgREST error formats.
- * We see at least these in the wild:
- * 1) "Could not find the 'type' column of 'homes' in the schema cache"
- * 2) 'column "type" of relation "homes" does not exist'
- * 3) 'Could not find the "type" column ...' (double quotes)
- * 4) PostgREST code PGRST204 sometimes appears with a message mentioning "column"
  */
 function extractMissingColumnName(msg: string): string | null {
   if (!msg) return null;
 
-  // Format 1
   let m = msg.match(/Could not find the ['"]([^'"]+)['"] column/i);
   if (m?.[1]) return m[1];
 
-  // Format 2
   m = msg.match(/column\s+"([^"]+)"\s+of\s+relation/i);
   if (m?.[1]) return m[1];
 
-  // Generic: "unknown column: type" / "missing column type"
   m = msg.match(/(?:unknown|missing)\s+column[:\s]+([a-zA-Z0-9_]+)/i);
   if (m?.[1]) return m[1];
 
@@ -63,14 +55,12 @@ function extractMissingColumnName(msg: string): string | null {
 /**
  * Insert with schema fallback:
  * If Supabase complains a column doesn't exist, drop that key and retry.
- * After retries, we surface the LAST real error message (not a generic one).
  */
 async function insertWithSchemaFallback<T>(
   table: string,
   row: Record<string, any>,
   maxAttempts = 8
 ): Promise<T> {
-  // make a working copy; ensure undefined removed
   let payload: Record<string, any> = { ...(compact(row) as any) };
 
   let lastErrorMsg = "";
@@ -90,17 +80,13 @@ async function insertWithSchemaFallback<T>(
     lastErrorMsg = msg;
     lastErrorCode = code;
 
-    // Detect missing column from message OR PostgREST-ish hints
     const missingCol = extractMissingColumnName(msg);
 
-    // If it's a missing column error and we can drop it, do it and retry
     if (missingCol && Object.prototype.hasOwnProperty.call(payload, missingCol)) {
       delete payload[missingCol];
       continue;
     }
 
-    // Sometimes PostgREST returns a missing-column-like error without matching above,
-    // but the message still contains "schema cache" and points at a column name.
     if (/schema cache/i.test(msg)) {
       const col = extractMissingColumnName(msg);
       if (col && Object.prototype.hasOwnProperty.call(payload, col)) {
@@ -109,11 +95,9 @@ async function insertWithSchemaFallback<T>(
       }
     }
 
-    // Not a schema mismatch: fail fast with the real error
     throw new Error(msg || "Insert failed");
   }
 
-  // Retries exhausted: show what we last saw
   throw new Error(
     lastErrorMsg
       ? `Insert failed after removing missing columns. Last error: ${lastErrorMsg}${
@@ -136,7 +120,6 @@ export async function createEstate(req: any, res: Response) {
     const { name, address, lat, lng, type } = req.body;
     if (!name) return res.status(400).json({ error: "name is required" });
 
-    // Some deployments might not have estates.type yet -> schema fallback handles it.
     const estate = await insertWithSchemaFallback<any>("estates", {
       name,
       address: address || null,
@@ -145,7 +128,6 @@ export async function createEstate(req: any, res: Response) {
       type: type || "estate",
     });
 
-    // Add membership
     const { error: memErr } = await supabaseAdmin.from("estate_memberships").upsert(
       {
         estate_id: estate.id,
@@ -158,7 +140,6 @@ export async function createEstate(req: any, res: Response) {
 
     if (memErr) return res.status(500).json({ error: memErr.message });
 
-    // Optional: keep legacy columns synced
     await supabaseAdmin.from("users").update({ estate_id: estate.id }).eq("id", req.user.id);
 
     return res.json({ message: "Estate created", estate });
@@ -170,7 +151,6 @@ export async function createEstate(req: any, res: Response) {
 
 /**
  * GET /facility/estates
- * List estates the user belongs to
  */
 export async function listMyEstates(req: any, res: Response) {
   try {
@@ -208,13 +188,8 @@ export async function createHome(req: any, res: Response) {
       unit,
       block,
       description,
-
-      // may not exist depending on your schema
       type,
-
       resident_id,
-
-      // optional fields (UI collects them)
       electricity_meter,
       water_meter,
       internet_id,
@@ -232,26 +207,15 @@ export async function createHome(req: any, res: Response) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
-    /**
-     * IMPORTANT:
-     * Your DB currently complains about missing columns (like homes.type earlier).
-     * We insert with schema fallback so it auto-drops any missing keys and retries.
-     *
-     * If it STILL fails after dropping missing columns, you'll now see the REAL error.
-     */
     const home = await insertWithSchemaFallback<any>("homes", {
       estate_id,
       name,
       unit: unit || null,
       block: block || null,
       description: description || null,
-
-      // will be dropped if homes.type doesn't exist
       type: type || "home",
-
       resident_id: resident_id || null,
 
-      // will be dropped if the columns don't exist
       electricity_meter: electricity_meter || null,
       water_meter: water_meter || null,
       internet_id: internet_id || null,
@@ -261,12 +225,11 @@ export async function createHome(req: any, res: Response) {
       lng: lng ?? null,
     });
 
-    // ✅ IMPORTANT PATCH:
-    // Always ensure the creator becomes the ACTIVE OWNER of this home.
-    // This is what unlocks /facility/homes/:homeId/users + invites.
+    // ✅ IMPORTANT FIX:
+    // home_memberships DOES NOT HAVE estate_id in your DB.
+    // So we only write home_id/user_id/role/status.
     const { error: ownerErr } = await supabaseAdmin.from("home_memberships").upsert(
       {
-        estate_id,
         home_id: home.id,
         user_id: req.user.id,
         role: "owner",
@@ -280,7 +243,7 @@ export async function createHome(req: any, res: Response) {
 
     // If resident_id provided, also ensure home membership
     if (resident_id) {
-      await supabaseAdmin.from("home_memberships").upsert(
+      const { error: resMemErr } = await supabaseAdmin.from("home_memberships").upsert(
         {
           home_id: home.id,
           user_id: resident_id,
@@ -289,13 +252,13 @@ export async function createHome(req: any, res: Response) {
         },
         { onConflict: "home_id,user_id" }
       );
+
+      if (resMemErr) return res.status(500).json({ error: resMemErr.message });
     }
 
     return res.json({ message: "Home created", home });
   } catch (e: any) {
     console.error("createHome error:", e);
-
-    // Surface the real supabase error message to frontend
     return res.status(400).json({ error: e.message || "Failed to create home" });
   }
 }
@@ -307,7 +270,6 @@ export async function listEstateHomes(req: any, res: Response) {
   try {
     const { estateId } = req.params;
 
-    // Must belong to estate (any role)
     const { data: member, error: memErr } = await supabaseAdmin
       .from("estate_memberships")
       .select("id, status")
@@ -409,6 +371,7 @@ export async function listHomeRooms(req: any, res: Response) {
 
 /**
  * POST /facility/invites
+ * (legacy link invite flow)
  */
 export async function inviteUser(req: any, res: Response) {
   try {
@@ -464,6 +427,7 @@ export async function inviteUser(req: any, res: Response) {
     }
 
     if (home_id) {
+      // ✅ FIX: no estate_id here
       await supabaseAdmin.from("home_memberships").upsert(
         {
           home_id,
