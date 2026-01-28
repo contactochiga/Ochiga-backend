@@ -24,9 +24,8 @@ async function assertCanManageEstate(userId: string, estateId: string) {
   if (error) throw new Error(error.message);
   if (!data || data.status !== "active") return false;
 
-  // ✅ Include estate_admin + operator (and keep old ones)
-  // NOTE: If your enum doesn't include these, they just won't appear in DB anyway.
-  const manageRoles = ["owner", "admin", "manager", "security", "estate_admin", "operator"];
+  // ✅ Your DB enum roles that can manage
+  const manageRoles = ["owner", "admin", "manager", "security"];
   return manageRoles.includes(String(data.role));
 }
 
@@ -65,12 +64,7 @@ async function insertWithSchemaFallback<T>(
   let lastErrorCode = "";
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const { data, error } = await supabaseAdmin
-      .from(table)
-      .insert(payload)
-      .select()
-      .single();
-
+    const { data, error } = await supabaseAdmin.from(table).insert(payload).select().single();
     if (!error) return data as T;
 
     const msg = String((error as any)?.message || "");
@@ -104,7 +98,7 @@ async function insertWithSchemaFallback<T>(
   );
 }
 
-// Map role strings into safe membership roles (your enum set)
+// ✅ MUST match your membership_role enum (screenshots show USER-DEFINED)
 function normalizeMembershipRole(input?: string) {
   const r = String(input || "").trim().toLowerCase();
   const allowed = new Set([
@@ -117,11 +111,6 @@ function normalizeMembershipRole(input?: string) {
     "guest",
     "staff",
     "viewer",
-    // if you later add these to enum, they’ll work too:
-    "estate_admin",
-    "operator",
-    "home_admin",
-    "home_member",
   ]);
   return allowed.has(r) ? r : undefined;
 }
@@ -242,7 +231,6 @@ export async function createHome(req: any, res: Response) {
     });
 
     // ✅ IMPORTANT: do NOT write estate_id into home_memberships (it doesn't exist)
-    // If resident_id provided, ensure membership row exists as owner
     if (resident_id) {
       const { error: hmErr } = await supabaseAdmin.from("home_memberships").upsert(
         {
@@ -404,7 +392,6 @@ export async function inviteUser(req: any, res: Response) {
     let user = existingUser;
 
     if (!user) {
-      // Keep minimal columns (your real schema still has legacy password column)
       const created = await insertWithSchemaFallback<any>("users", {
         email: invitedEmail,
         role: "resident",
@@ -458,7 +445,6 @@ export async function inviteUser(req: any, res: Response) {
       token_hash: tokenHash,
       invited_email: invitedEmail,
       status: "pending",
-      // expires_at handled by DB default
     });
 
     if (inviteInsert.error) return res.status(500).json({ error: inviteInsert.error.message });
@@ -500,13 +486,16 @@ export async function acceptInvite(req: any, res: Response) {
     if (!invite) return res.status(404).json({ error: "Invite not found" });
     if (invite.status !== "pending") return res.status(400).json({ error: "Invite not active" });
 
+    // invite.role is enum already, but we still coerce safely
+    const invitedRole = normalizeMembershipRole(String(invite.role || "")) || "resident";
+
     // ✅ UPSERT memberships as ACTIVE (update-only can silently do nothing)
     if (invite.estate_id) {
       const { error: emErr } = await supabaseAdmin.from("estate_memberships").upsert(
         {
           estate_id: invite.estate_id,
           user_id: req.user.id,
-          role: String(invite.role || "resident"),
+          role: invitedRole,
           status: "active",
           permissions: {},
         },
@@ -516,11 +505,14 @@ export async function acceptInvite(req: any, res: Response) {
     }
 
     if (invite.home_id) {
+      // ✅ for home-level, default "member" if role came as "resident"
+      const homeRole = invitedRole === "resident" ? "member" : invitedRole;
+
       const { error: hmErr } = await supabaseAdmin.from("home_memberships").upsert(
         {
           home_id: invite.home_id,
           user_id: req.user.id,
-          role: String(invite.role || "member"),
+          role: homeRole,
           status: "active",
           permissions: {},
         },
