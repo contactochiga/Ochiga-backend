@@ -8,7 +8,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
  * Rules:
  * - Home Users are PRIVATE by default.
  * - Only:
- *    - Estate owner/admin/manager/security (estate_memberships)
+ *    - Estate owner/admin/manager/security/estate_admin/operator (estate_memberships)
  *    - Home owner (home_memberships role=owner)
  *   can manage home users.
  *
@@ -36,8 +36,29 @@ type AccessResult = AccessDenied | AccessOk;
 /** -----------------------------
  * Helpers
  * ---------------------------- */
+function cleanEmail(email: string) {
+  return String(email || "").trim().toLowerCase();
+}
+
+// membership_role enum in your schema
+function normalizeMembershipRole(input?: string) {
+  const r = String(input || "").trim().toLowerCase();
+  const allowed = new Set([
+    "owner",
+    "admin",
+    "manager",
+    "security",
+    "resident",
+    "member",
+    "guest",
+    "staff",
+    "viewer",
+  ]);
+  return allowed.has(r) ? r : undefined;
+}
+
 function extractMissingColumnName(msg: string): string | null {
-  const m = msg.match(/Could not find the '([^']+)' column/i);
+  const m = String(msg || "").match(/Could not find the '([^']+)' column/i);
   return m?.[1] || null;
 }
 
@@ -56,12 +77,7 @@ async function insertWithSchemaFallback<T>(
   let payload = { ...row };
 
   for (let attempt = 0; attempt < 5; attempt++) {
-    const { data, error } = await supabaseAdmin
-      .from(table)
-      .insert(payload)
-      .select()
-      .single();
-
+    const { data, error } = await supabaseAdmin.from(table).insert(payload).select().single();
     if (!error) return data as T;
 
     const msg = String(error.message || "");
@@ -91,7 +107,7 @@ async function assertHomeAccess(userId: string, homeId: string): Promise<AccessR
 
   if (homeErr || !home) return { ok: false, code: 404, error: "Home not found" };
 
-  // 2) Estate membership (owner/admin/manager/security)
+  // 2) Estate membership
   const { data: estMem, error: estErr } = await supabaseAdmin
     .from("estate_memberships")
     .select("role, status")
@@ -103,10 +119,13 @@ async function assertHomeAccess(userId: string, homeId: string): Promise<AccessR
 
   const estateRole = String(estMem?.role || "");
   const estateActive = estMem?.status === "active";
-  const estateCanManage =
-    estateActive && ["owner", "admin", "manager", "security"].includes(estateRole);
 
-  // 3) Home membership (owner/staff/resident)
+  // ✅ FIX: include estate_admin + operator too
+  const estateCanManage =
+    estateActive &&
+    ["owner", "admin", "manager", "security", "estate_admin", "operator"].includes(estateRole);
+
+  // 3) Home membership (owner)
   const { data: homeMem, error: homeErr2 } = await supabaseAdmin
     .from("home_memberships")
     .select("role, status")
@@ -152,7 +171,8 @@ export async function listHomeUsers(req: ReqAny, res: Response) {
 
     const { data, error } = await supabaseAdmin
       .from("home_memberships")
-      .select(`
+      .select(
+        `
         id,
         home_id,
         role,
@@ -166,7 +186,8 @@ export async function listHomeUsers(req: ReqAny, res: Response) {
           username,
           role
         )
-      `)
+      `
+      )
       .eq("home_id", homeId)
       .order("created_at", { ascending: true });
 
@@ -199,8 +220,8 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
 
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
-    const normalizedEmail = String(email || "").trim().toLowerCase();
-    if (!normalizedEmail.includes("@")) {
+    const normalizedEmail = cleanEmail(email);
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
       return res.status(400).json({ error: "Valid email is required" });
     }
 
@@ -217,7 +238,7 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
 
     if (homeErr || !home) return res.status(404).json({ error: "Home not found" });
 
-    // Find or create user (so facility UI can show it immediately)
+    // Find or create user
     const { data: existingUser, error: findErr } = await supabaseAdmin
       .from("users")
       .select("id, email")
@@ -235,20 +256,22 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
           email: normalizedEmail,
           password_hash: null,
           role: "resident",
-          onboarding_complete: false,
         })
       );
       invitedUserId = created?.id;
     }
 
-    // ✅ Upsert membership as invited (NO estate_id in your schema)
+    const safeRole = normalizeMembershipRole(role);
+
+    // ✅ Upsert membership as invited (NO estate_id)
     const { data: membership, error: memErr } = await supabaseAdmin
       .from("home_memberships")
       .upsert(
         compact({
           home_id: homeId,
           user_id: invitedUserId,
-          role: role || "resident",
+          // ✅ better default for home membership
+          role: safeRole || "member",
           status: "invited",
           permissions: permissions || {},
         }),
@@ -267,18 +290,17 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
       created_by: userId,
       estate_id: home.estate_id || null,
       home_id: homeId,
-      role: role || "resident",
+      role: safeRole || "member",
       invite_type: "link",
       token_hash: tokenHash,
       invited_email: normalizedEmail,
       status: "pending",
-      // expires_at uses DB default (7 days) unless you want to set it
     });
 
     if (inviteErr) return res.status(500).json({ error: inviteErr.message });
 
-    // Build link to your consumer app invite screen
-    const base = process.env.VISITOR_LINK_BASE || process.env.CONSUMER_APP_BASE || "https://oyi.com";
+    const base =
+      process.env.VISITOR_LINK_BASE || process.env.CONSUMER_APP_BASE || "https://oyi.com";
     const inviteUrl = `${base}/auth/invite?token=${rawToken}`;
     const qrDataUrl = await QRCode.toDataURL(inviteUrl);
 
@@ -336,11 +358,13 @@ export async function updateHomeUser(req: ReqAny, res: Response) {
       }
     }
 
+    const safeRole = role ? normalizeMembershipRole(role) : undefined;
+
     const { data, error } = await supabaseAdmin
       .from("home_memberships")
       .update(
         compact({
-          role: role || undefined,
+          role: safeRole || undefined,
           status: status || undefined,
           permissions: permissions === undefined ? undefined : permissions,
         })
