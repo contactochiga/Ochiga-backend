@@ -3,6 +3,7 @@ import { Response } from "express";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { NotificationService } from "../services/NotificationService";
 
 /**
  * Rules:
@@ -77,7 +78,11 @@ async function insertWithSchemaFallback<T>(
   let payload = { ...row };
 
   for (let attempt = 0; attempt < 5; attempt++) {
-    const { data, error } = await supabaseAdmin.from(table).insert(payload).select().single();
+    const { data, error } = await supabaseAdmin
+      .from(table)
+      .insert(payload)
+      .select()
+      .single();
     if (!error) return data as T;
 
     const msg = String(error.message || "");
@@ -211,6 +216,7 @@ export async function listHomeUsers(req: ReqAny, res: Response) {
  * - Writes membership to `home_memberships` (NO estate_id)
  * - Creates invite in `invites` table
  * - Returns inviteUrl + qrDataUrl
+ * - ✅ Creates in-app notification for invited user
  */
 export async function inviteHomeUser(req: ReqAny, res: Response) {
   try {
@@ -229,14 +235,26 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
     if (!access.ok) return res.status(access.code).json({ error: access.error });
     if (!access.canManage) return res.status(403).json({ error: "Insufficient permissions" });
 
-    // Load home for estate_id
+    // Load home details (for message + estate_id)
     const { data: home, error: homeErr } = await supabaseAdmin
       .from("homes")
-      .select("id, estate_id")
+      .select("id, estate_id, name, block, unit")
       .eq("id", homeId)
       .single();
 
     if (homeErr || !home) return res.status(404).json({ error: "Home not found" });
+
+    // Load estate name (optional)
+    let estateName: string | null = null;
+    if (home.estate_id) {
+      const { data: estateRow } = await supabaseAdmin
+        .from("estates")
+        .select("id, name")
+        .eq("id", home.estate_id)
+        .maybeSingle();
+
+      estateName = estateRow?.name ?? null;
+    }
 
     // Find or create user
     const { data: existingUser, error: findErr } = await supabaseAdmin
@@ -270,7 +288,6 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
         compact({
           home_id: homeId,
           user_id: invitedUserId,
-          // ✅ better default for home membership
           role: safeRole || "member",
           status: "invited",
           permissions: permissions || {},
@@ -286,16 +303,20 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-    const { error: inviteErr } = await supabaseAdmin.from("invites").insert({
-      created_by: userId,
-      estate_id: home.estate_id || null,
-      home_id: homeId,
-      role: safeRole || "member",
-      invite_type: "link",
-      token_hash: tokenHash,
-      invited_email: normalizedEmail,
-      status: "pending",
-    });
+    const { data: inviteRow, error: inviteErr } = await supabaseAdmin
+      .from("invites")
+      .insert({
+        created_by: userId,
+        estate_id: home.estate_id || null,
+        home_id: homeId,
+        role: safeRole || "member",
+        invite_type: "link",
+        token_hash: tokenHash,
+        invited_email: normalizedEmail,
+        status: "pending",
+      })
+      .select("id")
+      .single();
 
     if (inviteErr) return res.status(500).json({ error: inviteErr.message });
 
@@ -303,6 +324,36 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
       process.env.VISITOR_LINK_BASE || process.env.CONSUMER_APP_BASE || "https://oyi.com";
     const inviteUrl = `${base}/auth/invite?token=${rawToken}`;
     const qrDataUrl = await QRCode.toDataURL(inviteUrl);
+
+    // ✅ Notification (best effort, don’t fail request if notif fails)
+    try {
+      const homeLabel =
+        home.block && home.unit
+          ? `${home.block} / ${home.unit}`
+          : home.name || "a home";
+
+      const message = estateName
+        ? `You’ve been invited to join ${estateName} (${homeLabel}).`
+        : `You’ve been invited to join ${homeLabel}.`;
+
+      await NotificationService.sendToUser(invitedUserId!, {
+        title: "New invite",
+        message,
+        type: "estate",
+        payload: {
+          inviteType: "home",
+          invite_id: inviteRow?.id || null,
+          estate_id: home.estate_id || null,
+          estate_name: estateName,
+          home_id: homeId,
+          home_label: homeLabel,
+          membership_id: membership?.id || null,
+        },
+        entityId: homeId,
+      });
+    } catch (notifyErr) {
+      console.warn("inviteHomeUser notification failed:", notifyErr);
+    }
 
     return res.json({
       message: "Home invite created",
