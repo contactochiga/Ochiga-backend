@@ -39,12 +39,19 @@ app.set("trust proxy", 1);
 app.use(helmet());
 
 // -------------------------------
-// ⭐ CORS
+// ⭐ CORS (FIXED for Capacitor/iOS)
 // -------------------------------
 const allowList = new Set([
+  // Web local dev
   "http://localhost:3000",
   "http://localhost:3001",
+  "http://localhost",
 
+  // ✅ Capacitor / Ionic native WebView origins
+  "capacitor://localhost",
+  "ionic://localhost",
+
+  // Production domains
   "https://oyi.com",
   "https://www.oyi.com",
   "https://facility.oyi.com",
@@ -54,22 +61,34 @@ const allowList = new Set([
 
 function isAllowedOrigin(origin: string) {
   if (allowList.has(origin)) return true;
+
+  // ✅ allow vercel previews + prod apps
   if (origin.endsWith(".vercel.app")) return true;
+
+  // ✅ allow github codespaces/dev
   if (origin.endsWith(".github.dev")) return true;
+
   return false;
 }
 
-const corsMiddleware = cors({
+const corsMiddleware: express.RequestHandler = cors({
   origin: (origin, callback) => {
+    // ✅ Native apps / curl / server-to-server can have NO origin
     if (!origin) return callback(null, true);
+
     if (isAllowedOrigin(origin)) return callback(null, true);
+
     console.error("❌ CORS blocked:", origin);
     return callback(new Error("CORS blocked"));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  // ✅ allow OTP + common ajax headers
-  allowedHeaders: ["Content-Type", "Authorization", "x-otp-token", "X-Requested-With"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-otp-token",
+    "X-Requested-With",
+  ],
   optionsSuccessStatus: 204,
 });
 
