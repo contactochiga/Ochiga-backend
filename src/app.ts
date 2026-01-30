@@ -39,15 +39,16 @@ app.set("trust proxy", 1);
 app.use(helmet());
 
 // -------------------------------
-// ⭐ CORS (FIXED for Capacitor/iOS)
+// ⭐ CORS
 // -------------------------------
 const allowList = new Set([
-  // Web local dev
+  // Web dev
   "http://localhost:3000",
   "http://localhost:3001",
+  "http://localhost:8100",
   "http://localhost",
 
-  // ✅ Capacitor / Ionic native WebView origins
+  // Capacitor / Ionic (iOS/Android WebView origins)
   "capacitor://localhost",
   "ionic://localhost",
 
@@ -60,20 +61,25 @@ const allowList = new Set([
 ]);
 
 function isAllowedOrigin(origin: string) {
+  if (!origin) return true;
+
+  // ✅ allow known origins
   if (allowList.has(origin)) return true;
 
-  // ✅ allow vercel previews + prod apps
-  if (origin.endsWith(".vercel.app")) return true;
+  // ✅ allow capacitor/ionic schemes (some platforms include extra path/port)
+  if (origin.startsWith("capacitor://")) return true;
+  if (origin.startsWith("ionic://")) return true;
 
-  // ✅ allow github codespaces/dev
+  // ✅ allow preview hosts
+  if (origin.endsWith(".vercel.app")) return true;
   if (origin.endsWith(".github.dev")) return true;
 
   return false;
 }
 
-const corsMiddleware: express.RequestHandler = cors({
+const corsMiddleware = cors({
   origin: (origin, callback) => {
-    // ✅ Native apps / curl / server-to-server can have NO origin
+    // Some native requests may not send Origin
     if (!origin) return callback(null, true);
 
     if (isAllowedOrigin(origin)) return callback(null, true);
@@ -100,7 +106,7 @@ app.options("*", corsMiddleware);
 // -------------------------------
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser()); // ✅ required for req.cookies
+app.use(cookieParser());
 app.use(morgan("dev"));
 
 // -------------------------------
@@ -125,7 +131,7 @@ app.use("/auth", authRoutes);
 app.use("/auth/onboard", onboardingRoutes);
 app.use("/auth/otp", otpRoutes);
 
-app.use("/invites", invitesRoutes); // ✅ NEW
+app.use("/invites", invitesRoutes);
 
 app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);
