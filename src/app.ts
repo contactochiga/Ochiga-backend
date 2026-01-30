@@ -28,6 +28,9 @@ import otpRoutes from "./routes/otp.routes";
 // ✅ Invites routes
 import invitesRoutes from "./routes/invites.routes";
 
+// ✅ Me routes (context for consumer UI)
+import meRoutes from "./routes/me.routes";
+
 const app = express();
 
 // ✅ important for Render/Vercel reverse proxy (cookies/https)
@@ -56,7 +59,6 @@ const allowList = new Set([
   "https://oyi.com",
   "https://www.oyi.com",
   "https://facility.oyi.com",
-
   "https://oyi-os.onrender.com",
 ]);
 
@@ -106,7 +108,7 @@ app.options("*", corsMiddleware);
 // -------------------------------
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+app.use(cookieParser()); // ✅ required for req.cookies
 app.use(morgan("dev"));
 
 // -------------------------------
@@ -132,6 +134,10 @@ app.use("/auth/onboard", onboardingRoutes);
 app.use("/auth/otp", otpRoutes);
 
 app.use("/invites", invitesRoutes);
+
+// ✅ consumer context endpoint
+// GET /me/context -> { estate, home }
+app.use("/me", meRoutes);
 
 app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);
