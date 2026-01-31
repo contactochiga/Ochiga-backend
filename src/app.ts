@@ -31,6 +31,9 @@ import invitesRoutes from "./routes/invites.routes";
 // ✅ Me routes (context for consumer UI)
 import meRoutes from "./routes/me.routes";
 
+// ✅ Notifications routes (GET /notifications, POST /notifications/read/:id)
+import notificationsRoutes from "./routes/notifications"; // ✅ ADD THIS
+
 const app = express();
 
 // ✅ important for Render/Vercel reverse proxy (cookies/https)
@@ -138,6 +141,9 @@ app.use("/invites", invitesRoutes);
 // ✅ consumer context endpoint
 // GET /me/context -> { estate, home }
 app.use("/me", meRoutes);
+
+// ✅ notifications (THIS FIXES YOUR 404)
+app.use("/notifications", notificationsRoutes); // ✅ ADD THIS
 
 app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);
