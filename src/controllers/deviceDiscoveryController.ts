@@ -6,7 +6,8 @@ import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 
 /**
- * GET /facility/devices/discover?adapter=tuya
+ * GET /devices/discover?adapter=tuya
+ * ✅ adapter defaults to "tuya" if not provided
  */
 export async function discoverDevices(req: Request, res: Response) {
   // ✅ HARD NO-CACHE (prevents 304 + empty body)
@@ -26,16 +27,14 @@ export async function discoverDevices(req: Request, res: Response) {
     initAdaptersOnce();
 
     const user = req.user!;
-    const adapterName = String(req.query.adapter || "").toLowerCase().trim();
+
+    // ✅ DEFAULT to tuya so consumer discovery works without query param
+    const adapterName = String(req.query.adapter || "tuya")
+      .toLowerCase()
+      .trim();
 
     if (!user?.estate_id) {
       return res.status(400).json({ error: "User has no estate" });
-    }
-
-    if (!adapterName) {
-      return res.status(400).json({
-        error: "adapter query param required (e.g. ?adapter=tuya)",
-      });
     }
 
     const context: AdapterContext = {
