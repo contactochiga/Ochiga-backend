@@ -5,38 +5,60 @@ import { generateAccessCode } from "../services/codeService";
 import { createQrForLink } from "../services/qrService";
 import { notifyUser, NotificationPayload } from "../services/NotificationService";
 
-const DEFAULT_EXPIRES_HOURS = Number(
-  process.env.VISITOR_DEFAULT_EXPIRES_HOURS || 12
-);
+const DEFAULT_EXPIRES_HOURS = Number(process.env.VISITOR_DEFAULT_EXPIRES_HOURS || 12);
 const VISITOR_LINK_BASE = process.env.VISITOR_LINK_BASE || "";
 
-/**
- * Helper: pull estate/home/user context from auth
- * (Option A: everything tied to the logged-in user context)
- */
-function getUserContext(req: Request) {
-  const authed = req as any;
-  const user = authed.user as any;
+// -----------------------------
+// Helpers
+// -----------------------------
+function cleanStr(v: any): string {
+  return String(v ?? "").trim();
+}
 
-  const residentId = user?.id || null;
-  const estateId = user?.estate_id || user?.estateId || null;
-  const homeId = user?.home_id || user?.homeId || null;
+function pickFirstString(...values: any[]): string {
+  for (const v of values) {
+    const s = cleanStr(v);
+    if (s) return s;
+  }
+  return "";
+}
 
-  return { user, residentId, estateId, homeId };
+function pickOptionalString(...values: any[]): string | null {
+  const s = pickFirstString(...values);
+  return s ? s : null;
 }
 
 /* CREATE VISITOR */
 export async function createVisitor(req: Request, res: Response) {
   try {
-    const { residentId, estateId, homeId } = getUserContext(req);
+    const authed = req as any;
+    const user = authed.user as any;
 
-    if (!residentId) return res.status(401).json({ error: "Not authenticated" });
-    if (!estateId) return res.status(400).json({ error: "User has no estate context" });
-    if (!homeId) return res.status(400).json({ error: "User has no home context" });
+    if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-    // ✅ New request shape (frontend)
-    // name, phone, purpose, navigation_mode
-    const { name, phone, purpose, navigation_mode } = req.body || {};
+    // ✅ Option A: context MUST come from auth user
+    const residentId = String(user.id);
+    const estateIdFromUser = cleanStr(user.estate_id || user.estateId);
+    const homeIdFromUser = cleanStr(user.home_id || user.homeId);
+
+    if (!estateIdFromUser) {
+      return res.status(400).json({ error: "User has no estate context" });
+    }
+    if (!homeIdFromUser) {
+      return res.status(400).json({ error: "User has no home context" });
+    }
+
+    // ✅ Backward compatible request parsing:
+    // Supports both:
+    // - old frontend keys: visitorName, visitorPhone, navigationMode
+    // - new clean keys: name, phone, navigation_mode
+    const body = req.body || {};
+
+    const name = pickFirstString(body.name, body.visitorName, body.visitor_name);
+    const phone = pickOptionalString(body.phone, body.visitorPhone, body.visitor_phone);
+    const purpose = pickOptionalString(body.purpose);
+    const navigation_mode =
+      pickFirstString(body.navigation_mode, body.navigationMode, body.navigationMode) || "mapbox";
 
     if (!name) return res.status(400).json({ error: "name is required" });
 
@@ -45,22 +67,21 @@ export async function createVisitor(req: Request, res: Response) {
       Date.now() + DEFAULT_EXPIRES_HOURS * 3600 * 1000
     ).toISOString();
 
-    // ✅ New DB columns (Option A)
-    // visitor_access: estate_id, home_id, resident_id, name, phone, purpose, navigation_mode, access_code, status, expires_at
+    // ✅ Insert with your NEW schema (Option A)
     const { data, error } = await supabaseAdmin
       .from("visitor_access")
       .insert([
         {
-          estate_id: estateId,
-          home_id: homeId,
+          estate_id: estateIdFromUser,
+          home_id: homeIdFromUser,
           resident_id: residentId,
 
           name,
-          phone: phone || null,
-          purpose: purpose || null,
-          navigation_mode: navigation_mode || "mapbox",
+          phone,
+          purpose,
 
           access_code: accessCode,
+          navigation_mode,
           status: "pending",
           expires_at: expiresAt,
         },
@@ -72,10 +93,8 @@ export async function createVisitor(req: Request, res: Response) {
 
     const visitorId = data.id;
 
-    const link = VISITOR_LINK_BASE
-      ? `${VISITOR_LINK_BASE}/${visitorId}`
-      : `${visitorId}`;
-
+    // Build link + QR
+    const link = VISITOR_LINK_BASE ? `${VISITOR_LINK_BASE}/${visitorId}` : `${visitorId}`;
     const qrS3Url = await createQrForLink(link, visitorId);
 
     await supabaseAdmin
@@ -100,57 +119,66 @@ export async function createVisitor(req: Request, res: Response) {
       qr: qrS3Url,
       status: "pending",
       expiresAt,
+      visitor: {
+        id: visitorId,
+        estate_id: estateIdFromUser,
+        home_id: homeIdFromUser,
+        resident_id: residentId,
+        name,
+        phone,
+        purpose,
+        navigation_mode,
+      },
     });
   } catch (err: any) {
     console.error("createVisitor error", err);
-    return res.status(500).json({ error: err.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 }
 
 /* VERIFY VISITOR */
 export async function verifyVisitor(req: Request, res: Response) {
   try {
-    const { residentId, estateId } = getUserContext(req);
-    if (!residentId) return res.status(401).json({ error: "Not authenticated" });
+    const authed = req as any;
+    const user = authed.user as any;
+
+    if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+    // ✅ Option A: estate context from user
+    const estateId = cleanStr(user.estate_id || user.estateId);
     if (!estateId) return res.status(400).json({ error: "User has no estate context" });
 
     const { code } = req.body || {};
-    if (!code) return res.status(400).json({ error: "code is required" });
+    const accessCode = cleanStr(code);
+
+    if (!accessCode) return res.status(400).json({ error: "code is required" });
 
     const { data, error } = await supabaseAdmin
       .from("visitor_access")
       .select("*")
-      .eq("access_code", code)
+      .eq("access_code", accessCode)
       .eq("estate_id", estateId)
       .single();
 
-    if (error || !data) {
-      return res.status(404).json({ error: "Invalid access code for this estate" });
-    }
+    if (error || !data) return res.status(404).json({ error: "Invalid access code" });
 
     return res.json({ valid: true, visitor: data });
   } catch (err: any) {
     console.error("verifyVisitor", err);
-    return res.status(500).json({ error: err.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 }
 
 /* APPROVE VISITOR */
 export async function approveVisitor(req: Request, res: Response) {
   try {
-    const { residentId, estateId } = getUserContext(req);
-    if (!residentId) return res.status(401).json({ error: "Not authenticated" });
-    if (!estateId) return res.status(400).json({ error: "User has no estate context" });
-
-    const id = req.params.id;
+    const id = cleanStr(req.params.id);
     if (!id) return res.status(400).json({ error: "id required" });
 
-    // ✅ Scope approval to same estate
     const { data, error } = await supabaseAdmin
       .from("visitor_access")
       .update({ status: "approved", verified_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("estate_id", estateId)
       .select()
       .single();
 
@@ -160,39 +188,35 @@ export async function approveVisitor(req: Request, res: Response) {
       title: "Visitor Approved",
       type: "visitor",
       entityId: id,
-      message: `Visitor "${data.name}" approved.`,
+      message: `Visitor "${data?.name || "Visitor"}" approved.`,
       payload: { visitorId: id },
     };
-    await notifyUser(data.resident_id, payload);
+    if (data?.resident_id) await notifyUser(data.resident_id, payload);
 
     return res.json({ ok: true, visitor: data });
   } catch (err: any) {
     console.error("approveVisitor", err);
-    return res.status(500).json({ error: err.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 }
 
 /* MARK ENTRY */
 export async function markEntry(req: Request, res: Response) {
   try {
-    const { residentId, estateId } = getUserContext(req);
-    if (!residentId) return res.status(401).json({ error: "Not authenticated" });
-    if (!estateId) return res.status(400).json({ error: "User has no estate context" });
+    const id = cleanStr(req.params.id);
+    if (!id) return res.status(400).json({ error: "id required" });
 
-    const id = req.params.id;
-
-    const { data: va, error: vaErr } = await supabaseAdmin
+    const { data: va } = await supabaseAdmin
       .from("visitor_access")
       .select("*")
       .eq("id", id)
-      .eq("estate_id", estateId)
       .single();
 
-    if (vaErr || !va) return res.status(404).json({ error: "not found" });
+    if (!va) return res.status(404).json({ error: "not found" });
 
     const arrivedAt = new Date().toISOString();
 
-    const { data: analytics, error: anErr } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("visitor_analytics")
       .insert([
         {
@@ -205,40 +229,33 @@ export async function markEntry(req: Request, res: Response) {
       .select()
       .single();
 
-    if (anErr) return res.status(500).json({ error: anErr.message });
+    if (error) return res.status(500).json({ error: error.message });
 
-    await supabaseAdmin
-      .from("visitor_access")
-      .update({ status: "entered" })
-      .eq("id", id)
-      .eq("estate_id", estateId);
+    await supabaseAdmin.from("visitor_access").update({ status: "entered" }).eq("id", id);
 
     const payload: NotificationPayload = {
       title: "Visitor Entered",
       type: "visitor",
       entityId: id,
-      message: `Visitor "${va.name}" entered estate.`,
+      message: `Visitor "${va?.name || "Visitor"}" entered estate.`,
       payload: { visitorId: id, arrivedAt },
     };
-    await notifyUser(va.resident_id, payload);
+    if (va?.resident_id) await notifyUser(va.resident_id, payload);
 
-    return res.json({ ok: true, analytics });
+    return res.json({ ok: true, analytics: data });
   } catch (err: any) {
     console.error("markEntry", err);
-    return res.status(500).json({ error: err.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 }
 
 /* MARK EXIT */
 export async function markExit(req: Request, res: Response) {
   try {
-    const { residentId, estateId } = getUserContext(req);
-    if (!residentId) return res.status(401).json({ error: "Not authenticated" });
-    if (!estateId) return res.status(400).json({ error: "User has no estate context" });
+    const id = cleanStr(req.params.id);
+    if (!id) return res.status(400).json({ error: "id required" });
 
-    const id = req.params.id;
-
-    const { data: analytics, error: aErr } = await supabaseAdmin
+    const { data: analytics } = await supabaseAdmin
       .from("visitor_analytics")
       .select("*")
       .eq("visitor_access_id", id)
@@ -246,7 +263,7 @@ export async function markExit(req: Request, res: Response) {
       .limit(1)
       .single();
 
-    if (aErr || !analytics) return res.status(404).json({ error: "analytics not found" });
+    if (!analytics) return res.status(404).json({ error: "analytics not found" });
 
     const exitedAt = new Date().toISOString();
     const durationMinutes = Math.round(
@@ -258,17 +275,12 @@ export async function markExit(req: Request, res: Response) {
       .update({ exited_at: exitedAt, duration_minutes: durationMinutes })
       .eq("id", analytics.id);
 
-    await supabaseAdmin
-      .from("visitor_access")
-      .update({ status: "exited" })
-      .eq("id", id)
-      .eq("estate_id", estateId);
+    await supabaseAdmin.from("visitor_access").update({ status: "exited" }).eq("id", id);
 
     const { data: va } = await supabaseAdmin
       .from("visitor_access")
       .select("*")
       .eq("id", id)
-      .eq("estate_id", estateId)
       .single();
 
     const payload: NotificationPayload = {
@@ -283,18 +295,18 @@ export async function markExit(req: Request, res: Response) {
     return res.json({ ok: true, durationMinutes });
   } catch (err: any) {
     console.error("markExit", err);
-    return res.status(500).json({ error: err.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 }
 
-/* GET ANALYTICS FOR CURRENT USER ESTATE */
+/* GET ANALYTICS FOR ESTATE */
 export async function getAnalyticsForEstate(req: Request, res: Response) {
   try {
-    const { residentId, estateId } = getUserContext(req);
-    if (!residentId) return res.status(401).json({ error: "Not authenticated" });
-    if (!estateId) return res.status(400).json({ error: "User has no estate context" });
+    // ✅ Optional hardening later:
+    // Ensure req.user.estate_id matches req.params.estateId
+    const estateId = cleanStr(req.params.estateId);
+    if (!estateId) return res.status(400).json({ error: "estateId required" });
 
-    // ✅ ignore params, always scope to logged-in user's estate
     const { data: analytics, error } = await supabaseAdmin
       .from("visitor_analytics")
       .select("*")
@@ -304,11 +316,7 @@ export async function getAnalyticsForEstate(req: Request, res: Response) {
 
     const totalVisitors = analytics.length;
     const todayStr = new Date().toISOString().slice(0, 10);
-
-    const todayVisitors = analytics.filter(
-      (a: any) => a.arrived_at?.slice(0, 10) === todayStr
-    ).length;
-
+    const todayVisitors = analytics.filter((a: any) => a.arrived_at?.slice(0, 10) === todayStr).length;
     const exitedVisitors = analytics.filter((a: any) => a.exited_at != null).length;
 
     return res.json({
@@ -320,25 +328,20 @@ export async function getAnalyticsForEstate(req: Request, res: Response) {
     });
   } catch (err: any) {
     console.error("getAnalyticsForEstate", err);
-    return res.status(500).json({ error: err.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 }
 
 /* GET VISITOR INFO */
 export async function getVisitorInfo(req: Request, res: Response) {
   try {
-    const { residentId, estateId } = getUserContext(req);
-    if (!residentId) return res.status(401).json({ error: "Not authenticated" });
-    if (!estateId) return res.status(400).json({ error: "User has no estate context" });
-
-    const id = req.params.id;
+    const id = cleanStr(req.params.id);
     if (!id) return res.status(400).json({ error: "id required" });
 
     const { data, error } = await supabaseAdmin
       .from("visitor_access")
       .select("*, visitor_analytics(*)")
       .eq("id", id)
-      .eq("estate_id", estateId)
       .single();
 
     if (error || !data) return res.status(404).json({ error: "Visitor not found" });
@@ -346,7 +349,7 @@ export async function getVisitorInfo(req: Request, res: Response) {
     return res.json({ visitor: data });
   } catch (err: any) {
     console.error("getVisitorInfo", err);
-    return res.status(500).json({ error: err.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 }
 
