@@ -37,6 +37,12 @@ export async function discoverDevices(req: Request, res: Response) {
       return res.status(400).json({ error: "User has no estate" });
     }
 
+    // ✅ TUYA UID (Smart Life account UID)
+    // Priority: query param -> env -> empty
+    const tuyaUid =
+      (req.query.uid ? String(req.query.uid).trim() : "") ||
+      (process.env.TUYA_TEST_UID ? String(process.env.TUYA_TEST_UID).trim() : "");
+
     const context: AdapterContext = {
       estateId: user.estate_id,
       homeId: user.home_id,
@@ -45,12 +51,15 @@ export async function discoverDevices(req: Request, res: Response) {
         apiKey: process.env.TUYA_ACCESS_ID,
         apiSecret: process.env.TUYA_ACCESS_SECRET,
 
+        // ✅ PASS UID TO TUYA ADAPTER
+        tuyaUid,
+
         cidr: req.query.cidr ? String(req.query.cidr) : undefined,
         timeoutMs: req.query.timeoutMs ? Number(req.query.timeoutMs) : undefined,
 
         onvifUser: req.query.onvifUser ? String(req.query.onvifUser) : undefined,
         onvifPass: req.query.onvifPass ? String(req.query.onvifPass) : undefined,
-      },
+      } as any,
     };
 
     let adapter;
@@ -60,6 +69,14 @@ export async function discoverDevices(req: Request, res: Response) {
       return res.status(400).json({
         error: `Unsupported adapter: ${adapterName}`,
         supported: adapterRegistry.list().map((a) => a.name),
+      });
+    }
+
+    // ✅ Helpful error if tuya discovery is used without UID
+    if (adapterName === "tuya" && !tuyaUid) {
+      return res.status(400).json({
+        error:
+          "Missing Tuya UID. Set TUYA_TEST_UID in env or call /devices/discover?adapter=tuya&uid=YOUR_UID",
       });
     }
 
