@@ -8,132 +8,115 @@ import { notifyUser, NotificationPayload } from "../services/NotificationService
 const DEFAULT_EXPIRES_HOURS = Number(process.env.VISITOR_DEFAULT_EXPIRES_HOURS || 12);
 const VISITOR_LINK_BASE = process.env.VISITOR_LINK_BASE || "";
 
-/**
- * Utility: pull auth context safely
- */
-function getAuthContext(req: Request) {
-  const authed = req as any;
-  const user = authed.user;
+function requireUserContext(req: Request) {
+  const user = (req as any).user as any;
 
-  const userId = user?.id as string | undefined;
-  const estateId = user?.estate_id as string | undefined;
-  const homeId = user?.home_id as string | undefined;
+  const estateId = user?.estate_id || user?.estateId;
+  const homeId = user?.home_id || user?.homeId;
+  const userId = user?.id;
 
   if (!userId) throw new Error("Not authenticated");
   if (!estateId) throw new Error("User has no estate context");
   if (!homeId) throw new Error("User has no home context");
 
-  return { userId, estateId, homeId };
+  return { user, userId, estateId, homeId };
 }
 
-/* CREATE VISITOR */
+/**
+ * CREATE VISITOR
+ * - estate/home context comes from req.user (Option A)
+ * - body only carries visitor details
+ */
 export async function createVisitor(req: Request, res: Response) {
   try {
-    const { userId, estateId, homeId } = getAuthContext(req);
+    const { userId, estateId, homeId } = requireUserContext(req);
 
-    // ✅ Accept only the actual visitor fields from UI
     const {
-      visitorName,
-      visitorPhone,
+      name,
+      phone,
       purpose,
-      navigationMode,
-      // optional legacy
-      houseId,
+      navigation_mode, // optional
+      expires_hours,   // optional
     } = req.body || {};
 
-    if (!visitorName || String(visitorName).trim().length === 0) {
-      return res.status(400).json({ error: "visitorName is required" });
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: "name is required" });
     }
 
-    if (!visitorPhone || String(visitorPhone).trim().length === 0) {
-      return res.status(400).json({ error: "visitorPhone is required" });
+    // Your DB column is NOT NULL, so enforce it.
+    if (!phone || !String(phone).trim()) {
+      return res.status(400).json({ error: "phone is required" });
     }
 
     const accessCode = await generateAccessCode();
 
-    const expiresAt = new Date(
-      Date.now() + DEFAULT_EXPIRES_HOURS * 3600 * 1000
-    ).toISOString();
+    const hours = Number(expires_hours || DEFAULT_EXPIRES_HOURS);
+    const expiresAt =
+      Number.isFinite(hours) && hours > 0
+        ? new Date(Date.now() + hours * 3600 * 1000).toISOString()
+        : null;
 
-    // ✅ Insert aligned with your table columns
+    const navMode = String(navigation_mode || "code");
+
+    // Insert matching your actual visitor_access columns
     const { data, error } = await supabaseAdmin
       .from("visitor_access")
       .insert([
         {
           estate_id: estateId,
           home_id: homeId,
-
-          created_by: userId,     // ✅ REQUIRED
-          resident_id: userId,    // ✅ recommended (even though nullable)
-
-          visitor_name: String(visitorName).trim(),
-          visitor_phone: String(visitorPhone).trim(),
+          created_by: userId,
+          resident_id: userId, // optional in table, but we set it (helps)
+          visitor_name: String(name).trim(),
+          visitor_phone: String(phone).trim(),
           purpose: purpose ? String(purpose).trim() : null,
-
-          access_code: accessCode,
+          access_code: String(accessCode),
           status: "active",
-
-          navigation_mode: navigationMode ? String(navigationMode) : "code",
-
           expires_at: expiresAt,
-
-          // legacy/optional
-          house_id: houseId || null,
+          navigation_mode: navMode,
         },
       ])
       .select()
       .single();
 
     if (error) {
-      console.error("createVisitor insert error:", error);
       return res.status(500).json({ error: error.message });
     }
 
-    const visitorId = data.id;
+    const visitorId = data.id as string;
 
-    // Optional: generate QR + link
+    // Build link + QR (optional)
     const link = VISITOR_LINK_BASE ? `${VISITOR_LINK_BASE}/${visitorId}` : null;
 
     let qrS3Url: string | null = null;
     if (link) {
       try {
         qrS3Url = await createQrForLink(link, visitorId);
-        // Only update if you actually have this column in DB.
-        // If you don't, remove this block.
-        await supabaseAdmin
-          .from("visitor_access")
-          .update({ qr_s3_url: qrS3Url } as any)
-          .eq("id", visitorId);
-      } catch (e) {
-        // safe fail — visitor creation should still succeed
-        console.warn("QR generation failed (non-blocking):", e);
+        // If you have qr_s3_url column later, you can update it safely.
+        // For now: don’t hard-fail if column doesn't exist.
+        await supabaseAdmin.from("visitor_access").update({ qr_s3_url: qrS3Url } as any).eq("id", visitorId);
+      } catch {
+        // ignore QR failures; creation still succeeds
       }
     }
 
-    // Notify resident (creator)
+    // Notify resident
     const payload: NotificationPayload = {
       title: "New Visitor Created",
       type: "visitor",
       entityId: visitorId,
       message: `New visitor "${data.visitor_name}" created.`,
-      payload: {
-        visitorId,
-        link,
-        accessCode,
-        visitorName: data.visitor_name,
-      },
+      payload: { link, accessCode, visitorName: data.visitor_name },
     };
+
     await notifyUser(userId, payload);
 
     return res.json({
       ok: true,
-      id: visitorId,
-      code: accessCode,
-      link,
-      qr: qrS3Url,
-      status: data.status,
-      expiresAt,
       visitor: data,
+      link,
+      code: accessCode,
+      qr: qrS3Url,
     });
   } catch (err: any) {
     console.error("createVisitor error", err);
@@ -141,18 +124,21 @@ export async function createVisitor(req: Request, res: Response) {
   }
 }
 
-/* VERIFY VISITOR */
+/**
+ * VERIFY VISITOR BY CODE (estate-scoped)
+ * - estateId comes from req.user
+ */
 export async function verifyVisitor(req: Request, res: Response) {
   try {
-    const { estateId } = getAuthContext(req);
-
+    const { estateId } = requireUserContext(req);
     const { code } = req.body || {};
+
     if (!code) return res.status(400).json({ error: "code is required" });
 
     const { data, error } = await supabaseAdmin
       .from("visitor_access")
       .select("*")
-      .eq("access_code", String(code).trim())
+      .eq("access_code", String(code))
       .eq("estate_id", estateId)
       .single();
 
@@ -167,46 +153,37 @@ export async function verifyVisitor(req: Request, res: Response) {
   }
 }
 
-/* APPROVE VISITOR */
+/**
+ * APPROVE VISITOR
+ * - keep simple: update status only (your table doesn't show verified_at)
+ */
 export async function approveVisitor(req: Request, res: Response) {
   try {
-    const { userId, estateId } = getAuthContext(req);
-    const id = req.params.id;
-    if (!id) return res.status(400).json({ error: "id required" });
-
-    // Ensure visitor belongs to same estate
-    const { data: existing, error: findErr } = await supabaseAdmin
-      .from("visitor_access")
-      .select("*")
-      .eq("id", id)
-      .eq("estate_id", estateId)
-      .single();
-
-    if (findErr || !existing) {
-      return res.status(404).json({ error: "Visitor not found" });
-    }
+    requireUserContext(req);
+    const id = String(req.params.id || "");
+    if (!id) return res.status(400).json({ error: "id is required" });
 
     const { data, error } = await supabaseAdmin
       .from("visitor_access")
-      .update({
-        status: "approved",
-      })
+      .update({ status: "approved" })
       .eq("id", id)
       .select()
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
 
-    const payload: NotificationPayload = {
-      title: "Visitor Approved",
-      type: "visitor",
-      entityId: id,
-      message: `Visitor "${data.visitor_name}" approved.`,
-      payload: { visitorId: id },
-    };
-
-    // notify resident/creator
-    await notifyUser(data.resident_id || userId, payload);
+    // Notify resident_id if present
+    const residentId = data.resident_id || data.created_by;
+    if (residentId) {
+      const payload: NotificationPayload = {
+        title: "Visitor Approved",
+        type: "visitor",
+        entityId: id,
+        message: `Visitor "${data.visitor_name}" approved.`,
+        payload: { visitorId: id },
+      };
+      await notifyUser(residentId, payload);
+    }
 
     return res.json({ ok: true, visitor: data });
   } catch (err: any) {
@@ -215,33 +192,77 @@ export async function approveVisitor(req: Request, res: Response) {
   }
 }
 
-/* MARK ENTRY */
+/**
+ * DENY VISITOR (so your "Deny" button works)
+ */
+export async function denyVisitor(req: Request, res: Response) {
+  try {
+    requireUserContext(req);
+    const id = String(req.params.id || "");
+    if (!id) return res.status(400).json({ error: "id is required" });
+
+    const { data, error } = await supabaseAdmin
+      .from("visitor_access")
+      .update({ status: "denied" })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    const residentId = data.resident_id || data.created_by;
+    if (residentId) {
+      const payload: NotificationPayload = {
+        title: "Visitor Denied",
+        type: "visitor",
+        entityId: id,
+        message: `Visitor "${data.visitor_name}" denied.`,
+        payload: { visitorId: id },
+      };
+      await notifyUser(residentId, payload);
+    }
+
+    return res.json({ ok: true, visitor: data });
+  } catch (err: any) {
+    console.error("denyVisitor error", err);
+    return res.status(500).json({ error: err.message || "denyVisitor failed" });
+  }
+}
+
+/**
+ * MARK ENTRY
+ * - FIX: ensure analytics row exists (upsert)
+ */
 export async function markEntry(req: Request, res: Response) {
   try {
-    const { estateId } = getAuthContext(req);
-    const id = req.params.id;
+    const { estateId, homeId, userId } = requireUserContext(req);
+    const id = String(req.params.id || "");
+    if (!id) return res.status(400).json({ error: "id is required" });
 
-    const { data: va, error } = await supabaseAdmin
+    // Ensure visitor exists
+    const { data: va, error: vaErr } = await supabaseAdmin
       .from("visitor_access")
       .select("*")
       .eq("id", id)
-      .eq("estate_id", estateId)
       .single();
 
-    if (error || !va) return res.status(404).json({ error: "not found" });
+    if (vaErr || !va) return res.status(404).json({ error: "visitor not found" });
 
     const arrivedAt = new Date().toISOString();
 
+    // Upsert analytics by visitor_access_id
     const { data: analytics, error: aErr } = await supabaseAdmin
       .from("visitor_analytics")
-      .insert([
+      .upsert(
         {
           visitor_access_id: id,
-          estate_id: va.estate_id,
+          estate_id: estateId,
+          home_id: homeId,
+          created_by: userId,
           arrived_at: arrivedAt,
-          created_at: arrivedAt,
-        },
-      ])
+        } as any,
+        { onConflict: "visitor_access_id" }
+      )
       .select()
       .single();
 
@@ -249,14 +270,17 @@ export async function markEntry(req: Request, res: Response) {
 
     await supabaseAdmin.from("visitor_access").update({ status: "entered" }).eq("id", id);
 
-    const payload: NotificationPayload = {
-      title: "Visitor Entered",
-      type: "visitor",
-      entityId: id,
-      message: `Visitor "${va.visitor_name}" entered estate.`,
-      payload: { visitorId: id, arrivedAt },
-    };
-    await notifyUser(va.resident_id || va.created_by, payload);
+    const residentId = va.resident_id || va.created_by;
+    if (residentId) {
+      const payload: NotificationPayload = {
+        title: "Visitor Entered",
+        type: "visitor",
+        entityId: id,
+        message: `Visitor "${va.visitor_name}" entered.`,
+        payload: { visitorId: id, arrivedAt },
+      };
+      await notifyUser(residentId, payload);
+    }
 
     return res.json({ ok: true, analytics });
   } catch (err: any) {
@@ -265,50 +289,73 @@ export async function markEntry(req: Request, res: Response) {
   }
 }
 
-/* MARK EXIT */
+/**
+ * MARK EXIT
+ * - FIX: if analytics missing, create a 0-min record instead of 404
+ */
 export async function markExit(req: Request, res: Response) {
   try {
-    const { estateId } = getAuthContext(req);
-    const id = req.params.id;
-
-    const { data: analytics, error: aErr } = await supabaseAdmin
-      .from("visitor_analytics")
-      .select("*")
-      .eq("visitor_access_id", id)
-      .eq("estate_id", estateId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (aErr || !analytics) return res.status(404).json({ error: "analytics not found" });
+    const { estateId, homeId, userId } = requireUserContext(req);
+    const id = String(req.params.id || "");
+    if (!id) return res.status(400).json({ error: "id is required" });
 
     const exitedAt = new Date().toISOString();
-    const durationMinutes = Math.round(
-      (new Date(exitedAt).getTime() - new Date(analytics.arrived_at).getTime()) / 60000
-    );
 
-    await supabaseAdmin
-      .from("visitor_analytics")
-      .update({ exited_at: exitedAt, duration_minutes: durationMinutes })
-      .eq("id", analytics.id);
-
-    await supabaseAdmin.from("visitor_access").update({ status: "exited" }).eq("id", id);
-
+    // Load visitor
     const { data: va } = await supabaseAdmin
       .from("visitor_access")
       .select("*")
       .eq("id", id)
-      .eq("estate_id", estateId)
       .single();
 
-    const payload: NotificationPayload = {
-      title: "Visitor Exited",
-      type: "visitor",
-      entityId: id,
-      message: `Visitor "${va?.visitor_name}" exited estate.`,
-      payload: { visitorId: id, exitedAt, durationMinutes },
-    };
-    await notifyUser(va?.resident_id || va?.created_by, payload);
+    if (!va) return res.status(404).json({ error: "visitor not found" });
+
+    // Try get analytics
+    const { data: analytics } = await supabaseAdmin
+      .from("visitor_analytics")
+      .select("*")
+      .eq("visitor_access_id", id)
+      .single();
+
+    let durationMinutes = 0;
+
+    if (analytics?.arrived_at) {
+      durationMinutes = Math.round(
+        (new Date(exitedAt).getTime() - new Date(analytics.arrived_at).getTime()) / 60000
+      );
+      await supabaseAdmin
+        .from("visitor_analytics")
+        .update({
+          exited_at: exitedAt,
+          duration_minutes: durationMinutes,
+        } as any)
+        .eq("visitor_access_id", id);
+    } else {
+      // Create fallback analytics
+      await supabaseAdmin.from("visitor_analytics").insert({
+        visitor_access_id: id,
+        estate_id: estateId,
+        home_id: homeId,
+        created_by: userId,
+        arrived_at: exitedAt,
+        exited_at: exitedAt,
+        duration_minutes: 0,
+      } as any);
+    }
+
+    await supabaseAdmin.from("visitor_access").update({ status: "exited" }).eq("id", id);
+
+    const residentId = va.resident_id || va.created_by;
+    if (residentId) {
+      const payload: NotificationPayload = {
+        title: "Visitor Exited",
+        type: "visitor",
+        entityId: id,
+        message: `Visitor "${va.visitor_name}" exited.`,
+        payload: { visitorId: id, exitedAt, durationMinutes },
+      };
+      await notifyUser(residentId, payload);
+    }
 
     return res.json({ ok: true, durationMinutes });
   } catch (err: any) {
@@ -317,50 +364,19 @@ export async function markExit(req: Request, res: Response) {
   }
 }
 
-/* GET ANALYTICS FOR ESTATE */
-export async function getAnalyticsForEstate(req: Request, res: Response) {
-  try {
-    const { estateId } = getAuthContext(req);
-
-    const { data: analytics, error } = await supabaseAdmin
-      .from("visitor_analytics")
-      .select("*")
-      .eq("estate_id", estateId);
-
-    if (error) return res.status(500).json({ error: error.message });
-
-    const totalVisitors = analytics.length;
-    const todayStr = new Date().toISOString().slice(0, 10);
-
-    const todayVisitors = analytics.filter((a) => a.arrived_at?.slice(0, 10) === todayStr).length;
-    const exitedVisitors = analytics.filter((a) => a.exited_at != null).length;
-
-    return res.json({
-      estateId,
-      totalVisitors,
-      todayVisitors,
-      exitedVisitors,
-      records: analytics,
-    });
-  } catch (err: any) {
-    console.error("getAnalyticsForEstate error", err);
-    return res.status(500).json({ error: err.message || "getAnalyticsForEstate failed" });
-  }
-}
-
-/* GET VISITOR INFO */
+/**
+ * GET VISITOR INFO (with analytics)
+ */
 export async function getVisitorInfo(req: Request, res: Response) {
   try {
-    const { estateId } = getAuthContext(req);
-
-    const id = req.params.id;
-    if (!id) return res.status(400).json({ error: "id required" });
+    requireUserContext(req);
+    const id = String(req.params.id || "");
+    if (!id) return res.status(400).json({ error: "id is required" });
 
     const { data, error } = await supabaseAdmin
       .from("visitor_access")
       .select("*, visitor_analytics(*)")
       .eq("id", id)
-      .eq("estate_id", estateId)
       .single();
 
     if (error || !data) return res.status(404).json({ error: "Visitor not found" });
@@ -372,12 +388,44 @@ export async function getVisitorInfo(req: Request, res: Response) {
   }
 }
 
+/**
+ * ESTATE ANALYTICS (simple)
+ */
+export async function getAnalyticsForEstate(req: Request, res: Response) {
+  try {
+    const { estateId } = requireUserContext(req);
+
+    // only allow current estate
+    const requestedEstateId = String(req.params.estateId || "");
+    if (requestedEstateId && requestedEstateId !== estateId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const { data: analytics, error } = await supabaseAdmin
+      .from("visitor_analytics")
+      .select("*")
+      .eq("estate_id", estateId);
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    return res.json({
+      estateId,
+      totalVisitors: analytics?.length || 0,
+      records: analytics || [],
+    });
+  } catch (err: any) {
+    console.error("getAnalyticsForEstate error", err);
+    return res.status(500).json({ error: err.message || "getAnalyticsForEstate failed" });
+  }
+}
+
 export default {
   createVisitor,
   verifyVisitor,
   approveVisitor,
+  denyVisitor,
   markEntry,
   markExit,
-  getAnalyticsForEstate,
   getVisitorInfo,
+  getAnalyticsForEstate,
 };
