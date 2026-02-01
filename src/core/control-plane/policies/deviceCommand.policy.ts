@@ -1,24 +1,32 @@
+// src/core/control-plane/policies/deviceCommand.policy.ts
 import { Signal } from "../contracts/signal.types";
-import { Intent, DeviceCommandIntent } from "../contracts/intent.types";
+import { Intent } from "../contracts/intent.types";
 import { INTENT_SCHEMA_VERSION } from "../contracts/versions";
 
+/**
+ * Converts a user device command signal into an executable DeviceCommandIntent
+ */
 export function deviceCommandPolicy(signal: Signal): Intent[] {
   if (signal.type !== "device.command.requested") return [];
 
-  const s: any = signal;
+  const anySig: any = signal;
+  const deviceId = anySig.deviceId;
+  const command = anySig.command;
 
-  const intent: DeviceCommandIntent = {
-    schemaVersion: INTENT_SCHEMA_VERSION,
-    target: "device",
-    reason: "user_device_command",
-    priority: "high",
-    deviceId: s.deviceId,     // this is whatever you passed in API route
-    command: s.command,       // { type: "power.on" } etc
-    context: {
-      source_signal: signal.type,
-      created_at: new Date().toISOString(),
+  if (!deviceId || !command) return [];
+
+  return [
+    {
+      schemaVersion: INTENT_SCHEMA_VERSION,
+      target: "device",
+      priority: "high",
+      reason: "user_device_command",
+      deviceId,
+      command,
+      context: {
+        source_signal: signal.type,
+        created_at: new Date().toISOString(),
+      },
     },
-  };
-
-  return [intent];
+  ];
 }
