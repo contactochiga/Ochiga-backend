@@ -5,11 +5,13 @@ import {
   NotifyIntent,
   DeviceCommandIntent,
 } from "../core/control-plane/contracts/intent.types";
+
 import { NotificationService } from "../services/NotificationService";
-import { publishDeviceAction } from "../device/bridge";
 import { intentDlqQueue } from "./intentDlqWorker";
+
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
+import { publishDeviceAction } from "../device/bridge";
 
 const connection = {
   url: process.env.REDIS_URL || "redis://localhost:6379",
@@ -104,76 +106,45 @@ async function handleNotificationIntent(intent: NotifyIntent) {
 }
 
 async function handleDeviceIntent(intent: DeviceCommandIntent) {
-  // 1) Try load device row by uuid id first
-  let device: any = null;
-
-  const byId = await supabaseAdmin
+  // 1) Load device record so we know vendor + external_id
+  const { data: device, error } = await supabaseAdmin
     .from("devices")
     .select("id, vendor, external_id, metadata, room_id, estate_id, home_id")
     .eq("id", intent.deviceId)
-    .maybeSingle();
+    .single();
 
-  if (byId.error) {
-    console.warn("⚠️ Device lookup by id failed:", byId.error.message);
-  }
-  device = byId.data || null;
-
-  // 2) Fallback: maybe intent.deviceId is actually external_id (tuya dev_id)
-  if (!device) {
-    const byExternal = await supabaseAdmin
-      .from("devices")
-      .select("id, vendor, external_id, metadata, room_id, estate_id, home_id")
-      .eq("external_id", intent.deviceId)
-      .maybeSingle();
-
-    if (byExternal.error) {
-      console.warn("⚠️ Device lookup by external_id failed:", byExternal.error.message);
-    }
-    device = byExternal.data || null;
-  }
-
-  // 3) Determine stable key to send to downstream vendor
-  // - For Tuya: MUST be external_id (tuya device id)
-  // - For MQTT fallback: can be whatever you use as device key
+  // If API passes external_id directly, fallback:
   const deviceKey = device?.external_id || intent.deviceId;
+
+  if (error) {
+    console.warn("⚠️ Device lookup failed, falling back to raw deviceId", {
+      deviceId: intent.deviceId,
+      error: error.message,
+    });
+  }
+
   const vendor = String(device?.vendor || "mqtt").toLowerCase();
 
-  // 4) Build adapter context (best-effort)
-  const ctx = {
-    estateId: device?.estate_id || null,
-    homeId: device?.home_id || null,
-    userId: (intent as any)?.requestedBy?.userId || null,
-    roomId: device?.room_id || null,
-    // If you store tuyaUid in metadata.context, pass it through:
-    credentials: {
-      tuyaUid:
-        device?.metadata?.context?.tuyaUid ||
-        device?.metadata?.tuyaUid ||
-        null,
-    },
-  };
-
-  // 5) Route by vendor
+  // 2) Execute by vendor
   if (vendor === "tuya") {
     const tuya: any = adapterRegistry.get("tuya");
-    if (!tuya) throw new Error("Tuya adapter not registered");
 
-    if (typeof tuya.executeCommand === "function") {
-      // TuyaAdapter signature: executeCommand(deviceId, command, context)
-      await tuya.executeCommand(deviceKey, intent.command, ctx);
-      return true;
+    if (!tuya?.executeCommand) {
+      throw new Error("Tuya adapter missing executeCommand()");
     }
 
-    // fallback if your registry exposes a different method name
-    if (typeof tuya.command === "function") {
-      await tuya.command(deviceKey, intent.command, ctx);
-      return true;
-    }
+    // executeCommand(deviceId, command, context) — context not used in your adapter
+    await tuya.executeCommand(deviceKey, intent.command, {
+      estateId: device?.estate_id || null,
+      homeId: device?.home_id || null,
+      roomId: device?.room_id || null,
+      userId: null,
+    });
 
-    throw new Error("Tuya adapter missing executeCommand/command method");
+    return true;
   }
 
-  // 6) Default: MQTT publish
+  // 3) Default: MQTT publish
   const topic = `ochiga/device/${deviceKey}/set`;
   await publishDeviceAction(topic, intent.command);
   return true;
