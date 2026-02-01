@@ -18,13 +18,13 @@ function isUuid(v: any) {
  * POST /devices/assign
  * Consumer claims devices into home context.
  *
- * Accepts:
- *  - { deviceIds: string[], room?: string }           (IDs only)
- *  - { devices: any[], room?: string }               (rich objects)
+ * Accepts either:
+ *  - { deviceIds: string[], room?: string }        // Tuya ids only
+ *  - { devices: any[], room?: string }            // TuyaAdapter.discover objects
  *
  * IMPORTANT:
- * - Don't write columns that might not exist (created_at/updated_at).
- * - Upsert conflict key MUST match a real unique constraint in your DB.
+ * - devices.id is UUID in DB, so we DO NOT set id.
+ * - Upsert uses (vendor, external_id) unique index.
  */
 export async function assignDevices(req: Request, res: Response) {
   try {
@@ -34,7 +34,7 @@ export async function assignDevices(req: Request, res: Response) {
     if (!user.estate_id) return res.status(400).json({ error: "User has no estate" });
     if (!user.home_id) return res.status(400).json({ error: "User has no home" });
 
-    const roomRaw = cleanText(req.body?.room);
+    const roomRaw = cleanText(req.body?.room); // could be uuid or label
 
     const incomingDevices = Array.isArray(req.body?.devices) ? req.body.devices : null;
     const deviceIds = Array.isArray(req.body?.deviceIds) ? req.body.deviceIds : null;
@@ -43,97 +43,79 @@ export async function assignDevices(req: Request, res: Response) {
       return res.status(400).json({ error: "Provide devices[] or deviceIds[]" });
     }
 
-    // Normalize into a list of device objects
-    const normalized = (incomingDevices || deviceIds!.map((id: string) => ({ externalId: id, id }))).map((d: any) => {
-      // Support TuyaAdapter.discover() output:
-      // { externalId, adapter, name, category, online, metadata }
-      const adapter = cleanText(d.adapter || d.vendor || "tuya") || "tuya";
+    const items = incomingDevices || deviceIds!.map((id: string) => ({ externalId: id, id }));
 
-      // external identifier (MUST be stable)
-      const externalId =
-        cleanText(d.externalId) ||
-        cleanText(d.external_id) ||
-        cleanText(d.vendor_device_id) ||
-        cleanText(d.dev_id) ||
-        cleanText(d.id);
+    const rows = items
+      .map((d: any) => {
+        // Support TuyaAdapter.discover() output:
+        // { externalId, adapter, name, category, online, metadata }
+        const vendor = cleanText(d.adapter || d.vendor || "tuya") || "tuya";
 
-      if (!externalId) {
-        return null;
-      }
+        const externalId =
+          cleanText(d.externalId) ||
+          cleanText(d.external_id) ||
+          cleanText(d.dev_id) ||
+          cleanText(d.vendor_device_id) ||
+          cleanText(d.id);
 
-      const name =
-        cleanText(d.name) ||
-        cleanText(d.device_name) ||
-        cleanText(d.product_name) ||
-        "Device";
+        if (!externalId) return null;
 
-      const type =
-        cleanText(d.type) ||
-        cleanText(d.category) ||
-        cleanText(d.device_type) ||
-        "device";
+        const name =
+          cleanText(d.name) ||
+          cleanText(d.device_name) ||
+          cleanText(d.product_name) ||
+          "Device";
 
-      const online =
-        typeof d.online === "boolean" ? d.online : undefined;
+        const type =
+          cleanText(d.category) ||
+          cleanText(d.type) ||
+          "device";
 
-      // raw/meta bucket
-      const meta = d.metadata || d.meta || d;
+        const online = typeof d.online === "boolean" ? d.online : undefined;
 
-      // Build a "safe" row:
-      // Keep it to columns you VERY LIKELY have: estate_id, home_id, name, type, status, protocol, meta, external_id/vendor
-      const row: any = {
-        estate_id: user.estate_id,
-        home_id: user.home_id,
+        const meta = d.metadata || d.meta || d;
 
-        // These are common in your project already
-        name,
-        type,
+        const row: any = {
+          vendor,
+          external_id: externalId,
 
-        // Store adapter/vendor + external id (best practice)
-        vendor: adapter,
-        external_id: externalId,
+          estate_id: user.estate_id,
+          home_id: user.home_id,
 
-        // optional fields
-        protocol: cleanText(d.protocol) || (Array.isArray(d.protocols) ? cleanText(d.protocols[0]) : null),
-        ip: cleanText(d.ip) || cleanText(d.metadata?.ip) || null,
-        status: cleanText(d.status) || (online === true ? "online" : online === false ? "offline" : "assigned"),
+          name,
+          type,
 
-        // jsonb
-        meta,
-      };
+          status: cleanText(d.status) || (online === true ? "online" : online === false ? "offline" : "assigned"),
+          ip: cleanText(d.ip) || cleanText(d.metadata?.ip) || null,
+          protocol: cleanText(d.protocol) || (Array.isArray(d.protocols) ? cleanText(d.protocols[0]) : null),
 
-      // Room handling: support either UUID room_id or text room
-      // If your devices table DOES NOT have room_id/room columns, remove whichever doesn’t exist.
-      if (roomRaw) {
-        if (isUuid(roomRaw)) row.room_id = roomRaw;
-        else row.room = roomRaw;
-      }
+          meta,
+          updated_at: new Date().toISOString(),
+        };
 
-      return row;
-    }).filter(Boolean);
+        // ✅ room_id is UUID in your DB (you have idx_devices_room on room_id)
+        // If frontend sends "Living Room" (not uuid), don't write room_id.
+        if (roomRaw) {
+          if (isUuid(roomRaw)) row.room_id = roomRaw;
+          else row.meta = { ...(row.meta || {}), room_label: roomRaw };
+        }
 
-    if (normalized.length === 0) {
-      return res.status(400).json({ error: "No valid devices to assign" });
-    }
+        return row;
+      })
+      .filter(Boolean);
 
-    /**
-     * ✅ Upsert conflict key
-     * You MUST have a unique constraint/index on this key.
-     * Recommended DB unique index: UNIQUE(vendor, external_id)
-     *
-     * If your DB only has external_id unique, change to: onConflict: "external_id"
-     */
+    if (rows.length === 0) return res.status(400).json({ error: "No valid devices to assign" });
+
     const { data, error } = await supabaseAdmin
       .from("devices")
-      .upsert(normalized, { onConflict: "vendor,external_id" })
+      .upsert(rows, { onConflict: "vendor,external_id" })
       .select("*");
 
     if (error) {
-      // Helpful debug output
       console.error("assignDevices upsert error:", error);
       return res.status(500).json({
         error: error.message,
-        hint: "Check devices table columns + unique constraint for (vendor, external_id).",
+        hint: "Ensure devices_vendor_external_id_uniq index exists on (vendor, external_id).",
       });
     }
 
