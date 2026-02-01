@@ -5,13 +5,13 @@ import {
   NotifyIntent,
   DeviceCommandIntent,
 } from "../core/control-plane/contracts/intent.types";
-
 import { NotificationService } from "../services/NotificationService";
+import { publishDeviceAction } from "../device/bridge";
 import { intentDlqQueue } from "./intentDlqWorker";
 
+// ✅ NEW: device lookup + adapter routing
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
-import { publishDeviceAction } from "../device/bridge";
 
 const connection = {
   url: process.env.REDIS_URL || "redis://localhost:6379",
@@ -106,15 +106,15 @@ async function handleNotificationIntent(intent: NotifyIntent) {
 }
 
 async function handleDeviceIntent(intent: DeviceCommandIntent) {
-  // 1) Load device record so we know vendor + external_id
+  // 1) Load device record (vendor + external_id)
   const { data: device, error } = await supabaseAdmin
     .from("devices")
-    .select("id, vendor, external_id, metadata, room_id, estate_id, home_id")
+    .select("id, vendor, external_id, metadata")
     .eq("id", intent.deviceId)
     .single();
 
-  // If API passes external_id directly, fallback:
-  const deviceKey = device?.external_id || intent.deviceId;
+  // fallback if caller passed external_id as deviceId
+  const deviceKey = (device?.external_id || intent.deviceId) as string;
 
   if (error) {
     console.warn("⚠️ Device lookup failed, falling back to raw deviceId", {
@@ -125,27 +125,23 @@ async function handleDeviceIntent(intent: DeviceCommandIntent) {
 
   const vendor = String(device?.vendor || "mqtt").toLowerCase();
 
-  // 2) Execute by vendor
+  // 2) Tuya routing
   if (vendor === "tuya") {
-    const tuya: any = adapterRegistry.get("tuya");
+    const tuya = adapterRegistry.get("tuya") as any;
 
     if (!tuya?.executeCommand) {
       throw new Error("Tuya adapter missing executeCommand()");
     }
 
-    // executeCommand(deviceId, command, context) — context not used in your adapter
+    // Tuya expects DP map like { switch_1: true } etc.
     await tuya.executeCommand(deviceKey, intent.command, {
-      estateId: device?.estate_id || null,
-      homeId: device?.home_id || null,
-      roomId: device?.room_id || null,
-      userId: null,
+      credentials: {}, // optional if you use credential-based calls
     });
 
-    return true;
+    return;
   }
 
-  // 3) Default: MQTT publish
+  // 3) Default MQTT publish (your existing path)
   const topic = `ochiga/device/${deviceKey}/set`;
-  await publishDeviceAction(topic, intent.command);
-  return true;
+  return publishDeviceAction(topic, intent.command);
 }
