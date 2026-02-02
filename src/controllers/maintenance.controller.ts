@@ -28,6 +28,7 @@ async function insertWithSchemaFallback<T>(
 ): Promise<T> {
   let payload: Record<string, any> = { ...(compact(row) as any) };
   let lastErrorMsg = "";
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const { data, error } = await supabaseAdmin.from(table).insert(payload).select().single();
     if (!error) return data as T;
@@ -51,12 +52,12 @@ async function insertWithSchemaFallback<T>(
 
     throw new Error(msg || "Insert failed");
   }
+
   throw new Error(lastErrorMsg || "Insert failed after removing missing columns.");
 }
 
 // --- helpers: resolve estate + home ---
 async function resolveEstateAndHome(req: AuthReq, homeId?: string | null) {
-  // if user already has estate_id on auth token, use it
   let estateId = req.user?.estate_id || undefined;
 
   // if homeId supplied, resolve estate_id from homes table (most accurate)
@@ -66,6 +67,7 @@ async function resolveEstateAndHome(req: AuthReq, homeId?: string | null) {
       .select("id, estate_id")
       .eq("id", homeId)
       .maybeSingle();
+
     if (error) throw new Error(error.message);
     if (home?.estate_id) estateId = home.estate_id;
   }
@@ -80,6 +82,7 @@ async function resolveEstateAndHome(req: AuthReq, homeId?: string | null) {
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
+
     if (memErr) throw new Error(memErr.message);
     estateId = mem?.estate_id || undefined;
   }
@@ -103,8 +106,8 @@ async function listEstateOpsUserIds(estateId: string) {
     .filter(Boolean);
 }
 
-// ✅ Notifications: inserted per-user when possible. If your notifications table
-// doesn’t have some columns, schema fallback will auto-drop them.
+// ✅ Notifications: inserted per-user when possible.
+// Schema fallback auto-drops unknown columns.
 async function notifyUsers(userIds: string[], payload: Record<string, any>) {
   const inserts = userIds.map((uid) =>
     insertWithSchemaFallback("notifications", {
@@ -118,7 +121,6 @@ async function notifyUsers(userIds: string[], payload: Record<string, any>) {
 }
 
 async function notifyEstate(estateId: string, payload: Record<string, any>) {
-  // for setups where notifications are estate-scoped only
   await insertWithSchemaFallback("notifications", {
     estate_id: estateId,
     ...payload,
@@ -127,16 +129,55 @@ async function notifyEstate(estateId: string, payload: Record<string, any>) {
   });
 }
 
+// =====================================================
+// CONSUMER (HOME APP)
+// =====================================================
+
 /**
- * CONSUMER: POST /consumer/maintenance
- * Creates maintenance request and notifies facility ops
+ * GET /maintenance
+ * Return "my tickets" for this user within their estate (and optionally home if your DB stores it)
+ */
+export async function listMyMaintenance(req: AuthReq, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    // optionally accept home_id query: /maintenance?home_id=...
+    const homeId = (req.query?.home_id as string) || null;
+    const { estateId, homeId: resolvedHomeId } = await resolveEstateAndHome(req, homeId);
+
+    if (!estateId) return res.status(400).json({ error: "No estate linked" });
+
+    // requested_by is your canonical requester field
+    // if your table uses user_id instead, we OR it safely using Supabase "or"
+    const { data, error } = await supabaseAdmin
+      .from("maintenance_requests")
+      .select("*")
+      .eq("estate_id", estateId)
+      .or(`requested_by.eq.${userId},user_id.eq.${userId}`)
+      // if home exists and you want home-specific view, uncomment:
+      // .eq("home_id", resolvedHomeId || undefined)
+      .order("created_at", { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    return res.json({ tickets: data || [] });
+  } catch (e: any) {
+    console.error("listMyMaintenance error:", e?.message || e);
+    return res.status(500).json({ error: e.message || "Server error" });
+  }
+}
+
+/**
+ * POST /maintenance
+ * Creates maintenance request and notifies facility ops + requester
  */
 export async function createMaintenance(req: AuthReq, res: Response) {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { home_id, title, description, priority } = req.body || {};
+    const { home_id, title, description, category, priority } = req.body || {};
     const { estateId, homeId } = await resolveEstateAndHome(req, home_id);
 
     if (!estateId) return res.status(400).json({ error: "No estate linked" });
@@ -145,9 +186,14 @@ export async function createMaintenance(req: AuthReq, res: Response) {
       estate_id: estateId,
       home_id: homeId,
       requested_by: userId,
+
       title: title || "Maintenance request",
       description: description || null,
-      priority: priority || "normal",
+
+      // ✅ these may not exist in your schema; fallback removes if missing
+      category: category || "general",
+      priority: priority || "medium",
+
       status: "open",
       created_at: new Date().toISOString(),
     });
@@ -165,7 +211,6 @@ export async function createMaintenance(req: AuthReq, res: Response) {
         entity_id: request.id,
       });
     } else {
-      // still push an estate-scoped notification if no per-user ops resolved
       await notifyEstate(estateId, {
         type: "maintenance_request",
         title: "New maintenance request",
@@ -192,8 +237,27 @@ export async function createMaintenance(req: AuthReq, res: Response) {
   }
 }
 
+// =====================================================
+// FACILITY (CONTROL ROOM)
+// =====================================================
+
+async function assertCanManageEstate(userId: string, estateId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("estate_memberships")
+    .select("role, status")
+    .eq("estate_id", estateId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data || data.status !== "active") return false;
+
+  const manageRoles = new Set(["owner", "admin", "manager", "security"]);
+  return manageRoles.has(String(data.role || "").toLowerCase());
+}
+
 /**
- * FACILITY: GET /facility/maintenance
+ * GET /facility/maintenance
  * Lists requests for estate
  */
 export async function listFacilityMaintenance(req: AuthReq, res: Response) {
@@ -201,9 +265,13 @@ export async function listFacilityMaintenance(req: AuthReq, res: Response) {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    // resolve estate (membership fallback)
     const { estateId } = await resolveEstateAndHome(req, null);
     if (!estateId) return res.status(400).json({ error: "No estate linked" });
+
+    const canManage = await assertCanManageEstate(userId, estateId);
+    if (!canManage && req.user?.role !== "admin") {
+      return res.status(403).json({ error: "Not allowed" });
+    }
 
     const { data, error } = await supabaseAdmin
       .from("maintenance_requests")
@@ -221,8 +289,8 @@ export async function listFacilityMaintenance(req: AuthReq, res: Response) {
 }
 
 /**
- * FACILITY: PATCH /facility/maintenance/:id
- * Updates status/assignment and notifies requester
+ * PATCH /facility/maintenance/:id
+ * Updates status/assignment and notifies requester + ops
  */
 export async function updateMaintenance(req: AuthReq, res: Response) {
   try {
@@ -242,6 +310,11 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
     if (exErr) return res.status(500).json({ error: exErr.message });
     if (!existing) return res.status(404).json({ error: "Not found" });
 
+    const canManage = await assertCanManageEstate(userId, existing.estate_id);
+    if (!canManage && req.user?.role !== "admin") {
+      return res.status(403).json({ error: "Not allowed" });
+    }
+
     const { data: updated, error } = await supabaseAdmin
       .from("maintenance_requests")
       .update(
@@ -257,7 +330,7 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
 
     if (error) return res.status(400).json({ error: error.message });
 
-    // notify requester if we know them
+    // notify requester
     const requesterId = existing.requested_by || existing.user_id || null;
     if (requesterId) {
       await notifyUsers([requesterId], {
@@ -273,7 +346,7 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
       });
     }
 
-    // notify ops too (so other managers see approval changes)
+    // notify ops
     const opsUserIds = await listEstateOpsUserIds(existing.estate_id);
     if (opsUserIds.length) {
       await notifyUsers(opsUserIds, {
