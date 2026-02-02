@@ -28,6 +28,7 @@ async function insertWithSchemaFallback<T>(
 ): Promise<T> {
   let payload: Record<string, any> = { ...(compact(row) as any) };
   let lastErrorMsg = "";
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const { data, error } = await supabaseAdmin.from(table).insert(payload).select().single();
     if (!error) return data as T;
@@ -51,6 +52,7 @@ async function insertWithSchemaFallback<T>(
 
     throw new Error(msg || "Insert failed");
   }
+
   throw new Error(lastErrorMsg || "Insert failed after removing missing columns.");
 }
 
@@ -58,6 +60,7 @@ async function insertWithSchemaFallback<T>(
 async function resolveEstateAndHome(req: AuthReq, homeId?: string | null) {
   let estateId = req.user?.estate_id || undefined;
 
+  // If home_id is supplied, it is the “plot/house” inside the estate.
   if (homeId) {
     const { data: home, error } = await supabaseAdmin
       .from("homes")
@@ -69,6 +72,7 @@ async function resolveEstateAndHome(req: AuthReq, homeId?: string | null) {
     if (home?.estate_id) estateId = home.estate_id;
   }
 
+  // fallback: membership estate
   if (!estateId && req.user?.id) {
     const { data: mem, error: memErr } = await supabaseAdmin
       .from("estate_memberships")
@@ -102,7 +106,6 @@ async function listEstateOpsUserIds(estateId: string) {
     .filter(Boolean);
 }
 
-// ✅ Notifications insert helpers
 async function notifyUsers(userIds: string[], payload: Record<string, any>) {
   const inserts = userIds.map((uid) =>
     insertWithSchemaFallback("notifications", {
@@ -126,22 +129,29 @@ async function notifyEstate(estateId: string, payload: Record<string, any>) {
 
 /**
  * CONSUMER: GET /maintenance
- * List my requests (optional filter by status)
+ * List my maintenance tickets (optionally filter by status)
  */
 export async function listMyMaintenance(req: AuthReq, res: Response) {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const status = String((req.query.status as any) || "").trim();
+    const status = String(req.query.status || "").trim();
+    const { estateId } = await resolveEstateAndHome(req, null);
 
+    // We allow listing even if estateId is missing, but it’s nicer to filter by estate if available.
     let q = supabaseAdmin
       .from("maintenance_requests")
       .select("*")
       .eq("requested_by", userId)
       .order("created_at", { ascending: false });
 
-    if (status) q = q.eq("status", status);
+    if (estateId) q = q.eq("estate_id", estateId);
+
+    if (status) {
+      // support ?status=open or ?status=in_progress etc.
+      q = q.eq("status", status);
+    }
 
     const { data, error } = await q;
     if (error) return res.status(500).json({ error: error.message });
@@ -149,7 +159,7 @@ export async function listMyMaintenance(req: AuthReq, res: Response) {
     return res.json({ requests: data || [] });
   } catch (e: any) {
     console.error("listMyMaintenance error:", e?.message || e);
-    return res.status(500).json({ error: e.message || "Failed to list maintenance" });
+    return res.status(500).json({ error: e.message || "Failed to load maintenance" });
   }
 }
 
@@ -162,7 +172,7 @@ export async function createMaintenance(req: AuthReq, res: Response) {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { home_id, title, description, priority, category } = req.body || {};
+    const { home_id, title, description, priority } = req.body || {};
     const { estateId, homeId } = await resolveEstateAndHome(req, home_id);
 
     if (!estateId) return res.status(400).json({ error: "No estate linked" });
@@ -174,7 +184,6 @@ export async function createMaintenance(req: AuthReq, res: Response) {
       title: title || "Maintenance request",
       description: description || null,
       priority: priority || "normal",
-      category: category || "general",
       status: "open",
       created_at: new Date().toISOString(),
     });
@@ -218,7 +227,7 @@ export async function createMaintenance(req: AuthReq, res: Response) {
 
 /**
  * FACILITY: GET /facility/maintenance
- * Lists all requests in the current estate (ops view)
+ * Lists requests for estate
  */
 export async function listFacilityMaintenance(req: AuthReq, res: Response) {
   try {
@@ -245,7 +254,7 @@ export async function listFacilityMaintenance(req: AuthReq, res: Response) {
 
 /**
  * FACILITY: PATCH /facility/maintenance/:id
- * Update status/assignment and notify requester + ops
+ * Updates status/assignment and notifies requester + ops
  */
 export async function updateMaintenance(req: AuthReq, res: Response) {
   try {
@@ -285,10 +294,9 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
         estate_id: existing.estate_id,
         type: "maintenance_update",
         title: "Maintenance updated",
-        message:
-          status
-            ? `Your request is now: ${String(status).replaceAll("_", " ")}${note ? ` — ${note}` : ""}`
-            : `Your request was updated${note ? ` — ${note}` : ""}`,
+        message: status
+          ? `Your request is now: ${String(status).replaceAll("_", " ")}${note ? ` — ${note}` : ""}`
+          : `Your request was updated${note ? ` — ${note}` : ""}`,
         entity_type: "maintenance",
         entity_id: id,
       });
