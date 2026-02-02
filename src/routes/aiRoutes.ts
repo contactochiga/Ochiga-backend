@@ -113,4 +113,3 @@ ${JSON.stringify(devices)}
   }
 });
 
-export default router;
