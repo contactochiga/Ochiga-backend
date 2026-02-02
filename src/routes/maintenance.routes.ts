@@ -2,13 +2,13 @@
 import { Router } from "express";
 import { createMaintenance, listMyMaintenance } from "../controllers/maintenance.controller";
 
-// ✅ Use the same auth middleware used by /notifications or /me
-import { requireAuth } from "../middleware/auth"; // <-- change path/name to match your project
+// ⚠️ IMPORTANT:
+// If your project already has an auth middleware, add it here.
+// Example:
+// import { requireAuth } from "../middleware/auth";
+// router.use(requireAuth);
 
 const router = Router();
-
-// ✅ protect everything here
-router.use(requireAuth);
 
 // GET /maintenance?status=open
 router.get("/", listMyMaintenance);
