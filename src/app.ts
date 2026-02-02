@@ -34,6 +34,10 @@ import meRoutes from "./routes/me.routes";
 // ✅ Notifications routes (GET /notifications, POST /notifications/read/:id)
 import notificationsRoutes from "./routes/notifications";
 
+// ✅ NEW: Maintenance routes
+import maintenanceRoutes from "./routes/maintenance.routes";
+import facilityMaintenanceRoutes from "./routes/facilityMaintenance.routes";
+
 const app = express();
 
 // ✅ important for Render/Vercel reverse proxy (cookies/https)
@@ -58,30 +62,27 @@ const allowList = new Set([
   "capacitor://localhost",
   "ionic://localhost",
 
-  // ✅ PRODUCTION: GETOYI (this is the one blocking you)
+  // ✅ PRODUCTION: GETOYI
   "https://getoyi.com",
   "https://www.getoyi.com",
 
-  // If you still have older domains in use, keep them
+  // Older domains
   "https://oyi.com",
   "https://www.oyi.com",
   "https://facility.oyi.com",
 
-  // Render backend (not strictly required as an Origin, but harmless)
+  // Render backend
   "https://oyi-os.onrender.com",
 ]);
 
 function isAllowedOrigin(origin: string) {
   if (!origin) return true;
 
-  // ✅ allow known origins
   if (allowList.has(origin)) return true;
 
-  // ✅ allow capacitor/ionic schemes (some platforms include extra path/port)
   if (origin.startsWith("capacitor://")) return true;
   if (origin.startsWith("ionic://")) return true;
 
-  // ✅ allow preview hosts
   if (origin.endsWith(".vercel.app")) return true;
   if (origin.endsWith(".github.dev")) return true;
 
@@ -90,7 +91,6 @@ function isAllowedOrigin(origin: string) {
 
 const corsMiddleware = cors({
   origin: (origin, callback) => {
-    // Some native requests may not send Origin
     if (!origin) return callback(null, true);
 
     if (isAllowedOrigin(origin)) return callback(null, true);
@@ -117,7 +117,7 @@ app.options("*", corsMiddleware);
 // -------------------------------
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser()); // ✅ required for req.cookies
+app.use(cookieParser());
 app.use(morgan("dev"));
 
 // -------------------------------
@@ -157,6 +157,14 @@ app.use("/devices", devicesRoutes);
 
 app.use("/ai", aiRoutes);
 app.use("/visitors", visitorRoutes);
+
+// ✅ NEW: consumer maintenance create (POST /maintenance)
+app.use("/maintenance", maintenanceRoutes);
+
+// ✅ NEW: facility maintenance list/update
+// GET /facility/maintenance
+// PATCH /facility/maintenance/:id
+app.use("/facility/maintenance", facilityMaintenanceRoutes);
 
 app.use("/community", communityRoutes);
 app.use("/wallets", walletRoutes);
