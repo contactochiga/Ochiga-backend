@@ -10,91 +10,61 @@ function isUuid(v: string) {
 
 export async function requestDeviceCommand(req: Request, res: Response) {
   try {
-    const rawDeviceId = String(req.params.deviceId || "");
+    const rawId = String(req.params.deviceId || "").trim();
     const command = req.body?.command;
 
-    if (!rawDeviceId) return res.status(400).json({ error: "deviceId is required" });
-    if (!command || typeof command !== "object")
-      return res.status(400).json({ error: "command is required (object)" });
+    if (!rawId) return res.status(400).json({ error: "deviceId is required" });
+    if (!command) return res.status(400).json({ error: "command is required" });
 
-    const user = req.user as any;
+    const user = (req as any).user;
     if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-    // ------------------------------------------
-    // Normalize device ID:
-    // - if UUID: use it
-    // - else: treat as external_id and resolve
-    // ------------------------------------------
-    let deviceUuid: string | null = null;
-    let externalId: string | null = null;
-    let vendor: string | null = null;
+    // 🔥 Normalize device reference: allow UUID or external_id
+    let deviceRow: any = null;
 
-    if (isUuid(rawDeviceId)) {
-      deviceUuid = rawDeviceId;
+    if (isUuid(rawId)) {
       const { data } = await supabaseAdmin
         .from("devices")
-        .select("id, external_id, vendor")
-        .eq("id", rawDeviceId)
+        .select("id, vendor, external_id, estate_id, home_id, room_id")
+        .eq("id", rawId)
         .maybeSingle();
-
-      if (data) {
-        externalId = data.external_id || null;
-        vendor = data.vendor || null;
-      }
+      deviceRow = data;
     } else {
-      externalId = rawDeviceId;
-
-      const { data, error } = await supabaseAdmin
+      const { data } = await supabaseAdmin
         .from("devices")
-        .select("id, external_id, vendor")
-        .eq("external_id", rawDeviceId)
+        .select("id, vendor, external_id, estate_id, home_id, room_id")
+        .eq("external_id", rawId)
         .maybeSingle();
-
-      if (error) {
-        console.warn("⚠️ device external_id lookup failed:", error.message);
-      }
-
-      if (!data?.id) {
-        return res.status(404).json({
-          error: "Device not found",
-          details: "No device row matches this external_id",
-          external_id: rawDeviceId,
-        });
-      }
-
-      deviceUuid = data.id;
-      vendor = data.vendor || null;
+      deviceRow = data;
     }
 
-    if (!deviceUuid) {
-      return res.status(404).json({ error: "Device not found" });
-    }
+    // If not found, still queue — but worker will fallback and likely fail safely
+    const deviceRef = deviceRow?.id || rawId;
 
-    // Push into Control Plane as canonical UUID
     await handleSignal({
       schemaVersion: SIGNAL_SCHEMA_VERSION,
       source: "user",
       type: "device.command.requested",
       timestamp: new Date().toISOString(),
-      deviceId: deviceUuid,
+      deviceId: deviceRef, // ✅ now mostly a UUID
       command,
       requestedBy: {
         userId: user.id,
         role: user.role,
       },
-      // Helpful metadata for workers + debugging
+      // OPTIONAL: give worker a hint
       metadata: {
-        vendor,
-        external_id: externalId,
+        raw_device_ref: rawId,
+        resolved_device_uuid: deviceRow?.id || null,
       },
-    } as any);
+    });
 
     return res.status(202).json({
       ok: true,
       status: "command_queued",
-      deviceId: deviceUuid,
-      external_id: externalId,
-      vendor,
+      device: deviceRow
+        ? { id: deviceRow.id, external_id: deviceRow.external_id, vendor: deviceRow.vendor }
+        : { ref: rawId },
     });
   } catch (e: any) {
     console.error("requestDeviceCommand error:", e?.message || e);
