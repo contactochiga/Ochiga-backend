@@ -28,7 +28,6 @@ async function insertWithSchemaFallback<T>(
 ): Promise<T> {
   let payload: Record<string, any> = { ...(compact(row) as any) };
   let lastErrorMsg = "";
-
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const { data, error } = await supabaseAdmin.from(table).insert(payload).select().single();
     if (!error) return data as T;
@@ -52,7 +51,6 @@ async function insertWithSchemaFallback<T>(
 
     throw new Error(msg || "Insert failed");
   }
-
   throw new Error(lastErrorMsg || "Insert failed after removing missing columns.");
 }
 
@@ -104,6 +102,7 @@ async function listEstateOpsUserIds(estateId: string) {
     .filter(Boolean);
 }
 
+// ✅ Notifications insert helpers
 async function notifyUsers(userIds: string[], payload: Record<string, any>) {
   const inserts = userIds.map((uid) =>
     insertWithSchemaFallback("notifications", {
@@ -127,7 +126,7 @@ async function notifyEstate(estateId: string, payload: Record<string, any>) {
 
 /**
  * CONSUMER: GET /maintenance
- * List my requests (optionally filter by status)
+ * List my requests (optional filter by status)
  */
 export async function listMyMaintenance(req: AuthReq, res: Response) {
   try {
@@ -214,5 +213,102 @@ export async function createMaintenance(req: AuthReq, res: Response) {
   } catch (e: any) {
     console.error("createMaintenance error:", e?.message || e);
     return res.status(400).json({ error: e.message || "Failed to create maintenance" });
+  }
+}
+
+/**
+ * FACILITY: GET /facility/maintenance
+ * Lists all requests in the current estate (ops view)
+ */
+export async function listFacilityMaintenance(req: AuthReq, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { estateId } = await resolveEstateAndHome(req, null);
+    if (!estateId) return res.status(400).json({ error: "No estate linked" });
+
+    const { data, error } = await supabaseAdmin
+      .from("maintenance_requests")
+      .select("*")
+      .eq("estate_id", estateId)
+      .order("created_at", { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    return res.json({ requests: data || [] });
+  } catch (e: any) {
+    console.error("listFacilityMaintenance error:", e?.message || e);
+    return res.status(500).json({ error: e.message || "Server error" });
+  }
+}
+
+/**
+ * FACILITY: PATCH /facility/maintenance/:id
+ * Update status/assignment and notify requester + ops
+ */
+export async function updateMaintenance(req: AuthReq, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = req.params.id;
+    const { status, assigned_to, note } = req.body || {};
+
+    const { data: existing, error: exErr } = await supabaseAdmin
+      .from("maintenance_requests")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (exErr) return res.status(500).json({ error: exErr.message });
+    if (!existing) return res.status(404).json({ error: "Not found" });
+
+    const { data: updated, error } = await supabaseAdmin
+      .from("maintenance_requests")
+      .update(
+        compact({
+          status,
+          assigned_to,
+          updated_at: new Date().toISOString(),
+        })
+      )
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) return res.status(400).json({ error: error.message });
+
+    const requesterId = existing.requested_by || existing.user_id || null;
+    if (requesterId) {
+      await notifyUsers([requesterId], {
+        estate_id: existing.estate_id,
+        type: "maintenance_update",
+        title: "Maintenance updated",
+        message:
+          status
+            ? `Your request is now: ${String(status).replaceAll("_", " ")}${note ? ` — ${note}` : ""}`
+            : `Your request was updated${note ? ` — ${note}` : ""}`,
+        entity_type: "maintenance",
+        entity_id: id,
+      });
+    }
+
+    const opsUserIds = await listEstateOpsUserIds(existing.estate_id);
+    if (opsUserIds.length) {
+      await notifyUsers(opsUserIds, {
+        estate_id: existing.estate_id,
+        type: "maintenance_ops_update",
+        title: "Maintenance status changed",
+        message: `${existing.title || "Request"} → ${String(updated.status || status || "updated")}`,
+        entity_type: "maintenance",
+        entity_id: id,
+      });
+    }
+
+    return res.json({ message: "Updated", request: updated });
+  } catch (e: any) {
+    console.error("updateMaintenance error:", e?.message || e);
+    return res.status(500).json({ error: e.message || "Server error" });
   }
 }
