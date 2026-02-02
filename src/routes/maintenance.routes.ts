@@ -2,17 +2,18 @@
 import { Router } from "express";
 import { createMaintenance, listMyMaintenance } from "../controllers/maintenance.controller";
 
-// IMPORTANT: Use your existing auth middleware here.
-// Example (rename to your real file):
-// import { requireAuth } from "../middleware/auth";
-// If you already attach req.user earlier globally, then you can skip requireAuth.
+// ✅ Use the same auth middleware used by /notifications or /me
+import { requireAuth } from "../middleware/auth"; // <-- change path/name to match your project
 
 const router = Router();
 
-// GET /maintenance  -> list my tickets
+// ✅ protect everything here
+router.use(requireAuth);
+
+// GET /maintenance?status=open
 router.get("/", listMyMaintenance);
 
-// POST /maintenance -> create request
+// POST /maintenance
 router.post("/", createMaintenance);
 
 export default router;
