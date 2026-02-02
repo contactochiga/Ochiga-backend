@@ -36,7 +36,10 @@ import notificationsRoutes from "./routes/notifications";
 
 // ✅ NEW: Maintenance routes
 import maintenanceRoutes from "./routes/maintenance.routes";
-import facilityMaintenanceRoutes from "./routes/facilityMaintenance.routes";
+
+// ✅ IMPORTANT: this MUST match the actual filename:
+// src/routes/facilityMaintenanceRoutes.ts
+import facilityMaintenanceRoutes from "./routes/facilityMaintenanceRoutes";
 
 const app = express();
 
@@ -100,12 +103,7 @@ const corsMiddleware = cors({
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "x-otp-token",
-    "X-Requested-With",
-  ],
+  allowedHeaders: ["Content-Type", "Authorization", "x-otp-token", "X-Requested-With"],
   optionsSuccessStatus: 204,
 });
 
@@ -158,10 +156,10 @@ app.use("/devices", devicesRoutes);
 app.use("/ai", aiRoutes);
 app.use("/visitors", visitorRoutes);
 
-// ✅ NEW: consumer maintenance create (POST /maintenance)
+// ✅ consumer maintenance create (POST /maintenance)
 app.use("/maintenance", maintenanceRoutes);
 
-// ✅ NEW: facility maintenance list/update
+// ✅ facility maintenance list/update
 // GET /facility/maintenance
 // PATCH /facility/maintenance/:id
 app.use("/facility/maintenance", facilityMaintenanceRoutes);
