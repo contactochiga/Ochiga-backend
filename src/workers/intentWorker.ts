@@ -8,8 +8,6 @@ import {
 import { NotificationService } from "../services/NotificationService";
 import { publishDeviceAction } from "../device/bridge";
 import { intentDlqQueue } from "./intentDlqWorker";
-
-// ✅ NEW: device lookup + adapter routing
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
 
@@ -61,7 +59,6 @@ export function startIntentWorker() {
   // -----------------------------
   worker.on("failed", async (job) => {
     if (!job) return;
-
     if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
       await intentDlqQueue.add("dlq", job.data);
     }
@@ -74,11 +71,11 @@ export function startIntentWorker() {
 // Type Guards
 // -----------------------------
 function isNotificationIntent(intent: Intent): intent is NotifyIntent {
-  return (intent as NotifyIntent).payload !== undefined;
+  return (intent as NotifyIntent).payload !== undefined && (intent as any).target === "notification";
 }
 
 function isDeviceIntent(intent: Intent): intent is DeviceCommandIntent {
-  return (intent as DeviceCommandIntent).deviceId !== undefined;
+  return (intent as DeviceCommandIntent).deviceId !== undefined && (intent as any).target === "device";
 }
 
 // -----------------------------
@@ -90,58 +87,62 @@ async function handleNotificationIntent(intent: NotifyIntent) {
   switch (scope) {
     case "user":
       return NotificationService.sendToUser(referenceId, payload);
-
     case "home":
       return NotificationService.sendToHome(referenceId, payload);
-
     case "estate":
       return NotificationService.sendToEstate(referenceId, payload);
-
     case "region":
       return NotificationService.sendToRole(referenceId, "resident", payload);
-
     default:
       throw new Error("Unhandled notification scope");
   }
 }
 
 async function handleDeviceIntent(intent: DeviceCommandIntent) {
-  // 1) Load device record (vendor + external_id)
+  // Load device row (we need vendor + external_id)
   const { data: device, error } = await supabaseAdmin
     .from("devices")
-    .select("id, vendor, external_id, metadata")
+    .select("id, vendor, external_id, metadata, room_id, estate_id, home_id")
     .eq("id", intent.deviceId)
-    .single();
-
-  // fallback if caller passed external_id as deviceId
-  const deviceKey = (device?.external_id || intent.deviceId) as string;
+    .maybeSingle();
 
   if (error) {
-    console.warn("⚠️ Device lookup failed, falling back to raw deviceId", {
-      deviceId: intent.deviceId,
-      error: error.message,
-    });
+    console.warn("⚠️ Device lookup error:", { deviceId: intent.deviceId, error: error.message });
   }
+
+  // If missing, fallback (rare) using metadata.external_id if present
+  const externalId =
+    device?.external_id ||
+    (device?.metadata as any)?.external_id ||
+    (device?.metadata as any)?.externalId ||
+    null;
 
   const vendor = String(device?.vendor || "mqtt").toLowerCase();
 
-  // 2) Tuya routing
+  // Route by vendor
   if (vendor === "tuya") {
-    const tuya = adapterRegistry.get("tuya") as any;
-
-    if (!tuya?.executeCommand) {
-      throw new Error("Tuya adapter missing executeCommand()");
+    if (!externalId) {
+      throw new Error("Tuya device missing external_id (cannot send command to Tuya)");
     }
 
-    // Tuya expects DP map like { switch_1: true } etc.
-    await tuya.executeCommand(deviceKey, intent.command, {
-      credentials: {}, // optional if you use credential-based calls
-    });
+    const tuya = adapterRegistry.get("tuya") as any;
+    if (!tuya?.executeCommand) {
+      throw new Error("Tuya adapter not registered or missing executeCommand()");
+    }
 
-    return;
+    // Optional context if your adapter later needs it
+    const context = {
+      estateId: device?.estate_id ?? null,
+      homeId: device?.home_id ?? null,
+      userId: null,
+      credentials: (device?.metadata as any)?.credentials,
+    };
+
+    return tuya.executeCommand(externalId, intent.command, context);
   }
 
-  // 3) Default MQTT publish (your existing path)
+  // Default MQTT route (deviceKey can be UUID or externalId depending on your MQTT device naming)
+  const deviceKey = externalId || intent.deviceId;
   const topic = `ochiga/device/${deviceKey}/set`;
   return publishDeviceAction(topic, intent.command);
 }
