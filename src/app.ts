@@ -32,7 +32,7 @@ import invitesRoutes from "./routes/invites.routes";
 import meRoutes from "./routes/me.routes";
 
 // ✅ Notifications routes (GET /notifications, POST /notifications/read/:id)
-import notificationsRoutes from "./routes/notifications"; // ✅ ADD THIS
+import notificationsRoutes from "./routes/notifications";
 
 const app = express();
 
@@ -58,10 +58,16 @@ const allowList = new Set([
   "capacitor://localhost",
   "ionic://localhost",
 
-  // Production domains
+  // ✅ PRODUCTION: GETOYI (this is the one blocking you)
+  "https://getoyi.com",
+  "https://www.getoyi.com",
+
+  // If you still have older domains in use, keep them
   "https://oyi.com",
   "https://www.oyi.com",
   "https://facility.oyi.com",
+
+  // Render backend (not strictly required as an Origin, but harmless)
   "https://oyi-os.onrender.com",
 ]);
 
@@ -142,8 +148,8 @@ app.use("/invites", invitesRoutes);
 // GET /me/context -> { estate, home }
 app.use("/me", meRoutes);
 
-// ✅ notifications (THIS FIXES YOUR 404)
-app.use("/notifications", notificationsRoutes); // ✅ ADD THIS
+// ✅ notifications
+app.use("/notifications", notificationsRoutes);
 
 app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);
