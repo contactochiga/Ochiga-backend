@@ -5,7 +5,8 @@ import OpenAI from "openai";
 const router = Router();
 
 const apiKey = process.env.OPENAI_API_KEY;
-if (!apiKey) console.warn("OPENAI_API_KEY not set — /ai/chat will run in fallback mode.");
+if (!apiKey)
+  console.warn("OPENAI_API_KEY not set — /ai/chat will run in fallback mode.");
 
 const client = apiKey ? new OpenAI({ apiKey }) : null;
 
@@ -25,7 +26,8 @@ router.post("/chat", async (req, res) => {
   // ✅ Fallback if no key configured
   if (!client) {
     const fallback: AIChatResponse = {
-      reply: "AI is not enabled on the backend yet (OPENAI_API_KEY missing). But your system is online ✅",
+      reply:
+        "AI is not enabled on the backend yet (OPENAI_API_KEY missing). But your system is online ✅",
       panel: null,
       deviceId: null,
     };
@@ -70,7 +72,9 @@ ${JSON.stringify(devices)}
     } catch {
       const first = text.indexOf("{");
       const last = text.lastIndexOf("}");
-      if (first !== -1 && last !== -1) parsed = JSON.parse(text.slice(first, last + 1));
+      if (first !== -1 && last !== -1) {
+        parsed = JSON.parse(text.slice(first, last + 1));
+      }
     }
 
     if (!parsed || typeof parsed.reply !== "string") {
@@ -113,3 +117,4 @@ ${JSON.stringify(devices)}
   }
 });
 
+export default router;
