@@ -59,6 +59,7 @@ export function startIntentWorker() {
   // -----------------------------
   worker.on("failed", async (job) => {
     if (!job) return;
+
     if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
       await intentDlqQueue.add("dlq", job.data);
     }
@@ -71,11 +72,11 @@ export function startIntentWorker() {
 // Type Guards
 // -----------------------------
 function isNotificationIntent(intent: Intent): intent is NotifyIntent {
-  return (intent as NotifyIntent).payload !== undefined && (intent as any).target === "notification";
+  return (intent as NotifyIntent).payload !== undefined;
 }
 
 function isDeviceIntent(intent: Intent): intent is DeviceCommandIntent {
-  return (intent as DeviceCommandIntent).deviceId !== undefined && (intent as any).target === "device";
+  return (intent as DeviceCommandIntent).deviceId !== undefined;
 }
 
 // -----------------------------
@@ -98,51 +99,57 @@ async function handleNotificationIntent(intent: NotifyIntent) {
   }
 }
 
-async function handleDeviceIntent(intent: DeviceCommandIntent) {
-  // Load device row (we need vendor + external_id)
-  const { data: device, error } = await supabaseAdmin
-    .from("devices")
-    .select("id, vendor, external_id, metadata, room_id, estate_id, home_id")
-    .eq("id", intent.deviceId)
-    .maybeSingle();
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
 
-  if (error) {
-    console.warn("⚠️ Device lookup error:", { deviceId: intent.deviceId, error: error.message });
+async function handleDeviceIntent(intent: DeviceCommandIntent) {
+  const rawRef = String(intent.deviceId || "").trim();
+
+  // 1) Resolve device row by UUID or by external_id
+  let device: any = null;
+
+  if (isUuid(rawRef)) {
+    const { data } = await supabaseAdmin
+      .from("devices")
+      .select("id, vendor, external_id, metadata, room_id, estate_id, home_id")
+      .eq("id", rawRef)
+      .maybeSingle();
+    device = data;
+  } else {
+    const { data } = await supabaseAdmin
+      .from("devices")
+      .select("id, vendor, external_id, metadata, room_id, estate_id, home_id")
+      .eq("external_id", rawRef)
+      .maybeSingle();
+    device = data;
   }
 
-  // If missing, fallback (rare) using metadata.external_id if present
-  const externalId =
-    device?.external_id ||
-    (device?.metadata as any)?.external_id ||
-    (device?.metadata as any)?.externalId ||
-    null;
-
+  // deviceKey is what vendor uses to control:
+  // - Tuya: external_id
+  // - MQTT legacy: could be external_id or id
   const vendor = String(device?.vendor || "mqtt").toLowerCase();
+  const deviceKey = device?.external_id || rawRef;
 
-  // Route by vendor
+  // 2) Route by vendor
   if (vendor === "tuya") {
-    if (!externalId) {
-      throw new Error("Tuya device missing external_id (cannot send command to Tuya)");
-    }
-
     const tuya = adapterRegistry.get("tuya") as any;
     if (!tuya?.executeCommand) {
-      throw new Error("Tuya adapter not registered or missing executeCommand()");
+      throw new Error("Tuya adapter missing executeCommand");
     }
 
-    // Optional context if your adapter later needs it
-    const context = {
-      estateId: device?.estate_id ?? null,
-      homeId: device?.home_id ?? null,
-      userId: null,
-      credentials: (device?.metadata as any)?.credentials,
-    };
+    // ✅ send to Tuya cloud with external_id
+    await tuya.executeCommand(deviceKey, intent.command, {
+      estateId: device?.estate_id,
+      homeId: device?.home_id,
+      roomId: device?.room_id,
+    });
 
-    return tuya.executeCommand(externalId, intent.command, context);
+    return { ok: true, vendor: "tuya", deviceKey };
   }
 
-  // Default MQTT route (deviceKey can be UUID or externalId depending on your MQTT device naming)
-  const deviceKey = externalId || intent.deviceId;
+  // 3) Default: MQTT publish (legacy)
   const topic = `ochiga/device/${deviceKey}/set`;
-  return publishDeviceAction(topic, intent.command);
+  await publishDeviceAction(topic, intent.command);
+  return { ok: true, vendor: "mqtt", topic };
 }
