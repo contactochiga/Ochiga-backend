@@ -1,13 +1,15 @@
 // src/routes/facilityMaintenanceRoutes.ts
 import { Router } from "express";
-import { listFacilityMaintenance, updateMaintenance } from "../controllers/maintenance.controller";
+import {
+  listFacilityMaintenance,
+  updateMaintenance,
+} from "../controllers/maintenance.controller";
 
-// ✅ use your existing auth middleware (same one used in /facility routes)
-import { requireAuth } from "../middleware/auth"; // change if your project uses a different name/path
+// If you have an auth middleware, use it:
+// import { requireAuth } from "../middleware/auth";
+// router.use(requireAuth);
 
 const router = Router();
-
-router.use(requireAuth);
 
 // GET /facility/maintenance
 router.get("/", listFacilityMaintenance);
