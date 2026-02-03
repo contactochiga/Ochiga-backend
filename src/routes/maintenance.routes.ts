@@ -1,14 +1,16 @@
 // src/routes/maintenance.routes.ts
 import { Router } from "express";
-import { createMaintenance, listMyMaintenance } from "../controllers/maintenance.controller";
+import {
+  createMaintenance,
+  listMyMaintenance,
+} from "../controllers/maintenance.controller";
 
-// ⚠️ IMPORTANT:
-// If your project already has an auth middleware, add it here.
-// Example:
-// import { requireAuth } from "../middleware/auth";
-// router.use(requireAuth);
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
+
+// ✅ THIS is what you were missing
+router.use(requireAuth);
 
 // GET /maintenance?status=open
 router.get("/", listMyMaintenance);
