@@ -34,12 +34,14 @@ import meRoutes from "./routes/me.routes";
 // ✅ Notifications routes (GET /notifications, POST /notifications/read/:id)
 import notificationsRoutes from "./routes/notifications";
 
-// ✅ NEW: Maintenance routes
+// ✅ Maintenance routes (consumer)
 import maintenanceRoutes from "./routes/maintenance.routes";
 
-// ✅ IMPORTANT: this MUST match the actual filename:
-// src/routes/facilityMaintenanceRoutes.ts
+// ✅ Facility maintenance routes
 import facilityMaintenanceRoutes from "./routes/facilityMaintenanceRoutes";
+
+// ✅ NEW: Facility visitors routes (you just created this)
+import facilityVisitorsRoutes from "./routes/facilityVisitorsRoutes";
 
 const app = express();
 
@@ -154,15 +156,23 @@ app.use("/residents", residentsRoutes);
 app.use("/devices", devicesRoutes);
 
 app.use("/ai", aiRoutes);
+
+// ✅ consumer visitors (resident creates visitor)
 app.use("/visitors", visitorRoutes);
 
-// ✅ consumer maintenance create (POST /maintenance)
+// ✅ consumer maintenance create/list (GET/POST /maintenance)
 app.use("/maintenance", maintenanceRoutes);
 
 // ✅ facility maintenance list/update
 // GET /facility/maintenance
 // PATCH /facility/maintenance/:id
 app.use("/facility/maintenance", facilityMaintenanceRoutes);
+
+// ✅ facility visitors list/verify/update
+// GET /facility/visitors?today=true
+// POST /facility/visitors/verify
+// PATCH /facility/visitors/:id
+app.use("/facility/visitors", facilityVisitorsRoutes);
 
 app.use("/community", communityRoutes);
 app.use("/wallets", walletRoutes);
