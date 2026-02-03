@@ -40,8 +40,11 @@ import maintenanceRoutes from "./routes/maintenance.routes";
 // ✅ Facility maintenance routes
 import facilityMaintenanceRoutes from "./routes/facilityMaintenanceRoutes";
 
-// ✅ NEW: Facility visitors routes (you just created this)
+// ✅ Facility visitors routes
 import facilityVisitorsRoutes from "./routes/facilityVisitorsRoutes";
+
+// ✅ IMPORTANT: Paystack webhook must use RAW body
+import * as WalletCtrl from "./controllers/walletController";
 
 const app = express();
 
@@ -112,6 +115,27 @@ const corsMiddleware = cors({
 app.use(corsMiddleware);
 app.options("*", corsMiddleware);
 
+// ----------------------------------------------------
+// ✅ PAYSTACK WEBHOOK (RAW BODY) — MUST COME BEFORE JSON
+// ----------------------------------------------------
+app.post(
+  "/wallets/webhook",
+  express.raw({ type: "application/json" }),
+  (req, _res, next) => {
+    // keep raw body for signature verification
+    (req as any).rawBody = req.body;
+
+    // also parse JSON so controller can read req.body.event, etc.
+    try {
+      req.body = JSON.parse((req.body as Buffer).toString("utf8"));
+    } catch {
+      // if parse fails, controller will handle gracefully
+    }
+    next();
+  },
+  WalletCtrl.handleWebhook
+);
+
 // -------------------------------
 // BODY PARSING & LOGGING
 // -------------------------------
@@ -164,18 +188,17 @@ app.use("/visitors", visitorRoutes);
 app.use("/maintenance", maintenanceRoutes);
 
 // ✅ facility maintenance list/update
-// GET /facility/maintenance
-// PATCH /facility/maintenance/:id
 app.use("/facility/maintenance", facilityMaintenanceRoutes);
 
 // ✅ facility visitors list/verify/update
-// GET /facility/visitors?today=true
-// POST /facility/visitors/verify
-// PATCH /facility/visitors/:id
 app.use("/facility/visitors", facilityVisitorsRoutes);
 
 app.use("/community", communityRoutes);
+
+// ✅ wallet routes (init/debit/get wallet)
+// NOTE: webhook is already mounted above with raw body
 app.use("/wallets", walletRoutes);
+
 app.use("/rooms", roomsRoutes);
 
 app.use("/facility", facilityRoutes);
