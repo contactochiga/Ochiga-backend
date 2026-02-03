@@ -2,7 +2,9 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
-type AuthReq = Request & { user?: { id: string; estate_id?: string; role?: string } };
+type AuthReq = Request & {
+  user?: { id: string; estate_id?: string; role?: string };
+};
 
 function extractMissingColumnName(msg: string): string | null {
   if (!msg) return null;
@@ -30,7 +32,12 @@ async function insertWithSchemaFallback<T>(
   let lastErrorMsg = "";
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const { data, error } = await supabaseAdmin.from(table).insert(payload).select().single();
+    const { data, error } = await supabaseAdmin
+      .from(table)
+      .insert(payload)
+      .select()
+      .single();
+
     if (!error) return data as T;
 
     const msg = String((error as any)?.message || "");
@@ -139,17 +146,16 @@ export async function listMyMaintenance(req: AuthReq, res: Response) {
     const status = String(req.query.status || "").trim();
     const { estateId } = await resolveEstateAndHome(req, null);
 
-    // We allow listing even if estateId is missing, but it’s nicer to filter by estate if available.
+    // ✅ FIX: your table uses resident_id (not requested_by)
     let q = supabaseAdmin
       .from("maintenance_requests")
       .select("*")
-      .eq("requested_by", userId)
+      .eq("resident_id", userId)
       .order("created_at", { ascending: false });
 
     if (estateId) q = q.eq("estate_id", estateId);
 
     if (status) {
-      // support ?status=open or ?status=in_progress etc.
       q = q.eq("status", status);
     }
 
@@ -172,7 +178,8 @@ export async function createMaintenance(req: AuthReq, res: Response) {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { home_id, title, description, priority } = req.body || {};
+    // ✅ include category since UI sends it (schema fallback will drop if missing)
+    const { home_id, title, description, priority, category } = req.body || {};
     const { estateId, homeId } = await resolveEstateAndHome(req, home_id);
 
     if (!estateId) return res.status(400).json({ error: "No estate linked" });
@@ -180,10 +187,11 @@ export async function createMaintenance(req: AuthReq, res: Response) {
     const request = await insertWithSchemaFallback<any>("maintenance_requests", {
       estate_id: estateId,
       home_id: homeId,
-      requested_by: userId,
+      resident_id: userId, // ✅ FIX
       title: title || "Maintenance request",
       description: description || null,
-      priority: priority || "normal",
+      category: category || null, // optional
+      priority: priority || "medium", // keep consistent with UI defaults
       status: "open",
       created_at: new Date().toISOString(),
     });
@@ -288,7 +296,8 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
 
     if (error) return res.status(400).json({ error: error.message });
 
-    const requesterId = existing.requested_by || existing.user_id || null;
+    // ✅ FIX: requester column is resident_id
+    const requesterId = existing.resident_id || null;
     if (requesterId) {
       await notifyUsers([requesterId], {
         estate_id: existing.estate_id,
