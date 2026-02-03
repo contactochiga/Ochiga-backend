@@ -5,11 +5,12 @@ import {
   updateMaintenance,
 } from "../controllers/maintenance.controller";
 
-// If you have an auth middleware, use it:
-// import { requireAuth } from "../middleware/auth";
-// router.use(requireAuth);
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
+
+// ✅ THIS is what you were missing
+router.use(requireAuth);
 
 // GET /facility/maintenance
 router.get("/", listFacilityMaintenance);
