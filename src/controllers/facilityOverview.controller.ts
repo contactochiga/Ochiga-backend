@@ -1,3 +1,4 @@
+// src/controllers/facilityOverview.controller.ts
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
@@ -5,36 +6,64 @@ type AuthenticatedRequest = Request & {
   user?: { id: string; estate_id?: string; role?: string };
 };
 
-type AmountRow = { amount: number };
-
 // ---------------------------
 // SAFE HELPERS
 // ---------------------------
+function msg(err: any) {
+  return String(err?.message || err?.details || err?.hint || "");
+}
+
 function isMissingTable(err: any, table: string) {
-  const msg = String(err?.message || "");
-  return msg.toLowerCase().includes(`could not find the table`) &&
-         msg.toLowerCase().includes(table.toLowerCase());
+  const m = msg(err).toLowerCase();
+  // supabase/postgrest common patterns
+  return (
+    m.includes("could not find the") && m.includes("table") && m.includes(table.toLowerCase())
+  ) || m.includes(`relation "${table.toLowerCase()}" does not exist`);
+}
+
+function isMissingColumn(err: any, column: string) {
+  const m = msg(err).toLowerCase();
+  // e.g. column "estate_id" of relation ... does not exist
+  return m.includes(`column "${column.toLowerCase()}"`) && m.includes("does not exist");
+}
+
+function monthStartISO(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}-01T00:00:00.000Z`;
+}
+
+function dayBoundsISO(d = new Date()) {
+  const yyyyMmDd = d.toISOString().split("T")[0];
+  return {
+    start: `${yyyyMmDd}T00:00:00.000Z`,
+    end: `${yyyyMmDd}T23:59:59.999Z`,
+    yyyyMmDd,
+  };
 }
 
 // ---------------------------
 // CONTROLLER
 // ---------------------------
-export const getFacilityOverview = async (
-  req: AuthenticatedRequest,
-  res: Response
-) => {
+export const getFacilityOverview = async (req: AuthenticatedRequest, res: Response) => {
   try {
     let estateId = req.user?.estate_id;
 
     // ✅ membership fallback
     if (!estateId && req.user?.id) {
-      const { data: mem } = await supabaseAdmin
+      const { data: mem, error: memErr } = await supabaseAdmin
         .from("estate_memberships")
         .select("estate_id")
         .eq("user_id", req.user.id)
         .eq("status", "active")
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
+
+      if (memErr) {
+        // Don’t crash overview for membership read errors — but report it
+        console.error("overview: membership fallback error:", memErr.message);
+      }
 
       estateId = mem?.estate_id;
     }
@@ -48,7 +77,6 @@ export const getFacilityOverview = async (
     // ---------------------------
     // CORE OPS (must NEVER fail)
     // ---------------------------
-
     const { count: homes } = await supabaseAdmin
       .from("homes")
       .select("*", { count: "exact", head: true })
@@ -65,68 +93,106 @@ export const getFacilityOverview = async (
       .eq("estate_id", estateId)
       .in("status", ["open", "in_progress"]);
 
-    const today = new Date().toISOString().split("T")[0];
+    const { start: todayStart, end: todayEnd } = dayBoundsISO(new Date());
 
-    const { count: visitorsToday } = await supabaseAdmin
-      .from("visitors")
-      .select("*", { count: "exact", head: true })
-      .eq("estate_id", estateId)
-      .gte("created_at", `${today}T00:00:00`)
-      .lte("created_at", `${today}T23:59:59`);
+    // ✅ VISITORS TODAY (use visitor_access – that's your real table now)
+    let visitorsToday = 0;
+    {
+      const vRes = await supabaseAdmin
+        .from("visitor_access")
+        .select("*", { count: "exact", head: true })
+        .eq("estate_id", estateId)
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
 
-    const { count: alerts } = await supabaseAdmin
-      .from("notifications")
-      .select("*", { count: "exact", head: true })
-      .eq("estate_id", estateId)
-      .eq("read", false);
+      if (!vRes.error) {
+        visitorsToday = vRes.count || 0;
+      } else if (!isMissingTable(vRes.error, "visitor_access")) {
+        // only throw if it’s a real error
+        throw vRes.error;
+      }
+    }
+
+    // ✅ ALERTS (support both "read:boolean" or "status: unread/read")
+    let alerts = 0;
+    {
+      // First try: read=false
+      const a1 = await supabaseAdmin
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("estate_id", estateId)
+        .eq("read", false);
+
+      if (!a1.error) {
+        alerts = a1.count || 0;
+      } else if (isMissingColumn(a1.error, "read")) {
+        // fallback: status='unread'
+        const a2 = await supabaseAdmin
+          .from("notifications")
+          .select("*", { count: "exact", head: true })
+          .eq("estate_id", estateId)
+          .eq("status", "unread");
+
+        if (!a2.error) alerts = a2.count || 0;
+        else if (!isMissingTable(a2.error, "notifications")) throw a2.error;
+      } else if (!isMissingTable(a1.error, "notifications")) {
+        throw a1.error;
+      }
+    }
 
     // ---------------------------
-    // WALLET (OPTIONAL – SAFE)
+    // WALLET (estate-scoped, safe)
     // ---------------------------
-
     let walletBalance = 0;
-    let outstanding = 0;
+    let outstanding = 0; // keep 0 until dues/invoices table is finalized
     let collected = 0;
 
-    // Try estate_wallets
-    const walletRes = await supabaseAdmin
-      .from("estate_wallets")
-      .select("balance")
-      .eq("estate_id", estateId)
-      .maybeSingle();
+    // 1) SUM wallets.balance where estate_id = current estate
+    {
+      const wRes = await supabaseAdmin
+        .from("wallets")
+        .select("balance")
+        .eq("estate_id", estateId);
 
-    if (!walletRes.error) {
-      walletBalance = walletRes.data?.balance || 0;
-    } else if (!isMissingTable(walletRes.error, "estate_wallets")) {
-      throw walletRes.error; // real error, not schema
+      if (!wRes.error) {
+        const rows = (wRes.data || []) as Array<{ balance: any }>;
+        walletBalance = rows.reduce((s, r) => s + Number(r.balance || 0), 0);
+      } else if (!isMissingTable(wRes.error, "wallets")) {
+        // If wallets exists but estate_id missing, keep safe
+        if (!isMissingColumn(wRes.error, "estate_id")) throw wRes.error;
+      }
     }
 
-    // Try dues
-    const duesRes = await supabaseAdmin
-      .from("dues")
-      .select("amount")
-      .eq("estate_id", estateId)
-      .eq("status", "unpaid");
+    // 2) SUM wallet_transactions.amount for credits this month (status successful)
+    {
+      const startOfMonth = monthStartISO(new Date());
 
-    if (!duesRes.error && duesRes.data) {
-      outstanding = duesRes.data.reduce(
-        (s: number, d: AmountRow) => s + Number(d.amount || 0),
-        0
-      );
-    }
+      const tRes = await supabaseAdmin
+        .from("wallet_transactions")
+        .select("amount,type,status,created_at")
+        .eq("estate_id", estateId)
+        .gte("created_at", startOfMonth);
 
-    // Try payments
-    const paymentsRes = await supabaseAdmin
-      .from("payments")
-      .select("amount")
-      .eq("estate_id", estateId)
-      .gte("created_at", `${today.slice(0, 7)}-01`);
+      if (!tRes.error) {
+        const rows = (tRes.data || []) as Array<{
+          amount: any;
+          type?: string | null;
+          status?: string | null;
+        }>;
 
-    if (!paymentsRes.error && paymentsRes.data) {
-      collected = paymentsRes.data.reduce(
-        (s: number, p: AmountRow) => s + Number(p.amount || 0),
-        0
-      );
+        collected = rows.reduce((s, r) => {
+          const type = String(r.type || "").toLowerCase();
+          const status = String(r.status || "").toLowerCase();
+
+          const isCredit = type === "credit" || type === "fund" || type === "topup";
+          const isOk = !status || status === "successful" || status === "success" || status === "completed";
+
+          if (isCredit && isOk) return s + Number(r.amount || 0);
+          return s;
+        }, 0);
+      } else if (!isMissingTable(tRes.error, "wallet_transactions")) {
+        if (!isMissingColumn(tRes.error, "estate_id")) throw tRes.error;
+      }
     }
 
     // ---------------------------
