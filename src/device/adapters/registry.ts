@@ -1,22 +1,22 @@
 // src/device/adapters/registry.ts
 import type { DeviceAdapter } from "./DeviceAdapter";
 
-/**
- * Central adapter registry used by:
- * - discovery controller
- * - initAdapters bootstrap
- * - intent worker execution
- */
-export const adapterRegistry: Map<string, DeviceAdapter> = new Map();
+const store = new Map<string, DeviceAdapter>();
 
-export function registerAdapter(adapter: DeviceAdapter) {
-  adapterRegistry.set(adapter.name, adapter);
-}
+export const adapterRegistry = {
+  register(adapter: DeviceAdapter) {
+    store.set(adapter.name, adapter);
+  },
 
-export function getAdapter(name: string): DeviceAdapter | undefined {
-  return adapterRegistry.get(name);
-}
+  get(name: string) {
+    return store.get(name);
+  },
 
-export function listAdapters(): DeviceAdapter[] {
-  return Array.from(adapterRegistry.values());
-}
+  list() {
+    return Array.from(store.values());
+  },
+
+  has(name: string) {
+    return store.has(name);
+  },
+};
