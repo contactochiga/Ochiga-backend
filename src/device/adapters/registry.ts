@@ -1,17 +1,22 @@
 // src/device/adapters/registry.ts
-import { DeviceAdapter } from "./DeviceAdapter";
-import { SSDPAdapter } from "./network/SSDPAdapter";
-import { OnvifAdapter } from "./onvif/OnvifAdapter";
+import type { DeviceAdapter } from "./DeviceAdapter";
 
-const adapters: Record<string, DeviceAdapter> = {
-  ssdp: new SSDPAdapter(),
-  onvif: new OnvifAdapter(),
-};
+/**
+ * Central adapter registry used by:
+ * - discovery controller
+ * - initAdapters bootstrap
+ * - intent worker execution
+ */
+export const adapterRegistry: Map<string, DeviceAdapter> = new Map();
 
-export function getAdapter(name: string): DeviceAdapter | null {
-  return adapters[name] ?? null;
+export function registerAdapter(adapter: DeviceAdapter) {
+  adapterRegistry.set(adapter.name, adapter);
 }
 
-export function listAdapters(): string[] {
-  return Object.keys(adapters);
+export function getAdapter(name: string): DeviceAdapter | undefined {
+  return adapterRegistry.get(name);
+}
+
+export function listAdapters(): DeviceAdapter[] {
+  return Array.from(adapterRegistry.values());
 }
