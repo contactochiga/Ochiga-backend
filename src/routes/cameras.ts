@@ -7,11 +7,29 @@ import * as CameraStreamCtrl from "../controllers/cameraStreamController";
 
 const router = Router();
 
+/**
+ * ✅ Facility camera permissions
+ * We allow the operational roles that should see/control CCTV.
+ *
+ * NOTE:
+ * - Keep "admin" (platform/system admin)
+ * - Keep "manager" (facility manager)
+ * - Add "owner" and "security" (common facility roles)
+ * - Keep "estate_admin" only if your token ever uses it
+ */
+const CAMERA_ALLOWED_ROLES = [
+  "admin",
+  "owner",
+  "manager",
+  "security",
+  "estate_admin",
+] as const;
+
 // Facility: scan cameras on LAN
 router.post(
   "/scan",
   requireAuth,
-  requireRole("manager", "estate_admin", "admin"),
+  requireRole(...CAMERA_ALLOWED_ROLES),
   CamerasCtrl.scan
 );
 
@@ -19,7 +37,7 @@ router.post(
 router.get(
   "/estate/:estateId",
   requireAuth,
-  requireRole("manager", "estate_admin", "admin"),
+  requireRole(...CAMERA_ALLOWED_ROLES),
   CamerasCtrl.listByEstate
 );
 
@@ -27,7 +45,7 @@ router.get(
 router.post(
   "/bind",
   requireAuth,
-  requireRole("manager", "estate_admin", "admin"),
+  requireRole(...CAMERA_ALLOWED_ROLES),
   CamerasCtrl.bind
 );
 
@@ -35,14 +53,14 @@ router.post(
 router.get(
   "/:cameraId/hls.m3u8",
   requireAuth,
-  requireRole("manager", "estate_admin", "admin"),
+  requireRole(...CAMERA_ALLOWED_ROLES),
   CameraStreamCtrl.hlsPlaylist
 );
 
 router.get(
   "/:cameraId/hls/:seg",
   requireAuth,
-  requireRole("manager", "estate_admin", "admin"),
+  requireRole(...CAMERA_ALLOWED_ROLES),
   CameraStreamCtrl.hlsSegment
 );
 
