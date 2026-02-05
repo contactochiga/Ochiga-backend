@@ -52,9 +52,26 @@ export async function listByEstate(req: Request, res: Response) {
   const { estateId } = req.params;
   if (!estateId) return res.status(400).json({ error: "estateId is required" });
 
-  // Safety: only allow if same estate (or admin role)
-  if (String(user.estate_id) !== String(estateId) && user.role !== "admin") {
-    return res.status(403).json({ error: "Unauthorized" });
+  // ✅ Admin can read all
+  if (user.role !== "admin") {
+    // ✅ Check membership table (source of truth)
+    const { data: membership, error: mErr } = await supabaseAdmin
+      .from("estate_memberships")
+      .select("id, role, status")
+      .eq("estate_id", estateId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (mErr) return res.status(500).json({ error: mErr.message });
+
+    if (!membership) {
+      return res.status(403).json({ error: "Unauthorized (not a member of this estate)" });
+    }
+
+    // optional: enforce status
+    if (membership.status && membership.status !== "active") {
+      return res.status(403).json({ error: "Unauthorized (membership not active)" });
+    }
   }
 
   const { data, error } = await supabaseAdmin
