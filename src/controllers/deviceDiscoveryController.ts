@@ -57,15 +57,20 @@ export async function discoverDevices(req: Request, res: Response) {
         cidr: req.query.cidr ? String(req.query.cidr) : undefined,
         timeoutMs: req.query.timeoutMs ? Number(req.query.timeoutMs) : undefined,
 
+        // keep your existing query names (don’t break callers)
         onvifUser: req.query.onvifUser ? String(req.query.onvifUser) : undefined,
         onvifPass: req.query.onvifPass ? String(req.query.onvifPass) : undefined,
+
+        // ALSO provide the names your OnvifAdapter currently reads (username/password)
+        username: req.query.onvifUser ? String(req.query.onvifUser) : undefined,
+        password: req.query.onvifPass ? String(req.query.onvifPass) : undefined,
       } as any,
     };
 
-    let adapter;
-    try {
-      adapter = adapterRegistry.get(adapterName);
-    } catch {
+    // ✅ Map.get() returns undefined when missing (it does NOT throw)
+    const adapter = adapterRegistry.get(adapterName);
+
+    if (!adapter) {
       return res.status(400).json({
         error: `Unsupported adapter: ${adapterName}`,
         supported: adapterRegistry.list().map((a) => a.name),
