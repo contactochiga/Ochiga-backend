@@ -1,28 +1,17 @@
 // src/device/adapters/registry.ts
-
 import { DeviceAdapter } from "./DeviceAdapter";
+import { SSDPAdapter } from "./network/SSDPAdapter";
+import { OnvifAdapter } from "./onvif/OnvifAdapter";
 
-class AdapterRegistry {
-  private adapters = new Map<string, DeviceAdapter>();
+const adapters: Record<string, DeviceAdapter> = {
+  ssdp: new SSDPAdapter(),
+  onvif: new OnvifAdapter(),
+};
 
-  register(adapter: DeviceAdapter) {
-    if (this.adapters.has(adapter.name)) {
-      throw new Error(`Adapter already registered: ${adapter.name}`);
-    }
-    this.adapters.set(adapter.name, adapter);
-  }
-
-  get(name: string): DeviceAdapter {
-    const adapter = this.adapters.get(name);
-    if (!adapter) {
-      throw new Error(`Adapter not found: ${name}`);
-    }
-    return adapter;
-  }
-
-  list(): DeviceAdapter[] {
-    return Array.from(this.adapters.values());
-  }
+export function getAdapter(name: string): DeviceAdapter | null {
+  return adapters[name] ?? null;
 }
 
-export const adapterRegistry = new AdapterRegistry();
+export function listAdapters(): string[] {
+  return Object.keys(adapters);
+}
