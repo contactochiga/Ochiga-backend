@@ -43,6 +43,9 @@ import facilityMaintenanceRoutes from "./routes/facilityMaintenanceRoutes";
 // ✅ Facility visitors routes
 import facilityVisitorsRoutes from "./routes/facilityVisitorsRoutes";
 
+// ✅ Cameras routes (scan/bind/stream)
+import camerasRoutes from "./routes/cameras";
+
 // ✅ IMPORTANT: Paystack webhook must use RAW body
 import * as WalletCtrl from "./controllers/walletController";
 
@@ -203,6 +206,9 @@ app.use("/rooms", roomsRoutes);
 
 app.use("/facility", facilityRoutes);
 app.use("/signals", signalRoutes);
+
+// ✅ cameras (scan/bind/HLS)
+app.use("/cameras", camerasRoutes);
 
 // -------------------------------
 // 404 HANDLER
