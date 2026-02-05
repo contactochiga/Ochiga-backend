@@ -20,3 +20,12 @@ export const adapterRegistry = {
     return store.has(name);
   },
 };
+
+// ✅ Backward-compatible named exports
+export function getAdapter(name: string) {
+  return adapterRegistry.get(name);
+}
+
+export function listAdapters() {
+  return adapterRegistry.list();
+}
