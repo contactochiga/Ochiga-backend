@@ -1,7 +1,7 @@
 // src/routes/cameras.ts
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
+import { requireRole } from "../middleware/auth";
 import * as CamerasCtrl from "../controllers/camerasController";
 import * as CameraStreamCtrl from "../controllers/cameraStreamController";
 
