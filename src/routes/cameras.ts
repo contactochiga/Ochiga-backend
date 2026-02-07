@@ -43,6 +43,14 @@ router.post(
   CamerasCtrl.bind
 );
 
+// ✅ NEW: bind from edge discovery (no browser discovery, no rtsp_url required from UI)
+router.post(
+  "/bind-from-discovery",
+  requireAuth,
+  requireRole(...CAMERA_ALLOWED_ROLES),
+  CamerasCtrl.bindFromDiscovery
+);
+
 router.get(
   "/:cameraId/hls.m3u8",
   requireAuth,
