@@ -65,7 +65,9 @@ export async function listByEstate(req: Request, res: Response) {
     if (mErr) return res.status(500).json({ error: mErr.message });
 
     if (!membership) {
-      return res.status(403).json({ error: "Unauthorized (not a member of this estate)" });
+      return res
+        .status(403)
+        .json({ error: "Unauthorized (not a member of this estate)" });
     }
 
     // optional: enforce status
@@ -92,15 +94,8 @@ export async function bind(req: Request, res: Response) {
   const user = req.user as any;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  const {
-    estateId,
-    name,
-    ip,
-    onvif_port,
-    rtsp_url,
-    username,
-    password,
-  } = req.body || {};
+  const { estateId, name, ip, onvif_port, rtsp_url, username, password } =
+    req.body || {};
 
   const resolvedEstateId = estateId || user.estate_id;
   if (!resolvedEstateId) return res.status(400).json({ error: "estateId is required" });
@@ -151,4 +146,89 @@ export async function bind(req: Request, res: Response) {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true, camera: data });
+}
+
+/**
+ * POST /cameras/bind-from-discovery
+ * body: {
+ *   estateId?, name?, ip, onvif_port?, xaddr?, username?, password?,
+ *   rtsp_url?, rtsp_port?
+ * }
+ *
+ * Edge discovery gives ONVIF details; bind() requires rtsp_url.
+ * This generates a best-guess RTSP URL (or uses provided rtsp_url),
+ * then reuses bind() so DB logic stays consistent.
+ */
+export async function bindFromDiscovery(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const {
+    estateId,
+    name,
+    ip,
+    onvif_port,
+    xaddr, // optional (kept for future use)
+    username,
+    password,
+    rtsp_url,
+    rtsp_port,
+  } = req.body || {};
+
+  const resolvedEstateId = estateId || user.estate_id;
+  if (!resolvedEstateId) return res.status(400).json({ error: "estateId is required" });
+  if (!ip) return res.status(400).json({ error: "ip is required" });
+
+  // If RTSP is already known, just bind directly using existing bind()
+  if (rtsp_url) {
+    req.body = {
+      estateId: resolvedEstateId,
+      name,
+      ip,
+      onvif_port,
+      rtsp_url,
+      username,
+      password,
+    };
+    return bind(req, res);
+  }
+
+  // Generate RTSP candidates (common patterns)
+  const port = Number(rtsp_port || 554);
+  const userPart =
+    username && password
+      ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`
+      : "";
+
+  const candidates = [
+    `rtsp://${userPart}${ip}:${port}/live`,
+    `rtsp://${userPart}${ip}:${port}/h264`,
+    `rtsp://${userPart}${ip}:${port}/h264/ch1/main/av_stream`,
+    `rtsp://${userPart}${ip}:${port}/h264/ch1/sub/av_stream`,
+    `rtsp://${userPart}${ip}:${port}/cam/realmonitor?channel=1&subtype=0`,
+    `rtsp://${userPart}${ip}:${port}/cam/realmonitor?channel=1&subtype=1`,
+    `rtsp://${userPart}${ip}:${port}/Streaming/Channels/101`,
+    `rtsp://${userPart}${ip}:${port}/Streaming/Channels/102`,
+    `rtsp://${userPart}${ip}:${port}/stream1`,
+    `rtsp://${userPart}${ip}:${port}/stream2`,
+  ];
+
+  // Pick the first candidate (for now). You can override later by sending rtsp_url explicitly.
+  const chosen = candidates[0];
+
+  // Reuse bind() to write/update facility_cameras
+  req.body = {
+    estateId: resolvedEstateId,
+    name: name ?? `Camera ${ip}`,
+    ip,
+    onvif_port: onvif_port ?? null,
+    rtsp_url: chosen,
+    username: username ?? null,
+    password: password ?? null,
+    // keep for debugging (bind ignores unknown fields)
+    xaddr: xaddr ?? null,
+    rtsp_candidates: candidates,
+  };
+
+  return bind(req, res);
 }
