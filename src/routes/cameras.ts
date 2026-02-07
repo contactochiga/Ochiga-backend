@@ -43,7 +43,7 @@ router.post(
   CamerasCtrl.bind
 );
 
-// ✅ NEW: bind from edge discovery (no browser discovery, no rtsp_url required from UI)
+// ✅ NEW: bind from edge discovery
 router.post(
   "/bind-from-discovery",
   requireAuth,
@@ -51,18 +51,23 @@ router.post(
   CamerasCtrl.bindFromDiscovery
 );
 
+/**
+ * ✅ NEW: issue short-lived HLS token for this camera
+ * UI calls this with Bearer token, then appends ?token=... to playlist/segments.
+ */
 router.get(
-  "/:cameraId/hls.m3u8",
+  "/:cameraId/hls-token",
   requireAuth,
   requireRole(...CAMERA_ALLOWED_ROLES),
-  CameraStreamCtrl.hlsPlaylist
+  CameraStreamCtrl.issueHlsToken
 );
 
-router.get(
-  "/:cameraId/hls/:seg",
-  requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
-  CameraStreamCtrl.hlsSegment
-);
+/**
+ * ✅ HLS routes must NOT require Bearer auth
+ * HLS requests won't send Authorization headers.
+ * We secure them with query token inside controller.
+ */
+router.get("/:cameraId/hls.m3u8", CameraStreamCtrl.hlsPlaylist);
+router.get("/:cameraId/hls/:seg", CameraStreamCtrl.hlsSegment);
 
 export default router;
