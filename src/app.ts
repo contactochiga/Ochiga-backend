@@ -46,6 +46,9 @@ import facilityVisitorsRoutes from "./routes/facilityVisitorsRoutes";
 // ✅ Cameras routes (scan/bind/stream)
 import camerasRoutes from "./routes/cameras";
 
+// ✅ Edge Discovery (agent push + UI pull)
+import { edgeDiscoveryRouter } from "./routes/edgeDiscovery";
+
 // ✅ IMPORTANT: Paystack webhook must use RAW body
 import * as WalletCtrl from "./controllers/walletController";
 
@@ -76,6 +79,7 @@ const allowList = new Set([
   // ✅ PRODUCTION: GETOYI
   "https://getoyi.com",
   "https://www.getoyi.com",
+  "https://facility.getoyi.com",
 
   // Older domains
   "https://oyi.com",
@@ -209,6 +213,9 @@ app.use("/signals", signalRoutes);
 
 // ✅ cameras (scan/bind/HLS)
 app.use("/cameras", camerasRoutes);
+
+// ✅ edge discovery (agent push + UI pull)
+app.use(edgeDiscoveryRouter);
 
 // -------------------------------
 // 404 HANDLER
