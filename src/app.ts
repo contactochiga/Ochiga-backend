@@ -60,7 +60,12 @@ app.set("trust proxy", 1);
 // -------------------------------
 // SECURITY
 // -------------------------------
-app.use(helmet());
+// ✅ FIX: allow HLS (m3u8/ts) to be loaded cross-origin (facility.getoyi.com -> oyi-os.onrender.com)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 // -------------------------------
 // ⭐ CORS
@@ -129,14 +134,12 @@ app.post(
   "/wallets/webhook",
   express.raw({ type: "application/json" }),
   (req, _res, next) => {
-    // keep raw body for signature verification
     (req as any).rawBody = req.body;
 
-    // also parse JSON so controller can read req.body.event, etc.
     try {
       req.body = JSON.parse((req.body as Buffer).toString("utf8"));
     } catch {
-      // if parse fails, controller will handle gracefully
+      // ignore
     }
     next();
   },
@@ -176,7 +179,6 @@ app.use("/auth/otp", otpRoutes);
 app.use("/invites", invitesRoutes);
 
 // ✅ consumer context endpoint
-// GET /me/context -> { estate, home }
 app.use("/me", meRoutes);
 
 // ✅ notifications
@@ -188,28 +190,33 @@ app.use("/devices", devicesRoutes);
 
 app.use("/ai", aiRoutes);
 
-// ✅ consumer visitors (resident creates visitor)
+// ✅ consumer visitors
 app.use("/visitors", visitorRoutes);
 
-// ✅ consumer maintenance create/list (GET/POST /maintenance)
+// ✅ consumer maintenance
 app.use("/maintenance", maintenanceRoutes);
 
-// ✅ facility maintenance list/update
+// ✅ facility maintenance
 app.use("/facility/maintenance", facilityMaintenanceRoutes);
 
-// ✅ facility visitors list/verify/update
+// ✅ facility visitors
 app.use("/facility/visitors", facilityVisitorsRoutes);
 
 app.use("/community", communityRoutes);
 
-// ✅ wallet routes (init/debit/get wallet)
-// NOTE: webhook is already mounted above with raw body
+// ✅ wallet routes
 app.use("/wallets", walletRoutes);
 
 app.use("/rooms", roomsRoutes);
 
 app.use("/facility", facilityRoutes);
 app.use("/signals", signalRoutes);
+
+// ✅ EXTRA SAFE: force CORP on camera endpoints (m3u8 + ts)
+app.use("/cameras", (_req, res, next) => {
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  next();
+});
 
 // ✅ cameras (scan/bind/HLS)
 app.use("/cameras", camerasRoutes);
