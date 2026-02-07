@@ -7,8 +7,10 @@ const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 
 /**
  * HLS security:
- * Browser video tag won't send Authorization headers.
- * We use a short-lived JWT token in query params:
+ * We DO NOT rely on Authorization headers (video tag / hls.js won't send them reliably).
+ * Instead we use a short-lived JWT token in query params.
+ *
+ * Example:
  *   /cameras/:cameraId/hls.m3u8?token=...
  */
 function verifyHlsToken(req: Request): any | null {
@@ -30,7 +32,8 @@ function verifyHlsToken(req: Request): any | null {
 /**
  * GET /cameras/:cameraId/hls-token
  * Issues a short-lived token for HLS playback.
- * (This route must be protected by requireAuth)
+ *
+ * This route SHOULD be protected by requireAuth middleware (req.user exists).
  */
 export async function issueHlsToken(req: Request, res: Response) {
   const user = req.user as any;
@@ -56,6 +59,7 @@ export async function issueHlsToken(req: Request, res: Response) {
     return res.status(403).json({ error: "Unauthorized" });
   }
 
+  // ⏱ short-lived token (2 minutes)
   const token = jwt.sign(
     { id: user.id, role: user.role, estate_id: user.estate_id },
     APP_JWT_SECRET,
@@ -68,9 +72,9 @@ export async function issueHlsToken(req: Request, res: Response) {
 /**
  * GET /cameras/:cameraId/hls.m3u8
  *
- * ✅ EDGE-FIRST (Estate WiFi mode)
- * Backend does NOT serve video.
- * Backend AUTHENTICATES then redirects the browser to go2rtc.
+ * ✅ EDGE-FIRST STREAMING
+ * Backend does NOT serve video bytes.
+ * Backend only AUTHENTICATES and REDIRECTS to the edge HLS URL.
  */
 export async function hlsPlaylist(req: Request, res: Response) {
   const user = verifyHlsToken(req);
@@ -78,6 +82,9 @@ export async function hlsPlaylist(req: Request, res: Response) {
 
   const { cameraId } = req.params;
 
+  // NOTE:
+  // Your DB MUST have facility_cameras.edge_hls_url (text)
+  // Add it via SQL: ALTER TABLE facility_cameras ADD COLUMN edge_hls_url text;
   const { data: cam, error } = await supabaseAdmin
     .from("facility_cameras")
     .select("id, estate_id, edge_hls_url")
@@ -91,23 +98,27 @@ export async function hlsPlaylist(req: Request, res: Response) {
     return res.status(403).json({ error: "Unauthorized" });
   }
 
-  if (!cam.edge_hls_url) {
-    return res.status(409).json({ error: "Camera has no edge stream configured" });
+  const edgeUrl = (cam as any)?.edge_hls_url as string | undefined;
+
+  if (!edgeUrl) {
+    return res.status(409).json({
+      error: "Camera has no edge stream configured",
+      hint: "Set facility_cameras.edge_hls_url to your go2rtc HLS URL, e.g. http://LAN-IP:1984/stream/gate.m3u8",
+    });
   }
 
-  // Allow browser access (go2rtc must allow CORS too — you already added origin: "*")
+  // Don’t cache these redirects
   res.setHeader("Cache-Control", "no-store");
 
-  // 🚀 redirect the browser to EDGE
-  // Example: http://192.168.100.146:1984/stream/gate.m3u8
-  return res.redirect(302, cam.edge_hls_url);
+  // 🚀 Redirect browser to EDGE (go2rtc)
+  return res.redirect(302, edgeUrl);
 }
 
 /**
  * GET /cameras/:cameraId/hls/:segment
  *
- * ❌ Not used in redirect mode.
- * Edge serves segments directly.
+ * ❌ NOT USED in edge-first mode (edge serves segments).
+ * Keeping route for backward compat.
  */
 export async function hlsSegment(req: Request, res: Response) {
   return res.status(410).end();
