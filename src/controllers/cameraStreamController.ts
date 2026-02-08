@@ -7,11 +7,12 @@ const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 
 /**
  * HLS security:
- * We DO NOT rely on Authorization headers (video tag / hls.js won't send them reliably).
- * Instead we use a short-lived JWT token in query params.
+ * We DO NOT rely on Authorization headers.
+ * The browser video tag will not send them.
  *
- * Example:
+ * Instead we use a short-lived JWT token in query params:
  *   /cameras/:cameraId/hls.m3u8?token=...
+ *   /cameras/:cameraId/hls/<segment>?token=...
  */
 function verifyHlsToken(req: Request): any | null {
   try {
@@ -21,19 +22,85 @@ function verifyHlsToken(req: Request): any | null {
     if (!token) return null;
 
     const decoded = jwt.verify(token, APP_JWT_SECRET) as any;
-
     if (!decoded?.id || !decoded?.estate_id || !decoded?.role) return null;
+
     return decoded;
   } catch {
     return null;
   }
 }
 
+function sameEstateOrAdmin(camEstateId: any, user: any) {
+  return String(camEstateId) === String(user.estate_id) || user.role === "admin";
+}
+
+function reqBaseUrl(req: Request) {
+  // Respect proxies (Render/Cloudflare) so generated URLs are https
+  const proto =
+    (req.headers["x-forwarded-proto"] as string) ||
+    (req.protocol as string) ||
+    "http";
+  const host =
+    (req.headers["x-forwarded-host"] as string) || req.get("host") || "";
+  return `${proto}://${host}`;
+}
+
+async function fetchText(url: string) {
+  const r = await fetch(url, { redirect: "follow" });
+  const text = await r.text();
+  return { ok: r.ok, status: r.status, text, headers: r.headers };
+}
+
+async function fetchStream(url: string) {
+  const r = await fetch(url, { redirect: "follow" });
+  return r;
+}
+
+function resolveUrl(base: string, maybeRelative: string) {
+  try {
+    return new URL(maybeRelative, base).toString();
+  } catch {
+    return maybeRelative;
+  }
+}
+
+/**
+ * Rewrites an HLS playlist so segment URIs point back to OUR backend (same-origin),
+ * which avoids mixed-content + CORS issues.
+ *
+ * - Keeps all #EXT lines untouched
+ * - For non-# lines (segment URIs), rewrite to:
+ *   /cameras/:cameraId/hls/<encoded>?token=...
+ */
+function rewritePlaylistToBackend(opts: {
+  playlistText: string;
+  cameraId: string;
+  token: string;
+  baseUrl: string;
+}) {
+  const { playlistText, cameraId, token, baseUrl } = opts;
+
+  // IMPORTANT: We will pass the original segment uri as a single encoded string
+  // and our segment route must allow a wildcard (see route note below).
+  const lines = playlistText.split("\n").map((line) => line.trimEnd());
+
+  const out = lines.map((line) => {
+    if (!line || line.startsWith("#")) return line;
+
+    const encoded = encodeURIComponent(line);
+    return `${baseUrl}/cameras/${cameraId}/hls/${encoded}?token=${encodeURIComponent(
+      token
+    )}`;
+  });
+
+  return out.join("\n");
+}
+
 /**
  * GET /cameras/:cameraId/hls-token
  * Issues a short-lived token for HLS playback.
  *
- * This route SHOULD be protected by requireAuth middleware (req.user exists).
+ * This route SHOULD be protected by requireAuth middleware.
  */
 export async function issueHlsToken(req: Request, res: Response) {
   const user = req.user as any;
@@ -55,11 +122,11 @@ export async function issueHlsToken(req: Request, res: Response) {
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
 
-  if (String(cam.estate_id) !== String(user.estate_id) && user.role !== "admin") {
+  if (!sameEstateOrAdmin(cam.estate_id, user)) {
     return res.status(403).json({ error: "Unauthorized" });
   }
 
-  // ⏱ short-lived token (2 minutes)
+  // short-lived token (2 minutes)
   const token = jwt.sign(
     { id: user.id, role: user.role, estate_id: user.estate_id },
     APP_JWT_SECRET,
@@ -72,9 +139,8 @@ export async function issueHlsToken(req: Request, res: Response) {
 /**
  * GET /cameras/:cameraId/hls.m3u8
  *
- * ✅ EDGE-FIRST STREAMING
- * Backend does NOT serve video bytes.
- * Backend only AUTHENTICATES and REDIRECTS to the edge HLS URL.
+ * ✅ Backend proxies the playlist from edge (go2rtc) and rewrites segment URLs
+ * to our backend to avoid mixed-content + CORS + redirect blocking.
  */
 export async function hlsPlaylist(req: Request, res: Response) {
   const user = verifyHlsToken(req);
@@ -82,9 +148,6 @@ export async function hlsPlaylist(req: Request, res: Response) {
 
   const { cameraId } = req.params;
 
-  // NOTE:
-  // Your DB MUST have facility_cameras.edge_hls_url (text)
-  // Add it via SQL: ALTER TABLE facility_cameras ADD COLUMN edge_hls_url text;
   const { data: cam, error } = await supabaseAdmin
     .from("facility_cameras")
     .select("id, estate_id, edge_hls_url")
@@ -94,32 +157,100 @@ export async function hlsPlaylist(req: Request, res: Response) {
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
 
-  if (String(cam.estate_id) !== String(user.estate_id) && user.role !== "admin") {
+  if (!sameEstateOrAdmin(cam.estate_id, user)) {
     return res.status(403).json({ error: "Unauthorized" });
   }
 
-  const edgeUrl = (cam as any)?.edge_hls_url as string | undefined;
+  if (!cam.edge_hls_url) {
+    return res.status(409).json({ error: "Camera has no edge_hls_url set" });
+  }
 
-  if (!edgeUrl) {
-    return res.status(409).json({
-      error: "Camera has no edge stream configured",
-      hint: "Set facility_cameras.edge_hls_url to your go2rtc HLS URL, e.g. http://LAN-IP:1984/stream/gate.m3u8",
+  // Fetch playlist from edge
+  const edgeUrl = String(cam.edge_hls_url);
+  const { ok, status, text } = await fetchText(edgeUrl);
+
+  if (!ok) {
+    return res.status(502).json({
+      error: `Edge playlist fetch failed`,
+      edge_status: status,
     });
   }
 
-  // Don’t cache these redirects
-  res.setHeader("Cache-Control", "no-store");
+  const baseUrl = reqBaseUrl(req);
+  const token = (req.query.token as string) || "";
 
-  // 🚀 Redirect browser to EDGE (go2rtc)
-  return res.redirect(302, edgeUrl);
+  // Rewrite playlist to use our backend for segments (same-origin)
+  const rewritten = rewritePlaylistToBackend({
+    playlistText: text,
+    cameraId: String(cameraId),
+    token,
+    baseUrl,
+  });
+
+  res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  return res.status(200).send(rewritten);
 }
 
 /**
- * GET /cameras/:cameraId/hls/:segment
+ * GET /cameras/:cameraId/hls/:seg
  *
- * ❌ NOT USED in edge-first mode (edge serves segments).
- * Keeping route for backward compat.
+ * ✅ Backend proxies segments from edge.
+ * NOTE: `:seg` is URL-encoded original segment path from playlist.
  */
 export async function hlsSegment(req: Request, res: Response) {
-  return res.status(410).end();
+  const user = verifyHlsToken(req);
+  if (!user) return res.status(401).end();
+
+  const { cameraId } = req.params;
+
+  // `seg` may include encoded characters; decode it back to original line
+  const rawSeg = (req.params as any).seg as string;
+  if (!rawSeg) return res.status(400).end();
+
+  let segLine = rawSeg;
+  try {
+    segLine = decodeURIComponent(rawSeg);
+  } catch {
+    // keep as-is
+  }
+
+  const { data: cam, error } = await supabaseAdmin
+    .from("facility_cameras")
+    .select("id, estate_id, edge_hls_url")
+    .eq("id", cameraId)
+    .maybeSingle();
+
+  if (error) return res.status(500).end();
+  if (!cam) return res.status(404).end();
+
+  if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).end();
+  if (!cam.edge_hls_url) return res.status(409).end();
+
+  const edgePlaylistUrl = String(cam.edge_hls_url);
+
+  // Segment URLs in HLS playlist can be relative; resolve against the playlist URL.
+  const segUrl = resolveUrl(edgePlaylistUrl, segLine);
+
+  const r = await fetchStream(segUrl);
+
+  if (!r.ok) {
+    return res.status(502).end();
+  }
+
+  // pass content-type if available
+  const ct = r.headers.get("content-type") || "video/MP2T";
+  res.setHeader("Content-Type", ct);
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+
+  // Pipe the segment bytes
+  const body = r.body;
+  if (!body) return res.status(502).end();
+
+  // Node fetch body is a ReadableStream; convert to node stream via `Readable.fromWeb`
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { Readable } = require("stream");
+  return Readable.fromWeb(body).pipe(res);
 }
