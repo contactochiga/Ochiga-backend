@@ -12,7 +12,7 @@ const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
  *
  * Instead we use a short-lived JWT token in query params:
  *   /cameras/:cameraId/hls.m3u8?token=...
- *   /cameras/:cameraId/hls/<segment>?token=...
+ *   /cameras/:cameraId/hls/<encoded-absolute-url>?token=...
  */
 function verifyHlsToken(req: Request): any | null {
   try {
@@ -45,6 +45,14 @@ function reqBaseUrl(req: Request) {
   return `${proto}://${host}`;
 }
 
+function resolveUrl(base: string, maybeRelative: string) {
+  try {
+    return new URL(maybeRelative, base).toString();
+  } catch {
+    return maybeRelative;
+  }
+}
+
 async function fetchText(url: string) {
   const r = await fetch(url, { redirect: "follow" });
   const text = await r.text();
@@ -56,38 +64,34 @@ async function fetchStream(url: string) {
   return r;
 }
 
-function resolveUrl(base: string, maybeRelative: string) {
-  try {
-    return new URL(maybeRelative, base).toString();
-  } catch {
-    return maybeRelative;
-  }
-}
-
 /**
- * Rewrites an HLS playlist so segment URIs point back to OUR backend (same-origin),
- * which avoids mixed-content + CORS issues.
+ * Rewrites ANY HLS playlist (master or media) so ALL URIs point back to OUR backend
+ * and ALWAYS include the token.
  *
- * - Keeps all #EXT lines untouched
- * - For non-# lines (segment URIs), rewrite to:
- *   /cameras/:cameraId/hls/<encoded>?token=...
+ * Key idea:
+ * - Convert every non-# line to an ABSOLUTE URL (resolved against the playlist URL)
+ * - Then encode that absolute URL into our /hls/:seg route
  */
 function rewritePlaylistToBackend(opts: {
   playlistText: string;
+  playlistUrl: string; // <--- important (what this playlist was fetched from)
   cameraId: string;
   token: string;
   baseUrl: string;
 }) {
-  const { playlistText, cameraId, token, baseUrl } = opts;
+  const { playlistText, playlistUrl, cameraId, token, baseUrl } = opts;
 
-  // IMPORTANT: We will pass the original segment uri as a single encoded string
-  // and our segment route must allow a wildcard (see route note below).
   const lines = playlistText.split("\n").map((line) => line.trimEnd());
 
   const out = lines.map((line) => {
     if (!line || line.startsWith("#")) return line;
 
-    const encoded = encodeURIComponent(line);
+    // Turn relative segment/playlist URI into ABSOLUTE url
+    const absolute = resolveUrl(playlistUrl, line);
+
+    // Encode absolute url into our proxy route
+    const encoded = encodeURIComponent(absolute);
+
     return `${baseUrl}/cameras/${cameraId}/hls/${encoded}?token=${encodeURIComponent(
       token
     )}`;
@@ -138,9 +142,7 @@ export async function issueHlsToken(req: Request, res: Response) {
 
 /**
  * GET /cameras/:cameraId/hls.m3u8
- *
- * ✅ Backend proxies the playlist from edge (go2rtc) and rewrites segment URLs
- * to our backend to avoid mixed-content + CORS + redirect blocking.
+ * Proxies the EDGE playlist and rewrites it to same-origin backend URLs.
  */
 export async function hlsPlaylist(req: Request, res: Response) {
   const user = verifyHlsToken(req);
@@ -165,7 +167,6 @@ export async function hlsPlaylist(req: Request, res: Response) {
     return res.status(409).json({ error: "Camera has no edge_hls_url set" });
   }
 
-  // Fetch playlist from edge
   const edgeUrl = String(cam.edge_hls_url);
   const { ok, status, text } = await fetchText(edgeUrl);
 
@@ -179,9 +180,10 @@ export async function hlsPlaylist(req: Request, res: Response) {
   const baseUrl = reqBaseUrl(req);
   const token = (req.query.token as string) || "";
 
-  // Rewrite playlist to use our backend for segments (same-origin)
+  // Rewrite master playlist -> backend routes
   const rewritten = rewritePlaylistToBackend({
     playlistText: text,
+    playlistUrl: edgeUrl, // IMPORTANT
     cameraId: String(cameraId),
     token,
     baseUrl,
@@ -195,9 +197,11 @@ export async function hlsPlaylist(req: Request, res: Response) {
 
 /**
  * GET /cameras/:cameraId/hls/:seg
+ * Proxies either:
+ * - a .ts segment
+ * - OR another .m3u8 playlist (nested) -> in which case we rewrite again
  *
- * ✅ Backend proxies segments from edge.
- * NOTE: `:seg` is URL-encoded original segment path from playlist.
+ * NOTE: `:seg` is an encoded ABSOLUTE url (after our rewrite).
  */
 export async function hlsSegment(req: Request, res: Response) {
   const user = verifyHlsToken(req);
@@ -205,13 +209,12 @@ export async function hlsSegment(req: Request, res: Response) {
 
   const { cameraId } = req.params;
 
-  // `seg` may include encoded characters; decode it back to original line
   const rawSeg = (req.params as any).seg as string;
   if (!rawSeg) return res.status(400).end();
 
-  let segLine = rawSeg;
+  let targetUrl = rawSeg;
   try {
-    segLine = decodeURIComponent(rawSeg);
+    targetUrl = decodeURIComponent(rawSeg);
   } catch {
     // keep as-is
   }
@@ -224,32 +227,53 @@ export async function hlsSegment(req: Request, res: Response) {
 
   if (error) return res.status(500).end();
   if (!cam) return res.status(404).end();
-
   if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).end();
   if (!cam.edge_hls_url) return res.status(409).end();
 
-  const edgePlaylistUrl = String(cam.edge_hls_url);
+  const token = (req.query.token as string) || "";
+  const baseUrl = reqBaseUrl(req);
 
-  // Segment URLs in HLS playlist can be relative; resolve against the playlist URL.
-  const segUrl = resolveUrl(edgePlaylistUrl, segLine);
-
-  const r = await fetchStream(segUrl);
-
-  if (!r.ok) {
-    return res.status(502).end();
+  // If somehow we received a relative url, resolve against the camera's edge playlist url
+  if (!/^https?:\/\//i.test(targetUrl)) {
+    targetUrl = resolveUrl(String(cam.edge_hls_url), targetUrl);
   }
 
-  // pass content-type if available
-  const ct = r.headers.get("content-type") || "video/MP2T";
-  res.setHeader("Content-Type", ct);
+  const r = await fetchStream(targetUrl);
+  if (!r.ok) return res.status(502).end();
+
+  const ct = r.headers.get("content-type") || "";
+
+  // If this "segment" is actually another playlist, rewrite it too
+  const looksLikePlaylist =
+    ct.includes("application/vnd.apple.mpegurl") ||
+    ct.includes("application/x-mpegURL") ||
+    targetUrl.toLowerCase().includes(".m3u8");
+
+  if (looksLikePlaylist) {
+    const text = await r.text();
+
+    const rewritten = rewritePlaylistToBackend({
+      playlistText: text,
+      playlistUrl: targetUrl, // IMPORTANT: resolve relatives from THIS nested playlist
+      cameraId: String(cameraId),
+      token,
+      baseUrl,
+    });
+
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    return res.status(200).send(rewritten);
+  }
+
+  // Otherwise, it’s a media segment (ts/fmp4)
+  res.setHeader("Content-Type", ct || "video/MP2T");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   res.setHeader("Pragma", "no-cache");
 
-  // Pipe the segment bytes
   const body = r.body;
   if (!body) return res.status(502).end();
 
-  // Node fetch body is a ReadableStream; convert to node stream via `Readable.fromWeb`
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { Readable } = require("stream");
   return Readable.fromWeb(body).pipe(res);
