@@ -6,23 +6,28 @@ import crypto from "crypto";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
 
-const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY || "";
-
-const paystack = axios.create({
-  baseURL: "https://api.paystack.co",
-  headers: {
-    Authorization: `Bearer ${PAYSTACK_SECRET}`,
-    "Content-Type": "application/json",
-  },
-});
+function getPaystackSecret() {
+  return (process.env.PAYSTACK_SECRET_KEY || "").trim();
+}
 
 function requirePaystack(res: Response) {
-  if (!PAYSTACK_SECRET) {
+  const secret = getPaystackSecret();
+  if (!secret) {
     return res.status(500).json({
       error: "PAYSTACK_SECRET_KEY is missing on the backend",
     });
   }
   return null;
+}
+
+function paystackClient(secret: string) {
+  return axios.create({
+    baseURL: "https://api.paystack.co",
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      "Content-Type": "application/json",
+    },
+  });
 }
 
 /** GET wallet */
@@ -57,6 +62,9 @@ export async function initPayment(req: Request, res: Response) {
   const guard = requirePaystack(res);
   if (guard) return guard;
 
+  const secret = getPaystackSecret();
+  const paystack = paystackClient(secret);
+
   const { amount, email } = req.body;
 
   const response = await paystack.post("/transaction/initialize", {
@@ -70,18 +78,15 @@ export async function initPayment(req: Request, res: Response) {
 
 /** PAYSTACK WEBHOOK */
 export async function handleWebhook(req: Request, res: Response) {
-  if (!PAYSTACK_SECRET) return res.sendStatus(200); // don't break production webhook calls
+  const secret = getPaystackSecret();
+  if (!secret) return res.sendStatus(200); // don't break production webhook calls
 
   const signature = req.headers["x-paystack-signature"] as string;
 
   // IMPORTANT: use rawBody if present (we will wire this in app.ts)
   const raw = (req as any).rawBody || Buffer.from(JSON.stringify(req.body));
 
-  const hash = crypto
-    .createHmac("sha512", PAYSTACK_SECRET)
-    .update(raw)
-    .digest("hex");
-
+  const hash = crypto.createHmac("sha512", secret).update(raw).digest("hex");
   if (hash !== signature) return res.status(401).send("Invalid signature");
 
   const event = req.body;
@@ -117,7 +122,7 @@ export async function handleWebhook(req: Request, res: Response) {
     });
   }
 
-  res.sendStatus(200);
+  return res.sendStatus(200);
 }
 
 /** MANUAL DEBIT */
@@ -154,5 +159,5 @@ export async function debitWallet(req: Request, res: Response) {
     timestamp: new Date().toISOString(),
   });
 
-  res.json({ balance });
+  return res.json({ balance });
 }
