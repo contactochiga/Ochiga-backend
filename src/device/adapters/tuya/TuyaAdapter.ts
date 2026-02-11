@@ -57,11 +57,13 @@ function toDeviceCategory(raw?: string): DeviceCategory {
   const c = String(raw || "").toLowerCase().trim();
 
   if (["light", "lighting", "ceiling_light", "lamp"].includes(c)) return "light" as DeviceCategory;
-  if (["switch", "switch_1", "switch_2", "switch_3", "switch_4"].includes(c)) return "switch" as DeviceCategory;
+  if (["switch", "switch_1", "switch_2", "switch_3", "switch_4"].includes(c))
+    return "switch" as DeviceCategory;
   if (["socket", "plug", "smart_plug", "outlet"].includes(c)) return "plug" as DeviceCategory;
   if (["camera", "ipc", "ipcamera"].includes(c)) return "camera" as DeviceCategory;
   if (["doorlock", "lock"].includes(c)) return "lock" as DeviceCategory;
-  if (["sensor", "pir", "motion", "smoke_sensor", "gas_sensor"].includes(c)) return "sensor" as DeviceCategory;
+  if (["sensor", "pir", "motion", "smoke_sensor", "gas_sensor"].includes(c))
+    return "sensor" as DeviceCategory;
   if (["curtain", "blind", "shade"].includes(c)) return "curtain" as DeviceCategory;
   if (["thermostat", "temp_humidity_sensor"].includes(c)) return "thermostat" as DeviceCategory;
 
@@ -70,6 +72,53 @@ function toDeviceCategory(raw?: string): DeviceCategory {
 
 function cleanStr(v: any) {
   return String(v || "").trim();
+}
+
+/**
+ * ✅ Minimal DP mapping for common power toggles.
+ * Your Tuya console shows many devices expose switch_1 (NOT switch).
+ * So we normalize "power"/"switch" -> "switch_1".
+ *
+ * This keeps your UI + chat simple while Tuya gets the exact DP it needs.
+ */
+function normalizeTuyaCommand(command: Record<string, any>): Record<string, any> {
+  if (!command || typeof command !== "object") return {};
+
+  const out: Record<string, any> = {};
+
+  for (const [keyRaw, valueRaw] of Object.entries(command)) {
+    const key = String(keyRaw).trim();
+
+    // Normalize boolean-ish values
+    const v =
+      valueRaw === "on"
+        ? true
+        : valueRaw === "off"
+          ? false
+          : valueRaw === "true"
+            ? true
+            : valueRaw === "false"
+              ? false
+              : valueRaw;
+
+    // ✅ Generic toggles -> Tuya DP
+    if (key === "power" || key === "switch") {
+      // default to switch_1 if caller used generic names
+      out["switch_1"] = v === true || v === 1 || v === "1" || v === "on";
+      continue;
+    }
+
+    // ✅ Also accept user sending { switch_1: true } already
+    if (key === "switch_1") {
+      out["switch_1"] = v === true || v === 1 || v === "1" || v === "on";
+      continue;
+    }
+
+    // pass-through for advanced commands (countdown_1, relay_status, etc.)
+    out[key] = v;
+  }
+
+  return out;
 }
 
 export class TuyaAdapter implements DeviceAdapter {
@@ -228,7 +277,15 @@ export class TuyaAdapter implements DeviceAdapter {
     command: Record<string, any>,
     _context: AdapterContext
   ): Promise<void> {
-    const commands = Object.entries(command).map(([code, value]) => ({ code, value }));
+    // ✅ Normalize generic commands to Tuya DP codes (fixes Tuya error 2008)
+    const normalized = normalizeTuyaCommand(command);
+
+    const commands = Object.entries(normalized).map(([code, value]) => ({ code, value }));
+
+    if (!commands.length) {
+      throw new Error("No valid Tuya commands to execute");
+    }
+
     await this.client.request("POST", `/v1.0/iot-03/devices/${deviceId}/commands`, { commands });
   }
 
