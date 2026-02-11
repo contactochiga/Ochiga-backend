@@ -5,10 +5,25 @@ import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 
 function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    v
+  );
 }
 
 export async function getDeviceState(req: any, res: Response) {
+  // ✅ HARD NO-CACHE (prevents 304 + stale/empty behaviour)
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+  );
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Surrogate-Control", "no-store");
+
+  // ✅ prevent conditional requests from being honored
+  res.removeHeader("ETag");
+  res.removeHeader("Last-Modified");
+
   try {
     const estateId = req.user?.estate_id;
     if (!estateId) return res.status(400).json({ error: "User has no estate" });
@@ -22,7 +37,7 @@ export async function getDeviceState(req: any, res: Response) {
     if (isUuid(rawId)) {
       const { data } = await supabaseAdmin
         .from("devices")
-        .select("id, estate_id, external_id, vendor")
+        .select("id, estate_id, external_id, vendor, adapter")
         .eq("id", rawId)
         .eq("estate_id", estateId)
         .maybeSingle();
@@ -30,7 +45,7 @@ export async function getDeviceState(req: any, res: Response) {
     } else {
       const { data } = await supabaseAdmin
         .from("devices")
-        .select("id, estate_id, external_id, vendor")
+        .select("id, estate_id, external_id, vendor, adapter")
         .eq("external_id", rawId)
         .eq("estate_id", estateId)
         .maybeSingle();
@@ -52,7 +67,7 @@ export async function getDeviceState(req: any, res: Response) {
       return res.json({
         deviceId: st.device_id,
         external_id: dev.external_id,
-        vendor: dev.vendor,
+        vendor: dev.vendor ?? dev.adapter ?? null,
         state: st.status,
         lastSeen: st.last_seen,
         source: "cache",
@@ -62,42 +77,61 @@ export async function getDeviceState(req: any, res: Response) {
     // 2) ✅ no state yet => fetch live from adapter (Tuya), then save
     initAdaptersOnce();
 
-    const vendor = String(dev.vendor || "").toLowerCase().trim() || "tuya";
-    const adapter = adapterRegistry.get(vendor);
+    // ✅ Prefer dev.adapter (if you ever store it), else dev.vendor, else "tuya"
+    const adapterName = String(dev.adapter || dev.vendor || "tuya")
+      .toLowerCase()
+      .trim();
+
+    const adapter = adapterRegistry.get(adapterName);
 
     // If adapter missing, return empty but not 404 (so UI won’t crash)
     if (!adapter) {
       return res.json({
         deviceId: dev.id,
         external_id: dev.external_id,
-        vendor: dev.vendor,
+        vendor: dev.vendor ?? null,
+        adapter: adapterName,
         state: {},
         lastSeen: null,
         source: "none",
-        warning: `No adapter registered for vendor=${vendor}`,
+        warning: `No adapter registered for adapterName=${adapterName}`,
       });
     }
 
     // Tuya uses external_id as the real device id on Tuya cloud
     const tuyaDeviceId = String(dev.external_id || "").trim();
 
+    if (!tuyaDeviceId) {
+      return res.json({
+        deviceId: dev.id,
+        external_id: dev.external_id ?? null,
+        vendor: dev.vendor ?? null,
+        adapter: adapterName,
+        state: {},
+        lastSeen: null,
+        source: "none",
+        warning: "Device has no external_id; cannot fetch live state from Tuya",
+      });
+    }
+
     let live: Record<string, any> = {};
+
     try {
-      // You already updated TuyaAdapter to support live status
+      // You updated TuyaAdapter to support live status
       // @ts-ignore
       if (typeof (adapter as any).getLiveState === "function") {
         // @ts-ignore
         live = await (adapter as any).getLiveState(tuyaDeviceId);
       } else {
-        // fallback: try calling Tuya status endpoint via generic client method if you exposed it
-        throw new Error(`Adapter ${vendor} does not implement getLiveState()`);
+        throw new Error(`Adapter ${adapterName} does not implement getLiveState()`);
       }
     } catch (e: any) {
       // return empty (don’t 500 the UI), but include debug note
       return res.json({
         deviceId: dev.id,
         external_id: dev.external_id,
-        vendor: dev.vendor,
+        vendor: dev.vendor ?? null,
+        adapter: adapterName,
         state: {},
         lastSeen: null,
         source: "live_failed",
@@ -108,22 +142,21 @@ export async function getDeviceState(req: any, res: Response) {
     const now = new Date().toISOString();
 
     // 3) ✅ persist latest known state
-    await supabaseAdmin
-      .from("device_states")
-      .upsert(
-        {
-          device_id: dev.id, // store by our internal device UUID
-          status: live,       // jsonb
-          last_seen: now,
-        },
-        { onConflict: "device_id" }
-      );
+    await supabaseAdmin.from("device_states").upsert(
+      {
+        device_id: dev.id, // store by our internal device UUID
+        status: live, // jsonb
+        last_seen: now,
+      },
+      { onConflict: "device_id" }
+    );
 
     // 4) ✅ return live state
     return res.json({
       deviceId: dev.id,
       external_id: dev.external_id,
-      vendor: dev.vendor,
+      vendor: dev.vendor ?? null,
+      adapter: adapterName,
       state: live,
       lastSeen: now,
       source: "live",
