@@ -1,42 +1,61 @@
+// src/controllers/deviceStateController.ts
 import { Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
 
 export async function getDeviceState(req: any, res: Response) {
   try {
     const estateId = req.user?.estate_id;
     if (!estateId) return res.status(400).json({ error: "User has no estate" });
 
-    const { deviceId } = req.params;
-    if (!deviceId) return res.status(400).json({ error: "Missing deviceId" });
+    const rawId = String(req.params.deviceId || "").trim();
+    if (!rawId) return res.status(400).json({ error: "Missing deviceId" });
 
-    // ✅ make sure device belongs to this estate
-    const { data: dev, error: devErr } = await supabaseAdmin
-      .from("devices")
-      .select("id, estate_id")
-      .eq("id", deviceId)
-      .limit(1)
-      .single();
+    // ✅ resolve device by UUID or external_id (scoped to estate)
+    let dev: any = null;
 
-    if (devErr) return res.status(404).json({ error: "Device not found" });
-    if (dev?.estate_id !== estateId) return res.status(403).json({ error: "Forbidden" });
+    if (isUuid(rawId)) {
+      const { data } = await supabaseAdmin
+        .from("devices")
+        .select("id, estate_id, external_id, vendor")
+        .eq("id", rawId)
+        .eq("estate_id", estateId)
+        .maybeSingle();
+      dev = data;
+    } else {
+      const { data } = await supabaseAdmin
+        .from("devices")
+        .select("id, estate_id, external_id, vendor")
+        .eq("external_id", rawId)
+        .eq("estate_id", estateId)
+        .maybeSingle();
+      dev = data;
+    }
 
-    // ✅ read latest known state
-    const { data: st, error: stErr } = await supabaseAdmin
+    if (!dev?.id) return res.status(404).json({ error: "Device not found", deviceId: rawId });
+
+    // ✅ read latest known state by UUID
+    const { data: st } = await supabaseAdmin
       .from("device_states")
       .select("device_id, status, last_seen")
-      .eq("device_id", deviceId)
-      .limit(1)
-      .single();
+      .eq("device_id", dev.id)
+      .maybeSingle();
 
-    if (stErr || !st) {
+    if (!st) {
       return res.status(404).json({
         error: "No state yet for this device",
-        deviceId,
+        deviceId: dev.id,
+        external_id: dev.external_id,
       });
     }
 
     return res.json({
       deviceId: st.device_id,
+      external_id: dev.external_id,
+      vendor: dev.vendor,
       state: st.status,
       lastSeen: st.last_seen,
     });
