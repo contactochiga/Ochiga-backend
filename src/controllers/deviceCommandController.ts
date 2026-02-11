@@ -3,9 +3,32 @@ import { Request, Response } from "express";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { adapterRegistry } from "../device/adapters/registry";
+import { initAdaptersOnce } from "../device/adapters/initAdapters";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
+function normalizeCommand(input: any): Record<string, any> {
+  // ✅ allow command to be:
+  // { switch: true } OR { commands: [{code,value}] } OR { on: true }
+  const c = input ?? {};
+
+  // If they mistakenly send { commands: [...] } from frontend
+  if (Array.isArray(c.commands)) {
+    const out: Record<string, any> = {};
+    for (const item of c.commands) {
+      if (item?.code) out[String(item.code)] = item.value;
+    }
+    return out;
+  }
+
+  // Common aliases → Tuya DP codes (best-effort)
+  if (typeof c.on === "boolean" && c.switch === undefined) return { switch: c.on };
+  if (typeof c.power === "boolean" && c.switch === undefined) return { switch: c.power };
+
+  return c;
 }
 
 export async function requestDeviceCommand(req: Request, res: Response) {
@@ -38,27 +61,71 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       deviceRow = data;
     }
 
-    // If not found, still queue — but worker will fallback and likely fail safely
+    // If not found, still emit signal (audit), but immediate execute needs it
     const deviceRef = deviceRow?.id || rawId;
 
+    // ✅ Always write the audit signal first
     await handleSignal({
       schemaVersion: SIGNAL_SCHEMA_VERSION,
       source: "user",
       type: "device.command.requested",
       timestamp: new Date().toISOString(),
-      deviceId: deviceRef, // ✅ now mostly a UUID
+      deviceId: deviceRef,
       command,
       requestedBy: {
         userId: user.id,
         role: user.role,
       },
-      // OPTIONAL: give worker a hint
       metadata: {
         raw_device_ref: rawId,
         resolved_device_uuid: deviceRow?.id || null,
       },
     });
 
+    // ------------------------------------------------------------
+    // ✅ FAST PATH: Execute immediately for Tuya devices
+    // ------------------------------------------------------------
+    if (deviceRow?.vendor === "tuya" && deviceRow?.external_id) {
+      initAdaptersOnce();
+      const adapter = adapterRegistry.get("tuya");
+
+      if (!adapter) {
+        return res.status(500).json({ error: "Tuya adapter not registered" });
+      }
+
+      const normalized = normalizeCommand(command);
+
+      await adapter.executeCommand(deviceRow.external_id, normalized, {
+        estateId: deviceRow.estate_id,
+        homeId: deviceRow.home_id,
+        userId: user.id,
+        credentials: {
+          // TuyaClient reads env itself, so nothing strictly required here
+          // (but leaving object keeps shape consistent)
+        },
+      } as any);
+
+      // Optional: write a quick “last known” state (helps UI feel instant)
+      await supabaseAdmin
+        .from("device_states")
+        .upsert(
+          {
+            device_id: deviceRow.id,
+            status: { last_command: normalized },
+            last_seen: new Date().toISOString(),
+          } as any,
+          { onConflict: "device_id" } as any
+        );
+
+      return res.status(200).json({
+        ok: true,
+        status: "command_executed",
+        device: { id: deviceRow.id, external_id: deviceRow.external_id, vendor: deviceRow.vendor },
+        command: normalized,
+      });
+    }
+
+    // Default behavior (non-tuya or unresolved)
     return res.status(202).json({
       ok: true,
       status: "command_queued",
