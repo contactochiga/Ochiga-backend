@@ -52,18 +52,29 @@ type TuyaDeviceListPage = {
   total?: number;
 };
 
+// Tuya functions response
+type TuyaFunction = {
+  code: string;
+  type: "bool" | "value" | "enum" | "string" | string;
+  values?: string; // JSON string sometimes
+  desc?: string;
+  name?: string;
+};
+
+type TuyaFunctionsResp = {
+  functions?: TuyaFunction[];
+};
+
 // ✅ Map Tuya categories into your strict DeviceCategory union
 function toDeviceCategory(raw?: string): DeviceCategory {
   const c = String(raw || "").toLowerCase().trim();
 
   if (["light", "lighting", "ceiling_light", "lamp"].includes(c)) return "light" as DeviceCategory;
-  if (["switch", "switch_1", "switch_2", "switch_3", "switch_4"].includes(c))
-    return "switch" as DeviceCategory;
+  if (["switch", "switch_1", "switch_2", "switch_3", "switch_4"].includes(c)) return "switch" as DeviceCategory;
   if (["socket", "plug", "smart_plug", "outlet"].includes(c)) return "plug" as DeviceCategory;
   if (["camera", "ipc", "ipcamera"].includes(c)) return "camera" as DeviceCategory;
   if (["doorlock", "lock"].includes(c)) return "lock" as DeviceCategory;
-  if (["sensor", "pir", "motion", "smoke_sensor", "gas_sensor"].includes(c))
-    return "sensor" as DeviceCategory;
+  if (["sensor", "pir", "motion", "smoke_sensor", "gas_sensor"].includes(c)) return "sensor" as DeviceCategory;
   if (["curtain", "blind", "shade"].includes(c)) return "curtain" as DeviceCategory;
   if (["thermostat", "temp_humidity_sensor"].includes(c)) return "thermostat" as DeviceCategory;
 
@@ -74,52 +85,35 @@ function cleanStr(v: any) {
   return String(v || "").trim();
 }
 
-/**
- * ✅ Minimal DP mapping for common power toggles.
- * Your Tuya console shows many devices expose switch_1 (NOT switch).
- * So we normalize "power"/"switch" -> "switch_1".
- *
- * This keeps your UI + chat simple while Tuya gets the exact DP it needs.
- */
-function normalizeTuyaCommand(command: Record<string, any>): Record<string, any> {
-  if (!command || typeof command !== "object") return {};
-
-  const out: Record<string, any> = {};
-
-  for (const [keyRaw, valueRaw] of Object.entries(command)) {
-    const key = String(keyRaw).trim();
-
-    // Normalize boolean-ish values
-    const v =
-      valueRaw === "on"
-        ? true
-        : valueRaw === "off"
-          ? false
-          : valueRaw === "true"
-            ? true
-            : valueRaw === "false"
-              ? false
-              : valueRaw;
-
-    // ✅ Generic toggles -> Tuya DP
-    if (key === "power" || key === "switch") {
-      // default to switch_1 if caller used generic names
-      out["switch_1"] = v === true || v === 1 || v === "1" || v === "on";
-      continue;
-    }
-
-    // ✅ Also accept user sending { switch_1: true } already
-    if (key === "switch_1") {
-      out["switch_1"] = v === true || v === 1 || v === "1" || v === "on";
-      continue;
-    }
-
-    // pass-through for advanced commands (countdown_1, relay_status, etc.)
-    out[key] = v;
-  }
-
-  return out;
+function isBool(v: any) {
+  return typeof v === "boolean";
 }
+
+function toBool(v: any): boolean {
+  if (typeof v === "boolean") return v;
+  const s = String(v ?? "").toLowerCase().trim();
+  if (["1", "true", "on", "yes"].includes(s)) return true;
+  if (["0", "false", "off", "no"].includes(s)) return false;
+  return Boolean(v);
+}
+
+function parseJsonMaybe(v?: string) {
+  if (!v) return null;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return null;
+  }
+}
+
+type DeviceSchema = {
+  fetchedAt: number;
+  functionsByCode: Record<string, TuyaFunction>;
+  // common switch codes detected for this device
+  switchCodes: string[]; // e.g. ["switch_1","switch_2"] OR ["switch"] OR []
+  // preferred single code if no multi-gang
+  primaryPowerCode: string | null; // "switch" or "power" or null
+};
 
 export class TuyaAdapter implements DeviceAdapter {
   readonly name = "tuya";
@@ -127,6 +121,12 @@ export class TuyaAdapter implements DeviceAdapter {
   readonly protocols = ["cloud", "wifi"];
 
   private client: TuyaClient;
+
+  // Cache device schema so we don't call Tuya every command
+  private schemaCache = new Map<string, DeviceSchema>();
+
+  // refresh schema every 30 minutes (safe)
+  private readonly SCHEMA_TTL_MS = 30 * 60 * 1000;
 
   constructor(client?: TuyaClient) {
     this.client = client ?? new TuyaClient();
@@ -145,10 +145,8 @@ export class TuyaAdapter implements DeviceAdapter {
       const path = `/v1.0/users/${encodeURIComponent(tuyaUid)}/devices`;
       console.log("[TuyaAdapter.discover] requesting (uid devices):", path);
 
-      // TuyaClient returns res.data.result already
       const result = await this.client.request<any>("GET", path);
 
-      // Some responses are array, some are { list: [] }
       const list: TuyaUserDevice[] = Array.isArray(result)
         ? result
         : Array.isArray(result?.list)
@@ -185,9 +183,7 @@ export class TuyaAdapter implements DeviceAdapter {
       return discovered;
     }
 
-    // ------------------------------------------------
-    // Fallback: old project-level listing (may be 0 for Smart Life devices)
-    // ------------------------------------------------
+    // Fallback: old project-level listing
     console.log("[TuyaAdapter.discover] tuyaUid missing — falling back to project device list");
 
     const sourceType = (process.env.TUYA_SOURCE_TYPE || "").trim() || undefined;
@@ -213,18 +209,6 @@ export class TuyaAdapter implements DeviceAdapter {
 
       const list = Array.isArray(page?.list) ? page.list : [];
       all.push(...list);
-
-      console.log(
-        "[TuyaAdapter.discover] page:",
-        "got=",
-        list.length,
-        "totalSoFar=",
-        all.length,
-        "has_more=",
-        Boolean(page?.has_more),
-        "last_row_key=",
-        page?.last_row_key || "-"
-      );
 
       if (!page?.has_more) break;
       if (!page?.last_row_key) break;
@@ -270,6 +254,184 @@ export class TuyaAdapter implements DeviceAdapter {
   }
 
   /* ------------------------------------------------
+   * INTERNAL: DEVICE SCHEMA
+   * ------------------------------------------------ */
+  private async getDeviceSchema(deviceId: string): Promise<DeviceSchema> {
+    const cached = this.schemaCache.get(deviceId);
+    if (cached && Date.now() - cached.fetchedAt < this.SCHEMA_TTL_MS) return cached;
+
+    // Tuya functions define what codes/values are allowed.
+    const fnPath = `/v1.0/iot-03/devices/${encodeURIComponent(deviceId)}/functions`;
+    const fnResp = await this.client.request<TuyaFunctionsResp>("GET", fnPath);
+
+    const functions = Array.isArray(fnResp?.functions) ? fnResp.functions : [];
+
+    const functionsByCode: Record<string, TuyaFunction> = {};
+    for (const f of functions) {
+      if (!f?.code) continue;
+      functionsByCode[f.code] = f;
+    }
+
+    // detect multi-gang switches: switch_1..switch_n
+    const switchCodes = Object.keys(functionsByCode)
+      .filter((c) => c === "switch" || c === "power" || /^switch_\d+$/i.test(c))
+      .sort((a, b) => {
+        // sort switch_1..switch_n nicely
+        const na = a.match(/^switch_(\d+)$/i)?.[1];
+        const nb = b.match(/^switch_(\d+)$/i)?.[1];
+        if (na && nb) return Number(na) - Number(nb);
+        if (a === "switch") return -1;
+        if (b === "switch") return 1;
+        return a.localeCompare(b);
+      });
+
+    // choose preferred single "power" code if not multi
+    let primaryPowerCode: string | null = null;
+    if (functionsByCode["switch"]) primaryPowerCode = "switch";
+    else if (functionsByCode["power"]) primaryPowerCode = "power";
+    else {
+      const firstGang = switchCodes.find((c) => /^switch_\d+$/i.test(c));
+      primaryPowerCode = firstGang ?? null;
+    }
+
+    const schema: DeviceSchema = {
+      fetchedAt: Date.now(),
+      functionsByCode,
+      switchCodes,
+      primaryPowerCode,
+    };
+
+    this.schemaCache.set(deviceId, schema);
+    return schema;
+  }
+
+  private coerceValueByFunction(fn: TuyaFunction | undefined, value: any): any {
+    if (!fn) return value;
+
+    if (fn.type === "bool") return toBool(value);
+
+    if (fn.type === "value") {
+      const parsed = parseJsonMaybe(fn.values);
+      const min = parsed?.min;
+      const max = parsed?.max;
+      const step = parsed?.step;
+      let num = Number(value);
+      if (Number.isNaN(num)) num = 0;
+
+      if (typeof min === "number") num = Math.max(min, num);
+      if (typeof max === "number") num = Math.min(max, num);
+      if (typeof step === "number" && step > 0) num = Math.round(num / step) * step;
+
+      return num;
+    }
+
+    if (fn.type === "enum") {
+      const parsed = parseJsonMaybe(fn.values);
+      const range: string[] = Array.isArray(parsed?.range) ? parsed.range : [];
+      const v = String(value);
+      if (!range.length) return v;
+      // accept if valid else return first allowed option
+      return range.includes(v) ? v : range[0];
+    }
+
+    // string / unknown
+    return value;
+  }
+
+  private buildTuyaCommands(schema: DeviceSchema, command: Record<string, any>) {
+    // Supported UX commands:
+    // - { power: true } or { on: true } → turn ON (all gangs if multi)
+    // - { power: false } → OFF
+    // - { channel: 2, power: true } → ONLY switch_2
+    // - { all: true, power: true } → ALL gangs
+    // - { switch_2: true } direct
+    // - { switch: true } direct
+    //
+    // Any unsupported codes will be ignored safely.
+
+    const entries = Object.entries(command || {});
+    const out: Array<{ code: string; value: any }> = [];
+
+    const wantsPower =
+      "power" in (command || {}) ||
+      "on" in (command || {}) ||
+      "state" in (command || {}) ||
+      "switch" in (command || {});
+
+    const channelRaw = (command as any)?.channel ?? (command as any)?.gang ?? null;
+    const channel = channelRaw == null ? null : Number(channelRaw);
+    const wantsAll = Boolean((command as any)?.all);
+
+    // 1) If direct codes exist (switch_2, switch, etc), respect them first
+    for (const [code, value] of entries) {
+      if (code === "channel" || code === "gang" || code === "all") continue;
+      if (code === "on") continue; // normalized below
+      if (code === "state") continue;
+
+      // accept only supported codes
+      if (!schema.functionsByCode[code]) continue;
+
+      const fn = schema.functionsByCode[code];
+      out.push({ code, value: this.coerceValueByFunction(fn, value) });
+    }
+
+    // 2) If user sent {power/on/state/switch} but not direct dp codes, translate
+    if (wantsPower && out.length === 0) {
+      const raw =
+        (command as any)?.power ??
+        (command as any)?.on ??
+        (command as any)?.state ??
+        (command as any)?.switch;
+
+      const desired = toBool(raw);
+
+      const gangCodes = schema.switchCodes.filter((c) => /^switch_\d+$/i.test(c));
+      const hasMulti = gangCodes.length > 0;
+
+      // If multi-gang
+      if (hasMulti) {
+        // target specific channel if provided
+        if (channel && Number.isFinite(channel)) {
+          const target = `switch_${channel}`;
+          if (schema.functionsByCode[target]) {
+            out.push({
+              code: target,
+              value: this.coerceValueByFunction(schema.functionsByCode[target], desired),
+            });
+          }
+        } else {
+          // all gangs by default (or explicit all=true)
+          for (const c of gangCodes) {
+            out.push({
+              code: c,
+              value: this.coerceValueByFunction(schema.functionsByCode[c], desired),
+            });
+          }
+        }
+      } else {
+        // single switch device
+        const primary = schema.primaryPowerCode;
+        if (primary && schema.functionsByCode[primary]) {
+          out.push({
+            code: primary,
+            value: this.coerceValueByFunction(schema.functionsByCode[primary], desired),
+          });
+        }
+      }
+
+      // If user explicitly says all=true but device only has switch, still fine
+      if (wantsAll && out.length === 0 && schema.functionsByCode["switch"]) {
+        out.push({
+          code: "switch",
+          value: this.coerceValueByFunction(schema.functionsByCode["switch"], desired),
+        });
+      }
+    }
+
+    return out;
+  }
+
+  /* ------------------------------------------------
    * COMMAND
    * ------------------------------------------------ */
   async executeCommand(
@@ -277,13 +439,17 @@ export class TuyaAdapter implements DeviceAdapter {
     command: Record<string, any>,
     _context: AdapterContext
   ): Promise<void> {
-    // ✅ Normalize generic commands to Tuya DP codes (fixes Tuya error 2008)
-    const normalized = normalizeTuyaCommand(command);
+    const schema = await this.getDeviceSchema(deviceId);
 
-    const commands = Object.entries(normalized).map(([code, value]) => ({ code, value }));
+    const commands = this.buildTuyaCommands(schema, command);
 
     if (!commands.length) {
-      throw new Error("No valid Tuya commands to execute");
+      // Instead of throwing (and breaking UI), just no-op with a clear log
+      console.warn("[TuyaAdapter.executeCommand] No supported commands for device:", deviceId, {
+        incoming: command,
+        supported: Object.keys(schema.functionsByCode).slice(0, 30),
+      });
+      return;
     }
 
     await this.client.request("POST", `/v1.0/iot-03/devices/${deviceId}/commands`, { commands });
