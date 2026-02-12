@@ -20,11 +20,13 @@ function pickExternalId(d: any): string | null {
 }
 
 function pickVendor(d: any): string {
-  return (
-    cleanStr(d?.vendor) ||
-    cleanStr(d?.adapter) ||
-    "tuya"
-  ) as string;
+  return (cleanStr(d?.vendor) || cleanStr(d?.adapter) || "tuya") as string;
+}
+
+function numOrNull(v: any) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -46,23 +48,21 @@ async function resolveRoomId(opts: {
   const roomName = cleanStr(opts.room);
   if (!roomName) return null;
 
-  // try find existing room by name for this home
+  // ✅ use eq/ilike properly (ilike needs %)
   const { data: found, error: findErr } = await supabaseAdmin
     .from("rooms")
     .select("id,name")
     .eq("home_id", opts.home_id)
-    .ilike("name", roomName)
+    .ilike("name", roomName) // exact-insensitive match
     .maybeSingle();
 
   if (findErr) {
-    // if rooms table isn't available, just fail softly and assign without room_id
     console.warn("resolveRoomId find room error:", findErr.message);
     return null;
   }
 
   if (found?.id) return found.id;
 
-  // create room if not found
   const { data: created, error: createErr } = await supabaseAdmin
     .from("rooms")
     .insert([
@@ -94,6 +94,10 @@ async function resolveRoomId(opts: {
  * Writes ONLY columns that exist in public.devices:
  * id, estate_id, home_id, room_id, name, type, external_id,
  * status, metadata, lat, lng, icon, vendor, created_at, updated_at
+ *
+ * ✅ IMPORTANT: conflict must be scoped to estate_id (multi-tenant)
+ * Recommended DB unique constraint:
+ *   UNIQUE (estate_id, vendor, external_id)
  */
 export async function assignDevices(req: Request, res: Response) {
   try {
@@ -103,8 +107,8 @@ export async function assignDevices(req: Request, res: Response) {
     if (!user.estate_id) return res.status(400).json({ error: "User has no estate" });
     if (!user.home_id) return res.status(400).json({ error: "User has no home" });
 
-    const incomingDevices = Array.isArray(req.body?.devices) ? req.body.devices : null;
-    const deviceIds = Array.isArray(req.body?.deviceIds) ? req.body.deviceIds : null;
+    const incomingDevices = Array.isArray((req.body as any)?.devices) ? (req.body as any).devices : null;
+    const deviceIds = Array.isArray((req.body as any)?.deviceIds) ? (req.body as any).deviceIds : null;
 
     if ((!incomingDevices || incomingDevices.length === 0) && (!deviceIds || deviceIds.length === 0)) {
       return res.status(400).json({ error: "Provide devices[] or deviceIds[]" });
@@ -113,12 +117,14 @@ export async function assignDevices(req: Request, res: Response) {
     const room_id = await resolveRoomId({
       estate_id: user.estate_id,
       home_id: user.home_id,
-      room_id: req.body?.room_id,
-      room: req.body?.room, // "Bedroom"
+      room_id: (req.body as any)?.room_id,
+      room: (req.body as any)?.room,
     });
 
-    // build normalized payload list
+    // Build normalized list
     const list = incomingDevices ?? deviceIds!.map((id: string) => ({ external_id: id }));
+
+    const nowIso = new Date().toISOString();
 
     const rows = list
       .map((d: any) => {
@@ -144,23 +150,24 @@ export async function assignDevices(req: Request, res: Response) {
           "assigned";
 
         const icon = cleanStr(d?.icon);
-        const lat = d?.lat ?? d?.metadata?.lat ?? null;
-        const lng = d?.lng ?? d?.metadata?.lng ?? null;
+
+        const lat = numOrNull(d?.lat ?? d?.metadata?.lat);
+        const lng = numOrNull(d?.lng ?? d?.metadata?.lng);
 
         return {
           estate_id: user.estate_id,
           home_id: user.home_id,
-          room_id: room_id, // may be null if no room selected or room creation fails
+          room_id: room_id,
           name,
           type,
           external_id,
           status,
           vendor,
           icon,
-          lat: lat === null ? null : Number(lat),
-          lng: lng === null ? null : Number(lng),
-          metadata: d?.metadata ?? d, // ✅ correct json column name
-          updated_at: new Date().toISOString(),
+          lat,
+          lng,
+          metadata: d?.metadata ?? d, // jsonb
+          updated_at: nowIso,
         };
       })
       .filter(Boolean) as any[];
@@ -169,10 +176,11 @@ export async function assignDevices(req: Request, res: Response) {
       return res.status(400).json({ error: "No valid devices found to assign" });
     }
 
-    // ✅ upsert by vendor + external_id (assumes you created a unique constraint/index)
+    // ✅ Correct multi-tenant conflict scope:
+    // Ensure you have a unique index/constraint on (estate_id, vendor, external_id)
     const { data, error } = await supabaseAdmin
       .from("devices")
-      .upsert(rows, { onConflict: "vendor,external_id" })
+      .upsert(rows, { onConflict: "estate_id,vendor,external_id" })
       .select("*");
 
     if (error) {
