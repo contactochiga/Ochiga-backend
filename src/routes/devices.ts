@@ -4,7 +4,8 @@ import { requireAuth } from "../middleware/auth";
 import { discoverDevices } from "../controllers/deviceDiscoveryController";
 import { getDeviceState } from "../controllers/deviceStateController";
 import { assignDevices } from "../controllers/deviceAssignController";
-import { requestDeviceCommand } from "../controllers/deviceCommandController"; // ✅ NEW
+import { requestDeviceCommand } from "../controllers/deviceCommandController";
+import { getEstateDevices } from "../controllers/deviceEstateController"; // ✅ NEW
 
 const router = Router();
 
@@ -14,6 +15,13 @@ const router = Router();
  * ✅ adapter defaults to tuya
  */
 router.get("/discover", requireAuth, discoverDevices);
+
+/**
+ * ✅ NEW: Devices bound/available for an estate
+ * GET /devices/estate/:estateId
+ * Your frontend is calling this — without it you’ll always get 404.
+ */
+router.get("/estate/:estateId", requireAuth, getEstateDevices);
 
 /**
  * Claim discovered devices into user's home context
@@ -26,7 +34,7 @@ router.post("/assign", requireAuth, assignDevices);
  * POST /devices/:deviceId/command
  * body: { command: Record<string, any> }
  */
-router.post("/:deviceId/command", requireAuth, requestDeviceCommand); // ✅ NEW
+router.post("/:deviceId/command", requireAuth, requestDeviceCommand);
 
 /**
  * Device state fetch
