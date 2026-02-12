@@ -1,32 +1,48 @@
 // src/controllers/deviceEstateController.ts
 import type { Request, Response } from "express";
-import { TuyaAdapter } from "../device/adapters/tuya/TuyaAdapter"; // adjust path if needed
+import { supabaseAdmin } from "../supabase/supabaseClient";
 
 export async function getEstateDevices(req: Request, res: Response) {
   try {
-    const estateId = req.params.estateId;
+    const user: any = (req as any).user;
+    const estateIdParam = String(req.params.estateId || "").trim();
 
-    // ✅ You can enforce access rules here if you want:
-    // if ((req as any).user?.estate_id !== estateId) return res.status(403).json({ error: "Forbidden" });
+    if (!user?.estate_id) return res.status(400).json({ error: "User has no estate" });
 
-    /**
-     * TODO (later): fetch "assigned devices" from DB for this estateId.
-     * For now, return discovery so UI can load devices and you move forward.
-     */
-    const user = (req as any).user || {};
+    // ✅ enforce scope: user can only fetch their own estate devices
+    if (user.estate_id !== estateIdParam) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
 
-    const adapter = new TuyaAdapter();
-    const devices = await adapter.discover({
-      estateId,
-      homeId: user?.home_id ?? user?.homeId,
-      userId: user?.id ?? user?.userId,
-      credentials: {
-        tuyaUid: user?.tuya_uid ?? user?.tuyaUid, // must exist for UID discovery
-      },
-    } as any);
+    const { data, error } = await supabaseAdmin
+      .from("devices")
+      .select(`
+        id,
+        estate_id,
+        home_id,
+        room_id,
+        name,
+        type,
+        external_id,
+        status,
+        vendor,
+        adapter,
+        icon,
+        metadata,
+        room:rooms ( id, name )
+      `)
+      .eq("estate_id", user.estate_id)
+      .order("updated_at", { ascending: false });
 
-    // Return an array (your frontend expects list/array)
-    return res.json(devices);
+    if (error) return res.status(500).json({ error: error.message });
+
+    // ✅ return array (frontend expects array)
+    return res.json((data || []).map((d: any) => ({
+      ...d,
+      // make room shape compatible with your frontend pickRoom()
+      room: d.room ?? null,
+      room_name: d.room?.name ?? null,
+    })));
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || "Failed to fetch estate devices" });
   }
