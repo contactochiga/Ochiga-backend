@@ -48,12 +48,11 @@ async function resolveRoomId(opts: {
   const roomName = cleanStr(opts.room);
   if (!roomName) return null;
 
-  // ✅ use eq/ilike properly (ilike needs %)
   const { data: found, error: findErr } = await supabaseAdmin
     .from("rooms")
     .select("id,name")
     .eq("home_id", opts.home_id)
-    .ilike("name", roomName) // exact-insensitive match
+    .ilike("name", roomName)
     .maybeSingle();
 
   if (findErr) {
@@ -86,18 +85,6 @@ async function resolveRoomId(opts: {
 
 /**
  * POST /devices/assign
- *
- * Accepts:
- *  - { deviceIds: string[], room?: string, room_id?: uuid }
- *  - { devices: any[], room?: string, room_id?: uuid }
- *
- * Writes ONLY columns that exist in public.devices:
- * id, estate_id, home_id, room_id, name, type, external_id,
- * status, metadata, lat, lng, icon, vendor, created_at, updated_at
- *
- * ✅ IMPORTANT: conflict must be scoped to estate_id (multi-tenant)
- * Recommended DB unique constraint:
- *   UNIQUE (estate_id, vendor, external_id)
  */
 export async function assignDevices(req: Request, res: Response) {
   try {
@@ -107,8 +94,13 @@ export async function assignDevices(req: Request, res: Response) {
     if (!user.estate_id) return res.status(400).json({ error: "User has no estate" });
     if (!user.home_id) return res.status(400).json({ error: "User has no home" });
 
-    const incomingDevices = Array.isArray((req.body as any)?.devices) ? (req.body as any).devices : null;
-    const deviceIds = Array.isArray((req.body as any)?.deviceIds) ? (req.body as any).deviceIds : null;
+    const incomingDevices = Array.isArray((req.body as any)?.devices)
+      ? (req.body as any).devices
+      : null;
+
+    const deviceIds = Array.isArray((req.body as any)?.deviceIds)
+      ? (req.body as any).deviceIds
+      : null;
 
     if ((!incomingDevices || incomingDevices.length === 0) && (!deviceIds || deviceIds.length === 0)) {
       return res.status(400).json({ error: "Provide devices[] or deviceIds[]" });
@@ -121,9 +113,7 @@ export async function assignDevices(req: Request, res: Response) {
       room: (req.body as any)?.room,
     });
 
-    // Build normalized list
     const list = incomingDevices ?? deviceIds!.map((id: string) => ({ external_id: id }));
-
     const nowIso = new Date().toISOString();
 
     const rows = list
@@ -157,7 +147,7 @@ export async function assignDevices(req: Request, res: Response) {
         return {
           estate_id: user.estate_id,
           home_id: user.home_id,
-          room_id: room_id,
+          room_id,
           name,
           type,
           external_id,
@@ -166,7 +156,7 @@ export async function assignDevices(req: Request, res: Response) {
           icon,
           lat,
           lng,
-          metadata: d?.metadata ?? d, // jsonb
+          metadata: d?.metadata ?? d,
           updated_at: nowIso,
         };
       })
@@ -176,11 +166,10 @@ export async function assignDevices(req: Request, res: Response) {
       return res.status(400).json({ error: "No valid devices found to assign" });
     }
 
-    // ✅ Correct multi-tenant conflict scope:
-    // Ensure you have a unique index/constraint on (estate_id, vendor, external_id)
+    // ✅ FIX: match your CURRENT DB unique constraint: (vendor, external_id)
     const { data, error } = await supabaseAdmin
       .from("devices")
-      .upsert(rows, { onConflict: "estate_id,vendor,external_id" })
+      .upsert(rows, { onConflict: "vendor,external_id" })
       .select("*");
 
     if (error) {
