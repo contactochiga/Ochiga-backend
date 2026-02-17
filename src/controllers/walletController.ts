@@ -27,12 +27,13 @@ function paystackClient(secret: string) {
       Authorization: `Bearer ${secret}`,
       "Content-Type": "application/json",
     },
+    timeout: 30000,
   });
 }
 
 /** GET wallet */
 export async function getWallet(req: Request, res: Response) {
-  const user = req.user;
+  const user = (req as any).user;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   const { data: existing, error: fetchErr } = await supabaseAdmin
@@ -56,7 +57,7 @@ export async function getWallet(req: Request, res: Response) {
 
 /** INIT PAYSTACK PAYMENT */
 export async function initPayment(req: Request, res: Response) {
-  const user = req.user;
+  const user = (req as any).user;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   const guard = requirePaystack(res);
@@ -65,15 +66,57 @@ export async function initPayment(req: Request, res: Response) {
   const secret = getPaystackSecret();
   const paystack = paystackClient(secret);
 
-  const { amount, email } = req.body;
+  const { amount, email } = req.body || {};
 
-  const response = await paystack.post("/transaction/initialize", {
-    email,
-    amount: Number(amount) * 100,
-    metadata: { userId: user.id },
-  });
+  // Basic validation so Paystack doesn't return confusing errors
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return res.status(400).json({
+      error: "Invalid amount",
+      detail: "amount must be a number greater than 0",
+    });
+  }
 
-  return res.json(response.data);
+  const payerEmail = (email || user.email || "").toString().trim();
+  if (!payerEmail || !payerEmail.includes("@")) {
+    return res.status(400).json({
+      error: "Missing email",
+      detail: "Provide a valid email or ensure the user profile has email",
+    });
+  }
+
+  try {
+    const response = await paystack.post("/transaction/initialize", {
+      email: payerEmail,
+      amount: Math.round(amt * 100), // NGN -> kobo
+      metadata: { userId: user.id },
+    });
+
+    return res.json(response.data);
+  } catch (err: any) {
+    // show the actual Paystack reason (this is what you need to stop guessing)
+    const status = err?.response?.status || 500;
+    const data = err?.response?.data || null;
+
+    console.error("PAYSTACK_INIT_ERROR:", {
+      status,
+      data,
+      message: err?.message,
+      // do NOT log the secret itself
+      hasSecret: !!secret,
+      secretLooksValid: secret.startsWith("sk_"),
+      envKeys: Object.keys(process.env).filter((k) =>
+        k.includes("PAYSTACK")
+      ),
+    });
+
+    return res.status(status).json({
+      error: "Paystack init failed",
+      status,
+      paystack: data,
+      message: err?.message,
+    });
+  }
 }
 
 /** PAYSTACK WEBHOOK */
@@ -81,54 +124,81 @@ export async function handleWebhook(req: Request, res: Response) {
   const secret = getPaystackSecret();
   if (!secret) return res.sendStatus(200); // don't break production webhook calls
 
-  const signature = req.headers["x-paystack-signature"] as string;
+  const signature = (req.headers["x-paystack-signature"] as string) || "";
+  if (!signature) return res.status(401).send("Missing signature");
 
-  // IMPORTANT: use rawBody if present (we will wire this in app.ts)
+  // IMPORTANT: must use raw body for signature verification.
+  // We rely on app.ts wiring rawBody (see note below).
   const raw = (req as any).rawBody || Buffer.from(JSON.stringify(req.body));
-
   const hash = crypto.createHmac("sha512", secret).update(raw).digest("hex");
+
   if (hash !== signature) return res.status(401).send("Invalid signature");
 
   const event = req.body;
 
-  if (event.event === "charge.success") {
-    const data = event.data;
-    const userId = data.metadata.userId;
+  try {
+    if (event?.event === "charge.success") {
+      const data = event.data;
+      const userId = data?.metadata?.userId;
 
-    const { data: wallet } = await supabaseAdmin
-      .from("wallets")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
+      if (!userId) return res.sendStatus(200);
 
-    if (!wallet) return res.sendStatus(200);
+      const { data: wallet, error: wErr } = await supabaseAdmin
+        .from("wallets")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-    const amount = Number(data.amount) / 100;
-    const balance = Number(wallet.balance) + amount;
+      if (wErr) {
+        console.error("WEBHOOK_WALLET_FETCH_ERROR:", wErr);
+        return res.sendStatus(200);
+      }
 
-    await supabaseAdmin.from("wallets").update({ balance }).eq("id", wallet.id);
+      if (!wallet) return res.sendStatus(200);
 
-    await handleSignal({
-      type: "wallet.funded",
-      schemaVersion: SIGNAL_SCHEMA_VERSION,
-      source: "system",
-      walletId: wallet.id,
-      userId,
-      amount,
-      currency: "NGN",
-      method: "card",
-      reference: data.reference,
-      timestamp: new Date().toISOString(),
-    });
+      const amount = Number(data.amount) / 100;
+      const balance = Number(wallet.balance) + amount;
+
+      const { error: upErr } = await supabaseAdmin
+        .from("wallets")
+        .update({ balance, updated_at: new Date().toISOString() })
+        .eq("id", wallet.id);
+
+      if (upErr) {
+        console.error("WEBHOOK_WALLET_UPDATE_ERROR:", upErr);
+        return res.sendStatus(200);
+      }
+
+      await handleSignal({
+        type: "wallet.funded",
+        schemaVersion: SIGNAL_SCHEMA_VERSION,
+        source: "system",
+        walletId: wallet.id,
+        userId,
+        amount,
+        currency: "NGN",
+        method: "card",
+        reference: data.reference,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return res.sendStatus(200);
+  } catch (e: any) {
+    console.error("PAYSTACK_WEBHOOK_ERROR:", e?.message || e);
+    return res.sendStatus(200);
   }
-
-  return res.sendStatus(200);
 }
 
 /** MANUAL DEBIT */
 export async function debitWallet(req: Request, res: Response) {
-  const user = req.user!;
-  const { amount, reason } = req.body;
+  const user = (req as any).user!;
+  const { amount, reason } = req.body || {};
+
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return res.status(400).json({ error: "Invalid amount" });
+  }
 
   const { data: wallet, error } = await supabaseAdmin
     .from("wallets")
@@ -139,13 +209,16 @@ export async function debitWallet(req: Request, res: Response) {
   if (error) return res.status(500).json({ error: error.message });
   if (!wallet) return res.status(404).json({ error: "Wallet not found" });
 
-  if (Number(wallet.balance) < Number(amount)) {
+  if (Number(wallet.balance) < amt) {
     return res.status(400).json({ error: "Insufficient funds" });
   }
 
-  const balance = Number(wallet.balance) - Number(amount);
+  const balance = Number(wallet.balance) - amt;
 
-  await supabaseAdmin.from("wallets").update({ balance }).eq("id", wallet.id);
+  await supabaseAdmin
+    .from("wallets")
+    .update({ balance, updated_at: new Date().toISOString() })
+    .eq("id", wallet.id);
 
   await handleSignal({
     type: "wallet.debited",
@@ -153,7 +226,7 @@ export async function debitWallet(req: Request, res: Response) {
     source: "user",
     walletId: wallet.id,
     userId: user.id,
-    amount,
+    amount: amt,
     currency: "NGN",
     reason: reason ?? "manual_debit",
     timestamp: new Date().toISOString(),
@@ -161,3 +234,22 @@ export async function debitWallet(req: Request, res: Response) {
 
   return res.json({ balance });
 }
+
+/**
+ * NOTE (VERY IMPORTANT):
+ * For Paystack webhook signature verification to work, your app MUST capture rawBody.
+ * In app.ts/server.ts you need something like:
+ *
+ *  app.post(
+ *    "/wallets/webhook",
+ *    express.raw({ type: "application/json" }),
+ *    (req, _res, next) => {
+ *      (req as any).rawBody = req.body;
+ *      try { req.body = JSON.parse(req.body.toString("utf8")); } catch {}
+ *      next();
+ *    },
+ *    WalletCtrl.handleWebhook
+ *  );
+ *
+ * If you don’t do this, signature checks can fail randomly.
+ */
