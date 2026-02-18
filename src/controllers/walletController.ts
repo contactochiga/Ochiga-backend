@@ -6,6 +6,14 @@ import crypto from "crypto";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
 
+/**
+ * ✅ Toggle to disable wallet funding during Apple review
+ * - Set WALLET_FUNDING_ENABLED=true on Render when you want to enable later
+ * - Default is DISABLED (safer for review)
+ */
+const WALLET_FUNDING_ENABLED =
+  (process.env.WALLET_FUNDING_ENABLED || "false").toLowerCase() === "true";
+
 function getPaystackSecret() {
   // trim removes hidden spaces/newlines that can break auth
   return (process.env.PAYSTACK_SECRET_KEY || "").trim();
@@ -60,6 +68,19 @@ export async function getWallet(req: Request, res: Response) {
 export async function initPayment(req: Request, res: Response) {
   const user = req.user;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  /**
+   * ✅ DISABLED FOR REVIEW
+   * Stops Apple reviewers from seeing a broken payment flow.
+   * You can enable later by setting WALLET_FUNDING_ENABLED=true on Render.
+   */
+  if (!WALLET_FUNDING_ENABLED) {
+    return res.status(503).json({
+      error: "Wallet funding is temporarily disabled.",
+      message: "This feature will be enabled after approval.",
+      code: "WALLET_FUNDING_DISABLED",
+    });
+  }
 
   const guard = requirePaystack(res);
   if (guard) return guard;
