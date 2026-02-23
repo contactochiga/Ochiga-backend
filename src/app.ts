@@ -85,7 +85,7 @@ const allowList = new Set([
   "https://getoyi.com",
   "https://www.getoyi.com",
   "https://facility.getoyi.com",
-
+  "https://app.getoyi.com",
   // Older domains
   "https://oyi.com",
   "https://www.oyi.com",
