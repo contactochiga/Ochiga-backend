@@ -8,84 +8,208 @@ if (!apiKey) console.warn("OPENAI_API_KEY not set — AI features disabled");
 const client = apiKey ? new OpenAI({ apiKey }) : null;
 
 export type NLUContext = {
-  devices: any[];
-  homes?: any[];
-  estates?: any[];
+  devices: Array<{ id: string; name?: string; room_name?: string; type?: string }>;
+  homes?: Array<{ id: string; name?: string }>;
+  estates?: Array<{ id: string; name?: string }>;
 };
 
 /**
+ * NOTE:
+ * We keep the schema here lean and explicit.
+ * Your AutomationSchema.parse(parsed) remains the final gate.
+ */
+const automationJsonSchema = {
+  name: "automation_object",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      name: { type: "string" },
+
+      trigger: {
+        type: "object",
+        additionalProperties: true,
+        properties: {
+          type: { type: "string", enum: ["time", "device", "nlu", "location"] },
+
+          // Optional identifiers
+          home_id: { type: ["string", "null"] },
+          estate_id: { type: ["string", "null"] },
+
+          // Optional location fields
+          coordinates: {
+            type: ["object", "null"],
+            additionalProperties: false,
+            properties: {
+              lat: { type: "number" },
+              lng: { type: "number" },
+            },
+            required: ["lat", "lng"],
+          },
+
+          // Optional ambiguity handling
+          needs_clarification: { type: "boolean" },
+          clarification_question: { type: ["string", "null"] },
+        },
+        required: ["type"],
+      },
+
+      action: {
+        type: "object",
+        additionalProperties: true,
+        properties: {
+          type: { type: "string", enum: ["device"] },
+
+          // allow either id or name; we’ll map safely after
+          device_id: { type: ["string", "null"] },
+
+          command: {
+            type: "object",
+            additionalProperties: true,
+          },
+
+          // Optional ambiguity handling
+          needs_clarification: { type: "boolean" },
+          clarification_question: { type: ["string", "null"] },
+        },
+        required: ["type"],
+      },
+
+      metadata: {
+        type: "object",
+        additionalProperties: true,
+      },
+    },
+    required: ["name", "trigger", "action", "metadata"],
+  },
+  strict: true,
+} as const;
+
+function normalize(s?: string) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function pickDeviceId(devices: NLUContext["devices"], device_id: string | null) {
+  if (!device_id) return null;
+
+  // exact id match first
+  const byId = devices.find((d) => d.id === device_id);
+  if (byId) return byId.id;
+
+  // name match second
+  const target = normalize(device_id);
+  const byName = devices.find((d) => normalize(d.name) === target);
+  if (byName) return byName.id;
+
+  return null;
+}
+
+function pickHomeId(homes: NLUContext["homes"], homeIdOrName: string | null) {
+  if (!homeIdOrName || !homes?.length) return null;
+
+  const byId = homes.find((h) => h.id === homeIdOrName);
+  if (byId) return byId.id;
+
+  const target = normalize(homeIdOrName);
+  const byName = homes.find((h) => normalize(h.name) === target);
+  if (byName) return byName.id;
+
+  return null;
+}
+
+function pickEstateId(estates: NLUContext["estates"], estateIdOrName: string | null) {
+  if (!estateIdOrName || !estates?.length) return null;
+
+  const byId = estates.find((e) => e.id === estateIdOrName);
+  if (byId) return byId.id;
+
+  const target = normalize(estateIdOrName);
+  const byName = estates.find((e) => normalize(e.name) === target);
+  if (byName) return byName.id;
+
+  return null;
+}
+
+/**
  * Converts natural language prompt into structured automation JSON
- * @param prompt user instruction in natural language
- * @param context devices, homes, estates info for AI reference
  */
 export async function nluToAutomation(prompt: string, context: NLUContext) {
   if (!client) throw new Error("AI client not configured");
 
-  const { devices = [], homes = [], estates = [] } = context || {};
+  const devices = context?.devices || [];
+  const homes = context?.homes || [];
+  const estates = context?.estates || [];
 
-  const system = `You are a strict assistant that converts a user's natural language instruction into a JSON automation object.
-Return ONLY valid JSON matching this shape:
-{
-  "name": string,
-  "trigger": { "type": "time"|"device"|"nlu"|"location", "home_id"?: string, "coordinates"?: {lat:number,lng:number}, ... },
-  "action": { "type": "device", "device_id": "<device id or friendly name>", "command": {...} },
-  "metadata": {...}
-}
-Devices: ${JSON.stringify(devices)}
-Homes: ${JSON.stringify(homes)}
-Estates: ${JSON.stringify(estates)}
-If a device, home, or estate is referenced by friendly name, map it to the correct ID. If uncertain, leave as null.
-Respond with JSON only.`;
+  // ✅ Keep context compact: only send essential fields
+  const compactDevices = devices.map((d) => ({
+    id: d.id,
+    name: d.name || null,
+    room_name: d.room_name || null,
+    type: d.type || null,
+  }));
+
+  const compactHomes = homes.map((h) => ({ id: h.id, name: h.name || null }));
+  const compactEstates = estates.map((e) => ({ id: e.id, name: e.name || null }));
+
+  const system = `
+You convert user instructions into a STRICT JSON object that matches the provided JSON Schema.
+Rules:
+- Output must be valid JSON ONLY (no markdown).
+- If the request is ambiguous or missing required details, set:
+  needs_clarification=true and clarification_question="..."
+  and keep unknown ids as null.
+- Prefer selecting existing ids from the provided lists.
+`;
 
   const resp = await client.chat.completions.create({
     model: "gpt-4o-mini",
+    temperature: 0.1,
+    max_tokens: 700,
+    response_format: {
+      type: "json_schema",
+      json_schema: automationJsonSchema,
+    },
     messages: [
       { role: "system", content: system },
-      { role: "user", content: prompt },
+      {
+        role: "user",
+        content: JSON.stringify({
+          prompt,
+          context: {
+            devices: compactDevices,
+            homes: compactHomes,
+            estates: compactEstates,
+          },
+        }),
+      },
     ],
-    max_tokens: 600,
-    temperature: 0.1,
   });
 
-  let text = resp.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error("No response from AI");
+  const content = resp.choices?.[0]?.message?.content;
+  if (!content) throw new Error("No response from AI");
 
-  // remove markdown fences if present
-  text = text.replace(/```json|```/gi, "").trim();
+  // ✅ No fence stripping, no substring hacks
+  const parsed = JSON.parse(content);
 
-  let parsed: any;
-  try {
-    parsed = JSON.parse(text);
-  } catch (err) {
-    // fallback: try to extract {...} substring
-    const first = text.indexOf("{");
-    const last = text.lastIndexOf("}");
-    if (first === -1 || last === -1) throw new Error("AI did not return valid JSON");
-    const sub = text.substring(first, last + 1);
-    parsed = JSON.parse(sub);
+  // ✅ Safe deterministic mapping (AI may output name instead of id)
+  if (parsed?.action?.type === "device") {
+    const mapped = pickDeviceId(devices, parsed.action.device_id ?? null);
+    if (mapped) parsed.action.device_id = mapped;
   }
 
-  // Map device friendly name to ID
-  if (parsed?.action?.device_id && typeof parsed.action.device_id === "string") {
-    const friendly = parsed.action.device_id.toLowerCase();
-    const found = devices.find((d: any) => d.name?.toLowerCase() === friendly || d.id === parsed.action.device_id);
-    if (found) parsed.action.device_id = found.id;
+  if (parsed?.trigger?.home_id) {
+    const mapped = pickHomeId(homes, parsed.trigger.home_id ?? null);
+    if (mapped) parsed.trigger.home_id = mapped;
   }
 
-  // Map home friendly name to ID for location triggers
-  if (parsed?.trigger?.type === "location" && parsed.trigger.home_name) {
-    const home = homes.find((h: any) => h.name && h.name.toLowerCase() === parsed.trigger.home_name.toLowerCase());
-    if (home) parsed.trigger.home_id = home.id;
-    delete parsed.trigger.home_name;
+  if (parsed?.trigger?.estate_id) {
+    const mapped = pickEstateId(estates, parsed.trigger.estate_id ?? null);
+    if (mapped) parsed.trigger.estate_id = mapped;
   }
 
-  // Map estate if referenced
-  if (parsed?.trigger?.estate_name) {
-    const estate = estates.find((e: any) => e.name && e.name.toLowerCase() === parsed.trigger.estate_name.toLowerCase());
-    if (estate) parsed.trigger.estate_id = estate.id;
-    delete parsed.trigger.estate_name;
-  }
-
-  // Validate final JSON (this will throw if invalid)
+  // ✅ Final validation gate (throws if invalid)
   return AutomationSchema.parse(parsed);
 }
