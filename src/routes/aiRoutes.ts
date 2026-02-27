@@ -5,6 +5,9 @@ import OpenAI from "openai";
 const router = Router();
 
 const apiKey = process.env.OPENAI_API_KEY;
+if (!apiKey)
+  console.warn("OPENAI_API_KEY not set — /ai/chat will run in fallback mode.");
+
 const client = apiKey ? new OpenAI({ apiKey }) : null;
 
 type DeviceAction =
@@ -18,7 +21,7 @@ type AIChatResponse = {
   actions?: DeviceAction[];
 };
 
-const PANEL_ENUM = [
+const PANELS = [
   "home",
   "rooms",
   "visitor",
@@ -34,6 +37,20 @@ const PANEL_ENUM = [
   "sensors",
   "devices",
 ] as const;
+
+function safeJsonExtract(text: string) {
+  const cleaned = (text || "").replace(/```json|```/gi, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const first = cleaned.indexOf("{");
+    const last = cleaned.lastIndexOf("}");
+    if (first !== -1 && last !== -1) {
+      return JSON.parse(cleaned.slice(first, last + 1));
+    }
+    return null;
+  }
+}
 
 router.post("/chat", async (req, res) => {
   const message: string = (req.body?.message || req.body?.prompt || "").trim();
@@ -54,102 +71,72 @@ router.post("/chat", async (req, res) => {
 
   const system = `
 You are Oyi OS assistant.
-Return JSON ONLY that matches the schema.
+
+Return ONLY valid JSON:
+{
+  "reply": string,
+  "panel": ${PANELS.map((p) => `"${p}"`).join(" | ")} | null,
+  "deviceId": string | null,
+  "actions": [
+     { "type": "device.command", "deviceId": string, "command": object }
+   | { "type": "open.panel", "panel": ${PANELS.map((p) => `"${p}"`).join(" | ")}, "deviceId"?: string }
+  ]
+}
 
 Rules:
-- reply: short + direct.
-- panel: must be one of: ${PANEL_ENUM.join(", ")} or null
-- actions (optional):
-  - device.command: include deviceId and commandJson (stringified JSON)
-  - open.panel: include panel and optional deviceId
+- Reply in simple estate terms.
+- If user asks to open/manage/show a section, set "panel".
+- If user asks to control a device, include actions with deviceId and command.
+- Use known devices below to map friendly name -> id when possible.
+
 Known devices:
 ${JSON.stringify(devices)}
 `.trim();
 
   try {
-    const resp = await client.responses.create({
+    const resp = await client.chat.completions.create({
       model: "gpt-4o-mini",
-      input: [
+      temperature: 0.2,
+      max_tokens: 500,
+      messages: [
         { role: "system", content: system },
         { role: "user", content: message },
       ],
-      temperature: 0.2,
-      max_output_tokens: 400,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "oyi_chat_response",
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              reply: { type: "string" },
-              panel: {
-                anyOf: [
-                  { type: "string", enum: [...PANEL_ENUM] },
-                  { type: "null" },
-                ],
-              },
-              deviceId: { anyOf: [{ type: "string" }, { type: "null" }] },
-              actions: {
-                anyOf: [
-                  { type: "null" },
-                  {
-                    type: "array",
-                    items: {
-                      anyOf: [
-                        {
-                          type: "object",
-                          additionalProperties: false,
-                          properties: {
-                            type: { type: "string", enum: ["device.command"] },
-                            deviceId: { type: "string" },
-                            commandJson: { type: "string" }, // ✅ dynamic command lives here
-                          },
-                          required: ["type", "deviceId", "commandJson"],
-                        },
-                        {
-                          type: "object",
-                          additionalProperties: false,
-                          properties: {
-                            type: { type: "string", enum: ["open.panel"] },
-                            panel: { type: "string", enum: [...PANEL_ENUM] },
-                            deviceId: { type: "string" },
-                          },
-                          required: ["type", "panel"],
-                        },
-                      ],
-                    },
-                  },
-                ],
-              },
-            },
-            required: ["reply", "panel", "deviceId"],
-          },
-        },
-      },
     });
 
-    const text = resp.output_text?.trim() || "";
-    const parsed = JSON.parse(text);
+    const raw = resp.choices?.[0]?.message?.content?.trim() || "";
+    const parsed = safeJsonExtract(raw);
 
-    // ✅ normalize actions: parse commandJson → command object
+    if (!parsed || typeof parsed.reply !== "string") {
+      return res.json({
+        reply: raw || "Okay. What would you like to do next?",
+        panel: null,
+        deviceId: null,
+        actions: [],
+      } satisfies AIChatResponse);
+    }
+
+    // ✅ sanitize output
+    const panel =
+      parsed.panel && PANELS.includes(parsed.panel) ? parsed.panel : null;
+
     const actions: DeviceAction[] = Array.isArray(parsed.actions)
       ? parsed.actions
           .map((a: any) => {
-            if (a?.type === "device.command") {
-              let cmd: any = {};
-              try {
-                cmd = JSON.parse(String(a.commandJson || "{}"));
-              } catch {
-                cmd = {};
-              }
-              return { type: "device.command", deviceId: String(a.deviceId), command: cmd };
+            if (a?.type === "device.command" && a.deviceId && a.command) {
+              return {
+                type: "device.command",
+                deviceId: String(a.deviceId),
+                command:
+                  typeof a.command === "object" && a.command
+                    ? a.command
+                    : {},
+              } as DeviceAction;
             }
-            if (a?.type === "open.panel") {
+            if (a?.type === "open.panel" && a.panel && PANELS.includes(a.panel)) {
               const out: any = { type: "open.panel", panel: String(a.panel) };
               if (a.deviceId) out.deviceId = String(a.deviceId);
-              return out;
+              return out as DeviceAction;
             }
             return null;
           })
@@ -157,8 +144,8 @@ ${JSON.stringify(devices)}
       : [];
 
     const out: AIChatResponse = {
-      reply: String(parsed.reply || "Okay. What would you like to do next?"),
-      panel: parsed.panel ?? null,
+      reply: parsed.reply,
+      panel,
       deviceId: parsed.deviceId ?? null,
       actions,
     };
@@ -167,8 +154,18 @@ ${JSON.stringify(devices)}
   } catch (err: any) {
     const status = err?.status || err?.response?.status;
     const msg = err?.message || "";
-    console.error("AI chat error:", status, msg);
 
+    if (status === 429 || /quota|rate limit/i.test(msg)) {
+      return res.status(200).json({
+        reply:
+          "AI is temporarily unavailable (quota/rate limit). Panels still work ✅",
+        panel: null,
+        deviceId: null,
+        actions: [],
+      } satisfies AIChatResponse);
+    }
+
+    console.error("AI chat error:", status, msg || err);
     return res.status(200).json({
       reply: "AI is temporarily unavailable. Please try again later.",
       panel: null,
