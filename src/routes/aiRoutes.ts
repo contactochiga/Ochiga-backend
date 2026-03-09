@@ -52,6 +52,67 @@ function safeJsonExtract(text: string) {
   }
 }
 
+function normalizeText(v: string) {
+  return String(v || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferCommandPayload(message: string): Record<string, any> | null {
+  const t = normalizeText(message);
+
+  const turnOn = /\b(turn on|switch on|on|open|enable|start)\b/.test(t);
+  const turnOff = /\b(turn off|switch off|off|close|disable|stop)\b/.test(t);
+  if (turnOn && !turnOff) return { switch: true };
+  if (turnOff && !turnOn) return { switch: false };
+
+  const temp = t.match(/\b(?:set|to)\s+(\d{1,2})\s*(?:c|degree|degrees)?\b/);
+  if (temp) return { temperature: Number(temp[1]) };
+
+  const pct = t.match(/\b(\d{1,3})\s*%/);
+  if (pct) {
+    const n = Math.max(0, Math.min(100, Number(pct[1])));
+    return { brightness: n };
+  }
+
+  return null;
+}
+
+function inferFallbackActions(message: string, devices: any[]): DeviceAction[] {
+  const payload = inferCommandPayload(message);
+  if (!payload) return [];
+
+  const text = normalizeText(message);
+  const ranked: Array<{ id: string; score: number }> = devices
+    .map((d: any) => {
+      const id = String(d?.id || d?.deviceId || d?.external_id || "").trim();
+      const name = normalizeText(String(d?.name || ""));
+      const type = normalizeText(String(d?.type || ""));
+      const room = normalizeText(String(d?.room || ""));
+      if (!id) return null;
+
+      let score = 0;
+      if (name && text.includes(name)) score += 6;
+      if (type && text.includes(type)) score += 3;
+      if (room && text.includes(room)) score += 2;
+      return { id, score };
+    })
+    .filter((x): x is { id: string; score: number } => Boolean(x))
+    .sort((a: any, b: any) => b.score - a.score);
+
+  if (!ranked.length || ranked[0].score <= 0) return [];
+
+  return [
+    {
+      type: "device.command",
+      deviceId: ranked[0].id,
+      command: payload,
+    },
+  ];
+}
+
 router.post("/chat", async (req, res) => {
   const message: string = (req.body?.message || req.body?.prompt || "").trim();
   const context = req.body?.context || {};
@@ -120,7 +181,7 @@ ${JSON.stringify(devices)}
     const panel =
       parsed.panel && PANELS.includes(parsed.panel) ? parsed.panel : null;
 
-    const actions: DeviceAction[] = Array.isArray(parsed.actions)
+    let actions: DeviceAction[] = Array.isArray(parsed.actions)
       ? parsed.actions
           .map((a: any) => {
             if (a?.type === "device.command" && a.deviceId && a.command) {
@@ -143,10 +204,17 @@ ${JSON.stringify(devices)}
           .filter(Boolean)
       : [];
 
+    if (!actions.length) {
+      actions = inferFallbackActions(message, devices);
+    }
+
     const out: AIChatResponse = {
       reply: parsed.reply,
       panel,
-      deviceId: parsed.deviceId ?? null,
+      deviceId:
+        parsed.deviceId ??
+        (actions.find((a) => a.type === "device.command") as any)?.deviceId ??
+        null,
       actions,
     };
 
