@@ -20,6 +20,13 @@ router.post(
   CommunityCtrl.createPost
 );
 
+router.post(
+  "/media/upload",
+  requireAuth,
+  requireRole("resident", "manager", "estate_admin"),
+  CommunityCtrl.uploadMedia
+);
+
 // Get all posts for an estate
 router.get(
   "/posts/estate/:estateId",

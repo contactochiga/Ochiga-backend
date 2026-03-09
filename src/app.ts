@@ -149,7 +149,7 @@ app.post(
 // -------------------------------
 // BODY PARSING & LOGGING
 // -------------------------------
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan("dev"));

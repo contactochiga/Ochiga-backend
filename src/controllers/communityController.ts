@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { UserRole } from "../types/user";
+import { uploadToS3 } from "../services/s3Service";
 // import { handleSignal } from "../core/control-plane"; // enable later
 
 /* ------------------------------------------------
@@ -14,6 +15,30 @@ function canModerate(role?: UserRole) {
 function isMissingColumn(err: any, column: string) {
   const msg = String(err?.message || "").toLowerCase();
   return msg.includes("column") && msg.includes(column.toLowerCase()) && msg.includes("does not exist");
+}
+
+function extFromMime(mime?: string, fallback = "bin") {
+  const map: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/ogg": "ogg",
+    "video/quicktime": "mov",
+  };
+  if (mime && map[mime]) return map[mime];
+  return fallback;
+}
+
+function sanitizePart(v: string) {
+  return String(v || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 /* =================================================
@@ -330,4 +355,64 @@ export async function reactToComment(req: Request, res: Response) {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.json(data);
+}
+
+export async function uploadMedia(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { base64, mime, filename, mediaType } = req.body || {};
+  if (!base64 || !mime) {
+    return res.status(400).json({ error: "base64 and mime are required" });
+  }
+
+  const allowedImage = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+  const allowedVideo = ["video/mp4", "video/webm", "video/ogg", "video/quicktime"];
+  const isImage = allowedImage.includes(String(mime));
+  const isVideo = allowedVideo.includes(String(mime));
+  if (!isImage && !isVideo) {
+    return res.status(400).json({ error: "Unsupported media type" });
+  }
+
+  const raw = String(base64);
+  const cleaned = raw.includes(",") ? raw.split(",")[1] : raw;
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(cleaned, "base64");
+  } catch {
+    return res.status(400).json({ error: "Invalid base64 payload" });
+  }
+
+  if (!buffer || !buffer.length) {
+    return res.status(400).json({ error: "Empty media payload" });
+  }
+
+  // hard caps at API layer
+  if (isImage && buffer.length > 6 * 1024 * 1024) {
+    return res.status(400).json({ error: "Image too large (max 6MB)" });
+  }
+  if (isVideo && buffer.length > 15 * 1024 * 1024) {
+    return res.status(400).json({ error: "Video too large (max 15MB)" });
+  }
+
+  const estate = sanitizePart(String(user?.estate_id || "global"));
+  const uid = sanitizePart(String(user?.id || "anon"));
+  const kind = mediaType === "video" || isVideo ? "videos" : "images";
+  const ext = extFromMime(String(mime), String(filename || "").split(".").pop() || "bin");
+  const key = `community/${estate}/${uid}/${kind}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}.${ext}`;
+
+  try {
+    const url = await uploadToS3(key, buffer, String(mime));
+    return res.json({
+      ok: true,
+      url,
+      mime,
+      mediaType: kind === "videos" ? "video" : "image",
+      key,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Upload failed" });
+  }
 }
