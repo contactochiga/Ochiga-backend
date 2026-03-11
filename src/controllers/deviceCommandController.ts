@@ -46,18 +46,26 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     let deviceRow: any = null;
 
     if (isUuid(rawId)) {
-      const { data } = await supabaseAdmin
+      let q = supabaseAdmin
         .from("devices")
         .select("id, vendor, external_id, estate_id, home_id, room_id")
         .eq("id", rawId)
-        .maybeSingle();
+        .eq("estate_id", user.estate_id);
+
+      if (user.home_id) q = q.eq("home_id", user.home_id);
+
+      const { data } = await q.maybeSingle();
       deviceRow = data;
     } else {
-      const { data } = await supabaseAdmin
+      let q = supabaseAdmin
         .from("devices")
         .select("id, vendor, external_id, estate_id, home_id, room_id")
         .eq("external_id", rawId)
-        .maybeSingle();
+        .eq("estate_id", user.estate_id);
+
+      if (user.home_id) q = q.eq("home_id", user.home_id);
+
+      const { data } = await q.maybeSingle();
       deviceRow = data;
     }
 

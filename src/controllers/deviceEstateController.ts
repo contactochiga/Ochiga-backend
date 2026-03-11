@@ -14,9 +14,10 @@ export async function getEstateDevices(req: Request, res: Response) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("devices")
-      .select(`
+      .select(
+        `
         id,
         estate_id,
         home_id,
@@ -29,9 +30,18 @@ export async function getEstateDevices(req: Request, res: Response) {
         icon,
         metadata,
         rooms:rooms ( id, name )
-      `)
-      .eq("estate_id", user.estate_id)
-      .order("updated_at", { ascending: false });
+      `
+      )
+      .eq("estate_id", user.estate_id);
+
+    // Residents/members should only see devices in their own home.
+    const role = String(user.role || "").toLowerCase();
+    const isEstateWide = role === "admin" || role === "manager" || role === "estate_admin";
+    if (!isEstateWide && user.home_id) {
+      query = query.eq("home_id", user.home_id);
+    }
+
+    const { data, error } = await query.order("updated_at", { ascending: false });
 
     if (error) return res.status(500).json({ error: error.message });
 

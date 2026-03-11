@@ -85,6 +85,13 @@ function inferFallbackActions(message: string, devices: any[]): DeviceAction[] {
   if (!payload) return [];
 
   const text = normalizeText(message);
+  const wantsLight = /\b(light|lights|lamp)\b/.test(text);
+  const wantsAc = /\b(ac|air con|air conditioner)\b/.test(text);
+  const wantsTv = /\b(tv|television)\b/.test(text);
+  const wantsFan = /\b(fan)\b/.test(text);
+  const wantsDoor = /\b(door|lock|gate)\b/.test(text);
+  const wantsCurtain = /\b(curtain|blind)\b/.test(text);
+
   const ranked: Array<{ id: string; score: number }> = devices
     .map((d: any) => {
       const id = String(d?.id || d?.deviceId || d?.external_id || "").trim();
@@ -97,20 +104,26 @@ function inferFallbackActions(message: string, devices: any[]): DeviceAction[] {
       if (name && text.includes(name)) score += 6;
       if (type && text.includes(type)) score += 3;
       if (room && text.includes(room)) score += 2;
+      if (wantsLight && (name.includes("light") || name.includes("switch") || type.includes("light"))) score += 3;
+      if (wantsAc && (name.includes("ac") || name.includes("air") || type.includes("ac"))) score += 3;
+      if (wantsTv && (name.includes("tv") || name.includes("television") || type.includes("tv"))) score += 3;
+      if (wantsFan && (name.includes("fan") || type.includes("fan"))) score += 3;
+      if (wantsDoor && (name.includes("door") || name.includes("lock") || type.includes("lock"))) score += 3;
+      if (wantsCurtain && (name.includes("curtain") || name.includes("blind") || type.includes("curtain"))) score += 3;
       return { id, score };
     })
     .filter((x): x is { id: string; score: number } => Boolean(x))
     .sort((a: any, b: any) => b.score - a.score);
 
   if (!ranked.length || ranked[0].score <= 0) return [];
+  const max = ranked[0].score;
+  const targets = ranked.filter((r) => r.score >= Math.max(2, max - 1)).slice(0, 5);
 
-  return [
-    {
-      type: "device.command",
-      deviceId: ranked[0].id,
-      command: payload,
-    },
-  ];
+  return targets.map((t) => ({
+    type: "device.command",
+    deviceId: t.id,
+    command: payload,
+  }));
 }
 
 router.post("/chat", async (req, res) => {
