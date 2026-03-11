@@ -7,16 +7,19 @@ import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
 
 /**
- * ✅ Toggle to disable wallet funding during Apple review
- * - Set WALLET_FUNDING_ENABLED=true on Render when you want to enable later
- * - Default is DISABLED (safer for review)
+ * Wallet funding is enabled by default.
+ * Set WALLET_FUNDING_ENABLED=false only when you explicitly want to disable it.
  */
 const WALLET_FUNDING_ENABLED =
-  (process.env.WALLET_FUNDING_ENABLED || "false").toLowerCase() === "true";
+  (process.env.WALLET_FUNDING_ENABLED ?? "true").toLowerCase() !== "false";
 
 function getPaystackSecret() {
   // trim removes hidden spaces/newlines that can break auth
-  return (process.env.PAYSTACK_SECRET_KEY || "").trim();
+  return (
+    process.env.PAYSTACK_SECRET_KEY ||
+    process.env.PAYSTACK_SECRECT_KEY ||
+    ""
+  ).trim();
 }
 
 function requirePaystack(res: Response) {
@@ -40,28 +43,96 @@ function paystackClient(secret: string) {
   });
 }
 
+async function getOrCreateWallet(userId: string) {
+  const { data: existing, error: fetchErr } = await supabaseAdmin
+    .from("wallets")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (fetchErr) throw new Error(fetchErr.message);
+  if (existing) return existing;
+
+  const { data: created, error: createErr } = await supabaseAdmin
+    .from("wallets")
+    .insert([{ user_id: userId, balance: 0, currency: "NGN" }])
+    .select("*")
+    .single();
+
+  if (createErr) throw new Error(createErr.message);
+  return created;
+}
+
+async function applyFundingCredit(params: {
+  userId: string;
+  amount: number;
+  reference: string;
+  metadata?: Record<string, any>;
+  method?: "card" | "bank" | "transfer";
+}) {
+  const { userId, amount, reference, metadata = {}, method = "card" } = params;
+  const wallet = await getOrCreateWallet(userId);
+
+  const { data: existingTx, error: existingTxErr } = await supabaseAdmin
+    .from("wallet_transactions")
+    .select("id")
+    .eq("wallet_id", wallet.id)
+    .eq("reference", reference)
+    .maybeSingle();
+
+  if (existingTxErr) throw new Error(existingTxErr.message);
+  if (existingTx) {
+    return { applied: false, walletId: wallet.id, balance: Number(wallet.balance) };
+  }
+
+  const nextBalance = Number(wallet.balance) + Number(amount);
+
+  const { error: walletErr } = await supabaseAdmin
+    .from("wallets")
+    .update({ balance: nextBalance })
+    .eq("id", wallet.id);
+  if (walletErr) throw new Error(walletErr.message);
+
+  const { error: txErr } = await supabaseAdmin.from("wallet_transactions").insert([
+    {
+      wallet_id: wallet.id,
+      direction: "credit",
+      type: "funding",
+      amount: Number(amount),
+      reference,
+      status: "completed",
+      metadata,
+    },
+  ]);
+  if (txErr) throw new Error(txErr.message);
+
+  await handleSignal({
+    type: "wallet.funded",
+    schemaVersion: SIGNAL_SCHEMA_VERSION,
+    source: "system",
+    walletId: wallet.id,
+    userId,
+    amount: Number(amount),
+    currency: "NGN",
+    method,
+    reference,
+    timestamp: new Date().toISOString(),
+  });
+
+  return { applied: true, walletId: wallet.id, balance: nextBalance };
+}
+
 /** GET wallet */
 export async function getWallet(req: Request, res: Response) {
   const user = req.user;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  const { data: existing, error: fetchErr } = await supabaseAdmin
-    .from("wallets")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (fetchErr) return res.status(500).json({ error: fetchErr.message });
-  if (existing) return res.json(existing);
-
-  const { data: created, error: createErr } = await supabaseAdmin
-    .from("wallets")
-    .insert([{ user_id: user.id, balance: 0, currency: "NGN" }])
-    .select("*")
-    .single();
-
-  if (createErr) return res.status(500).json({ error: createErr.message });
-  return res.json(created);
+  try {
+    const wallet = await getOrCreateWallet(user.id);
+    return res.json(wallet);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to load wallet" });
+  }
 }
 
 /** INIT PAYSTACK PAYMENT */
@@ -69,11 +140,6 @@ export async function initPayment(req: Request, res: Response) {
   const user = req.user;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  /**
-   * ✅ DISABLED FOR REVIEW
-   * Stops Apple reviewers from seeing a broken payment flow.
-   * You can enable later by setting WALLET_FUNDING_ENABLED=true on Render.
-   */
   if (!WALLET_FUNDING_ENABLED) {
     return res.status(503).json({
       error: "Wallet funding is temporarily disabled.",
@@ -166,31 +232,20 @@ export async function handleWebhook(req: Request, res: Response) {
       const userId = data?.metadata?.userId;
 
       if (!userId) return res.sendStatus(200);
-
-      const { data: wallet } = await supabaseAdmin
-        .from("wallets")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (!wallet) return res.sendStatus(200);
-
       const amount = Number(data.amount) / 100;
-      const balance = Number(wallet.balance) + amount;
+      const reference = String(data.reference || "");
+      if (!reference) return res.sendStatus(200);
 
-      await supabaseAdmin.from("wallets").update({ balance }).eq("id", wallet.id);
-
-      await handleSignal({
-        type: "wallet.funded",
-        schemaVersion: SIGNAL_SCHEMA_VERSION,
-        source: "system",
-        walletId: wallet.id,
+      await applyFundingCredit({
         userId,
         amount,
-        currency: "NGN",
+        reference,
         method: "card",
-        reference: data.reference,
-        timestamp: new Date().toISOString(),
+        metadata: {
+          source: "paystack_webhook",
+          channel: data?.channel || null,
+          paidAt: data?.paid_at || null,
+        },
       });
     }
   } catch (e: any) {
@@ -211,14 +266,12 @@ export async function debitWallet(req: Request, res: Response) {
     return res.status(400).json({ error: "Amount must be > 0" });
   }
 
-  const { data: wallet, error } = await supabaseAdmin
-    .from("wallets")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (error) return res.status(500).json({ error: error.message });
-  if (!wallet) return res.status(404).json({ error: "Wallet not found" });
+  let wallet: any;
+  try {
+    wallet = await getOrCreateWallet(user.id);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Wallet not found" });
+  }
 
   if (Number(wallet.balance) < amountNumber) {
     return res.status(400).json({ error: "Insufficient funds" });
@@ -226,7 +279,25 @@ export async function debitWallet(req: Request, res: Response) {
 
   const balance = Number(wallet.balance) - amountNumber;
 
-  await supabaseAdmin.from("wallets").update({ balance }).eq("id", wallet.id);
+  const { error: updateErr } = await supabaseAdmin
+    .from("wallets")
+    .update({ balance })
+    .eq("id", wallet.id);
+  if (updateErr) return res.status(500).json({ error: updateErr.message });
+
+  const txReference = `debit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const { error: txErr } = await supabaseAdmin.from("wallet_transactions").insert([
+    {
+      wallet_id: wallet.id,
+      direction: "debit",
+      type: "service_charge",
+      amount: amountNumber,
+      reference: txReference,
+      status: "completed",
+      metadata: { reason: reason ?? "manual_debit" },
+    },
+  ]);
+  if (txErr) return res.status(500).json({ error: txErr.message });
 
   await handleSignal({
     type: "wallet.debited",
@@ -241,4 +312,71 @@ export async function debitWallet(req: Request, res: Response) {
   });
 
   return res.json({ balance });
+}
+
+/** VERIFY PAYSTACK PAYMENT (client-driven fallback when webhook is delayed/misconfigured) */
+export async function verifyPayment(req: Request, res: Response) {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  if (!WALLET_FUNDING_ENABLED) {
+    return res.status(503).json({
+      error: "Wallet funding is temporarily disabled.",
+      code: "WALLET_FUNDING_DISABLED",
+    });
+  }
+
+  const reference =
+    String(req.params?.reference || req.query?.reference || req.body?.reference || "").trim();
+  if (!reference) return res.status(400).json({ error: "Payment reference is required" });
+
+  const guard = requirePaystack(res);
+  if (guard) return guard;
+
+  const paystack = paystackClient(getPaystackSecret());
+
+  try {
+    const response = await paystack.get(`/transaction/verify/${encodeURIComponent(reference)}`);
+    const payload = response?.data?.data;
+
+    if (!response?.data?.status || payload?.status !== "success") {
+      return res.status(400).json({
+        error: "Transaction not successful",
+        paystack: response?.data || null,
+      });
+    }
+
+    const ownerUserId = String(payload?.metadata?.userId || user.id);
+    if (ownerUserId !== user.id) {
+      return res.status(403).json({ error: "Transaction does not belong to current user" });
+    }
+
+    const amount = Number(payload?.amount || 0) / 100;
+    const applied = await applyFundingCredit({
+      userId: ownerUserId,
+      amount,
+      reference,
+      method: "card",
+      metadata: {
+        source: "verify_endpoint",
+        channel: payload?.channel || null,
+        paidAt: payload?.paid_at || null,
+      },
+    });
+
+    return res.json({
+      ok: true,
+      applied: applied.applied,
+      balance: applied.balance,
+      reference,
+    });
+  } catch (err: any) {
+    const status = err?.response?.status || 500;
+    return res.status(status).json({
+      error: "Paystack verify failed",
+      status,
+      paystack: err?.response?.data || null,
+      message: err?.message,
+    });
+  }
 }

@@ -17,6 +17,10 @@ router.get("/", requireAuth, WalletCtrl.getWallet);
 // Initialize Paystack payment
 router.post("/init", requireAuth, WalletCtrl.initPayment);
 
+// Verify a Paystack transaction reference (fallback when webhook is delayed)
+router.get("/verify/:reference", requireAuth, WalletCtrl.verifyPayment);
+router.post("/verify", requireAuth, WalletCtrl.verifyPayment);
+
 // Paystack webhook (NO auth – Paystack server)
 router.post("/webhook", WalletCtrl.handleWebhook);
 
