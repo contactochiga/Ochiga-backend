@@ -4,6 +4,61 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 
 const router = express.Router();
 
+async function getTuyaUidForUser(userId: string): Promise<string | null> {
+  // 1) preferred: users.tuya_uid
+  const direct = await supabaseAdmin
+    .from("users")
+    .select("tuya_uid")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!direct.error) {
+    const uid = String((direct.data as any)?.tuya_uid || "").trim();
+    if (uid) return uid;
+  }
+
+  // 2) fallback: user_integrations(provider='tuya')
+  const integ = await supabaseAdmin
+    .from("user_integrations")
+    .select("external_user_id")
+    .eq("user_id", userId)
+    .eq("provider", "tuya")
+    .maybeSingle();
+
+  if (!integ.error) {
+    const uid = String((integ.data as any)?.external_user_id || "").trim();
+    if (uid) return uid;
+  }
+
+  return null;
+}
+
+async function setTuyaUidForUser(userId: string, tuyaUid: string): Promise<{ ok: boolean; error?: string }> {
+  // 1) preferred: users.tuya_uid
+  const direct = await supabaseAdmin
+    .from("users")
+    .update({ tuya_uid: tuyaUid, updated_at: new Date().toISOString() } as any)
+    .eq("id", userId);
+
+  if (!direct.error) return { ok: true };
+
+  // 2) fallback: user_integrations
+  const integ = await supabaseAdmin
+    .from("user_integrations")
+    .upsert(
+      {
+        user_id: userId,
+        provider: "tuya",
+        external_user_id: tuyaUid,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,provider" }
+    );
+
+  if (!integ.error) return { ok: true };
+  return { ok: false, error: integ.error.message || direct.error.message };
+}
+
 /**
  * GET /me/context
  * Consumer app header/sidebar context:
@@ -49,6 +104,28 @@ router.get("/context", requireAuth, async (req, res) => {
   }
 
   return res.json({ estate, home });
+});
+
+router.get("/integrations/tuya", requireAuth, async (req, res) => {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const uid = await getTuyaUidForUser(user.id);
+  const masked = uid ? `${uid.slice(0, 4)}***${uid.slice(-3)}` : null;
+  return res.json({ provider: "tuya", connected: !!uid, tuya_uid: uid, masked_uid: masked });
+});
+
+router.patch("/integrations/tuya", requireAuth, async (req, res) => {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const tuya_uid = String(req.body?.tuya_uid || "").trim();
+  if (!tuya_uid) return res.status(400).json({ error: "tuya_uid is required" });
+
+  const result = await setTuyaUidForUser(user.id, tuya_uid);
+  if (!result.ok) return res.status(500).json({ error: result.error || "Failed to save Tuya UID" });
+
+  return res.json({ ok: true, provider: "tuya", connected: true, tuya_uid });
 });
 
 /**

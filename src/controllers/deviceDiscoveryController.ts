@@ -10,6 +10,33 @@ function cleanStr(v: any) {
   return s.length ? s : "";
 }
 
+async function resolveUserTuyaUid(userId: string): Promise<string | null> {
+  const fromUsers = await supabaseAdmin
+    .from("users")
+    .select("tuya_uid")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!fromUsers.error) {
+    const uid = cleanStr((fromUsers.data as any)?.tuya_uid);
+    if (uid) return uid;
+  }
+
+  const fromInteg = await supabaseAdmin
+    .from("user_integrations")
+    .select("external_user_id")
+    .eq("user_id", userId)
+    .eq("provider", "tuya")
+    .maybeSingle();
+
+  if (!fromInteg.error) {
+    const uid = cleanStr((fromInteg.data as any)?.external_user_id);
+    if (uid) return uid;
+  }
+
+  return null;
+}
+
 /**
  * GET /devices/discover?adapter=tuya
  * ✅ adapter defaults to "tuya" if not provided
@@ -40,11 +67,12 @@ export async function discoverDevices(req: Request, res: Response) {
       return res.status(400).json({ error: "User has no estate" });
     }
 
-    // ✅ TUYA UID (temporary): query param -> env
-    // Later, OAuth will store per-user UID/token and you’ll read it from DB
-    const tuyaUid =
-      cleanStr(req.query.uid) ||
-      cleanStr(process.env.TUYA_TEST_UID);
+    // ✅ Security: user must discover with their own linked Tuya identity.
+    // Optional admin override only for debugging.
+    let tuyaUid = await resolveUserTuyaUid(String(user.id));
+    if (!tuyaUid && user?.role === "admin") {
+      tuyaUid = cleanStr(req.query.uid);
+    }
 
     const context: AdapterContext = {
       estateId: user.estate_id,
@@ -76,7 +104,7 @@ export async function discoverDevices(req: Request, res: Response) {
     if (adapterName === "tuya" && !tuyaUid) {
       return res.status(400).json({
         error:
-          "Missing Tuya UID. Set TUYA_TEST_UID in env or call /devices/discover?adapter=tuya&uid=YOUR_UID",
+          "Tuya not linked for this account. Save your Tuya UID in /me/integrations/tuya first.",
       });
     }
 

@@ -166,6 +166,36 @@ export async function assignDevices(req: Request, res: Response) {
       return res.status(400).json({ error: "No valid devices found to assign" });
     }
 
+    // 🔒 Guard: do not allow rebinding devices already owned by another home/estate.
+    const externalIds = Array.from(new Set(rows.map((r) => String(r.external_id))));
+    const vendors = Array.from(new Set(rows.map((r) => String(r.vendor))));
+    const { data: existingRows, error: existingErr } = await supabaseAdmin
+      .from("devices")
+      .select("id,vendor,external_id,estate_id,home_id")
+      .in("vendor", vendors)
+      .in("external_id", externalIds);
+
+    if (existingErr) {
+      return res.status(500).json({ error: existingErr.message });
+    }
+
+    const conflicts = (existingRows || []).filter((d: any) => {
+      const sameEstate = String(d?.estate_id || "") === String(user.estate_id || "");
+      const sameHome = String(d?.home_id || "") === String(user.home_id || "");
+      return !(sameEstate && sameHome);
+    });
+
+    if (conflicts.length) {
+      return res.status(409).json({
+        error: "Some devices are already linked to another home/account",
+        conflicts: conflicts.map((c: any) => ({
+          id: c.id,
+          vendor: c.vendor,
+          external_id: c.external_id,
+        })),
+      });
+    }
+
     // ✅ FIX: match your CURRENT DB unique constraint: (vendor, external_id)
     const { data, error } = await supabaseAdmin
       .from("devices")
