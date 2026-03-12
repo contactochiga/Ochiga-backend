@@ -33,6 +33,7 @@ import meRoutes from "./routes/me.routes";
 
 // ✅ Notifications routes (GET /notifications, POST /notifications/read/:id)
 import notificationsRoutes from "./routes/notifications";
+import pushRoutes from "./routes/push";
 
 // ✅ Maintenance routes (consumer)
 import maintenanceRoutes from "./routes/maintenance.routes";
@@ -183,6 +184,7 @@ app.use("/me", meRoutes);
 
 // ✅ notifications
 app.use("/notifications", notificationsRoutes);
+app.use("/push", pushRoutes);
 
 app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);

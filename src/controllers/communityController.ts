@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { UserRole } from "../types/user";
 import { uploadToS3 } from "../services/s3Service";
+import { NotificationService } from "../services/NotificationService";
 // import { handleSignal } from "../core/control-plane"; // enable later
 
 /* ------------------------------------------------
@@ -229,6 +230,32 @@ export async function createComment(req: Request, res: Response) {
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
+
+  try {
+    const { data: post } = await supabaseAdmin
+      .from("community_posts")
+      .select("id,author_id,title")
+      .eq("id", postId)
+      .maybeSingle();
+
+    const ownerId = String(post?.author_id || "");
+    if (ownerId && ownerId !== user.id) {
+      await NotificationService.sendToUser(ownerId, {
+        title: "New Comment",
+        message: "Someone commented on your post",
+        type: "community",
+        payload: {
+          postId,
+          commentId: data?.id,
+          authorId: user.id,
+        },
+        entityId: postId,
+      });
+    }
+  } catch {
+    // fail-soft: comment still succeeds
+  }
+
   return res.json(data);
 }
 
@@ -328,6 +355,32 @@ export async function reactToPost(req: Request, res: Response) {
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
+
+  try {
+    if (String(type).toLowerCase() === "like") {
+      const { data: post } = await supabaseAdmin
+        .from("community_posts")
+        .select("id,author_id,title")
+        .eq("id", postId)
+        .maybeSingle();
+      const ownerId = String(post?.author_id || "");
+      if (ownerId && ownerId !== user.id) {
+        await NotificationService.sendToUser(ownerId, {
+          title: "New Like",
+          message: "Someone liked your post",
+          type: "community",
+          payload: {
+            postId,
+            authorId: user.id,
+          },
+          entityId: postId,
+        });
+      }
+    }
+  } catch {
+    // fail-soft
+  }
+
   return res.json(data);
 }
 

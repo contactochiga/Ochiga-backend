@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { io } from "../server";
+import { PushNotificationService } from "./PushNotificationService";
 
 /**
  * Types of notifications
@@ -45,6 +46,15 @@ export class NotificationService {
 
     if (!error && data) {
       io.to(`user:${userId}`).emit("notification:new", data);
+      await PushNotificationService.sendToUsers([userId], {
+        title: notification.title,
+        body: notification.message,
+        data: {
+          type: notification.type,
+          entityId: notification.entityId || null,
+          ...(notification.payload || {}),
+        },
+      });
     }
 
     return { data, error };
@@ -73,6 +83,19 @@ export class NotificationService {
       io.to(`user:${u.id}`).emit("notification:new", notification)
     );
 
+    await PushNotificationService.sendToUsers(
+      users.map((u: any) => String(u.id)),
+      {
+        title: notification.title,
+        body: notification.message,
+        data: {
+          type: notification.type,
+          entityId: notification.entityId || null,
+          ...(notification.payload || {}),
+        },
+      }
+    );
+
     return { data, error: insertError };
   }
 
@@ -99,6 +122,19 @@ export class NotificationService {
       io.to(`user:${u.id}`).emit("notification:new", notification)
     );
 
+    await PushNotificationService.sendToUsers(
+      users.map((u: any) => String(u.id)),
+      {
+        title: notification.title,
+        body: notification.message,
+        data: {
+          type: notification.type,
+          entityId: notification.entityId || null,
+          ...(notification.payload || {}),
+        },
+      }
+    );
+
     return { data, error: insertError };
   }
 
@@ -123,6 +159,19 @@ export class NotificationService {
 
     users.forEach((u) =>
       io.to(`user:${u.id}`).emit("notification:new", notification)
+    );
+
+    await PushNotificationService.sendToUsers(
+      users.map((u: any) => String(u.id)),
+      {
+        title: notification.title,
+        body: notification.message,
+        data: {
+          type: notification.type,
+          entityId: notification.entityId || null,
+          ...(notification.payload || {}),
+        },
+      }
     );
 
     return { data, error: insertError };
@@ -154,6 +203,19 @@ export class NotificationService {
 
     users.forEach((u) =>
       io.to(`user:${u.id}`).emit("notification:new", notification)
+    );
+
+    await PushNotificationService.sendToUsers(
+      users.map((u: any) => String(u.id)),
+      {
+        title: notification.title,
+        body: notification.message,
+        data: {
+          type: notification.type,
+          entityId: notification.entityId || null,
+          ...(notification.payload || {}),
+        },
+      }
     );
 
     return { data, error: insertError };
