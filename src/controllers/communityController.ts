@@ -18,6 +18,14 @@ function isMissingColumn(err: any, column: string) {
   return msg.includes("column") && msg.includes(column.toLowerCase()) && msg.includes("does not exist");
 }
 
+function isMissingTable(err: any, table: string) {
+  const msg = String(err?.message || "").toLowerCase();
+  return (
+    (msg.includes("could not find the table") || msg.includes("relation") || msg.includes("does not exist")) &&
+    msg.includes(String(table).toLowerCase())
+  );
+}
+
 function extFromMime(mime?: string, fallback = "bin") {
   const map: Record<string, string> = {
     "image/jpeg": "jpg",
@@ -229,7 +237,15 @@ export async function createComment(req: Request, res: Response) {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    if (isMissingTable(error, "community_comments")) {
+      return res.status(503).json({
+        error: "Comments are not configured yet (community_comments table missing).",
+        code: "COMMUNITY_COMMENTS_TABLE_MISSING",
+      });
+    }
+    return res.status(500).json({ error: error.message });
+  }
 
   try {
     const { data: post } = await supabaseAdmin
@@ -354,7 +370,19 @@ export async function reactToPost(req: Request, res: Response) {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    if (isMissingTable(error, "community_reactions")) {
+      // fail-soft so UI can keep working until migration is applied
+      return res.json({
+        ok: true,
+        fallback: true,
+        post_id: postId,
+        user_id: user.id,
+        type,
+      });
+    }
+    return res.status(500).json({ error: error.message });
+  }
 
   try {
     if (String(type).toLowerCase() === "like") {
@@ -406,7 +434,18 @@ export async function reactToComment(req: Request, res: Response) {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    if (isMissingTable(error, "community_reactions")) {
+      return res.json({
+        ok: true,
+        fallback: true,
+        comment_id: commentId,
+        user_id: user.id,
+        type,
+      });
+    }
+    return res.status(500).json({ error: error.message });
+  }
   return res.json(data);
 }
 
