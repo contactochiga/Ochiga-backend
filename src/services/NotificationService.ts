@@ -40,7 +40,7 @@ export class NotificationService {
   static async sendToUser(userId: string, notification: NotificationPayload) {
     const { data, error } = await supabaseAdmin
       .from("notifications")
-      .insert([{ user_id: userId, ...notification }])
+      .insert([{ user_id: userId, estate_id: (notification.payload as any)?.estate_id || null, ...notification }])
       .select()
       .single();
 
@@ -71,6 +71,7 @@ export class NotificationService {
 
     const insertData = users.map((u) => ({
       user_id: u.id,
+      estate_id: (notification.payload as any)?.estate_id || null,
       ...notification,
     }));
 
@@ -110,6 +111,7 @@ export class NotificationService {
 
     const insertData = users.map((u) => ({
       user_id: u.id,
+      estate_id: estateId,
       ...notification,
     }));
 
@@ -149,6 +151,7 @@ export class NotificationService {
 
     const insertData = users.map((u) => ({
       user_id: u.id,
+      estate_id: (notification.payload as any)?.estate_id || null,
       ...notification,
     }));
 
@@ -193,6 +196,7 @@ export class NotificationService {
 
     const insertData = users.map((u) => ({
       user_id: u.id,
+      estate_id: estateId,
       ...notification,
     }));
 

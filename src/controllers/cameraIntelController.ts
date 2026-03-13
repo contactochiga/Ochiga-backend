@@ -1,11 +1,13 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { NotificationService } from "../services/NotificationService";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 
 const MAX_REWIND_SECONDS = 24 * 60 * 60; // 24h
 const DEFAULT_REWIND_SECONDS = 5 * 60;
+const DEFAULT_REPORT_LIMIT = 2000;
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -51,6 +53,58 @@ function isMissingCameraAiProfilesTable(err: any) {
     msg.includes("camera_ai_profiles") &&
     (msg.includes("does not exist") || msg.includes("could not find the table") || msg.includes("relation"))
   );
+}
+
+type CameraAiProfileRow = {
+  armed?: boolean | null;
+  mode?: string | null;
+  min_confidence?: number | null;
+  notify_in_app?: boolean | null;
+  notify_push?: boolean | null;
+  notify_sms?: boolean | null;
+  auto_record_on_detect?: boolean | null;
+};
+
+function inferSeverity(eventType: string, confidence: number | null) {
+  const e = String(eventType || "").toLowerCase();
+  if (e.includes("intrusion") || e.includes("forced") || e.includes("fire") || e.includes("smoke")) return "critical";
+  if (e.includes("face") || e.includes("loiter") || e.includes("human") || e.includes("person")) return "high";
+  if (e.includes("vehicle") || e.includes("animal")) return "medium";
+  if ((confidence || 0) >= 0.85) return "high";
+  if ((confidence || 0) >= 0.6) return "medium";
+  return "low";
+}
+
+function shouldRouteToMaintenance(eventType: string) {
+  const e = String(eventType || "").toLowerCase();
+  return (
+    e.includes("camera_offline") ||
+    e.includes("camera_tamper") ||
+    e.includes("lens_obstructed") ||
+    e.includes("signal_loss")
+  );
+}
+
+function shouldEscalateSecurity(eventType: string) {
+  const e = String(eventType || "").toLowerCase();
+  return (
+    e.includes("intrusion") ||
+    e.includes("person") ||
+    e.includes("human") ||
+    e.includes("vehicle") ||
+    e.includes("face") ||
+    e.includes("loiter") ||
+    e.includes("smoke") ||
+    e.includes("fire")
+  );
+}
+
+function reportWindow(periodRaw: string | undefined) {
+  const period = String(periodRaw || "daily").toLowerCase();
+  const now = new Date();
+  if (period === "monthly") return { period, from: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), to: now };
+  if (period === "weekly") return { period, from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), to: now };
+  return { period: "daily", from: new Date(now.getTime() - 24 * 60 * 60 * 1000), to: now };
 }
 
 async function resolveCamera(cameraId: string) {
@@ -194,6 +248,76 @@ export async function createEvent(req: Request, res: Response) {
     return res.status(500).json({ error: iErr.message });
   }
 
+  // Route camera detections into operations alerts + notifications
+  try {
+    const { data: profileRow } = await supabaseAdmin
+      .from("camera_ai_profiles")
+      .select("armed,mode,min_confidence,notify_in_app,notify_push,notify_sms,auto_record_on_detect")
+      .eq("camera_id", cameraId)
+      .maybeSingle();
+
+    const profile = (profileRow || {}) as CameraAiProfileRow;
+    const source = String(req.body?.metadata?.source || "").toLowerCase();
+    const isManual = source.includes("manual");
+    const minConf = clamp(Number(profile.min_confidence ?? 70), 0, 100) / 100;
+    const armed = profile.armed !== false;
+    const canNotify = profile.notify_in_app !== false;
+    const confidenceScore = Number.isFinite(Number(confidence)) ? Number(confidence) : 0;
+    const severity = inferSeverity(eventType, confidenceScore);
+    const securityEvent = shouldEscalateSecurity(eventType);
+    const maintenanceEvent = shouldRouteToMaintenance(eventType);
+
+    const shouldEscalate =
+      canNotify &&
+      (isManual || (armed && confidenceScore >= minConf)) &&
+      (securityEvent || maintenanceEvent);
+
+    if (shouldEscalate) {
+      const commonPayload = {
+        estate_id: cam.estate_id,
+        kind: maintenanceEvent ? "camera.maintenance.signal" : "camera.security.alert",
+        cameraId: cameraId,
+        eventId: String(data?.id || ""),
+        eventType: eventType,
+        confidence: confidenceScore,
+        severity,
+        mode: String(profile.mode || "home"),
+        autoRecord: profile.auto_record_on_detect !== false,
+        source: source || "camera_intel",
+      };
+
+      if (securityEvent) {
+        for (const role of ["security", "manager", "estate_admin", "owner"]) {
+          await NotificationService.sendToRole(String(cam.estate_id), role, {
+            title: `Camera security alert (${severity.toUpperCase()})`,
+            message:
+              payload.message ||
+              `${eventType.replace(/_/g, " ")} detected on ${cam.name || "camera"} at confidence ${Math.round(
+                confidenceScore * 100
+              )}%`,
+            type: "system",
+            payload: commonPayload,
+            entityId: String(data?.id || ""),
+          });
+        }
+      } else if (maintenanceEvent) {
+        for (const role of ["manager", "estate_admin", "owner"]) {
+          await NotificationService.sendToRole(String(cam.estate_id), role, {
+            title: "Camera maintenance signal",
+            message:
+              payload.message ||
+              `${eventType.replace(/_/g, " ")} detected on ${cam.name || "camera"}. Maintenance follow-up required.`,
+            type: "maintenance",
+            payload: commonPayload,
+            entityId: String(data?.id || ""),
+          });
+        }
+      }
+    }
+  } catch {
+    // fail-soft: event ingestion remains successful even if alert fanout fails
+  }
+
   return res.json({ ok: true, event: data });
 }
 
@@ -308,4 +432,92 @@ export async function upsertAiProfile(req: Request, res: Response) {
   }
 
   return res.json({ ok: true, profile: data });
+}
+
+/**
+ * GET /cameras/reports/security?period=daily|weekly|monthly&cameraId=<uuid>
+ * Returns operational summary for security workflow.
+ */
+export async function getSecurityReport(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { period, from, to } = reportWindow(String(req.query.period || "daily"));
+  const cameraId = String(req.query.cameraId || "").trim();
+
+  let q = supabaseAdmin
+    .from("camera_events")
+    .select("id,camera_id,event_type,confidence,created_at,estate_id,message")
+    .eq("estate_id", user.estate_id)
+    .gte("created_at", from.toISOString())
+    .lte("created_at", to.toISOString())
+    .order("created_at", { ascending: false })
+    .limit(DEFAULT_REPORT_LIMIT);
+
+  if (cameraId) q = q.eq("camera_id", cameraId);
+
+  const { data: rows, error } = await q;
+  if (error) return res.status(500).json({ error: error.message });
+
+  const events = rows || [];
+  const byType = new Map<string, number>();
+  const byCamera = new Map<string, number>();
+  const bySeverity = new Map<string, number>();
+  const timelineBuckets = new Map<string, number>();
+  let escalated = 0;
+  let maintenanceSignals = 0;
+
+  for (const e of events as any[]) {
+    const type = String(e?.event_type || "unknown").toLowerCase();
+    const cameraKey = String(e?.camera_id || "unknown");
+    const severity = inferSeverity(type, Number(e?.confidence || 0));
+    const stamp = new Date(e?.created_at || Date.now());
+    const bucket =
+      period === "daily"
+        ? stamp.toISOString().slice(11, 13) + ":00"
+        : stamp.toISOString().slice(0, 10);
+
+    byType.set(type, (byType.get(type) || 0) + 1);
+    byCamera.set(cameraKey, (byCamera.get(cameraKey) || 0) + 1);
+    bySeverity.set(severity, (bySeverity.get(severity) || 0) + 1);
+    timelineBuckets.set(bucket, (timelineBuckets.get(bucket) || 0) + 1);
+
+    if (shouldEscalateSecurity(type)) escalated += 1;
+    if (shouldRouteToMaintenance(type)) maintenanceSignals += 1;
+  }
+
+  const topEventTypes = Array.from(byType.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([eventType, count]) => ({ eventType, count }));
+
+  const topCameras = Array.from(byCamera.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([cameraId, count]) => ({ cameraId, count }));
+
+  const timeline = Array.from(timelineBuckets.entries())
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([bucket, count]) => ({ bucket, count }));
+
+  return res.json({
+    ok: true,
+    report: {
+      period,
+      from: from.toISOString(),
+      to: to.toISOString(),
+      totalEvents: events.length,
+      escalatedSecurityEvents: escalated,
+      maintenanceSignals,
+      bySeverity: {
+        critical: bySeverity.get("critical") || 0,
+        high: bySeverity.get("high") || 0,
+        medium: bySeverity.get("medium") || 0,
+        low: bySeverity.get("low") || 0,
+      },
+      topEventTypes,
+      topCameras,
+      timeline,
+    },
+  });
 }

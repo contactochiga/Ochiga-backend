@@ -52,6 +52,13 @@ router.post(
   CamerasCtrl.bindFromDiscovery
 );
 
+router.get(
+  "/reports/security",
+  requireAuth,
+  requireRole(...CAMERA_ALLOWED_ROLES),
+  CameraIntelCtrl.getSecurityReport
+);
+
 /**
  * ✅ NEW: issue short-lived HLS token for this camera
  * UI calls this with Bearer token, then appends ?token=... to playlist/segments.
