@@ -4,6 +4,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireRole } from "../middleware/roles";
 import * as CamerasCtrl from "../controllers/camerasController";
 import * as CameraStreamCtrl from "../controllers/cameraStreamController";
+import * as CameraIntelCtrl from "../controllers/cameraIntelController";
 
 const router = Router();
 
@@ -60,6 +61,34 @@ router.get(
   requireAuth,
   requireRole(...CAMERA_ALLOWED_ROLES),
   CameraStreamCtrl.issueHlsToken
+);
+
+router.get(
+  "/:cameraId/playback",
+  requireAuth,
+  requireRole(...CAMERA_ALLOWED_ROLES),
+  CameraIntelCtrl.getPlaybackUrl
+);
+
+router.get(
+  "/:cameraId/events",
+  requireAuth,
+  requireRole(...CAMERA_ALLOWED_ROLES),
+  CameraIntelCtrl.listEvents
+);
+
+router.post(
+  "/:cameraId/events",
+  requireAuth,
+  requireRole(...CAMERA_ALLOWED_ROLES),
+  CameraIntelCtrl.createEvent
+);
+
+router.get(
+  "/analytics/capabilities",
+  requireAuth,
+  requireRole(...CAMERA_ALLOWED_ROLES),
+  CameraIntelCtrl.getAnalyticsCapabilities
 );
 
 /**

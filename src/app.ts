@@ -37,6 +37,7 @@ import pushRoutes from "./routes/push";
 
 // ✅ Maintenance routes (consumer)
 import maintenanceRoutes from "./routes/maintenance.routes";
+import messagesRoutes from "./routes/messages";
 
 // ✅ Facility maintenance routes
 import facilityMaintenanceRoutes from "./routes/facilityMaintenanceRoutes";
@@ -197,6 +198,7 @@ app.use("/visitors", visitorRoutes);
 
 // ✅ consumer maintenance
 app.use("/maintenance", maintenanceRoutes);
+app.use("/messages", messagesRoutes);
 
 // ✅ facility maintenance
 app.use("/facility/maintenance", facilityMaintenanceRoutes);

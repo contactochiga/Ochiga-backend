@@ -53,6 +53,23 @@ function resolveUrl(base: string, maybeRelative: string) {
   }
 }
 
+function parseRewindSeconds(v: any) {
+  const n = Number.parseInt(String(v ?? ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(n, 24 * 60 * 60);
+}
+
+function withQuery(url: string, key: string, value: string | number) {
+  try {
+    const u = new URL(url);
+    u.searchParams.set(key, String(value));
+    return u.toString();
+  } catch {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`;
+  }
+}
+
 async function fetchText(url: string) {
   const r = await fetch(url, { redirect: "follow" });
   const text = await r.text();
@@ -167,7 +184,13 @@ export async function hlsPlaylist(req: Request, res: Response) {
     return res.status(409).json({ error: "Camera has no edge_hls_url set" });
   }
 
-  const edgeUrl = String(cam.edge_hls_url);
+  let edgeUrl = String(cam.edge_hls_url);
+  const rewind = parseRewindSeconds(req.query.rewind);
+  if (rewind > 0) {
+    // Edge can choose which query params to honor.
+    edgeUrl = withQuery(edgeUrl, "rewind", rewind);
+    edgeUrl = withQuery(edgeUrl, "start_offset", rewind);
+  }
   const { ok, status, text } = await fetchText(edgeUrl);
 
   if (!ok) {
