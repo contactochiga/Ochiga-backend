@@ -45,6 +45,14 @@ function isMissingCameraEventsTable(err: any) {
   );
 }
 
+function isMissingCameraAiProfilesTable(err: any) {
+  const msg = String(err?.message || "").toLowerCase();
+  return (
+    msg.includes("camera_ai_profiles") &&
+    (msg.includes("does not exist") || msg.includes("could not find the table") || msg.includes("relation"))
+  );
+}
+
 async function resolveCamera(cameraId: string) {
   return supabaseAdmin
     .from("facility_cameras")
@@ -204,4 +212,100 @@ export async function getAnalyticsCapabilities(_req: Request, res: Response) {
     ],
     note: "Use /cameras/:cameraId/events to ingest edge detections into timeline.",
   });
+}
+
+/**
+ * GET /cameras/:cameraId/ai/profile
+ */
+export async function getAiProfile(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { cameraId } = req.params;
+  if (!cameraId) return res.status(400).json({ error: "cameraId is required" });
+
+  const { data: cam, error } = await resolveCamera(cameraId);
+  if (error) return res.status(500).json({ error: error.message });
+  if (!cam) return res.status(404).json({ error: "Camera not found" });
+  if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).json({ error: "Unauthorized" });
+
+  const { data, error: qErr } = await supabaseAdmin
+    .from("camera_ai_profiles")
+    .select("*")
+    .eq("camera_id", cameraId)
+    .maybeSingle();
+
+  if (qErr) {
+    if (isMissingCameraAiProfilesTable(qErr)) {
+      return res.status(404).json({
+        error: "camera_ai_profiles table is missing. Run latest DB migration.",
+        code: "CAMERA_AI_PROFILES_TABLE_MISSING",
+      });
+    }
+    return res.status(500).json({ error: qErr.message });
+  }
+
+  return res.json({ ok: true, profile: data || null });
+}
+
+/**
+ * PUT /cameras/:cameraId/ai/profile
+ */
+export async function upsertAiProfile(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { cameraId } = req.params;
+  if (!cameraId) return res.status(400).json({ error: "cameraId is required" });
+
+  const { data: cam, error } = await resolveCamera(cameraId);
+  if (error) return res.status(500).json({ error: error.message });
+  if (!cam) return res.status(404).json({ error: "Camera not found" });
+  if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).json({ error: "Unauthorized" });
+
+  const b = req.body || {};
+  const n = (v: any, fallback: number, min: number, max: number) =>
+    clamp(Number.isFinite(Number(v)) ? Number(v) : fallback, min, max);
+  const bool = (v: any, fallback = false) => (typeof v === "boolean" ? v : fallback);
+
+  const payload = {
+    camera_id: cameraId,
+    estate_id: cam.estate_id,
+    armed: bool(b.armed, true),
+    mode: ["home", "away", "night", "vacation"].includes(String(b.mode || "").toLowerCase())
+      ? String(b.mode).toLowerCase()
+      : "home",
+    sensitivity: n(b.sensitivity, 70, 0, 100),
+    min_confidence: n(b.minConfidence, 70, 0, 100),
+    detect_human: bool(b.detectHuman, true),
+    detect_vehicle: bool(b.detectVehicle, true),
+    detect_animal: bool(b.detectAnimal, false),
+    detect_face: bool(b.detectFace, false),
+    detect_loitering: bool(b.detectLoitering, false),
+    detect_intrusion: bool(b.detectIntrusion, true),
+    notify_in_app: bool(b.notifyInApp, true),
+    notify_push: bool(b.notifyPush, true),
+    notify_sms: bool(b.notifySms, false),
+    auto_record_on_detect: bool(b.autoRecordOnDetect, true),
+    metadata: b && typeof b.metadata === "object" ? b.metadata : {},
+    updated_by: user.id,
+  };
+
+  const { data, error: upErr } = await supabaseAdmin
+    .from("camera_ai_profiles")
+    .upsert(payload as any, { onConflict: "camera_id" })
+    .select("*")
+    .single();
+
+  if (upErr) {
+    if (isMissingCameraAiProfilesTable(upErr)) {
+      return res.status(404).json({
+        error: "camera_ai_profiles table is missing. Run latest DB migration.",
+        code: "CAMERA_AI_PROFILES_TABLE_MISSING",
+      });
+    }
+    return res.status(500).json({ error: upErr.message });
+  }
+
+  return res.json({ ok: true, profile: data });
 }

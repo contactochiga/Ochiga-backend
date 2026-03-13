@@ -91,6 +91,20 @@ router.get(
   CameraIntelCtrl.getAnalyticsCapabilities
 );
 
+router.get(
+  "/:cameraId/ai/profile",
+  requireAuth,
+  requireRole(...CAMERA_ALLOWED_ROLES),
+  CameraIntelCtrl.getAiProfile
+);
+
+router.put(
+  "/:cameraId/ai/profile",
+  requireAuth,
+  requireRole(...CAMERA_ALLOWED_ROLES),
+  CameraIntelCtrl.upsertAiProfile
+);
+
 /**
  * ✅ HLS routes must NOT require Bearer auth
  * HLS requests won't send Authorization headers.
