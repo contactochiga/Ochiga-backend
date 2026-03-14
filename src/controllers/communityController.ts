@@ -50,6 +50,23 @@ function sanitizePart(v: string) {
     .replace(/^-|-$/g, "");
 }
 
+async function hasEstateAccess(user: any, estateId: string) {
+  const userEstate = String(user?.estate_id || "");
+  if (userEstate && userEstate === String(estateId)) return true;
+  if (!user?.id) return false;
+
+  const { data, error } = await supabaseAdmin
+    .from("estate_memberships")
+    .select("id,status")
+    .eq("estate_id", estateId)
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (error) return false;
+  return !!data?.id;
+}
+
 /* =================================================
  * POSTS
  * ================================================= */
@@ -65,6 +82,9 @@ export async function createPost(req: Request, res: Response) {
 
   if (!resolvedEstateId) {
     return res.status(400).json({ error: "estateId is required" });
+  }
+  if (!(await hasEstateAccess(user, String(resolvedEstateId)))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
   }
   if (!title || !String(title).trim()) {
     return res.status(400).json({ error: "title is required" });
@@ -95,7 +115,12 @@ export async function createPost(req: Request, res: Response) {
 }
 
 export async function getPostsForEstate(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
   const { estateId } = req.params;
+  if (!(await hasEstateAccess(user, String(estateId)))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
 
   const { data, error } = await supabaseAdmin
     .from("community_posts")
@@ -124,6 +149,8 @@ export async function getPostsForEstate(req: Request, res: Response) {
 }
 
 export async function getPostById(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
   const { postId } = req.params;
 
   const { data, error } = await supabaseAdmin
@@ -133,6 +160,9 @@ export async function getPostById(req: Request, res: Response) {
     .single();
 
   if (error || !data) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String((data as any).estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
 
   return res.json(data);
 }
@@ -226,6 +256,17 @@ export async function createComment(req: Request, res: Response) {
 
   if (!content) return res.status(400).json({ error: "Content required" });
 
+  const { data: post, error: postErr } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id")
+    .eq("id", postId)
+    .maybeSingle();
+  if (postErr) return res.status(500).json({ error: postErr.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("community_comments")
     .insert({
@@ -276,7 +317,20 @@ export async function createComment(req: Request, res: Response) {
 }
 
 export async function getCommentsForPost(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
   const { postId } = req.params;
+
+  const { data: post, error: postErr } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id")
+    .eq("id", postId)
+    .maybeSingle();
+  if (postErr) return res.status(500).json({ error: postErr.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
 
   const { data, error } = await supabaseAdmin
     .from("community_comments")
@@ -357,6 +411,17 @@ export async function reactToPost(req: Request, res: Response) {
 
   if (!type) return res.status(400).json({ error: "Reaction type required" });
 
+  const { data: post, error: postErr } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id,author_id,title")
+    .eq("id", postId)
+    .maybeSingle();
+  if (postErr) return res.status(500).json({ error: postErr.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("community_reactions")
     .upsert(
@@ -386,11 +451,6 @@ export async function reactToPost(req: Request, res: Response) {
 
   try {
     if (String(type).toLowerCase() === "like") {
-      const { data: post } = await supabaseAdmin
-        .from("community_posts")
-        .select("id,author_id,title")
-        .eq("id", postId)
-        .maybeSingle();
       const ownerId = String(post?.author_id || "");
       if (ownerId && ownerId !== user.id) {
         await NotificationService.sendToUser(ownerId, {
@@ -420,6 +480,25 @@ export async function reactToComment(req: Request, res: Response) {
   const { type } = req.body;
 
   if (!type) return res.status(400).json({ error: "Reaction type required" });
+
+  const { data: comment, error: commentErr } = await supabaseAdmin
+    .from("community_comments")
+    .select("id,post_id")
+    .eq("id", commentId)
+    .maybeSingle();
+  if (commentErr) return res.status(500).json({ error: commentErr.message });
+  if (!comment?.id) return res.status(404).json({ error: "Comment not found" });
+
+  const { data: post, error: postErr } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id")
+    .eq("id", String(comment.post_id))
+    .maybeSingle();
+  if (postErr) return res.status(500).json({ error: postErr.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
 
   const { data, error } = await supabaseAdmin
     .from("community_reactions")

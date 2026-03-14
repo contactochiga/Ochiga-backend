@@ -36,6 +36,41 @@ export interface NotificationPayload {
  * Execution-plane boundary (side effects live here)
  */
 export class NotificationService {
+  private static async getEstateUserIdsByRole(estateId: string, role: string) {
+    const normalizedRole = String(role || "").trim().toLowerCase();
+    const byMembership = await supabaseAdmin
+      .from("estate_memberships")
+      .select("user_id")
+      .eq("estate_id", estateId)
+      .eq("status", "active")
+      .eq("role", normalizedRole);
+
+    if (!byMembership.error && (byMembership.data || []).length) {
+      return Array.from(
+        new Set(
+          (byMembership.data || [])
+            .map((r: any) => String(r?.user_id || "").trim())
+            .filter(Boolean)
+        )
+      );
+    }
+
+    const byUserRole = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("estate_id", estateId)
+      .eq("role", normalizedRole);
+
+    if (byUserRole.error) return [];
+    return Array.from(
+      new Set(
+        (byUserRole.data || [])
+          .map((r: any) => String(r?.id || "").trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
   /** Send notification to a single user */
   static async sendToUser(userId: string, notification: NotificationPayload) {
     const { data, error } = await supabaseAdmin
@@ -186,16 +221,11 @@ export class NotificationService {
     role: string,
     notification: NotificationPayload
   ) {
-    const { data: users, error } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("estate_id", estateId)
-      .eq("role", role);
+    const userIds = await this.getEstateUserIdsByRole(estateId, role);
+    if (!userIds.length) return { error: null };
 
-    if (error || !users?.length) return { error };
-
-    const insertData = users.map((u) => ({
-      user_id: u.id,
+    const insertData = userIds.map((userId) => ({
+      user_id: userId,
       estate_id: estateId,
       ...notification,
     }));
@@ -205,12 +235,12 @@ export class NotificationService {
       .insert(insertData)
       .select();
 
-    users.forEach((u) =>
-      io.to(`user:${u.id}`).emit("notification:new", notification)
+    userIds.forEach((userId) =>
+      io.to(`user:${userId}`).emit("notification:new", notification)
     );
 
     await PushNotificationService.sendToUsers(
-      users.map((u: any) => String(u.id)),
+      userIds,
       {
         title: notification.title,
         body: notification.message,
