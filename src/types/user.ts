@@ -7,6 +7,8 @@ export type UserRole =
   | "operator"
   | "estate_admin"
   | "admin"
+  | "system_admin"
+  | "auditor"
 
   // ✅ facility / access control roles
   | "owner"

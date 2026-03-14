@@ -276,6 +276,9 @@ export async function debitWallet(req: Request, res: Response) {
   if (Number(wallet.balance) < amountNumber) {
     return res.status(400).json({ error: "Insufficient funds" });
   }
+  if (Boolean((wallet as any).is_frozen)) {
+    return res.status(403).json({ error: "Wallet is frozen by super admin" });
+  }
 
   const balance = Number(wallet.balance) - amountNumber;
 

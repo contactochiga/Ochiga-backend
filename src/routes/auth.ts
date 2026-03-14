@@ -174,6 +174,9 @@ router.post("/login", async (req, res) => {
       .single();
 
     if (error || !user) return res.status(400).json({ error: "Invalid email or password" });
+    if (String(user.account_status || "active") === "suspended") {
+      return res.status(403).json({ error: "Account is suspended. Contact support." });
+    }
 
     if (!user.password_hash) {
       return res.status(400).json({ error: "Account not fully set up" });
