@@ -1,0 +1,73 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: "Run ecosystem smoke test"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript build
+        run: npm run build
+
+  ecosystem-smoke:
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 15
+    if: |
+      (github.event_name != 'workflow_dispatch' || inputs.run_smoke == 'true') &&
+      secrets.SMOKE_BASE_URL != '' &&
+      secrets.SMOKE_FACILITY_TOKEN != '' &&
+      secrets.SMOKE_RESIDENT_TOKEN != ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ecosystem smoke
+        env:
+          BASE_URL: ${{ secrets.SMOKE_BASE_URL }}
+          FACILITY_TOKEN: ${{ secrets.SMOKE_FACILITY_TOKEN }}
+          RESIDENT_TOKEN: ${{ secrets.SMOKE_RESIDENT_TOKEN }}
+          HOME_ID: ${{ secrets.SMOKE_HOME_ID }}
+          RESIDENT_EMAIL: ${{ secrets.SMOKE_RESIDENT_EMAIL }}
+          CREATE_TEST_MAINTENANCE: ${{ secrets.SMOKE_CREATE_TEST_MAINTENANCE }}
+          CREATE_TEST_INVITE: ${{ secrets.SMOKE_CREATE_TEST_INVITE }}
+        run: npm run smoke:ecosystem
