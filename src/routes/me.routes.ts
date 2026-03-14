@@ -71,7 +71,16 @@ router.get("/context", requireAuth, async (req, res) => {
 
   let estate: { id: string; name: string } | null = null;
   let home:
-    | { id: string; name: string | null; block: string | null; unit: string | null }
+    | {
+        id: string;
+        name: string | null;
+        block: string | null;
+        unit: string | null;
+        electricity_meter: string | null;
+        water_meter: string | null;
+        internet_id: string | null;
+        gate_code: string | null;
+      }
     | null = null;
 
   // ✅ Estate context
@@ -89,7 +98,7 @@ router.get("/context", requireAuth, async (req, res) => {
   if (user.home_id) {
     const { data, error } = await supabaseAdmin
       .from("homes")
-      .select("id, name, block, unit")
+      .select("id, name, block, unit, electricity_meter, water_meter, internet_id, gate_code")
       .eq("id", user.home_id)
       .single();
 
@@ -99,6 +108,10 @@ router.get("/context", requireAuth, async (req, res) => {
         name: data.name ?? null,
         block: data.block ?? null,
         unit: data.unit ?? null,
+        electricity_meter: data.electricity_meter ?? null,
+        water_meter: data.water_meter ?? null,
+        internet_id: data.internet_id ?? null,
+        gate_code: data.gate_code ?? null,
       };
     }
   }
