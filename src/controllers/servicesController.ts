@@ -19,6 +19,14 @@ const VALID_SERVICE_KEYS = new Set<ServiceKey>([
   "other_facility_fees",
 ]);
 
+const SERVICE_TX_TYPE: Record<ServiceKey, string> = {
+  utility_token: "power",
+  internet_service: "internet",
+  fiber_internet: "internet",
+  service_charge: "service_charge",
+  other_facility_fees: "service_charge",
+};
+
 const SERVICE_CONFIG_DEFAULTS: Record<
   ServiceKey,
   {
@@ -498,7 +506,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     txRow = await insertWalletTransactionWithFallback({
       wallet_id: wallet.id,
       direction: "debit",
-      type: "service_payment",
+      type: SERVICE_TX_TYPE[serviceKey],
       amount,
       reference,
       status: "completed",
@@ -588,9 +596,11 @@ export async function listServicePayments(req: Request, res: Response) {
     const direction = String(x?.direction || x?.metadata?.direction || "").toLowerCase();
     const meta = x?.metadata || {};
     if (direction && direction !== "debit") return false;
-    if (String(x?.type || "") !== "service_payment") return false;
+    const expectedTypes = new Set(Object.values(SERVICE_TX_TYPE));
+    if (!expectedTypes.has(String(x?.type || ""))) return false;
     if (serviceFilter && String(meta.service_key || "") !== serviceFilter) return false;
     if (homeFilter && String(meta.home_id || "") !== homeFilter) return false;
+    if (String(meta.source || "") !== "services_api") return false;
     return true;
   });
 
