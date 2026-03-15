@@ -7,6 +7,7 @@ import { sendEmail } from "../services/emailService";
 
 type ServiceKey =
   | "utility_token"
+  | "water_service"
   | "internet_service"
   | "fiber_internet"
   | "service_charge"
@@ -14,6 +15,7 @@ type ServiceKey =
 
 const VALID_SERVICE_KEYS = new Set<ServiceKey>([
   "utility_token",
+  "water_service",
   "internet_service",
   "fiber_internet",
   "service_charge",
@@ -22,6 +24,7 @@ const VALID_SERVICE_KEYS = new Set<ServiceKey>([
 
 const SERVICE_TX_TYPE: Record<ServiceKey, string> = {
   utility_token: "power",
+  water_service: "water",
   internet_service: "internet",
   fiber_internet: "internet",
   service_charge: "service_charge",
@@ -51,6 +54,17 @@ const SERVICE_CONFIG_DEFAULTS: Record<
     active: true,
     unit_cost: null,
     unit_name: "kWh",
+    billing_mode: "metered",
+  },
+  water_service: {
+    title: "Water Service",
+    description: "Water recharge and usage billing",
+    suggested_amount: 12000,
+    account_label: "Water Meter",
+    account_hint: "Linked from the assigned home water meter",
+    active: true,
+    unit_cost: null,
+    unit_name: "m3",
     billing_mode: "metered",
   },
   internet_service: {
@@ -488,6 +502,7 @@ async function resolveHomeForUser(user: any) {
 function expectedAccountRef(serviceKey: ServiceKey, home: any): string {
   if (!home?.id) return "";
   if (serviceKey === "utility_token") return String(home.electricity_meter || "");
+  if (serviceKey === "water_service") return String(home.water_meter || "");
   if (serviceKey === "other_facility_fees") return String(home.id || "");
   if (serviceKey === "internet_service" || serviceKey === "fiber_internet")
     return String(home.internet_id || "");
