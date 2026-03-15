@@ -116,7 +116,12 @@ router.get("/context", requireAuth, async (req, res) => {
     }
   }
 
-  return res.json({ estate, home });
+  return res.json({
+    estate,
+    home,
+    estate_id: estate?.id || null,
+    home_id: home?.id || null,
+  });
 });
 
 router.get("/integrations/tuya", requireAuth, async (req, res) => {

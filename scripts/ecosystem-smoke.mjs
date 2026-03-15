@@ -7,6 +7,8 @@ const HOME_ID = String(process.env.HOME_ID || "").trim();
 const RESIDENT_EMAIL = String(process.env.RESIDENT_EMAIL || "").trim().toLowerCase();
 const CREATE_TEST_MAINTENANCE = String(process.env.CREATE_TEST_MAINTENANCE || "0") === "1";
 const CREATE_TEST_INVITE = String(process.env.CREATE_TEST_INVITE || "0") === "1";
+const CREATE_TEST_SERVICE_PAYMENT = String(process.env.CREATE_TEST_SERVICE_PAYMENT || "0") === "1";
+const SERVICE_TEST_AMOUNT = Number(process.env.SERVICE_TEST_AMOUNT || 100);
 
 if (!FACILITY_TOKEN || !RESIDENT_TOKEN) {
   console.error("Missing FACILITY_TOKEN or RESIDENT_TOKEN");
@@ -53,8 +55,8 @@ async function main() {
 
   await runCheck("Resident /me/context", async () => {
     const { data } = await resident.get("/me/context");
-    residentEstateId = String(data?.estate_id || "");
-    residentHomeId = String(data?.home_id || "");
+    residentEstateId = String(data?.estate_id || data?.estate?.id || "");
+    residentHomeId = String(data?.home_id || data?.home?.id || "");
     if (!residentEstateId) throw new Error("resident has no estate_id");
     return `estate=${residentEstateId} home=${residentHomeId || "none"}`;
   });
@@ -112,6 +114,27 @@ async function main() {
     if (!data?.id) throw new Error("wallet id missing");
     return `wallet=${data.id} balance=${data.balance ?? 0}`;
   });
+
+  await runCheck("Resident services payment history", async () => {
+    const { data } = await resident.get("/services/payments?limit=5");
+    const count = Array.isArray(data?.payments) ? data.payments.length : 0;
+    return `payments=${count}`;
+  });
+
+  if (CREATE_TEST_SERVICE_PAYMENT) {
+    await runCheck("Resident service payment (wallet)", async () => {
+      const { data: context } = await resident.get("/me/context");
+      const meter = String(context?.home?.electricity_meter || "").trim();
+      if (!meter) throw new Error("home.electricity_meter missing for service test");
+      const { data } = await resident.post("/services/pay", {
+        service_key: "utility_token",
+        amount: SERVICE_TEST_AMOUNT,
+        account_ref: meter,
+      });
+      if (!data?.receipt?.id) throw new Error("service receipt missing");
+      return `receipt=${data.receipt.id}`;
+    });
+  }
 
   await runCheck("Resident notifications", async () => {
     const { data } = await resident.get("/notifications?unread=true");
