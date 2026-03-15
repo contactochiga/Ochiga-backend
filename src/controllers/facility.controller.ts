@@ -99,6 +99,57 @@ async function insertWithSchemaFallback<T>(
   );
 }
 
+async function updateWithSchemaFallback<T>(
+  table: string,
+  match: Record<string, any>,
+  patch: Record<string, any>,
+  maxAttempts = 8
+): Promise<T> {
+  let payload: Record<string, any> = { ...(compact(patch) as any) };
+
+  let lastErrorMsg = "";
+  let lastErrorCode = "";
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const query = supabaseAdmin.from(table).update(payload);
+    for (const [key, value] of Object.entries(match)) {
+      query.eq(key, value);
+    }
+
+    const { data, error } = await query.select().single();
+    if (!error) return data as T;
+
+    const msg = String((error as any)?.message || "");
+    const code = String((error as any)?.code || "");
+    lastErrorMsg = msg;
+    lastErrorCode = code;
+
+    const missingCol = extractMissingColumnName(msg);
+    if (missingCol && Object.prototype.hasOwnProperty.call(payload, missingCol)) {
+      delete payload[missingCol];
+      continue;
+    }
+
+    if (/schema cache/i.test(msg)) {
+      const col = extractMissingColumnName(msg);
+      if (col && Object.prototype.hasOwnProperty.call(payload, col)) {
+        delete payload[col];
+        continue;
+      }
+    }
+
+    throw new Error(msg || "Update failed");
+  }
+
+  throw new Error(
+    lastErrorMsg
+      ? `Update failed after removing missing columns. Last error: ${lastErrorMsg}${
+          lastErrorCode ? ` (${lastErrorCode})` : ""
+        }`
+      : "Update failed after removing missing columns."
+  );
+}
+
 // ✅ MUST match your membership_role enum (screenshots show USER-DEFINED)
 function normalizeMembershipRole(input?: string) {
   const r = String(input || "").trim().toLowerCase();
@@ -332,14 +383,7 @@ export async function updateHome(req: any, res: Response) {
       updated_at: new Date().toISOString(),
     });
 
-    const { data: home, error } = await supabaseAdmin
-      .from("homes")
-      .update(patch)
-      .eq("id", homeId)
-      .select("*")
-      .single();
-
-    if (error) return res.status(400).json({ error: error.message });
+    const home = await updateWithSchemaFallback<any>("homes", { id: homeId }, patch);
 
     return res.json({ message: "Home updated", home });
   } catch (e: any) {
