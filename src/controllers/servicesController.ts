@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
+import { NotificationService } from "../services/NotificationService";
 
 type ServiceKey =
   | "utility_token"
@@ -44,9 +45,9 @@ const SERVICE_CONFIG_DEFAULTS: Record<
     billing_mode: "metered",
   },
   internet_service: {
-    title: "Internet Service",
-    description: "Data bundles and monthly internet renewals",
-    suggested_amount: 10000,
+    title: "Fiber Internet Service",
+    description: "Data bundles and monthly fiber internet renewals",
+    suggested_amount: 11500,
     account_label: "Internet ID",
     account_hint: "Linked from the assigned home internet account",
     active: true,
@@ -60,7 +61,7 @@ const SERVICE_CONFIG_DEFAULTS: Record<
     suggested_amount: 15000,
     account_label: "Fiber Account",
     account_hint: "Uses the linked home internet ID",
-    active: true,
+    active: false,
     unit_cost: null,
     unit_name: "plan",
     billing_mode: "fixed",
@@ -68,7 +69,7 @@ const SERVICE_CONFIG_DEFAULTS: Record<
   service_charge: {
     title: "Service Charge",
     description: "Estate operational dues",
-    suggested_amount: 25000,
+    suggested_amount: 500000,
     account_label: "Home Account",
     account_hint: "Charged against the linked home record",
     active: true,
@@ -228,6 +229,71 @@ async function getOrCreateWallet(userId: string) {
   return created;
 }
 
+async function insertWalletTransactionWithFallback(row: Record<string, any>) {
+  let payload = { ...row };
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { data, error } = await supabaseAdmin
+      .from("wallet_transactions")
+      .insert([payload])
+      .select("*")
+      .single();
+
+    if (!error) return data;
+    if (missingColumn(error, "direction") && Object.prototype.hasOwnProperty.call(payload, "direction")) {
+      delete payload.direction;
+      payload.metadata = {
+        ...(payload.metadata || {}),
+        direction: row.direction || null,
+      };
+      continue;
+    }
+    throw new Error(error.message);
+  }
+
+  throw new Error("Failed to insert wallet transaction");
+}
+
+async function listWalletTransactionsWithFallback(walletId: string, limit: number) {
+  let { data, error } = await supabaseAdmin
+    .from("wallet_transactions")
+    .select("id,amount,reference,status,metadata,created_at,type,direction")
+    .eq("wallet_id", walletId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error && missingColumn(error, "direction")) {
+    const legacy = await supabaseAdmin
+      .from("wallet_transactions")
+      .select("id,amount,reference,status,metadata,created_at,type")
+      .eq("wallet_id", walletId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    data = legacy.data as any;
+    error = legacy.error as any;
+  }
+
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+function buildReceiptDetails(config: ServiceConfigRow | null, serviceKey: ServiceKey, amount: number, extras?: Record<string, any>) {
+  const unitCost = config?.unit_cost == null ? null : Number(config.unit_cost);
+  const computedUnits =
+    unitCost && unitCost > 0 ? Number((amount / unitCost).toFixed(2)) : null;
+
+  return {
+    title: config?.title || SERVICE_CONFIG_DEFAULTS[serviceKey].title,
+    description: config?.description || SERVICE_CONFIG_DEFAULTS[serviceKey].description,
+    unit_cost: unitCost,
+    unit_name: config?.unit_name || null,
+    billing_mode: config?.billing_mode || SERVICE_CONFIG_DEFAULTS[serviceKey].billing_mode,
+    computed_units: computedUnits,
+    bundle_name: extras?.bundle_name ? String(extras.bundle_name) : null,
+    period_label: extras?.period_label ? String(extras.period_label) : null,
+  };
+}
+
 async function resolveHomeForUser(user: any) {
   if (user?.home_id) {
     const { data, error } = await supabaseAdmin
@@ -358,6 +424,8 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   const serviceKey = String(req.body?.service_key || "").trim() as ServiceKey;
   const accountRef = String(req.body?.account_ref || "").trim();
   const amount = Number(req.body?.amount);
+  const bundleName = req.body?.bundle_name ? String(req.body.bundle_name).trim() : null;
+  const periodLabel = req.body?.period_label ? String(req.body.period_label).trim() : null;
 
   if (!VALID_SERVICE_KEYS.has(serviceKey)) {
     return res.status(400).json({ error: "Invalid service_key" });
@@ -378,10 +446,12 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   }
 
   const estateId = String(user.estate_id || "").trim();
+  let activeConfig: ServiceConfigRow | null = null;
   if (estateId) {
     try {
       const { configs } = await readServiceConfigsForEstate(estateId);
       const cfg = configs.find((x) => x.service_key === serviceKey);
+      activeConfig = (cfg || null) as ServiceConfigRow | null;
       if (cfg && !cfg.active) {
         return res.status(400).json({ error: `${cfg.title} is currently disabled for this estate` });
       }
@@ -416,25 +486,28 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     account_ref: accountRef,
     home_id: String(home.id),
     source: "services_api",
+    direction: "debit",
+    receipt: buildReceiptDetails(activeConfig, serviceKey, amount, {
+      bundle_name: bundleName,
+      period_label: periodLabel,
+    }),
   };
 
-  const { data: txRow, error: txErr } = await supabaseAdmin
-    .from("wallet_transactions")
-    .insert([
-      {
-        wallet_id: wallet.id,
-        direction: "debit",
-        type: "service_payment",
-        amount,
-        reference,
-        status: "completed",
+  let txRow: any;
+  try {
+    txRow = await insertWalletTransactionWithFallback({
+      wallet_id: wallet.id,
+      direction: "debit",
+      type: "service_payment",
+      amount,
+      reference,
+      status: "completed",
       metadata,
       created_at: now,
-    },
-  ])
-    .select("*")
-    .single();
-  if (txErr) return res.status(500).json({ error: txErr.message });
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to record wallet transaction" });
+  }
 
   await handleSignal({
     type: "wallet.debited",
@@ -448,19 +521,44 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     timestamp: now,
   });
 
+  const receipt = {
+    id: String(txRow?.id || reference),
+    reference,
+    service_key: serviceKey,
+    service_title: metadata.receipt.title,
+    account_ref: accountRef,
+    amount,
+    status: "completed",
+    created_at: now,
+    home_id: String(home.id),
+    unit_cost: metadata.receipt.unit_cost,
+    unit_name: metadata.receipt.unit_name,
+    computed_units: metadata.receipt.computed_units,
+    billing_mode: metadata.receipt.billing_mode,
+    bundle_name: metadata.receipt.bundle_name,
+    period_label: metadata.receipt.period_label,
+  };
+
+  try {
+    await NotificationService.sendToUser(String(user.id), {
+      title: `${metadata.receipt.title} payment successful`,
+      message: `Receipt ${reference} for NGN ${amount.toLocaleString("en-NG")} is ready.`,
+      type: "wallet",
+      payload: {
+        estate_id: estateId || null,
+        kind: "service.receipt",
+        receipt,
+      },
+      entityId: String(txRow?.id || reference),
+    });
+  } catch (notifyErr) {
+    console.warn("service payment notification failed:", notifyErr);
+  }
+
   return res.json({
     ok: true,
     balance: nextBalance,
-    receipt: {
-      id: String(txRow?.id || reference),
-      reference,
-      service_key: serviceKey,
-      account_ref: accountRef,
-      amount,
-      status: "completed",
-      created_at: now,
-      home_id: String(home.id),
-    },
+    receipt,
   });
 }
 
@@ -479,19 +577,18 @@ export async function listServicePayments(req: Request, res: Response) {
     return res.status(500).json({ error: e?.message || "Failed to load wallet" });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("wallet_transactions")
-    .select("id,amount,reference,status,metadata,created_at,type,direction")
-    .eq("wallet_id", wallet.id)
-    .eq("direction", "debit")
-    .eq("type", "service_payment")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) return res.status(500).json({ error: error.message });
+  let data: any[] = [];
+  try {
+    data = await listWalletTransactionsWithFallback(wallet.id, limit);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to load wallet transactions" });
+  }
 
   const rows = (data || []).filter((x: any) => {
+    const direction = String(x?.direction || x?.metadata?.direction || "").toLowerCase();
     const meta = x?.metadata || {};
+    if (direction && direction !== "debit") return false;
+    if (String(x?.type || "") !== "service_payment") return false;
     if (serviceFilter && String(meta.service_key || "") !== serviceFilter) return false;
     if (homeFilter && String(meta.home_id || "") !== homeFilter) return false;
     return true;
@@ -506,8 +603,15 @@ export async function listServicePayments(req: Request, res: Response) {
       status: String(x.status || "completed"),
       created_at: x.created_at || null,
       service_key: String(x?.metadata?.service_key || ""),
+      service_title: String(x?.metadata?.receipt?.title || ""),
       account_ref: String(x?.metadata?.account_ref || ""),
       home_id: String(x?.metadata?.home_id || ""),
+      unit_cost: x?.metadata?.receipt?.unit_cost ?? null,
+      unit_name: x?.metadata?.receipt?.unit_name ?? null,
+      computed_units: x?.metadata?.receipt?.computed_units ?? null,
+      billing_mode: x?.metadata?.receipt?.billing_mode ?? null,
+      bundle_name: x?.metadata?.receipt?.bundle_name ?? null,
+      period_label: x?.metadata?.receipt?.period_label ?? null,
     })),
   });
 }

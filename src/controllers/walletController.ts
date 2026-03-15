@@ -63,6 +63,30 @@ async function getOrCreateWallet(userId: string) {
   return created;
 }
 
+function missingWalletColumn(error: any, column: string) {
+  return String(error?.message || "").toLowerCase().includes(column.toLowerCase());
+}
+
+async function insertWalletTransactionWithFallback(row: Record<string, any>) {
+  let payload = { ...row };
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { error } = await supabaseAdmin.from("wallet_transactions").insert([payload]);
+    if (!error) return;
+    if (missingWalletColumn(error, "direction") && Object.prototype.hasOwnProperty.call(payload, "direction")) {
+      delete payload.direction;
+      payload.metadata = {
+        ...(payload.metadata || {}),
+        direction: row.direction || null,
+      };
+      continue;
+    }
+    throw new Error(error.message);
+  }
+
+  throw new Error("Failed to record wallet transaction");
+}
+
 async function applyFundingCredit(params: {
   userId: string;
   amount: number;
@@ -93,18 +117,18 @@ async function applyFundingCredit(params: {
     .eq("id", wallet.id);
   if (walletErr) throw new Error(walletErr.message);
 
-  const { error: txErr } = await supabaseAdmin.from("wallet_transactions").insert([
-    {
-      wallet_id: wallet.id,
+  await insertWalletTransactionWithFallback({
+    wallet_id: wallet.id,
+    direction: "credit",
+    type: "funding",
+    amount: Number(amount),
+    reference,
+    status: "completed",
+    metadata: {
+      ...(metadata || {}),
       direction: "credit",
-      type: "funding",
-      amount: Number(amount),
-      reference,
-      status: "completed",
-      metadata,
     },
-  ]);
-  if (txErr) throw new Error(txErr.message);
+  });
 
   await handleSignal({
     type: "wallet.funded",
@@ -289,18 +313,19 @@ export async function debitWallet(req: Request, res: Response) {
   if (updateErr) return res.status(500).json({ error: updateErr.message });
 
   const txReference = `debit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const { error: txErr } = await supabaseAdmin.from("wallet_transactions").insert([
-    {
+  try {
+    await insertWalletTransactionWithFallback({
       wallet_id: wallet.id,
       direction: "debit",
       type: "service_charge",
       amount: amountNumber,
       reference: txReference,
       status: "completed",
-      metadata: { reason: reason ?? "manual_debit" },
-    },
-  ]);
-  if (txErr) return res.status(500).json({ error: txErr.message });
+      metadata: { reason: reason ?? "manual_debit", direction: "debit" },
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to record wallet debit" });
+  }
 
   await handleSignal({
     type: "wallet.debited",

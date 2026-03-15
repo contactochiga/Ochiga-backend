@@ -26,6 +26,20 @@ function isMissingTable(err: any, table: string) {
   );
 }
 
+function looksLikeAnnouncement(title?: string | null, role?: string | null) {
+  const t = String(title || "").toLowerCase();
+  const r = String(role || "").toLowerCase();
+  return (
+    r.includes("admin") ||
+    r.includes("manager") ||
+    t.includes("announcement") ||
+    t.includes("notice") ||
+    t.includes("maintenance") ||
+    t.includes("update") ||
+    t.includes("policy")
+  );
+}
+
 function extFromMime(mime?: string, fallback = "bin") {
   const map: Record<string, string> = {
     "image/jpeg": "jpg",
@@ -109,7 +123,23 @@ export async function createPost(req: Request, res: Response) {
     return res.status(500).json({ error: error.message });
   }
 
-  // Optional later: push signals/notifications to estate users here
+  if (looksLikeAnnouncement(String(title), String(user?.role || ""))) {
+    try {
+      await NotificationService.sendToEstate(String(resolvedEstateId), {
+        title: String(title).trim(),
+        message: resolvedBody ? String(resolvedBody).trim().slice(0, 220) : "New estate announcement.",
+        type: "community",
+        payload: {
+          estate_id: String(resolvedEstateId),
+          post_id: String((data as any)?.id || ""),
+          kind: "community.announcement",
+        },
+        entityId: String((data as any)?.id || ""),
+      });
+    } catch (notifyErr) {
+      console.warn("community announcement notify failed:", notifyErr);
+    }
+  }
 
   return res.json(data);
 }
