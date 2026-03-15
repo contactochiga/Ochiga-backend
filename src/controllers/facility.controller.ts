@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { NotificationService } from "../services/NotificationService";
 
 // ---------------------------
 // Helpers
@@ -242,12 +243,108 @@ export async function createHome(req: any, res: Response) {
         { onConflict: "home_id,user_id" }
       );
       if (hmErr) return res.status(500).json({ error: hmErr.message });
+
+      try {
+        const { data: estate } = await supabaseAdmin
+          .from("estates")
+          .select("id,name")
+          .eq("id", estate_id)
+          .maybeSingle();
+
+        const homeLabel =
+          home.block && home.unit ? `${home.block} / ${home.unit}` : home.name || "your home";
+
+        await NotificationService.sendToUser(String(resident_id), {
+          title: "Home linked to your account",
+          message: estate?.name
+            ? `You now have access to ${estate.name} (${homeLabel}).`
+            : `You now have access to ${homeLabel}.`,
+          type: "home",
+          payload: {
+            estate_id,
+            home_id: home.id,
+            home_label: homeLabel,
+            kind: "home.linked_on_create",
+          },
+          entityId: String(home.id),
+        });
+      } catch (notifyErr) {
+        console.warn("createHome resident notification failed:", notifyErr);
+      }
     }
 
     return res.json({ message: "Home created", home });
   } catch (e: any) {
     console.error("createHome error:", e);
     return res.status(400).json({ error: e.message || "Failed to create home" });
+  }
+}
+
+/**
+ * PATCH /facility/homes/:homeId
+ */
+export async function updateHome(req: any, res: Response) {
+  try {
+    const { homeId } = req.params;
+    const {
+      name,
+      unit,
+      block,
+      description,
+      electricity_meter,
+      water_meter,
+      internet_id,
+      gate_code,
+      lat,
+      lng,
+      resident_id,
+    } = req.body || {};
+
+    if (!homeId) return res.status(400).json({ error: "homeId is required" });
+
+    const { data: existing, error: existingErr } = await supabaseAdmin
+      .from("homes")
+      .select("id, estate_id")
+      .eq("id", homeId)
+      .maybeSingle();
+
+    if (existingErr) return res.status(500).json({ error: existingErr.message });
+    if (!existing?.id) return res.status(404).json({ error: "Home not found" });
+
+    const canManage = await assertCanManageEstate(req.user.id, existing.estate_id);
+    if (!canManage && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not allowed to manage this estate" });
+    }
+
+    const patch = compact({
+      name: name === undefined ? undefined : String(name || "").trim() || null,
+      unit: unit === undefined ? undefined : String(unit || "").trim() || null,
+      block: block === undefined ? undefined : String(block || "").trim() || null,
+      description: description === undefined ? undefined : String(description || "").trim() || null,
+      electricity_meter:
+        electricity_meter === undefined ? undefined : String(electricity_meter || "").trim() || null,
+      water_meter: water_meter === undefined ? undefined : String(water_meter || "").trim() || null,
+      internet_id: internet_id === undefined ? undefined : String(internet_id || "").trim() || null,
+      gate_code: gate_code === undefined ? undefined : String(gate_code || "").trim() || null,
+      resident_id: resident_id === undefined ? undefined : resident_id || null,
+      lat: lat === undefined ? undefined : lat ?? null,
+      lng: lng === undefined ? undefined : lng ?? null,
+      updated_at: new Date().toISOString(),
+    });
+
+    const { data: home, error } = await supabaseAdmin
+      .from("homes")
+      .update(patch)
+      .eq("id", homeId)
+      .select("*")
+      .single();
+
+    if (error) return res.status(400).json({ error: error.message });
+
+    return res.json({ message: "Home updated", home });
+  } catch (e: any) {
+    console.error("updateHome error:", e);
+    return res.status(400).json({ error: e.message || "Failed to update home" });
   }
 }
 

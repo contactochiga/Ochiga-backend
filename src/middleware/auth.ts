@@ -2,6 +2,7 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { UserRole } from "../types/user";
+import { supabaseAdmin } from "../supabase/supabaseClient";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 if (!APP_JWT_SECRET) {
@@ -65,7 +66,28 @@ function extractToken(req: Request): string | null {
 /* ---------------------------------------------------------
  * VERIFY TOKEN
  * --------------------------------------------------------- */
-function verifyToken(req: Request, res: Response): AuthUser | null {
+async function hydrateUserContext(decoded: AuthUser): Promise<AuthUser> {
+  if (!decoded?.id) return decoded;
+
+  const { data } = await supabaseAdmin
+    .from("users")
+    .select("id,email,username,role,estate_id,home_id")
+    .eq("id", decoded.id)
+    .maybeSingle();
+
+  if (!data) return decoded;
+
+  return {
+    ...decoded,
+    email: (data as any)?.email ?? decoded.email,
+    username: (data as any)?.username ?? decoded.username,
+    role: ((data as any)?.role || decoded.role) as UserRole,
+    estate_id: (data as any)?.estate_id ?? decoded.estate_id,
+    home_id: (data as any)?.home_id ?? decoded.home_id,
+  };
+}
+
+async function verifyToken(req: Request, res: Response): Promise<AuthUser | null> {
   try {
     if (!APP_JWT_SECRET) {
       res
@@ -88,8 +110,9 @@ function verifyToken(req: Request, res: Response): AuthUser | null {
       return null;
     }
 
-    req.user = decoded;
-    return decoded;
+    const hydrated = await hydrateUserContext(decoded);
+    req.user = hydrated;
+    return hydrated;
   } catch (err) {
     console.error("JWT Error:", err);
     res.status(401).json({ error: "Invalid or expired token" });
@@ -100,8 +123,8 @@ function verifyToken(req: Request, res: Response): AuthUser | null {
 /* ---------------------------------------------------------
  * REQUIRE AUTH
  * --------------------------------------------------------- */
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const user = verifyToken(req, res);
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const user = await verifyToken(req, res);
   if (!user) return;
   next();
 }

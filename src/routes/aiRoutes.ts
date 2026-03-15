@@ -12,7 +12,17 @@ const client = apiKey ? new OpenAI({ apiKey }) : null;
 
 type DeviceAction =
   | { type: "device.command"; deviceId: string; command: Record<string, any> }
-  | { type: "open.panel"; panel: string; deviceId?: string };
+  | { type: "open.panel"; panel: string; deviceId?: string }
+  | {
+      type: "visitor.create";
+      payload: {
+        name?: string;
+        phone?: string;
+        purpose?: string;
+        expires_hours?: number;
+        navigation_mode?: "code" | "link";
+      };
+    };
 
 type AIChatResponse = {
   reply: string;
@@ -126,12 +136,85 @@ function inferFallbackActions(message: string, devices: any[]): DeviceAction[] {
   }));
 }
 
+function inferVisitorWorkflow(message: string): {
+  reply: string;
+  panel: string;
+  actions: DeviceAction[];
+} | null {
+  const text = normalizeText(message);
+  const wantsVisitor =
+    /\b(create|generate|make|give|send)\b/.test(text) &&
+    /\b(visitor|guest|access|entry code|gate pass)\b/.test(text);
+
+  if (!wantsVisitor) return null;
+
+  const phoneMatch = message.match(/(\+?\d[\d\s-]{7,}\d)/);
+  const nameMatch =
+    message.match(/(?:for|to)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/) ||
+    message.match(/(?:for|to)\s+([a-z]+(?:\s+[a-z]+){0,2})/i);
+  const timeMatch = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+
+  const name = String(nameMatch?.[1] || "").trim();
+  const phone = String(phoneMatch?.[1] || "").replace(/[^\d+]/g, "").trim();
+
+  if (!name || !phone) {
+    return {
+      reply:
+        "I can create visitor access. Tell me the visitor name and phone number, for example: create access for John Doe 08012345678 for 2pm.",
+      panel: "visitor",
+      actions: [{ type: "open.panel", panel: "visitor" }],
+    };
+  }
+
+  let expires_hours = 6;
+  if (timeMatch) {
+    const hour = Number(timeMatch[1] || 0);
+    const minute = Number(timeMatch[2] || 0);
+    const ampm = String(timeMatch[3] || "").toLowerCase();
+    let targetHour = hour % 12;
+    if (ampm === "pm") targetHour += 12;
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(targetHour, minute, 0, 0);
+    if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
+    expires_hours = Math.max(1, Math.ceil((target.getTime() - now.getTime()) / 3600000));
+  }
+
+  return {
+    reply: `Creating visitor access for ${name}.`,
+    panel: "visitor",
+    actions: [
+      {
+        type: "visitor.create",
+        payload: {
+          name,
+          phone,
+          purpose: "Guest access",
+          expires_hours,
+          navigation_mode: "code",
+        },
+      },
+      { type: "open.panel", panel: "visitor" },
+    ],
+  };
+}
+
 router.post("/chat", async (req, res) => {
   const message: string = (req.body?.message || req.body?.prompt || "").trim();
   const context = req.body?.context || {};
   const devices = Array.isArray(context.devices) ? context.devices : [];
 
   if (!message) return res.status(400).json({ error: "message is required" });
+
+  const visitorWorkflow = inferVisitorWorkflow(message);
+  if (visitorWorkflow) {
+    return res.json({
+      reply: visitorWorkflow.reply,
+      panel: visitorWorkflow.panel,
+      deviceId: null,
+      actions: visitorWorkflow.actions,
+    } satisfies AIChatResponse);
+  }
 
   if (!client) {
     return res.json({
@@ -161,6 +244,7 @@ Rules:
 - Reply in simple estate terms.
 - If user asks to open/manage/show a section, set "panel".
 - If user asks to control a device, include actions with deviceId and command.
+- If user asks to create visitor or guest access, either ask for missing details or return a visitor.create action.
 - Use known devices below to map friendly name -> id when possible.
 
 Known devices:

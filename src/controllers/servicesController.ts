@@ -18,6 +18,196 @@ const VALID_SERVICE_KEYS = new Set<ServiceKey>([
   "other_facility_fees",
 ]);
 
+const SERVICE_CONFIG_DEFAULTS: Record<
+  ServiceKey,
+  {
+    title: string;
+    description: string;
+    suggested_amount: number;
+    account_label: string;
+    account_hint: string;
+    active: boolean;
+    unit_cost: number | null;
+    unit_name: string | null;
+    billing_mode: "wallet_only" | "metered" | "fixed";
+  }
+> = {
+  utility_token: {
+    title: "Utility Token",
+    description: "Electricity token purchase",
+    suggested_amount: 5000,
+    account_label: "Electricity Meter",
+    account_hint: "Linked from the assigned home meter",
+    active: true,
+    unit_cost: null,
+    unit_name: "kWh",
+    billing_mode: "metered",
+  },
+  internet_service: {
+    title: "Internet Service",
+    description: "Data bundles and monthly internet renewals",
+    suggested_amount: 10000,
+    account_label: "Internet ID",
+    account_hint: "Linked from the assigned home internet account",
+    active: true,
+    unit_cost: null,
+    unit_name: "bundle",
+    billing_mode: "fixed",
+  },
+  fiber_internet: {
+    title: "Fiber Internet",
+    description: "Fiber broadband subscriptions",
+    suggested_amount: 15000,
+    account_label: "Fiber Account",
+    account_hint: "Uses the linked home internet ID",
+    active: true,
+    unit_cost: null,
+    unit_name: "plan",
+    billing_mode: "fixed",
+  },
+  service_charge: {
+    title: "Service Charge",
+    description: "Estate operational dues",
+    suggested_amount: 25000,
+    account_label: "Home Account",
+    account_hint: "Charged against the linked home record",
+    active: true,
+    unit_cost: null,
+    unit_name: "month",
+    billing_mode: "fixed",
+  },
+  other_facility_fees: {
+    title: "Other Facility Fees",
+    description: "Special estate fees and one-off charges",
+    suggested_amount: 5000,
+    account_label: "Home Account",
+    account_hint: "Charged against the linked home record",
+    active: true,
+    unit_cost: null,
+    unit_name: "fee",
+    billing_mode: "fixed",
+  },
+};
+
+const MANAGE_ESTATE_ROLES = new Set(["owner", "admin", "manager", "security"]);
+
+async function assertCanManageEstate(userId: string, estateId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("estate_memberships")
+    .select("role, status")
+    .eq("estate_id", estateId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data || String(data.status) !== "active") return false;
+  return MANAGE_ESTATE_ROLES.has(String(data.role || "").toLowerCase());
+}
+
+function tableMissing(error: any) {
+  const message = String(error?.message || "");
+  return (
+    message.includes("Could not find the table") ||
+    message.includes("relation") && message.includes("does not exist") ||
+    message.includes("schema cache")
+  );
+}
+
+type ServiceConfigRow = {
+  estate_id: string;
+  service_key: ServiceKey;
+  title: string;
+  description: string;
+  suggested_amount: number;
+  currency: string;
+  active: boolean;
+  account_label: string;
+  account_hint: string;
+  payment_mode: "wallet_only";
+  unit_cost?: number | null;
+  unit_name?: string | null;
+  billing_mode?: "wallet_only" | "metered" | "fixed";
+  updated_at?: string;
+  created_at?: string;
+};
+
+function missingColumn(error: any, column: string) {
+  const msg = String(error?.message || "");
+  return msg.includes(column);
+}
+
+function normalizeServiceConfig(
+  estateId: string,
+  serviceKey: ServiceKey,
+  row?: Partial<ServiceConfigRow> | null
+): ServiceConfigRow {
+  const fallback = SERVICE_CONFIG_DEFAULTS[serviceKey];
+  return {
+    estate_id: estateId,
+    service_key: serviceKey,
+    title: String(row?.title || fallback.title),
+    description: String(row?.description || fallback.description),
+    suggested_amount: Number(row?.suggested_amount ?? fallback.suggested_amount),
+    currency: String(row?.currency || "NGN"),
+    active: row?.active == null ? fallback.active : Boolean(row.active),
+    account_label: String(row?.account_label || fallback.account_label),
+    account_hint: String(row?.account_hint || fallback.account_hint),
+    payment_mode: "wallet_only",
+    unit_cost: row?.unit_cost == null ? fallback.unit_cost : Number(row.unit_cost),
+    unit_name: row?.unit_name == null ? fallback.unit_name : String(row.unit_name || ""),
+    billing_mode: (row?.billing_mode as any) || fallback.billing_mode,
+    created_at: row?.created_at,
+    updated_at: row?.updated_at,
+  };
+}
+
+async function readServiceConfigsForEstate(estateId: string) {
+  let { data, error } = await supabaseAdmin
+    .from("estate_service_configs")
+    .select(
+      "estate_id, service_key, title, description, suggested_amount, currency, active, account_label, account_hint, payment_mode, unit_cost, unit_name, billing_mode, created_at, updated_at"
+    )
+    .eq("estate_id", estateId);
+
+  if (error) {
+    if (missingColumn(error, "unit_cost") || missingColumn(error, "unit_name") || missingColumn(error, "billing_mode")) {
+      const legacy = await supabaseAdmin
+        .from("estate_service_configs")
+        .select(
+          "estate_id, service_key, title, description, suggested_amount, currency, active, account_label, account_hint, payment_mode, created_at, updated_at"
+        )
+        .eq("estate_id", estateId);
+      data = legacy.data as any;
+      error = legacy.error as any;
+    }
+  }
+
+  if (error) {
+    if (tableMissing(error)) {
+      return {
+        configs: (Object.keys(SERVICE_CONFIG_DEFAULTS) as ServiceKey[]).map((serviceKey) =>
+          normalizeServiceConfig(estateId, serviceKey)
+        ),
+        usingFallback: true,
+      };
+    }
+    throw new Error(error.message);
+  }
+
+  const byKey = new Map<ServiceKey, Partial<ServiceConfigRow>>();
+  for (const row of (data || []) as Partial<ServiceConfigRow>[]) {
+    const key = String(row.service_key || "") as ServiceKey;
+    if (VALID_SERVICE_KEYS.has(key)) byKey.set(key, row);
+  }
+
+  return {
+    configs: (Object.keys(SERVICE_CONFIG_DEFAULTS) as ServiceKey[]).map((serviceKey) =>
+      normalizeServiceConfig(estateId, serviceKey, byKey.get(serviceKey))
+    ),
+    usingFallback: false,
+  };
+}
+
 async function getOrCreateWallet(userId: string) {
   const { data: existing, error: fetchErr } = await supabaseAdmin
     .from("wallets")
@@ -71,9 +261,94 @@ async function resolveHomeForUser(user: any) {
 function expectedAccountRef(serviceKey: ServiceKey, home: any): string {
   if (!home?.id) return "";
   if (serviceKey === "utility_token") return String(home.electricity_meter || "");
+  if (serviceKey === "other_facility_fees") return String(home.id || "");
   if (serviceKey === "internet_service" || serviceKey === "fiber_internet")
     return String(home.internet_id || "");
   return String(home.id || "");
+}
+
+export async function listServiceConfigs(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const estateId = String(req.query.estate_id || user.estate_id || "").trim();
+  if (!estateId) return res.status(400).json({ error: "No estate linked to this account" });
+
+  try {
+    const { configs, usingFallback } = await readServiceConfigsForEstate(estateId);
+    return res.json({ ok: true, estate_id: estateId, configs, using_fallback: usingFallback });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to load service configs" });
+  }
+}
+
+export async function upsertServiceConfig(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const estateId = String(req.body?.estate_id || user.estate_id || "").trim();
+  const serviceKey = String(req.params.serviceKey || "").trim() as ServiceKey;
+
+  if (!estateId) return res.status(400).json({ error: "estate_id is required" });
+  if (!VALID_SERVICE_KEYS.has(serviceKey)) return res.status(400).json({ error: "Invalid service_key" });
+
+  try {
+    const canManage = user.role === "admin" ? true : await assertCanManageEstate(user.id, estateId);
+    if (!canManage) return res.status(403).json({ error: "Insufficient permissions" });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to validate estate access" });
+  }
+
+  const fallback = SERVICE_CONFIG_DEFAULTS[serviceKey];
+  const payload: ServiceConfigRow = {
+    estate_id: estateId,
+    service_key: serviceKey,
+    title: String(req.body?.title || fallback.title).trim(),
+    description: String(req.body?.description || fallback.description).trim(),
+    suggested_amount: Number(req.body?.suggested_amount ?? fallback.suggested_amount),
+    currency: String(req.body?.currency || "NGN").trim() || "NGN",
+    active: req.body?.active == null ? fallback.active : Boolean(req.body.active),
+    account_label: String(req.body?.account_label || fallback.account_label).trim(),
+    account_hint: String(req.body?.account_hint || fallback.account_hint).trim(),
+    payment_mode: "wallet_only",
+    unit_cost: req.body?.unit_cost == null || req.body?.unit_cost === "" ? null : Number(req.body.unit_cost),
+    unit_name: String(req.body?.unit_name || fallback.unit_name || "").trim() || null,
+    billing_mode: String(req.body?.billing_mode || fallback.billing_mode).trim() as any,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!Number.isFinite(payload.suggested_amount) || payload.suggested_amount < 0) {
+    return res.status(400).json({ error: "suggested_amount must be zero or greater" });
+  }
+  if (payload.unit_cost != null && (!Number.isFinite(payload.unit_cost) || payload.unit_cost < 0)) {
+    return res.status(400).json({ error: "unit_cost must be zero or greater" });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("estate_service_configs")
+    .upsert(payload, { onConflict: "estate_id,service_key" })
+    .select(
+      "estate_id, service_key, title, description, suggested_amount, currency, active, account_label, account_hint, payment_mode, unit_cost, unit_name, billing_mode, created_at, updated_at"
+    )
+    .single();
+
+  if (error) {
+    if (missingColumn(error, "unit_cost") || missingColumn(error, "unit_name") || missingColumn(error, "billing_mode")) {
+      return res.status(400).json({
+        error: "estate_service_configs columns for unit pricing are not configured yet",
+        code: "SERVICE_CONFIG_COLUMNS_MISSING",
+      });
+    }
+    if (tableMissing(error)) {
+      return res.status(400).json({
+        error: "estate_service_configs table is not configured yet",
+        code: "SERVICE_CONFIG_TABLE_MISSING",
+      });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+
+  return res.json({ ok: true, config: normalizeServiceConfig(estateId, serviceKey, data as any) });
 }
 
 export async function payServiceFromWallet(req: Request, res: Response) {
@@ -100,6 +375,19 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   }
   if (accountRef !== expectedRef) {
     return res.status(400).json({ error: "Account reference mismatch for this service" });
+  }
+
+  const estateId = String(user.estate_id || "").trim();
+  if (estateId) {
+    try {
+      const { configs } = await readServiceConfigsForEstate(estateId);
+      const cfg = configs.find((x) => x.service_key === serviceKey);
+      if (cfg && !cfg.active) {
+        return res.status(400).json({ error: `${cfg.title} is currently disabled for this estate` });
+      }
+    } catch (e: any) {
+      return res.status(500).json({ error: e?.message || "Failed to validate service configuration" });
+    }
   }
 
   let wallet: any;
@@ -140,10 +428,10 @@ export async function payServiceFromWallet(req: Request, res: Response) {
         amount,
         reference,
         status: "completed",
-        metadata,
-        created_at: now,
-      },
-    ])
+      metadata,
+      created_at: now,
+    },
+  ])
     .select("*")
     .single();
   if (txErr) return res.status(500).json({ error: txErr.message });
@@ -171,6 +459,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
       amount,
       status: "completed",
       created_at: now,
+      home_id: String(home.id),
     },
   });
 }

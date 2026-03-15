@@ -7,6 +7,7 @@ import {
   createEstate,
   listMyEstates,
   createHome,
+  updateHome,
   listEstateHomes,
   createRoom,
   listHomeRooms,
@@ -49,6 +50,7 @@ router.get("/estates", requireAuth, listMyEstates);
  * Homes
  */
 router.post("/homes", requireAuth, createHome);
+router.patch("/homes/:homeId", requireAuth, updateHome);
 router.get("/estates/:estateId/homes", requireAuth, listEstateHomes);
 
 /**

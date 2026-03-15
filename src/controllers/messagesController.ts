@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 
 const MOD_ROLES = new Set(["admin", "estate_admin", "manager", "owner", "security", "operator"]);
+const PRESENCE_ONLINE_WINDOW_MS = 2 * 60 * 1000;
 
 function clean(v: any) {
   return String(v ?? "").trim();
@@ -60,10 +61,64 @@ async function ensureMessageTables(res: Response) {
   return false;
 }
 
+async function touchPresence(user: any) {
+  if (!user?.id) return;
+
+  const payload = {
+    user_id: String(user.id),
+    estate_id: user.estate_id || null,
+    home_id: user.home_id || null,
+    last_seen_at: new Date().toISOString(),
+    is_online: true,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabaseAdmin
+    .from("user_presence")
+    .upsert(payload as any, { onConflict: "user_id" });
+
+  if (error && !isMissingTable(error, "user_presence")) {
+    console.warn("touchPresence failed:", error.message);
+  }
+}
+
+async function getPresenceMap(userIds: string[]) {
+  const cleanIds = Array.from(new Set(userIds.map((x) => clean(x)).filter(Boolean)));
+  if (!cleanIds.length) return {} as Record<string, { last_seen_at: string | null; is_online: boolean }>;
+
+  const { data, error } = await supabaseAdmin
+    .from("user_presence")
+    .select("user_id,last_seen_at,is_online")
+    .in("user_id", cleanIds);
+
+  if (error) {
+    if (!isMissingTable(error, "user_presence")) {
+      console.warn("getPresenceMap failed:", error.message);
+    }
+    return {} as Record<string, { last_seen_at: string | null; is_online: boolean }>;
+  }
+
+  const now = Date.now();
+  return Object.fromEntries(
+    (data || []).map((row: any) => {
+      const lastSeen = row?.last_seen_at ? String(row.last_seen_at) : null;
+      const isFresh = lastSeen ? now - new Date(lastSeen).getTime() <= PRESENCE_ONLINE_WINDOW_MS : false;
+      return [
+        String(row.user_id),
+        {
+          last_seen_at: lastSeen,
+          is_online: Boolean(row?.is_online) && isFresh,
+        },
+      ];
+    })
+  );
+}
+
 export async function listResidents(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!user?.estate_id) return res.status(400).json({ error: "No estate linked" });
+  await touchPresence(user);
 
   const q = clean(req.query.q || "").toLowerCase();
 
@@ -77,6 +132,7 @@ export async function listResidents(req: Request, res: Response) {
   if (error) return res.status(500).json({ error: error.message });
 
   let items = (data || []) as any[];
+  const presenceMap = await getPresenceMap(items.map((u) => String(u.id)));
   if (q) {
     items = items.filter((u) => {
       const src = `${u?.username || ""} ${u?.full_name || ""} ${u?.email || ""}`.toLowerCase();
@@ -91,6 +147,8 @@ export async function listResidents(req: Request, res: Response) {
       full_name: u.full_name || null,
       role: u.role || null,
       home_id: u.home_id || null,
+      is_online: Boolean(presenceMap[String(u.id)]?.is_online),
+      last_seen_at: presenceMap[String(u.id)]?.last_seen_at || null,
     })),
   });
 }
@@ -100,6 +158,7 @@ export async function createOrGetDirectThread(req: Request, res: Response) {
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!user?.estate_id) return res.status(400).json({ error: "No estate linked" });
   if (!(await ensureMessageTables(res))) return;
+  await touchPresence(user);
 
   const peerUserId = clean(req.body?.peer_user_id);
   if (!peerUserId) return res.status(400).json({ error: "peer_user_id is required" });
@@ -163,6 +222,7 @@ export async function listInbox(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!(await ensureMessageTables(res))) return;
+  await touchPresence(user);
 
   const { data: memberships, error: memErr } = await supabaseAdmin
     .from("dm_thread_members")
@@ -216,6 +276,7 @@ export async function listInbox(req: Request, res: Response) {
     if (pErr) return res.status(500).json({ error: pErr.message });
     usersById = Object.fromEntries((peers || []).map((u: any) => [String(u.id), u]));
   }
+  const presenceMap = await getPresenceMap(Array.from(peerIds));
 
   const memberByThread = Object.fromEntries(
     (memberships || []).map((m: any) => [String(m.thread_id), m])
@@ -251,6 +312,8 @@ export async function listInbox(req: Request, res: Response) {
               full_name: peer.full_name || null,
               role: peer.role || null,
               home_id: peer.home_id || null,
+              is_online: Boolean(presenceMap[peerId]?.is_online),
+              last_seen_at: presenceMap[peerId]?.last_seen_at || null,
             }
           : null,
         last_message: latest
@@ -274,6 +337,7 @@ export async function listThreadMessages(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!(await ensureMessageTables(res))) return;
+  await touchPresence(user);
 
   const threadId = clean(req.params.threadId);
   if (!threadId) return res.status(400).json({ error: "threadId is required" });
@@ -306,6 +370,7 @@ export async function sendMessage(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!(await ensureMessageTables(res))) return;
+  await touchPresence(user);
 
   const threadId = clean(req.params.threadId);
   const body = clean(req.body?.body);
@@ -383,6 +448,7 @@ export async function markThreadRead(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!(await ensureMessageTables(res))) return;
+  await touchPresence(user);
 
   const threadId = clean(req.params.threadId);
   if (!threadId) return res.status(400).json({ error: "threadId is required" });
@@ -396,6 +462,14 @@ export async function markThreadRead(req: Request, res: Response) {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true });
+}
+
+export async function pingPresence(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  await touchPresence(user);
+  return res.json({ ok: true, last_seen_at: new Date().toISOString() });
 }
 
 export async function reportMessage(req: Request, res: Response) {

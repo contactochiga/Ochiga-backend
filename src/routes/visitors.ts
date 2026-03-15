@@ -9,6 +9,9 @@ const router = Router();
 // Create visitor
 router.post("/", requireAuth, VisitorCtrl.createVisitor);
 
+// List my visitor requests
+router.get("/mine", requireAuth, VisitorCtrl.listMyVisitors);
+
 // Verify visitor by access code
 router.post("/verify", requireAuth, VisitorCtrl.verifyVisitor);
 

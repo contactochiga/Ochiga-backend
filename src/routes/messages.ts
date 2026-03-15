@@ -7,6 +7,7 @@ import {
   listResidents,
   listThreadMessages,
   markThreadRead,
+  pingPresence,
   reportMessage,
   resolveModerationReport,
   sendMessage,
@@ -15,6 +16,7 @@ import {
 const router = Router();
 
 router.get("/residents", requireAuth, listResidents);
+router.post("/presence/ping", requireAuth, pingPresence);
 router.get("/inbox", requireAuth, listInbox);
 router.post("/thread/direct", requireAuth, createOrGetDirectThread);
 router.get("/thread/:threadId/messages", requireAuth, listThreadMessages);
@@ -27,4 +29,3 @@ router.get("/mod/reports", requireAuth, listModerationReports);
 router.post("/mod/reports/:reportId/resolve", requireAuth, resolveModerationReport);
 
 export default router;
-

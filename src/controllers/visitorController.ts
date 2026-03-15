@@ -125,6 +125,31 @@ export async function createVisitor(req: Request, res: Response) {
 }
 
 /**
+ * LIST MY VISITORS
+ * - persistent consumer list for resident-created access requests
+ */
+export async function listMyVisitors(req: Request, res: Response) {
+  try {
+    const { userId, estateId, homeId } = requireUserContext(req);
+
+    const { data, error } = await supabaseAdmin
+      .from("visitor_access")
+      .select("*")
+      .eq("estate_id", estateId)
+      .eq("home_id", homeId)
+      .or(`created_by.eq.${userId},resident_id.eq.${userId}`)
+      .order("created_at", { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    return res.json({ items: data || [] });
+  } catch (err: any) {
+    console.error("listMyVisitors error", err);
+    return res.status(500).json({ error: err.message || "listMyVisitors failed" });
+  }
+}
+
+/**
  * VERIFY VISITOR BY CODE (estate-scoped)
  * - estateId comes from req.user
  */

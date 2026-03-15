@@ -4,6 +4,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireRole } from "../middleware/roles";
 
 import {
+  evaluateGeoAlerts,
   setEstateBoundary,
   getEstateBoundary,
   updateVisitorLocation,
@@ -16,6 +17,19 @@ const router = Router();
  * POST /geo/estate/:estateId
  * Estate admins / managers set or update estate boundary coordinates
  */
+router.post(
+  "/evaluate",
+  requireAuth,
+  async (req, res) => {
+    try {
+      return evaluateGeoAlerts(req, res);
+    } catch (err: any) {
+      console.error("Error in POST /geo/evaluate:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 router.post(
   "/estate/:estateId",
   requireAuth,

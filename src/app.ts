@@ -22,6 +22,7 @@ import communityRoutes from "./routes/community";
 import walletRoutes from "./routes/wallets";
 import servicesRoutes from "./routes/services";
 import roomsRoutes from "./routes/rooms";
+import geoRoutes from "./routes/geo";
 
 // ✅ OTP routes (email verification)
 import otpRoutes from "./routes/otp.routes";
@@ -216,6 +217,7 @@ app.use("/wallets", walletRoutes);
 app.use("/services", servicesRoutes);
 
 app.use("/rooms", roomsRoutes);
+app.use("/geo", geoRoutes);
 
 app.use("/facility", facilityRoutes);
 app.use("/signals", signalRoutes);

@@ -145,7 +145,92 @@ export async function getPostsForEstate(req: Request, res: Response) {
     return res.status(500).json({ error: error.message });
   }
 
-  return res.json(data || []);
+  const posts = (data || []) as any[];
+  if (!posts.length) return res.json([]);
+
+  const postIds = posts.map((p) => String(p.id)).filter(Boolean);
+  const myUserId = String(user.id || "");
+
+  const likeCounts: Record<string, number> = {};
+  const commentCounts: Record<string, number> = {};
+  const reactedByMe = new Set<string>();
+
+  try {
+    const { data: reactionRows, error: reactErr } = await supabaseAdmin
+      .from("community_reactions")
+      .select("post_id,user_id,type")
+      .in("post_id", postIds);
+
+    if (reactErr && !isMissingTable(reactErr, "community_reactions")) {
+      return res.status(500).json({ error: reactErr.message });
+    }
+
+    for (const r of reactionRows || []) {
+      const pid = String((r as any)?.post_id || "");
+      if (!pid) continue;
+      const type = String((r as any)?.type || "").toLowerCase();
+      if (type === "like") {
+        likeCounts[pid] = (likeCounts[pid] || 0) + 1;
+        if (String((r as any)?.user_id || "") === myUserId) reactedByMe.add(pid);
+      }
+    }
+  } catch {
+    // fail-soft
+  }
+
+  try {
+    const { data: commentRows, error: commentErr } = await supabaseAdmin
+      .from("community_comments")
+      .select("post_id")
+      .in("post_id", postIds);
+
+    if (commentErr && !isMissingTable(commentErr, "community_comments")) {
+      return res.status(500).json({ error: commentErr.message });
+    }
+
+    for (const c of commentRows || []) {
+      const pid = String((c as any)?.post_id || "");
+      if (!pid) continue;
+      commentCounts[pid] = (commentCounts[pid] || 0) + 1;
+    }
+  } catch {
+    // fail-soft
+  }
+
+  const authorIds = Array.from(new Set(posts.map((p) => String(p.author_id || "")).filter(Boolean)));
+  const authorMap = new Map<string, string>();
+  if (authorIds.length) {
+    const { data: users } = await supabaseAdmin
+      .from("users")
+      .select("id,username,full_name")
+      .in("id", authorIds);
+    for (const u of users || []) {
+      const id = String((u as any).id || "");
+      const name = String((u as any).username || (u as any).full_name || "").trim();
+      if (id && name) authorMap.set(id, name);
+    }
+  }
+
+  const enriched = posts.map((p) => {
+    const pid = String(p.id || "");
+    const likeCount = Number(likeCounts[pid] || 0);
+    const commentCount = Number(commentCounts[pid] || 0);
+    return {
+      ...p,
+      author_name: authorMap.get(String(p.author_id || "")) || null,
+      like_count: likeCount,
+      likes: likeCount,
+      reactions_count: likeCount,
+      comment_count: commentCount,
+      comments: commentCount,
+      reply_count: commentCount,
+      replies_count: commentCount,
+      reacted_by_me: reactedByMe.has(pid),
+      liked_by_me: reactedByMe.has(pid),
+    };
+  });
+
+  return res.json(enriched);
 }
 
 export async function getPostById(req: Request, res: Response) {
@@ -313,7 +398,23 @@ export async function createComment(req: Request, res: Response) {
     // fail-soft: comment still succeeds
   }
 
-  return res.json(data);
+  let commentCount = 0;
+  try {
+    const { data: countRows } = await supabaseAdmin
+      .from("community_comments")
+      .select("id", { count: "exact" })
+      .eq("post_id", postId);
+    commentCount = Number(countRows?.length || 0);
+  } catch {
+    // fail-soft
+  }
+
+  return res.json({
+    ...data,
+    comment_count: commentCount,
+    replies_count: commentCount,
+    reply_count: commentCount,
+  });
 }
 
 export async function getCommentsForPost(req: Request, res: Response) {
@@ -469,7 +570,25 @@ export async function reactToPost(req: Request, res: Response) {
     // fail-soft
   }
 
-  return res.json(data);
+  let likeCount = 0;
+  try {
+    const { data: rows } = await supabaseAdmin
+      .from("community_reactions")
+      .select("id,type")
+      .eq("post_id", postId);
+    likeCount = (rows || []).filter((x: any) => String(x?.type || "").toLowerCase() === "like").length;
+  } catch {
+    // fail-soft
+  }
+
+  return res.json({
+    ...data,
+    like_count: likeCount,
+    likes: likeCount,
+    reactions_count: likeCount,
+    reacted_by_me: true,
+    liked_by_me: true,
+  });
 }
 
 export async function reactToComment(req: Request, res: Response) {

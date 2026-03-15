@@ -374,17 +374,17 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
 export async function updateHomeUser(req: ReqAny, res: Response) {
   try {
     const { membershipId } = req.params;
-    const { role, status, permissions } = req.body;
+    const { role, status, permissions, full_name, username, email } = req.body;
     const userId = req.user?.id;
 
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
-    if (!role && !status && permissions === undefined) {
+    if (!role && !status && permissions === undefined && full_name === undefined && username === undefined && email === undefined) {
       return res.status(400).json({ error: "Nothing to update" });
     }
 
     const { data: mem, error: memErr } = await supabaseAdmin
       .from("home_memberships")
-      .select("id, home_id, role, status")
+      .select("id, home_id, role, status, user_id")
       .eq("id", membershipId)
       .single();
 
@@ -394,22 +394,23 @@ export async function updateHomeUser(req: ReqAny, res: Response) {
     if (!access.ok) return res.status(access.code).json({ error: access.error });
     if (!access.canManage) return res.status(403).json({ error: "Insufficient permissions" });
 
-    // prevent removing last owner
-    if (role && String(mem.role) === "owner" && role !== "owner") {
-      const { count, error: cErr } = await supabaseAdmin
-        .from("home_memberships")
-        .select("*", { count: "exact", head: true })
-        .eq("home_id", mem.home_id)
-        .eq("role", "owner")
-        .eq("status", "active");
-
-      if (cErr) return res.status(500).json({ error: cErr.message });
-      if ((count || 0) <= 1) {
-        return res.status(400).json({ error: "Home must have at least one active owner" });
-      }
-    }
-
     const safeRole = role ? normalizeMembershipRole(role) : undefined;
+
+    if (full_name !== undefined || username !== undefined || email !== undefined) {
+      const userPatch = compact({
+        full_name: full_name === undefined ? undefined : String(full_name || "").trim() || null,
+        username: username === undefined ? undefined : String(username || "").trim() || null,
+        email: email === undefined ? undefined : cleanEmail(String(email || "")),
+        updated_at: new Date().toISOString(),
+      });
+
+      const { error: userErr } = await supabaseAdmin
+        .from("users")
+        .update(userPatch)
+        .eq("id", mem.user_id);
+
+      if (userErr) return res.status(400).json({ error: userErr.message });
+    }
 
     const { data, error } = await supabaseAdmin
       .from("home_memberships")
@@ -421,10 +422,79 @@ export async function updateHomeUser(req: ReqAny, res: Response) {
         })
       )
       .eq("id", membershipId)
-      .select()
+      .select(
+        `
+        id,
+        home_id,
+        role,
+        status,
+        permissions,
+        created_at,
+        users (
+          id,
+          email,
+          full_name,
+          username,
+          role
+        )
+      `
+      )
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
+
+    try {
+      const { data: home } = await supabaseAdmin
+        .from("homes")
+        .select("id, estate_id, name, block, unit")
+        .eq("id", mem.home_id)
+        .maybeSingle();
+
+      const { data: estate } = home?.estate_id
+        ? await supabaseAdmin.from("estates").select("id, name").eq("id", home.estate_id).maybeSingle()
+        : { data: null as any };
+
+      const homeLabel =
+        home?.block && home?.unit
+          ? `${home.block} / ${home.unit}`
+          : home?.name || "your home";
+
+      if (status && String(status).toLowerCase() === "active") {
+        await NotificationService.sendToUser(String(mem.user_id), {
+          title: "New home access activated",
+          message: estate?.name
+            ? `You now have active access to ${estate.name} (${homeLabel}).`
+            : `You now have active access to ${homeLabel}.`,
+          type: "home",
+          payload: {
+            home_id: mem.home_id,
+            estate_id: home?.estate_id || null,
+            home_label: homeLabel,
+            membership_id: mem.id,
+            kind: "home.membership_activated",
+          },
+          entityId: String(mem.id),
+        });
+      } else if (status && String(status).toLowerCase() === "disabled") {
+        await NotificationService.sendToUser(String(mem.user_id), {
+          title: "Home access updated",
+          message: estate?.name
+            ? `Your access to ${estate.name} (${homeLabel}) was disabled.`
+            : `Your access to ${homeLabel} was disabled.`,
+          type: "home",
+          payload: {
+            home_id: mem.home_id,
+            estate_id: home?.estate_id || null,
+            home_label: homeLabel,
+            membership_id: mem.id,
+            kind: "home.membership_disabled",
+          },
+          entityId: String(mem.id),
+        });
+      }
+    } catch (notifyErr) {
+      console.warn("updateHomeUser notification failed:", notifyErr);
+    }
 
     return res.json({ message: "Home user updated", membership: data });
   } catch (err: any) {
@@ -454,21 +524,6 @@ export async function removeHomeUser(req: ReqAny, res: Response) {
     const access = await assertHomeAccess(userId, mem.home_id);
     if (!access.ok) return res.status(access.code).json({ error: access.error });
     if (!access.canManage) return res.status(403).json({ error: "Insufficient permissions" });
-
-    // prevent deleting last owner
-    if (String(mem.role) === "owner" && mem.status === "active") {
-      const { count, error: cErr } = await supabaseAdmin
-        .from("home_memberships")
-        .select("*", { count: "exact", head: true })
-        .eq("home_id", mem.home_id)
-        .eq("role", "owner")
-        .eq("status", "active");
-
-      if (cErr) return res.status(500).json({ error: cErr.message });
-      if ((count || 0) <= 1) {
-        return res.status(400).json({ error: "Home must have at least one active owner" });
-      }
-    }
 
     const { error } = await supabaseAdmin.from("home_memberships").delete().eq("id", membershipId);
     if (error) return res.status(500).json({ error: error.message });
