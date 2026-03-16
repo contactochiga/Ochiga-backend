@@ -64,6 +64,98 @@ function sanitizePart(v: string) {
     .replace(/^-|-$/g, "");
 }
 
+function parseStructuredBody(body?: string | null) {
+  const raw = String(body || "").trim();
+  if (!raw.startsWith("__OYI_POST_V1__:")) return null;
+  try {
+    return JSON.parse(raw.slice("__OYI_POST_V1__:".length));
+  } catch {
+    return null;
+  }
+}
+
+function normalizeMediaItems(value: any) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item: any, idx: number) => ({
+      id: String(item?.id || idx),
+      type: item?.type === "video" || item?.mediaType === "video" ? "video" : "image",
+      url: String(item?.url || ""),
+      name: item?.name ? String(item.name) : null,
+    }))
+    .filter((item: any) => item.url);
+}
+
+function normalizePostOutput(row: any, extra: Record<string, any> = {}) {
+  const structured = parseStructuredBody(row?.body);
+  const media = normalizeMediaItems(row?.media ?? structured?.attachments ?? []);
+  const content =
+    row?.content != null
+      ? String(row.content)
+      : structured?.text != null
+      ? String(structured.text)
+      : String(row?.body || row?.title || "");
+  const liveLink =
+    row?.live_link != null
+      ? String(row.live_link || "")
+      : structured?.liveLink != null
+      ? String(structured.liveLink || "")
+      : null;
+
+  return {
+    ...row,
+    content,
+    media,
+    live_link: liveLink || null,
+    ...extra,
+  };
+}
+
+async function insertCommunityPostWithFallback(payload: Record<string, any>) {
+  let next = { ...payload };
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const { data, error } = await supabaseAdmin
+      .from("community_posts")
+      .insert(next)
+      .select("*")
+      .single();
+    if (!error) return data;
+    if (isMissingColumn(error, "media") && Object.prototype.hasOwnProperty.call(next, "media")) {
+      delete next.media;
+      continue;
+    }
+    if (isMissingColumn(error, "live_link") && Object.prototype.hasOwnProperty.call(next, "live_link")) {
+      delete next.live_link;
+      continue;
+    }
+    throw new Error(error.message);
+  }
+  throw new Error("Failed to create community post");
+}
+
+async function updateCommunityPostWithFallback(postId: string, patch: Record<string, any>) {
+  let next = { ...patch };
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const { data, error } = await supabaseAdmin
+      .from("community_posts")
+      .update(next)
+      .eq("id", postId)
+      .select("*")
+      .single();
+    if (!error) return data;
+    if (isMissingColumn(error, "media") && Object.prototype.hasOwnProperty.call(next, "media")) {
+      delete next.media;
+      continue;
+    }
+    if (isMissingColumn(error, "live_link") && Object.prototype.hasOwnProperty.call(next, "live_link")) {
+      delete next.live_link;
+      continue;
+    }
+    throw new Error(error.message);
+  }
+  throw new Error("Failed to update community post");
+}
+
 async function hasEstateAccess(user: any, estateId: string) {
   const userEstate = String(user?.estate_id || "");
   if (userEstate && userEstate === String(estateId)) return true;
@@ -89,7 +181,7 @@ export async function createPost(req: Request, res: Response) {
   const user = req.user as any;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  const { title, content, body, estateId, estate_id } = req.body || {};
+  const { title, content, body, estateId, estate_id, media, liveLink, live_link } = req.body || {};
 
   const resolvedEstateId = estate_id || estateId || user?.estate_id;
   const resolvedBody = body ?? content ?? null;
@@ -113,14 +205,16 @@ export async function createPost(req: Request, res: Response) {
     status: "active",
   };
 
-  const { data, error } = await supabaseAdmin
-    .from("community_posts")
-    .insert(payload)
-    .select("*")
-    .single();
+  const normalizedMedia = normalizeMediaItems(media);
+  if (normalizedMedia.length) payload.media = normalizedMedia;
+  const nextLiveLink = String(live_link || liveLink || "").trim();
+  if (nextLiveLink) payload.live_link = nextLiveLink;
 
-  if (error) {
-    return res.status(500).json({ error: error.message });
+  let data: any;
+  try {
+    data = await insertCommunityPostWithFallback(payload);
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Failed to create post" });
   }
 
   if (looksLikeAnnouncement(String(title), String(user?.role || ""))) {
@@ -141,7 +235,7 @@ export async function createPost(req: Request, res: Response) {
     }
   }
 
-  return res.json(data);
+  return res.json(normalizePostOutput(data));
 }
 
 export async function getPostsForEstate(req: Request, res: Response) {
@@ -245,8 +339,7 @@ export async function getPostsForEstate(req: Request, res: Response) {
     const pid = String(p.id || "");
     const likeCount = Number(likeCounts[pid] || 0);
     const commentCount = Number(commentCounts[pid] || 0);
-    return {
-      ...p,
+    return normalizePostOutput(p, {
       author_name: authorMap.get(String(p.author_id || "")) || null,
       like_count: likeCount,
       likes: likeCount,
@@ -257,7 +350,7 @@ export async function getPostsForEstate(req: Request, res: Response) {
       replies_count: commentCount,
       reacted_by_me: reactedByMe.has(pid),
       liked_by_me: reactedByMe.has(pid),
-    };
+    });
   });
 
   return res.json(enriched);
@@ -279,7 +372,7 @@ export async function getPostById(req: Request, res: Response) {
     return res.status(403).json({ error: "Unauthorized estate access" });
   }
 
-  return res.json(data);
+  return res.json(normalizePostOutput(data));
 }
 
 export async function updatePost(req: Request, res: Response) {
@@ -287,7 +380,7 @@ export async function updatePost(req: Request, res: Response) {
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   const { postId } = req.params;
-  const { title, content, body, status } = req.body || {};
+  const { title, content, body, status, media, liveLink, live_link } = req.body || {};
 
   const { data: post, error: pErr } = await supabaseAdmin
     .from("community_posts")
@@ -310,16 +403,18 @@ export async function updatePost(req: Request, res: Response) {
   const resolvedBody = body ?? content;
   if (resolvedBody !== undefined) patch.body = resolvedBody ? String(resolvedBody).trim() : null;
   if (status !== undefined && canModerate(user.role)) patch.status = String(status);
+  if (media !== undefined) patch.media = normalizeMediaItems(media);
+  if (live_link !== undefined || liveLink !== undefined) {
+    const nextLiveLink = String(live_link ?? liveLink ?? "").trim();
+    patch.live_link = nextLiveLink || null;
+  }
 
-  const { data, error } = await supabaseAdmin
-    .from("community_posts")
-    .update(patch)
-    .eq("id", postId)
-    .select("*")
-    .single();
-
-  if (error) return res.status(500).json({ error: error.message });
-  return res.json(data);
+  try {
+    const data = await updateCommunityPostWithFallback(postId, patch);
+    return res.json(normalizePostOutput(data));
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Failed to update post" });
+  }
 }
 
 export async function deletePost(req: Request, res: Response) {
@@ -441,6 +536,7 @@ export async function createComment(req: Request, res: Response) {
 
   return res.json({
     ...data,
+    author_name: String(user?.username || user?.full_name || user?.email || "Resident"),
     comment_count: commentCount,
     replies_count: commentCount,
     reply_count: commentCount,
@@ -470,7 +566,28 @@ export async function getCommentsForPost(req: Request, res: Response) {
     .order("created_at", { ascending: true });
 
   if (error) return res.status(500).json({ error: error.message });
-  return res.json(data || []);
+  const authorIds = Array.from(
+    new Set((data || []).map((row: any) => String(row?.user_id || "")).filter(Boolean))
+  );
+  let authorMap = new Map<string, string>();
+  if (authorIds.length) {
+    const { data: users } = await supabaseAdmin
+      .from("users")
+      .select("id,username,full_name,email")
+      .in("id", authorIds);
+    authorMap = new Map(
+      (users || []).map((u: any) => [
+        String(u?.id || ""),
+        String(u?.username || u?.full_name || u?.email || "Resident"),
+      ])
+    );
+  }
+  return res.json(
+    (data || []).map((row: any) => ({
+      ...row,
+      author_name: authorMap.get(String(row?.user_id || "")) || "Resident",
+    }))
+  );
 }
 
 export async function updateComment(req: Request, res: Response) {
