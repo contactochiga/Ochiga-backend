@@ -115,8 +115,8 @@ export class NotificationService {
       .insert(insertData)
       .select();
 
-    users.forEach((u) =>
-      io.to(`user:${u.id}`).emit("notification:new", notification)
+    (data || []).forEach((row: any) =>
+      io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
     await PushNotificationService.sendToUsers(
@@ -155,8 +155,8 @@ export class NotificationService {
       .insert(insertData)
       .select();
 
-    users.forEach((u) =>
-      io.to(`user:${u.id}`).emit("notification:new", notification)
+    (data || []).forEach((row: any) =>
+      io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
     await PushNotificationService.sendToUsers(
@@ -195,8 +195,8 @@ export class NotificationService {
       .insert(insertData)
       .select();
 
-    users.forEach((u) =>
-      io.to(`user:${u.id}`).emit("notification:new", notification)
+    (data || []).forEach((row: any) =>
+      io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
     await PushNotificationService.sendToUsers(
@@ -235,8 +235,8 @@ export class NotificationService {
       .insert(insertData)
       .select();
 
-    userIds.forEach((userId) =>
-      io.to(`user:${userId}`).emit("notification:new", notification)
+    (data || []).forEach((row: any) =>
+      io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
     await PushNotificationService.sendToUsers(

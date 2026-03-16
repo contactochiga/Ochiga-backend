@@ -57,6 +57,10 @@ io.on("connection", (socket) => {
   socket.on("subscribe:room", (roomId: string) => {
     socket.join(`room:${roomId}`);
   });
+
+  socket.on("subscribe:thread", (threadId: string) => {
+    socket.join(`thread:${threadId}`);
+  });
 });
 
 // ---------------------------

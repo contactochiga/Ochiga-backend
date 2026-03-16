@@ -11,6 +11,7 @@ import {
   reportMessage,
   resolveModerationReport,
   sendMessage,
+  uploadMessageMedia,
 } from "../controllers/messagesController";
 
 const router = Router();
@@ -19,6 +20,7 @@ router.get("/residents", requireAuth, listResidents);
 router.post("/presence/ping", requireAuth, pingPresence);
 router.get("/inbox", requireAuth, listInbox);
 router.post("/thread/direct", requireAuth, createOrGetDirectThread);
+router.post("/media/upload", requireAuth, uploadMessageMedia);
 router.get("/thread/:threadId/messages", requireAuth, listThreadMessages);
 router.post("/thread/:threadId/messages", requireAuth, sendMessage);
 router.post("/thread/:threadId/read", requireAuth, markThreadRead);

@@ -5,6 +5,14 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 const router = express.Router();
 const SUPPORTED_INTEGRATIONS = new Set(["tuya", "alexa", "google_assistant"]);
 
+function isMissingTable(err: any, table: string) {
+  const msg = String(err?.message || "").toLowerCase();
+  return (
+    msg.includes(String(table).toLowerCase()) &&
+    (msg.includes("could not find the table") || msg.includes("relation") || msg.includes("does not exist"))
+  );
+}
+
 type ContextHomeSummary = {
   id: string;
   name: string | null;
@@ -136,6 +144,9 @@ async function getTuyaUidForUser(userId: string): Promise<string | null> {
     .eq("provider", "tuya")
     .maybeSingle();
 
+  if (integ.error && isMissingTable(integ.error, "user_integrations")) {
+    return null;
+  }
   if (!integ.error) {
     const uid = String((integ.data as any)?.external_user_id || "").trim();
     if (uid) return uid;
@@ -166,6 +177,9 @@ async function setTuyaUidForUser(userId: string, tuyaUid: string): Promise<{ ok:
       { onConflict: "user_id,provider" }
     );
 
+  if (integ.error && isMissingTable(integ.error, "user_integrations")) {
+    return { ok: false, error: "user_integrations table is missing. Run the integration schema SQL first." };
+  }
   if (!integ.error) return { ok: true };
   return { ok: false, error: integ.error.message || direct.error.message };
 }
@@ -194,6 +208,15 @@ async function getStoredIntegration(userId: string, providerInput: string) {
     .eq("provider", provider)
     .maybeSingle();
 
+  if (integration.error && isMissingTable(integration.error, "user_integrations")) {
+    return {
+      ok: true as const,
+      provider,
+      connected: false,
+      external_user_id: null,
+      masked_external_user_id: null,
+    };
+  }
   if (integration.error) {
     return { ok: false as const, error: integration.error.message };
   }
@@ -233,6 +256,12 @@ async function setStoredIntegration(userId: string, providerInput: string, exter
       { onConflict: "user_id,provider" }
     );
 
+  if (integration.error && isMissingTable(integration.error, "user_integrations")) {
+    return {
+      ok: false as const,
+      error: "user_integrations table is missing. Run the integration schema SQL first.",
+    };
+  }
   if (integration.error) {
     return { ok: false as const, error: integration.error.message };
   }

@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
+import { uploadToS3 } from "../services/s3Service";
+import { io } from "../server";
 
 const MOD_ROLES = new Set(["admin", "estate_admin", "manager", "owner", "security", "operator"]);
 const PRESENCE_ONLINE_WINDOW_MS = 2 * 60 * 1000;
@@ -19,6 +21,21 @@ function isMissingTable(err: any, table: string) {
     msg.includes(table.toLowerCase()) &&
     (msg.includes("could not find the table") || msg.includes("relation") || msg.includes("does not exist"))
   );
+}
+
+function extFromMime(mime?: string, fallback = "bin") {
+  const map: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/quicktime": "mov",
+  };
+  if (mime && map[mime]) return map[mime];
+  return fallback;
 }
 
 async function getUserById(userId: string) {
@@ -374,8 +391,12 @@ export async function sendMessage(req: Request, res: Response) {
 
   const threadId = clean(req.params.threadId);
   const body = clean(req.body?.body);
+  const messageType = clean(req.body?.message_type || "text").toLowerCase();
+  const metadata = typeof req.body?.metadata === "object" && req.body?.metadata ? req.body.metadata : {};
   if (!threadId) return res.status(400).json({ error: "threadId is required" });
-  if (!body) return res.status(400).json({ error: "Message body is required" });
+  const mediaUrl = clean(metadata?.media_url);
+  const caption = clean(metadata?.caption || body);
+  if (!body && !mediaUrl) return res.status(400).json({ error: "Message body or media is required" });
   if (body.length > 2000) return res.status(400).json({ error: "Message too long (max 2000 chars)" });
 
   const { data: thread, error: tErr } = await getThreadById(threadId);
@@ -397,9 +418,9 @@ export async function sendMessage(req: Request, res: Response) {
       thread_id: threadId,
       estate_id: thread.estate_id,
       sender_id: user.id,
-      body,
-      message_type: "text",
-      metadata: {},
+      body: body || caption || null,
+      message_type: ["image", "video", "file"].includes(messageType) ? messageType : "text",
+      metadata,
     } as any)
     .select("*")
     .single();
@@ -429,12 +450,22 @@ export async function sendMessage(req: Request, res: Response) {
 
   const senderName = clean(user.username || "");
   const title = senderName ? `New message from ${senderName}` : "New message";
+  io.to(`thread:${threadId}`).emit("dm:new", msg);
+  io.to(`user:${user.id}`).emit("dm:new", msg);
   for (const r of recipients || []) {
     const uid = String((r as any).user_id || "");
     if (!uid) continue;
+    io.to(`user:${uid}`).emit("dm:new", msg);
     await NotificationService.sendToUser(uid, {
       title,
-      message: body.length > 90 ? `${body.slice(0, 90)}...` : body,
+      message:
+        msg.message_type === "image"
+          ? `${senderName || "Resident"} sent an image`
+          : msg.message_type === "video"
+            ? `${senderName || "Resident"} sent a video`
+            : body.length > 90
+              ? `${body.slice(0, 90)}...`
+              : body,
       type: "system",
       payload: { threadId, messageId: msg.id, kind: "chat.dm" },
       entityId: String(msg.id),
@@ -442,6 +473,39 @@ export async function sendMessage(req: Request, res: Response) {
   }
 
   return res.json({ ok: true, message: msg });
+}
+
+export async function uploadMessageMedia(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const { base64, mime, filename, mediaType } = req.body || {};
+  if (!base64 || !mime) return res.status(400).json({ error: "base64 and mime are required" });
+
+  let buffer: Buffer;
+  try {
+    const raw = String(base64);
+    const cleaned = raw.includes(",") ? raw.split(",").pop() || "" : raw;
+    buffer = Buffer.from(cleaned, "base64");
+  } catch {
+    return res.status(400).json({ error: "Invalid base64 payload" });
+  }
+
+  const ext = extFromMime(String(mime), mediaType === "video" ? "mp4" : "jpg");
+  const key = `messages/${String(user.estate_id || "global")}/${String(user.id)}/${Date.now()}-${clean(filename || "media")}.${ext}`;
+
+  try {
+    const url = await uploadToS3(key, buffer, String(mime));
+    return res.json({
+      ok: true,
+      url,
+      mime: String(mime),
+      mediaType: mediaType === "video" ? "video" : "image",
+      key,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to upload media" });
+  }
 }
 
 export async function markThreadRead(req: Request, res: Response) {
