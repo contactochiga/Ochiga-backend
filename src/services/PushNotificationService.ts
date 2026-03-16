@@ -138,7 +138,7 @@ async function sendViaApns(tokens: string[], payload: PushPayload) {
 
   try {
     for (const deviceToken of tokens) {
-      const status = await new Promise<number>((resolve) => {
+      const result = await new Promise<{ status: number; body: string }>((resolve) => {
         const req = client.request({
           ":method": "POST",
           ":path": `/3/device/${deviceToken}`,
@@ -149,11 +149,21 @@ async function sendViaApns(tokens: string[], payload: PushPayload) {
         });
 
         let responseStatus = 0;
+        let responseBody = "";
         req.on("response", (headers) => {
           responseStatus = Number(headers[http2.constants.HTTP2_HEADER_STATUS] || 0);
         });
-        req.on("error", () => resolve(0));
-        req.on("end", () => resolve(responseStatus));
+        req.on("data", (chunk) => {
+          responseBody += String(chunk || "");
+        });
+        req.on("error", (error) => {
+          console.error("[push][apns] request error", {
+            tokenPrefix: deviceToken.slice(0, 12),
+            error: error?.message || String(error),
+          });
+          resolve({ status: 0, body: "" });
+        });
+        req.on("end", () => resolve({ status: responseStatus, body: responseBody }));
         req.setEncoding("utf8");
         req.write(
           JSON.stringify({
@@ -171,8 +181,22 @@ async function sendViaApns(tokens: string[], payload: PushPayload) {
         req.end();
       });
 
-      if (status >= 200 && status < 300) {
+      if (result.status >= 200 && result.status < 300) {
         sent += 1;
+        console.log("[push][apns] delivered", {
+          tokenPrefix: deviceToken.slice(0, 12),
+          status: result.status,
+          topic: APNS_BUNDLE_ID,
+          environment: APNS_PRODUCTION ? "production" : "sandbox",
+        });
+      } else {
+        console.error("[push][apns] rejected", {
+          tokenPrefix: deviceToken.slice(0, 12),
+          status: result.status,
+          topic: APNS_BUNDLE_ID,
+          environment: APNS_PRODUCTION ? "production" : "sandbox",
+          body: result.body || null,
+        });
       }
     }
   } finally {
@@ -247,10 +271,25 @@ export class PushNotificationService {
 
     if (error) return { ok: false, error };
     const { ios, other } = splitTokensByPlatform((rows || []) as PushTokenRow[]);
+    console.log("[push] resolved tokens", {
+      users: uniqueUserIds.length,
+      ios: ios.length,
+      other: other.length,
+      apnsConfigured: canSendApns(),
+      fcmConfigured: canSendFcm(),
+      apnsEnvironment: APNS_PRODUCTION ? "production" : "sandbox",
+      topic: APNS_BUNDLE_ID || null,
+    });
 
     const apnsResult = ios.length ? await sendViaApns(ios, payload) : { ok: true, sent: 0 };
     const fcmTargets = other.length || !ios.length || !canSendApns() ? [...other, ...(canSendApns() ? [] : ios)] : other;
     const fcmResult = fcmTargets.length ? await sendViaFcm(Array.from(new Set(fcmTargets)), payload) : { ok: true, sent: 0 };
+
+    console.log("[push] delivery result", {
+      sent: Number(apnsResult.sent || 0) + Number(fcmResult.sent || 0),
+      apns: apnsResult,
+      fcm: fcmResult,
+    });
 
     return {
       ok: Boolean(apnsResult.ok && fcmResult.ok),

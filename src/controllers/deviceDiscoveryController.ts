@@ -64,7 +64,14 @@ export async function discoverDevices(req: Request, res: Response) {
     const adapterName = cleanStr(req.query.adapter || "tuya").toLowerCase() || "tuya";
 
     if (!user?.estate_id) {
-      return res.status(400).json({ error: "User has no estate" });
+      return res.status(200).json({
+        adapter: adapterName,
+        count: 0,
+        devices: [],
+        ts: Date.now(),
+        filteredOut: 0,
+        warning: "User has no estate",
+      });
     }
 
     // ✅ Security: user must discover with their own linked Tuya identity.
@@ -102,8 +109,13 @@ export async function discoverDevices(req: Request, res: Response) {
     }
 
     if (adapterName === "tuya" && !tuyaUid) {
-      return res.status(400).json({
-        error:
+      return res.status(200).json({
+        adapter: adapterName,
+        count: 0,
+        devices: [],
+        ts: Date.now(),
+        filteredOut: 0,
+        warning:
           "Tuya not linked for this account. Save your Tuya UID in /me/integrations/tuya first.",
       });
     }
