@@ -31,11 +31,81 @@ export interface NotificationPayload {
   entityId?: string;             // optional related entity
 }
 
+function extractMissingColumnName(msg: string): string | null {
+  if (!msg) return null;
+  let m = msg.match(/Could not find the ['"]([^'"]+)['"] column/i);
+  if (m?.[1]) return m[1];
+  m = msg.match(/column\s+"([^"]+)"\s+of\s+relation/i);
+  if (m?.[1]) return m[1];
+  m = msg.match(/(?:unknown|missing)\s+column[:\s]+([a-zA-Z0-9_]+)/i);
+  if (m?.[1]) return m[1];
+  return null;
+}
+
+function compact<T extends Record<string, any>>(obj: T): Partial<T> {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out as Partial<T>;
+}
+
+async function insertNotificationRows(rows: Record<string, any>[]) {
+  let payload = rows.map((row) => ({ ...compact(row) }));
+  let lastErrorMsg = "";
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { data, error } = await supabaseAdmin
+      .from("notifications")
+      .insert(payload)
+      .select();
+
+    if (!error) return { data: data || [], error: null };
+
+    const msg = String((error as any)?.message || "");
+    lastErrorMsg = msg;
+    const missingCol = extractMissingColumnName(msg);
+
+    if (missingCol) {
+      payload = payload.map((row) => {
+        const next = { ...row };
+        delete (next as any)[missingCol];
+        return next;
+      });
+      continue;
+    }
+
+    console.error("[notifications] insert failed", {
+      error: msg || "unknown",
+      sample: payload[0] || null,
+    });
+    return { data: [], error };
+  }
+
+  console.error("[notifications] insert failed after schema fallback", {
+    error: lastErrorMsg || "unknown",
+    sample: payload[0] || null,
+  });
+  return { data: [], error: { message: lastErrorMsg || "Insert failed" } as any };
+}
+
 /**
  * Notification Service
  * Execution-plane boundary (side effects live here)
  */
 export class NotificationService {
+  private static normalizeRow(userId: string, notification: NotificationPayload, estateId?: string | null) {
+    return {
+      user_id: userId,
+      estate_id: estateId ?? (notification.payload as any)?.estate_id ?? null,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      payload: notification.payload || {},
+      entity_id: notification.entityId || null,
+    };
+  }
+
   private static buildPushData(row: any) {
     return {
       id: String(row?.id || ""),
@@ -87,11 +157,10 @@ export class NotificationService {
 
   /** Send notification to a single user */
   static async sendToUser(userId: string, notification: NotificationPayload) {
-    const { data, error } = await supabaseAdmin
-      .from("notifications")
-      .insert([{ user_id: userId, estate_id: (notification.payload as any)?.estate_id || null, ...notification }])
-      .select()
-      .single();
+    const { data: rows, error } = await insertNotificationRows([
+      this.normalizeRow(userId, notification),
+    ]);
+    const data = rows?.[0] || null;
 
     if (!error && data) {
       io.to(`user:${userId}`).emit("notification:new", data);
@@ -116,16 +185,8 @@ export class NotificationService {
 
     if (error || !users?.length) return { error };
 
-    const insertData = users.map((u) => ({
-      user_id: u.id,
-      estate_id: (notification.payload as any)?.estate_id || null,
-      ...notification,
-    }));
-
-    const { data, error: insertError } = await supabaseAdmin
-      .from("notifications")
-      .insert(insertData)
-      .select();
+    const insertData = users.map((u) => this.normalizeRow(String(u.id), notification));
+    const { data, error: insertError } = await insertNotificationRows(insertData);
 
     (data || []).forEach((row: any) =>
       io.to(`user:${row.user_id}`).emit("notification:new", row)
@@ -153,16 +214,8 @@ export class NotificationService {
 
     if (error || !users?.length) return { error };
 
-    const insertData = users.map((u) => ({
-      user_id: u.id,
-      estate_id: estateId,
-      ...notification,
-    }));
-
-    const { data, error: insertError } = await supabaseAdmin
-      .from("notifications")
-      .insert(insertData)
-      .select();
+    const insertData = users.map((u) => this.normalizeRow(String(u.id), notification, estateId));
+    const { data, error: insertError } = await insertNotificationRows(insertData);
 
     (data || []).forEach((row: any) =>
       io.to(`user:${row.user_id}`).emit("notification:new", row)
@@ -190,16 +243,8 @@ export class NotificationService {
 
     if (error || !users?.length) return { error };
 
-    const insertData = users.map((u) => ({
-      user_id: u.id,
-      estate_id: (notification.payload as any)?.estate_id || null,
-      ...notification,
-    }));
-
-    const { data, error: insertError } = await supabaseAdmin
-      .from("notifications")
-      .insert(insertData)
-      .select();
+    const insertData = users.map((u) => this.normalizeRow(String(u.id), notification));
+    const { data, error: insertError } = await insertNotificationRows(insertData);
 
     (data || []).forEach((row: any) =>
       io.to(`user:${row.user_id}`).emit("notification:new", row)
@@ -228,15 +273,10 @@ export class NotificationService {
     if (!userIds.length) return { error: null };
 
     const insertData = userIds.map((userId) => ({
-      user_id: userId,
-      estate_id: estateId,
-      ...notification,
+      ...this.normalizeRow(userId, notification, estateId),
     }));
 
-    const { data, error: insertError } = await supabaseAdmin
-      .from("notifications")
-      .insert(insertData)
-      .select();
+    const { data, error: insertError } = await insertNotificationRows(insertData);
 
     (data || []).forEach((row: any) =>
       io.to(`user:${row.user_id}`).emit("notification:new", row)
