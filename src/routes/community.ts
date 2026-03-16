@@ -16,14 +16,14 @@ const router = Router();
 router.post(
   "/post",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin"),
+  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
   CommunityCtrl.createPost
 );
 
 router.post(
   "/media/upload",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin"),
+  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
   CommunityCtrl.uploadMedia
 );
 
@@ -45,7 +45,7 @@ router.get(
 router.put(
   "/post/:postId",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin"),
+  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
   CommunityCtrl.updatePost
 );
 
@@ -53,7 +53,7 @@ router.put(
 router.delete(
   "/post/:postId",
   requireAuth,
-  requireRole("manager", "estate_admin"),
+  requireRole("manager", "estate_admin", "owner", "operator"),
   CommunityCtrl.deletePost
 );
 
@@ -67,7 +67,7 @@ router.delete(
 router.post(
   "/post/:postId/comment",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin"),
+  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
   CommunityCtrl.createComment
 );
 
@@ -82,7 +82,7 @@ router.get(
 router.put(
   "/comment/:commentId",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin"),
+  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
   CommunityCtrl.updateComment
 );
 
@@ -90,7 +90,7 @@ router.put(
 router.delete(
   "/comment/:commentId",
   requireAuth,
-  requireRole("manager", "estate_admin"),
+  requireRole("manager", "estate_admin", "owner", "operator"),
   CommunityCtrl.deleteComment
 );
 
@@ -103,14 +103,14 @@ router.delete(
 router.post(
   "/post/:postId/react",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin"),
+  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
   CommunityCtrl.reactToPost
 );
 
 router.post(
   "/comment/:commentId/react",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin"),
+  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
   CommunityCtrl.reactToComment
 );
 

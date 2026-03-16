@@ -10,7 +10,13 @@ import { NotificationService } from "../services/NotificationService";
  * Helpers
  * ------------------------------------------------ */
 function canModerate(role?: UserRole) {
-  return role === "manager" || role === "estate_admin" || role === "admin";
+  return (
+    role === "manager" ||
+    role === "estate_admin" ||
+    role === "admin" ||
+    role === "owner" ||
+    role === "operator"
+  );
 }
 
 function isMissingColumn(err: any, column: string) {
@@ -192,16 +198,25 @@ export async function createPost(req: Request, res: Response) {
   if (!(await hasEstateAccess(user, String(resolvedEstateId)))) {
     return res.status(403).json({ error: "Unauthorized estate access" });
   }
-  if (!title || !String(title).trim()) {
-    return res.status(400).json({ error: "title is required" });
+  const normalizedBody = resolvedBody ? String(resolvedBody).trim() : "";
+  const normalizedTitle = String(title || "").trim();
+  const derivedTitle =
+    normalizedTitle ||
+    (normalizedBody ? normalizedBody.slice(0, 80).trim() : "") ||
+    (normalizeMediaItems(media).length ? "Media update" : "") ||
+    (String(live_link || liveLink || "").trim() ? "Live update" : "") ||
+    "Community update";
+
+  if (!normalizedBody && !normalizeMediaItems(media).length && !String(live_link || liveLink || "").trim()) {
+    return res.status(400).json({ error: "content, media, or live link is required" });
   }
 
   // ✅ Match your real schema exactly: author_id + body
   const payload: any = {
     estate_id: resolvedEstateId,
     author_id: user.id,
-    title: String(title).trim(),
-    body: resolvedBody ? String(resolvedBody).trim() : null,
+    title: derivedTitle,
+    body: normalizedBody || null,
     status: "active",
   };
 
