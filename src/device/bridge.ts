@@ -1,6 +1,7 @@
 // src/device/bridge.ts
 import mqtt from "mqtt";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { NotificationService } from "../services/NotificationService";
 
 // ✅ Use IO registry (prevents circular imports)
 import { getIO } from "../realtime/io";
@@ -15,6 +16,57 @@ const MQTT_USERNAME = process.env.MQTT_USERNAME || undefined;
 const MQTT_PASSWORD = process.env.MQTT_PASSWORD || undefined;
 
 let client: mqtt.MqttClient | null = null;
+
+function isTruthySwitch(status: any) {
+  if (!status || typeof status !== "object") return false;
+  for (const key of ["switch", "power", "on", "running", "enabled"]) {
+    if ((status as any)[key] === true) return true;
+  }
+  return Object.entries(status).some(([key, value]) => /^switch(_\d+)?$/i.test(String(key)) && value === true);
+}
+
+function didMeaningfulStateChange(prev: any, next: any) {
+  const prevOn = isTruthySwitch(prev);
+  const nextOn = isTruthySwitch(next);
+  if (prevOn !== nextOn) {
+    return {
+      changed: true,
+      title: nextOn ? "Device turned on" : "Device turned off",
+      message: nextOn ? "A connected device is now active." : "A connected device is no longer active.",
+      kind: nextOn ? "device.state.on" : "device.state.off",
+    };
+  }
+
+  const prevOnline = prev?.online;
+  const nextOnline = next?.online;
+  if (typeof prevOnline === "boolean" && typeof nextOnline === "boolean" && prevOnline !== nextOnline) {
+    return {
+      changed: true,
+      title: nextOnline ? "Device back online" : "Device offline",
+      message: nextOnline ? "A connected device is reporting again." : "A connected device has gone offline.",
+      kind: nextOnline ? "device.state.online" : "device.state.offline",
+    };
+  }
+
+  return { changed: false };
+}
+
+async function recentDeviceActivityExists(userId: string, deviceId: string, kind: string) {
+  const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("notifications")
+    .select("id,payload")
+    .eq("user_id", userId)
+    .eq("type", "device")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) return false;
+  return (data || []).some((row: any) => {
+    const payload = row?.payload || {};
+    return String(payload?.device_id || "") === String(deviceId) && String(payload?.kind || "") === kind;
+  });
+}
 
 function parseTopic(topic: string) {
   // expected topic: ochiga/estate/:estateId/device/:deviceId/state
@@ -107,6 +159,11 @@ export async function initMqttBridge() {
         if (!deviceId) return;
 
         const status = safeJson(payload);
+        const { data: previousState } = await supabaseAdmin
+          .from("device_states")
+          .select("status")
+          .eq("device_id", deviceId)
+          .maybeSingle();
 
         // ✅ Persist state
         await supabaseAdmin
@@ -120,16 +177,43 @@ export async function initMqttBridge() {
             { onConflict: "device_id" }
           );
 
-        // If estate missing from topic, resolve it once
-        if (!estateId) {
-          const { data: device } = await supabaseAdmin
-            .from("devices")
-            .select("estate_id")
-            .eq("id", deviceId)
-            .limit(1)
-            .single();
+        const { data: device } = await supabaseAdmin
+          .from("devices")
+          .select("id,name,estate_id,home_id")
+          .eq("id", deviceId)
+          .limit(1)
+          .single();
 
+        if (!estateId) {
           estateId = device?.estate_id ?? null;
+        }
+
+        const change = didMeaningfulStateChange(previousState?.status || {}, status);
+        if (change.changed && device?.home_id) {
+          const { data: homeUsers } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("home_id", device.home_id);
+
+          for (const row of homeUsers || []) {
+            const userId = String((row as any)?.id || "");
+            if (!userId) continue;
+            const alreadySent = await recentDeviceActivityExists(userId, deviceId, String((change as any).kind || ""));
+            if (alreadySent) continue;
+            await NotificationService.sendToUser(userId, {
+              title: String((change as any).title || "Device activity"),
+              message: `${String(device?.name || "A device")} ${String((change as any).message || "").toLowerCase()}`,
+              type: "device",
+              payload: {
+                device_id: String(deviceId),
+                estate_id: String(device?.estate_id || estateId || ""),
+                home_id: String(device?.home_id || ""),
+                kind: String((change as any).kind || "device.state.changed"),
+                state: status,
+              },
+              entityId: String(deviceId),
+            });
+          }
         }
 
         // ✅ 1) Emit legacy websocket event (backwards compatible)

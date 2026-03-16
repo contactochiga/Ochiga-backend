@@ -379,8 +379,20 @@ export async function listThreadMessages(req: Request, res: Response) {
   const { data, error } = await q;
   if (error) return res.status(500).json({ error: error.message });
 
+  const { data: members, error: membersErr } = await supabaseAdmin
+    .from("dm_thread_members")
+    .select("user_id,last_read_at")
+    .eq("thread_id", threadId)
+    .eq("is_active", true);
+
+  if (membersErr) return res.status(500).json({ error: membersErr.message });
+
+  const peerMember = (members || []).find((item: any) => String(item.user_id) !== String(user.id));
   const rows = (data || []).slice().reverse();
-  return res.json({ messages: rows });
+  return res.json({
+    messages: rows,
+    peer_last_read_at: peerMember?.last_read_at || null,
+  });
 }
 
 export async function sendMessage(req: Request, res: Response) {

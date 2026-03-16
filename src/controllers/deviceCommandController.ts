@@ -5,6 +5,7 @@ import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
+import { NotificationService } from "../services/NotificationService";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -46,9 +47,9 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     let deviceRow: any = null;
 
     if (isUuid(rawId)) {
-      let q = supabaseAdmin
+        let q = supabaseAdmin
         .from("devices")
-        .select("id, vendor, external_id, estate_id, home_id, room_id")
+        .select("id, name, vendor, external_id, estate_id, home_id, room_id")
         .eq("id", rawId)
         .eq("estate_id", user.estate_id);
 
@@ -59,7 +60,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     } else {
       let q = supabaseAdmin
         .from("devices")
-        .select("id, vendor, external_id, estate_id, home_id, room_id")
+        .select("id, name, vendor, external_id, estate_id, home_id, room_id")
         .eq("external_id", rawId)
         .eq("estate_id", user.estate_id);
 
@@ -125,6 +126,21 @@ export async function requestDeviceCommand(req: Request, res: Response) {
           { onConflict: "device_id" } as any
         );
 
+      await NotificationService.sendToUser(String(user.id), {
+        title: "Device updated",
+        message: `${String(deviceRow.name || "Your device")} command executed successfully.`,
+        type: "device",
+        payload: {
+          device_id: String(deviceRow.id),
+          external_id: String(deviceRow.external_id || ""),
+          estate_id: String(deviceRow.estate_id || ""),
+          home_id: String(deviceRow.home_id || ""),
+          command: normalized,
+          kind: "device.command.executed",
+        },
+        entityId: String(deviceRow.id),
+      });
+
       return res.status(200).json({
         ok: true,
         status: "command_executed",
@@ -143,6 +159,24 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     });
   } catch (e: any) {
     console.error("requestDeviceCommand error:", e?.message || e);
+    const user = (req as any).user;
+    const rawId = String(req.params.deviceId || "").trim();
+    if (user?.id) {
+      try {
+        await NotificationService.sendToUser(String(user.id), {
+          title: "Device command failed",
+          message: `We could not execute your device command.`,
+          type: "device",
+          payload: {
+            device_ref: rawId || null,
+            command: req.body?.command || null,
+            error: e?.message || String(e),
+            kind: "device.command.failed",
+          },
+          entityId: rawId || undefined,
+        });
+      } catch {}
+    }
     return res.status(500).json({
       error: "Command failed",
       details: e?.message || String(e),

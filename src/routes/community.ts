@@ -41,6 +41,12 @@ router.get(
   CommunityCtrl.getPostById
 );
 
+router.post(
+  "/post/:postId/view",
+  requireAuth,
+  CommunityCtrl.trackPostView
+);
+
 // Update post (author, manager, estate admin enforced in controller)
 router.put(
   "/post/:postId",

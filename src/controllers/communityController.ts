@@ -117,6 +117,113 @@ function normalizePostOutput(row: any, extra: Record<string, any> = {}) {
   };
 }
 
+async function loadPostViewSummary(postIds: string[], userId?: string | null) {
+  const ids = Array.from(new Set(postIds.map((id) => String(id || "")).filter(Boolean)));
+  const counts: Record<string, number> = {};
+  const viewedByMe = new Set<string>();
+
+  if (!ids.length) return { counts, viewedByMe };
+
+  const countFromRows = (rows: any[] | null | undefined, postKey = "post_id") => {
+    for (const row of rows || []) {
+      const pid = String((row as any)?.[postKey] || "");
+      if (!pid) continue;
+      counts[pid] = (counts[pid] || 0) + 1;
+      if (userId && String((row as any)?.user_id || "") === String(userId)) viewedByMe.add(pid);
+    }
+  };
+
+  const viewsTable = await supabaseAdmin
+    .from("community_post_views")
+    .select("post_id,user_id")
+    .in("post_id", ids);
+
+  if (!viewsTable.error) {
+    countFromRows(viewsTable.data);
+    return { counts, viewedByMe };
+  }
+
+  if (!isMissingTable(viewsTable.error, "community_post_views")) {
+    throw new Error(viewsTable.error.message);
+  }
+
+  const { data: posts, error: postErr } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,view_count,views")
+    .in("id", ids);
+
+  if (postErr) {
+    if (isMissingColumn(postErr, "view_count")) {
+      const { data: fallback, error: fallbackErr } = await supabaseAdmin
+        .from("community_posts")
+        .select("id,views")
+        .in("id", ids);
+      if (fallbackErr && !isMissingColumn(fallbackErr, "views")) {
+        throw new Error(fallbackErr.message);
+      }
+      for (const row of fallback || []) {
+        const pid = String((row as any)?.id || "");
+        if (!pid) continue;
+        counts[pid] = Number((row as any)?.views || 0);
+      }
+      return { counts, viewedByMe };
+    }
+    throw new Error(postErr.message);
+  }
+
+  for (const row of posts || []) {
+    const pid = String((row as any)?.id || "");
+    if (!pid) continue;
+    counts[pid] = Number((row as any)?.view_count ?? (row as any)?.views ?? 0);
+  }
+
+  return { counts, viewedByMe };
+}
+
+async function incrementPostViewCounter(postId: string) {
+  const { data: post, error } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,view_count,views")
+    .eq("id", postId)
+    .single();
+
+  if (error) {
+    if (isMissingColumn(error, "view_count")) {
+      const { data: fallback, error: fallbackErr } = await supabaseAdmin
+        .from("community_posts")
+        .select("id,views")
+        .eq("id", postId)
+        .single();
+      if (fallbackErr) throw new Error(fallbackErr.message);
+      const nextViews = Number((fallback as any)?.views || 0) + 1;
+      const { data: updated, error: updErr } = await supabaseAdmin
+        .from("community_posts")
+        .update({ views: nextViews, updated_at: new Date().toISOString() } as any)
+        .eq("id", postId)
+        .select("id,views")
+        .single();
+      if (updErr) throw new Error(updErr.message);
+      return Number((updated as any)?.views || nextViews);
+    }
+    throw new Error(error.message);
+  }
+
+  const nextCount = Number((post as any)?.view_count ?? (post as any)?.views ?? 0) + 1;
+  const patch: Record<string, any> = { updated_at: new Date().toISOString() };
+  if ((post as any)?.view_count !== undefined) patch.view_count = nextCount;
+  else patch.views = nextCount;
+
+  const { data: updated, error: updErr } = await supabaseAdmin
+    .from("community_posts")
+    .update(patch)
+    .eq("id", postId)
+    .select("id,view_count,views")
+    .single();
+
+  if (updErr) throw new Error(updErr.message);
+  return Number((updated as any)?.view_count ?? (updated as any)?.views ?? nextCount);
+}
+
 async function insertCommunityPostWithFallback(payload: Record<string, any>) {
   let next = { ...payload };
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -293,6 +400,8 @@ export async function getPostsForEstate(req: Request, res: Response) {
   const likeCounts: Record<string, number> = {};
   const commentCounts: Record<string, number> = {};
   const reactedByMe = new Set<string>();
+  let viewCounts: Record<string, number> = {};
+  let viewedByMe = new Set<string>();
 
   try {
     const { data: reactionRows, error: reactErr } = await supabaseAdmin
@@ -336,6 +445,14 @@ export async function getPostsForEstate(req: Request, res: Response) {
     // fail-soft
   }
 
+  try {
+    const viewSummary = await loadPostViewSummary(postIds, myUserId);
+    viewCounts = viewSummary.counts;
+    viewedByMe = viewSummary.viewedByMe;
+  } catch {
+    // fail-soft
+  }
+
   const authorIds = Array.from(new Set(posts.map((p) => String(p.author_id || "")).filter(Boolean)));
   const authorMap = new Map<string, string>();
   if (authorIds.length) {
@@ -363,6 +480,9 @@ export async function getPostsForEstate(req: Request, res: Response) {
       comments: commentCount,
       reply_count: commentCount,
       replies_count: commentCount,
+      view_count: Number(viewCounts[pid] || 0),
+      views: Number(viewCounts[pid] || 0),
+      viewed_by_me: viewedByMe.has(pid),
       reacted_by_me: reactedByMe.has(pid),
       liked_by_me: reactedByMe.has(pid),
     });
@@ -387,7 +507,84 @@ export async function getPostById(req: Request, res: Response) {
     return res.status(403).json({ error: "Unauthorized estate access" });
   }
 
-  return res.json(normalizePostOutput(data));
+  let viewCount = Number((data as any)?.view_count ?? (data as any)?.views ?? 0);
+  let viewedByMe = false;
+  try {
+    const summary = await loadPostViewSummary([String(postId)], String(user.id || ""));
+    viewCount = Number(summary.counts[String(postId)] || viewCount);
+    viewedByMe = summary.viewedByMe.has(String(postId));
+  } catch {
+    // fail-soft
+  }
+
+  return res.json(
+    normalizePostOutput(data, {
+      view_count: viewCount,
+      views: viewCount,
+      viewed_by_me: viewedByMe,
+    })
+  );
+}
+
+export async function trackPostView(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { postId } = req.params;
+  const { data: post, error: postErr } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id")
+    .eq("id", postId)
+    .maybeSingle();
+  if (postErr) return res.status(500).json({ error: postErr.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("community_post_views")
+      .upsert(
+        {
+          post_id: postId,
+          user_id: String(user.id),
+          estate_id: String(post.estate_id || user.estate_id || ""),
+          viewed_at: new Date().toISOString(),
+        } as any,
+        { onConflict: "post_id,user_id" }
+      )
+      .select("post_id,user_id");
+
+    if (!error) {
+      const count = (data || []).length
+        ? await loadPostViewSummary([String(postId)], String(user.id || "")).then((x) => Number(x.counts[String(postId)] || 0))
+        : await loadPostViewSummary([String(postId)], String(user.id || "")).then((x) => Number(x.counts[String(postId)] || 0));
+      return res.json({
+        ok: true,
+        post_id: postId,
+        view_count: count,
+        views: count,
+        viewed_by_me: true,
+      });
+    }
+
+    if (!isMissingTable(error, "community_post_views")) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const nextCount = await incrementPostViewCounter(String(postId));
+    return res.json({
+      ok: true,
+      post_id: postId,
+      view_count: nextCount,
+      views: nextCount,
+      viewed_by_me: true,
+      fallback: true,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to track post view" });
+  }
 }
 
 export async function updatePost(req: Request, res: Response) {
