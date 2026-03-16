@@ -36,6 +36,20 @@ export interface NotificationPayload {
  * Execution-plane boundary (side effects live here)
  */
 export class NotificationService {
+  private static buildPushData(row: any) {
+    return {
+      id: String(row?.id || ""),
+      title: String(row?.title || ""),
+      message: String(row?.message || ""),
+      type: String(row?.type || "system"),
+      status: String(row?.status || "unread"),
+      entityId: row?.entityId || row?.entity_id || null,
+      created_at: row?.created_at || new Date().toISOString(),
+      payload: row?.payload || {},
+      estate_id: row?.estate_id || null,
+    };
+  }
+
   private static async getEstateUserIdsByRole(estateId: string, role: string) {
     const normalizedRole = String(role || "").trim().toLowerCase();
     const byMembership = await supabaseAdmin
@@ -84,11 +98,9 @@ export class NotificationService {
       await PushNotificationService.sendToUsers([userId], {
         title: notification.title,
         body: notification.message,
-        data: {
-          type: notification.type,
-          entityId: notification.entityId || null,
-          ...(notification.payload || {}),
-        },
+        sound: "default",
+        badge: 1,
+        data: this.buildPushData(data),
       });
     }
 
@@ -119,18 +131,15 @@ export class NotificationService {
       io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
-    await PushNotificationService.sendToUsers(
-      users.map((u: any) => String(u.id)),
-      {
-        title: notification.title,
-        body: notification.message,
-        data: {
-          type: notification.type,
-          entityId: notification.entityId || null,
-          ...(notification.payload || {}),
-        },
-      }
-    );
+    for (const row of data || []) {
+      await PushNotificationService.sendToUsers([String((row as any).user_id)], {
+        title: String((row as any).title || notification.title),
+        body: String((row as any).message || notification.message),
+        sound: "default",
+        badge: 1,
+        data: this.buildPushData(row),
+      });
+    }
 
     return { data, error: insertError };
   }
@@ -159,18 +168,15 @@ export class NotificationService {
       io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
-    await PushNotificationService.sendToUsers(
-      users.map((u: any) => String(u.id)),
-      {
-        title: notification.title,
-        body: notification.message,
-        data: {
-          type: notification.type,
-          entityId: notification.entityId || null,
-          ...(notification.payload || {}),
-        },
-      }
-    );
+    for (const row of data || []) {
+      await PushNotificationService.sendToUsers([String((row as any).user_id)], {
+        title: String((row as any).title || notification.title),
+        body: String((row as any).message || notification.message),
+        sound: "default",
+        badge: 1,
+        data: this.buildPushData(row),
+      });
+    }
 
     return { data, error: insertError };
   }
@@ -199,18 +205,15 @@ export class NotificationService {
       io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
-    await PushNotificationService.sendToUsers(
-      users.map((u: any) => String(u.id)),
-      {
-        title: notification.title,
-        body: notification.message,
-        data: {
-          type: notification.type,
-          entityId: notification.entityId || null,
-          ...(notification.payload || {}),
-        },
-      }
-    );
+    for (const row of data || []) {
+      await PushNotificationService.sendToUsers([String((row as any).user_id)], {
+        title: String((row as any).title || notification.title),
+        body: String((row as any).message || notification.message),
+        sound: "default",
+        badge: 1,
+        data: this.buildPushData(row),
+      });
+    }
 
     return { data, error: insertError };
   }
@@ -239,18 +242,15 @@ export class NotificationService {
       io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
-    await PushNotificationService.sendToUsers(
-      userIds,
-      {
-        title: notification.title,
-        body: notification.message,
-        data: {
-          type: notification.type,
-          entityId: notification.entityId || null,
-          ...(notification.payload || {}),
-        },
-      }
-    );
+    for (const row of data || []) {
+      await PushNotificationService.sendToUsers([String((row as any).user_id)], {
+        title: String((row as any).title || notification.title),
+        body: String((row as any).message || notification.message),
+        sound: "default",
+        badge: 1,
+        data: this.buildPushData(row),
+      });
+    }
 
     return { data, error: insertError };
   }

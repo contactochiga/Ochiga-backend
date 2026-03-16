@@ -115,6 +115,7 @@ const SERVICE_CONFIG_DEFAULTS: Record<
 
 const MANAGE_ESTATE_ROLES = new Set(["owner", "admin", "manager", "security"]);
 const FACILITY_ALERT_ROLES = ["owner", "admin", "manager", "security", "operator"];
+const LOW_BALANCE_THRESHOLD = Number(process.env.LOW_WALLET_BALANCE_THRESHOLD || 5000);
 
 async function assertCanManageEstate(userId: string, estateId: string) {
   const { data, error } = await supabaseAdmin
@@ -390,6 +391,29 @@ async function notifyFacilityOpsOfPayment(estateId: string, receipt: any, user: 
     } catch (err) {
       console.warn(`service payment notify failed for role ${role}:`, err);
     }
+  }
+}
+
+async function notifyLowWalletBalance(user: any, balance: number) {
+  if (!user?.id) return;
+  if (!Number.isFinite(balance)) return;
+  if (balance > LOW_BALANCE_THRESHOLD) return;
+
+  try {
+    await NotificationService.sendToUser(String(user.id), {
+      title: "Wallet running low",
+      message: `Your wallet balance is NGN ${Number(balance).toLocaleString("en-NG")}. Fund your wallet to avoid failed service payments.`,
+      type: "wallet",
+      payload: {
+        kind: "wallet.low_balance",
+        balance: Number(balance),
+        threshold: LOW_BALANCE_THRESHOLD,
+        estate_id: String(user?.estate_id || "") || null,
+      },
+      entityId: String(user.id),
+    });
+  } catch (err) {
+    console.warn("low wallet balance notify failed:", err);
   }
 }
 
@@ -734,6 +758,8 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   if (estateId) {
     await notifyFacilityOpsOfPayment(estateId, receipt, user, home);
   }
+
+  await notifyLowWalletBalance(user, nextBalance);
 
   try {
     await sendServiceReceiptEmail(user, receipt);
