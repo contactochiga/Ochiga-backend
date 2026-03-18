@@ -299,26 +299,64 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
 
     if (memErr) return res.status(500).json({ error: memErr.message });
 
+    const existingPendingInvite = await supabaseAdmin
+      .from("invites")
+      .select("id")
+      .eq("home_id", homeId)
+      .eq("invited_email", normalizedEmail)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPendingInvite.error) {
+      return res.status(500).json({ error: existingPendingInvite.error.message });
+    }
+
     // Create invite record in `invites`
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-    const { data: inviteRow, error: inviteErr } = await supabaseAdmin
-      .from("invites")
-      .insert({
-        created_by: userId,
-        estate_id: home.estate_id || null,
-        home_id: homeId,
-        role: safeRole || "member",
-        invite_type: "link",
-        token_hash: tokenHash,
-        invited_email: normalizedEmail,
-        status: "pending",
-      })
-      .select("id")
-      .single();
+    let inviteRow = existingPendingInvite.data || null;
+    if (inviteRow?.id) {
+      const refreshedInvite = await supabaseAdmin
+        .from("invites")
+        .update({
+          created_by: userId,
+          estate_id: home.estate_id || null,
+          role: safeRole || "member",
+          invite_type: "link",
+          token_hash: tokenHash,
+          invited_email: normalizedEmail,
+          status: "pending",
+          claimed_by: null,
+          claimed_at: null,
+        })
+        .eq("id", inviteRow.id)
+        .select("id")
+        .single();
 
-    if (inviteErr) return res.status(500).json({ error: inviteErr.message });
+      if (refreshedInvite.error) return res.status(500).json({ error: refreshedInvite.error.message });
+      inviteRow = refreshedInvite.data;
+    } else {
+      const createdInvite = await supabaseAdmin
+        .from("invites")
+        .insert({
+          created_by: userId,
+          estate_id: home.estate_id || null,
+          home_id: homeId,
+          role: safeRole || "member",
+          invite_type: "link",
+          token_hash: tokenHash,
+          invited_email: normalizedEmail,
+          status: "pending",
+        })
+        .select("id")
+        .single();
+
+      if (createdInvite.error) return res.status(500).json({ error: createdInvite.error.message });
+      inviteRow = createdInvite.data;
+    }
 
     const base =
       process.env.VISITOR_LINK_BASE || process.env.CONSUMER_APP_BASE || "https://oyi.com";
@@ -336,21 +374,23 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
         ? `You’ve been invited to join ${estateName} (${homeLabel}).`
         : `You’ve been invited to join ${homeLabel}.`;
 
-      await NotificationService.sendToUser(invitedUserId!, {
-        title: "New invite",
-        message,
-        type: "estate",
-        payload: {
-          inviteType: "home",
-          invite_id: inviteRow?.id || null,
-          estate_id: home.estate_id || null,
-          estate_name: estateName,
-          home_id: homeId,
-          home_label: homeLabel,
-          membership_id: membership?.id || null,
-        },
-        entityId: homeId,
-      });
+      if (!existingPendingInvite.data?.id) {
+        await NotificationService.sendToUser(invitedUserId!, {
+          title: "New invite",
+          message,
+          type: "estate",
+          payload: {
+            inviteType: "home",
+            invite_id: inviteRow?.id || null,
+            estate_id: home.estate_id || null,
+            estate_name: estateName,
+            home_id: homeId,
+            home_label: homeLabel,
+            membership_id: membership?.id || null,
+          },
+          entityId: homeId,
+        });
+      }
     } catch (notifyErr) {
       console.warn("inviteHomeUser notification failed:", notifyErr);
     }

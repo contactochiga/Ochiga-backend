@@ -32,6 +32,17 @@ function normalizeCommand(input: any): Record<string, any> {
   return c;
 }
 
+function pickExpectedState(command: Record<string, any>) {
+  if (typeof command?.switch === "boolean") return { key: "switch", value: command.switch };
+  if (typeof command?.power === "boolean") return { key: "power", value: command.power };
+  if (typeof command?.on === "boolean") return { key: "on", value: command.on };
+  return null;
+}
+
+async function delay(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function requestDeviceCommand(req: Request, res: Response) {
   try {
     const rawId = String(req.params.deviceId || "").trim();
@@ -114,6 +125,28 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         },
       } as any);
 
+      let verifiedState: Record<string, any> | null = null;
+      const expected = pickExpectedState(normalized);
+      if (expected && typeof (adapter as any).getLiveState === "function") {
+        await delay(900);
+        try {
+          verifiedState = await (adapter as any).getLiveState(deviceRow.external_id);
+        } catch {}
+        if (verifiedState && expected.key in verifiedState) {
+          const actual = Boolean((verifiedState as any)[expected.key]);
+          if (actual !== Boolean(expected.value)) {
+            return res.status(409).json({
+              ok: false,
+              error: "Device did not confirm the requested state change",
+              status: "command_unverified",
+              device: { id: deviceRow.id, external_id: deviceRow.external_id, vendor: deviceRow.vendor },
+              command: normalized,
+              state: verifiedState,
+            });
+          }
+        }
+      }
+
       // Optional: write a quick “last known” state (helps UI feel instant)
       await supabaseAdmin
         .from("device_states")
@@ -146,6 +179,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         status: "command_executed",
         device: { id: deviceRow.id, external_id: deviceRow.external_id, vendor: deviceRow.vendor },
         command: normalized,
+        state: verifiedState,
       });
     }
 

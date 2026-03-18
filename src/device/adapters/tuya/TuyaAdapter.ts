@@ -493,10 +493,13 @@ export class TuyaAdapter implements DeviceAdapter {
         incoming: command,
         supported: Object.keys(schema.functionsByCode).slice(0, 30),
       });
-      return;
+      throw new Error("No supported command mapping for this device");
     }
 
     await this.client.request("POST", `/v1.0/iot-03/devices/${deviceId}/commands`, { commands });
+
+    // Force fresh state on the next read after command execution.
+    this.statusCache.delete(deviceId);
   }
 
   /* ------------------------------------------------
