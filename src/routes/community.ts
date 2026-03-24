@@ -27,6 +27,26 @@ router.post(
   CommunityCtrl.uploadMedia
 );
 
+router.post(
+  "/live/start",
+  requireAuth,
+  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  CommunityCtrl.startLiveSession
+);
+
+router.post(
+  "/live/:postId/stop",
+  requireAuth,
+  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  CommunityCtrl.stopLiveSession
+);
+
+router.get(
+  "/live/:postId",
+  requireAuth,
+  CommunityCtrl.getLiveSession
+);
+
 // Get all posts for an estate
 router.get(
   "/posts/estate/:estateId",

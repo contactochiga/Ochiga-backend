@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { UserRole } from "../types/user";
 import { uploadToS3 } from "../services/s3Service";
 import { NotificationService } from "../services/NotificationService";
+import { CommunityLiveService } from "../services/communityLiveService";
 // import { handleSignal } from "../core/control-plane"; // enable later
 
 /* ------------------------------------------------
@@ -113,6 +114,15 @@ function normalizePostOutput(row: any, extra: Record<string, any> = {}) {
     content,
     media,
     live_link: liveLink || null,
+    live_session:
+      typeof liveLink === "string" && liveLink.startsWith("oyi-live://")
+        ? CommunityLiveService.get(String(row?.id || "")) || {
+            post_id: String(row?.id || ""),
+            status: "ended",
+            viewer_count: 0,
+            is_live: false,
+          }
+        : null,
     ...extra,
   };
 }
@@ -358,6 +368,138 @@ export async function createPost(req: Request, res: Response) {
   }
 
   return res.json(normalizePostOutput(data));
+}
+
+export async function startLiveSession(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { title, content, body, estateId, estate_id } = req.body || {};
+  const resolvedEstateId = estate_id || estateId || user?.estate_id;
+  if (!resolvedEstateId) return res.status(400).json({ error: "estateId is required" });
+  if (!(await hasEstateAccess(user, String(resolvedEstateId)))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
+
+  const normalizedBody = String(body ?? content ?? "").trim();
+  const normalizedTitle = String(title || "").trim();
+  const derivedTitle =
+    normalizedTitle || (normalizedBody ? normalizedBody.slice(0, 80).trim() : "") || "Live now";
+
+  const payload: any = {
+    estate_id: resolvedEstateId,
+    author_id: user.id,
+    title: derivedTitle,
+    body: normalizedBody || null,
+    status: "active",
+    live_link: "oyi-live://pending",
+  };
+
+  let data: any;
+  try {
+    data = await insertCommunityPostWithFallback(payload);
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Failed to start live session" });
+  }
+
+  const postId = String((data as any)?.id || "");
+  if (!postId) return res.status(500).json({ error: "Live post id missing" });
+
+  const liveLink = `oyi-live://${postId}`;
+  let updated = data;
+  try {
+    updated = await updateCommunityPostWithFallback(postId, {
+      live_link: liveLink,
+      updated_at: new Date().toISOString(),
+    });
+  } catch {
+    updated = { ...data, live_link: liveLink };
+  }
+
+  const liveSession = CommunityLiveService.start({
+    postId,
+    estateId: String(resolvedEstateId),
+    hostUserId: String(user.id),
+  });
+
+  try {
+    await NotificationService.sendToEstate(String(resolvedEstateId), {
+      title: `${derivedTitle}`,
+      message: `${String(user?.username || user?.full_name || "A resident")} just started a live session.`,
+      type: "community",
+      payload: {
+        estate_id: String(resolvedEstateId),
+        post_id: postId,
+        kind: "community.live.started",
+      },
+      entityId: postId,
+    });
+  } catch {
+    // fail-soft
+  }
+
+  return res.json(normalizePostOutput(updated, { live_session: liveSession }));
+}
+
+export async function stopLiveSession(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { postId } = req.params;
+  const { data: post, error } = await supabaseAdmin
+    .from("community_posts")
+    .select("*")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (String(post.author_id || "") !== String(user.id || "") && !canModerate(user.role)) {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  const liveSession = CommunityLiveService.stop(String(postId));
+  let updated = post;
+  try {
+    updated = await updateCommunityPostWithFallback(String(postId), {
+      updated_at: new Date().toISOString(),
+    });
+  } catch {
+    // fail-soft
+  }
+
+  return res.json(normalizePostOutput(updated, { live_session: liveSession }));
+}
+
+export async function getLiveSession(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { postId } = req.params;
+  const { data: post, error } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id,live_link")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
+
+  const liveSession = CommunityLiveService.get(String(postId));
+  return res.json({
+    ok: true,
+    post_id: String(postId),
+    live_link: String((post as any)?.live_link || ""),
+    live_session: liveSession || {
+      post_id: String(postId),
+      status: "ended",
+      viewer_count: 0,
+      is_live: false,
+    },
+  });
 }
 
 export async function getPostsForEstate(req: Request, res: Response) {

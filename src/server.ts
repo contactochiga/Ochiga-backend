@@ -27,6 +27,7 @@ import { startEventProcessor } from "./event-processor/eventProcessor";
 
 // ✅ INTENT WORKER (BullMQ)
 import { startIntentWorker } from "./workers/intentWorker";
+import { CommunityLiveService } from "./services/communityLiveService";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -60,6 +61,87 @@ io.on("connection", (socket) => {
 
   socket.on("subscribe:thread", (threadId: string) => {
     socket.join(`thread:${threadId}`);
+  });
+
+  socket.on("community-live:host:join", ({ postId }: { postId: string }) => {
+    if (!postId) return;
+    socket.join(`community-live:${postId}:host`);
+    socket.join(`community-live:${postId}:viewers`);
+    const session = CommunityLiveService.bindHost(String(postId), socket.id);
+    io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
+      postId: String(postId),
+      live_session: session,
+    });
+  });
+
+  socket.on("community-live:viewer:join", ({ postId, userId }: { postId: string; userId?: string }) => {
+    if (!postId) return;
+    socket.join(`community-live:${postId}:viewers`);
+    const session = CommunityLiveService.addViewer(String(postId), socket.id);
+    io.to(`community-live:${postId}:host`).emit("community-live:viewer-joined", {
+      postId: String(postId),
+      viewerSocketId: socket.id,
+      userId: String(userId || ""),
+      live_session: session,
+    });
+    io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
+      postId: String(postId),
+      live_session: session,
+    });
+  });
+
+  socket.on(
+    "community-live:signal",
+    ({
+      postId,
+      targetSocketId,
+      kind,
+      payload,
+    }: {
+      postId: string;
+      targetSocketId: string;
+      kind: "offer" | "answer" | "candidate";
+      payload: any;
+    }) => {
+      if (!postId || !targetSocketId || !kind) return;
+      io.to(String(targetSocketId)).emit("community-live:signal", {
+        postId: String(postId),
+        sourceSocketId: socket.id,
+        kind,
+        payload,
+      });
+    }
+  );
+
+  socket.on("community-live:leave", ({ postId }: { postId: string }) => {
+    if (!postId) return;
+    socket.leave(`community-live:${postId}:viewers`);
+    const session = CommunityLiveService.removeViewer(String(postId), socket.id);
+    io.to(`community-live:${postId}:host`).emit("community-live:viewer-left", {
+      postId: String(postId),
+      viewerSocketId: socket.id,
+      live_session: session,
+    });
+    io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
+      postId: String(postId),
+      live_session: session,
+    });
+  });
+
+  socket.on("disconnect", () => {
+    const impacted = CommunityLiveService.detachSocket(socket.id);
+    for (const item of impacted) {
+      io.to(`community-live:${item.postId}:viewers`).emit("community-live:stats", {
+        postId: item.postId,
+        live_session: item.session,
+      });
+      if (item.ended) {
+        io.to(`community-live:${item.postId}:viewers`).emit("community-live:ended", {
+          postId: item.postId,
+          live_session: item.session,
+        });
+      }
+    }
   });
 });
 
