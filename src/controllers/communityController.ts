@@ -440,7 +440,7 @@ export async function startLiveSession(req: Request, res: Response) {
 
   return res.json(normalizePostOutput(updated, {
     live_session: liveSession,
-    rtc_config: CommunityLiveService.rtcConfig(),
+    rtc_config: await CommunityLiveService.rtcConfig(),
   }));
 }
 
@@ -496,7 +496,7 @@ export async function getLiveSession(req: Request, res: Response) {
     ok: true,
     post_id: String(postId),
     live_link: String((post as any)?.live_link || ""),
-    rtc_config: CommunityLiveService.rtcConfig(),
+    rtc_config: await CommunityLiveService.rtcConfig(),
     live_session: liveSession || {
       post_id: String(postId),
       status: "ended",
@@ -509,7 +509,7 @@ export async function getLiveSession(req: Request, res: Response) {
 export async function getLiveRtcConfig(_req: Request, res: Response) {
   return res.json({
     ok: true,
-    rtc_config: CommunityLiveService.rtcConfig(),
+    rtc_config: await CommunityLiveService.rtcConfig(),
   });
 }
 
