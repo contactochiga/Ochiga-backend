@@ -1,130 +1,311 @@
+import { supabaseAdmin } from "../supabase/supabaseClient";
+
 type LiveStatus = "starting" | "live" | "ended";
 
-export type CommunityLiveSession = {
-  postId: string;
-  estateId: string;
-  hostUserId: string;
-  hostSocketId: string | null;
-  viewerSockets: Set<string>;
+type PersistedSession = {
+  post_id: string;
+  estate_id: string;
+  host_user_id: string;
   status: LiveStatus;
-  createdAt: string;
-  updatedAt: string;
+  viewer_count: number;
+  started_at?: string | null;
+  ended_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-const sessions = new Map<string, CommunityLiveSession>();
+type RuntimeSession = {
+  postId: string;
+  hostSocketId: string | null;
+  viewerSockets: Set<string>;
+};
+
+export type CommunityLiveSession = {
+  post_id: string;
+  estate_id: string;
+  host_user_id: string;
+  status: LiveStatus;
+  viewer_count: number;
+  started_at?: string | null;
+  ended_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  is_live: boolean;
+};
+
+const persisted = new Map<string, PersistedSession>();
+const runtime = new Map<string, RuntimeSession>();
+let initPromise: Promise<void> | null = null;
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function touch(session: CommunityLiveSession) {
-  session.updatedAt = nowIso();
-  return session;
+function isMissingLiveTable(error: any) {
+  const msg = String(error?.message || error || "").toLowerCase();
+  return msg.includes("community_live_sessions") && msg.includes("could not find");
 }
 
-function serialize(session: CommunityLiveSession | null | undefined) {
-  if (!session) return null;
+function runtimeSession(postId: string) {
+  const key = String(postId || "");
+  let entry = runtime.get(key);
+  if (!entry) {
+    entry = {
+      postId: key,
+      hostSocketId: null,
+      viewerSockets: new Set<string>(),
+    };
+    runtime.set(key, entry);
+  }
+  return entry;
+}
+
+function serialize(postId: string) {
+  const row = persisted.get(String(postId || ""));
+  if (!row) return null;
+  const session = runtime.get(String(postId || ""));
+  const viewerCount = session ? session.viewerSockets.size : Number(row.viewer_count || 0);
+  const status: LiveStatus =
+    row.status === "live" || row.status === "starting" || row.status === "ended"
+      ? row.status
+      : "ended";
   return {
-    post_id: session.postId,
-    estate_id: session.estateId,
-    host_user_id: session.hostUserId,
-    status: session.status,
-    viewer_count: session.viewerSockets.size,
-    created_at: session.createdAt,
-    updated_at: session.updatedAt,
-    is_live: session.status === "live",
+    post_id: row.post_id,
+    estate_id: row.estate_id,
+    host_user_id: row.host_user_id,
+    status,
+    viewer_count: viewerCount,
+    started_at: row.started_at || null,
+    ended_at: row.ended_at || null,
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null,
+    is_live: status === "live",
+  } satisfies CommunityLiveSession;
+}
+
+async function upsertPersisted(postId: string, patch: Partial<PersistedSession>) {
+  const key = String(postId || "");
+  const previous = persisted.get(key);
+  const next: PersistedSession = {
+    post_id: key,
+    estate_id: String(patch.estate_id || previous?.estate_id || ""),
+    host_user_id: String(patch.host_user_id || previous?.host_user_id || ""),
+    status: (patch.status || previous?.status || "starting") as LiveStatus,
+    viewer_count: Number(patch.viewer_count ?? previous?.viewer_count ?? 0),
+    started_at:
+      patch.started_at !== undefined ? patch.started_at : previous?.started_at || null,
+    ended_at: patch.ended_at !== undefined ? patch.ended_at : previous?.ended_at || null,
+    created_at: previous?.created_at || patch.created_at || nowIso(),
+    updated_at: patch.updated_at || nowIso(),
   };
+
+  persisted.set(key, next);
+
+  const { data, error } = await supabaseAdmin
+    .from("community_live_sessions")
+    .upsert(next, { onConflict: "post_id" })
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    if (!isMissingLiveTable(error)) {
+      console.warn("community live session persist failed:", error);
+    }
+    return next;
+  }
+
+  if (data?.post_id) {
+    persisted.set(key, data as PersistedSession);
+    return data as PersistedSession;
+  }
+
+  return next;
+}
+
+function parseJsonArray(value: string | undefined) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function splitList(value: string | undefined) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export class CommunityLiveService {
-  static start(input: { postId: string; estateId: string; hostUserId: string }) {
-    const existing = sessions.get(input.postId);
-    if (existing) {
-      existing.status = "starting";
-      existing.hostUserId = input.hostUserId;
-      existing.estateId = input.estateId;
-      existing.viewerSockets.clear();
-      existing.hostSocketId = null;
-      return serialize(touch(existing));
+  static async init() {
+    if (!initPromise) {
+      initPromise = (async () => {
+        const { data, error } = await supabaseAdmin
+          .from("community_live_sessions")
+          .select("*")
+          .in("status", ["starting", "live"]);
+
+        if (error) {
+          if (!isMissingLiveTable(error)) {
+            console.warn("community live session init failed:", error);
+          }
+          return;
+        }
+
+        for (const row of data || []) {
+          const postId = String((row as any)?.post_id || "");
+          if (!postId) continue;
+          persisted.set(postId, row as PersistedSession);
+          runtimeSession(postId);
+        }
+      })();
     }
 
-    const session: CommunityLiveSession = {
-      postId: input.postId,
-      estateId: input.estateId,
-      hostUserId: input.hostUserId,
-      hostSocketId: null,
-      viewerSockets: new Set<string>(),
-      status: "starting",
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    };
-    sessions.set(input.postId, session);
-    return serialize(session);
+    await initPromise;
   }
 
   static get(postId: string) {
-    return serialize(sessions.get(String(postId || "")));
+    return serialize(postId);
   }
 
-  static bindHost(postId: string, socketId: string) {
-    const session = sessions.get(String(postId || ""));
-    if (!session) return null;
-    session.hostSocketId = socketId;
-    session.status = "live";
-    return serialize(touch(session));
+  static async start(input: { postId: string; estateId: string; hostUserId: string }) {
+    const runtimeEntry = runtimeSession(input.postId);
+    runtimeEntry.viewerSockets.clear();
+    runtimeEntry.hostSocketId = null;
+
+    await upsertPersisted(input.postId, {
+      post_id: String(input.postId),
+      estate_id: String(input.estateId),
+      host_user_id: String(input.hostUserId),
+      status: "starting",
+      viewer_count: 0,
+      started_at: nowIso(),
+      ended_at: null,
+      updated_at: nowIso(),
+    });
+
+    return serialize(input.postId);
   }
 
-  static addViewer(postId: string, socketId: string) {
-    const session = sessions.get(String(postId || ""));
-    if (!session || session.status === "ended") return null;
-    session.viewerSockets.add(socketId);
-    return serialize(touch(session));
+  static async bindHost(postId: string, socketId: string) {
+    const entry = runtimeSession(postId);
+    entry.hostSocketId = socketId;
+    await upsertPersisted(postId, {
+      status: "live",
+      viewer_count: entry.viewerSockets.size,
+      ended_at: null,
+      updated_at: nowIso(),
+    });
+    return serialize(postId);
   }
 
-  static removeViewer(postId: string, socketId: string) {
-    const session = sessions.get(String(postId || ""));
-    if (!session) return null;
-    session.viewerSockets.delete(socketId);
-    return serialize(touch(session));
+  static async addViewer(postId: string, socketId: string) {
+    const existing = persisted.get(String(postId || ""));
+    if (!existing || existing.status === "ended") return null;
+    const entry = runtimeSession(postId);
+    entry.viewerSockets.add(socketId);
+    await upsertPersisted(postId, {
+      viewer_count: entry.viewerSockets.size,
+      updated_at: nowIso(),
+    });
+    return serialize(postId);
   }
 
-  static stop(postId: string) {
-    const session = sessions.get(String(postId || ""));
-    if (!session) return null;
-    session.status = "ended";
-    session.viewerSockets.clear();
-    session.hostSocketId = null;
-    return serialize(touch(session));
+  static async removeViewer(postId: string, socketId: string) {
+    const entry = runtime.get(String(postId || ""));
+    if (!entry) return serialize(postId);
+    entry.viewerSockets.delete(socketId);
+    await upsertPersisted(postId, {
+      viewer_count: entry.viewerSockets.size,
+      updated_at: nowIso(),
+    });
+    return serialize(postId);
+  }
+
+  static async stop(postId: string) {
+    const entry = runtimeSession(postId);
+    entry.viewerSockets.clear();
+    entry.hostSocketId = null;
+    await upsertPersisted(postId, {
+      status: "ended",
+      viewer_count: 0,
+      ended_at: nowIso(),
+      updated_at: nowIso(),
+    });
+    return serialize(postId);
   }
 
   static hostSocketId(postId: string) {
-    return sessions.get(String(postId || ""))?.hostSocketId || null;
+    return runtime.get(String(postId || ""))?.hostSocketId || null;
   }
 
-  static detachSocket(socketId: string) {
-    const impacted: Array<{ postId: string; session: ReturnType<typeof serialize>; ended: boolean }> = [];
+  static async detachSocket(socketId: string) {
+    const impacted: Array<{ postId: string; session: CommunityLiveSession | null; ended: boolean }> = [];
 
-    for (const [postId, session] of sessions.entries()) {
+    for (const [postId, entry] of runtime.entries()) {
       let changed = false;
       let ended = false;
 
-      if (session.hostSocketId === socketId) {
-        session.hostSocketId = null;
-        session.viewerSockets.clear();
-        session.status = "ended";
+      if (entry.hostSocketId === socketId) {
+        entry.hostSocketId = null;
+        entry.viewerSockets.clear();
         changed = true;
         ended = true;
-      } else if (session.viewerSockets.has(socketId)) {
-        session.viewerSockets.delete(socketId);
+        await upsertPersisted(postId, {
+          status: "ended",
+          viewer_count: 0,
+          ended_at: nowIso(),
+          updated_at: nowIso(),
+        });
+      } else if (entry.viewerSockets.has(socketId)) {
+        entry.viewerSockets.delete(socketId);
         changed = true;
+        await upsertPersisted(postId, {
+          viewer_count: entry.viewerSockets.size,
+          updated_at: nowIso(),
+        });
       }
 
       if (changed) {
-        impacted.push({ postId, session: serialize(touch(session)), ended });
+        impacted.push({ postId, session: serialize(postId), ended });
       }
     }
 
     return impacted;
   }
-}
 
+  static rtcConfig() {
+    const direct = parseJsonArray(process.env.LIVE_ICE_SERVERS_JSON);
+    if (direct?.length) {
+      return {
+        iceServers: direct,
+        iceTransportPolicy: process.env.LIVE_FORCE_RELAY === "true" ? "relay" : "all",
+      };
+    }
+
+    const stunUrls = splitList(process.env.LIVE_STUN_URLS);
+    const turnUrls = splitList(process.env.LIVE_TURN_URLS || process.env.LIVE_TURN_URL);
+    const iceServers: Array<Record<string, any>> = [];
+
+    const effectiveStun = stunUrls.length ? stunUrls : ["stun:stun.l.google.com:19302"];
+    if (effectiveStun.length) {
+      iceServers.push({ urls: effectiveStun });
+    }
+
+    if (turnUrls.length) {
+      iceServers.push({
+        urls: turnUrls,
+        username: process.env.LIVE_TURN_USERNAME || "",
+        credential: process.env.LIVE_TURN_CREDENTIAL || "",
+      });
+    }
+
+    return {
+      iceServers,
+      iceTransportPolicy: process.env.LIVE_FORCE_RELAY === "true" ? "relay" : "all",
+    };
+  }
+}

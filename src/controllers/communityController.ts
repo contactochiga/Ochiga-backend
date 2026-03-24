@@ -416,7 +416,7 @@ export async function startLiveSession(req: Request, res: Response) {
     updated = { ...data, live_link: liveLink };
   }
 
-  const liveSession = CommunityLiveService.start({
+  const liveSession = await CommunityLiveService.start({
     postId,
     estateId: String(resolvedEstateId),
     hostUserId: String(user.id),
@@ -438,7 +438,10 @@ export async function startLiveSession(req: Request, res: Response) {
     // fail-soft
   }
 
-  return res.json(normalizePostOutput(updated, { live_session: liveSession }));
+  return res.json(normalizePostOutput(updated, {
+    live_session: liveSession,
+    rtc_config: CommunityLiveService.rtcConfig(),
+  }));
 }
 
 export async function stopLiveSession(req: Request, res: Response) {
@@ -458,7 +461,7 @@ export async function stopLiveSession(req: Request, res: Response) {
     return res.status(403).json({ error: "Unauthorized" });
   }
 
-  const liveSession = CommunityLiveService.stop(String(postId));
+  const liveSession = await CommunityLiveService.stop(String(postId));
   let updated = post;
   try {
     updated = await updateCommunityPostWithFallback(String(postId), {
@@ -493,12 +496,20 @@ export async function getLiveSession(req: Request, res: Response) {
     ok: true,
     post_id: String(postId),
     live_link: String((post as any)?.live_link || ""),
+    rtc_config: CommunityLiveService.rtcConfig(),
     live_session: liveSession || {
       post_id: String(postId),
       status: "ended",
       viewer_count: 0,
       is_live: false,
     },
+  });
+}
+
+export async function getLiveRtcConfig(_req: Request, res: Response) {
+  return res.json({
+    ok: true,
+    rtc_config: CommunityLiveService.rtcConfig(),
   });
 }
 

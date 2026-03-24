@@ -63,21 +63,21 @@ io.on("connection", (socket) => {
     socket.join(`thread:${threadId}`);
   });
 
-  socket.on("community-live:host:join", ({ postId }: { postId: string }) => {
+  socket.on("community-live:host:join", async ({ postId }: { postId: string }) => {
     if (!postId) return;
     socket.join(`community-live:${postId}:host`);
     socket.join(`community-live:${postId}:viewers`);
-    const session = CommunityLiveService.bindHost(String(postId), socket.id);
+    const session = await CommunityLiveService.bindHost(String(postId), socket.id);
     io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
       postId: String(postId),
       live_session: session,
     });
   });
 
-  socket.on("community-live:viewer:join", ({ postId, userId }: { postId: string; userId?: string }) => {
+  socket.on("community-live:viewer:join", async ({ postId, userId }: { postId: string; userId?: string }) => {
     if (!postId) return;
     socket.join(`community-live:${postId}:viewers`);
-    const session = CommunityLiveService.addViewer(String(postId), socket.id);
+    const session = await CommunityLiveService.addViewer(String(postId), socket.id);
     io.to(`community-live:${postId}:host`).emit("community-live:viewer-joined", {
       postId: String(postId),
       viewerSocketId: socket.id,
@@ -113,10 +113,10 @@ io.on("connection", (socket) => {
     }
   );
 
-  socket.on("community-live:leave", ({ postId }: { postId: string }) => {
+  socket.on("community-live:leave", async ({ postId }: { postId: string }) => {
     if (!postId) return;
     socket.leave(`community-live:${postId}:viewers`);
-    const session = CommunityLiveService.removeViewer(String(postId), socket.id);
+    const session = await CommunityLiveService.removeViewer(String(postId), socket.id);
     io.to(`community-live:${postId}:host`).emit("community-live:viewer-left", {
       postId: String(postId),
       viewerSocketId: socket.id,
@@ -128,8 +128,8 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("disconnect", () => {
-    const impacted = CommunityLiveService.detachSocket(socket.id);
+  socket.on("disconnect", async () => {
+    const impacted = await CommunityLiveService.detachSocket(socket.id);
     for (const item of impacted) {
       io.to(`community-live:${item.postId}:viewers`).emit("community-live:stats", {
         postId: item.postId,
@@ -152,6 +152,9 @@ httpServer.listen(PORT, async () => {
   console.log(`🚀 HTTP + WebSocket server running on port ${PORT}`);
 
   try {
+    await CommunityLiveService.init();
+    console.log("🟢 Community live session cache initialized");
+
     // ---------------------------
     // CONNECT REDIS
     // ---------------------------

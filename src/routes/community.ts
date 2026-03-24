@@ -34,6 +34,12 @@ router.post(
   CommunityCtrl.startLiveSession
 );
 
+router.get(
+  "/live/config",
+  requireAuth,
+  CommunityCtrl.getLiveRtcConfig
+);
+
 router.post(
   "/live/:postId/stop",
   requireAuth,
