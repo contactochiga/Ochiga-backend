@@ -125,6 +125,31 @@ async function sendViaFcm(tokens: string[], payload: PushPayload) {
   return { ok: true, sent };
 }
 
+async function deactivatePushToken(token: string, reason?: string | null) {
+  const clean = String(token || "").trim();
+  if (!clean) return;
+  try {
+    await supabaseAdmin
+      .from("user_push_tokens")
+      .update({
+        active: false,
+        updated_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+      })
+      .eq("token", clean);
+    console.warn("[push] deactivated token", {
+      tokenPrefix: clean.slice(0, 12),
+      reason: reason || "unknown",
+    });
+  } catch (error: any) {
+    console.warn("[push] failed to deactivate token", {
+      tokenPrefix: clean.slice(0, 12),
+      reason: reason || "unknown",
+      error: error?.message || String(error),
+    });
+  }
+}
+
 async function sendViaApns(tokens: string[], payload: PushPayload) {
   if (!canSendApns()) return { ok: false, skipped: true, reason: "APNS credentials missing", sent: 0 };
   if (!tokens.length) return { ok: true, sent: 0 };
@@ -190,6 +215,10 @@ async function sendViaApns(tokens: string[], payload: PushPayload) {
           environment: APNS_PRODUCTION ? "production" : "sandbox",
         });
       } else {
+        let parsedBody: any = null;
+        try {
+          parsedBody = result.body ? JSON.parse(result.body) : null;
+        } catch {}
         console.error("[push][apns] rejected", {
           tokenPrefix: deviceToken.slice(0, 12),
           status: result.status,
@@ -197,6 +226,10 @@ async function sendViaApns(tokens: string[], payload: PushPayload) {
           environment: APNS_PRODUCTION ? "production" : "sandbox",
           body: result.body || null,
         });
+        const reason = String(parsedBody?.reason || "");
+        if (result.status === 410 || reason === "Unregistered" || reason === "BadDeviceToken") {
+          await deactivatePushToken(deviceToken, reason || `apns-${result.status}`);
+        }
       }
     }
   } finally {

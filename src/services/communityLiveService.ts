@@ -14,10 +14,20 @@ type PersistedSession = {
   updated_at?: string | null;
 };
 
+type GuestRequest = {
+  socketId: string;
+  userId: string;
+  userName: string;
+};
+
 type RuntimeSession = {
   postId: string;
   hostSocketId: string | null;
   viewerSockets: Set<string>;
+  guestSocketId: string | null;
+  guestUserId: string | null;
+  guestDisplayName: string | null;
+  pendingRequests: Map<string, GuestRequest>;
 };
 
 export type CommunityLiveSession = {
@@ -31,6 +41,10 @@ export type CommunityLiveSession = {
   created_at?: string | null;
   updated_at?: string | null;
   is_live: boolean;
+  has_guest: boolean;
+  guest_user_id?: string | null;
+  guest_display_name?: string | null;
+  pending_request_count: number;
 };
 
 const persisted = new Map<string, PersistedSession>();
@@ -54,6 +68,10 @@ function runtimeSession(postId: string) {
       postId: key,
       hostSocketId: null,
       viewerSockets: new Set<string>(),
+      guestSocketId: null,
+      guestUserId: null,
+      guestDisplayName: null,
+      pendingRequests: new Map<string, GuestRequest>(),
     };
     runtime.set(key, entry);
   }
@@ -64,7 +82,9 @@ function serialize(postId: string) {
   const row = persisted.get(String(postId || ""));
   if (!row) return null;
   const session = runtime.get(String(postId || ""));
-  const viewerCount = session ? session.viewerSockets.size : Number(row.viewer_count || 0);
+  const viewerCount = session
+    ? Array.from(session.viewerSockets).filter((socketId) => socketId !== session.guestSocketId).length
+    : Number(row.viewer_count || 0);
   const status: LiveStatus =
     row.status === "live" || row.status === "starting" || row.status === "ended"
       ? row.status
@@ -80,18 +100,29 @@ function serialize(postId: string) {
     created_at: row.created_at || null,
     updated_at: row.updated_at || null,
     is_live: status === "live",
+    has_guest: Boolean(session?.guestSocketId),
+    guest_user_id: session?.guestUserId || null,
+    guest_display_name: session?.guestDisplayName || null,
+    pending_request_count: session?.pendingRequests.size || 0,
   } satisfies CommunityLiveSession;
 }
 
 async function upsertPersisted(postId: string, patch: Partial<PersistedSession>) {
   const key = String(postId || "");
   const previous = persisted.get(key);
+  const currentRuntime = runtime.get(key);
   const next: PersistedSession = {
     post_id: key,
     estate_id: String(patch.estate_id || previous?.estate_id || ""),
     host_user_id: String(patch.host_user_id || previous?.host_user_id || ""),
     status: (patch.status || previous?.status || "starting") as LiveStatus,
-    viewer_count: Number(patch.viewer_count ?? previous?.viewer_count ?? 0),
+    viewer_count: Number(
+      patch.viewer_count ??
+        (currentRuntime
+          ? Array.from(currentRuntime.viewerSockets).filter((socketId) => socketId !== currentRuntime.guestSocketId)
+              .length
+          : previous?.viewer_count ?? 0)
+    ),
     started_at:
       patch.started_at !== undefined ? patch.started_at : previous?.started_at || null,
     ended_at: patch.ended_at !== undefined ? patch.ended_at : previous?.ended_at || null,
@@ -171,10 +202,38 @@ export class CommunityLiveService {
     return serialize(postId);
   }
 
+  static getPendingRequests(postId: string) {
+    return Array.from(runtimeSession(postId).pendingRequests.values());
+  }
+
+  static audienceSocketIds(postId: string) {
+    const entry = runtimeSession(postId);
+    return Array.from(entry.viewerSockets).filter((socketId) => socketId !== entry.guestSocketId);
+  }
+
+  static guestAudienceSocketIds(postId: string) {
+    const entry = runtimeSession(postId);
+    const ids = new Set<string>();
+    if (entry.hostSocketId) ids.add(entry.hostSocketId);
+    for (const socketId of entry.viewerSockets) {
+      if (socketId !== entry.guestSocketId) ids.add(socketId);
+    }
+    return Array.from(ids);
+  }
+
+  static publisherSocketIds(postId: string) {
+    const entry = runtimeSession(postId);
+    return [entry.hostSocketId, entry.guestSocketId].filter(Boolean) as string[];
+  }
+
   static async start(input: { postId: string; estateId: string; hostUserId: string }) {
-    const runtimeEntry = runtimeSession(input.postId);
-    runtimeEntry.viewerSockets.clear();
-    runtimeEntry.hostSocketId = null;
+    const entry = runtimeSession(input.postId);
+    entry.viewerSockets.clear();
+    entry.pendingRequests.clear();
+    entry.hostSocketId = null;
+    entry.guestSocketId = null;
+    entry.guestUserId = null;
+    entry.guestDisplayName = null;
 
     await upsertPersisted(input.postId, {
       post_id: String(input.postId),
@@ -193,9 +252,10 @@ export class CommunityLiveService {
   static async bindHost(postId: string, socketId: string) {
     const entry = runtimeSession(postId);
     entry.hostSocketId = socketId;
+    entry.viewerSockets.delete(socketId);
     await upsertPersisted(postId, {
       status: "live",
-      viewer_count: entry.viewerSockets.size,
+      viewer_count: this.audienceSocketIds(postId).length,
       ended_at: null,
       updated_at: nowIso(),
     });
@@ -208,7 +268,7 @@ export class CommunityLiveService {
     const entry = runtimeSession(postId);
     entry.viewerSockets.add(socketId);
     await upsertPersisted(postId, {
-      viewer_count: entry.viewerSockets.size,
+      viewer_count: this.audienceSocketIds(postId).length,
       updated_at: nowIso(),
     });
     return serialize(postId);
@@ -218,8 +278,92 @@ export class CommunityLiveService {
     const entry = runtime.get(String(postId || ""));
     if (!entry) return serialize(postId);
     entry.viewerSockets.delete(socketId);
+    entry.pendingRequests.delete(socketId);
     await upsertPersisted(postId, {
-      viewer_count: entry.viewerSockets.size,
+      viewer_count: this.audienceSocketIds(postId).length,
+      updated_at: nowIso(),
+    });
+    return serialize(postId);
+  }
+
+  static async requestGuest(input: { postId: string; socketId: string; userId?: string | null; userName?: string | null }) {
+    const existing = persisted.get(String(input.postId || ""));
+    if (!existing || existing.status === "ended") return { session: serialize(input.postId), requests: [] };
+    const entry = runtimeSession(input.postId);
+    if (entry.guestSocketId && entry.guestSocketId !== input.socketId) {
+      return { session: serialize(input.postId), requests: this.getPendingRequests(input.postId), blocked: true };
+    }
+    entry.pendingRequests.set(String(input.socketId), {
+      socketId: String(input.socketId),
+      userId: String(input.userId || ""),
+      userName: String(input.userName || "Resident"),
+    });
+    return {
+      session: serialize(input.postId),
+      requests: this.getPendingRequests(input.postId),
+    };
+  }
+
+  static async approveGuest(postId: string, socketId: string) {
+    const entry = runtimeSession(postId);
+    const request = entry.pendingRequests.get(String(socketId));
+    if (!request) {
+      return { approved: null, session: serialize(postId), requests: this.getPendingRequests(postId) };
+    }
+    entry.pendingRequests.delete(String(socketId));
+    return {
+      approved: request,
+      audienceSocketIds: this.guestAudienceSocketIds(postId),
+      session: serialize(postId),
+      requests: this.getPendingRequests(postId),
+    };
+  }
+
+  static async rejectGuest(postId: string, socketId: string) {
+    const entry = runtimeSession(postId);
+    const request = entry.pendingRequests.get(String(socketId)) || null;
+    entry.pendingRequests.delete(String(socketId));
+    return {
+      rejected: request,
+      session: serialize(postId),
+      requests: this.getPendingRequests(postId),
+    };
+  }
+
+  static async bindGuest(input: { postId: string; socketId: string; userId?: string | null; userName?: string | null }) {
+    const entry = runtimeSession(input.postId);
+    entry.guestSocketId = String(input.socketId);
+    entry.guestUserId = String(input.userId || "");
+    entry.guestDisplayName = String(input.userName || "Guest");
+    entry.viewerSockets.add(String(input.socketId));
+    entry.pendingRequests.delete(String(input.socketId));
+    await upsertPersisted(input.postId, {
+      status: "live",
+      viewer_count: this.audienceSocketIds(input.postId).length,
+      updated_at: nowIso(),
+    });
+    return {
+      session: serialize(input.postId),
+      audienceSocketIds: this.guestAudienceSocketIds(input.postId),
+    };
+  }
+
+  static async removeGuest(postId: string, socketId?: string | null) {
+    const entry = runtime.get(String(postId || ""));
+    if (!entry) return serialize(postId);
+    if (socketId && entry.guestSocketId && entry.guestSocketId !== socketId) {
+      return serialize(postId);
+    }
+    const guestSocketId = entry.guestSocketId;
+    entry.guestSocketId = null;
+    entry.guestUserId = null;
+    entry.guestDisplayName = null;
+    if (guestSocketId) {
+      entry.viewerSockets.delete(guestSocketId);
+      entry.pendingRequests.delete(guestSocketId);
+    }
+    await upsertPersisted(postId, {
+      viewer_count: this.audienceSocketIds(postId).length,
       updated_at: nowIso(),
     });
     return serialize(postId);
@@ -228,7 +372,11 @@ export class CommunityLiveService {
   static async stop(postId: string) {
     const entry = runtimeSession(postId);
     entry.viewerSockets.clear();
+    entry.pendingRequests.clear();
     entry.hostSocketId = null;
+    entry.guestSocketId = null;
+    entry.guestUserId = null;
+    entry.guestDisplayName = null;
     await upsertPersisted(postId, {
       status: "ended",
       viewer_count: 0,
@@ -243,15 +391,26 @@ export class CommunityLiveService {
   }
 
   static async detachSocket(socketId: string) {
-    const impacted: Array<{ postId: string; session: CommunityLiveSession | null; ended: boolean }> = [];
+    const impacted: Array<{
+      postId: string;
+      session: CommunityLiveSession | null;
+      ended: boolean;
+      guestLeft: boolean;
+      requests: GuestRequest[];
+    }> = [];
 
     for (const [postId, entry] of runtime.entries()) {
       let changed = false;
       let ended = false;
+      let guestLeft = false;
 
       if (entry.hostSocketId === socketId) {
         entry.hostSocketId = null;
         entry.viewerSockets.clear();
+        entry.pendingRequests.clear();
+        entry.guestSocketId = null;
+        entry.guestUserId = null;
+        entry.guestDisplayName = null;
         changed = true;
         ended = true;
         await upsertPersisted(postId, {
@@ -260,17 +419,41 @@ export class CommunityLiveService {
           ended_at: nowIso(),
           updated_at: nowIso(),
         });
-      } else if (entry.viewerSockets.has(socketId)) {
-        entry.viewerSockets.delete(socketId);
-        changed = true;
-        await upsertPersisted(postId, {
-          viewer_count: entry.viewerSockets.size,
-          updated_at: nowIso(),
-        });
+      } else {
+        if (entry.guestSocketId === socketId) {
+          entry.guestSocketId = null;
+          entry.guestUserId = null;
+          entry.guestDisplayName = null;
+          entry.viewerSockets.delete(socketId);
+          entry.pendingRequests.delete(socketId);
+          changed = true;
+          guestLeft = true;
+        }
+        if (entry.viewerSockets.has(socketId)) {
+          entry.viewerSockets.delete(socketId);
+          entry.pendingRequests.delete(socketId);
+          changed = true;
+        }
+        if (entry.pendingRequests.has(socketId)) {
+          entry.pendingRequests.delete(socketId);
+          changed = true;
+        }
+        if (changed && !ended) {
+          await upsertPersisted(postId, {
+            viewer_count: this.audienceSocketIds(postId).length,
+            updated_at: nowIso(),
+          });
+        }
       }
 
       if (changed) {
-        impacted.push({ postId, session: serialize(postId), ended });
+        impacted.push({
+          postId,
+          session: serialize(postId),
+          ended,
+          guestLeft,
+          requests: this.getPendingRequests(postId),
+        });
       }
     }
 

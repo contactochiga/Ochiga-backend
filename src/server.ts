@@ -67,6 +67,7 @@ io.on("connection", (socket) => {
     if (!postId) return;
     socket.join(`community-live:${postId}:host`);
     socket.join(`community-live:${postId}:viewers`);
+    socket.join(`community-live:${postId}:publishers`);
     const session = await CommunityLiveService.bindHost(String(postId), socket.id);
     io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
       postId: String(postId),
@@ -74,14 +75,33 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("community-live:viewer:join", async ({ postId, userId }: { postId: string; userId?: string }) => {
+  socket.on("community-live:host:stop", async ({ postId }: { postId: string }) => {
+    if (!postId) return;
+    const session = await CommunityLiveService.stop(String(postId));
+    io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
+      postId: String(postId),
+      live_session: session,
+    });
+    io.to(`community-live:${postId}:viewers`).emit("community-live:ended", {
+      postId: String(postId),
+      live_session: session,
+    });
+    io.to(`community-live:${postId}:host`).emit("community-live:guest-requests", {
+      postId: String(postId),
+      requests: [],
+      live_session: session,
+    });
+  });
+
+  socket.on("community-live:viewer:join", async ({ postId, userId, userName }: { postId: string; userId?: string; userName?: string }) => {
     if (!postId) return;
     socket.join(`community-live:${postId}:viewers`);
     const session = await CommunityLiveService.addViewer(String(postId), socket.id);
-    io.to(`community-live:${postId}:host`).emit("community-live:viewer-joined", {
+    io.to(`community-live:${postId}:publishers`).emit("community-live:viewer-joined", {
       postId: String(postId),
       viewerSocketId: socket.id,
       userId: String(userId || ""),
+      userName: String(userName || "Resident"),
       live_session: session,
     });
     io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
@@ -96,11 +116,13 @@ io.on("connection", (socket) => {
       postId,
       targetSocketId,
       kind,
+      role,
       payload,
     }: {
       postId: string;
       targetSocketId: string;
       kind: "offer" | "answer" | "candidate";
+      role?: "host" | "guest" | "viewer";
       payload: any;
     }) => {
       if (!postId || !targetSocketId || !kind) return;
@@ -108,20 +130,178 @@ io.on("connection", (socket) => {
         postId: String(postId),
         sourceSocketId: socket.id,
         kind,
+        role: role || "viewer",
         payload,
       });
     }
   );
 
+  socket.on(
+    "community-live:guest:request",
+    async ({ postId, userId, userName }: { postId: string; userId?: string; userName?: string }) => {
+      if (!postId) return;
+      const result = await CommunityLiveService.requestGuest({
+        postId: String(postId),
+        socketId: socket.id,
+        userId,
+        userName,
+      });
+      if ((result as any)?.blocked) {
+        socket.emit("community-live:guest-rejected", {
+          postId: String(postId),
+          reason: "A guest is already active.",
+        });
+        return;
+      }
+      socket.emit("community-live:guest-requested", {
+        postId: String(postId),
+        request: Array.isArray(result.requests)
+          ? result.requests.find((item: any) => String(item?.socketId || "") === socket.id) || null
+          : null,
+        live_session: result.session,
+      });
+      io.to(`community-live:${postId}:host`).emit("community-live:guest-requests", {
+        postId: String(postId),
+        requests: result.requests,
+        live_session: result.session,
+      });
+      io.to(`community-live:${postId}:publishers`).emit("community-live:guest-requests", {
+        postId: String(postId),
+        requests: result.requests,
+        live_session: result.session,
+      });
+      const hostSocketId = CommunityLiveService.hostSocketId(String(postId));
+      if (hostSocketId) {
+        io.to(hostSocketId).emit("community-live:guest-requested-for-host", {
+          postId: String(postId),
+          requests: result.requests,
+          live_session: result.session,
+        });
+      }
+    }
+  );
+
+  socket.on("community-live:guest:approve", async ({ postId, viewerSocketId }: { postId: string; viewerSocketId: string }) => {
+    if (!postId || !viewerSocketId) return;
+    const result = await CommunityLiveService.approveGuest(String(postId), String(viewerSocketId));
+    io.to(`community-live:${postId}:host`).emit("community-live:guest-requests", {
+      postId: String(postId),
+      requests: result.requests,
+      live_session: result.session,
+    });
+    if (result.approved) {
+      io.to(String(viewerSocketId)).emit("community-live:guest-approved", {
+        postId: String(postId),
+        audienceSocketIds: result.audienceSocketIds || [],
+        request: result.approved,
+        live_session: result.session,
+      });
+    }
+  });
+
+  socket.on("community-live:guest:reject", async ({ postId, viewerSocketId }: { postId: string; viewerSocketId: string }) => {
+    if (!postId || !viewerSocketId) return;
+    const result = await CommunityLiveService.rejectGuest(String(postId), String(viewerSocketId));
+    io.to(`community-live:${postId}:host`).emit("community-live:guest-requests", {
+      postId: String(postId),
+      requests: result.requests,
+      live_session: result.session,
+    });
+    io.to(String(viewerSocketId)).emit("community-live:guest-rejected", {
+      postId: String(postId),
+      reason: "Host declined your request to join.",
+      live_session: result.session,
+    });
+  });
+
+  socket.on(
+    "community-live:guest:join",
+    async ({ postId, userId, userName }: { postId: string; userId?: string; userName?: string }) => {
+      if (!postId) return;
+      socket.join(`community-live:${postId}:publishers`);
+      const result = await CommunityLiveService.bindGuest({
+        postId: String(postId),
+        socketId: socket.id,
+        userId,
+        userName,
+      });
+      socket.emit("community-live:audience-sync", {
+        postId: String(postId),
+        audienceSocketIds: result.audienceSocketIds,
+        role: "guest",
+        live_session: result.session,
+      });
+      io.to(`community-live:${postId}:viewers`).emit("community-live:publisher-joined", {
+        postId: String(postId),
+        publisherSocketId: socket.id,
+        role: "guest",
+        live_session: result.session,
+      });
+      io.to(`community-live:${postId}:host`).emit("community-live:guest-active", {
+        postId: String(postId),
+        live_session: result.session,
+      });
+      io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
+        postId: String(postId),
+        live_session: result.session,
+      });
+    }
+  );
+
+  socket.on("community-live:guest:remove", async ({ postId }: { postId: string }) => {
+    if (!postId) return;
+    const guestSocketId = CommunityLiveService.publisherSocketIds(String(postId)).find((id) => id !== CommunityLiveService.hostSocketId(String(postId)));
+    const session = await CommunityLiveService.removeGuest(String(postId));
+    if (guestSocketId) {
+      io.to(String(guestSocketId)).emit("community-live:guest-removed", {
+        postId: String(postId),
+        live_session: session,
+      });
+    }
+    io.to(`community-live:${postId}:viewers`).emit("community-live:publisher-left", {
+      postId: String(postId),
+      publisherSocketId: guestSocketId || null,
+      role: "guest",
+      live_session: session,
+    });
+    io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
+      postId: String(postId),
+      live_session: session,
+    });
+    io.to(`community-live:${postId}:host`).emit("community-live:guest-requests", {
+      postId: String(postId),
+      requests: CommunityLiveService.getPendingRequests(String(postId)),
+      live_session: session,
+    });
+  });
+
   socket.on("community-live:leave", async ({ postId }: { postId: string }) => {
     if (!postId) return;
     socket.leave(`community-live:${postId}:viewers`);
-    const session = await CommunityLiveService.removeViewer(String(postId), socket.id);
-    io.to(`community-live:${postId}:host`).emit("community-live:viewer-left", {
-      postId: String(postId),
-      viewerSocketId: socket.id,
-      live_session: session,
-    });
+    const beforeGuestSocketId = CommunityLiveService.publisherSocketIds(String(postId)).find((id) => id !== CommunityLiveService.hostSocketId(String(postId)));
+    const session = beforeGuestSocketId === socket.id
+      ? await CommunityLiveService.removeGuest(String(postId), socket.id)
+      : await CommunityLiveService.removeViewer(String(postId), socket.id);
+    if (beforeGuestSocketId === socket.id) {
+      socket.leave(`community-live:${postId}:publishers`);
+      io.to(`community-live:${postId}:viewers`).emit("community-live:publisher-left", {
+        postId: String(postId),
+        publisherSocketId: socket.id,
+        role: "guest",
+        live_session: session,
+      });
+      io.to(`community-live:${postId}:host`).emit("community-live:guest-requests", {
+        postId: String(postId),
+        requests: CommunityLiveService.getPendingRequests(String(postId)),
+        live_session: session,
+      });
+    } else {
+      io.to(`community-live:${postId}:publishers`).emit("community-live:viewer-left", {
+        postId: String(postId),
+        viewerSocketId: socket.id,
+        live_session: session,
+      });
+    }
     io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
       postId: String(postId),
       live_session: session,
@@ -135,6 +315,19 @@ io.on("connection", (socket) => {
         postId: item.postId,
         live_session: item.session,
       });
+      io.to(`community-live:${item.postId}:host`).emit("community-live:guest-requests", {
+        postId: item.postId,
+        requests: item.requests,
+        live_session: item.session,
+      });
+      if (item.guestLeft) {
+        io.to(`community-live:${item.postId}:viewers`).emit("community-live:publisher-left", {
+          postId: item.postId,
+          publisherSocketId: socket.id,
+          role: "guest",
+          live_session: item.session,
+        });
+      }
       if (item.ended) {
         io.to(`community-live:${item.postId}:viewers`).emit("community-live:ended", {
           postId: item.postId,

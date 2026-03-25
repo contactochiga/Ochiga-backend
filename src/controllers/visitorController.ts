@@ -22,6 +22,16 @@ function requireUserContext(req: Request) {
   return { user, userId, estateId, homeId };
 }
 
+function readUserContext(req: Request) {
+  const user = (req as any).user as any;
+  return {
+    user,
+    userId: user?.id ? String(user.id) : "",
+    estateId: user?.estate_id || user?.estateId || null,
+    homeId: user?.home_id || user?.homeId || null,
+  };
+}
+
 /**
  * CREATE VISITOR
  * - estate/home context comes from req.user (Option A)
@@ -130,7 +140,11 @@ export async function createVisitor(req: Request, res: Response) {
  */
 export async function listMyVisitors(req: Request, res: Response) {
   try {
-    const { userId, estateId, homeId } = requireUserContext(req);
+    const { userId, estateId, homeId } = readUserContext(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    if (!estateId || !homeId) {
+      return res.json({ items: [] });
+    }
 
     const { data, error } = await supabaseAdmin
       .from("visitor_access")
