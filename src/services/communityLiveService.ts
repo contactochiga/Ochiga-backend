@@ -20,6 +20,15 @@ type GuestRequest = {
   userName: string;
 };
 
+export type LiveChatMessage = {
+  id: string;
+  postId: string;
+  userId: string;
+  userName: string;
+  text: string;
+  createdAt: string;
+};
+
 type RuntimeSession = {
   postId: string;
   hostSocketId: string | null;
@@ -28,6 +37,7 @@ type RuntimeSession = {
   guestUserId: string | null;
   guestDisplayName: string | null;
   pendingRequests: Map<string, GuestRequest>;
+  chatMessages: LiveChatMessage[];
 };
 
 export type CommunityLiveSession = {
@@ -72,6 +82,7 @@ function runtimeSession(postId: string) {
       guestUserId: null,
       guestDisplayName: null,
       pendingRequests: new Map<string, GuestRequest>(),
+      chatMessages: [],
     };
     runtime.set(key, entry);
   }
@@ -206,6 +217,10 @@ export class CommunityLiveService {
     return Array.from(runtimeSession(postId).pendingRequests.values());
   }
 
+  static listChatMessages(postId: string) {
+    return [...runtimeSession(postId).chatMessages];
+  }
+
   static audienceSocketIds(postId: string) {
     const entry = runtimeSession(postId);
     return Array.from(entry.viewerSockets).filter((socketId) => socketId !== entry.guestSocketId);
@@ -234,6 +249,7 @@ export class CommunityLiveService {
     entry.guestSocketId = null;
     entry.guestUserId = null;
     entry.guestDisplayName = null;
+    entry.chatMessages = [];
 
     await upsertPersisted(input.postId, {
       post_id: String(input.postId),
@@ -302,6 +318,28 @@ export class CommunityLiveService {
       session: serialize(input.postId),
       requests: this.getPendingRequests(input.postId),
     };
+  }
+
+  static addChatMessage(input: {
+    postId: string;
+    userId?: string | null;
+    userName?: string | null;
+    text?: string | null;
+  }) {
+    const postId = String(input.postId || "");
+    const text = String(input.text || "").trim();
+    if (!postId || !text) return null;
+    const entry = runtimeSession(postId);
+    const message: LiveChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      postId,
+      userId: String(input.userId || ""),
+      userName: String(input.userName || "Resident"),
+      text,
+      createdAt: nowIso(),
+    };
+    entry.chatMessages = [...entry.chatMessages.slice(-29), message];
+    return message;
   }
 
   static async approveGuest(postId: string, socketId: string) {

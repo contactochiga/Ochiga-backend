@@ -53,6 +53,18 @@ router.get(
   CommunityCtrl.getLiveSession
 );
 
+router.get(
+  "/live/:postId/requests",
+  requireAuth,
+  CommunityCtrl.getLiveRequests
+);
+
+router.get(
+  "/live/:postId/chat",
+  requireAuth,
+  CommunityCtrl.getLiveChat
+);
+
 // Get all posts for an estate
 router.get(
   "/posts/estate/:estateId",

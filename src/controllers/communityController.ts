@@ -497,12 +497,62 @@ export async function getLiveSession(req: Request, res: Response) {
     post_id: String(postId),
     live_link: String((post as any)?.live_link || ""),
     rtc_config: await CommunityLiveService.rtcConfig(),
+    requests: CommunityLiveService.getPendingRequests(String(postId)),
+    chat: CommunityLiveService.listChatMessages(String(postId)),
     live_session: liveSession || {
       post_id: String(postId),
       status: "ended",
       viewer_count: 0,
       is_live: false,
     },
+  });
+}
+
+export async function getLiveRequests(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  const { postId } = req.params;
+  const { data: post, error } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
+
+  return res.json({
+    ok: true,
+    post_id: String(postId),
+    requests: CommunityLiveService.getPendingRequests(String(postId)),
+    live_session: CommunityLiveService.get(String(postId)),
+  });
+}
+
+export async function getLiveChat(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  const { postId } = req.params;
+  const { data: post, error } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
+
+  return res.json({
+    ok: true,
+    post_id: String(postId),
+    chat: CommunityLiveService.listChatMessages(String(postId)),
+    live_session: CommunityLiveService.get(String(postId)),
   });
 }
 

@@ -65,6 +65,7 @@ io.on("connection", (socket) => {
 
   socket.on("community-live:host:join", async ({ postId }: { postId: string }) => {
     if (!postId) return;
+    console.log("[community-live] host join", { postId: String(postId), socketId: socket.id });
     socket.join(`community-live:${postId}:host`);
     socket.join(`community-live:${postId}:viewers`);
     socket.join(`community-live:${postId}:publishers`);
@@ -95,6 +96,12 @@ io.on("connection", (socket) => {
 
   socket.on("community-live:viewer:join", async ({ postId, userId, userName }: { postId: string; userId?: string; userName?: string }) => {
     if (!postId) return;
+    console.log("[community-live] viewer join", {
+      postId: String(postId),
+      socketId: socket.id,
+      userId: String(userId || ""),
+      userName: String(userName || ""),
+    });
     socket.join(`community-live:${postId}:viewers`);
     const session = await CommunityLiveService.addViewer(String(postId), socket.id);
     io.to(`community-live:${postId}:publishers`).emit("community-live:viewer-joined", {
@@ -140,6 +147,13 @@ io.on("connection", (socket) => {
     "community-live:guest:request",
     async ({ postId, userId, userName }: { postId: string; userId?: string; userName?: string }) => {
       if (!postId) return;
+      console.log("[community-live] guest request", {
+        postId: String(postId),
+        socketId: socket.id,
+        userId: String(userId || ""),
+        userName: String(userName || ""),
+        hostSocketId: CommunityLiveService.hostSocketId(String(postId)),
+      });
       const result = await CommunityLiveService.requestGuest({
         postId: String(postId),
         socketId: socket.id,
@@ -178,11 +192,21 @@ io.on("connection", (socket) => {
           live_session: result.session,
         });
       }
+      io.to(`community-live:${postId}:viewers`).emit("community-live:guest-requests", {
+        postId: String(postId),
+        requests: result.requests,
+        live_session: result.session,
+      });
     }
   );
 
   socket.on("community-live:guest:approve", async ({ postId, viewerSocketId }: { postId: string; viewerSocketId: string }) => {
     if (!postId || !viewerSocketId) return;
+    console.log("[community-live] guest approve", {
+      postId: String(postId),
+      hostSocketId: socket.id,
+      viewerSocketId: String(viewerSocketId),
+    });
     const result = await CommunityLiveService.approveGuest(String(postId), String(viewerSocketId));
     io.to(`community-live:${postId}:host`).emit("community-live:guest-requests", {
       postId: String(postId),
@@ -201,6 +225,11 @@ io.on("connection", (socket) => {
 
   socket.on("community-live:guest:reject", async ({ postId, viewerSocketId }: { postId: string; viewerSocketId: string }) => {
     if (!postId || !viewerSocketId) return;
+    console.log("[community-live] guest reject", {
+      postId: String(postId),
+      hostSocketId: socket.id,
+      viewerSocketId: String(viewerSocketId),
+    });
     const result = await CommunityLiveService.rejectGuest(String(postId), String(viewerSocketId));
     io.to(`community-live:${postId}:host`).emit("community-live:guest-requests", {
       postId: String(postId),
@@ -218,6 +247,12 @@ io.on("connection", (socket) => {
     "community-live:guest:join",
     async ({ postId, userId, userName }: { postId: string; userId?: string; userName?: string }) => {
       if (!postId) return;
+      console.log("[community-live] guest join", {
+        postId: String(postId),
+        socketId: socket.id,
+        userId: String(userId || ""),
+        userName: String(userName || ""),
+      });
       socket.join(`community-live:${postId}:publishers`);
       const result = await CommunityLiveService.bindGuest({
         postId: String(postId),
@@ -274,6 +309,28 @@ io.on("connection", (socket) => {
       live_session: session,
     });
   });
+
+  socket.on(
+    "community-live:chat:send",
+    ({ postId, userId, userName, text }: { postId: string; userId?: string; userName?: string; text?: string }) => {
+      if (!postId) return;
+      const message = CommunityLiveService.addChatMessage({
+        postId: String(postId),
+        userId,
+        userName,
+        text,
+      });
+      if (!message) return;
+      io.to(`community-live:${postId}:viewers`).emit("community-live:chat", {
+        postId: String(postId),
+        message,
+      });
+      io.to(`community-live:${postId}:host`).emit("community-live:chat", {
+        postId: String(postId),
+        message,
+      });
+    }
+  );
 
   socket.on("community-live:leave", async ({ postId }: { postId: string }) => {
     if (!postId) return;
