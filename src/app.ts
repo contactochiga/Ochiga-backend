@@ -23,6 +23,7 @@ import walletRoutes from "./routes/wallets";
 import servicesRoutes from "./routes/services";
 import roomsRoutes from "./routes/rooms";
 import geoRoutes from "./routes/geo";
+import officeExportRoutes from "./routes/officeExport";
 
 // ✅ OTP routes (email verification)
 import otpRoutes from "./routes/otp.routes";
@@ -125,7 +126,7 @@ const corsMiddleware = cors({
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-otp-token", "X-Requested-With"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-api-key", "x-otp-token", "X-Requested-With"],
   optionsSuccessStatus: 204,
 });
 
@@ -221,6 +222,7 @@ app.use("/geo", geoRoutes);
 
 app.use("/facility", facilityRoutes);
 app.use("/signals", signalRoutes);
+app.use("/office", officeExportRoutes);
 
 // ✅ EXTRA SAFE: force CORP on camera endpoints (m3u8 + ts)
 app.use("/cameras", (_req, res, next) => {
