@@ -126,7 +126,15 @@ const corsMiddleware = cors({
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-api-key", "x-otp-token", "X-Requested-With"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-api-key",
+    "x-otp-token",
+    "X-Requested-With",
+    "X-Ochiga-Surface",
+    "X-Oyi-Contract-Version",
+  ],
   optionsSuccessStatus: 204,
 });
 
