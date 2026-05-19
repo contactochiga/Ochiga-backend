@@ -1,6 +1,7 @@
 // src/routes/facilityVisitorsRoutes.ts
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 import {
   exportVisitorReportFacility,
   getVisitorTimelineFacility,
@@ -16,21 +17,21 @@ const router = Router();
 router.use(requireAuth);
 
 // GET /facility/visitors?today=true&status=active
-router.get("/", listFacilityVisitors);
+router.get("/", requirePermission("visitors.manage"), listFacilityVisitors);
 
 // POST /facility/visitors/verify { code }
-router.post("/verify", verifyVisitorCodeFacility);
+router.post("/verify", requirePermission("visitors.manage"), auditOnSuccess("visitor.updated", "visitor", "id"), verifyVisitorCodeFacility);
 
 // GET /facility/visitors/:id/timeline
-router.get("/:id/timeline", getVisitorTimelineFacility);
+router.get("/:id/timeline", requirePermission("visitors.manage"), getVisitorTimelineFacility);
 
 // PATCH /facility/visitors/:id { status }
-router.patch("/:id", updateVisitorStatusFacility);
+router.patch("/:id", requirePermission("visitors.manage"), auditOnSuccess("visitor.updated", "visitor", "id"), updateVisitorStatusFacility);
 
 // POST /facility/visitors/actions/lockdown { mode }
-router.post("/actions/lockdown", triggerLockdownFacility);
+router.post("/actions/lockdown", requirePermission("visitors.manage"), auditOnSuccess("visitor.updated", "visitor_operation", "lockdown"), triggerLockdownFacility);
 
 // GET /facility/visitors/reports/export?today=true&format=json|csv
-router.get("/reports/export", exportVisitorReportFacility);
+router.get("/reports/export", requirePermission("visitors.manage"), exportVisitorReportFacility);
 
 export default router;

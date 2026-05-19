@@ -1,6 +1,8 @@
 // src/routes/estates.ts
 import { Router } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 import crypto from "crypto";
 import QRCode from "qrcode";
 
@@ -16,7 +18,12 @@ const router = Router();
  * 3) Creates estate_membership + home_membership
  * 4) Creates an invite link + QR (so user can finish onboarding)
  */
-router.post("/create-home", async (req, res) => {
+router.post(
+  "/create-home",
+  requireAuth,
+  requirePermission("homes.write"),
+  auditOnSuccess("home.created", "home", "home_id"),
+  async (req, res) => {
   try {
     const { estate_id, home_name, owner_email, owner_username, full_name } =
       req.body;
@@ -162,6 +169,7 @@ router.post("/create-home", async (req, res) => {
     console.error("Create Home Error:", err);
     return res.status(500).json({ error: "Unexpected server error" });
   }
-});
+  }
+);
 
 export default router;

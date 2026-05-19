@@ -1,5 +1,6 @@
 import express from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
 const router = express.Router();
@@ -363,7 +364,7 @@ router.post("/context/select", requireAuth, async (req, res) => {
   });
 });
 
-router.get("/integrations/tuya", requireAuth, async (req, res) => {
+router.get("/integrations/tuya", requireAuth, requirePermission("devices.read"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
@@ -372,7 +373,7 @@ router.get("/integrations/tuya", requireAuth, async (req, res) => {
   return res.json({ provider: "tuya", connected: !!uid, tuya_uid: uid, masked_uid: masked });
 });
 
-router.patch("/integrations/tuya", requireAuth, async (req, res) => {
+router.patch("/integrations/tuya", requireAuth, requirePermission("devices.control"), auditOnSuccess("settings.updated", "integration", "tuya"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
@@ -385,7 +386,7 @@ router.patch("/integrations/tuya", requireAuth, async (req, res) => {
   return res.json({ ok: true, provider: "tuya", connected: true, tuya_uid });
 });
 
-router.get("/integrations/:provider", requireAuth, async (req, res) => {
+router.get("/integrations/:provider", requireAuth, requirePermission("devices.read"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
@@ -410,7 +411,7 @@ router.get("/integrations/:provider", requireAuth, async (req, res) => {
   });
 });
 
-router.patch("/integrations/:provider", requireAuth, async (req, res) => {
+router.patch("/integrations/:provider", requireAuth, requirePermission("devices.control"), auditOnSuccess("settings.updated", "integration", "provider"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
@@ -442,7 +443,7 @@ router.patch("/integrations/:provider", requireAuth, async (req, res) => {
  * PATCH /me/profile
  * Updates authenticated user profile fields.
  */
-router.patch("/profile", requireAuth, async (req, res) => {
+router.patch("/profile", requireAuth, auditOnSuccess("user.updated", "user", "id"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
@@ -490,7 +491,7 @@ router.patch("/profile", requireAuth, async (req, res) => {
  * DELETE /me/account
  * Permanently deletes the authenticated user's account.
  */
-router.delete("/account", requireAuth, async (req, res) => {
+router.delete("/account", requireAuth, auditOnSuccess("user.deleted", "user", "id"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 

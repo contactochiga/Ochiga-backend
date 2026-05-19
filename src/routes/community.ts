@@ -1,7 +1,7 @@
 // src/routes/community.ts
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 import * as CommunityCtrl from "../controllers/communityController";
 
 const router = Router();
@@ -16,52 +16,59 @@ const router = Router();
 router.post(
   "/post",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.created", "community_post", "postId"),
   CommunityCtrl.createPost
 );
 
 router.post(
   "/media/upload",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  requirePermission("community.write"),
+  auditOnSuccess("document.generated", "community_media", "mediaId"),
   CommunityCtrl.uploadMedia
 );
 
 router.post(
   "/live/start",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.updated", "community_live", "postId"),
   CommunityCtrl.startLiveSession
 );
 
 router.get(
   "/live/config",
   requireAuth,
+  requirePermission("community.read"),
   CommunityCtrl.getLiveRtcConfig
 );
 
 router.post(
   "/live/:postId/stop",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  requirePermission("community.write"),
   CommunityCtrl.stopLiveSession
 );
 
 router.get(
   "/live/:postId",
   requireAuth,
+  requirePermission("community.read"),
   CommunityCtrl.getLiveSession
 );
 
 router.get(
   "/live/:postId/requests",
   requireAuth,
+  requirePermission("community.read"),
   CommunityCtrl.getLiveRequests
 );
 
 router.get(
   "/live/:postId/chat",
   requireAuth,
+  requirePermission("community.read"),
   CommunityCtrl.getLiveChat
 );
 
@@ -69,6 +76,7 @@ router.get(
 router.get(
   "/posts/estate/:estateId",
   requireAuth,
+  requirePermission("community.read"),
   CommunityCtrl.getPostsForEstate
 );
 
@@ -76,12 +84,14 @@ router.get(
 router.get(
   "/post/:postId",
   requireAuth,
+  requirePermission("community.read"),
   CommunityCtrl.getPostById
 );
 
 router.post(
   "/post/:postId/view",
   requireAuth,
+  requirePermission("community.read"),
   CommunityCtrl.trackPostView
 );
 
@@ -89,7 +99,8 @@ router.post(
 router.put(
   "/post/:postId",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.updated", "community_post", "postId"),
   CommunityCtrl.updatePost
 );
 
@@ -97,7 +108,8 @@ router.put(
 router.delete(
   "/post/:postId",
   requireAuth,
-  requireRole("manager", "estate_admin", "owner", "operator"),
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.deleted", "community_post", "postId"),
   CommunityCtrl.deletePost
 );
 
@@ -111,7 +123,8 @@ router.delete(
 router.post(
   "/post/:postId/comment",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.updated", "community_post", "postId"),
   CommunityCtrl.createComment
 );
 
@@ -119,6 +132,7 @@ router.post(
 router.get(
   "/post/:postId/comments",
   requireAuth,
+  requirePermission("community.read"),
   CommunityCtrl.getCommentsForPost
 );
 
@@ -126,7 +140,8 @@ router.get(
 router.put(
   "/comment/:commentId",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.updated", "community_comment", "commentId"),
   CommunityCtrl.updateComment
 );
 
@@ -134,7 +149,8 @@ router.put(
 router.delete(
   "/comment/:commentId",
   requireAuth,
-  requireRole("manager", "estate_admin", "owner", "operator"),
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.deleted", "community_comment", "commentId"),
   CommunityCtrl.deleteComment
 );
 
@@ -147,14 +163,16 @@ router.delete(
 router.post(
   "/post/:postId/react",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.updated", "community_post", "postId"),
   CommunityCtrl.reactToPost
 );
 
 router.post(
   "/comment/:commentId/react",
   requireAuth,
-  requireRole("resident", "manager", "estate_admin", "owner", "operator", "security"),
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.updated", "community_comment", "commentId"),
   CommunityCtrl.reactToComment
 );
 
