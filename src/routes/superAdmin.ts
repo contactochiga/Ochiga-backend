@@ -1,23 +1,23 @@
 import { Router } from "express";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
 import * as SuperAdminCtrl from "../controllers/superAdminController";
 
 const router = Router();
 
-router.use(requireAuth, requireRole("admin", "system_admin", "auditor"));
+router.use(requireAuth);
 
-router.get("/overview", SuperAdminCtrl.getOverview);
-router.get("/estates", SuperAdminCtrl.listEstates);
-router.get("/estates/:estateId/summary", SuperAdminCtrl.getEstateSummary);
-router.get("/homes", SuperAdminCtrl.listHomes);
-router.get("/devices", SuperAdminCtrl.listDevices);
-router.get("/transactions", SuperAdminCtrl.listTransactions);
-router.get("/activities", SuperAdminCtrl.listActivities);
-router.get("/audit-logs", SuperAdminCtrl.listAuditLogs);
+router.get("/overview", requirePermission("office.read"), SuperAdminCtrl.getOverview);
+router.get("/estates", requirePermission("estates.read"), SuperAdminCtrl.listEstates);
+router.get("/estates/:estateId/summary", requirePermission("estates.read"), SuperAdminCtrl.getEstateSummary);
+router.get("/homes", requirePermission("homes.read"), SuperAdminCtrl.listHomes);
+router.get("/devices", requirePermission("devices.read"), SuperAdminCtrl.listDevices);
+router.get("/transactions", requirePermission("wallets.read"), SuperAdminCtrl.listTransactions);
+router.get("/activities", requirePermission("office.read"), SuperAdminCtrl.listActivities);
+router.get("/audit-logs", requirePermission("audit.read"), SuperAdminCtrl.listAuditLogs);
 
-router.post("/estates/:estateId/status", SuperAdminCtrl.setEstateStatus);
-router.post("/users/:userId/status", SuperAdminCtrl.setUserStatus);
-router.post("/devices/:deviceId/disable", SuperAdminCtrl.setDeviceDisabled);
-router.post("/wallets/:walletId/freeze", SuperAdminCtrl.setWalletFrozen);
+router.post("/estates/:estateId/status", requirePermission("estates.write"), SuperAdminCtrl.setEstateStatus);
+router.post("/users/:userId/status", requirePermission("staff.manage"), SuperAdminCtrl.setUserStatus);
+router.post("/devices/:deviceId/disable", requirePermission("devices.control"), SuperAdminCtrl.setDeviceDisabled);
+router.post("/wallets/:walletId/freeze", requirePermission("wallets.manage"), SuperAdminCtrl.setWalletFrozen);
 
 export default router;

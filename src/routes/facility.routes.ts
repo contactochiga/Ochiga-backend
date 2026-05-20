@@ -1,6 +1,7 @@
 // src/routes/facility.routes.ts
 import express from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 import { getFacilityOverview } from "../controllers/facilityOverview.controller";
 
 import {
@@ -38,37 +39,37 @@ const router = express.Router();
 /**
  * Overview
  */
-router.get("/overview", requireAuth, getFacilityOverview);
+router.get("/overview", requireAuth, requirePermission("estates.read"), getFacilityOverview);
 
 /**
  * Estates
  */
-router.post("/estates", requireAuth, createEstate);
-router.get("/estates", requireAuth, listMyEstates);
+router.post("/estates", requireAuth, requirePermission("estates.write"), auditOnSuccess("estate.created", "estate", "estate_id"), createEstate);
+router.get("/estates", requireAuth, requirePermission("estates.read"), listMyEstates);
 
 /**
  * Homes
  */
-router.post("/homes", requireAuth, createHome);
-router.patch("/homes/:homeId", requireAuth, updateHome);
-router.get("/estates/:estateId/homes", requireAuth, listEstateHomes);
+router.post("/homes", requireAuth, requirePermission("homes.write"), auditOnSuccess("home.created", "home", "home_id"), createHome);
+router.patch("/homes/:homeId", requireAuth, requirePermission("homes.write"), auditOnSuccess("home.updated", "home", "homeId"), updateHome);
+router.get("/estates/:estateId/homes", requireAuth, requirePermission("homes.read"), listEstateHomes);
 
 /**
  * Rooms
  */
-router.post("/rooms", requireAuth, createRoom);
-router.get("/homes/:homeId/rooms", requireAuth, listHomeRooms);
+router.post("/rooms", requireAuth, requirePermission("homes.write"), auditOnSuccess("room.created", "room", "room_id"), createRoom);
+router.get("/homes/:homeId/rooms", requireAuth, requirePermission("homes.read"), listHomeRooms);
 
 /**
  * Invites (estate/home via facility.controller.ts)
  */
-router.post("/invites", requireAuth, inviteUser);
+router.post("/invites", requireAuth, requirePermission("visitors.manage"), inviteUser);
 router.post("/invites/accept", requireAuth, acceptInvite);
 
 /**
  * Room assignment
  */
-router.post("/rooms/assign", requireAuth, assignUserToRoom);
+router.post("/rooms/assign", requireAuth, requirePermission("homes.write"), auditOnSuccess("room.updated", "room", "room_id"), assignUserToRoom);
 
 /**
  * ---------------------------
@@ -84,9 +85,9 @@ router.use("/devices", facilityDevicesRoutes);
  * Base: /facility/estate-users
  * ---------------------------
  */
-router.get("/estate-users", requireAuth, listEstateUsers);
-router.patch("/estate-users/:membershipId", requireAuth, updateEstateUser);
-router.delete("/estate-users/:membershipId", requireAuth, removeEstateUser);
+router.get("/estate-users", requireAuth, requirePermission("staff.manage"), listEstateUsers);
+router.patch("/estate-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("estate.updated", "estate_membership", "membershipId"), updateEstateUser);
+router.delete("/estate-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("estate.updated", "estate_membership", "membershipId"), removeEstateUser);
 
 /**
  * ---------------------------
@@ -98,7 +99,7 @@ router.delete("/estate-users/:membershipId", requireAuth, removeEstateUser);
  * ---------------------------
  */
 router.use("/homes", homeUsersRoutes);
-router.patch("/home-users/:membershipId", requireAuth, updateHomeUser);
-router.delete("/home-users/:membershipId", requireAuth, removeHomeUser);
+router.patch("/home-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("home.updated", "home_membership", "membershipId"), updateHomeUser);
+router.delete("/home-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("home.updated", "home_membership", "membershipId"), removeHomeUser);
 
 export default router;

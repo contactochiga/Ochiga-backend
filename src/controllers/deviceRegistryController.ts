@@ -2,6 +2,7 @@
 
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { emitAuditEvent } from "../core/foundation";
 
 /**
  * Expected "canonical" discovered device shape (from your adapters/types.ts)
@@ -100,6 +101,17 @@ export async function registerDevice(req: any, res: Response) {
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
+    void emitAuditEvent({
+      actorId: req.user?.id,
+      actorRole: req.user?.role,
+      action: "device.registered",
+      resourceType: "device",
+      resourceId: data?.id,
+      estateId,
+      status: "success",
+      metadata: { adapter: normalized.adapter, external_id: normalized.external_id, home_id, room_id },
+      req,
+    });
 
     return res.status(201).json({
       message: "Device registered",
@@ -141,6 +153,17 @@ export async function assignDevice(req: any, res: Response) {
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
+    void emitAuditEvent({
+      actorId: req.user?.id,
+      actorRole: req.user?.role,
+      action: "device.assigned",
+      resourceType: "device",
+      resourceId: data?.id || deviceId,
+      estateId,
+      status: "success",
+      metadata: { home_id, room_id },
+      req,
+    });
 
     return res.json({
       message: "Device assigned",

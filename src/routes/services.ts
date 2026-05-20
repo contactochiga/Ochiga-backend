@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
 import {
   listEstateServicePayments,
   listServiceConfigs,
@@ -10,10 +10,10 @@ import {
 
 const router = Router();
 
-router.get("/config", requireAuth, listServiceConfigs);
-router.patch("/config/:serviceKey", requireAuth, upsertServiceConfig);
-router.post("/pay", requireAuth, payServiceFromWallet);
-router.get("/payments", requireAuth, listServicePayments);
-router.get("/estate/payments", requireAuth, listEstateServicePayments);
+router.get("/config", requireAuth, requirePermission("settings.manage"), listServiceConfigs);
+router.patch("/config/:serviceKey", requireAuth, requirePermission("settings.manage"), upsertServiceConfig);
+router.post("/pay", requireAuth, requirePermission("wallets.manage"), payServiceFromWallet);
+router.get("/payments", requireAuth, requirePermission("wallets.read"), listServicePayments);
+router.get("/estate/payments", requireAuth, requirePermission("wallets.read"), listEstateServicePayments);
 
 export default router;

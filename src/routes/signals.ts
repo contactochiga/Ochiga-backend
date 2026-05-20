@@ -1,19 +1,19 @@
 // src/routes/signals.ts
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
 import { ingestSignal } from "../controllers/signal.controller";
 
 const router = Router();
 
 // ✅ Canonical: POST /signals
-router.post("/", requireAuth, (req, res) => ingestSignal(req, res));
+router.post("/", requireAuth, requirePermission("devices.control"), (req, res) => ingestSignal(req, res));
 
 /**
  * ✅ Convenience alias:
  * POST /signals/device/:deviceId/command
  * Forwards into ingestSignal as a normal signal
  */
-router.post("/device/:deviceId/command", requireAuth, (req, res) => {
+router.post("/device/:deviceId/command", requireAuth, requirePermission("devices.control"), (req, res) => {
   req.body = {
     ...req.body,
     deviceId: req.params.deviceId,

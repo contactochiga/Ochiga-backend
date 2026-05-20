@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
 import { PushNotificationService } from "../services/PushNotificationService";
 
 const router = Router();
 
-router.post("/register", requireAuth, async (req, res) => {
+router.post("/register", requireAuth, requirePermission("notifications.read"), async (req, res) => {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
@@ -27,7 +27,7 @@ router.post("/register", requireAuth, async (req, res) => {
   return res.json({ ok: true, token: result?.data || null });
 });
 
-router.post("/unregister", requireAuth, async (req, res) => {
+router.post("/unregister", requireAuth, requirePermission("notifications.read"), async (req, res) => {
   const token = String(req.body?.token || "").trim();
   if (!token) return res.status(400).json({ error: "token is required" });
 
@@ -37,4 +37,3 @@ router.post("/unregister", requireAuth, async (req, res) => {
 });
 
 export default router;
-

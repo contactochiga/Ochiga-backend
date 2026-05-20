@@ -1,7 +1,7 @@
 // src/routes/facilityDevices.routes.ts
 
 import express from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
 
 import { discoverDevices } from "../controllers/deviceDiscoveryController";
 import { requestDeviceCommand } from "../controllers/deviceCommandController";
@@ -26,18 +26,18 @@ const router = express.Router();
  */
 
 /** Discover */
-router.get("/discover", requireAuth, discoverDevices);
+router.get("/discover", requireAuth, requirePermission("devices.read"), discoverDevices);
 
 /** Registry */
-router.get("/", requireAuth, listRegisteredDevices);
-router.post("/register", requireAuth, registerDevice);
-router.patch("/:deviceId/assign", requireAuth, assignDevice);
+router.get("/", requireAuth, requirePermission("devices.read"), listRegisteredDevices);
+router.post("/register", requireAuth, requirePermission("devices.control"), registerDevice);
+router.patch("/:deviceId/assign", requireAuth, requirePermission("devices.control"), assignDevice);
 
 /** Commands (queued into signal plane) */
-router.post("/:deviceId/command", requireAuth, requestDeviceCommand);
+router.post("/:deviceId/command", requireAuth, requirePermission("devices.control"), requestDeviceCommand);
 
 /** Geo / Placement */
-router.patch("/:deviceId/location", requireAuth, updateDeviceLocation);
-router.get("/near", requireAuth, getDevicesNearPoint);
+router.patch("/:deviceId/location", requireAuth, requirePermission("devices.control"), updateDeviceLocation);
+router.get("/near", requireAuth, requirePermission("devices.read"), getDevicesNearPoint);
 
 export default router;

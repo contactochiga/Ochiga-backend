@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { CONTRACT_VERSION } from "../core/foundation";
 
 const router = Router();
 
@@ -158,6 +159,8 @@ router.get("/export", requireOfficeExportKey, async (_req: Request, res: Respons
     payments,
     dues,
     communityPosts,
+    users,
+    rooms,
   ] = await Promise.all([
     safeSelect("estates"),
     safeSelect("homes"),
@@ -172,6 +175,8 @@ router.get("/export", requireOfficeExportKey, async (_req: Request, res: Respons
     safeSelect("payments"),
     safeSelect("dues"),
     safeSelect("community_posts"),
+    safeSelect("users", "id,email,full_name,username,role,estate_id,home_id,account_status,created_at,updated_at"),
+    safeSelect("rooms"),
   ]);
 
   const packageMap = new Map<string, Row>();
@@ -309,8 +314,43 @@ router.get("/export", requireOfficeExportKey, async (_req: Request, res: Respons
     },
   ];
 
+  const officeUsers = users.map((user) => ({
+    id: String(user.id),
+    email: user.email || "",
+    display_name: user.full_name || user.username || user.email || "User",
+    role: user.role || "resident",
+    status: user.account_status || "active",
+    estate_id: user.estate_id || null,
+    home_id: user.home_id || null,
+    created_at: user.created_at || nowIso,
+    updated_at: user.updated_at || nowIso,
+  }));
+
+  const officeVisitors = visitors.map((visitor, index) => ({
+    id: String(visitor.id || `oyi_visitor_${index + 1}`),
+    estate_id: visitor.estate_id || null,
+    home_id: visitor.home_id || null,
+    name: visitor.name || visitor.visitor_name || "Visitor",
+    status: visitor.status || "pending",
+    created_at: visitor.created_at || nowIso,
+    updated_at: visitor.updated_at || nowIso,
+    metadata: visitor,
+  }));
+
+  const officeRooms = rooms.map((room, index) => ({
+    id: String(room.id || `oyi_room_${index + 1}`),
+    estate_id: room.estate_id || null,
+    home_id: room.home_id || null,
+    name: room.name || room.label || "Room",
+    type: room.type || "room",
+    created_at: room.created_at || nowIso,
+    updated_at: room.updated_at || nowIso,
+    metadata: room.metadata || {},
+  }));
+
   return res.json({
     source: "oyi-os",
+    contract_version: CONTRACT_VERSION,
     generated_at: nowIso,
     collections: {
       packages: Array.from(packageMap.values()),
@@ -321,6 +361,9 @@ router.get("/export", requireOfficeExportKey, async (_req: Request, res: Respons
       wallets: officeWallets,
       analytics,
       support_mappings: supportMappings,
+      users: officeUsers,
+      visitors: officeVisitors,
+      rooms: officeRooms,
     },
     meta: {
       raw_counts: {
@@ -334,6 +377,8 @@ router.get("/export", requireOfficeExportKey, async (_req: Request, res: Respons
         payments: payments.length,
         dues: dues.length,
         community_posts: communityPosts.length,
+        users: users.length,
+        rooms: rooms.length,
       },
     },
   });

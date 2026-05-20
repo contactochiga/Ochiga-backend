@@ -1,6 +1,7 @@
 // src/routes/invites.routes.ts
 import { Router } from "express";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 import {
   createInviteHandler,
   listMyInvitesHandler,
@@ -16,7 +17,8 @@ const router = Router();
 router.post(
   "/",
   requireAuth,
-  requireRole("estate_admin", "manager", "operator", "admin"),
+  requirePermission("staff.manage"),
+  auditOnSuccess("user.invited", "invite", "inviteId"),
   createInviteHandler
 );
 

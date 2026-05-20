@@ -1,8 +1,8 @@
 // src/routes/residents.ts
 import express from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { requireAuth } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 import crypto from "crypto";
 import QRCode from "qrcode";
 
@@ -15,7 +15,8 @@ const router = express.Router();
 router.post(
   "/",
   requireAuth,
-  requireRole("estate_admin", "manager"),
+  requirePermission("staff.manage"),
+  auditOnSuccess("user.invited", "resident", "email"),
   async (req, res) => {
     const { email, estateId, homeId, fullName } = req.body;
 

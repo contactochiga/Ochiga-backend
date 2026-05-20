@@ -3,6 +3,7 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { permissionsForRole } from "../core/foundation";
 
 const router = Router();
 
@@ -13,7 +14,16 @@ if (!APP_JWT_SECRET) {
 
 function signToken(payload: any) {
   if (!APP_JWT_SECRET) throw new Error("APP_JWT_SECRET not set");
-  return jwt.sign(payload, APP_JWT_SECRET, { expiresIn: "30d" });
+  const permissionScopes = Array.isArray(payload.permission_scopes) ? payload.permission_scopes : [];
+  return jwt.sign(
+    {
+      ...payload,
+      permission_scopes: permissionScopes,
+      permissions: permissionsForRole(payload.role, permissionScopes),
+    },
+    APP_JWT_SECRET,
+    { expiresIn: "30d" }
+  );
 }
 
 function requireOtpGate(
@@ -143,6 +153,7 @@ router.post("/signup", async (req, res) => {
       email: updatedUser.email,
       estate_id: updatedUser.estate_id,
       home_id: updatedUser.home_id,
+      permission_scopes: Array.isArray((updatedUser as any).permission_scopes) ? (updatedUser as any).permission_scopes : [],
     });
 
     return res.json({
@@ -205,6 +216,7 @@ router.post("/login", async (req, res) => {
       role: user.role,
       estate_id: user.estate_id,
       home_id: user.home_id,
+      permission_scopes: Array.isArray((user as any).permission_scopes) ? (user as any).permission_scopes : [],
     });
 
     return res.json({ message: "Login successful", user, token });

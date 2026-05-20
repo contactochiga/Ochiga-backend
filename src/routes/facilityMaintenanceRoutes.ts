@@ -5,7 +5,8 @@ import {
   updateMaintenance,
 } from "../controllers/maintenance.controller";
 
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 
 const router = Router();
 
@@ -13,9 +14,9 @@ const router = Router();
 router.use(requireAuth);
 
 // GET /facility/maintenance
-router.get("/", listFacilityMaintenance);
+router.get("/", requirePermission("support.read"), listFacilityMaintenance);
 
 // PATCH /facility/maintenance/:id
-router.patch("/:id", updateMaintenance);
+router.patch("/:id", requirePermission("support.assign"), auditOnSuccess("support.ticket.assigned", "support_ticket", "id"), updateMaintenance);
 
 export default router;

@@ -6,6 +6,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import { NotificationService } from "../services/NotificationService";
+import { emitAuditEvent } from "../core/foundation";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -101,6 +102,17 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         resolved_device_uuid: deviceRow?.id || null,
       },
     });
+    void emitAuditEvent({
+      actorId: user.id,
+      actorRole: user.role,
+      action: "device.command.requested",
+      resourceType: "device",
+      resourceId: deviceRef,
+      estateId: deviceRow?.estate_id || user.estate_id,
+      status: "success",
+      metadata: { command, raw_device_ref: rawId, resolved_device_uuid: deviceRow?.id || null },
+      req,
+    });
 
     // ------------------------------------------------------------
     // ✅ FAST PATH: Execute immediately for Tuya devices
@@ -172,6 +184,17 @@ export async function requestDeviceCommand(req: Request, res: Response) {
           kind: "device.command.executed",
         },
         entityId: String(deviceRow.id),
+      });
+      void emitAuditEvent({
+        actorId: user.id,
+        actorRole: user.role,
+        action: "device.command.executed",
+        resourceType: "device",
+        resourceId: deviceRow.id,
+        estateId: deviceRow.estate_id,
+        status: "success",
+        metadata: { command: normalized, vendor: deviceRow.vendor, external_id: deviceRow.external_id },
+        req,
       });
 
       return res.status(200).json({

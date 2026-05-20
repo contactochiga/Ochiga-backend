@@ -5,7 +5,8 @@ import {
   listMyMaintenance,
 } from "../controllers/maintenance.controller";
 
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 
 const router = Router();
 
@@ -13,9 +14,9 @@ const router = Router();
 router.use(requireAuth);
 
 // GET /maintenance?status=open
-router.get("/", listMyMaintenance);
+router.get("/", requirePermission("support.read"), listMyMaintenance);
 
 // POST /maintenance
-router.post("/", createMaintenance);
+router.post("/", requirePermission("support.read"), auditOnSuccess("support.ticket.created", "support_ticket", "id"), createMaintenance);
 
 export default router;

@@ -5,6 +5,7 @@ import axios from "axios";
 import crypto from "crypto";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
+import { emitAuditEvent } from "../core/foundation";
 
 /**
  * Wallet funding is enabled by default.
@@ -208,6 +209,17 @@ export async function initPayment(req: Request, res: Response) {
       amount: amountKobo,
       metadata: { userId: user.id },
     });
+    void emitAuditEvent({
+      actorId: user.id,
+      actorRole: user.role,
+      action: "wallet.funding.initialized",
+      resourceType: "wallet",
+      resourceId: user.id,
+      estateId: user.estate_id,
+      status: "success",
+      metadata: { amount: amountNumber, email },
+      req,
+    });
 
     return res.json(response.data);
   } catch (err: any) {
@@ -337,6 +349,17 @@ export async function debitWallet(req: Request, res: Response) {
     currency: "NGN",
     reason: reason ?? "manual_debit",
     timestamp: new Date().toISOString(),
+  });
+  void emitAuditEvent({
+    actorId: user.id,
+    actorRole: user.role,
+    action: "wallet.debited",
+    resourceType: "wallet",
+    resourceId: wallet.id,
+    estateId: user.estate_id,
+    status: "success",
+    metadata: { amount: amountNumber, reason: reason ?? "manual_debit", reference: txReference },
+    req,
   });
 
   return res.json({ balance });

@@ -2,32 +2,33 @@
 
 import { Router } from "express";
 import * as VisitorCtrl from "../controllers/visitorController";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 
 const router = Router();
 
 // Create visitor
-router.post("/", requireAuth, VisitorCtrl.createVisitor);
+router.post("/", requireAuth, requirePermission("visitors.create"), auditOnSuccess("visitor.created", "visitor", "id"), VisitorCtrl.createVisitor);
 
 // List my visitor requests
-router.get("/mine", requireAuth, VisitorCtrl.listMyVisitors);
+router.get("/mine", requireAuth, requirePermission("visitors.create"), VisitorCtrl.listMyVisitors);
 
 // Verify visitor by access code
-router.post("/verify", requireAuth, VisitorCtrl.verifyVisitor);
+router.post("/verify", requireAuth, requirePermission("visitors.manage"), auditOnSuccess("visitor.updated", "visitor", "id"), VisitorCtrl.verifyVisitor);
 
 // Approve visitor
-router.put("/approve/:id", requireAuth, VisitorCtrl.approveVisitor);
+router.put("/approve/:id", requireAuth, requirePermission("visitors.manage"), auditOnSuccess("visitor.approved", "visitor", "id"), VisitorCtrl.approveVisitor);
 
 // Mark entry
-router.post("/entry/:id", requireAuth, VisitorCtrl.markEntry);
+router.post("/entry/:id", requireAuth, requirePermission("visitors.manage"), auditOnSuccess("visitor.entry.logged", "visitor", "id"), VisitorCtrl.markEntry);
 
 // Mark exit
-router.post("/exit/:id", requireAuth, VisitorCtrl.markExit);
+router.post("/exit/:id", requireAuth, requirePermission("visitors.manage"), auditOnSuccess("visitor.exit.logged", "visitor", "id"), VisitorCtrl.markExit);
 
 // Get visitor info
-router.get("/info/:id", requireAuth, VisitorCtrl.getVisitorInfo);
+router.get("/info/:id", requireAuth, requirePermission("visitors.manage"), VisitorCtrl.getVisitorInfo);
 
 // Estate analytics
-router.get("/analytics/estate/:estateId", requireAuth, VisitorCtrl.getAnalyticsForEstate);
+router.get("/analytics/estate/:estateId", requireAuth, requirePermission("visitors.manage"), VisitorCtrl.getAnalyticsForEstate);
 
 export default router;

@@ -1,6 +1,6 @@
 // src/routes/devices.ts
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
 import { discoverDevices } from "../controllers/deviceDiscoveryController";
 import { getDeviceState } from "../controllers/deviceStateController";
 import { assignDevices } from "../controllers/deviceAssignController";
@@ -9,13 +9,13 @@ import { getEstateDevices } from "../controllers/deviceEstateController"; // ✅
 
 const router = Router();
 
-router.get("/discover", requireAuth, discoverDevices);
-router.post("/assign", requireAuth, assignDevices);
+router.get("/discover", requireAuth, requirePermission("devices.read"), discoverDevices);
+router.post("/assign", requireAuth, requirePermission("devices.control"), assignDevices);
 
 // ✅ THIS WAS MISSING (your frontend calls it)
-router.get("/estate/:estateId", requireAuth, getEstateDevices);
+router.get("/estate/:estateId", requireAuth, requirePermission("devices.read"), getEstateDevices);
 
-router.post("/:deviceId/command", requireAuth, requestDeviceCommand);
-router.get("/:deviceId/state", requireAuth, getDeviceState);
+router.post("/:deviceId/command", requireAuth, requirePermission("devices.control"), requestDeviceCommand);
+router.get("/:deviceId/state", requireAuth, requirePermission("devices.read"), getDeviceState);
 
 export default router;

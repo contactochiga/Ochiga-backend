@@ -1,46 +1,34 @@
 // src/routes/cameras.ts
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 import * as CamerasCtrl from "../controllers/camerasController";
 import * as CameraStreamCtrl from "../controllers/cameraStreamController";
 import * as CameraIntelCtrl from "../controllers/cameraIntelController";
 
 const router = Router();
 
-/**
- * Allow all roles that can view CCTV in facility ops
- */
-const CAMERA_ALLOWED_ROLES = [
-  "admin",
-  "estate_admin",
-  "owner",
-  "manager",
-  "operator",
-  "security",
-  "staff",
-  "member",
-  "viewer",
-] as const;
-
 router.post(
   "/scan",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("cameras.view"),
+  auditOnSuccess("camera.action.requested", "camera_scan", "scan"),
   CamerasCtrl.scan
 );
 
 router.get(
   "/estate/:estateId",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("cameras.view"),
+  auditOnSuccess("camera.viewed", "estate", "estateId"),
   CamerasCtrl.listByEstate
 );
 
 router.post(
   "/bind",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("devices.control"),
+  auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CamerasCtrl.bind
 );
 
@@ -48,14 +36,15 @@ router.post(
 router.post(
   "/bind-from-discovery",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("devices.control"),
+  auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CamerasCtrl.bindFromDiscovery
 );
 
 router.get(
   "/reports/security",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("cameras.view"),
   CameraIntelCtrl.getSecurityReport
 );
 
@@ -66,49 +55,53 @@ router.get(
 router.get(
   "/:cameraId/hls-token",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("cameras.view"),
+  auditOnSuccess("camera.viewed", "camera", "cameraId"),
   CameraStreamCtrl.issueHlsToken
 );
 
 router.get(
   "/:cameraId/playback",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("cameras.view"),
+  auditOnSuccess("camera.viewed", "camera", "cameraId"),
   CameraIntelCtrl.getPlaybackUrl
 );
 
 router.get(
   "/:cameraId/events",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("cameras.view"),
   CameraIntelCtrl.listEvents
 );
 
 router.post(
   "/:cameraId/events",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("cameras.view"),
+  auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CameraIntelCtrl.createEvent
 );
 
 router.get(
   "/analytics/capabilities",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("cameras.view"),
   CameraIntelCtrl.getAnalyticsCapabilities
 );
 
 router.get(
   "/:cameraId/ai/profile",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("cameras.view"),
   CameraIntelCtrl.getAiProfile
 );
 
 router.put(
   "/:cameraId/ai/profile",
   requireAuth,
-  requireRole(...CAMERA_ALLOWED_ROLES),
+  requirePermission("devices.control"),
+  auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CameraIntelCtrl.upsertAiProfile
 );
 

@@ -1,7 +1,6 @@
 // src/routes/geo.ts
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
+import { requireAuth, requirePermission } from "../middleware/auth";
 
 import {
   evaluateGeoAlerts,
@@ -20,6 +19,7 @@ const router = Router();
 router.post(
   "/evaluate",
   requireAuth,
+  requirePermission("estates.read"),
   async (req, res) => {
     try {
       return evaluateGeoAlerts(req, res);
@@ -33,7 +33,7 @@ router.post(
 router.post(
   "/estate/:estateId",
   requireAuth,
-  requireRole("estate_admin", "manager", "operator"),
+  requirePermission("estates.write"),
   async (req, res) => {
     try {
       return setEstateBoundary(req, res);
@@ -51,6 +51,7 @@ router.post(
 router.get(
   "/estate/:estateId",
   requireAuth,
+  requirePermission("estates.read"),
   async (req, res) => {
     try {
       return getEstateBoundary(req, res);
@@ -68,6 +69,8 @@ router.get(
  */
 router.post(
   "/visitor/:visitorId",
+  requireAuth,
+  requirePermission("visitors.manage"),
   async (req, res) => {
     try {
       return updateVisitorLocation(req, res);
@@ -85,7 +88,7 @@ router.post(
 router.post(
   "/device/:deviceId",
   requireAuth,
-  requireRole("estate_admin", "manager", "operator"),
+  requirePermission("devices.control"),
   async (req, res) => {
     try {
       return updateDeviceLocation(req, res);

@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
 const router = express.Router();
@@ -10,7 +10,7 @@ const router = express.Router();
 //  - /notifications              -> all
 //  - /notifications?unread=true  -> only unread (status != "read" OR null)
 // =============================
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, requirePermission("notifications.read"), async (req, res) => {
   const user = req.user;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
@@ -42,7 +42,7 @@ router.get("/", requireAuth, async (req, res) => {
 // =============================
 // MARK notification as read
 // =============================
-router.post("/read/:id", requireAuth, async (req, res) => {
+router.post("/read/:id", requireAuth, requirePermission("notifications.read"), async (req, res) => {
   const user = req.user;
   const { id } = req.params;
 

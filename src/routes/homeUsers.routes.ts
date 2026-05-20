@@ -1,6 +1,7 @@
 // src/routes/homeUsers.routes.ts
 import express from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 
 import {
   listHomeUsers,
@@ -17,8 +18,8 @@ const router = express.Router();
  * GET    /facility/homes/:homeId/users
  * POST   /facility/homes/:homeId/invite
  */
-router.get("/:homeId/users", requireAuth, listHomeUsers);
-router.post("/:homeId/invite", requireAuth, inviteHomeUser);
+router.get("/:homeId/users", requireAuth, requirePermission("staff.manage"), listHomeUsers);
+router.post("/:homeId/invite", requireAuth, requirePermission("staff.manage"), auditOnSuccess("user.invited", "home", "homeId"), inviteHomeUser);
 
 /**
  * Base mounted under: /facility
