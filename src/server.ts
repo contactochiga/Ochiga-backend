@@ -24,6 +24,8 @@ import { redis } from "./config/redis";
 // ---------------------------
 import { initMqttBridge } from "./device/bridge";
 import { startEventProcessor } from "./event-processor/eventProcessor";
+import { setIO } from "./realtime/io";
+import { authenticateSocket, canUseSocket, denySocket } from "./socketAuth";
 
 // ✅ INTENT WORKER (BullMQ)
 import { startIntentWorker } from "./workers/intentWorker";
@@ -40,31 +42,45 @@ export const io = new IOServer(httpServer, {
     credentials: true,
   },
 });
+setIO(io);
+
+io.use(authenticateSocket);
 
 // ---------------------------
 // SOCKET.IO CONNECTIONS
 // ---------------------------
 io.on("connection", (socket) => {
-  console.log("🔌 Socket connected →", socket.id);
+  console.log("🔌 Socket connected →", socket.id, socket.data.user?.id || "");
 
   socket.on("subscribe:estate", (estateId: string) => {
+    if (!canUseSocket(socket, "estates.read")) return denySocket(socket, "estates.read", "estate", String(estateId || ""));
+    const user = socket.data.user;
+    if (user?.estate_id && String(user.estate_id) !== String(estateId) && !canUseSocket(socket, "office.read")) {
+      return denySocket(socket, "estates.read", "estate", String(estateId || ""));
+    }
     socket.join(`estate:${estateId}`);
   });
 
   socket.on("subscribe:user", (userId: string) => {
+    if (String(socket.data.user?.id || "") !== String(userId || "") && !canUseSocket(socket, "staff.manage")) {
+      return denySocket(socket, "staff.manage", "user", String(userId || ""));
+    }
     socket.join(`user:${userId}`);
   });
 
   socket.on("subscribe:room", (roomId: string) => {
+    if (!canUseSocket(socket, "homes.read")) return denySocket(socket, "homes.read", "room", String(roomId || ""));
     socket.join(`room:${roomId}`);
   });
 
   socket.on("subscribe:thread", (threadId: string) => {
+    if (!canUseSocket(socket, "support.read")) return denySocket(socket, "support.read", "thread", String(threadId || ""));
     socket.join(`thread:${threadId}`);
   });
 
   socket.on("community-live:host:join", async ({ postId }: { postId: string }) => {
     if (!postId) return;
+    if (!canUseSocket(socket, "community.write")) return denySocket(socket, "community.write", "community_post", String(postId));
     console.log("[community-live] host join", { postId: String(postId), socketId: socket.id });
     socket.join(`community-live:${postId}:host`);
     socket.join(`community-live:${postId}:viewers`);
@@ -78,6 +94,7 @@ io.on("connection", (socket) => {
 
   socket.on("community-live:host:stop", async ({ postId }: { postId: string }) => {
     if (!postId) return;
+    if (!canUseSocket(socket, "community.write")) return denySocket(socket, "community.write", "community_post", String(postId));
     const session = await CommunityLiveService.stop(String(postId));
     io.to(`community-live:${postId}:viewers`).emit("community-live:stats", {
       postId: String(postId),
@@ -96,6 +113,7 @@ io.on("connection", (socket) => {
 
   socket.on("community-live:viewer:join", async ({ postId, userId, userName }: { postId: string; userId?: string; userName?: string }) => {
     if (!postId) return;
+    if (!canUseSocket(socket, "community.read")) return denySocket(socket, "community.read", "community_post", String(postId));
     console.log("[community-live] viewer join", {
       postId: String(postId),
       socketId: socket.id,
@@ -133,6 +151,7 @@ io.on("connection", (socket) => {
       payload: any;
     }) => {
       if (!postId || !targetSocketId || !kind) return;
+      if (!canUseSocket(socket, "community.read")) return denySocket(socket, "community.read", "community_post", String(postId));
       io.to(String(targetSocketId)).emit("community-live:signal", {
         postId: String(postId),
         sourceSocketId: socket.id,
@@ -147,6 +166,7 @@ io.on("connection", (socket) => {
     "community-live:guest:request",
     async ({ postId, userId, userName }: { postId: string; userId?: string; userName?: string }) => {
       if (!postId) return;
+      if (!canUseSocket(socket, "community.write")) return denySocket(socket, "community.write", "community_post", String(postId));
       console.log("[community-live] guest request", {
         postId: String(postId),
         socketId: socket.id,
@@ -202,6 +222,7 @@ io.on("connection", (socket) => {
 
   socket.on("community-live:guest:approve", async ({ postId, viewerSocketId }: { postId: string; viewerSocketId: string }) => {
     if (!postId || !viewerSocketId) return;
+    if (!canUseSocket(socket, "community.write")) return denySocket(socket, "community.write", "community_post", String(postId));
     console.log("[community-live] guest approve", {
       postId: String(postId),
       hostSocketId: socket.id,
@@ -225,6 +246,7 @@ io.on("connection", (socket) => {
 
   socket.on("community-live:guest:reject", async ({ postId, viewerSocketId }: { postId: string; viewerSocketId: string }) => {
     if (!postId || !viewerSocketId) return;
+    if (!canUseSocket(socket, "community.write")) return denySocket(socket, "community.write", "community_post", String(postId));
     console.log("[community-live] guest reject", {
       postId: String(postId),
       hostSocketId: socket.id,
@@ -247,6 +269,7 @@ io.on("connection", (socket) => {
     "community-live:guest:join",
     async ({ postId, userId, userName }: { postId: string; userId?: string; userName?: string }) => {
       if (!postId) return;
+      if (!canUseSocket(socket, "community.write")) return denySocket(socket, "community.write", "community_post", String(postId));
       console.log("[community-live] guest join", {
         postId: String(postId),
         socketId: socket.id,
@@ -285,6 +308,7 @@ io.on("connection", (socket) => {
 
   socket.on("community-live:guest:remove", async ({ postId }: { postId: string }) => {
     if (!postId) return;
+    if (!canUseSocket(socket, "community.write")) return denySocket(socket, "community.write", "community_post", String(postId));
     const guestSocketId = CommunityLiveService.publisherSocketIds(String(postId)).find((id) => id !== CommunityLiveService.hostSocketId(String(postId)));
     const session = await CommunityLiveService.removeGuest(String(postId));
     if (guestSocketId) {
@@ -314,6 +338,7 @@ io.on("connection", (socket) => {
     "community-live:chat:send",
     ({ postId, userId, userName, text }: { postId: string; userId?: string; userName?: string; text?: string }) => {
       if (!postId) return;
+      if (!canUseSocket(socket, "community.write")) return denySocket(socket, "community.write", "community_post", String(postId));
       const message = CommunityLiveService.addChatMessage({
         postId: String(postId),
         userId,
@@ -334,6 +359,7 @@ io.on("connection", (socket) => {
 
   socket.on("community-live:leave", async ({ postId }: { postId: string }) => {
     if (!postId) return;
+    if (!canUseSocket(socket, "community.read")) return denySocket(socket, "community.read", "community_post", String(postId));
     socket.leave(`community-live:${postId}:viewers`);
     const beforeGuestSocketId = CommunityLiveService.publisherSocketIds(String(postId)).find((id) => id !== CommunityLiveService.hostSocketId(String(postId)));
     const session = beforeGuestSocketId === socket.id

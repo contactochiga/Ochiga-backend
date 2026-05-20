@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { UserRole } from "../types/user";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { emitAuditEvent, hasPermission, permissionsForRole, type PermissionKey } from "../core/foundation";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 if (!APP_JWT_SECRET) {
@@ -19,6 +20,8 @@ export interface AuthUser {
   role: UserRole;
   estate_id?: string;
   home_id?: string;
+  permissions?: string[];
+  permission_scopes?: string[];
 }
 
 /* ---------------------------------------------------------
@@ -71,19 +74,26 @@ async function hydrateUserContext(decoded: AuthUser): Promise<AuthUser> {
 
   const { data } = await supabaseAdmin
     .from("users")
-    .select("id,email,username,role,estate_id,home_id")
+    .select("id,email,username,role,estate_id,home_id,permission_scopes")
     .eq("id", decoded.id)
     .maybeSingle();
 
   if (!data) return decoded;
 
+  const role = ((data as any)?.role || decoded.role) as UserRole;
+  const permissionScopes = Array.isArray((data as any)?.permission_scopes)
+    ? (data as any).permission_scopes
+    : decoded.permission_scopes || [];
+
   return {
     ...decoded,
     email: (data as any)?.email ?? decoded.email,
     username: (data as any)?.username ?? decoded.username,
-    role: ((data as any)?.role || decoded.role) as UserRole,
+    role,
     estate_id: (data as any)?.estate_id ?? decoded.estate_id,
     home_id: (data as any)?.home_id ?? decoded.home_id,
+    permission_scopes: permissionScopes,
+    permissions: permissionsForRole(role, permissionScopes),
   };
 }
 
@@ -98,6 +108,16 @@ async function verifyToken(req: Request, res: Response): Promise<AuthUser | null
 
     const token = extractToken(req);
     if (!token) {
+      void emitAuditEvent({
+        actorId: null,
+        actorRole: "guest",
+        action: "auth.failed",
+        resourceType: "route",
+        resourceId: req.path,
+        status: "denied",
+        metadata: { method: req.method, reason: "missing_token" },
+        req,
+      });
       res.status(401).json({ error: "Missing token" });
       return null;
     }
@@ -106,6 +126,16 @@ async function verifyToken(req: Request, res: Response): Promise<AuthUser | null
 
     // minimal shape check
     if (!decoded?.id || !decoded?.role) {
+      void emitAuditEvent({
+        actorId: decoded?.id || null,
+        actorRole: decoded?.role || "guest",
+        action: "auth.failed",
+        resourceType: "route",
+        resourceId: req.path,
+        status: "denied",
+        metadata: { method: req.method, reason: "invalid_payload" },
+        req,
+      });
       res.status(401).json({ error: "Invalid token payload" });
       return null;
     }
@@ -115,6 +145,16 @@ async function verifyToken(req: Request, res: Response): Promise<AuthUser | null
     return hydrated;
   } catch (err) {
     console.error("JWT Error:", err);
+    void emitAuditEvent({
+      actorId: null,
+      actorRole: "guest",
+      action: "auth.failed",
+      resourceType: "route",
+      resourceId: req.path,
+      status: "denied",
+      metadata: { method: req.method, reason: "invalid_or_expired_token" },
+      req,
+    });
     res.status(401).json({ error: "Invalid or expired token" });
     return null;
   }
@@ -151,6 +191,45 @@ export function requireRole(...roles: UserRole[]) {
   };
 }
 
+
+/* ---------------------------------------------------------
+ * ACTION-BASED PERMISSION GUARD
+ * --------------------------------------------------------- */
+export function requirePermission(permission: PermissionKey | string) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user;
+    if (!user) {
+      void emitAuditEvent({
+        actorId: null,
+        actorRole: "guest",
+        action: "permission.denied",
+        resourceType: "route",
+        resourceId: req.path,
+        status: "denied",
+        metadata: { method: req.method, permission },
+        req,
+      });
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    if (!hasPermission(user, permission)) {
+      void emitAuditEvent({
+        actorId: user.id,
+        actorRole: user.role,
+        actorEmail: user.email,
+        action: "permission.denied",
+        resourceType: "route",
+        resourceId: req.path,
+        estateId: user.estate_id,
+        status: "denied",
+        metadata: { method: req.method, permission, actorEmail: user.email },
+        req,
+      });
+      return res.status(403).json({ error: "Insufficient permissions", permission });
+    }
+    return next();
+  };
+}
+
 /* ---------------------------------------------------------
  * OPTIONAL USER ATTACH (NON-BLOCKING)
  * --------------------------------------------------------- */
@@ -162,7 +241,12 @@ export function attachUser(req: Request, _res: Response, next: NextFunction) {
     if (!token) return next();
 
     const decoded = jwt.verify(token, APP_JWT_SECRET) as AuthUser;
-    if (decoded?.id && decoded?.role) req.user = decoded;
+    if (decoded?.id && decoded?.role) {
+      req.user = {
+        ...decoded,
+        permissions: permissionsForRole(decoded.role, decoded.permission_scopes || []),
+      };
+    }
   } catch {
     // ignore invalid token
   }
