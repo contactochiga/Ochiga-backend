@@ -30,11 +30,11 @@ router.get("/mine", requireAuth, listMyInvitesHandler);
 /**
  * Consumer accepts invite
  */
-router.post("/:inviteId/accept", requireAuth, acceptInviteHandler);
+router.post("/:inviteId/accept", requireAuth, auditOnSuccess("user.invite.accepted", "invite", "inviteId"), acceptInviteHandler);
 
 /**
  * Consumer declines invite
  */
-router.post("/:inviteId/decline", requireAuth, declineInviteHandler);
+router.post("/:inviteId/decline", requireAuth, auditOnSuccess("user.invite.declined", "invite", "inviteId"), declineInviteHandler);
 
 export default router;

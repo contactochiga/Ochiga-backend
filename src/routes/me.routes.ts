@@ -317,7 +317,7 @@ router.get("/contexts", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/context/select", requireAuth, async (req, res) => {
+router.post("/context/select", requireAuth, auditOnSuccess("user.context.selected", "home", "home_id"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 

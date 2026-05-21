@@ -64,7 +64,7 @@ router.get("/homes/:homeId/rooms", requireAuth, requirePermission("homes.read"),
  * Invites (estate/home via facility.controller.ts)
  */
 router.post("/invites", requireAuth, requirePermission("visitors.manage"), inviteUser);
-router.post("/invites/accept", requireAuth, acceptInvite);
+router.post("/invites/accept", requireAuth, auditOnSuccess("user.invite.accepted", "invite", "invite"), acceptInvite);
 
 /**
  * Room assignment

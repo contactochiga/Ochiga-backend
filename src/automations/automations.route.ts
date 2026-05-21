@@ -1,8 +1,8 @@
 // src/automations/automations.route.ts
 import express from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { requireAuth } from "../middleware/auth";
-import { requireRole } from "../middleware/roles";
+import { requireAuth, requirePermission } from "../middleware/auth";
+import { auditOnSuccess } from "../middleware/audit";
 import { nluToAutomation } from "../utils/ai";
 import { AutomationSchema, AutomationInputSchema } from "../utils/validation";
 import { z } from "zod";
@@ -19,7 +19,8 @@ const router = express.Router();
 router.post(
   "/",
   requireAuth,
-  requireRole("estate_admin", "manager", "operator"),
+  requirePermission("devices.control"),
+  auditOnSuccess("automation.created", "automation", "id"),
   async (req, res) => {
     try {
       const parsed = AutomationInputSchema.parse(req.body);
@@ -48,7 +49,7 @@ router.post(
  * Roles: authenticated users (filtered by estate)
  * ==========================================
  */
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, requirePermission("devices.read"), async (req, res) => {
   const estateId = req.query.estateId as string | undefined;
 
   let query = supabaseAdmin.from("automations").select("*");
@@ -70,7 +71,8 @@ router.get("/", requireAuth, async (req, res) => {
 router.post(
   "/ai-suggest",
   requireAuth,
-  requireRole("estate_admin", "manager", "operator"),
+  requirePermission("devices.control"),
+  auditOnSuccess("automation.created", "automation", "id"),
   async (req, res) => {
     try {
       const { prompt, estateId } = req.body;
@@ -128,7 +130,8 @@ router.post(
 router.post(
   "/:id/trigger",
   requireAuth,
-  requireRole("estate_admin", "manager", "operator"),
+  requirePermission("devices.control"),
+  auditOnSuccess("automation.triggered", "automation", "id"),
   async (req, res) => {
     const id = req.params.id;
 
