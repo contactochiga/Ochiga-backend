@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
 import { emitAuditEvent } from "../core/foundation";
+import { recordProviderWebhookEvent } from "../services/providerWebhookEvents";
 
 /**
  * Wallet funding is enabled by default.
@@ -250,7 +251,24 @@ export async function initPayment(req: Request, res: Response) {
 /** PAYSTACK WEBHOOK */
 export async function handleWebhook(req: Request, res: Response) {
   const secret = getPaystackSecret();
-  if (!secret) return res.sendStatus(200); // do not break Paystack retries
+  const event = req.body;
+  const eventType = String(event?.event || "paystack.webhook");
+  const data = event?.data || {};
+  const relatedUserId = data?.metadata?.userId ? String(data.metadata.userId) : null;
+
+  if (!secret) {
+    void recordProviderWebhookEvent({
+      provider: "paystack",
+      eventType,
+      verified: false,
+      signatureStatus: "secret_missing",
+      deliveryStatus: "received_unverified",
+      payloadSummary: { event: eventType, reference: data?.reference || null },
+      relatedUserId,
+      req,
+    });
+    return res.sendStatus(200); // do not break Paystack retries
+  }
 
   const signature = req.headers["x-paystack-signature"] as string;
 
@@ -258,19 +276,54 @@ export async function handleWebhook(req: Request, res: Response) {
   const raw = (req as any).rawBody || Buffer.from(JSON.stringify(req.body));
 
   const hash = crypto.createHmac("sha512", secret).update(raw).digest("hex");
-  if (hash !== signature) return res.status(401).send("Invalid signature");
-
-  const event = req.body;
+  if (hash !== signature) {
+    void recordProviderWebhookEvent({
+      provider: "paystack",
+      eventType,
+      verified: false,
+      signatureStatus: signature ? "invalid" : "missing",
+      deliveryStatus: "failed",
+      errorMessage: "Invalid signature",
+      payloadSummary: { event: eventType, reference: data?.reference || null },
+      relatedUserId,
+      req,
+    });
+    return res.status(401).send("Invalid signature");
+  }
 
   try {
     if (event?.event === "charge.success") {
-      const data = event.data;
       const userId = data?.metadata?.userId;
 
-      if (!userId) return res.sendStatus(200);
+      if (!userId) {
+        void recordProviderWebhookEvent({
+          provider: "paystack",
+          eventType,
+          verified: true,
+          signatureStatus: "verified",
+          deliveryStatus: "ignored",
+          errorMessage: "Missing metadata.userId",
+          payloadSummary: { event: eventType, reference: data?.reference || null },
+          req,
+        });
+        return res.sendStatus(200);
+      }
       const amount = Number(data.amount) / 100;
       const reference = String(data.reference || "");
-      if (!reference) return res.sendStatus(200);
+      if (!reference) {
+        void recordProviderWebhookEvent({
+          provider: "paystack",
+          eventType,
+          verified: true,
+          signatureStatus: "verified",
+          deliveryStatus: "ignored",
+          errorMessage: "Missing reference",
+          payloadSummary: { event: eventType, userId },
+          relatedUserId: String(userId),
+          req,
+        });
+        return res.sendStatus(200);
+      }
 
       await applyFundingCredit({
         userId,
@@ -284,8 +337,35 @@ export async function handleWebhook(req: Request, res: Response) {
         },
       });
     }
+
+    void recordProviderWebhookEvent({
+      provider: "paystack",
+      eventType,
+      verified: true,
+      signatureStatus: "verified",
+      deliveryStatus: "delivered",
+      payloadSummary: {
+        event: eventType,
+        reference: data?.reference || null,
+        channel: data?.channel || null,
+        amount: data?.amount || null,
+      },
+      relatedUserId,
+      req,
+    });
   } catch (e: any) {
     console.error("PAYSTACK_WEBHOOK_HANDLER_ERROR:", e?.message || e);
+    void recordProviderWebhookEvent({
+      provider: "paystack",
+      eventType,
+      verified: true,
+      signatureStatus: "verified",
+      deliveryStatus: "failed",
+      errorMessage: e?.message || "handler_error",
+      payloadSummary: { event: eventType, reference: data?.reference || null },
+      relatedUserId,
+      req,
+    });
     // still 200 so Paystack doesn't keep retrying forever
   }
 

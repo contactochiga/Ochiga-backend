@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { CONTRACT_VERSION } from "../core/foundation";
+import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
 
 const router = Router();
 
@@ -43,13 +43,64 @@ function asArray<T = Row>(value: any): T[] {
   return Array.isArray(value) ? value : [];
 }
 
-async function safeSelect(table: string, columns = "*") {
+type SelectResult = {
+  rows: Row[];
+  source: {
+    available: boolean;
+    reason?: string;
+    required_source: string;
+    count: number;
+  };
+};
+
+async function safeSelectWithStatus(table: string, columns = "*"): Promise<SelectResult> {
   const { data, error } = await supabaseAdmin.from(table).select(columns);
   if (error) {
     console.warn(`[office-export] ${table}: ${error.message}`);
-    return [] as Row[];
+    return {
+      rows: [],
+      source: {
+        available: false,
+        reason: "table_or_service_missing",
+        required_source: table,
+        count: 0,
+      },
+    };
   }
-  return asArray<Row>(data);
+  const rows = asArray<Row>(data);
+  return {
+    rows,
+    source: {
+      available: true,
+      required_source: table,
+      count: rows.length,
+    },
+  };
+}
+
+function exportRecord(kind: string, row: Row, index: number, nowIso: string) {
+  return {
+    id: String(row.id || row.event_id || `${kind}_${index + 1}`),
+    estate_id: row.estate_id || null,
+    building_id: row.building_id || null,
+    home_id: row.home_id || null,
+    user_id: row.user_id || row.created_by || null,
+    title: row.title || row.name || row.subject || row.event_type || kind,
+    category: row.category || row.type || kind,
+    status: row.status || row.state || "recorded",
+    priority: row.priority || row.severity || null,
+    created_at: row.created_at || row.received_at || row.timestamp || nowIso,
+    updated_at: row.updated_at || row.created_at || nowIso,
+    metadata: row.metadata || row.payload || row,
+  };
+}
+
+function sourceUnavailable(requiredSource: string) {
+  return {
+    available: false,
+    reason: "table_or_service_missing",
+    required_source: requiredSource,
+  };
 }
 
 function makePackage(estate: Row, nowIso: string) {
@@ -142,42 +193,76 @@ function groupBuildings(homes: Row[], devices: Row[], nowIso: string) {
   }));
 }
 
-router.get("/export", requireOfficeExportKey, async (_req: Request, res: Response) => {
+router.get("/export", requireOfficeExportKey, async (req: Request, res: Response) => {
   const nowIso = new Date().toISOString();
 
   const [
-    estates,
-    homes,
-    devices,
-    estateWallets,
-    wallets,
-    maintenanceRequests,
-    notifications,
-    estateMemberships,
-    homeMemberships,
-    visitors,
-    payments,
-    dues,
-    communityPosts,
-    users,
-    rooms,
+    estatesResult,
+    homesResult,
+    devicesResult,
+    estateWalletsResult,
+    walletsResult,
+    maintenanceRequestsResult,
+    notificationsResult,
+    estateMembershipsResult,
+    homeMembershipsResult,
+    visitorsResult,
+    paymentsResult,
+    duesResult,
+    communityPostsResult,
+    usersResult,
+    roomsResult,
+    incidentsResult,
+    edgeHeartbeatsResult,
+    utilityEventsResult,
+    automationsResult,
+    deviceTelemetryResult,
+    providerWebhookEventsResult,
   ] = await Promise.all([
-    safeSelect("estates"),
-    safeSelect("homes"),
-    safeSelect("devices"),
-    safeSelect("estate_wallets"),
-    safeSelect("wallets"),
-    safeSelect("maintenance_requests"),
-    safeSelect("notifications"),
-    safeSelect("estate_memberships"),
-    safeSelect("home_memberships"),
-    safeSelect("visitors"),
-    safeSelect("payments"),
-    safeSelect("dues"),
-    safeSelect("community_posts"),
-    safeSelect("users", "id,email,full_name,username,role,estate_id,home_id,account_status,created_at,updated_at"),
-    safeSelect("rooms"),
+    safeSelectWithStatus("estates"),
+    safeSelectWithStatus("homes"),
+    safeSelectWithStatus("devices"),
+    safeSelectWithStatus("estate_wallets"),
+    safeSelectWithStatus("wallets"),
+    safeSelectWithStatus("maintenance_requests"),
+    safeSelectWithStatus("notifications"),
+    safeSelectWithStatus("estate_memberships"),
+    safeSelectWithStatus("home_memberships"),
+    safeSelectWithStatus("visitors"),
+    safeSelectWithStatus("payments"),
+    safeSelectWithStatus("dues"),
+    safeSelectWithStatus("community_posts"),
+    safeSelectWithStatus("users", "id,email,full_name,username,role,estate_id,home_id,account_status,created_at,updated_at"),
+    safeSelectWithStatus("rooms"),
+    safeSelectWithStatus("incidents"),
+    safeSelectWithStatus("edge_heartbeats"),
+    safeSelectWithStatus("utility_events"),
+    safeSelectWithStatus("automations"),
+    safeSelectWithStatus("device_telemetry"),
+    safeSelectWithStatus("provider_webhook_events"),
   ]);
+
+  const estates = estatesResult.rows;
+  const homes = homesResult.rows;
+  const devices = devicesResult.rows;
+  const estateWallets = estateWalletsResult.rows;
+  const wallets = walletsResult.rows;
+  const maintenanceRequests = maintenanceRequestsResult.rows;
+  const notifications = notificationsResult.rows;
+  const estateMemberships = estateMembershipsResult.rows;
+  const homeMemberships = homeMembershipsResult.rows;
+  const visitors = visitorsResult.rows;
+  const payments = paymentsResult.rows;
+  const dues = duesResult.rows;
+  const communityPosts = communityPostsResult.rows;
+  const users = usersResult.rows;
+  const rooms = roomsResult.rows;
+  const incidents = incidentsResult.rows;
+  const edgeHeartbeats = edgeHeartbeatsResult.rows;
+  const utilityEvents = utilityEventsResult.rows;
+  const automations = automationsResult.rows;
+  const deviceTelemetry = deviceTelemetryResult.rows;
+  const providerWebhookEvents = providerWebhookEventsResult.rows;
 
   const packageMap = new Map<string, Row>();
   const officeEstates = estates.map((estate) => {
@@ -348,6 +433,96 @@ router.get("/export", requireOfficeExportKey, async (_req: Request, res: Respons
     metadata: room.metadata || {},
   }));
 
+  const maintenance = maintenanceRequests.map((ticket, index) => exportRecord("maintenance", ticket, index, nowIso));
+  const incidentRecords = incidents.map((incident, index) => exportRecord("incident", incident, index, nowIso));
+  const edgeHeartbeatRecords = edgeHeartbeats.map((heartbeat, index) => exportRecord("edge_heartbeat", heartbeat, index, nowIso));
+  const utilityEventRecords = utilityEvents.map((event, index) => exportRecord("utility_event", event, index, nowIso));
+  const community = communityPosts.map((post, index) => exportRecord("community", post, index, nowIso));
+  const support = supportMappings.map((ticket) => ({ ...ticket, metadata: { source: "maintenance_requests" } }));
+  const automationRecords = automations.map((automation, index) => exportRecord("automation", automation, index, nowIso));
+  const telemetryRecords = deviceTelemetry.map((telemetry, index) => exportRecord("device_telemetry", telemetry, index, nowIso));
+  const webhookDeliveryRecords = providerWebhookEvents.map((event, index) => ({
+    id: String(event.id || `provider_webhook_${index + 1}`),
+    provider: event.provider || "unknown",
+    event_type: event.event_type || event.type || "provider.event",
+    received_at: event.received_at || event.created_at || nowIso,
+    verified: Boolean(event.verified),
+    signature_status: event.signature_status || "unknown",
+    delivery_status: event.delivery_status || event.status || "recorded",
+    error_message: event.error_message || "",
+    payload_summary: event.payload_summary || event.metadata || {},
+    related_estate_id: event.related_estate_id || event.estate_id || null,
+    related_user_id: event.related_user_id || event.user_id || null,
+  }));
+
+  const sourceStatus = {
+    estates: estatesResult.source,
+    homes: homesResult.source,
+    devices: devicesResult.source,
+    estate_wallets: estateWalletsResult.source,
+    wallets: walletsResult.source,
+    maintenance_requests: maintenanceRequestsResult.source,
+    notifications: notificationsResult.source,
+    estate_memberships: estateMembershipsResult.source,
+    home_memberships: homeMembershipsResult.source,
+    visitors: visitorsResult.source,
+    payments: paymentsResult.source,
+    dues: duesResult.source,
+    community_posts: communityPostsResult.source,
+    users: usersResult.source,
+    rooms: roomsResult.source,
+    incidents: incidentsResult.source,
+    edge_heartbeats: edgeHeartbeatsResult.source,
+    utility_events: utilityEventsResult.source,
+    automations: automationsResult.source,
+    device_telemetry: deviceTelemetryResult.source,
+    provider_webhook_events: providerWebhookEventsResult.source,
+  };
+
+  const completeness = {
+    facility: {
+      estates: estatesResult.source.available,
+      buildings: homesResult.source.available || devicesResult.source.available,
+      homes: homesResult.source.available,
+      devices: devicesResult.source.available,
+      maintenance: maintenanceRequestsResult.source.available,
+      incidents: incidentsResult.source.available,
+      edge_heartbeats: edgeHeartbeatsResult.source.available,
+      utility_events: utilityEventsResult.source.available,
+    },
+    consumer: {
+      homes: homesResult.source.available,
+      rooms: roomsResult.source.available,
+      residents: usersResult.source.available || homeMembershipsResult.source.available,
+      users: usersResult.source.available,
+      devices: devicesResult.source.available,
+      community: communityPostsResult.source.available,
+      support: maintenanceRequestsResult.source.available,
+      automations: automationsResult.source.available,
+      notifications: notificationsResult.source.available,
+      device_telemetry: deviceTelemetryResult.source.available,
+    },
+    webhooks: {
+      provider_events: providerWebhookEventsResult.source.available,
+      delivery_history: providerWebhookEventsResult.source.available,
+    },
+  };
+
+  void emitAuditEvent({
+    actorId: "office_sync",
+    actorEmail: "office-sync@ochiga.local",
+    actorRole: "system",
+    action: "office.export.accessed",
+    resourceType: "office_export",
+    resourceId: "office/export",
+    status: "success",
+    metadata: {
+      completeness,
+      source_counts: Object.fromEntries(Object.entries(sourceStatus).map(([key, value]) => [key, value.count])),
+    },
+    req,
+  } as any);
+
   return res.json({
     source: "oyi-os",
     contract_version: CONTRACT_VERSION,
@@ -364,8 +539,26 @@ router.get("/export", requireOfficeExportKey, async (_req: Request, res: Respons
       users: officeUsers,
       visitors: officeVisitors,
       rooms: officeRooms,
+      maintenance,
+      incidents: incidentRecords,
+      edge_heartbeats: edgeHeartbeatRecords,
+      utility_events: utilityEventRecords,
+      community,
+      support,
+      automations: automationRecords,
+      notifications,
+      device_telemetry: telemetryRecords,
+      webhook_events: webhookDeliveryRecords,
     },
+    completeness,
     meta: {
+      sources: sourceStatus,
+      missing_sources: Object.fromEntries(Object.entries(sourceStatus).filter(([, value]) => !value.available).map(([key, value]) => [key, sourceUnavailable(value.required_source)])),
+      webhook_delivery: {
+        available: providerWebhookEventsResult.source.available,
+        count: providerWebhookEvents.length,
+        required_source: "provider_webhook_events",
+      },
       raw_counts: {
         estates: estates.length,
         homes: homes.length,
@@ -379,6 +572,16 @@ router.get("/export", requireOfficeExportKey, async (_req: Request, res: Respons
         community_posts: communityPosts.length,
         users: users.length,
         rooms: rooms.length,
+        maintenance: maintenance.length,
+        incidents: incidentRecords.length,
+        edge_heartbeats: edgeHeartbeatRecords.length,
+        utility_events: utilityEventRecords.length,
+        community: community.length,
+        support: support.length,
+        automations: automationRecords.length,
+        notification_records: notifications.length,
+        device_telemetry: telemetryRecords.length,
+        webhook_events: webhookDeliveryRecords.length,
       },
     },
   });
