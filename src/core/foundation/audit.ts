@@ -21,6 +21,16 @@ export const FOUNDATION_EVENT_NAMES = [
   "twin.device.action",
   "edge.heartbeat",
   "permission.denied",
+  "ai.command.received",
+  "ai.tool.requested",
+  "ai.tool.executed",
+  "ai.tool.denied",
+  "ai.voice.transcribed",
+  "ai.response.generated",
+  "ai.command.confirmation.required",
+  "ai.command.confirmed",
+  "ai.command.cancelled",
+  "ai.action.failed",
 ] as const;
 
 function requestIp(req?: Request) {
