@@ -123,14 +123,14 @@ export const AI_TOOL_REGISTRY: AiToolDefinition[] = [
   },
   {
     tool_id: "device_command",
-    description: "Request physical device control. Disabled in Phase 1 except ledger/confirmation scaffolding.",
+    description: "Execute safe, low-risk home device commands through the controlled device command service. Risky actions still require confirmation.",
     category: "infrastructure_control",
     risk_level: "infrastructure_control",
     requires_auth: true,
     required_permissions: ["devices.control"],
-    confirmation_required: true,
+    confirmation_required: false,
     allowed_scopes: ["facility", "estate", "home", "user"],
-    enabled: false,
+    enabled: true,
   },
   {
     tool_id: "visitor_create",

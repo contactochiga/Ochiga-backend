@@ -7,6 +7,7 @@ import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import { NotificationService } from "../services/NotificationService";
 import { emitAuditEvent } from "../core/foundation";
+import type { AuthUser } from "../middleware/auth";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -42,6 +43,157 @@ function pickExpectedState(command: Record<string, any>) {
 
 async function delay(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function executeDeviceCommandForActor(input: {
+  actor: AuthUser;
+  deviceId: string;
+  command: Record<string, any>;
+  req?: Request;
+}) {
+  const rawId = String(input.deviceId || "").trim();
+  const command = input.command;
+  const user = input.actor;
+
+  if (!rawId) throw new Error("deviceId is required");
+  if (!command) throw new Error("command is required");
+  if (!user?.id) throw new Error("Not authenticated");
+
+  let deviceRow: any = null;
+  const scoped = (query: any) => {
+    let next = query;
+    if (user.estate_id) next = next.eq("estate_id", user.estate_id);
+    if (user.home_id) next = next.eq("home_id", user.home_id);
+    return next;
+  };
+
+  if (isUuid(rawId)) {
+    const { data } = await scoped(supabaseAdmin.from("devices").select("*").eq("id", rawId)).maybeSingle();
+    deviceRow = data;
+  } else {
+    const { data } = await scoped(supabaseAdmin.from("devices").select("*").eq("external_id", rawId)).maybeSingle();
+    deviceRow = data;
+  }
+
+  const deviceRef = deviceRow?.id || rawId;
+
+  await handleSignal({
+    schemaVersion: SIGNAL_SCHEMA_VERSION,
+    source: "user",
+    type: "device.command.requested",
+    timestamp: new Date().toISOString(),
+    deviceId: deviceRef,
+    command,
+    requestedBy: {
+      userId: user.id,
+      role: user.role,
+    },
+    metadata: {
+      raw_device_ref: rawId,
+      resolved_device_uuid: deviceRow?.id || null,
+      source: "oyi_ai",
+    },
+  });
+  void emitAuditEvent({
+    actorId: user.id,
+    actorEmail: user.email,
+    actorRole: user.role,
+    action: "device.command.requested",
+    resourceType: "device",
+    resourceId: deviceRef,
+    estateId: deviceRow?.estate_id || user.estate_id,
+    homeId: deviceRow?.home_id || user.home_id,
+    status: "success",
+    metadata: { command, raw_device_ref: rawId, resolved_device_uuid: deviceRow?.id || null, source: "oyi_ai" },
+    req: input.req,
+  } as any);
+
+  if (deviceRow?.vendor === "tuya" && deviceRow?.external_id) {
+    initAdaptersOnce();
+    const adapter = adapterRegistry.get("tuya");
+    if (!adapter) throw new Error("Tuya adapter not registered");
+
+    const normalized = normalizeCommand(command);
+    await adapter.executeCommand(deviceRow.external_id, normalized, {
+      estateId: deviceRow.estate_id,
+      homeId: deviceRow.home_id,
+      userId: user.id,
+      credentials: {},
+    } as any);
+
+    let verifiedState: Record<string, any> | null = null;
+    const expected = pickExpectedState(normalized);
+    if (expected && typeof (adapter as any).getLiveState === "function") {
+      await delay(900);
+      try {
+        verifiedState = await (adapter as any).getLiveState(deviceRow.external_id);
+      } catch {}
+      if (verifiedState && expected.key in verifiedState) {
+        const actual = Boolean((verifiedState as any)[expected.key]);
+        if (actual !== Boolean(expected.value)) {
+          const error = new Error("Device did not confirm the requested state change");
+          (error as any).status = "command_unverified";
+          throw error;
+        }
+      }
+    }
+
+    await supabaseAdmin
+      .from("device_states")
+      .upsert(
+        {
+          device_id: deviceRow.id,
+          status: { last_command: normalized },
+          last_seen: new Date().toISOString(),
+        } as any,
+        { onConflict: "device_id" } as any
+      );
+
+    await NotificationService.sendToUser(String(user.id), {
+      title: "Device updated",
+      message: `${String(deviceRow.name || "Your device")} command executed successfully.`,
+      type: "device",
+      payload: {
+        device_id: String(deviceRow.id),
+        external_id: String(deviceRow.external_id || ""),
+        estate_id: String(deviceRow.estate_id || ""),
+        home_id: String(deviceRow.home_id || ""),
+        command: normalized,
+        kind: "device.command.executed",
+        source: "oyi_ai",
+      },
+      entityId: String(deviceRow.id),
+    });
+    void emitAuditEvent({
+      actorId: user.id,
+      actorEmail: user.email,
+      actorRole: user.role,
+      action: "device.command.executed",
+      resourceType: "device",
+      resourceId: deviceRow.id,
+      estateId: deviceRow.estate_id,
+      homeId: deviceRow.home_id,
+      status: "success",
+      metadata: { command: normalized, vendor: deviceRow.vendor, external_id: deviceRow.external_id, source: "oyi_ai" },
+      req: input.req,
+    } as any);
+
+    return {
+      ok: true,
+      status: "command_executed",
+      device: { id: deviceRow.id, name: deviceRow.name, external_id: deviceRow.external_id, vendor: deviceRow.vendor },
+      command: normalized,
+      state: verifiedState,
+    };
+  }
+
+  return {
+    ok: true,
+    status: "command_queued",
+    device: deviceRow
+      ? { id: deviceRow.id, name: deviceRow.name, external_id: deviceRow.external_id, vendor: deviceRow.vendor }
+      : { ref: rawId },
+  };
 }
 
 export async function requestDeviceCommand(req: Request, res: Response) {

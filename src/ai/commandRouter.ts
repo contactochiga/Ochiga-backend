@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent, hasPermission } from "../core/foundation";
 import type { AuthUser } from "../middleware/auth";
 import { AI_TOOL_REGISTRY, getAiTool, type AiToolDefinition } from "./toolRegistry";
+import { executeDeviceCommandForActor } from "../controllers/deviceCommandController";
 
 export type AiCommandStatus =
   | "pending_confirmation"
@@ -173,6 +174,156 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
   return { summary: "Tool executed without mutation.", data: {} };
 }
 
+function normalizePrompt(prompt: string) {
+  return String(prompt || "").toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function requestedTemperature(prompt: string) {
+  const match = normalizePrompt(prompt).match(/\b(?:set|to|temperature)\s*(?:ac|air|climate)?\s*(?:to)?\s*(1[6-9]|2[0-9]|30)\b/);
+  return match ? Number(match[1]) : null;
+}
+
+function targetRoom(prompt: string) {
+  const t = normalizePrompt(prompt);
+  const rooms = ["living room", "bedroom", "master bedroom", "kitchen", "dining", "bathroom", "outdoor", "balcony", "garage", "office"];
+  return rooms.find((room) => t.includes(room)) || null;
+}
+
+function targetFamily(prompt: string) {
+  const t = normalizePrompt(prompt);
+  if (/\bac\b|air conditioner|air conditioning|climate/.test(t)) return "hvac";
+  if (/light|lamp|bulb/.test(t)) return "light";
+  if (/socket|plug|outlet/.test(t)) return "outlet";
+  if (/switch|relay/.test(t)) return "switch";
+  if (/camera|cctv/.test(t)) return "camera";
+  return "device";
+}
+
+function deviceFamilyFromRow(row: any) {
+  const source = `${row?.name || ""} ${row?.type || ""} ${row?.device_type || ""} ${row?.category || ""} ${row?.vendor || ""}`.toLowerCase();
+  if (/ac|air conditioner|air conditioning|climate|hvac/.test(source)) return "hvac";
+  if (/light|lamp|bulb/.test(source)) return "light";
+  if (/socket|plug|outlet/.test(source)) return "outlet";
+  if (/switch|relay/.test(source)) return "switch";
+  if (/camera|cctv/.test(source)) return "camera";
+  return "device";
+}
+
+function classifyDeviceCommand(prompt: string) {
+  const t = normalizePrompt(prompt);
+  if (/wallet|debit|permission|admin|lockdown|disable camera/.test(t)) return { risk: "high" as const, reason: "high_risk_or_admin_action" };
+  if (/unlock|open gate|open door|heater|turn off all|all devices|visitor access|guest access/.test(t)) return { risk: "medium" as const, reason: "confirmation_required" };
+  const temp = requestedTemperature(prompt);
+  if (temp !== null) return { risk: "low" as const, action: "set_temperature", command: { temperature: temp, temp_set: temp } };
+  if (/turn on|switch on|power on|start/.test(t)) return { risk: "low" as const, action: "on", command: { switch: true } };
+  if (/turn off|switch off|power off|stop/.test(t)) return { risk: "low" as const, action: "off", command: { switch: false } };
+  return { risk: "read" as const, action: "status", command: null };
+}
+
+async function findDeviceForPrompt(actor: AuthUser, prompt: string, args: Record<string, any>) {
+  const explicit = args.device_id || args.deviceId || args.external_id || args.externalId;
+  let query = supabaseAdmin.from("devices").select("*").limit(50);
+  if (explicit) {
+    const ref = String(explicit);
+    query = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(ref)
+      ? query.eq("id", ref)
+      : query.eq("external_id", ref);
+  } else {
+    if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
+    if (actor.home_id) query = query.eq("home_id", actor.home_id);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  const rows = data || [];
+  if (explicit) return rows[0] || null;
+
+  const room = targetRoom(prompt);
+  const family = targetFamily(prompt);
+  const t = normalizePrompt(prompt);
+
+  const scored = rows
+    .map((row: any) => {
+      const name = normalizePrompt(`${row?.name || ""} ${row?.room_name || ""} ${row?.metadata?.room_name || ""}`);
+      let score = 0;
+      if (deviceFamilyFromRow(row) === family) score += 4;
+      if (room && name.includes(room)) score += 4;
+      if (name && t.split(" ").some((word) => word.length > 3 && name.includes(word))) score += 1;
+      return { row, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.row || null;
+}
+
+function deviceOffline(row: any) {
+  if (typeof row?.online === "boolean") return !row.online;
+  const status = String(row?.status || row?.state || "").toLowerCase();
+  return status.includes("offline") || status.includes("error");
+}
+
+async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUser, prompt: string, args: Record<string, any>) {
+  const classification = classifyDeviceCommand(prompt);
+  const estateId = actorEstate(actor, args.estate_id || args.estateId || null);
+  const homeId = actorHome(actor, args.home_id || args.homeId || null);
+
+  if (classification.risk === "high") {
+    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "denied", estateId, homeId, errorMessage: classification.reason });
+    await audit(req, actor, "ai.tool.denied", "denied", { tool_id: "device_command", ledger_id: ledger.id, reason: classification.reason });
+    return { tool_id: "device_command", status: "denied", reason: classification.reason, ledger_id: ledger.id || null };
+  }
+
+  if (classification.risk === "medium") {
+    const ledger = await writeLedger({
+      actor,
+      toolId: "device_command",
+      prompt,
+      status: "pending_confirmation",
+      estateId,
+      homeId,
+      resultSummary: "Confirmation required before this home command can execute.",
+      metadata: { proposed_arguments: args, risk_level: "medium", reason: classification.reason },
+    });
+    await audit(req, actor, "ai.command.confirmation.required", "pending", { tool_id: "device_command", ledger_id: ledger.id, reason: classification.reason });
+    return { tool_id: "device_command", status: "pending_confirmation", confirmation_required: true, ledger_id: ledger.id || null };
+  }
+
+  if (classification.risk === "read") {
+    const device = await findDeviceForPrompt(actor, prompt, args);
+    const summary = device
+      ? `${device.name || "Device"} is ${deviceOffline(device) ? "offline" : "available"}.`
+      : "I could not find that device in your home scope.";
+    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: device ? "executed" : "failed", estateId, homeId, resultSummary: summary, errorMessage: device ? "" : "device_not_found", metadata: { mode: "status" } });
+    await audit(req, actor, device ? "ai.tool.executed" : "ai.action.failed", device ? "success" : "failed", { tool_id: "device_command", ledger_id: ledger.id, mode: "status" });
+    return { tool_id: "device_command", status: device ? "executed" : "failed", ledger_id: ledger.id || null, summary, data: { device_id: device?.id || null } };
+  }
+
+  const device = await findDeviceForPrompt(actor, prompt, args);
+  if (!device?.id && !device?.external_id) {
+    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "failed", estateId, homeId, errorMessage: "device_not_found", resultSummary: "I could not find that device in your home scope." });
+    await audit(req, actor, "ai.action.failed", "failed", { tool_id: "device_command", ledger_id: ledger.id, reason: "device_not_found" });
+    return { tool_id: "device_command", status: "failed", error: "device_not_found", ledger_id: ledger.id || null, summary: "I could not find that device in your home scope." };
+  }
+  if (deviceOffline(device)) {
+    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "failed", estateId, homeId, errorMessage: "device_offline", resultSummary: "That device is offline." });
+    await audit(req, actor, "ai.action.failed", "failed", { tool_id: "device_command", ledger_id: ledger.id, device_id: device.id, reason: "device_offline" });
+    return { tool_id: "device_command", status: "failed", error: "device_offline", ledger_id: ledger.id || null, summary: "That device is offline." };
+  }
+
+  try {
+    const result = await executeDeviceCommandForActor({ actor, deviceId: String(device.id || device.external_id), command: classification.command || {}, req });
+    const actionText = classification.action === "set_temperature" ? `set to ${(classification.command as any)?.temperature}°` : classification.action === "on" ? "on" : "off";
+    const summary = `${device.name || "Device"} is ${actionText}.`;
+    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "executed", estateId, homeId, resultSummary: summary, metadata: { device_id: device.id, command: classification.command, result } });
+    await audit(req, actor, "ai.tool.executed", "success", { tool_id: "device_command", ledger_id: ledger.id, device_id: device.id });
+    return { tool_id: "device_command", status: "executed", ledger_id: ledger.id || null, summary, data: { device_id: device.id, command_status: result.status } };
+  } catch (error: any) {
+    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "failed", estateId, homeId, errorMessage: error?.message || String(error), resultSummary: "The device command could not complete." });
+    await audit(req, actor, "ai.action.failed", "failed", { tool_id: "device_command", ledger_id: ledger.id, error: error?.message || String(error) });
+    return { tool_id: "device_command", status: "failed", error: error?.message || "device_command_failed", ledger_id: ledger.id || null, summary: "The device command could not complete." };
+  }
+}
+
 async function insertSupportTicket(actor: AuthUser, record: any) {
   const base = {
     estate_id: record.estate_id || actor.estate_id || null,
@@ -256,6 +407,12 @@ export async function routeAiCommand(req: Request | undefined, input: AiCommandR
       const ledger = await writeLedger({ actor, toolId: tool.tool_id, prompt: input.prompt, status: "denied", estateId: input.estateId, homeId: input.homeId, errorMessage: `Scope not allowed: ${scope}` });
       await audit(req, actor, "ai.tool.denied", "denied", { tool_id: tool.tool_id, ledger_id: ledger.id, scope, reason: "scope_not_allowed" });
       results.push({ tool_id: tool.tool_id, status: "denied", reason: "scope_not_allowed", ledger_id: ledger.id || null });
+      continue;
+    }
+
+    if (tool.tool_id === "device_command") {
+      const execution = await executeDeviceCommandTool(req, actor, input.prompt, proposed.arguments || {});
+      results.push(execution);
       continue;
     }
 

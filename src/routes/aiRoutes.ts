@@ -159,6 +159,8 @@ function buildReply(message: string, toolResults: any[]) {
     .filter((item) => item.status === "executed" && item.summary)
     .map((item) => item.summary);
   if (summaries.length) return summaries.join("\n");
+  const failed = toolResults.find((item) => item.status === "failed" && (item.summary || item.error));
+  if (failed) return failed.summary || `That action could not complete: ${failed.error}.`;
   return `I received: ${message}. I kept this in safe command mode and did not execute any sensitive action.`;
 }
 
