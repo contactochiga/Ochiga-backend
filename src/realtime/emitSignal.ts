@@ -43,6 +43,10 @@ export function standardRealtimeEvent(type?: string | null) {
   if (value === "estate.updated") return "estate.updated";
   if (value === "home.updated") return "home.updated";
   if (value === "edge.heartbeat") return "edge.heartbeat";
+  if (value === "camera.status.updated") return "camera.status.updated";
+  if (value === "incident.created") return "incident.created";
+  if (value === "maintenance.updated") return "maintenance.updated";
+  if (value === "deployment.milestone.created") return "deployment.milestone.created";
   if (value === "office.notification") return "office.notification";
   if (value === "audit.recorded") return "audit.recorded";
   if (value === "twin.state.updated") return "twin.state.updated";
