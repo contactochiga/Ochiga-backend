@@ -17,6 +17,7 @@ import visitorRoutes from "./routes/visitors";
 import signalRoutes from "./routes/signals";
 import facilityRoutes from "./routes/facility.routes";
 import aiRoutes from "./routes/aiRoutes";
+import watchRoutes from "./routes/watchRoutes";
 
 import communityRoutes from "./routes/community";
 import walletRoutes from "./routes/wallets";
@@ -204,6 +205,7 @@ app.use("/residents", residentsRoutes);
 app.use("/devices", devicesRoutes);
 
 app.use("/ai", aiRoutes);
+app.use("/watch", watchRoutes);
 
 // ✅ consumer visitors
 app.use("/visitors", visitorRoutes);
