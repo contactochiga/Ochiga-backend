@@ -41,6 +41,27 @@ function pickExpectedState(command: Record<string, any>) {
   return null;
 }
 
+function describeDeviceCommand(deviceName: any, command: Record<string, any>) {
+  const name = String(deviceName || "Device").trim() || "Device";
+  const value =
+    typeof command?.switch === "boolean" ? command.switch :
+    typeof command?.power === "boolean" ? command.power :
+    typeof command?.on === "boolean" ? command.on :
+    undefined;
+
+  if (typeof value === "boolean") {
+    return {
+      title: `${name} ${value ? "turned on" : "turned off"}`,
+      message: value ? `${name} is now on.` : `${name} is now off.`,
+    };
+  }
+
+  return {
+    title: `${name} updated`,
+    message: `${name} command executed successfully.`,
+  };
+}
+
 async function delay(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -149,9 +170,10 @@ export async function executeDeviceCommandForActor(input: {
         { onConflict: "device_id" } as any
       );
 
+    const activityCopy = describeDeviceCommand(deviceRow.name, normalized);
     await NotificationService.sendToUser(String(user.id), {
-      title: "Device updated",
-      message: `${String(deviceRow.name || "Your device")} command executed successfully.`,
+      title: activityCopy.title,
+      message: activityCopy.message,
       type: "device",
       payload: {
         device_id: String(deviceRow.id),
@@ -323,9 +345,10 @@ export async function requestDeviceCommand(req: Request, res: Response) {
           { onConflict: "device_id" } as any
         );
 
+      const activityCopy = describeDeviceCommand(deviceRow.name, normalized);
       await NotificationService.sendToUser(String(user.id), {
-        title: "Device updated",
-        message: `${String(deviceRow.name || "Your device")} command executed successfully.`,
+        title: activityCopy.title,
+        message: activityCopy.message,
         type: "device",
         payload: {
           device_id: String(deviceRow.id),

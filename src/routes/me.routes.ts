@@ -124,6 +124,84 @@ function maskExternalId(value: string | null): string | null {
   return `${value.slice(0, 4)}***${value.slice(-3)}`;
 }
 
+const PROFILE_SELECT = "id, email, username, full_name, role, estate_id, home_id";
+const PROFILE_AVATAR_BUCKET = process.env.PROFILE_AVATAR_BUCKET || "profile-avatars";
+
+async function uploadProfileAvatar(storageKey: string, buffer: Buffer, mime: string) {
+  const { error } = await supabaseAdmin.storage
+    .from(PROFILE_AVATAR_BUCKET)
+    .upload(storageKey, buffer, { contentType: mime, upsert: false });
+
+  if (error) throw new Error(`Profile avatar upload failed: ${error.message}`);
+
+  const { data } = supabaseAdmin.storage.from(PROFILE_AVATAR_BUCKET).getPublicUrl(storageKey);
+  if (!data?.publicUrl) throw new Error("Profile avatar public URL could not be generated");
+  return data.publicUrl;
+}
+
+function avatarExtensionForMime(mime: string): string {
+  const clean = String(mime || "").toLowerCase().split(";")[0].trim();
+  if (clean === "image/png") return "png";
+  if (clean === "image/webp") return "webp";
+  if (clean === "image/gif") return "gif";
+  return "jpg";
+}
+
+function sanitizeAvatarFilename(input: unknown): string {
+  const name = String(input || "avatar").trim().toLowerCase();
+  return name.replace(/[^a-z0-9._-]/g, "-").replace(/-+/g, "-").slice(0, 80) || "avatar";
+}
+
+function decodeAvatarBase64(input: unknown): Buffer | null {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+  const clean = raw.includes(",") ? raw.split(",").pop() || "" : raw;
+  try {
+    return Buffer.from(clean, "base64");
+  } catch {
+    return null;
+  }
+}
+
+function isMissingAvatarColumn(error: any) {
+  const msg = String(error?.message || "").toLowerCase();
+  return msg.includes("avatar_url") || msg.includes("profile_image_url") || msg.includes("column");
+}
+
+async function updateUserAvatarProfile(userId: string, avatarUrl: string | null) {
+  const attempts: Array<Record<string, string | null>> = [
+    { avatar_url: avatarUrl, profile_image_url: avatarUrl },
+    { avatar_url: avatarUrl },
+    { profile_image_url: avatarUrl },
+  ];
+
+  let lastError: any = null;
+  for (const updates of attempts) {
+    const { data, error } = await supabaseAdmin
+      .from("users")
+      .update(updates)
+      .eq("id", userId)
+      .select(PROFILE_SELECT)
+      .single();
+
+    if (!error) {
+      return {
+        data: {
+          ...(data as any),
+          avatar_url: (data as any)?.avatar_url ?? avatarUrl,
+          profile_image_url: (data as any)?.profile_image_url ?? avatarUrl,
+        },
+        error: null,
+      };
+    }
+
+    lastError = error;
+    if (!isMissingAvatarColumn(error)) break;
+  }
+
+  return { data: null, error: lastError };
+}
+
 async function getTuyaUidForUser(userId: string): Promise<string | null> {
   // 1) preferred: users.tuya_uid
   const direct = await supabaseAdmin
@@ -484,6 +562,87 @@ router.patch("/profile", requireAuth, auditOnSuccess("user.updated", "user", "id
   } catch (err) {
     console.error("update profile error:", err);
     return res.status(500).json({ error: "Unexpected server error" });
+  }
+});
+
+/**
+ * POST /me/profile/avatar
+ * Uploads authenticated user's profile image and stores the public image URL on the user profile.
+ */
+router.post("/profile/avatar", requireAuth, auditOnSuccess("user.avatar.updated", "user", "id"), async (req, res) => {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const mime = String(req.body?.mime || "").toLowerCase().split(";")[0].trim();
+  if (!mime || !mime.startsWith("image/")) {
+    return res.status(400).json({ error: "A valid image mime type is required" });
+  }
+  if (!["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"].includes(mime)) {
+    return res.status(400).json({ error: "Unsupported image type" });
+  }
+
+  const buffer = decodeAvatarBase64(req.body?.base64);
+  if (!buffer || buffer.length === 0) {
+    return res.status(400).json({ error: "Avatar image data is required" });
+  }
+  if (buffer.length > 6 * 1024 * 1024) {
+    return res.status(413).json({ error: "Avatar image must be 6MB or smaller" });
+  }
+
+  try {
+    const extension = avatarExtensionForMime(mime);
+    const safeName = sanitizeAvatarFilename(req.body?.filename).replace(/\.[a-z0-9]+$/i, "");
+    const storageKey = `avatars/${user.id}/${Date.now()}-${safeName}.${extension}`;
+    const avatarUrl = await uploadProfileAvatar(storageKey, buffer, mime);
+    const { data, error } = await updateUserAvatarProfile(user.id, avatarUrl);
+
+    if (error) {
+      return res.status(500).json({
+        error: "Profile avatar storage is configured, but the user profile avatar column is missing or unavailable",
+        detail: error.message,
+        required_columns: ["users.avatar_url", "users.profile_image_url"],
+      });
+    }
+
+    return res.json({
+      ok: true,
+      message: "Profile image updated",
+      avatar_url: avatarUrl,
+      profile_image_url: avatarUrl,
+      user: data,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Failed to upload profile image" });
+  }
+});
+
+/**
+ * DELETE /me/profile/avatar
+ * Removes authenticated user's profile image URL from the user profile.
+ */
+router.delete("/profile/avatar", requireAuth, auditOnSuccess("user.avatar.removed", "user", "id"), async (req, res) => {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  try {
+    const { data, error } = await updateUserAvatarProfile(user.id, null);
+    if (error) {
+      return res.status(500).json({
+        error: "Profile avatar columns are missing or unavailable",
+        detail: error.message,
+        required_columns: ["users.avatar_url", "users.profile_image_url"],
+      });
+    }
+
+    return res.json({
+      ok: true,
+      message: "Profile image removed",
+      avatar_url: null,
+      profile_image_url: null,
+      user: data,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Failed to remove profile image" });
   }
 });
 

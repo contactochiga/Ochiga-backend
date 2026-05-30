@@ -24,6 +24,9 @@ export const PERMISSION_KEYS = [
   "office.manage",
   "community.read",
   "community.write",
+  "community.moderate",
+  "community.broadcast",
+  "community.manage_announcements",
   "notifications.read",
   "notifications.manage",
 ] as const;
@@ -74,6 +77,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, readonly PermissionKey[]> = 
     "support.assign",
     "documents.generate",
     "community.read",
+    "community.moderate",
     "notifications.read",
     "notifications.manage",
   ],
@@ -93,6 +97,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, readonly PermissionKey[]> = 
     "support.assign",
     "community.read",
     "community.write",
+    "community.moderate",
+    "community.broadcast",
+    "community.manage_announcements",
     "notifications.read",
   ],
   facility_manager: [
@@ -109,6 +116,9 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, readonly PermissionKey[]> = 
     "support.assign",
     "community.read",
     "community.write",
+    "community.moderate",
+    "community.broadcast",
+    "community.manage_announcements",
     "notifications.read",
   ],
   security_operator: [

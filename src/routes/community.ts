@@ -25,15 +25,15 @@ router.post(
   "/media/upload",
   requireAuth,
   requirePermission("community.write"),
-  auditOnSuccess("document.generated", "community_media", "mediaId"),
+  auditOnSuccess("community.media.uploaded", "community_media", "mediaId"),
   CommunityCtrl.uploadMedia
 );
 
 router.post(
   "/live/start",
   requireAuth,
-  requirePermission("community.write"),
-  auditOnSuccess("community.post.updated", "community_live", "postId"),
+  requirePermission("community.broadcast"),
+  auditOnSuccess("community.live.started", "community_live", "postId"),
   CommunityCtrl.startLiveSession
 );
 
@@ -124,7 +124,7 @@ router.post(
   "/post/:postId/comment",
   requireAuth,
   requirePermission("community.write"),
-  auditOnSuccess("community.post.updated", "community_post", "postId"),
+  auditOnSuccess("community.comment.created", "community_post", "postId"),
   CommunityCtrl.createComment
 );
 
@@ -166,6 +166,22 @@ router.post(
   requirePermission("community.write"),
   auditOnSuccess("community.post.updated", "community_post", "postId"),
   CommunityCtrl.reactToPost
+);
+
+router.post(
+  "/post/:postId/read",
+  requireAuth,
+  requirePermission("community.read"),
+  auditOnSuccess("community.notice.read", "community_post", "postId"),
+  CommunityCtrl.markPostRead
+);
+
+router.post(
+  "/post/:postId/report",
+  requireAuth,
+  requirePermission("community.write"),
+  auditOnSuccess("community.post.reported", "community_post", "postId"),
+  CommunityCtrl.reportPost
 );
 
 router.post(

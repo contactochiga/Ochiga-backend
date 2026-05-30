@@ -33,6 +33,51 @@ function isMissingTable(err: any, table: string) {
   );
 }
 
+const OPTIONAL_POST_COLUMNS = [
+  "media",
+  "live_link",
+  "category",
+  "is_pinned",
+  "pinned_until",
+  "audience_type",
+  "audience_ref",
+  "scheduled_at",
+  "priority",
+] as const;
+
+function stripMissingOptionalColumn(error: any, row: Record<string, any>) {
+  for (const column of OPTIONAL_POST_COLUMNS) {
+    if (isMissingColumn(error, column) && Object.prototype.hasOwnProperty.call(row, column)) {
+      const next = { ...row };
+      delete next[column];
+      return next;
+    }
+  }
+  return null;
+}
+
+function normalizeCategory(value: any, title?: string | null, role?: string | null) {
+  const raw = String(value || "").trim().toLowerCase();
+  const allowed = new Set(["announcement", "notice", "amenity", "resident", "maintenance", "security", "event", "service", "live"]);
+  if (allowed.has(raw)) return raw;
+  const text = `${title || ""} ${role || ""}`.toLowerCase();
+  if (/security|gate|access|incident|alert/.test(text)) return "security";
+  if (/maintenance|repair|water|power|utility|service/.test(text)) return "maintenance";
+  if (/amenity|booking|pool|gym|club|parking/.test(text)) return "amenity";
+  if (/announcement|notice|update|policy|admin|manager/.test(text)) return "notice";
+  return "resident";
+}
+
+function normalizeAudience(value: any) {
+  const raw = value && typeof value === "object" ? value : {};
+  const type = String(raw.type || raw.audience_type || "all_estate").trim().toLowerCase();
+  const allowed = new Set(["all_estate", "building", "block", "home", "unit", "residents", "staff", "group"]);
+  return {
+    type: allowed.has(type) ? type : "all_estate",
+    ref: raw.ref ?? raw.audience_ref ?? null,
+  };
+}
+
 function looksLikeAnnouncement(title?: string | null, role?: string | null) {
   const t = String(title || "").toLowerCase();
   const r = String(role || "").toLowerCase();
@@ -123,6 +168,13 @@ function normalizePostOutput(row: any, extra: Record<string, any> = {}) {
             is_live: false,
           }
         : null,
+    category: row?.category || normalizeCategory(null, row?.title, row?.author_role),
+    is_pinned: Boolean(row?.is_pinned || row?.status === "pinned" || row?.status === "announcement_pinned"),
+    pinned_until: row?.pinned_until || null,
+    audience_type: row?.audience_type || "all_estate",
+    audience_ref: row?.audience_ref || null,
+    scheduled_at: row?.scheduled_at || null,
+    priority: row?.priority || null,
     ...extra,
   };
 }
@@ -236,19 +288,16 @@ async function incrementPostViewCounter(postId: string) {
 
 async function insertCommunityPostWithFallback(payload: Record<string, any>) {
   let next = { ...payload };
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     const { data, error } = await supabaseAdmin
       .from("community_posts")
       .insert(next)
       .select("*")
       .single();
     if (!error) return data;
-    if (isMissingColumn(error, "media") && Object.prototype.hasOwnProperty.call(next, "media")) {
-      delete next.media;
-      continue;
-    }
-    if (isMissingColumn(error, "live_link") && Object.prototype.hasOwnProperty.call(next, "live_link")) {
-      delete next.live_link;
+    const stripped = stripMissingOptionalColumn(error, next);
+    if (stripped) {
+      next = stripped;
       continue;
     }
     throw new Error(error.message);
@@ -258,7 +307,7 @@ async function insertCommunityPostWithFallback(payload: Record<string, any>) {
 
 async function updateCommunityPostWithFallback(postId: string, patch: Record<string, any>) {
   let next = { ...patch };
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     const { data, error } = await supabaseAdmin
       .from("community_posts")
       .update(next)
@@ -266,12 +315,9 @@ async function updateCommunityPostWithFallback(postId: string, patch: Record<str
       .select("*")
       .single();
     if (!error) return data;
-    if (isMissingColumn(error, "media") && Object.prototype.hasOwnProperty.call(next, "media")) {
-      delete next.media;
-      continue;
-    }
-    if (isMissingColumn(error, "live_link") && Object.prototype.hasOwnProperty.call(next, "live_link")) {
-      delete next.live_link;
+    const stripped = stripMissingOptionalColumn(error, next);
+    if (stripped) {
+      next = stripped;
       continue;
     }
     throw new Error(error.message);
@@ -304,7 +350,7 @@ export async function createPost(req: Request, res: Response) {
   const user = req.user as any;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  const { title, content, body, estateId, estate_id, media, liveLink, live_link } = req.body || {};
+  const { title, content, body, estateId, estate_id, media, liveLink, live_link, category, is_pinned, pinned_until, audience, audience_type, audience_ref, scheduled_at, priority } = req.body || {};
 
   const resolvedEstateId = estate_id || estateId || user?.estate_id;
   const resolvedBody = body ?? content ?? null;
@@ -339,6 +385,19 @@ export async function createPost(req: Request, res: Response) {
 
   const normalizedMedia = normalizeMediaItems(media);
   if (normalizedMedia.length) payload.media = normalizedMedia;
+  payload.category = normalizeCategory(category, derivedTitle, String(user?.role || ""));
+  payload.is_pinned = Boolean(is_pinned) && canModerate(user.role);
+  if (pinned_until && canModerate(user.role)) payload.pinned_until = new Date(pinned_until).toISOString();
+  const audienceValue = canModerate(user.role)
+    ? normalizeAudience(audience || { type: audience_type, ref: audience_ref })
+    : { type: "all_estate", ref: null };
+  payload.audience_type = audienceValue.type;
+  if (audienceValue.ref) payload.audience_ref = audienceValue.ref;
+  if (scheduled_at && canModerate(user.role)) {
+    payload.scheduled_at = new Date(scheduled_at).toISOString();
+    payload.status = "scheduled";
+  }
+  if (priority && canModerate(user.role)) payload.priority = String(priority);
   const nextLiveLink = String(live_link || liveLink || "").trim();
   if (nextLiveLink) payload.live_link = nextLiveLink;
 
@@ -392,6 +451,7 @@ export async function startLiveSession(req: Request, res: Response) {
     title: derivedTitle,
     body: normalizedBody || null,
     status: "active",
+    category: "live",
     live_link: "oyi-live://pending",
   };
 
@@ -795,7 +855,7 @@ export async function updatePost(req: Request, res: Response) {
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   const { postId } = req.params;
-  const { title, content, body, status, media, liveLink, live_link } = req.body || {};
+  const { title, content, body, status, media, liveLink, live_link, category, is_pinned, pinned_until, audience, audience_type, audience_ref, scheduled_at, priority } = req.body || {};
 
   const { data: post, error: pErr } = await supabaseAdmin
     .from("community_posts")
@@ -818,6 +878,16 @@ export async function updatePost(req: Request, res: Response) {
   const resolvedBody = body ?? content;
   if (resolvedBody !== undefined) patch.body = resolvedBody ? String(resolvedBody).trim() : null;
   if (status !== undefined && canModerate(user.role)) patch.status = String(status);
+  if (category !== undefined) patch.category = normalizeCategory(category, title || post?.title, String(user?.role || ""));
+  if (is_pinned !== undefined && canModerate(user.role)) patch.is_pinned = Boolean(is_pinned);
+  if (pinned_until !== undefined && canModerate(user.role)) patch.pinned_until = pinned_until ? new Date(pinned_until).toISOString() : null;
+  if ((audience !== undefined || audience_type !== undefined || audience_ref !== undefined) && canModerate(user.role)) {
+    const audienceValue = normalizeAudience(audience || { type: audience_type, ref: audience_ref });
+    patch.audience_type = audienceValue.type;
+    patch.audience_ref = audienceValue.ref;
+  }
+  if (scheduled_at !== undefined && canModerate(user.role)) patch.scheduled_at = scheduled_at ? new Date(scheduled_at).toISOString() : null;
+  if (priority !== undefined && canModerate(user.role)) patch.priority = priority ? String(priority) : null;
   if (media !== undefined) patch.media = normalizeMediaItems(media);
   if (live_link !== undefined || liveLink !== undefined) {
     const nextLiveLink = String(live_link ?? liveLink ?? "").trim();
@@ -1207,6 +1277,80 @@ export async function reactToComment(req: Request, res: Response) {
     return res.status(500).json({ error: error.message });
   }
   return res.json(data);
+}
+
+export async function markPostRead(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  const { postId } = req.params;
+
+  const { data: post, error: postErr } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id")
+    .eq("id", postId)
+    .maybeSingle();
+  if (postErr) return res.status(500).json({ error: postErr.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
+
+  const row = {
+    post_id: String(postId),
+    user_id: String(user.id),
+    estate_id: String(post.estate_id || user.estate_id || ""),
+    read_at: new Date().toISOString(),
+  };
+  const { error } = await supabaseAdmin
+    .from("community_read_receipts")
+    .upsert(row as any, { onConflict: "post_id,user_id" });
+  if (error) {
+    if (isMissingTable(error, "community_read_receipts")) {
+      return res.json({ ok: true, fallback: true, reason: "community_read_receipts_missing" });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+  return res.json({ ok: true, post_id: postId, read_at: row.read_at });
+}
+
+export async function reportPost(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  const { postId } = req.params;
+  const reason = String(req.body?.reason || "reported").trim().slice(0, 120);
+  const details = String(req.body?.details || "").trim().slice(0, 1000) || null;
+
+  const { data: post, error: postErr } = await supabaseAdmin
+    .from("community_posts")
+    .select("id,estate_id")
+    .eq("id", postId)
+    .maybeSingle();
+  if (postErr) return res.status(500).json({ error: postErr.message });
+  if (!post?.id) return res.status(404).json({ error: "Post not found" });
+  if (!(await hasEstateAccess(user, String(post.estate_id || "")))) {
+    return res.status(403).json({ error: "Unauthorized estate access" });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("community_post_reports")
+    .insert({
+      post_id: String(postId),
+      reporter_user_id: String(user.id),
+      estate_id: String(post.estate_id || user.estate_id || ""),
+      reason,
+      details,
+      status: "open",
+    } as any)
+    .select("*")
+    .single();
+  if (error) {
+    if (isMissingTable(error, "community_post_reports")) {
+      return res.status(503).json({ error: "Community reporting is not configured yet.", code: "COMMUNITY_REPORTS_TABLE_MISSING" });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+
+  return res.json({ ok: true, report: data });
 }
 
 export async function uploadMedia(req: Request, res: Response) {

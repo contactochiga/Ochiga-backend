@@ -18,6 +18,7 @@ import signalRoutes from "./routes/signals";
 import facilityRoutes from "./routes/facility.routes";
 import aiRoutes from "./routes/aiRoutes";
 import watchRoutes from "./routes/watchRoutes";
+import activityRoutes from "./routes/activity";
 
 import communityRoutes from "./routes/community";
 import walletRoutes from "./routes/wallets";
@@ -206,6 +207,8 @@ app.use("/devices", devicesRoutes);
 
 app.use("/ai", aiRoutes);
 app.use("/watch", watchRoutes);
+app.use("/activity", activityRoutes);
+app.use("/api/activity", activityRoutes);
 
 // ✅ consumer visitors
 app.use("/visitors", visitorRoutes);
@@ -222,6 +225,7 @@ app.use("/facility/maintenance", facilityMaintenanceRoutes);
 app.use("/facility/visitors", facilityVisitorsRoutes);
 
 app.use("/community", communityRoutes);
+app.use("/api/community", communityRoutes);
 
 // ✅ wallet routes
 app.use("/wallets", walletRoutes);
