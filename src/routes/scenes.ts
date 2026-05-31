@@ -70,6 +70,7 @@ router.post("/", requirePermission("devices.control"), async (req, res) => {
     ...actorScope(req.user!),
     created_by: req.user!.id,
     name,
+    description: String(req.body?.description || "").trim().slice(0, 240) || null,
     icon: String(req.body?.icon || "sparkles").slice(0, 32),
     mood: String(req.body?.mood || "").slice(0, 48),
     actions,
@@ -92,6 +93,7 @@ router.patch("/:id", requirePermission("devices.control"), async (req, res) => {
     updates.name = name;
   }
   if (req.body?.icon != null) updates.icon = String(req.body.icon || "sparkles").slice(0, 32);
+  if (req.body?.description != null) updates.description = String(req.body.description || "").trim().slice(0, 240) || null;
   if (req.body?.mood != null) updates.mood = String(req.body.mood || "").slice(0, 48);
   if (actions !== undefined) {
     if (!actions.length) return res.status(400).json({ error: "At least one device action is required" });

@@ -20,6 +20,9 @@ import aiRoutes from "./routes/aiRoutes";
 import watchRoutes from "./routes/watchRoutes";
 import activityRoutes from "./routes/activity";
 import scenesRoutes from "./routes/scenes";
+import automationsRoutes from "./routes/automations";
+import homeMembersRoutes from "./routes/homeMembers";
+import spacesTwinRoutes from "./routes/spacesTwin";
 
 import communityRoutes from "./routes/community";
 import walletRoutes from "./routes/wallets";
@@ -212,6 +215,10 @@ app.use("/activity", activityRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/scenes", scenesRoutes);
 app.use("/api/scenes", scenesRoutes);
+app.use("/automations", automationsRoutes);
+app.use("/api/automations", automationsRoutes);
+app.use("/home/members", homeMembersRoutes);
+app.use("/spaces", spacesTwinRoutes);
 
 // ✅ consumer visitors
 app.use("/visitors", visitorRoutes);
