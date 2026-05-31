@@ -717,16 +717,16 @@ export async function getPostsForEstate(req: Request, res: Response) {
   }
 
   const authorIds = Array.from(new Set(posts.map((p) => String(p.author_id || "")).filter(Boolean)));
-  const authorMap = new Map<string, string>();
+  const authorMap = new Map<string, { name: string; avatar_url: string | null }>();
   if (authorIds.length) {
     const { data: users } = await supabaseAdmin
       .from("users")
-      .select("id,username,full_name")
+      .select("id,username,full_name,avatar_url,profile_image_url")
       .in("id", authorIds);
     for (const u of users || []) {
       const id = String((u as any).id || "");
       const name = String((u as any).username || (u as any).full_name || "").trim();
-      if (id && name) authorMap.set(id, name);
+      if (id) authorMap.set(id, { name, avatar_url: String((u as any).profile_image_url || (u as any).avatar_url || "").trim() || null });
     }
   }
 
@@ -734,8 +734,10 @@ export async function getPostsForEstate(req: Request, res: Response) {
     const pid = String(p.id || "");
     const likeCount = Number(likeCounts[pid] || 0);
     const commentCount = Number(commentCounts[pid] || 0);
+    const author = authorMap.get(String(p.author_id || ""));
     return normalizePostOutput(p, {
-      author_name: authorMap.get(String(p.author_id || "")) || null,
+      author_name: author?.name || null,
+      author_avatar_url: author?.avatar_url || null,
       like_count: likeCount,
       likes: likeCount,
       reactions_count: likeCount,

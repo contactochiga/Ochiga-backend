@@ -3,6 +3,13 @@ import { hasPermission } from "../core/foundation";
 import type { AuthUser } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { routeAiCommand, updateAiConfirmation, type ProposedAiTool } from "../ai/commandRouter";
+import { hasWatchScope } from "./watchPolicy";
+import {
+  isDeviceDefinitelyOffline,
+  listVisibleDevices,
+  logDeviceCommandDiagnostic,
+  normalizeDeviceOnlineState,
+} from "./deviceRuntimeService";
 
 function actorHomeId(actor: AuthUser) {
   return actor.home_id || null;
@@ -17,6 +24,10 @@ function statusLabel(status?: string | null) {
   if (value.includes("offline") || value.includes("error")) return "offline";
   if (value.includes("online") || value.includes("active")) return "online";
   return "unknown";
+}
+
+function runtimeStatusLabel(row: any) {
+  return normalizeDeviceOnlineState(row).state;
 }
 
 function stateColor(state?: string | null) {
@@ -50,7 +61,7 @@ function deviceActionVerb(row: any) {
   const family = deviceFamily(row);
   if (family === "camera") return "show";
   if (family === "access") return "status";
-  return statusLabel(row?.status) === "online" ? "off" : "on";
+  return runtimeStatusLabel(row) === "online" ? "off" : "on";
 }
 
 function devicePrompt(row: any) {
@@ -88,15 +99,11 @@ async function recentNotifications(actor: AuthUser, limit = 6) {
 }
 
 async function visibleDevices(actor: AuthUser, limit = 20) {
-  let query = supabaseAdmin
-    .from("devices")
-    .select("id,external_id,name,type,category,vendor,status,estate_id,home_id,room_id,updated_at")
-    .limit(limit);
-  if (actorEstateId(actor)) query = query.eq("estate_id", actorEstateId(actor));
-  if (actorHomeId(actor)) query = query.eq("home_id", actorHomeId(actor));
-  const { data, error } = await query;
-  if (error) return [];
-  return data || [];
+  try {
+    return await listVisibleDevices(actor, limit);
+  } catch {
+    return [];
+  }
 }
 
 async function visibleHome(actor: AuthUser) {
@@ -121,6 +128,9 @@ async function visibleEstate(actor: AuthUser, homeEstateId?: string | null) {
 }
 
 export async function getWatchHomeStatus(actor: AuthUser) {
+  if (!hasWatchScope(actor)) {
+    return { state: "denied", error: "A home or estate context is required for Oyi Watch.", code: "watch_scope_required" };
+  }
   const [devices, notifications, maintenance, home] = await Promise.all([
     visibleDevices(actor),
     recentNotifications(actor, 4),
@@ -128,7 +138,7 @@ export async function getWatchHomeStatus(actor: AuthUser) {
     visibleHome(actor),
   ]);
   const estate = await visibleEstate(actor, (home as any)?.estate_id || null);
-  const offline = devices.filter((device: any) => statusLabel(device.status) === "offline").length;
+  const offline = devices.filter((device: any) => runtimeStatusLabel(device) === "offline").length;
   const unread = notifications.filter((item: any) => String(item.status || "").toLowerCase() !== "read").length;
   const state = offline > 0 ? "attention" : unread > 0 ? "aware" : "calm";
   const homeName = safeTitle((home as any)?.name || [(home as any)?.block, (home as any)?.unit].filter(Boolean).join(" ") || (estate as any)?.name || actor.username || "Oyi Home", "Oyi Home");
@@ -156,9 +166,12 @@ export async function getWatchHomeStatus(actor: AuthUser) {
 }
 
 export async function getWatchGlances(actor: AuthUser) {
+  if (!hasWatchScope(actor)) {
+    return { items: [], source: "missing_context", code: "watch_scope_required" };
+  }
   const [status, notifications, devices] = await Promise.all([getWatchHomeStatus(actor), recentNotifications(actor, 8), visibleDevices(actor, 12)]);
   const deviceGlances = devices.slice(0, 3).map((device: any) => {
-    const state = statusLabel(device.status);
+    const state = runtimeStatusLabel(device);
     return {
       id: `device-${device.id}`,
       type: deviceFamily(device),
@@ -204,6 +217,9 @@ export async function getWatchGlances(actor: AuthUser) {
 }
 
 export async function getWatchQuickActions(actor: AuthUser) {
+  if (!hasWatchScope(actor)) {
+    return { actions: [], source: "missing_context", code: "watch_scope_required" };
+  }
   const canControl = hasPermission(actor, "devices.control");
   const devices = await visibleDevices(actor, 20);
   const actionableDevices = devices.filter(canExposeControl).slice(0, 3);
@@ -212,7 +228,8 @@ export async function getWatchQuickActions(actor: AuthUser) {
     ...actionableDevices.map((device: any) => {
       const verb = deviceActionVerb(device);
       const family = deviceFamily(device);
-      const disabled = statusLabel(device.status) === "offline";
+      const disabled = isDeviceDefinitelyOffline(device);
+      const command = ["on", "off"].includes(verb) ? { switch: verb === "on" } : undefined;
       return {
         id: `device:${device.id}:${verb}`,
         label: safeTitle(verb === "off" ? `${device.name || "Device"} off` : verb === "on" ? `${device.name || "Device"} on` : `${device.name || "Device"} status`, "Device"),
@@ -224,6 +241,7 @@ export async function getWatchQuickActions(actor: AuthUser) {
         icon_type: family,
         state_color: disabled ? "red" : "blue",
         device_id: device.id,
+        command,
         last_updated: device.updated_at || null,
       };
     }),
@@ -235,22 +253,54 @@ export async function getWatchQuickActions(actor: AuthUser) {
   };
 }
 
-function proposedToolsForWatch(input: { command?: string; action_id?: string }, matched: any): ProposedAiTool[] {
-  const command = String(input.command || matched?.prompt || "show home status").toLowerCase();
+function proposedToolsForWatch(input: { command?: string; action_id?: string; device_id?: string; device_command?: Record<string, any> }, matched: any): ProposedAiTool[] {
+  const command = String(matched?.prompt || input.command || "show home status").toLowerCase();
+  if (!matched?.device_id && /home status|readiness|home health/.test(command)) {
+    return [{ tool_id: "summarize_readiness", arguments: {} }];
+  }
+  if (!matched?.device_id && /show device status|device status|summarize devices/.test(command)) {
+    return [{ tool_id: "summarize_devices", arguments: {} }];
+  }
   if (matched?.device_id || /turn on|turn off|switch on|switch off|set .*\d+|light|ac|climate|camera|device|status/.test(command)) {
-    return [{ tool_id: "device_command", arguments: matched?.device_id ? { device_id: matched.device_id } : {} }];
+    return [{
+      tool_id: "device_command",
+      arguments: {
+        ...(matched?.device_id || input.device_id ? { device_id: matched?.device_id || input.device_id } : {}),
+        ...(matched?.command || input.device_command ? { command: matched?.command || input.device_command } : {}),
+        ...(input.action_id ? { action_id: input.action_id } : {}),
+      },
+    }];
   }
   if (/home status|status|readiness|health/.test(command)) return [{ tool_id: "summarize_readiness", arguments: {} }];
   return [{ tool_id: "open_module", arguments: { module: "home" } }];
 }
 
-export async function runWatchCommand(req: Request | undefined, actor: AuthUser, input: { command?: string; action_id?: string }) {
+export async function runWatchCommand(req: Request | undefined, actor: AuthUser, input: { command?: string; action_id?: string; device_id?: string; device_command?: Record<string, any> }) {
+  if (!hasWatchScope(actor)) {
+    return { state: "denied", reply: "A home or estate context is required for Oyi Watch.", code: "watch_scope_required", tools: [], confirmations: [] };
+  }
   const quick = await getWatchQuickActions(actor);
   const matched = (input.action_id ? quick.actions.find((action: any) => action.id === input.action_id) : null) as any;
+  if (input.action_id && !matched) {
+    return { state: "denied", reply: "That watch action is no longer available. Refresh actions and try again.", code: "action_not_found", tools: [], confirmations: [] };
+  }
+  if (matched?.device_id && input.device_id && matched.device_id !== input.device_id) {
+    return { state: "denied", reply: "That watch action no longer matches this device. Refresh actions and try again.", code: "device_action_mismatch", tools: [], confirmations: [] };
+  }
   if (matched && !matched.enabled) {
     return { state: "denied", reply: matched.disabled_reason === "device_offline" ? "That device is offline." : "You do not have permission.", tools: [], confirmations: [] };
   }
-  const prompt = String(input.command || (matched as any)?.prompt || "show home status").trim();
+  const prompt = String((matched as any)?.prompt || input.command || "show home status").trim();
+  const online = matched?.device_id ? normalizeDeviceOnlineState(matched) : null;
+  logDeviceCommandDiagnostic("watch.command", {
+    action_id: input.action_id,
+    device_id: input.device_id,
+    matched_device_id: matched?.device_id,
+    home_id: actor.home_id,
+    estate_id: actor.estate_id,
+    normalized_online_state: online?.state,
+    command: matched?.command || input.device_command || input.command,
+  });
   const routed = await routeAiCommand(req, {
     actor,
     prompt,

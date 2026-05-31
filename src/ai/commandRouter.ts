@@ -4,6 +4,14 @@ import { emitAuditEvent, hasPermission } from "../core/foundation";
 import type { AuthUser } from "../middleware/auth";
 import { AI_TOOL_REGISTRY, getAiTool, type AiToolDefinition } from "./toolRegistry";
 import { executeDeviceCommandForActor } from "../controllers/deviceCommandController";
+import { deviceWithinActorScope, hasWatchScope } from "../services/watchPolicy";
+import {
+  isDeviceDefinitelyOffline,
+  listVisibleDevices,
+  logDeviceCommandDiagnostic,
+  normalizeDeviceOnlineState,
+  resolveVisibleDevice,
+} from "../services/deviceRuntimeService";
 
 export type AiCommandStatus =
   | "pending_confirmation"
@@ -196,6 +204,9 @@ function targetFamily(prompt: string) {
   if (/socket|plug|outlet/.test(t)) return "outlet";
   if (/switch|relay/.test(t)) return "switch";
   if (/camera|cctv/.test(t)) return "camera";
+  if (/lock|gate|door/.test(t)) return "access";
+  if (/heater/.test(t)) return "heater";
+  if (/security|alarm/.test(t)) return "security";
   return "device";
 }
 
@@ -206,13 +217,26 @@ function deviceFamilyFromRow(row: any) {
   if (/socket|plug|outlet/.test(source)) return "outlet";
   if (/switch|relay/.test(source)) return "switch";
   if (/camera|cctv/.test(source)) return "camera";
+  if (/lock|gate|door/.test(source)) return "access";
+  if (/heater/.test(source)) return "heater";
+  if (/security|alarm/.test(source)) return "security";
   return "device";
 }
 
 function classifyDeviceCommand(prompt: string) {
   const t = normalizePrompt(prompt);
-  if (/wallet|debit|permission|admin|lockdown|disable camera/.test(t)) return { risk: "high" as const, reason: "high_risk_or_admin_action" };
-  if (/unlock|open gate|open door|heater|turn off all|all devices|visitor access|guest access/.test(t)) return { risk: "medium" as const, reason: "confirmation_required" };
+  if (/wallet|debit|permission|admin|lockdown|disable camera|disarm security/.test(t)) return { risk: "high" as const, reason: "high_risk_or_admin_action" };
+  if (/unlock/.test(t)) return { risk: "medium" as const, reason: "confirmation_required", action: "unlock", command: { lock: false } };
+  if (/\block\b/.test(t)) return { risk: "medium" as const, reason: "confirmation_required", action: "lock", command: { lock: true } };
+  if (/open gate|open door/.test(t)) return { risk: "medium" as const, reason: "confirmation_required", action: "open", command: { access: "open" } };
+  if (/close gate|close door/.test(t)) return { risk: "medium" as const, reason: "confirmation_required", action: "close", command: { access: "close" } };
+  if (/arm security/.test(t)) return { risk: "medium" as const, reason: "confirmation_required", action: "arm", command: { armed: true } };
+  if (/heater/.test(t)) {
+    if (/turn on|switch on|power on|start/.test(t)) return { risk: "medium" as const, reason: "confirmation_required", action: "on", command: { switch: true } };
+    if (/turn off|switch off|power off|stop/.test(t)) return { risk: "medium" as const, reason: "confirmation_required", action: "off", command: { switch: false } };
+    return { risk: "medium" as const, reason: "worker_not_allowed", action: "unsupported", command: null };
+  }
+  if (/turn off all|all devices|visitor access|guest access/.test(t)) return { risk: "medium" as const, reason: "worker_not_allowed", action: "unsupported", command: null };
   const temp = requestedTemperature(prompt);
   if (temp !== null) return { risk: "low" as const, action: "set_temperature", command: { temperature: temp, temp_set: temp } };
   if (/turn on|switch on|power on|start/.test(t)) return { risk: "low" as const, action: "on", command: { switch: true } };
@@ -221,21 +245,10 @@ function classifyDeviceCommand(prompt: string) {
 }
 
 async function findDeviceForPrompt(actor: AuthUser, prompt: string, args: Record<string, any>) {
+  if (!hasWatchScope(actor)) return null;
   const explicit = args.device_id || args.deviceId || args.external_id || args.externalId;
-  let query = supabaseAdmin.from("devices").select("*").limit(50);
-  if (explicit) {
-    const ref = String(explicit);
-    query = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(ref)
-      ? query.eq("id", ref)
-      : query.eq("external_id", ref);
-  } else {
-    if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
-    if (actor.home_id) query = query.eq("home_id", actor.home_id);
-  }
-  const { data, error } = await query;
-  if (error) throw error;
-  const rows = data || [];
-  if (explicit) return rows[0] || null;
+  if (explicit) return resolveVisibleDevice(actor, explicit);
+  const rows = await listVisibleDevices(actor, 50);
 
   const room = targetRoom(prompt);
   const family = targetFamily(prompt);
@@ -243,8 +256,10 @@ async function findDeviceForPrompt(actor: AuthUser, prompt: string, args: Record
 
   const scored = rows
     .map((row: any) => {
-      const name = normalizePrompt(`${row?.name || ""} ${row?.room_name || ""} ${row?.metadata?.room_name || ""}`);
+      const aliases = Array.isArray(row?.metadata?.aliases) ? row.metadata.aliases.join(" ") : row?.metadata?.alias || row?.alias || "";
+      const name = normalizePrompt(`${row?.name || ""} ${aliases} ${row?.room_name || ""} ${row?.metadata?.room_name || ""} ${row?.category || ""} ${row?.type || ""}`);
       let score = 0;
+      if (normalizePrompt(row?.name || "") && t.includes(normalizePrompt(row?.name || ""))) score += 12;
       if (deviceFamilyFromRow(row) === family) score += 4;
       if (room && name.includes(room)) score += 4;
       if (name && t.split(" ").some((word) => word.length > 3 && name.includes(word))) score += 1;
@@ -253,17 +268,36 @@ async function findDeviceForPrompt(actor: AuthUser, prompt: string, args: Record
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score);
 
+  if (scored.length > 1 && scored[0].score === scored[1].score) {
+    return {
+      __oyi_ambiguous: true,
+      __oyi_matches: scored.slice(0, 4).map((item: any) => ({ id: item.row?.id, name: item.row?.name || "Device" })),
+    };
+  }
   return scored[0]?.row || null;
 }
 
+function ambiguousDeviceSummary(device: any) {
+  const names = Array.isArray(device?.__oyi_matches) ? device.__oyi_matches.map((item: any) => item.name).filter(Boolean).join(", ") : "";
+  return `I found multiple matching devices${names ? `: ${names}` : ""}. Please choose one or name the room.`;
+}
+
+function mediumDeviceCommandAllowed(classification: ReturnType<typeof classifyDeviceCommand>, device: any) {
+  const family = deviceFamilyFromRow(device);
+  if (!classification.command || classification.risk !== "medium") return false;
+  if (family === "access") return ["unlock", "lock", "open", "close"].includes(String(classification.action || ""));
+  if (family === "heater") return ["on", "off"].includes(String(classification.action || ""));
+  if (family === "security") return classification.action === "arm";
+  return false;
+}
+
 function deviceOffline(row: any) {
-  if (typeof row?.online === "boolean") return !row.online;
-  const status = String(row?.status || row?.state || "").toLowerCase();
-  return status.includes("offline") || status.includes("error");
+  return isDeviceDefinitelyOffline(row);
 }
 
 async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUser, prompt: string, args: Record<string, any>) {
   const classification = classifyDeviceCommand(prompt);
+  const effectiveCommand = args.command && typeof args.command === "object" ? args.command : classification.command;
   const estateId = actorEstate(actor, args.estate_id || args.estateId || null);
   const homeId = actorHome(actor, args.home_id || args.homeId || null);
 
@@ -274,6 +308,15 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
   }
 
   if (classification.risk === "medium") {
+    const device = await findDeviceForPrompt(actor, prompt, args);
+    if (device?.__oyi_ambiguous) {
+      return { tool_id: "device_command", status: "failed", error: "device_ambiguous", summary: ambiguousDeviceSummary(device) };
+    }
+    if (!device?.id && !device?.external_id) {
+      const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "failed", estateId, homeId, errorMessage: "device_not_found", resultSummary: "I could not find that device in your home scope." });
+      await audit(req, actor, "ai.action.failed", "failed", { tool_id: "device_command", ledger_id: ledger.id, reason: "device_not_found" });
+      return { tool_id: "device_command", status: "failed", error: "device_not_found", ledger_id: ledger.id || null, summary: "I could not find that device in your home scope." };
+    }
     const ledger = await writeLedger({
       actor,
       toolId: "device_command",
@@ -282,7 +325,14 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
       estateId,
       homeId,
       resultSummary: "Confirmation required before this home command can execute.",
-      metadata: { proposed_arguments: args, risk_level: "medium", reason: classification.reason },
+      metadata: {
+        proposed_arguments: { ...args, device_id: device.id || device.external_id },
+        risk_level: "medium",
+        reason: classification.reason,
+        device_id: device.id || device.external_id,
+        command: effectiveCommand,
+        action: classification.action,
+      },
     });
     await audit(req, actor, "ai.command.confirmation.required", "pending", { tool_id: "device_command", ledger_id: ledger.id, reason: classification.reason });
     return { tool_id: "device_command", status: "pending_confirmation", confirmation_required: true, ledger_id: ledger.id || null };
@@ -290,6 +340,9 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
 
   if (classification.risk === "read") {
     const device = await findDeviceForPrompt(actor, prompt, args);
+    if (device?.__oyi_ambiguous) {
+      return { tool_id: "device_command", status: "failed", error: "device_ambiguous", summary: ambiguousDeviceSummary(device) };
+    }
     const summary = device
       ? `${device.name || "Device"} is ${deviceOffline(device) ? "offline" : "available"}.`
       : "I could not find that device in your home scope.";
@@ -299,6 +352,9 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
   }
 
   const device = await findDeviceForPrompt(actor, prompt, args);
+  if (device?.__oyi_ambiguous) {
+    return { tool_id: "device_command", status: "failed", error: "device_ambiguous", summary: ambiguousDeviceSummary(device) };
+  }
   if (!device?.id && !device?.external_id) {
     const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "failed", estateId, homeId, errorMessage: "device_not_found", resultSummary: "I could not find that device in your home scope." });
     await audit(req, actor, "ai.action.failed", "failed", { tool_id: "device_command", ledger_id: ledger.id, reason: "device_not_found" });
@@ -311,12 +367,22 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
   }
 
   try {
-    const result = await executeDeviceCommandForActor({ actor, deviceId: String(device.id || device.external_id), command: classification.command || {}, req });
-    const actionText = classification.action === "set_temperature" ? `set to ${(classification.command as any)?.temperature}°` : classification.action === "on" ? "on" : "off";
-    const summary = `${device.name || "Device"} is ${actionText}.`;
-    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "executed", estateId, homeId, resultSummary: summary, metadata: { device_id: device.id, command: classification.command, result } });
+    logDeviceCommandDiagnostic("ai.device.resolve", {
+      action_id: args.action_id,
+      device_id: args.device_id,
+      matched_device_id: device.id || device.external_id,
+      home_id: actor.home_id,
+      estate_id: actor.estate_id,
+      normalized_online_state: normalizeDeviceOnlineState(device).state,
+      command: effectiveCommand,
+    });
+    const result = await executeDeviceCommandForActor({ actor, deviceId: String(device.id || device.external_id), command: effectiveCommand || {}, req });
+    const actionText = classification.action === "set_temperature" ? `set to ${(effectiveCommand as any)?.temperature}°` : classification.action === "on" ? "on" : "off";
+    const queued = result.status === "command_queued";
+    const summary = queued ? `${device.name || "Device"} command queued.` : `${device.name || "Device"} is ${actionText}.`;
+    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "executed", estateId, homeId, resultSummary: summary, metadata: { device_id: device.id, command: effectiveCommand, result } });
     await audit(req, actor, "ai.tool.executed", "success", { tool_id: "device_command", ledger_id: ledger.id, device_id: device.id });
-    return { tool_id: "device_command", status: "executed", ledger_id: ledger.id || null, summary, data: { device_id: device.id, command_status: result.status } };
+    return { tool_id: "device_command", status: queued ? "queued" : "executed", ledger_id: ledger.id || null, summary, data: { device_id: device.id, command_status: result.status } };
   } catch (error: any) {
     const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "failed", estateId, homeId, errorMessage: error?.message || String(error), resultSummary: "The device command could not complete." });
     await audit(req, actor, "ai.action.failed", "failed", { tool_id: "device_command", ledger_id: ledger.id, error: error?.message || String(error) });
@@ -353,6 +419,40 @@ async function executeConfirmedWorker(actor: AuthUser, record: any) {
 
   const metadata = record?.metadata && typeof record.metadata === "object" ? record.metadata : {};
   const args = metadata.proposed_arguments && typeof metadata.proposed_arguments === "object" ? metadata.proposed_arguments : {};
+
+  if (tool.tool_id === "device_command") {
+    if (!hasWatchScope(actor)) {
+      return { ok: false, status: "denied" as AiCommandStatus, summary: "A home or estate context is required.", error: "watch_scope_required" };
+    }
+    if (record.home_id && actor.home_id && record.home_id !== actor.home_id) {
+      return { ok: false, status: "denied" as AiCommandStatus, summary: "That device is outside your home scope.", error: "scope_mismatch" };
+    }
+    if (record.estate_id && actor.estate_id && record.estate_id !== actor.estate_id) {
+      return { ok: false, status: "denied" as AiCommandStatus, summary: "That device is outside your estate scope.", error: "scope_mismatch" };
+    }
+    const classification = classifyDeviceCommand(String(record.prompt_excerpt || ""));
+    const device = await findDeviceForPrompt(actor, String(record.prompt_excerpt || ""), args);
+    if (!device || !deviceWithinActorScope(actor, device)) {
+      return { ok: false, status: "denied" as AiCommandStatus, summary: "That device is outside your home scope.", error: "device_not_found_or_out_of_scope" };
+    }
+    if (deviceOffline(device)) {
+      return { ok: false, status: "failed" as AiCommandStatus, summary: "That device is offline.", error: "device_offline" };
+    }
+    if (!mediumDeviceCommandAllowed(classification, device)) {
+      return { ok: false, status: "denied" as AiCommandStatus, summary: "That confirmed command is not enabled for watch execution.", error: "worker_not_allowed" };
+    }
+    try {
+      const result = await executeDeviceCommandForActor({
+        actor,
+        deviceId: String(device.id || device.external_id),
+        command: classification.command || {},
+      });
+      const summary = `${device.name || "Device"} command ${result.status === "command_queued" ? "queued" : "completed"}.`;
+      return { ok: true, status: "executed" as AiCommandStatus, summary, data: { device_id: device.id, command_status: result.status } };
+    } catch (error: any) {
+      return { ok: false, status: "failed" as AiCommandStatus, summary: "The confirmed device command could not complete.", error: error?.message || "device_command_failed" };
+    }
+  }
 
   if (tool.tool_id === "support_mutation") {
     const ticket = await insertSupportTicket(actor, {
@@ -495,6 +595,13 @@ export async function updateAiConfirmation(actor: AuthUser, ledgerId: string, de
   if (decision === "confirmed") {
     try {
       const execution = await executeConfirmedWorker(actor, record);
+      await audit(
+        undefined,
+        actor,
+        execution.status === "executed" ? "ai.tool.executed" : execution.status === "denied" ? "ai.tool.denied" : "ai.action.failed",
+        execution.status === "executed" ? "success" : execution.status,
+        { tool_id: record.tool_id, ledger_id: record.id, error: execution.error || null },
+      );
       patch = {
         execution_status: execution.status,
         confirmed_at: now,

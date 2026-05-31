@@ -2,9 +2,17 @@ import express from "express";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { auditOnSuccess } from "../middleware/audit";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { initAdaptersOnce } from "../device/adapters/initAdapters";
+import { adapterRegistry } from "../device/adapters/registry";
+import type { AdapterContext } from "../device/adapters/types";
 
 const router = express.Router();
 const SUPPORTED_INTEGRATIONS = new Set(["tuya", "alexa", "google_assistant"]);
+
+function cleanStr(v: any) {
+  const s = String(v ?? "").trim();
+  return s.length ? s : "";
+}
 
 function isMissingTable(err: any, table: string) {
   const msg = String(err?.message || "").toLowerCase();
@@ -124,8 +132,30 @@ function maskExternalId(value: string | null): string | null {
   return `${value.slice(0, 4)}***${value.slice(-3)}`;
 }
 
-const PROFILE_SELECT = "id, email, username, full_name, role, estate_id, home_id";
+const PROFILE_SELECT = "id, email, username, full_name, phone, avatar_url, profile_image_url, role, estate_id, home_id";
+const PROFILE_SELECT_FALLBACK = "id, email, username, full_name, avatar_url, profile_image_url, role, estate_id, home_id";
+const PROFILE_SELECT_BASE = "id, email, username, full_name, role, estate_id, home_id";
 const PROFILE_AVATAR_BUCKET = process.env.PROFILE_AVATAR_BUCKET || "profile-avatars";
+
+function isMissingColumn(error: any, column: string) {
+  const msg = String(error?.message || "").toLowerCase();
+  return msg.includes(column.toLowerCase()) || (msg.includes("column") && msg.includes("does not exist"));
+}
+
+async function selectUserProfile(userId: string) {
+  const attempts = [PROFILE_SELECT, PROFILE_SELECT_FALLBACK, PROFILE_SELECT_BASE];
+  let lastError: any = null;
+  for (const select of attempts) {
+    const { data, error } = await supabaseAdmin
+      .from("users")
+      .select(select)
+      .eq("id", userId)
+      .maybeSingle();
+    if (!error) return { data, error: null };
+    lastError = error;
+  }
+  return { data: null, error: lastError };
+}
 
 async function uploadProfileAvatar(storageKey: string, buffer: Buffer, mime: string) {
   const { error } = await supabaseAdmin.storage
@@ -181,7 +211,7 @@ async function updateUserAvatarProfile(userId: string, avatarUrl: string | null)
       .from("users")
       .update(updates)
       .eq("id", userId)
-      .select(PROFILE_SELECT)
+      .select(PROFILE_SELECT_FALLBACK)
       .single();
 
     if (!error) {
@@ -348,6 +378,28 @@ async function setStoredIntegration(userId: string, providerInput: string, exter
   return { ok: true as const, provider };
 }
 
+function discoveredExternalId(d: any): string {
+  return cleanStr(d?.externalId || d?.external_id || d?.dev_id || d?.device_id || d?.id || d?.uuid);
+}
+
+function discoveredDeviceRow(d: any, user: any) {
+  const external_id = discoveredExternalId(d);
+  if (!external_id) return null;
+  return {
+    estate_id: user.estate_id,
+    home_id: user.home_id || null,
+    room_id: null,
+    vendor: "tuya",
+    external_id,
+    name: cleanStr(d?.name || d?.device_name || d?.product_name) || "Device",
+    type: cleanStr(d?.type || d?.category) || "device",
+    status: cleanStr(d?.status) || (typeof d?.online === "boolean" ? (d.online ? "online" : "offline") : "available"),
+    icon: cleanStr(d?.icon) || null,
+    metadata: d?.metadata ?? d,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 /**
  * GET /me/context
  * Consumer app header/sidebar context:
@@ -361,10 +413,20 @@ router.get("/context", requireAuth, async (req, res) => {
   const estate = await getEstateContext(user.estate_id);
   const home = await getHomeContext(user.home_id);
   const availableContexts = await listAvailableContexts(user.id);
+  const profileResult = await selectUserProfile(user.id);
+  const profile = profileResult.data || {
+    id: user.id,
+    email: user.email || null,
+    role: user.role || null,
+    estate_id: user.estate_id || null,
+    home_id: user.home_id || null,
+  };
 
   return res.json({
     estate,
     home,
+    user: profile,
+    profile,
     estate_id: estate?.id || null,
     home_id: home?.id || null,
     available_contexts: availableContexts,
@@ -464,6 +526,98 @@ router.patch("/integrations/tuya", requireAuth, requirePermission("devices.contr
   return res.json({ ok: true, provider: "tuya", connected: true, tuya_uid });
 });
 
+router.post("/integrations/tuya/sync", requireAuth, requirePermission("devices.control"), auditOnSuccess("integration.tuya.synced", "integration", "tuya"), async (req, res) => {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+  if (!user.estate_id) return res.status(400).json({ error: "User has no estate context" });
+
+  const tuyaUid = await getTuyaUidForUser(user.id);
+  if (!tuyaUid) {
+    return res.status(409).json({
+      ok: false,
+      connected: false,
+      error: "Tuya / Smart Life is not linked for this account.",
+    });
+  }
+
+  try {
+    initAdaptersOnce();
+    const adapter = adapterRegistry.get("tuya");
+    if (!adapter) return res.status(500).json({ error: "Tuya adapter not registered" });
+
+    const context: AdapterContext = {
+      estateId: user.estate_id,
+      homeId: user.home_id,
+      userId: user.id,
+      credentials: {
+        apiKey: process.env.TUYA_ACCESS_ID,
+        apiSecret: process.env.TUYA_ACCESS_SECRET,
+        tuyaUid,
+      } as any,
+    };
+
+    const discovered = await adapter.discover(context);
+    const externalIds = discovered.map(discoveredExternalId).filter(Boolean);
+    const existingByExternal = new Map<string, any>();
+    if (externalIds.length) {
+      const { data: existing, error: existingError } = await supabaseAdmin
+        .from("devices")
+        .select("*")
+        .eq("estate_id", user.estate_id)
+        .eq("vendor", "tuya")
+        .in("external_id", externalIds);
+      if (existingError) return res.status(500).json({ error: existingError.message });
+      for (const row of existing || []) existingByExternal.set(String((row as any).external_id), row);
+    }
+
+    const rows = discovered
+      .map((device: any) => {
+        const externalId = discoveredExternalId(device);
+        const existing = existingByExternal.get(externalId);
+        const row = discoveredDeviceRow(device, user);
+        if (!row) return null;
+        if (existing) {
+          return {
+            id: existing.id,
+            estate_id: existing.estate_id,
+            home_id: existing.home_id || user.home_id || null,
+            room_id: existing.room_id || null,
+            vendor: "tuya",
+            external_id: externalId,
+            name: row.name || existing.name,
+            type: row.type || existing.type,
+            status: row.status || existing.status,
+            icon: row.icon || existing.icon || null,
+            metadata: { ...(existing.metadata || {}), ...(row.metadata || {}) },
+            updated_at: row.updated_at,
+          };
+        }
+        return row;
+      })
+      .filter(Boolean);
+
+    if (!rows.length) return res.json({ ok: true, provider: "tuya", discovered: 0, updated: 0, created: 0, devices: [] });
+
+    const { data, error } = await supabaseAdmin
+      .from("devices")
+      .upsert(rows as any[], { onConflict: "vendor,external_id" })
+      .select("*");
+    if (error) return res.status(500).json({ error: error.message });
+
+    const created = (data || []).filter((row: any) => !existingByExternal.has(String(row.external_id))).length;
+    return res.json({
+      ok: true,
+      provider: "tuya",
+      discovered: discovered.length,
+      updated: (data || []).length - created,
+      created,
+      devices: data || [],
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Tuya sync failed" });
+  }
+});
+
 router.get("/integrations/:provider", requireAuth, requirePermission("devices.read"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
@@ -529,6 +683,8 @@ router.patch("/profile", requireAuth, auditOnSuccess("user.updated", "user", "id
     req.body?.username == null ? undefined : String(req.body.username).trim();
   const fullName =
     req.body?.full_name == null ? undefined : String(req.body.full_name).trim();
+  const phone =
+    req.body?.phone == null ? undefined : String(req.body.phone).trim();
 
   if (username !== undefined && username.length > 80) {
     return res.status(400).json({ error: "Username is too long" });
@@ -536,10 +692,14 @@ router.patch("/profile", requireAuth, auditOnSuccess("user.updated", "user", "id
   if (fullName !== undefined && fullName.length > 120) {
     return res.status(400).json({ error: "Full name is too long" });
   }
+  if (phone !== undefined && phone.length > 40) {
+    return res.status(400).json({ error: "Phone number is too long" });
+  }
 
   const updates: Record<string, string | null> = {};
   if (username !== undefined) updates.username = username || null;
   if (fullName !== undefined) updates.full_name = fullName || null;
+  if (phone !== undefined) updates.phone = phone || null;
 
   if (!Object.keys(updates).length) {
     return res.status(400).json({ error: "No valid profile field provided" });
@@ -550,10 +710,18 @@ router.patch("/profile", requireAuth, auditOnSuccess("user.updated", "user", "id
       .from("users")
       .update(updates)
       .eq("id", user.id)
-      .select("id, email, username, full_name, role, estate_id, home_id")
+      .select(PROFILE_SELECT_FALLBACK)
       .single();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      if (phone !== undefined && isMissingColumn(error, "phone")) {
+        return res.status(501).json({
+          error: "Profile phone support is not configured yet",
+          required_migration: "users.phone",
+        });
+      }
+      return res.status(500).json({ error: error.message });
+    }
 
     return res.json({
       message: "Profile updated",

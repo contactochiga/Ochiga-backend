@@ -8,6 +8,7 @@ import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import { NotificationService } from "../services/NotificationService";
 import { emitAuditEvent } from "../core/foundation";
 import type { AuthUser } from "../middleware/auth";
+import { logDeviceCommandDiagnostic, normalizeDeviceOnlineState, resolveVisibleDevice } from "../services/deviceRuntimeService";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -80,23 +81,21 @@ export async function executeDeviceCommandForActor(input: {
   if (!command) throw new Error("command is required");
   if (!user?.id) throw new Error("Not authenticated");
 
-  let deviceRow: any = null;
-  const scoped = (query: any) => {
-    let next = query;
-    if (user.estate_id) next = next.eq("estate_id", user.estate_id);
-    if (user.home_id) next = next.eq("home_id", user.home_id);
-    return next;
-  };
-
-  if (isUuid(rawId)) {
-    const { data } = await scoped(supabaseAdmin.from("devices").select("*").eq("id", rawId)).maybeSingle();
-    deviceRow = data;
-  } else {
-    const { data } = await scoped(supabaseAdmin.from("devices").select("*").eq("external_id", rawId)).maybeSingle();
-    deviceRow = data;
-  }
+  const deviceRow: any = await resolveVisibleDevice(user, rawId);
 
   const deviceRef = deviceRow?.id || rawId;
+  logDeviceCommandDiagnostic("device.command.requested", {
+    device_id: rawId,
+    matched_device_id: deviceRow?.id,
+    home_id: user.home_id,
+    estate_id: user.estate_id,
+    normalized_online_state: deviceRow ? normalizeDeviceOnlineState(deviceRow).state : "not_found",
+    command,
+  });
+
+  if (!deviceRow) {
+    throw new Error("device_not_found_or_out_of_scope");
+  }
 
   await handleSignal({
     schemaVersion: SIGNAL_SCHEMA_VERSION,
@@ -141,6 +140,15 @@ export async function executeDeviceCommandForActor(input: {
       userId: user.id,
       credentials: {},
     } as any);
+    logDeviceCommandDiagnostic("device.command.provider", {
+      device_id: rawId,
+      matched_device_id: deviceRow.id,
+      home_id: deviceRow.home_id,
+      estate_id: deviceRow.estate_id,
+      normalized_online_state: normalizeDeviceOnlineState(deviceRow).state,
+      command: normalized,
+      provider_result: "accepted",
+    });
 
     let verifiedState: Record<string, any> | null = null;
     const expected = pickExpectedState(normalized);
@@ -212,9 +220,7 @@ export async function executeDeviceCommandForActor(input: {
   return {
     ok: true,
     status: "command_queued",
-    device: deviceRow
-      ? { id: deviceRow.id, name: deviceRow.name, external_id: deviceRow.external_id, vendor: deviceRow.vendor }
-      : { ref: rawId },
+    device: { id: deviceRow.id, name: deviceRow.name, external_id: deviceRow.external_id, vendor: deviceRow.vendor },
   };
 }
 
@@ -239,7 +245,9 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         .eq("id", rawId)
         .eq("estate_id", user.estate_id);
 
-      if (user.home_id) q = q.eq("home_id", user.home_id);
+      if (user.home_id) {
+        q = user.estate_id ? q.or(`home_id.is.null,home_id.eq.${user.home_id}`) : q.eq("home_id", user.home_id);
+      }
 
       const { data } = await q.maybeSingle();
       deviceRow = data;
@@ -250,7 +258,9 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         .eq("external_id", rawId)
         .eq("estate_id", user.estate_id);
 
-      if (user.home_id) q = q.eq("home_id", user.home_id);
+      if (user.home_id) {
+        q = user.estate_id ? q.or(`home_id.is.null,home_id.eq.${user.home_id}`) : q.eq("home_id", user.home_id);
+      }
 
       const { data } = await q.maybeSingle();
       deviceRow = data;
@@ -258,6 +268,15 @@ export async function requestDeviceCommand(req: Request, res: Response) {
 
     // If not found, still emit signal (audit), but immediate execute needs it
     const deviceRef = deviceRow?.id || rawId;
+
+    if (!deviceRow) {
+      return res.status(404).json({
+        ok: false,
+        error: "Device not found or outside your home scope",
+        status: "device_not_found_or_out_of_scope",
+        device: { ref: rawId },
+      });
+    }
 
     // ✅ Always write the audit signal first
     await handleSignal({

@@ -8,6 +8,7 @@
     "dev:events": "ts-node-dev --respawn --transpile-only src/events.ts",
     "smoke:ecosystem": "node scripts/ecosystem-smoke.mjs",
     "build": "tsc -p .",
+    "smoke:watch": "npm run build && node scripts/watch-hardening-smoke.mjs",
     "start": "node dist/server.js",
     "start:workers": "node dist/worker.js",
     "start:events": "node dist/events.js"
