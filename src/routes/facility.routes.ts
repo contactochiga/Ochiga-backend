@@ -61,7 +61,8 @@ router.post("/rooms", requireAuth, requirePermission("homes.write"), auditOnSucc
 router.get("/homes/:homeId/rooms", requireAuth, requirePermission("homes.read"), listHomeRooms);
 
 /**
- * Invites (estate/home via facility.controller.ts)
+ * Legacy invite compatibility routes.
+ * New resident onboarding must use POST /facility/homes/:homeId/invite.
  */
 router.post("/invites", requireAuth, requirePermission("visitors.manage"), inviteUser);
 router.post("/invites/accept", requireAuth, auditOnSuccess("user.invite.accepted", "invite", "invite"), acceptInvite);

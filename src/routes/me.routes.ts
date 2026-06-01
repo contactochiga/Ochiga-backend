@@ -75,7 +75,7 @@ async function listAvailableContexts(userId: string) {
     .from("home_memberships")
     .select("home_id, role, status, homes(id, estate_id, name, block, unit, electricity_meter, water_meter, internet_id, gate_code)")
     .eq("user_id", userId)
-    .in("status", ["active", "invited"]);
+    .eq("status", "active");
 
   if (error) throw new Error(error.message);
 
@@ -410,9 +410,14 @@ router.get("/context", requireAuth, async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-  const estate = await getEstateContext(user.estate_id);
-  const home = await getHomeContext(user.home_id);
   const availableContexts = await listAvailableContexts(user.id);
+  const activeContext = availableContexts.find(
+    (ctx: any) =>
+      String(ctx.home_id || "") === String(user.home_id || "") &&
+      String(ctx.estate_id || "") === String(user.estate_id || "")
+  ) as any;
+  const estate = activeContext ? await getEstateContext(activeContext.estate_id) : null;
+  const home = activeContext ? await getHomeContext(activeContext.home_id) : null;
   const profileResult = await selectUserProfile(user.id);
   const profile = profileResult.data || {
     id: user.id,

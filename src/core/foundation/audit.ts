@@ -31,6 +31,12 @@ export const FOUNDATION_EVENT_NAMES = [
   "ai.command.confirmed",
   "ai.command.cancelled",
   "ai.action.failed",
+  "auth.invite.validated",
+  "auth.invite.validation_failed",
+  "auth.invite.activated",
+  "auth.invite.activation_failed",
+  "resident.invite.revoked",
+  "resident.invite.resent",
 ] as const;
 
 function requestIp(req?: Request) {

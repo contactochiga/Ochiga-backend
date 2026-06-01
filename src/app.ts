@@ -13,6 +13,7 @@ import estatesRoutes from "./routes/estates";
 import residentsRoutes from "./routes/residents";
 import devicesRoutes from "./routes/devices";
 import onboardingRoutes from "./routes/onboarding";
+import inviteActivationRoutes from "./routes/inviteActivation";
 import visitorRoutes from "./routes/visitors";
 import signalRoutes from "./routes/signals";
 import facilityRoutes from "./routes/facility.routes";
@@ -194,6 +195,7 @@ app.get("/health", (_req, res) => {
 // -------------------------------
 app.use("/auth", authRoutes);
 app.use("/auth/onboard", onboardingRoutes);
+app.use("/auth/invites", inviteActivationRoutes);
 app.use("/auth/otp", otpRoutes);
 
 app.use("/invites", invitesRoutes);

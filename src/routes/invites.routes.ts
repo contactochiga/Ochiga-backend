@@ -12,7 +12,12 @@ import {
 const router = Router();
 
 /**
- * Facility/Admin creates an invite for a home
+ * Legacy compatibility routes.
+ * New resident onboarding must create invitations through
+ * POST /facility/homes/:homeId/invite and activate through
+ * POST /auth/invites/activate.
+ *
+ * Facility/Admin creates an invite for a home.
  */
 router.post(
   "/",

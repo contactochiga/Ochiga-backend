@@ -6,6 +6,8 @@ import { auditOnSuccess } from "../middleware/audit";
 import {
   listHomeUsers,
   inviteHomeUser,
+  resendHomeInvite,
+  revokeHomeInvite,
   updateHomeUser,
   removeHomeUser,
 } from "../controllers/homeUsers.controller";
@@ -18,8 +20,10 @@ const router = express.Router();
  * GET    /facility/homes/:homeId/users
  * POST   /facility/homes/:homeId/invite
  */
-router.get("/:homeId/users", requireAuth, requirePermission("staff.manage"), listHomeUsers);
+router.get("/:homeId/users", requireAuth, listHomeUsers);
 router.post("/:homeId/invite", requireAuth, requirePermission("staff.manage"), auditOnSuccess("user.invited", "home", "homeId"), inviteHomeUser);
+router.post("/:homeId/invites/:inviteId/revoke", requireAuth, requirePermission("staff.manage"), auditOnSuccess("resident.invite.revoked", "invite", "inviteId"), revokeHomeInvite);
+router.post("/:homeId/invites/:inviteId/resend", requireAuth, requirePermission("staff.manage"), auditOnSuccess("resident.invite.resent", "invite", "inviteId"), resendHomeInvite);
 
 /**
  * Base mounted under: /facility

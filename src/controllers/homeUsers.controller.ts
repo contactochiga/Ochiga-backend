@@ -71,6 +71,21 @@ function compact<T extends Record<string, any>>(obj: T): Partial<T> {
   return out as Partial<T>;
 }
 
+function makeInviteToken() {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  return {
+    rawToken,
+    tokenHash: crypto.createHash("sha256").update(rawToken).digest("hex"),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
+function makeResidentInviteUrl(rawToken: string) {
+  const base =
+    process.env.CONSUMER_APP_BASE || process.env.VISITOR_LINK_BASE || "https://oyi.com";
+  return `${base}/auth/invite?token=${rawToken}`;
+}
+
 async function insertWithSchemaFallback<T>(
   table: string,
   row: Record<string, any>
@@ -198,9 +213,22 @@ export async function listHomeUsers(req: ReqAny, res: Response) {
 
     if (error) return res.status(500).json({ error: error.message });
 
+    let invites: any[] = [];
+    if (access.canManage) {
+      const { data: inviteRows, error: invitesError } = await supabaseAdmin
+        .from("invites")
+        .select("id, home_id, invited_email, role, status, expires_at, delivery_status, last_sent_at, claimed_at, revoked_at, created_at")
+        .eq("home_id", homeId)
+        .order("created_at", { ascending: false });
+      if (invitesError) return res.status(500).json({ error: invitesError.message });
+      invites = inviteRows || [];
+    }
+
     return res.json({
       home_id: homeId,
       users: data || [],
+      invites,
+      can_manage: access.canManage,
     });
   } catch (err: any) {
     console.error("listHomeUsers error:", err);
@@ -280,6 +308,16 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
     }
 
     const safeRole = normalizeMembershipRole(role);
+    const { data: existingHomeMembership, error: existingHomeMembershipError } = await supabaseAdmin
+      .from("home_memberships")
+      .select("id, status")
+      .eq("home_id", homeId)
+      .eq("user_id", invitedUserId)
+      .maybeSingle();
+    if (existingHomeMembershipError) return res.status(500).json({ error: existingHomeMembershipError.message });
+    if (existingHomeMembership?.status === "active") {
+      return res.status(409).json({ error: "This resident already has active access to the home" });
+    }
 
     // ✅ Upsert membership as invited (NO estate_id)
     const { data: membership, error: memErr } = await supabaseAdmin
@@ -299,6 +337,31 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
 
     if (memErr) return res.status(500).json({ error: memErr.message });
 
+    if (home.estate_id) {
+      const { data: existingEstateMembership, error: existingEstateMembershipError } = await supabaseAdmin
+        .from("estate_memberships")
+        .select("status")
+        .eq("estate_id", home.estate_id)
+        .eq("user_id", invitedUserId)
+        .maybeSingle();
+      if (existingEstateMembershipError) return res.status(500).json({ error: existingEstateMembershipError.message });
+
+      const { error: estateMembershipError } = await supabaseAdmin
+        .from("estate_memberships")
+        .upsert(
+          {
+            estate_id: home.estate_id,
+            user_id: invitedUserId,
+            role: "resident",
+            status: existingEstateMembership?.status === "active" ? "active" : "invited",
+            permissions: {},
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "estate_id,user_id" }
+        );
+      if (estateMembershipError) return res.status(500).json({ error: estateMembershipError.message });
+    }
+
     const existingPendingInvite = await supabaseAdmin
       .from("invites")
       .select("id")
@@ -314,8 +377,7 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
     }
 
     // Create invite record in `invites`
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const { rawToken, tokenHash, expiresAt } = makeInviteToken();
 
     let inviteRow = existingPendingInvite.data || null;
     if (inviteRow?.id) {
@@ -331,9 +393,15 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
           status: "pending",
           claimed_by: null,
           claimed_at: null,
+          expires_at: expiresAt,
+          delivery_status: "generated",
+          last_sent_at: new Date().toISOString(),
+          revoked_at: null,
+          revoked_by: null,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", inviteRow.id)
-        .select("id")
+        .select("id, expires_at, delivery_status")
         .single();
 
       if (refreshedInvite.error) return res.status(500).json({ error: refreshedInvite.error.message });
@@ -350,17 +418,18 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
           token_hash: tokenHash,
           invited_email: normalizedEmail,
           status: "pending",
+          expires_at: expiresAt,
+          delivery_status: "generated",
+          last_sent_at: new Date().toISOString(),
         })
-        .select("id")
+        .select("id, expires_at, delivery_status")
         .single();
 
       if (createdInvite.error) return res.status(500).json({ error: createdInvite.error.message });
       inviteRow = createdInvite.data;
     }
 
-    const base =
-      process.env.VISITOR_LINK_BASE || process.env.CONSUMER_APP_BASE || "https://oyi.com";
-    const inviteUrl = `${base}/auth/invite?token=${rawToken}`;
+    const inviteUrl = makeResidentInviteUrl(rawToken);
     const qrDataUrl = await QRCode.toDataURL(inviteUrl);
 
     // ✅ Notification (best effort, don’t fail request if notif fails)
@@ -401,9 +470,106 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
       qrDataUrl,
       invited_user_id: invitedUserId,
       membership,
+      invite: inviteRow,
     });
   } catch (err: any) {
     console.error("inviteHomeUser error:", err);
+    return res.status(500).json({ error: err.message || "Server error" });
+  }
+}
+
+/**
+ * POST /facility/homes/:homeId/invites/:inviteId/revoke
+ */
+export async function revokeHomeInvite(req: ReqAny, res: Response) {
+  try {
+    const { homeId, inviteId } = req.params;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+    const access = await assertHomeAccess(userId, homeId);
+    if (!access.ok) return res.status(access.code).json({ error: access.error });
+    if (!access.canManage) return res.status(403).json({ error: "Insufficient permissions" });
+
+    const { data: invite, error: inviteError } = await supabaseAdmin
+      .from("invites")
+      .select("id, home_id, status")
+      .eq("id", inviteId)
+      .eq("home_id", homeId)
+      .maybeSingle();
+    if (inviteError) return res.status(500).json({ error: inviteError.message });
+    if (!invite) return res.status(404).json({ error: "Invite not found" });
+    if (invite.status !== "pending") return res.status(400).json({ error: "Only pending invites can be revoked" });
+
+    const { data, error } = await supabaseAdmin
+      .from("invites")
+      .update({
+        status: "revoked",
+        revoked_at: new Date().toISOString(),
+        revoked_by: userId,
+        delivery_status: "revoked",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", inviteId)
+      .select("id, status, revoked_at")
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, invite: data });
+  } catch (err: any) {
+    console.error("revokeHomeInvite error:", err);
+    return res.status(500).json({ error: err.message || "Server error" });
+  }
+}
+
+/**
+ * POST /facility/homes/:homeId/invites/:inviteId/resend
+ * Rotates the token and returns a fresh link + QR. Email delivery is a later phase.
+ */
+export async function resendHomeInvite(req: ReqAny, res: Response) {
+  try {
+    const { homeId, inviteId } = req.params;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+    const access = await assertHomeAccess(userId, homeId);
+    if (!access.ok) return res.status(access.code).json({ error: access.error });
+    if (!access.canManage) return res.status(403).json({ error: "Insufficient permissions" });
+
+    const { data: invite, error: inviteError } = await supabaseAdmin
+      .from("invites")
+      .select("id, home_id, status")
+      .eq("id", inviteId)
+      .eq("home_id", homeId)
+      .maybeSingle();
+    if (inviteError) return res.status(500).json({ error: inviteError.message });
+    if (!invite) return res.status(404).json({ error: "Invite not found" });
+    if (invite.status === "accepted") return res.status(400).json({ error: "Accepted invites cannot be resent" });
+
+    const { rawToken, tokenHash, expiresAt } = makeInviteToken();
+    const { data, error } = await supabaseAdmin
+      .from("invites")
+      .update({
+        token_hash: tokenHash,
+        status: "pending",
+        expires_at: expiresAt,
+        claimed_by: null,
+        claimed_at: null,
+        revoked_at: null,
+        revoked_by: null,
+        delivery_status: "generated",
+        last_sent_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", inviteId)
+      .select("id, status, expires_at, delivery_status, last_sent_at")
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+
+    const inviteUrl = makeResidentInviteUrl(rawToken);
+    const qrDataUrl = await QRCode.toDataURL(inviteUrl);
+    return res.json({ ok: true, invite: data, inviteUrl, qrDataUrl });
+  } catch (err: any) {
+    console.error("resendHomeInvite error:", err);
     return res.status(500).json({ error: err.message || "Server error" });
   }
 }
