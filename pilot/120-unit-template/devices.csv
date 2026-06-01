@@ -1,0 +1,2 @@
+estate_code,device_ref,name,category,provider,location,home_ref,room_ref,zone_ref,edge_node_id,adapter,external_id,status,sync_state,notes
+PILOT_ESTATE_CODE,DEV-001,Main Gate Access Controller,Security & Access,Hikvision,Main Gate,,,ZONE_GATE,EDGE-01,placeholder,DEV-001,pending,pending_integration,Required: device_ref name category adapter external_id

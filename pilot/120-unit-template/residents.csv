@@ -1,0 +1,2 @@
+estate_code,home_ref,email,full_name,phone,role,status,notes
+PILOT_ESTATE_CODE,A-001,resident@example.com,REQUIRED: Resident Name,OPTIONAL,resident,invited,Required: estate_code home_ref email full_name

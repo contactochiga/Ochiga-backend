@@ -1,0 +1,2 @@
+estate_code,camera_id,name,location,zone_ref,dvr_nvr_ref,stream_protocol,rtsp_url_placeholder,onvif_supported,ai_enabled,status,health_status,notes
+PILOT_ESTATE_CODE,CAM-001,Gate Camera 01,Main Gate,ZONE_GATE,NVR-01,rtsp,AWAITING_STREAM_DETAILS,true,false,pending,pending_stream_details,Do not place camera username/password in this file

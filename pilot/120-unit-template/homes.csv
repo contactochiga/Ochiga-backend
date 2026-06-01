@@ -1,0 +1,2 @@
+estate_code,home_ref,building_ref,unit,name,floor,type,bedrooms,electricity_meter,water_meter,internet_id,gate_code,lat,lng,status,notes
+PILOT_ESTATE_CODE,A-001,BLOCK_A,001,Block A Unit 001,OPTIONAL_NUMBER,apartment,OPTIONAL_NUMBER,OPTIONAL,OPTIONAL,OPTIONAL,OPTIONAL,OPTIONAL,OPTIONAL,pending,Required: estate_code home_ref building_ref unit name

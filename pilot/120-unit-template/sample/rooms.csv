@@ -1,0 +1,3 @@
+estate_code,home_ref,room_ref,name,type,floor,notes
+SAMPLE_120_ESTATE,A-001,A-001-LIVING,Living Room,living_room,1,Dry-run sample
+SAMPLE_120_ESTATE,A-001,A-001-MASTER,Master Bedroom,bedroom,1,Dry-run sample

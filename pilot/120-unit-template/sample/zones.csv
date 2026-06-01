@@ -1,0 +1,4 @@
+estate_code,zone_ref,name,zone_type,parent_zone_ref,description,notes
+SAMPLE_120_ESTATE,ZONE_GATE,Main Gate,security,,Main vehicle/visitor access,Dry-run sample
+SAMPLE_120_ESTATE,ZONE_PERIMETER,Perimeter,security,,External perimeter,Dry-run sample
+SAMPLE_120_ESTATE,ZONE_POWER,Power House,utility,,Power and metering area,Dry-run sample

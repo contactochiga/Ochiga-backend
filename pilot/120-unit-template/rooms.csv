@@ -1,0 +1,2 @@
+estate_code,home_ref,room_ref,name,type,floor,notes
+PILOT_ESTATE_CODE,A-001,A-001-LIVING,Living Room,living_room,OPTIONAL_NUMBER,Optional but recommended for smart-home/device binding

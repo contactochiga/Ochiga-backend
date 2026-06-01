@@ -1,0 +1,10 @@
+{
+  "estate_code": "PILOT_ESTATE_CODE",
+  "name": "REQUIRED: Estate legal/display name",
+  "address": "REQUIRED: Full estate address",
+  "type": "estate",
+  "lat": "OPTIONAL: decimal latitude",
+  "lng": "OPTIONAL: decimal longitude",
+  "timezone": "Africa/Lagos",
+  "notes": "Validation: estate_code must match estate_code in every CSV file. Do not put secrets here."
+}

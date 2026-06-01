@@ -1,0 +1,3 @@
+estate_code,camera_id,name,location,zone_ref,dvr_nvr_ref,stream_protocol,rtsp_url_placeholder,onvif_supported,ai_enabled,status,health_status,notes
+SAMPLE_120_ESTATE,CAM-GATE-01,Gate Camera 01,Main Gate,ZONE_GATE,NVR-01,rtsp,AWAITING_STREAM_DETAILS,true,false,pending,pending_stream_details,Dry-run sample
+SAMPLE_120_ESTATE,CAM-PERIM-01,Perimeter Camera 01,North Fence,ZONE_PERIMETER,NVR-01,rtsp,AWAITING_STREAM_DETAILS,true,false,pending,pending_stream_details,Dry-run sample

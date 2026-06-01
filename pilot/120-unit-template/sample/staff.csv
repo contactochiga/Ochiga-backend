@@ -1,0 +1,3 @@
+estate_code,email,full_name,phone,role,status,notes
+SAMPLE_120_ESTATE,security@example.com,Sample Security Operator,,security,invited,Dry-run sample
+SAMPLE_120_ESTATE,manager@example.com,Sample Facility Manager,,manager,invited,Dry-run sample

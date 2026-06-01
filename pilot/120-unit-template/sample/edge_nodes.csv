@@ -1,0 +1,2 @@
+estate_code,edge_node_id,name,local_runtime_host,camera_count,device_count,sync_status,runtime_version,notes
+SAMPLE_120_ESTATE,EDGE-01,Main Security Edge Node,,2,2,awaiting_edge_runtime,,Dry-run sample

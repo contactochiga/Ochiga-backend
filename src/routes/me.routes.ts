@@ -2,9 +2,7 @@ import express from "express";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { auditOnSuccess } from "../middleware/audit";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { initAdaptersOnce } from "../device/adapters/initAdapters";
-import { adapterRegistry } from "../device/adapters/registry";
-import type { AdapterContext } from "../device/adapters/types";
+import { syncTuyaRegistryForActor } from "../services/tuyaRegistrySyncService";
 
 const router = express.Router();
 const SUPPORTED_INTEGRATIONS = new Set(["tuya", "alexa", "google_assistant"]);
@@ -378,28 +376,6 @@ async function setStoredIntegration(userId: string, providerInput: string, exter
   return { ok: true as const, provider };
 }
 
-function discoveredExternalId(d: any): string {
-  return cleanStr(d?.externalId || d?.external_id || d?.dev_id || d?.device_id || d?.id || d?.uuid);
-}
-
-function discoveredDeviceRow(d: any, user: any) {
-  const external_id = discoveredExternalId(d);
-  if (!external_id) return null;
-  return {
-    estate_id: user.estate_id,
-    home_id: user.home_id || null,
-    room_id: null,
-    vendor: "tuya",
-    external_id,
-    name: cleanStr(d?.name || d?.device_name || d?.product_name) || "Device",
-    type: cleanStr(d?.type || d?.category) || "device",
-    status: cleanStr(d?.status) || (typeof d?.online === "boolean" ? (d.online ? "online" : "offline") : "available"),
-    icon: cleanStr(d?.icon) || null,
-    metadata: d?.metadata ?? d,
-    updated_at: new Date().toISOString(),
-  };
-}
-
 /**
  * GET /me/context
  * Consumer app header/sidebar context:
@@ -531,95 +507,15 @@ router.patch("/integrations/tuya", requireAuth, requirePermission("devices.contr
   return res.json({ ok: true, provider: "tuya", connected: true, tuya_uid });
 });
 
-router.post("/integrations/tuya/sync", requireAuth, requirePermission("devices.control"), auditOnSuccess("integration.tuya.synced", "integration", "tuya"), async (req, res) => {
+router.post("/integrations/tuya/sync", requireAuth, requirePermission("devices.read"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
-  if (!user.estate_id) return res.status(400).json({ error: "User has no estate context" });
-
-  const tuyaUid = await getTuyaUidForUser(user.id);
-  if (!tuyaUid) {
-    return res.status(409).json({
-      ok: false,
-      connected: false,
-      error: "Tuya / Smart Life is not linked for this account.",
-    });
-  }
-
   try {
-    initAdaptersOnce();
-    const adapter = adapterRegistry.get("tuya");
-    if (!adapter) return res.status(500).json({ error: "Tuya adapter not registered" });
-
-    const context: AdapterContext = {
-      estateId: user.estate_id,
-      homeId: user.home_id,
-      userId: user.id,
-      credentials: {
-        apiKey: process.env.TUYA_ACCESS_ID,
-        apiSecret: process.env.TUYA_ACCESS_SECRET,
-        tuyaUid,
-      } as any,
-    };
-
-    const discovered = await adapter.discover(context);
-    const externalIds = discovered.map(discoveredExternalId).filter(Boolean);
-    const existingByExternal = new Map<string, any>();
-    if (externalIds.length) {
-      const { data: existing, error: existingError } = await supabaseAdmin
-        .from("devices")
-        .select("*")
-        .eq("estate_id", user.estate_id)
-        .eq("vendor", "tuya")
-        .in("external_id", externalIds);
-      if (existingError) return res.status(500).json({ error: existingError.message });
-      for (const row of existing || []) existingByExternal.set(String((row as any).external_id), row);
-    }
-
-    const rows = discovered
-      .map((device: any) => {
-        const externalId = discoveredExternalId(device);
-        const existing = existingByExternal.get(externalId);
-        const row = discoveredDeviceRow(device, user);
-        if (!row) return null;
-        if (existing) {
-          return {
-            id: existing.id,
-            estate_id: existing.estate_id,
-            home_id: existing.home_id || user.home_id || null,
-            room_id: existing.room_id || null,
-            vendor: "tuya",
-            external_id: externalId,
-            name: row.name || existing.name,
-            type: row.type || existing.type,
-            status: row.status || existing.status,
-            icon: row.icon || existing.icon || null,
-            metadata: { ...(existing.metadata || {}), ...(row.metadata || {}) },
-            updated_at: row.updated_at,
-          };
-        }
-        return row;
-      })
-      .filter(Boolean);
-
-    if (!rows.length) return res.json({ ok: true, provider: "tuya", discovered: 0, updated: 0, created: 0, devices: [] });
-
-    const { data, error } = await supabaseAdmin
-      .from("devices")
-      .upsert(rows as any[], { onConflict: "vendor,external_id" })
-      .select("*");
-    if (error) return res.status(500).json({ error: error.message });
-
-    const created = (data || []).filter((row: any) => !existingByExternal.has(String(row.external_id))).length;
-    return res.json({
-      ok: true,
-      provider: "tuya",
-      discovered: discovered.length,
-      updated: (data || []).length - created,
-      created,
-      devices: data || [],
-    });
+    return res.json(await syncTuyaRegistryForActor(user as any, req));
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || "Tuya sync failed" });
+    const message = err?.message || "Tuya sync failed";
+    const status = message.includes("not linked") ? 409 : message.includes("estate context") ? 400 : 502;
+    return res.status(status).json({ ok: false, provider: "tuya", error: message });
   }
 });
 

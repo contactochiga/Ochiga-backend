@@ -1,0 +1,2 @@
+estate_code,access_point_ref,name,access_type,zone_ref,location,status,notes
+SAMPLE_120_ESTATE,GATE_MAIN,Main Gate,vehicle_gate,ZONE_GATE,Main Gate,pending,Dry-run sample

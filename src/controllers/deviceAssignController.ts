@@ -171,7 +171,7 @@ export async function assignDevices(req: Request, res: Response) {
     const vendors = Array.from(new Set(rows.map((r) => String(r.vendor))));
     const { data: existingRows, error: existingErr } = await supabaseAdmin
       .from("devices")
-      .select("id,vendor,external_id,estate_id,home_id")
+      .select("id,vendor,external_id,estate_id,home_id,metadata,adapter,provider")
       .in("vendor", vendors)
       .in("external_id", externalIds);
 
@@ -182,7 +182,8 @@ export async function assignDevices(req: Request, res: Response) {
     const conflicts = (existingRows || []).filter((d: any) => {
       const sameEstate = String(d?.estate_id || "") === String(user.estate_id || "");
       const sameHome = String(d?.home_id || "") === String(user.home_id || "");
-      return !(sameEstate && sameHome);
+      const isUnassigned = !d?.home_id;
+      return !(sameEstate && (sameHome || isUnassigned));
     });
 
     if (conflicts.length) {
@@ -196,22 +197,43 @@ export async function assignDevices(req: Request, res: Response) {
       });
     }
 
-    // ✅ FIX: match your CURRENT DB unique constraint: (vendor, external_id)
-    const { data, error } = await supabaseAdmin
-      .from("devices")
-      .upsert(rows, { onConflict: "vendor,external_id" })
-      .select("*");
-
-    if (error) {
-      console.error("assignDevices upsert error:", error);
-      return res.status(500).json({ error: error.message });
+    const existingByIdentity = new Map(
+      (existingRows || []).map((row: any) => [`${String(row.vendor)}:${String(row.external_id)}`, row])
+    );
+    const assigned: any[] = [];
+    const pendingInsert: any[] = [];
+    for (const row of rows) {
+      const existing = existingByIdentity.get(`${String(row.vendor)}:${String(row.external_id)}`);
+      const next = {
+        ...row,
+        adapter: existing?.adapter || row.vendor,
+        provider: existing?.provider || row.vendor,
+        bind_state: room_id ? "room_bound" : "home_bound",
+        sync_state: "assigned",
+        metadata: { ...(existing?.metadata || {}), ...(row.metadata || {}) },
+      };
+      if (!existing?.id) {
+        pendingInsert.push(next);
+        continue;
+      }
+      const { data, error } = await supabaseAdmin.from("devices").update(next).eq("id", existing.id).select("*").single();
+      if (error) return res.status(500).json({ error: error.message });
+      assigned.push(data);
+    }
+    if (pendingInsert.length) {
+      const { data, error } = await supabaseAdmin.from("devices").upsert(pendingInsert, { onConflict: "vendor,external_id" }).select("*");
+      if (error) {
+        console.error("assignDevices upsert error:", error);
+        return res.status(500).json({ error: error.message });
+      }
+      assigned.push(...(data || []));
     }
 
     return res.json({
       ok: true,
       room_id,
-      count: data?.length || 0,
-      devices: data || [],
+      count: assigned.length,
+      devices: assigned,
     });
   } catch (e: any) {
     console.error("assignDevices error:", e);

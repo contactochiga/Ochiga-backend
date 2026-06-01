@@ -1,0 +1,3 @@
+estate_code,home_ref,building_ref,unit,name,floor,type,bedrooms,electricity_meter,water_meter,internet_id,gate_code,lat,lng,status,notes
+SAMPLE_120_ESTATE,A-001,BLOCK_A,001,Block A Unit 001,1,apartment,3,EM-A-001,WM-A-001,NET-A-001,GATE-A-001,,,pending,Dry-run sample
+SAMPLE_120_ESTATE,A-002,BLOCK_A,002,Block A Unit 002,1,apartment,3,EM-A-002,WM-A-002,NET-A-002,GATE-A-002,,,pending,Dry-run sample

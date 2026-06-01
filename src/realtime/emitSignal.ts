@@ -35,6 +35,8 @@ export function emitSignal(signal: Signal) {
 
 export function standardRealtimeEvent(type?: string | null) {
   const value = String(type || "");
+  if (value === "device.registry.updated") return "device.registry.updated";
+  if (value === "device.discovered") return "device.discovered";
   if (value === "device.status.updated" || value.startsWith("device.state") || value.startsWith("device.status")) return "device.status.updated";
   if (value === "visitor.created") return "visitor.created";
   if (value === "wallet.funded") return "wallet.funded";

@@ -24,6 +24,7 @@ import scenesRoutes from "./routes/scenes";
 import automationsRoutes from "./routes/automations";
 import homeMembersRoutes from "./routes/homeMembers";
 import spacesTwinRoutes from "./routes/spacesTwin";
+import integrationsRoutes from "./routes/integrations";
 
 import communityRoutes from "./routes/community";
 import walletRoutes from "./routes/wallets";
@@ -221,6 +222,7 @@ app.use("/automations", automationsRoutes);
 app.use("/api/automations", automationsRoutes);
 app.use("/home/members", homeMembersRoutes);
 app.use("/spaces", spacesTwinRoutes);
+app.use("/integrations", integrationsRoutes);
 
 // ✅ consumer visitors
 app.use("/visitors", visitorRoutes);

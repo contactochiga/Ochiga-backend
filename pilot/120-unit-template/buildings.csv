@@ -1,0 +1,2 @@
+estate_code,building_ref,name,block,floors,unit_count,building_type,status,notes
+PILOT_ESTATE_CODE,BLOCK_A,REQUIRED: Block A,A,OPTIONAL_NUMBER,OPTIONAL_NUMBER,residential_block,pending,Required: estate_code building_ref name

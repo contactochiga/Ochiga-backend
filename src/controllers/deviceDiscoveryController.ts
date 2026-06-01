@@ -128,7 +128,7 @@ export async function discoverDevices(req: Request, res: Response) {
     if (extIds.length) {
       const { data: existing, error: exErr } = await supabaseAdmin
         .from("devices")
-        .select("external_id")
+        .select("external_id,home_id")
         .eq("estate_id", user.estate_id)
         .eq("vendor", adapterName) // vendor is "tuya" for tuya adapter
         .in("external_id", extIds);
@@ -136,7 +136,7 @@ export async function discoverDevices(req: Request, res: Response) {
       if (exErr) {
         console.warn("discoverDevices existing lookup error:", exErr.message);
       } else {
-        const existingSet = new Set((existing ?? []).map((x: any) => String(x.external_id)));
+        const existingSet = new Set((existing ?? []).filter((x: any) => Boolean(x.home_id)).map((x: any) => String(x.external_id)));
         const filtered = devices.filter((d: any) => !existingSet.has(String(d.externalId)));
         return res.status(200).json({
           adapter: adapterName,

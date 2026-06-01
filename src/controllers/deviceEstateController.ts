@@ -24,9 +24,16 @@ export async function getEstateDevices(req: Request, res: Response) {
         room_id,
         name,
         type,
+        category,
         external_id,
         status,
+        online,
         vendor,
+        provider,
+        adapter,
+        sync_state,
+        bind_state,
+        last_seen_at,
         icon,
         metadata,
         rooms:rooms ( id, name )
@@ -38,7 +45,9 @@ export async function getEstateDevices(req: Request, res: Response) {
     const role = String(user.role || "").toLowerCase();
     const isEstateWide = role === "admin" || role === "manager" || role === "estate_admin";
     if (!isEstateWide && user.home_id) {
-      query = query.eq("home_id", user.home_id);
+      query = String(req.query.include_unassigned || "").toLowerCase() === "true"
+        ? query.or(`home_id.eq.${user.home_id},home_id.is.null`)
+        : query.eq("home_id", user.home_id);
     }
 
     const { data, error } = await query.order("updated_at", { ascending: false });

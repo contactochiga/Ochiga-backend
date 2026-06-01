@@ -1,0 +1,3 @@
+estate_code,zone_ref,name,zone_type,parent_zone_ref,description,notes
+PILOT_ESTATE_CODE,ZONE_GATE,Main Gate,security,,Primary vehicle and visitor gate,Required: zone_ref name zone_type
+PILOT_ESTATE_CODE,ZONE_POWER,Power House,utility,,Generator/inverter/metering area,Utility zone example

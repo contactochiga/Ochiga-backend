@@ -1,0 +1,3 @@
+estate_code,home_ref,email,full_name,phone,role,status,notes
+SAMPLE_120_ESTATE,A-001,resident1@example.com,Sample Resident One,,resident,invited,Dry-run sample
+SAMPLE_120_ESTATE,A-002,resident2@example.com,Sample Resident Two,,resident,invited,Dry-run sample

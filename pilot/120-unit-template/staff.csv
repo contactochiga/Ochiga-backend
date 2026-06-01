@@ -1,0 +1,2 @@
+estate_code,email,full_name,phone,role,status,notes
+PILOT_ESTATE_CODE,operator@example.com,REQUIRED: Operator Name,OPTIONAL,manager,invited,Allowed roles: owner admin manager security staff viewer

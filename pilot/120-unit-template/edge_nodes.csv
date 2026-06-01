@@ -1,0 +1,2 @@
+estate_code,edge_node_id,name,local_runtime_host,camera_count,device_count,sync_status,runtime_version,notes
+PILOT_ESTATE_CODE,EDGE-01,Main Security Edge Node,OPTIONAL_PRIVATE_HOST,0,0,awaiting_edge_runtime,OPTIONAL,Do not expose private credentials here

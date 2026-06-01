@@ -153,7 +153,7 @@ export class TuyaAdapter implements DeviceAdapter {
 
     if (tuyaUid) {
       const path = `/v1.0/users/${encodeURIComponent(tuyaUid)}/devices`;
-      console.log("[TuyaAdapter.discover] requesting (uid devices):", path);
+      console.log("[TuyaAdapter.discover] requesting linked Smart Life device list");
 
       const result = await this.client.request<any>("GET", path);
 

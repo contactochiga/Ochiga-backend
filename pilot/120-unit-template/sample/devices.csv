@@ -1,0 +1,3 @@
+estate_code,device_ref,name,category,provider,location,home_ref,room_ref,zone_ref,edge_node_id,adapter,external_id,status,sync_state,notes
+SAMPLE_120_ESTATE,DEV-GATE-CTRL-01,Main Gate Access Controller,Security & Access,Hikvision,Main Gate,,,ZONE_GATE,EDGE-01,placeholder,DEV-GATE-CTRL-01,pending,pending_integration,Dry-run sample
+SAMPLE_120_ESTATE,DEV-POWER-METER-01,Main Power Meter,Utilities,Pending Provider,Power House,,,ZONE_POWER,EDGE-01,placeholder,DEV-POWER-METER-01,pending,pending_integration,Dry-run sample

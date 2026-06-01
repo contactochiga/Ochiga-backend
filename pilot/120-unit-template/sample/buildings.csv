@@ -1,0 +1,3 @@
+estate_code,building_ref,name,block,floors,unit_count,building_type,status,notes
+SAMPLE_120_ESTATE,BLOCK_A,Block A,A,3,60,residential_block,pending,Dry-run sample
+SAMPLE_120_ESTATE,BLOCK_B,Block B,B,3,60,residential_block,pending,Dry-run sample
