@@ -17,6 +17,7 @@ type SendWithResendArgs = {
   html: string;
   text?: string;
   from?: string;
+  attachments?: Array<{ filename: string; content: string }>;
 };
 
 export async function sendWithResend(args: SendWithResendArgs) {
@@ -28,6 +29,7 @@ export async function sendWithResend(args: SendWithResendArgs) {
     subject: args.subject,
     html: args.html,
     text: args.text,
+    attachments: args.attachments,
   });
 }
 

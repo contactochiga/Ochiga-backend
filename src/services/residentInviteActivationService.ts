@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { permissionsForRole } from "../core/foundation";
+import { sendResidentWelcomeEmail } from "./residentInviteEmailService";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 
@@ -120,6 +121,15 @@ export async function activateResidentInvite(input: {
     .eq("id", result.user_id)
     .single();
   if (userError || !user) throw new Error(userError?.message || "Activated profile could not be loaded");
+
+  void sendResidentWelcomeEmail({
+    to: user.email,
+    residentName: user.full_name || user.username,
+    estateName: result.estate_name,
+    homeLabel: result.home_name || [result.home_block, result.home_unit].filter(Boolean).join(" / "),
+  }).catch((error) => {
+    console.warn("Resident welcome email failed:", error);
+  });
 
   return {
     ok: true,

@@ -7,6 +7,7 @@ type SendEmailArgs = {
   html: string;
   text?: string;
   from?: string;
+  attachments?: Array<{ filename: string; content: string }>;
 };
 
 export async function sendEmail(args: SendEmailArgs) {

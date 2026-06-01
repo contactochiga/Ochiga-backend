@@ -4,6 +4,7 @@ import crypto from "crypto";
 import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
+import { sendResidentInviteEmail } from "../services/residentInviteEmailService";
 
 /**
  * Rules:
@@ -84,6 +85,51 @@ function makeResidentInviteUrl(rawToken: string) {
   const base =
     process.env.CONSUMER_APP_BASE || process.env.VISITOR_LINK_BASE || "https://oyi.com";
   return `${base}/auth/invite?token=${rawToken}`;
+}
+
+function homeDisplayLabel(home: { block?: string | null; unit?: string | null; name?: string | null }) {
+  return home.block && home.unit ? `${home.block} / ${home.unit}` : home.name || home.unit || home.block || "your home";
+}
+
+async function deliverResidentInvite(input: {
+  invite: any;
+  invitedEmail: string;
+  residentName?: string | null;
+  estateName?: string | null;
+  homeLabel: string;
+  role?: string | null;
+  inviteUrl: string;
+  qrDataUrl: string;
+}) {
+  await supabaseAdmin.from("invites").update({ delivery_status: "pending" }).eq("id", input.invite.id);
+  try {
+    await sendResidentInviteEmail({
+      to: input.invitedEmail,
+      residentName: input.residentName,
+      estateName: input.estateName,
+      homeLabel: input.homeLabel,
+      role: input.role,
+      inviteUrl: input.inviteUrl,
+      qrDataUrl: input.qrDataUrl,
+      expiresAt: input.invite.expires_at,
+    });
+    const updated = await supabaseAdmin
+      .from("invites")
+      .update({ delivery_status: "sent", last_sent_at: new Date().toISOString() })
+      .eq("id", input.invite.id)
+      .select("id, status, expires_at, delivery_status, last_sent_at")
+      .single();
+    return updated.data || { ...input.invite, delivery_status: "sent" };
+  } catch (error) {
+    console.warn("Resident invite email failed:", error);
+    const updated = await supabaseAdmin
+      .from("invites")
+      .update({ delivery_status: "failed", last_sent_at: new Date().toISOString() })
+      .eq("id", input.invite.id)
+      .select("id, status, expires_at, delivery_status, last_sent_at")
+      .single();
+    return updated.data || { ...input.invite, delivery_status: "failed" };
+  }
 }
 
 async function insertWithSchemaFallback<T>(
@@ -249,7 +295,7 @@ export async function listHomeUsers(req: ReqAny, res: Response) {
 export async function inviteHomeUser(req: ReqAny, res: Response) {
   try {
     const { homeId } = req.params;
-    const { email, role, permissions } = req.body || {};
+    const { email, role, permissions, full_name } = req.body || {};
     const userId = req.user?.id;
 
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -287,7 +333,7 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
     // Find or create user
     const { data: existingUser, error: findErr } = await supabaseAdmin
       .from("users")
-      .select("id, email")
+      .select("id, email, full_name")
       .eq("email", normalizedEmail)
       .maybeSingle();
 
@@ -300,11 +346,17 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
         "users",
         compact({
           email: normalizedEmail,
+          full_name: String(full_name || "").trim() || null,
           password_hash: null,
           role: "resident",
         })
       );
       invitedUserId = created?.id;
+    } else if (!existingUser?.full_name && String(full_name || "").trim()) {
+      await supabaseAdmin
+        .from("users")
+        .update({ full_name: String(full_name).trim(), updated_at: new Date().toISOString() })
+        .eq("id", invitedUserId);
     }
 
     const safeRole = normalizeMembershipRole(role);
@@ -431,13 +483,20 @@ export async function inviteHomeUser(req: ReqAny, res: Response) {
 
     const inviteUrl = makeResidentInviteUrl(rawToken);
     const qrDataUrl = await QRCode.toDataURL(inviteUrl);
+    inviteRow = await deliverResidentInvite({
+      invite: inviteRow,
+      invitedEmail: normalizedEmail,
+      residentName: String(full_name || existingUser?.full_name || "").trim() || null,
+      estateName,
+      homeLabel: homeDisplayLabel(home),
+      role: safeRole || "member",
+      inviteUrl,
+      qrDataUrl,
+    });
 
     // ✅ Notification (best effort, don’t fail request if notif fails)
     try {
-      const homeLabel =
-        home.block && home.unit
-          ? `${home.block} / ${home.unit}`
-          : home.name || "a home";
+      const homeLabel = homeDisplayLabel(home);
 
       const message = estateName
         ? `You’ve been invited to join ${estateName} (${homeLabel}).`
@@ -523,7 +582,7 @@ export async function revokeHomeInvite(req: ReqAny, res: Response) {
 
 /**
  * POST /facility/homes/:homeId/invites/:inviteId/resend
- * Rotates the token and returns a fresh link + QR. Email delivery is a later phase.
+ * Rotates the token, emails a fresh link + QR, and returns the delivery state.
  */
 export async function resendHomeInvite(req: ReqAny, res: Response) {
   try {
@@ -537,7 +596,7 @@ export async function resendHomeInvite(req: ReqAny, res: Response) {
 
     const { data: invite, error: inviteError } = await supabaseAdmin
       .from("invites")
-      .select("id, home_id, status")
+      .select("id, home_id, status, invited_email, role")
       .eq("id", inviteId)
       .eq("home_id", homeId)
       .maybeSingle();
@@ -567,7 +626,30 @@ export async function resendHomeInvite(req: ReqAny, res: Response) {
 
     const inviteUrl = makeResidentInviteUrl(rawToken);
     const qrDataUrl = await QRCode.toDataURL(inviteUrl);
-    return res.json({ ok: true, invite: data, inviteUrl, qrDataUrl });
+    const { data: home } = await supabaseAdmin
+      .from("homes")
+      .select("id, estate_id, name, block, unit")
+      .eq("id", homeId)
+      .single();
+    const { data: estate } = home?.estate_id
+      ? await supabaseAdmin.from("estates").select("name").eq("id", home.estate_id).maybeSingle()
+      : { data: null };
+    const { data: resident } = invite.invited_email
+      ? await supabaseAdmin.from("users").select("full_name").eq("email", invite.invited_email).maybeSingle()
+      : { data: null };
+    const deliveredInvite = invite.invited_email && home
+      ? await deliverResidentInvite({
+          invite: data,
+          invitedEmail: invite.invited_email,
+          residentName: resident?.full_name || null,
+          estateName: estate?.name || null,
+          homeLabel: homeDisplayLabel(home),
+          role: invite.role || "member",
+          inviteUrl,
+          qrDataUrl,
+        })
+      : data;
+    return res.json({ ok: true, invite: deliveredInvite, inviteUrl, qrDataUrl });
   } catch (err: any) {
     console.error("resendHomeInvite error:", err);
     return res.status(500).json({ error: err.message || "Server error" });
