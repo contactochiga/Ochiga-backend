@@ -171,7 +171,7 @@ export async function assignDevices(req: Request, res: Response) {
     const vendors = Array.from(new Set(rows.map((r) => String(r.vendor))));
     const { data: existingRows, error: existingErr } = await supabaseAdmin
       .from("devices")
-      .select("id,vendor,external_id,estate_id,home_id,metadata,adapter,provider")
+      .select("id,vendor,external_id,estate_id,home_id,metadata,adapter,provider,status,sync_state,is_managed_disabled")
       .in("vendor", vendors)
       .in("external_id", externalIds);
 
@@ -193,6 +193,22 @@ export async function assignDevices(req: Request, res: Response) {
           id: c.id,
           vendor: c.vendor,
           external_id: c.external_id,
+        })),
+      });
+    }
+
+    const unavailable = (existingRows || []).filter((device: any) => {
+      const status = String(device?.status || "").toLowerCase();
+      const syncState = String(device?.sync_state || "").toLowerCase();
+      return status === "unavailable" || syncState === "unavailable" || device?.is_managed_disabled === true;
+    });
+    if (unavailable.length) {
+      return res.status(409).json({
+        error: "Some devices are unavailable and cannot be assigned",
+        unavailable: unavailable.map((device: any) => ({
+          id: device.id,
+          vendor: device.vendor,
+          external_id: device.external_id,
         })),
       });
     }

@@ -44,3 +44,22 @@ polling as reconciliation because webhook delivery is not guaranteed.
   scene contract is implemented.
 - Alexa, Google Assistant, and Apple Home statuses must remain informational and
   must not be presented as connected unless their own backend records confirm it.
+
+## Smart Life resident account linking
+
+Manual UID storage remains enabled as an advanced pilot fallback. It is not the
+target resident onboarding experience.
+
+The production `Connect Smart Life` flow still requires Tuya platform setup for
+an app-account authorization exchange that can safely return a linked UID to Oyi.
+Before implementing `POST /integrations/tuya/link/start`,
+`GET /integrations/tuya/link/status/:linkSessionId`, and
+`POST /integrations/tuya/link/complete`, confirm the cloud project supports the
+required Smart Life app-account QR or authorization URL flow and configure its
+callback/webhook credentials. Oyi must store only the resulting UID and safe
+session metadata. It must never expose Tuya access secrets to Consumer clients.
+
+Tuya documentation references:
+
+- https://developer.tuya.com/en/docs/iot/Platform_Configuration_smarthome?id=Kamcgamwoevrx
+- https://developer.tuya.com/en/docs/app-development/scan-qr-code?id=Ka69nt96cw0uj
