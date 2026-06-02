@@ -56,6 +56,8 @@ export async function getEstateDevices(req: Request, res: Response) {
         is_managed_disabled,
         last_seen_at,
         icon,
+        capabilities,
+        protocols,
         metadata,
         rooms:rooms ( id, name )
       `

@@ -43,7 +43,18 @@ async function resolveRoomId(opts: {
   room?: any;
 }): Promise<string | null> {
   const roomId = cleanStr(opts.room_id);
-  if (roomId) return roomId;
+  if (roomId) {
+    const { data: room, error } = await supabaseAdmin
+      .from("rooms")
+      .select("id")
+      .eq("id", roomId)
+      .eq("estate_id", opts.estate_id)
+      .eq("home_id", opts.home_id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!room?.id) throw new Error("Room is not available in this home");
+    return room.id;
+  }
 
   const roomName = cleanStr(opts.room);
   if (!roomName) return null;
