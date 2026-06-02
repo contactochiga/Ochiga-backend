@@ -146,7 +146,8 @@ async function recordHeartbeat(payload: any) {
 async function persistCameraPlaceholder(siteId: string, agentId: string, rawDevice: any) {
   const device = sanitizeDevice(rawDevice);
   const ip = asString(device.ip || device.host || device.address);
-  const cameraId = asString(device.camera_id || device.id || device.external_id || ip || `${agentId}-${Date.now()}`);
+  const cameraId = asString(device.camera_id || device.id || device.external_id || ip);
+  if (!cameraId) return { ok: false, table: "facility_cameras", error: "Stable camera identity required", data: null };
   const provider = normalizeProvider(device.provider || (String(device.xaddr || "").includes("onvif") ? "onvif" : "generic_rtsp"));
   const protocol = normalizeProtocol(device.protocol || device.stream_protocol || (String(device.xaddr || "").includes("onvif") ? "onvif" : "rtsp"));
   const channel = asString(device.channel || device.channel_id || "1");
@@ -204,7 +205,8 @@ async function persistCameraPlaceholder(siteId: string, agentId: string, rawDevi
 
 async function persistDiscoveredDevice(siteId: string, agentId: string, rawDevice: any) {
   const device = sanitizeDevice(rawDevice);
-  const externalId = asString(device.id || device.external_id || device.camera_id || device.ip || `${agentId}-${Date.now()}`);
+  const externalId = asString(device.id || device.external_id || device.camera_id || device.ip);
+  if (!externalId) return { ok: false, table: "discovered_devices", error: "Stable device identity required", data: null };
   return safeInsert("discovered_devices", {
     estate_id: siteId,
     edge_node_id: agentId,
@@ -430,6 +432,10 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeTok
 
 edgeDiscoveryRouter.get("/edge/discovery/:siteId", requireAuth, requirePermission("devices.read"), async (req, res) => {
   const siteId = req.params.siteId;
+  const actorEstateId = asString((req as any).user?.estate_id);
+  if (!actorEstateId || actorEstateId !== asString(siteId)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
   const { data, error } = await supabaseAdmin
     .from("discovered_devices")
     .select("*")

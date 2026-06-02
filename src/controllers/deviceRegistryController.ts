@@ -3,6 +3,7 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent } from "../core/foundation";
+import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
 
 /**
  * Expected "canonical" discovered device shape (from your adapters/types.ts)
@@ -139,14 +140,58 @@ export async function assignDevice(req: any, res: Response) {
     if (!estateId) return res.status(400).json({ error: "User has no estate" });
 
     const { deviceId } = req.params;
-    const { home_id, room_id } = req.body || {};
+    const body = req.body || {};
+    const hasHome = Object.prototype.hasOwnProperty.call(body, "home_id");
+    const hasRoom = Object.prototype.hasOwnProperty.call(body, "room_id");
+    const home_id = hasHome ? body.home_id || null : undefined;
+    const room_id = hasRoom ? body.room_id || null : undefined;
+
+    const { data: current, error: currentError } = await supabaseAdmin
+      .from("devices")
+      .select("id,estate_id,home_id,room_id")
+      .eq("id", deviceId)
+      .eq("estate_id", estateId)
+      .maybeSingle();
+    if (currentError) return res.status(400).json({ error: currentError.message });
+    if (!current?.id) return res.status(404).json({ error: "Device not found in this estate" });
+
+    const targetHomeId = hasHome ? home_id : current.home_id;
+    if (targetHomeId) {
+      const { data: home, error: homeError } = await supabaseAdmin
+        .from("homes")
+        .select("id")
+        .eq("id", targetHomeId)
+        .eq("estate_id", estateId)
+        .maybeSingle();
+      if (homeError) return res.status(400).json({ error: homeError.message });
+      if (!home?.id) return res.status(400).json({ error: "Home is not available in this estate" });
+    }
+
+    if (room_id) {
+      if (!targetHomeId) return res.status(400).json({ error: "Assign a home before assigning a room" });
+      const { data: room, error: roomError } = await supabaseAdmin
+        .from("rooms")
+        .select("id")
+        .eq("id", room_id)
+        .eq("estate_id", estateId)
+        .eq("home_id", targetHomeId)
+        .maybeSingle();
+      if (roomError) return res.status(400).json({ error: roomError.message });
+      if (!room?.id) return res.status(400).json({ error: "Room is not available in the selected home" });
+    }
+
+    const update: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (hasHome) update.home_id = home_id;
+    if (hasRoom) update.room_id = room_id;
+    if (hasHome && !home_id) update.room_id = null;
+    const nextHomeId = hasHome ? home_id : current.home_id;
+    const nextRoomId = hasHome && !home_id ? null : hasRoom ? room_id : current.room_id;
+    update.bind_state = nextRoomId ? "room_bound" : nextHomeId ? "home_bound" : "discovered";
+    update.sync_state = nextHomeId ? "assigned" : "available_unassigned";
 
     const { data, error } = await supabaseAdmin
       .from("devices")
-      .update({
-        home_id: home_id ?? undefined,
-        room_id: room_id ?? undefined,
-      })
+      .update(update)
       .eq("id", deviceId)
       .eq("estate_id", estateId)
       .select()
@@ -164,6 +209,16 @@ export async function assignDevice(req: any, res: Response) {
       metadata: { home_id, room_id },
       req,
     });
+    emitSignal(makeBaseSignal({
+      type: "device.registry.updated",
+      source: "facility",
+      estateId,
+      homeId: data?.home_id || undefined,
+      roomId: data?.room_id || undefined,
+      deviceId: data?.id || deviceId,
+      status: data?.status,
+      metadata: { assignment_changed: true, home_id: data?.home_id || null, room_id: data?.room_id || null },
+    } as any));
 
     return res.json({
       message: "Device assigned",

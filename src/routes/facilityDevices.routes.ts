@@ -12,6 +12,10 @@ import {
   registerDevice,
   assignDevice,
 } from "../controllers/deviceRegistryController";
+import {
+  getFacilityInfrastructure,
+  syncFacilityTuyaProvider,
+} from "../controllers/facilityInfrastructureController";
 
 const router = express.Router();
 
@@ -29,6 +33,8 @@ const router = express.Router();
 router.get("/discover", requireAuth, requirePermission("devices.read"), discoverDevices);
 
 /** Registry */
+router.get("/operations", requireAuth, requirePermission("devices.read"), getFacilityInfrastructure);
+router.post("/providers/tuya/sync", requireAuth, requirePermission("devices.read"), syncFacilityTuyaProvider);
 router.get("/", requireAuth, requirePermission("devices.read"), listRegisteredDevices);
 router.post("/register", requireAuth, requirePermission("devices.control"), registerDevice);
 router.patch("/:deviceId/assign", requireAuth, requirePermission("devices.control"), assignDevice);
