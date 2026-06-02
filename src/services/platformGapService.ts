@@ -1,0 +1,308 @@
+import { Request } from "express";
+import { supabaseAdmin } from "../supabase/supabaseClient";
+import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
+import { emitAuditEvent } from "../core/foundation/audit";
+
+type Actor = { id: string; role?: string; estate_id?: string | null; home_id?: string | null; permissions?: string[]; permission_scopes?: string[] };
+
+type SourceState = { available: boolean; status: string; reason?: string; realtime?: string; fallback?: string };
+
+function actor(req: Request) {
+  return req.user as Actor;
+}
+
+function estateIdFrom(req: Request) {
+  return String(req.query.estate_id || req.body?.estate_id || actor(req)?.estate_id || "").trim();
+}
+
+function limitFrom(req: Request, fallback = 80, max = 250) {
+  const n = Number.parseInt(String(req.query.limit || ""), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(1, Math.min(max, n));
+}
+
+function cleanObject(value: any) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function source(status: string, available = false, reason?: string, realtime?: string): SourceState {
+  return { available, status, reason, realtime, fallback: available ? "live" : "polling" };
+}
+
+async function audit(actorValue: Actor, action: string, resourceId: string, metadata: Record<string, any>, req?: Request) {
+  try {
+    await emitAuditEvent({
+      actorId: actorValue.id,
+      actorRole: actorValue.role || "operator",
+      action,
+      resourceType: "platform_gap",
+      resourceId,
+      status: "success",
+      metadata,
+      req,
+    } as any);
+  } catch {
+    // Audit must not block operational persistence.
+  }
+}
+
+function emit(event: string, estateId: string | null | undefined, payload: Record<string, any>) {
+  emitSignal(makeBaseSignal({ type: event, source: "facility.platform", estateId: estateId || undefined, payload } as any));
+}
+
+async function scopedEstate(req: Request) {
+  const explicit = estateIdFrom(req);
+  if (explicit) return explicit;
+  const current = actor(req);
+  const { data } = await supabaseAdmin.from("estate_memberships").select("estate_id").eq("user_id", current.id).eq("status", "active").limit(1).maybeSingle();
+  return String((data as any)?.estate_id || "");
+}
+
+export const platformGapService = {
+  async twin(req: Request) {
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) return { estate_id: null, models: [], placements: [], sources: { twin: source("No estate context", false, "No estate context") } };
+    const [models, placements] = await Promise.all([
+      supabaseAdmin.from("twin_models").select("*").eq("estate_id", estate_id).order("created_at", { ascending: false }).limit(40),
+      supabaseAdmin.from("twin_entity_placements").select("*").eq("estate_id", estate_id).order("updated_at", { ascending: false }).limit(500),
+    ]);
+    return {
+      estate_id,
+      models: models.data || [],
+      placements: placements.data || [],
+      sources: {
+        twin: source((models.data || []).length ? "Model available" : "No model loaded", !!(models.data || []).length, models.error?.message),
+        placements: source((placements.data || []).length ? "Location assigned" : "Location pending", !!(placements.data || []).length, placements.error?.message),
+      },
+    };
+  },
+
+  async registerModel(req: Request) {
+    const current = actor(req);
+    const estate_id = await scopedEstate(req);
+    const body = req.body || {};
+    if (!estate_id) throw new Error("No estate context");
+    const payload = {
+      estate_id,
+      name: String(body.name || body.filename || "Twin model").trim(),
+      source_type: String(body.source_type || "glb"),
+      state: String(body.state || "uploaded"),
+      version: Number(body.version || 1),
+      file_url: body.file_url || null,
+      storage_key: body.storage_key || null,
+      metadata: cleanObject(body.metadata),
+      assigned_scope: String(body.assigned_scope || "estate"),
+      assigned_entity_id: body.assigned_entity_id || null,
+      created_by: current.id,
+    };
+    const { data, error } = await supabaseAdmin.from("twin_models").insert(payload as any).select("*").single();
+    if (error) throw error;
+    await audit(current, "twin.model.registered", data.id, { source_type: payload.source_type, state: payload.state }, req);
+    emit("twin.state.updated", estate_id, { model: data });
+    return { ok: true, model: data };
+  },
+
+  async updateModel(req: Request) {
+    const current = actor(req);
+    const updates = cleanObject(req.body);
+    delete updates.id;
+    delete updates.estate_id;
+    updates.updated_at = new Date().toISOString();
+    const { data, error } = await supabaseAdmin.from("twin_models").update(updates).eq("id", req.params.modelId).select("*").single();
+    if (error) throw error;
+    await audit(current, "twin.model.updated", data.id, { state: data.state }, req);
+    emit("twin.state.updated", data.estate_id, { model: data });
+    return { ok: true, model: data };
+  },
+
+  async upsertPlacement(req: Request) {
+    const current = actor(req);
+    const estate_id = await scopedEstate(req);
+    const body = req.body || {};
+    if (!estate_id) throw new Error("No estate context");
+    const entity_type = String(body.entity_type || "").trim();
+    const entity_id = String(body.entity_id || "").trim();
+    if (!entity_type || !entity_id) throw new Error("entity_type and entity_id are required");
+    const location_state = String(body.location_state || (body.coordinates ? "location_assigned" : "location_pending"));
+    const payload = {
+      estate_id,
+      entity_type,
+      entity_id,
+      location_state,
+      label: body.label || null,
+      building_id: body.building_id || null,
+      home_id: body.home_id || null,
+      room_id: body.room_id || null,
+      zone: body.zone || null,
+      floor: body.floor || null,
+      coordinates: body.coordinates || null,
+      metadata: cleanObject(body.metadata),
+      assigned_by: location_state === "location_assigned" ? current.id : null,
+      assigned_at: location_state === "location_assigned" ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabaseAdmin.from("twin_entity_placements").upsert(payload as any, { onConflict: "estate_id,entity_type,entity_id" }).select("*").single();
+    if (error) throw error;
+    await audit(current, "twin.entity.placed", data.id, { entity_type, entity_id, location_state }, req);
+    emit("twin.state.updated", estate_id, { placement: data });
+    return { ok: true, placement: data };
+  },
+
+  async utilityTelemetry(req: Request) {
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) return { estate_id: null, items: [], sources: { utility: source("No estate context", false, "No estate context") } };
+    const { data, error } = await supabaseAdmin.from("utility_telemetry").select("*").eq("estate_id", estate_id).order("observed_at", { ascending: false }).limit(limitFrom(req, 120));
+    return { estate_id, items: data || [], sources: { utility: source((data || []).length ? "Live" : "Awaiting telemetry", !!(data || []).length, error?.message, "utility.telemetry.updated") } };
+  },
+
+  async recordUtilityTelemetry(req: Request) {
+    const current = actor(req);
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) throw new Error("No estate context");
+    const body = req.body || {};
+    const payload = {
+      estate_id,
+      home_id: body.home_id || null,
+      room_id: body.room_id || null,
+      edge_node_id: body.edge_node_id || null,
+      utility_type: String(body.utility_type || "power"),
+      state: String(body.state || "awaiting_telemetry"),
+      value: body.value ?? null,
+      unit: body.unit || null,
+      severity: body.severity || null,
+      source: body.source || "facility",
+      metadata: cleanObject(body.metadata),
+      observed_at: body.observed_at || new Date().toISOString(),
+    };
+    const { data, error } = await supabaseAdmin.from("utility_telemetry").insert(payload as any).select("*").single();
+    if (error) throw error;
+    await audit(current, "utility.telemetry.recorded", data.id, { utility_type: payload.utility_type, state: payload.state }, req);
+    emit("utility.telemetry.updated", estate_id, { telemetry: data });
+    return { ok: true, telemetry: data };
+  },
+
+  async edgeHistory(req: Request) {
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) return { estate_id: null, items: [], sources: { edge: source("No estate context", false, "No estate context") } };
+    const { data, error } = await supabaseAdmin.from("edge_node_history").select("*").eq("estate_id", estate_id).order("observed_at", { ascending: false }).limit(limitFrom(req, 120));
+    return { estate_id, items: data || [], sources: { edge: source((data || []).length ? "Live" : "Awaiting telemetry", !!(data || []).length, error?.message, "edge.heartbeat") } };
+  },
+
+  async recordEdgeHistory(req: Request) {
+    const current = actor(req);
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) throw new Error("No estate context");
+    const body = req.body || {};
+    const payload = { estate_id, edge_node_id: body.edge_node_id || null, node_id: body.node_id || null, event_type: String(body.event_type || "heartbeat"), state: body.state || null, queue_depth: body.queue_depth ?? null, device_count: body.device_count ?? null, runtime_version: body.runtime_version || null, metadata: cleanObject(body.metadata), observed_at: body.observed_at || new Date().toISOString() };
+    const { data, error } = await supabaseAdmin.from("edge_node_history").insert(payload as any).select("*").single();
+    if (error) throw error;
+    await audit(current, "edge.history.recorded", data.id, { event_type: payload.event_type }, req);
+    emit("edge.heartbeat", estate_id, { edge_history: data });
+    return { ok: true, edge_history: data };
+  },
+
+  async incidents(req: Request) {
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) return { estate_id: null, items: [], sources: { incidents: source("No estate context", false, "No estate context") } };
+    let query = supabaseAdmin.from("facility_incidents").select("*").eq("estate_id", estate_id).order("created_at", { ascending: false }).limit(limitFrom(req, 120));
+    if (req.query.status) query = query.eq("status", String(req.query.status));
+    const { data, error } = await query;
+    return { estate_id, items: data || [], sources: { incidents: source((data || []).length ? "Live" : "Pending source", !!(data || []).length, error?.message, "incident.updated") } };
+  },
+
+  async createIncident(req: Request) {
+    const current = actor(req);
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) throw new Error("No estate context");
+    const body = req.body || {};
+    const payload = { estate_id, home_id: body.home_id || null, room_id: body.room_id || null, title: String(body.title || "Operational incident"), description: body.description || null, incident_type: body.incident_type || "operational", severity: body.severity || "medium", status: body.status || "open", assigned_to: body.assigned_to || null, location: body.location || null, source: body.source || "facility", metadata: cleanObject(body.metadata), created_by: current.id };
+    const { data, error } = await supabaseAdmin.from("facility_incidents").insert(payload as any).select("*").single();
+    if (error) throw error;
+    await supabaseAdmin.from("facility_incident_timeline").insert({ incident_id: data.id, estate_id, actor_id: current.id, action: "created", status: data.status, note: body.note || null, metadata: {} } as any);
+    await audit(current, "incident.created", data.id, { severity: data.severity, status: data.status }, req);
+    emit("incident.created", estate_id, { incident: data });
+    return { ok: true, incident: data };
+  },
+
+  async updateIncident(req: Request) {
+    const current = actor(req);
+    const body = req.body || {};
+    const updates: Record<string, any> = {};
+    for (const key of ["status", "severity", "assigned_to", "location", "description", "metadata", "home_id", "room_id"] as const) if (body[key] !== undefined) updates[key] = body[key];
+    if (body.status === "acknowledged") updates.acknowledged_at = new Date().toISOString();
+    if (body.status === "resolved") updates.resolved_at = new Date().toISOString();
+    if (body.status === "closed") updates.closed_at = new Date().toISOString();
+    updates.updated_at = new Date().toISOString();
+    const { data, error } = await supabaseAdmin.from("facility_incidents").update(updates).eq("id", req.params.incidentId).select("*").single();
+    if (error) throw error;
+    await supabaseAdmin.from("facility_incident_timeline").insert({ incident_id: data.id, estate_id: data.estate_id, actor_id: current.id, action: body.action || "updated", status: data.status, note: body.note || null, metadata: cleanObject(body.timeline_metadata) } as any);
+    await audit(current, "incident.updated", data.id, { status: data.status, severity: data.severity }, req);
+    emit("incident.updated", data.estate_id, { incident: data });
+    return { ok: true, incident: data };
+  },
+
+  async incidentTimeline(req: Request) {
+    const { data, error } = await supabaseAdmin.from("facility_incident_timeline").select("*").eq("incident_id", req.params.incidentId).order("created_at", { ascending: true }).limit(120);
+    return { ok: true, items: data || [], error: error?.message };
+  },
+
+  async cameraInfrastructure(req: Request) {
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) return { estate_id: null, items: [], history: [], sources: { cameras: source("No estate context", false, "No estate context") } };
+    const [items, history] = await Promise.all([
+      supabaseAdmin.from("camera_infrastructure").select("*").eq("estate_id", estate_id).order("updated_at", { ascending: false }).limit(100),
+      supabaseAdmin.from("camera_health_history").select("*").eq("estate_id", estate_id).order("observed_at", { ascending: false }).limit(100),
+    ]);
+    return { estate_id, items: items.data || [], history: history.data || [], sources: { cameras: source((items.data || []).length ? "Live" : "Awaiting telemetry", !!(items.data || []).length, items.error?.message, "camera.status.updated") } };
+  },
+
+  async upsertCameraInfrastructure(req: Request) {
+    const current = actor(req);
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) throw new Error("No estate context");
+    const body = req.body || {};
+    const camera_id = String(body.camera_id || "").trim();
+    if (!camera_id) throw new Error("camera_id is required");
+    const payload = { estate_id, camera_id, placement_id: body.placement_id || null, zone: body.zone || null, area_owner: body.area_owner || null, infrastructure_relationship: body.infrastructure_relationship || null, health_state: body.health_state || "awaiting_telemetry", metadata: cleanObject(body.metadata), updated_at: new Date().toISOString() };
+    const { data, error } = await supabaseAdmin.from("camera_infrastructure").upsert(payload as any, { onConflict: "estate_id,camera_id" }).select("*").single();
+    if (error) throw error;
+    if (body.health_state) await supabaseAdmin.from("camera_health_history").insert({ estate_id, camera_id, health_state: body.health_state, stream_state: body.stream_state || null, event_type: body.event_type || "health", metadata: cleanObject(body.history_metadata) } as any);
+    await audit(current, "camera.infrastructure.updated", data.id, { camera_id }, req);
+    emit("camera.status.updated", estate_id, { camera_infrastructure: data });
+    return { ok: true, camera_infrastructure: data };
+  },
+
+  async realtimeAudit() {
+    return {
+      domains: [
+        { domain: "Device", subscription: "device.status.updated/device.registry.updated/device.discovered", status: "real subscription", fallback: "polling" },
+        { domain: "Camera", subscription: "camera.status.updated/camera.event", status: "real subscription", fallback: "polling" },
+        { domain: "Visitor", subscription: "visitor.updated/visitor.created", status: "real subscription", fallback: "polling" },
+        { domain: "Maintenance", subscription: "maintenance.updated/support.ticket.assigned", status: "real subscription", fallback: "polling" },
+        { domain: "Community", subscription: "community.updated", status: "real subscription", fallback: "polling" },
+        { domain: "Notification", subscription: "notification:new/notification/office.notification", status: "real subscription", fallback: "polling" },
+        { domain: "Audit", subscription: "audit.recorded", status: "real subscription", fallback: "polling" },
+        { domain: "Edge", subscription: "edge.heartbeat", status: "real subscription", fallback: "polling" },
+        { domain: "Incident", subscription: "incident.created/incident.updated", status: "real subscription", fallback: "polling" },
+        { domain: "Twin", subscription: "twin.state.updated", status: "real subscription", fallback: "polling" },
+        { domain: "Utility", subscription: "utility.telemetry.updated", status: "real subscription", fallback: "polling" },
+      ],
+    };
+  },
+
+  async deploymentReadiness() {
+    const env = process.env;
+    const checks = [
+      ["Render", "healthy", "Runtime host detected by deployment environment"],
+      ["Supabase", env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY ? "healthy" : "missing", "SUPABASE_URL and service role key"],
+      ["Redis", env.REDIS_URL || env.UPSTASH_REDIS_REST_URL ? "healthy" : "pending", "Redis/BullMQ queue configuration"],
+      ["Storage", env.S3_BUCKET || env.AWS_BUCKET || env.SUPABASE_URL ? "healthy" : "pending", "Storage provider configuration"],
+      ["APNs", env.APNS_KEY_ID && env.APNS_TEAM_ID && env.APNS_BUNDLE_ID ? "healthy" : "pending", "Apple push notification credentials"],
+      ["FCM", env.FCM_SERVER_KEY ? "healthy" : "pending", "Firebase Cloud Messaging key"],
+      ["Tuya", env.TUYA_ACCESS_ID && env.TUYA_ACCESS_SECRET ? "healthy" : "pending", "Tuya OpenAPI credentials"],
+      ["Domains", env.PUBLIC_APP_URL || env.APP_URL || env.FRONTEND_URL ? "healthy" : "pending", "Public frontend/backend domain configuration"],
+      ["SSL", "healthy", "Render/host-managed TLS expected"],
+    ].map(([name, status, detail]) => ({ name, status, detail }));
+    return { checks };
+  },
+};

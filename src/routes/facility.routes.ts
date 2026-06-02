@@ -21,6 +21,7 @@ import {
 
 // ✅ FACILITY DEVICE ROUTES (discover, command, geo)
 import facilityDevicesRoutes from "./facilityDevices.routes";
+import platformGapRoutes from "./platformGap.routes";
 
 // ✅ HOME USERS ROUTES
 import homeUsersRoutes from "./homeUsers.routes";
@@ -83,6 +84,7 @@ router.post("/rooms/assign", requireAuth, requirePermission("homes.write"), audi
  * ---------------------------
  */
 router.use("/devices", facilityDevicesRoutes);
+router.use("/platform", platformGapRoutes);
 
 /**
  * ---------------------------
