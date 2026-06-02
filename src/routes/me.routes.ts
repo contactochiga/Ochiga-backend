@@ -525,7 +525,15 @@ router.get("/integrations/tuya", requireAuth, requirePermission("devices.read"),
 
   const uid = await getTuyaUidForUser(user.id);
   const masked = uid ? `${uid.slice(0, 4)}***${uid.slice(-3)}` : null;
-  return res.json({ provider: "tuya", connected: !!uid, tuya_uid: uid, masked_uid: masked });
+  const provider_ready = Boolean(process.env.TUYA_ACCESS_ID && process.env.TUYA_ACCESS_SECRET);
+  return res.json({
+    provider: "tuya",
+    connected: !!uid,
+    provider_ready,
+    credential_status: provider_ready ? "ready" : "missing",
+    tuya_uid: uid,
+    masked_uid: masked,
+  });
 });
 
 router.patch("/integrations/tuya", requireAuth, requirePermission("devices.control"), auditOnSuccess("settings.updated", "integration", "tuya"), async (req, res) => {

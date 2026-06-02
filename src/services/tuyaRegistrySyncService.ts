@@ -125,6 +125,9 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
   const syncedAt = new Date().toISOString();
   const tuyaUid = await getTuyaUidForUser(actor.id);
   if (!tuyaUid) throw new Error("Tuya / Smart Life is not linked for this account.");
+  if (!process.env.TUYA_ACCESS_ID || !process.env.TUYA_ACCESS_SECRET) {
+    throw new Error("Tuya backend credentials are missing.");
+  }
 
   await audit(actor, "integration.tuya.sync.started", "success", { provider: "tuya" }, req);
 
