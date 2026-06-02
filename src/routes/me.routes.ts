@@ -130,7 +130,7 @@ function maskExternalId(value: string | null): string | null {
   return `${value.slice(0, 4)}***${value.slice(-3)}`;
 }
 
-const PROFILE_SELECT = "id, email, username, full_name, phone, avatar_url, profile_image_url, role, estate_id, home_id";
+const PROFILE_SELECT = "id, email, username, full_name, phone, avatar_url, profile_image_url, role, estate_id, home_id, onboarding_complete";
 const PROFILE_SELECT_FALLBACK = "id, email, username, full_name, avatar_url, profile_image_url, role, estate_id, home_id";
 const PROFILE_SELECT_BASE = "id, email, username, full_name, role, estate_id, home_id";
 const PROFILE_AVATAR_BUCKET = process.env.PROFILE_AVATAR_BUCKET || "profile-avatars";
@@ -153,6 +153,35 @@ async function selectUserProfile(userId: string) {
     lastError = error;
   }
   return { data: null, error: lastError };
+}
+
+async function getResidentVerificationContext(userId: string, profile: any) {
+  const estateId = String(profile?.estate_id || "").trim();
+  const homeId = String(profile?.home_id || "").trim();
+  const [estateMembership, homeMembership] = await Promise.all([
+    estateId
+      ? supabaseAdmin
+          .from("estate_memberships")
+          .select("role, status")
+          .eq("user_id", userId)
+          .eq("estate_id", estateId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    homeId
+      ? supabaseAdmin
+          .from("home_memberships")
+          .select("role, status")
+          .eq("user_id", userId)
+          .eq("home_id", homeId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  return {
+    onboarding_complete: profile?.onboarding_complete === true,
+    active_estate_membership: estateMembership.error ? null : estateMembership.data,
+    active_home_membership: homeMembership.error ? null : homeMembership.data,
+  };
 }
 
 async function uploadProfileAvatar(storageKey: string, buffer: Buffer, mime: string) {
@@ -402,6 +431,7 @@ router.get("/context", requireAuth, async (req, res) => {
     estate_id: user.estate_id || null,
     home_id: user.home_id || null,
   };
+  const verification = await getResidentVerificationContext(user.id, profile);
 
   return res.json({
     estate,
@@ -411,6 +441,10 @@ router.get("/context", requireAuth, async (req, res) => {
     estate_id: estate?.id || null,
     home_id: home?.id || null,
     available_contexts: availableContexts,
+    onboarding_complete: verification.onboarding_complete,
+    active_estate_membership: verification.active_estate_membership,
+    active_home_membership: verification.active_home_membership,
+    verification,
   });
 });
 
