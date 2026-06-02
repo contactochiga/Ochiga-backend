@@ -10,7 +10,9 @@ import {
   createHome,
   updateHome,
   listEstateHomes,
+  getEstateStructure,
   createRoom,
+  updateRoom,
   listHomeRooms,
   inviteUser,
   acceptInvite,
@@ -53,11 +55,13 @@ router.get("/estates", requireAuth, requirePermission("estates.read"), listMyEst
 router.post("/homes", requireAuth, requirePermission("homes.write"), auditOnSuccess("home.created", "home", "home_id"), createHome);
 router.patch("/homes/:homeId", requireAuth, requirePermission("homes.write"), auditOnSuccess("home.updated", "home", "homeId"), updateHome);
 router.get("/estates/:estateId/homes", requireAuth, requirePermission("homes.read"), listEstateHomes);
+router.get("/estate-structure", requireAuth, requirePermission("homes.read"), getEstateStructure);
 
 /**
  * Rooms
  */
 router.post("/rooms", requireAuth, requirePermission("homes.write"), auditOnSuccess("room.created", "room", "room_id"), createRoom);
+router.patch("/rooms/:roomId", requireAuth, requirePermission("homes.write"), auditOnSuccess("room.updated", "room", "roomId"), updateRoom);
 router.get("/homes/:homeId/rooms", requireAuth, requirePermission("homes.read"), listHomeRooms);
 
 /**
@@ -100,7 +104,7 @@ router.delete("/estate-users/:membershipId", requireAuth, requirePermission("sta
  * ---------------------------
  */
 router.use("/homes", homeUsersRoutes);
-router.patch("/home-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("home.updated", "home_membership", "membershipId"), updateHomeUser);
-router.delete("/home-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("home.updated", "home_membership", "membershipId"), removeHomeUser);
+router.patch("/home-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("home.member.updated", "home_membership", "membershipId"), updateHomeUser);
+router.delete("/home-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("home.member.removed", "home_membership", "membershipId"), removeHomeUser);
 
 export default router;

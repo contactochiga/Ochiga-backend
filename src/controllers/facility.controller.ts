@@ -4,6 +4,7 @@ import crypto from "crypto";
 import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
+import { hasPermission } from "../core/foundation";
 
 // ---------------------------
 // Helpers
@@ -411,18 +412,151 @@ export async function listEstateHomes(req: any, res: Response) {
       return res.status(403).json({ error: "No access to this estate" });
     }
 
-    const { data, error } = await supabaseAdmin
-      .from("homes")
-      .select("*")
-      .eq("estate_id", estateId)
-      .order("created_at", { ascending: false });
-
-    if (error) return res.status(500).json({ error: error.message });
-
-    return res.json({ homes: data || [] });
+    return res.json(await loadEstateStructure(estateId));
   } catch (e: any) {
     console.error("listEstateHomes error:", e);
     return res.status(500).json({ error: e.message || "Server error" });
+  }
+}
+
+async function loadEstateStructure(estateId: string, includeInviteRows = false) {
+  const [{ data: estate, error: estateError }, homesResult] = await Promise.all([
+    supabaseAdmin.from("estates").select("id, name").eq("id", estateId).maybeSingle(),
+    supabaseAdmin.from("homes").select("*").eq("estate_id", estateId).order("created_at", { ascending: false }),
+  ]);
+  if (estateError) throw new Error(estateError.message);
+  if (homesResult.error) throw new Error(homesResult.error.message);
+
+  const homes = homesResult.data || [];
+  const homeIds = homes.map((home: any) => String(home.id)).filter(Boolean);
+  const empty = { data: [] as any[], error: null as any };
+  const [memberships, rooms, devices, invites] = homeIds.length
+    ? await Promise.all([
+        supabaseAdmin.from("home_memberships").select("id, home_id, user_id, role, status, created_at, updated_at").in("home_id", homeIds),
+        supabaseAdmin.from("rooms").select("id, home_id, name, type, floor, created_at").in("home_id", homeIds),
+        supabaseAdmin.from("devices").select("id, home_id, room_id, status, online").in("home_id", homeIds),
+        supabaseAdmin
+          .from("invites")
+          .select("id, home_id, invited_email, role, status, expires_at, delivery_status, last_sent_at, claimed_at, revoked_at, created_at")
+          .eq("estate_id", estateId)
+          .order("created_at", { ascending: false }),
+      ])
+    : [empty, empty, empty, empty];
+
+  const rows = {
+    memberships: memberships.error ? [] : memberships.data || [],
+    rooms: rooms.error ? [] : rooms.data || [],
+    devices: devices.error ? [] : devices.data || [],
+    invites: invites.error ? [] : invites.data || [],
+  };
+  const sources = {
+    homes: "available",
+    memberships: memberships.error ? "pending_source" : "available",
+    rooms: rooms.error ? "pending_source" : "available",
+    devices: devices.error ? "pending_source" : "available",
+    invites: invites.error ? "pending_source" : "available",
+  };
+  const byHome = (items: any[], homeId: string) => items.filter((item) => String(item.home_id || "") === homeId);
+  const enrichedHomes = homes.map((home: any) => {
+    const id = String(home.id);
+    const homeMembers = byHome(rows.memberships, id);
+    const homeRooms = byHome(rows.rooms, id);
+    const homeDevices = byHome(rows.devices, id);
+    const homeInvites = byHome(rows.invites, id);
+    const activeMembers = homeMembers.filter((item) => String(item.status || "").toLowerCase() === "active");
+    const invitedMembers = homeMembers.filter((item) => String(item.status || "").toLowerCase() === "invited");
+    const suspendedMembers = homeMembers.filter((item) => ["disabled", "suspended"].includes(String(item.status || "").toLowerCase()));
+    return {
+      ...home,
+      room_count: homeRooms.length,
+      device_count: homeDevices.length,
+      member_count: homeMembers.length,
+      active_member_count: activeMembers.length,
+      invited_member_count: invitedMembers.length,
+      suspended_member_count: suspendedMembers.length,
+      pending_invite_count: homeInvites.filter((item) => inviteLifecycleStatus(item) === "pending").length,
+      expired_invite_count: homeInvites.filter((item) => inviteLifecycleStatus(item) === "expired").length,
+      occupancy_status: activeMembers.length ? "occupied" : invitedMembers.length ? "pending_activation" : "vacant",
+    };
+  });
+  const activeMemberships = rows.memberships.filter((item) => String(item.status || "").toLowerCase() === "active");
+  const suspendedMemberships = rows.memberships.filter((item) => ["disabled", "suspended"].includes(String(item.status || "").toLowerCase()));
+  const pendingInvites = rows.invites.filter((item) => inviteLifecycleStatus(item) === "pending");
+  const expiredInvites = rows.invites.filter((item) => inviteLifecycleStatus(item) === "expired");
+  const revokedInvites = rows.invites.filter((item) => inviteLifecycleStatus(item) === "revoked");
+  const failedDeliveries = rows.invites.filter((item) => String(item.delivery_status || "").toLowerCase() === "failed");
+
+  return {
+    estate: estate || { id: estateId, name: "Estate" },
+    homes: enrichedHomes,
+    invitations: includeInviteRows
+      ? rows.invites.map((invite) => ({ ...invite, lifecycle_status: inviteLifecycleStatus(invite) }))
+      : [],
+    summary: {
+      homes: enrichedHomes.length,
+      occupied_homes: enrichedHomes.filter((home) => home.occupancy_status === "occupied").length,
+      vacant_homes: enrichedHomes.filter((home) => home.occupancy_status === "vacant").length,
+      pending_activation_homes: enrichedHomes.filter((home) => home.occupancy_status === "pending_activation").length,
+      pending_invitations: pendingInvites.length,
+      expired_invitations: expiredInvites.length,
+      revoked_invitations: revokedInvites.length,
+      failed_deliveries: failedDeliveries.length,
+      active_residents: new Set(activeMemberships.map((item) => item.user_id).filter(Boolean)).size,
+      suspended_residents: new Set(suspendedMemberships.map((item) => item.user_id).filter(Boolean)).size,
+      rooms_configured: rows.rooms.length,
+      devices_assigned: rows.devices.length,
+      homes_without_residents: enrichedHomes.filter((home) => home.active_member_count === 0).length,
+      homes_with_multiple_members: enrichedHomes.filter((home) => home.active_member_count > 1).length,
+      resident_access_issues: expiredInvites.length + failedDeliveries.length + suspendedMemberships.length,
+      recently_activated_residents: rows.invites.filter((item) => {
+        if (inviteLifecycleStatus(item) !== "accepted" || !item.claimed_at) return false;
+        return new Date(item.claimed_at).getTime() >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+      }).length,
+    },
+    sources: { ...sources, invitation_rows: includeInviteRows ? "available" : "permission_required" },
+  };
+}
+
+function inviteLifecycleStatus(invite: any) {
+  const status = String(invite?.status || "pending").toLowerCase();
+  if (status === "pending" && invite?.expires_at && new Date(invite.expires_at).getTime() <= Date.now()) {
+    return "expired";
+  }
+  return status;
+}
+
+/**
+ * GET /facility/estate-structure
+ */
+export async function getEstateStructure(req: any, res: Response) {
+  try {
+    let estateId = String(req.query?.estate_id || req.user?.estate_id || "").trim();
+    if (!estateId) {
+      const { data: membership, error } = await supabaseAdmin
+        .from("estate_memberships")
+        .select("estate_id")
+        .eq("user_id", req.user.id)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+      if (error) return res.status(500).json({ error: error.message });
+      estateId = String(membership?.estate_id || "");
+    }
+    if (!estateId) return res.status(400).json({ error: "No active estate context" });
+
+    const { data: membership, error } = await supabaseAdmin
+      .from("estate_memberships")
+      .select("id, status")
+      .eq("estate_id", estateId)
+      .eq("user_id", req.user.id)
+      .maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!membership || membership.status !== "active") return res.status(403).json({ error: "No access to this estate" });
+
+    return res.json(await loadEstateStructure(estateId, hasPermission(req.user, "staff.manage")));
+  } catch (error: any) {
+    console.error("getEstateStructure error:", error);
+    return res.status(500).json({ error: error.message || "Unable to load estate structure" });
   }
 }
 
@@ -459,6 +593,44 @@ export async function createRoom(req: any, res: Response) {
 }
 
 /**
+ * PATCH /facility/rooms/:roomId
+ */
+export async function updateRoom(req: any, res: Response) {
+  try {
+    const { roomId } = req.params;
+    const { name, type, floor } = req.body || {};
+    if (name === undefined && type === undefined && floor === undefined) {
+      return res.status(400).json({ error: "Nothing to update" });
+    }
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("rooms")
+      .select("id, estate_id, home_id")
+      .eq("id", roomId)
+      .maybeSingle();
+    if (existingError) return res.status(500).json({ error: existingError.message });
+    if (!existing) return res.status(404).json({ error: "Room not found" });
+
+    const canManage = await assertCanManageEstate(req.user.id, existing.estate_id);
+    if (!canManage && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not allowed to manage this estate" });
+    }
+    const room = await updateWithSchemaFallback<any>(
+      "rooms",
+      { id: roomId },
+      {
+        name: name === undefined ? undefined : String(name || "").trim(),
+        type: type === undefined ? undefined : String(type || "").trim() || null,
+      floor: floor === undefined ? undefined : floor === "" || floor === null ? null : Number(floor),
+      }
+    );
+    return res.json({ message: "Room updated", room });
+  } catch (error: any) {
+    console.error("updateRoom error:", error);
+    return res.status(400).json({ error: error.message || "Failed to update room" });
+  }
+}
+
+/**
  * GET /facility/homes/:homeId/rooms
  */
 export async function listHomeRooms(req: any, res: Response) {
@@ -491,7 +663,19 @@ export async function listHomeRooms(req: any, res: Response) {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    return res.json({ rooms: data || [] });
+    const rooms = data || [];
+    const roomIds = rooms.map((room: any) => String(room.id)).filter(Boolean);
+    const deviceCounts = new Map<string, number>();
+    if (roomIds.length) {
+      const { data: devices } = await supabaseAdmin.from("devices").select("room_id").in("room_id", roomIds);
+      for (const device of devices || []) {
+        const roomId = String((device as any).room_id || "");
+        if (roomId) deviceCounts.set(roomId, (deviceCounts.get(roomId) || 0) + 1);
+      }
+    }
+    return res.json({
+      rooms: rooms.map((room: any) => ({ ...room, device_count: deviceCounts.get(String(room.id)) || 0 })),
+    });
   } catch (e: any) {
     console.error("listHomeRooms error:", e);
     return res.status(500).json({ error: e.message || "Server error" });

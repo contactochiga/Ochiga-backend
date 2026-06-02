@@ -221,6 +221,42 @@ async function assertHomeAccess(userId: string, homeId: string): Promise<AccessR
   };
 }
 
+async function realignUserContext(userId: string) {
+  const { data: activeMemberships, error } = await supabaseAdmin
+    .from("home_memberships")
+    .select("home_id, homes(estate_id)")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  const first = activeMemberships?.[0] as any;
+  const homeId = first?.home_id || null;
+  const home = Array.isArray(first?.homes) ? first.homes[0] : first?.homes;
+  const estateId = home?.estate_id || null;
+  if (estateId) {
+    const { error: estateMembershipError } = await supabaseAdmin
+      .from("estate_memberships")
+      .update({ status: "active", updated_at: new Date().toISOString() })
+      .eq("estate_id", estateId)
+      .eq("user_id", userId)
+      .in("role", ["resident", "member", "guest", "viewer"]);
+    if (estateMembershipError) throw new Error(estateMembershipError.message);
+  } else {
+    const { error: estateMembershipError } = await supabaseAdmin
+      .from("estate_memberships")
+      .update({ status: "disabled", updated_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .in("role", ["resident", "member", "guest", "viewer"]);
+    if (estateMembershipError) throw new Error(estateMembershipError.message);
+  }
+  const { error: userError } = await supabaseAdmin
+    .from("users")
+    .update({ home_id: homeId, estate_id: estateId, updated_at: new Date().toISOString() })
+    .eq("id", userId);
+  if (userError) throw new Error(userError.message);
+}
+
 /**
  * GET /facility/homes/:homeId/users
  */
@@ -730,6 +766,9 @@ export async function updateHomeUser(req: ReqAny, res: Response) {
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
+    if (status && ["active", "disabled", "suspended"].includes(String(status).toLowerCase())) {
+      await realignUserContext(String(mem.user_id));
+    }
 
     try {
       const { data: home } = await supabaseAdmin
@@ -803,7 +842,7 @@ export async function removeHomeUser(req: ReqAny, res: Response) {
 
     const { data: mem, error: memErr } = await supabaseAdmin
       .from("home_memberships")
-      .select("id, home_id, role, status")
+      .select("id, home_id, role, status, user_id")
       .eq("id", membershipId)
       .single();
 
@@ -815,6 +854,7 @@ export async function removeHomeUser(req: ReqAny, res: Response) {
 
     const { error } = await supabaseAdmin.from("home_memberships").delete().eq("id", membershipId);
     if (error) return res.status(500).json({ error: error.message });
+    await realignUserContext(String(mem.user_id));
 
     return res.json({ message: "User removed from home" });
   } catch (err: any) {

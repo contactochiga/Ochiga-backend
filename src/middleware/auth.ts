@@ -90,8 +90,8 @@ async function hydrateUserContext(decoded: AuthUser): Promise<AuthUser> {
     email: (data as any)?.email ?? decoded.email,
     username: (data as any)?.username ?? decoded.username,
     role,
-    estate_id: (data as any)?.estate_id ?? decoded.estate_id,
-    home_id: (data as any)?.home_id ?? decoded.home_id,
+    estate_id: (data as any)?.estate_id === null ? undefined : (data as any)?.estate_id ?? decoded.estate_id,
+    home_id: (data as any)?.home_id === null ? undefined : (data as any)?.home_id ?? decoded.home_id,
     permission_scopes: permissionScopes,
     permissions: permissionsForRole(role, permissionScopes),
   };
