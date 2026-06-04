@@ -24,6 +24,12 @@ type ActivityEvent = {
   source: string;
   label?: string;
   thumbnail_url?: string | null;
+  action?: {
+    href: string;
+    label: string;
+    kind: string;
+    entity_id?: string | null;
+  } | null;
 };
 
 const router = express.Router();
@@ -36,6 +42,14 @@ function iso(value: any) {
 function cleanText(value: any, fallback: string) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return text || fallback;
+}
+
+function firstString(...values: any[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
 }
 
 function categoryFrom(value: any): ActivityCategory {
@@ -58,6 +72,44 @@ function severityFrom(value: any): ActivitySeverity {
   return "info";
 }
 
+function action(href: string, label: string, kind: string, entityId?: string | null) {
+  return { href, label, kind, entity_id: entityId || null };
+}
+
+function notificationAction(row: any, category: ActivityCategory) {
+  const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
+  const typeText = `${row?.type || ""} ${row?.title || ""} ${row?.message || ""} ${payload?.kind || ""}`.toLowerCase();
+  const entityId = firstString(row?.entity_id, payload?.entity_id, payload?.id);
+
+  const inviteId = firstString(payload.invite_id, payload.inviteId, payload.invitation_id, entityId && /invite|invitation/.test(typeText) ? entityId : "");
+  const postId = firstString(payload.post_id, payload.postId, payload.community_post_id, entityId && /community|post|announcement|notice/.test(typeText) ? entityId : "");
+  const commentId = firstString(payload.comment_id, payload.commentId);
+  const threadId = firstString(payload.thread_id, payload.threadId, payload.conversation_id, payload.message_thread_id, entityId && /message|thread|chat|inbox/.test(typeText) ? entityId : "");
+  const visitorId = firstString(payload.visitor_id, payload.visitorId, payload.guest_id, entityId && /visitor|guest|gate|access/.test(typeText) ? entityId : "");
+  const maintenanceId = firstString(payload.request_id, payload.requestId, payload.maintenance_id, payload.maintenanceId, payload.ticket_id, payload.ticketId, entityId && /maintenance|repair|support/.test(typeText) ? entityId : "");
+  const transactionId = firstString(payload.transaction_id, payload.transactionId, payload.wallet_transaction_id, entityId && /wallet|payment|transaction/.test(typeText) ? entityId : "");
+  const serviceId = firstString(payload.service_id, payload.serviceId, entityId && /service/.test(typeText) ? entityId : "");
+  const deviceId = firstString(payload.device_id, payload.deviceId, entityId && /device|light|switch|climate|sensor/.test(typeText) ? entityId : "");
+  const roomId = firstString(payload.room_id, payload.roomId, payload.space_id, payload.spaceId, entityId && /room|space/.test(typeText) ? entityId : "");
+  const sceneId = firstString(payload.scene_id, payload.sceneId, entityId && /scene/.test(typeText) ? entityId : "");
+  const automationId = firstString(payload.automation_id, payload.automationId, entityId && /automation/.test(typeText) ? entityId : "");
+  const incidentId = firstString(payload.incident_id, payload.incidentId, payload.security_incident_id, entityId && /security|incident|alert|emergency/.test(typeText) ? entityId : "");
+
+  if (inviteId) return action(`/invites?inviteId=${encodeURIComponent(inviteId)}`, "Open invite", "invite", inviteId);
+  if (postId) return action(`/community?postId=${encodeURIComponent(postId)}${commentId ? `&commentId=${encodeURIComponent(commentId)}` : ""}`, commentId ? "Open thread" : "Open post", commentId ? "community_comment" : "community_post", postId);
+  if (threadId) return action(`/messages?threadId=${encodeURIComponent(threadId)}`, "Open thread", "message", threadId);
+  if (visitorId) return action(`/visitors?visitorId=${encodeURIComponent(visitorId)}`, "Open visitor", "visitor", visitorId);
+  if (maintenanceId) return action(`/maintenance?requestId=${encodeURIComponent(maintenanceId)}`, "Open request", "maintenance", maintenanceId);
+  if (transactionId) return action(`/wallet?transactionId=${encodeURIComponent(transactionId)}`, "Open transaction", "wallet", transactionId);
+  if (serviceId) return action(`/services?serviceId=${encodeURIComponent(serviceId)}`, "Open service", "service", serviceId);
+  if (deviceId && !/heartbeat|sync completed|telemetry|turned on|turned off|command.executed/.test(typeText)) return action(`/devices?deviceId=${encodeURIComponent(deviceId)}`, "Open device", "device", deviceId);
+  if (roomId) return action(`/spaces?roomId=${encodeURIComponent(roomId)}`, "Open space", "space", roomId);
+  if (sceneId && !/executed/.test(typeText)) return action(`/scenes?sceneId=${encodeURIComponent(sceneId)}`, "Open scene", "scene", sceneId);
+  if (automationId) return action(`/scenes?tab=automations&automationId=${encodeURIComponent(automationId)}`, "Open automation", "automation", automationId);
+  if (incidentId || category === "security") return action(`/security${incidentId ? `?incidentId=${encodeURIComponent(incidentId)}` : ""}`, "Open security", "security", incidentId || null);
+  return null;
+}
+
 async function safeSelect(table: string, build: (q: any) => any) {
   try {
     const query = build(supabaseAdmin.from(table));
@@ -72,6 +124,7 @@ async function safeSelect(table: string, build: (q: any) => any) {
 function notificationEvent(row: any): ActivityEvent {
   const category = categoryFrom(`${row?.type || ""} ${row?.title || ""} ${row?.message || ""}`);
   const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
+  const itemAction = notificationAction(row, category);
   return {
     id: `notification:${row.id}`,
     category,
@@ -82,6 +135,7 @@ function notificationEvent(row: any): ActivityEvent {
     source: "notifications",
     label: cleanText(row?.type, category),
     thumbnail_url: typeof payload.thumbnail_url === "string" ? payload.thumbnail_url : null,
+    action: itemAction,
   };
 }
 
@@ -98,6 +152,7 @@ function visitorEvent(row: any): ActivityEvent {
     source: "visitors",
     label: "People",
     thumbnail_url: null,
+    action: row?.id ? action(`/visitors?visitorId=${encodeURIComponent(String(row.id))}`, "Open visitor", "visitor", String(row.id)) : null,
   };
 }
 
@@ -112,6 +167,7 @@ function maintenanceEvent(row: any): ActivityEvent {
     occurred_at: iso(row?.updated_at || row?.created_at),
     source: "maintenance_requests",
     label: "Service",
+    action: row?.id ? action(`/maintenance?requestId=${encodeURIComponent(String(row.id))}`, "Open request", "maintenance", String(row.id)) : null,
   };
 }
 
@@ -141,6 +197,7 @@ function walletEvent(row: any): ActivityEvent {
     occurred_at: iso(row?.created_at),
     source: "wallet_transactions",
     label: "Wallet",
+    action: row?.id ? action(`/wallet?transactionId=${encodeURIComponent(String(row.id))}`, "Open transaction", "wallet", String(row.id)) : null,
   };
 }
 
@@ -161,6 +218,7 @@ function communityEvent(row: any): ActivityEvent {
     source: "community_posts",
     label: cleanText(row?.category, "Community"),
     thumbnail_url: firstMedia?.url || null,
+    action: row?.id ? action(`/community?postId=${encodeURIComponent(String(row.id))}`, "Open post", "community_post", String(row.id)) : null,
   };
 }
 
@@ -174,6 +232,7 @@ function incidentEvent(row: any): ActivityEvent {
     occurred_at: iso(row?.updated_at || row?.created_at),
     source: "incidents",
     label: "Security",
+    action: row?.id ? action(`/security?incidentId=${encodeURIComponent(String(row.id))}`, "Open security", "security", String(row.id)) : action("/security", "Open security", "security", null),
   };
 }
 
@@ -207,7 +266,7 @@ async function buildActivity(req: express.Request) {
 
   const [notifications, visitors, maintenance, ai, wallets, incidents, community, devices] = await Promise.all([
     safeSelect("notifications", (q) =>
-      q.select("id,title,message,type,payload,status,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(40)
+      q.select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(40)
     ),
     safeSelect("visitors", (q) =>
       q.select("id,visitor_name,name,full_name,purpose,status,created_at,updated_at")

@@ -4,6 +4,19 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 
 const router = express.Router();
 
+async function markNotificationAcknowledged(id: string, userId: string) {
+  return supabaseAdmin
+    .from("notifications")
+    .update({
+      status: "read",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select()
+    .single();
+}
+
 // =============================
 // GET notifications for user
 // Supports:
@@ -48,16 +61,21 @@ router.post("/read/:id", requireAuth, requirePermission("notifications.read"), a
 
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  const { data, error } = await supabaseAdmin
-    .from("notifications")
-    .update({
-      status: "read",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("user_id", user.id) // 🔒 ownership enforcement
-    .select()
-    .single();
+  const { data, error } = await markNotificationAcknowledged(id, String(user.id));
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  return res.json({ ok: true, item: data });
+});
+
+// Canonical acknowledgement alias for activity/notification consumers.
+router.post("/ack/:id", requireAuth, requirePermission("notifications.read"), async (req, res) => {
+  const user = req.user;
+  const { id } = req.params;
+
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { data, error } = await markNotificationAcknowledged(id, String(user.id));
 
   if (error) return res.status(500).json({ error: error.message });
 

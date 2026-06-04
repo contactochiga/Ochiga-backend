@@ -11,6 +11,119 @@ function safeArray(value: any) {
   return Array.isArray(value) ? value : [];
 }
 
+function flattenCapabilityCodes(value: any): string[] {
+  const out: string[] = [];
+  const visit = (entry: any) => {
+    if (entry == null) return;
+    if (typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean") {
+      out.push(String(entry).toLowerCase());
+      return;
+    }
+    if (Array.isArray(entry)) {
+      entry.forEach(visit);
+      return;
+    }
+    if (typeof entry === "object") {
+      ["code", "id", "name", "label", "type", "function", "dp_code"].forEach((key) => {
+        if ((entry as any)[key] != null) out.push(String((entry as any)[key]).toLowerCase());
+      });
+      Object.entries(entry).forEach(([key, nested]) => {
+        out.push(String(key).toLowerCase());
+        if (typeof nested === "object") visit(nested);
+        else if (typeof nested === "string" || typeof nested === "number" || typeof nested === "boolean") out.push(String(nested).toLowerCase());
+      });
+    }
+  };
+  visit(value);
+  return Array.from(new Set(out.map((item) => item.replace(/\s+/g, "_")).filter(Boolean)));
+}
+
+function includesAny(values: string[], patterns: RegExp[]) {
+  return values.some((value) => patterns.some((pattern) => pattern.test(value)));
+}
+
+function buildUiCapabilities(device: any, metadata: any) {
+  const values = flattenCapabilityCodes([
+    device?.capabilities,
+    metadata?.capabilities,
+    metadata?.functions,
+    metadata?.status,
+    metadata?.raw?.functions,
+    metadata?.raw?.status,
+    metadata?.raw?.dps,
+    metadata?.tuya?.functions,
+    metadata?.tuya?.status,
+    device?.category,
+    device?.type,
+    device?.name,
+  ]);
+  const text = values.join(" ");
+  const category = String(device?.category || device?.type || "").toLowerCase();
+
+  const switchable =
+    includesAny(values, [/^switch(_\d+)?$/, /^switch_led$/, /^power$/, /^on$/, /^on_off$/, /^relay/]) ||
+    /(^| )(light|switch|plug|socket|outlet|relay)( |$)/.test(`${category} ${text}`);
+  const timer = includesAny(values, [/timer/, /countdown/, /count_down/]);
+  const schedule = includesAny(values, [/schedule/, /timer_schedule/]);
+  const cycle = includesAny(values, [/cycle/, /loop/]);
+  const inching = includesAny(values, [/inching/, /jog/]);
+  const temperature = includesAny(values, [/temp/, /temperature/, /temp_set/, /temp_current/]) || /air|ac|hvac|climate|thermostat/.test(`${category} ${text}`);
+  const fan = includesAny(values, [/fan/, /windspeed/, /wind_speed/]) || /fan/.test(`${category} ${text}`);
+  const swing = includesAny(values, [/swing/, /shake/, /oscillat/]);
+  const tvRemote = /(^| )(tv|television|remote|ir|infrared|set_top|decoder)( |$)/.test(`${category} ${text}`);
+  const acRemote = /(^| )(ac|air_conditioner|aircon|hvac|climate|thermostat)( |$)/.test(`${category} ${text}`);
+
+  const tvControls = [
+    includesAny(values, [/power/, /^switch$/]) && "power",
+    includesAny(values, [/mute/]) && "mute",
+    includesAny(values, [/volume/, /vol_up/, /vol_down/]) && "volume",
+    includesAny(values, [/channel/, /ch_up/, /ch_down/]) && "channel",
+    includesAny(values, [/input/, /source/]) && "input",
+    includesAny(values, [/menu/]) && "menu",
+    includesAny(values, [/back/, /return/]) && "back",
+    includesAny(values, [/ok/, /enter/]) && "ok",
+    includesAny(values, [/up|down|left|right|dpad/]) && "dpad",
+    includesAny(values, [/number|digit|num_/]) && "number_pad",
+  ].filter(Boolean) as string[];
+
+  const acControls = [
+    (switchable || includesAny(values, [/power/])) && "power",
+    includesAny(values, [/mode/]) && "mode",
+    temperature && "temperature",
+    fan && "fan",
+    swing && "swing",
+    timer && "timer",
+  ].filter(Boolean) as string[];
+
+  const supportedCommands = [
+    switchable && "switch",
+    timer && "timer",
+    schedule && "schedule",
+    cycle && "cycle",
+    inching && "inching",
+    temperature && "temperature",
+    fan && "fan",
+    swing && "swing",
+    tvRemote && tvControls.length && "tv_remote",
+    acRemote && acControls.length && "ac_remote",
+  ].filter(Boolean) as string[];
+
+  return {
+    kind: tvRemote ? "tv_remote" : acRemote ? "ac_remote" : category || "device",
+    can_switch: switchable,
+    timer,
+    schedule,
+    cycle,
+    inching,
+    remote: {
+      tv: tvControls,
+      ac: acControls,
+    },
+    supported_commands: Array.from(new Set(supportedCommands)),
+    source: values.length ? "registry_capabilities" : "category_only",
+  };
+}
+
 function sanitizeMetadata(value: any, depth = 0): any {
   if (value == null || depth > 4) return {};
   if (typeof value !== "object") return value;
@@ -96,6 +209,7 @@ export async function getEstateDevices(req: Request, res: Response) {
       })
       .map((device: any) => {
         const room = Array.isArray(device?.rooms) ? device.rooms[0] || null : device?.rooms || null;
+        const metadata = sanitizeMetadata(device?.metadata);
         return {
           ...device,
           name: cleanText(device?.name, "Unnamed device"),
@@ -104,7 +218,8 @@ export async function getEstateDevices(req: Request, res: Response) {
           status: cleanText(device?.status, device?.online === false ? "offline" : "unknown"),
           capabilities: safeArray(device?.capabilities),
           protocols: safeArray(device?.protocols),
-          metadata: sanitizeMetadata(device?.metadata),
+          metadata,
+          ui_capabilities: buildUiCapabilities(device, metadata),
           room: room?.id ? { id: room.id, name: cleanText(room.name, "Room") } : null,
           room_name: cleanText(room?.name),
           rooms: undefined,

@@ -92,6 +92,33 @@ function looksLikeAnnouncement(title?: string | null, role?: string | null) {
   );
 }
 
+function communitySourceFor(row: any, extra: Record<string, any> = {}) {
+  const category = normalizeCategory(row?.category, row?.title, row?.author_role || extra.author_role);
+  const priority = String(row?.priority || "").toLowerCase();
+  const role = String(row?.author_role || extra.author_role || "").toLowerCase();
+  const status = String(row?.status || "").toLowerCase();
+  const isUrgent = priority === "urgent" || priority === "critical" || category === "security" || /urgent|critical|emergency/.test(`${row?.title || ""} ${status}`.toLowerCase());
+  const isOfficial =
+    Boolean(row?.is_pinned) ||
+    ["announcement", "notice", "maintenance", "security", "service", "event"].includes(category) ||
+    /admin|manager|operator|moderator|security|maintenance|staff|owner/.test(role);
+
+  let sourceLabel = "Resident";
+  if (/security/.test(role) || category === "security") sourceLabel = "Security Desk";
+  else if (/maintenance/.test(role) || category === "maintenance") sourceLabel = "Maintenance Team";
+  else if (/moderator/.test(role)) sourceLabel = "Community Moderator";
+  else if (/admin|owner/.test(role)) sourceLabel = "Administration";
+  else if (/manager|operator|staff/.test(role) || isOfficial) sourceLabel = "Estate Operations";
+
+  return {
+    author_role: row?.author_role || extra.author_role || null,
+    source_type: isOfficial ? "facility" : "resident",
+    source_label: sourceLabel,
+    is_official: isOfficial,
+    is_urgent: isUrgent,
+  };
+}
+
 function extFromMime(mime?: string, fallback = "bin") {
   const map: Record<string, string> = {
     "image/jpeg": "jpg",
@@ -154,6 +181,8 @@ function normalizePostOutput(row: any, extra: Record<string, any> = {}) {
       ? String(structured.liveLink || "")
       : null;
 
+  const source = communitySourceFor(row, extra);
+
   return {
     ...row,
     content,
@@ -175,6 +204,7 @@ function normalizePostOutput(row: any, extra: Record<string, any> = {}) {
     audience_ref: row?.audience_ref || null,
     scheduled_at: row?.scheduled_at || null,
     priority: row?.priority || null,
+    ...source,
     ...extra,
   };
 }
@@ -717,16 +747,16 @@ export async function getPostsForEstate(req: Request, res: Response) {
   }
 
   const authorIds = Array.from(new Set(posts.map((p) => String(p.author_id || "")).filter(Boolean)));
-  const authorMap = new Map<string, { name: string; avatar_url: string | null }>();
+  const authorMap = new Map<string, { name: string; avatar_url: string | null; role: string | null }>();
   if (authorIds.length) {
     const { data: users } = await supabaseAdmin
       .from("users")
-      .select("id,username,full_name,avatar_url,profile_image_url")
+      .select("id,username,full_name,avatar_url,profile_image_url,role")
       .in("id", authorIds);
     for (const u of users || []) {
       const id = String((u as any).id || "");
       const name = String((u as any).username || (u as any).full_name || "").trim();
-      if (id) authorMap.set(id, { name, avatar_url: String((u as any).profile_image_url || (u as any).avatar_url || "").trim() || null });
+      if (id) authorMap.set(id, { name, avatar_url: String((u as any).profile_image_url || (u as any).avatar_url || "").trim() || null, role: String((u as any).role || "").trim() || null });
     }
   }
 
@@ -738,6 +768,7 @@ export async function getPostsForEstate(req: Request, res: Response) {
     return normalizePostOutput(p, {
       author_name: author?.name || null,
       author_avatar_url: author?.avatar_url || null,
+      author_role: author?.role || null,
       like_count: likeCount,
       likes: likeCount,
       reactions_count: likeCount,
