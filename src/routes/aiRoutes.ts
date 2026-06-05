@@ -201,8 +201,31 @@ function compactLines(lines: Array<string | null | undefined>) {
     });
 }
 
+function cleanAssistantText(value: any) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^I found\s+/i, "")
+    .replace(/^There are\s+/i, "")
+    .trim();
+}
+
 function formatCount(label: string, count: number, ok: string) {
   return count > 0 ? `${count} ${label}${count === 1 ? "" : "s"}` : ok;
+}
+
+function formatEventTime(value: any) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function isToday(value: any) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
 }
 
 function responseIntent(message: string) {
@@ -225,15 +248,22 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
   const community = cardByType(cards, "community");
 
   if (intent === "visitors_today") {
-    const visitorRows = cardItems(recentVisitors).slice(0, 5);
-    if (!visitorRows.length && !itemValue(visitors, "Active") && !itemValue(visitors, "Pending")) {
+    const visitorRows = cardItems(recentVisitors)
+      .filter((row: any) => isToday(row.timestamp || row.created_at || row.updated_at))
+      .slice(0, 5);
+    if (!visitorRows.length) {
       return "No visitors were recorded today.";
     }
-    const names = visitorRows.map((row: any) => row.title).filter(Boolean).join(", ");
-    const total = itemValue(visitors, "Recent") || visitorRows.length;
+    const timedNames = visitorRows
+      .map((row: any) => {
+        const time = formatEventTime(row.timestamp || row.created_at || row.updated_at);
+        return row.title ? `${row.title}${time ? ` at ${time}` : ""}` : "";
+      })
+      .filter(Boolean);
+    const total = visitorRows.length;
     return compactLines([
-      names ? `${names} ${visitorRows.length === 1 ? "was" : "were"} recorded recently.` : `${total} visitor${total === 1 ? "" : "s"} were recorded recently.`,
-      `Context: ${formatCount("active visitor", itemValue(visitors, "Active"), "no active visitors")}; ${formatCount("pending visitor", itemValue(visitors, "Pending"), "no pending visitors")}.`,
+      timedNames.length ? `Today's visitors: ${timedNames.join(", ")}.` : `${total} visitor${total === 1 ? "" : "s"} were recorded today.`,
+      `Context: ${total} visitor${total === 1 ? "" : "s"} total; ${formatCount("active visitor", itemValue(visitors, "Active"), "no active visitors")}; ${formatCount("pending visitor", itemValue(visitors, "Pending"), "no pending visitors")}.`,
       itemValue(visitors, "Pending") ? "Suggested action: Open Visitors to review pending access." : null,
     ]).join("\n");
   }
@@ -264,10 +294,11 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
     const waiting = itemValue(maintenance, "Waiting resident");
     const inProgress = itemValue(maintenance, "In progress");
     if (!open && !waiting && !inProgress) return "No maintenance requests are pending.";
+    const total = open || waiting + inProgress;
     return compactLines([
-      `${open || inProgress || waiting} maintenance request${(open || inProgress || waiting) === 1 ? "" : "s"} need tracking.`,
+      `Maintenance needs tracking.`,
       `Context: ${formatCount("open request", open, "no open requests")}; ${formatCount("waiting request", waiting, "none waiting on you")}; ${formatCount("in-progress request", inProgress, "none in progress")}.`,
-      "Suggested action: Open Maintenance to review request details.",
+      total ? "Suggested action: Open Maintenance to review request details." : null,
     ]).join("\n");
   }
 
@@ -276,11 +307,11 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
     const summaries = activityTypes.slice(0, 5).map((card: any) => {
       const label = String(card.title || card.type || "Update").replace(/_/g, " ");
       const first = cardItems(card)[0];
-      return first?.title ? `${label}: ${first.title}.` : `${label}: ${card.summary || "recent update"}.`;
+      return first?.title ? `${label}: ${first.title}.` : `${label}: ${cleanAssistantText(card.summary) || "recent update"}.`;
     });
     return compactLines([
-      summaries[0] || "Your home has recent activity.",
-      `Context: ${summaries.slice(1).join(" ") || "No other grouped updates are visible."}`,
+      `Your home has updates across ${activityTypes.length} area${activityTypes.length === 1 ? "" : "s"} today.`,
+      `Context: ${summaries.join(" ")}`,
       "Suggested action: Open Activity for the full timeline.",
     ]).join("\n");
   }
@@ -299,7 +330,7 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
   }
 
   const successful = toolResults.find((item) => item.status === "executed" && item.summary);
-  if (successful?.summary) return String(successful.summary).replace(/^I found\s+/i, "").trim();
+  if (successful?.summary) return cleanAssistantText(successful.summary);
   return "";
 }
 
@@ -316,7 +347,7 @@ function buildReply(message: string, toolResults: any[], cards: any[] = []) {
   if (narrative) return narrative;
   const summaries = toolResults
     .filter((item) => item.status === "executed" && item.summary)
-    .map((item) => item.summary);
+    .map((item) => cleanAssistantText(item.summary));
   if (summaries.length) return compactLines(summaries).join("\n");
   const failed = toolResults.find((item) => item.status === "failed" && (item.summary || item.error));
   if (failed) return failed.summary || `That action could not complete: ${failed.error}.`;
