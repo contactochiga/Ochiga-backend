@@ -4,9 +4,11 @@ import { hasWatchScope } from "../services/watchPolicy";
 import {
   cancelWatchCommand,
   confirmWatchCommand,
+  getWatchFavorites,
   getWatchGlances,
   getWatchHomeStatus,
   getWatchQuickActions,
+  getWatchScenes,
   getWatchStatus,
   runWatchCommand,
 } from "../services/watchAdapterService";
@@ -34,6 +36,14 @@ router.get("/glances", requirePermission("devices.read"), async (req, res) => {
 
 router.get("/quick-actions", requirePermission("devices.read"), async (req, res) => {
   res.json(await getWatchQuickActions(req.user!));
+});
+
+router.get("/favorites", requirePermission("devices.read"), async (req, res) => {
+  res.json(await getWatchFavorites(req.user!));
+});
+
+router.get("/scenes", requirePermission("devices.read"), async (req, res) => {
+  res.json(await getWatchScenes(req.user!));
 });
 
 router.get("/status", requirePermission("devices.read"), async (req, res) => {

@@ -1,8 +1,9 @@
 import { Request } from "express";
-import { hasPermission } from "../core/foundation";
+import { emitAuditEvent, hasPermission } from "../core/foundation";
 import type { AuthUser } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { routeAiCommand, updateAiConfirmation, type ProposedAiTool } from "../ai/commandRouter";
+import { executeDeviceCommandForActor } from "../controllers/deviceCommandController";
 import { hasWatchScope } from "./watchPolicy";
 import {
   isDeviceDefinitelyOffline,
@@ -47,13 +48,16 @@ function safeDetail(value: unknown, fallback = "Updated now") {
 }
 
 function deviceFamily(row: any) {
-  const source = `${row?.name || ""} ${row?.type || ""} ${row?.device_type || ""} ${row?.category || ""} ${row?.vendor || ""}`.toLowerCase();
+  const source = `${row?.name || ""} ${row?.type || ""} ${row?.device_type || ""} ${row?.category || ""} ${row?.vendor || ""} ${JSON.stringify(row?.metadata || {})}`.toLowerCase();
   if (/ac|air conditioner|air conditioning|climate|hvac/.test(source)) return "hvac";
+  if (/\btv\b|television|smart tv|android tv|google tv|tcl|samsung tv|lg tv|hisense tv/.test(source)) return "tv";
   if (/light|lamp|bulb/.test(source)) return "light";
   if (/socket|plug|outlet/.test(source)) return "outlet";
+  if (/heater relay|water heater|heater/.test(source)) return "heater";
   if (/switch|relay/.test(source)) return "switch";
   if (/camera|cctv/.test(source)) return "camera";
   if (/lock|gate|door/.test(source)) return "access";
+  if (/payment|wallet|finance/.test(source)) return "payment";
   return "device";
 }
 
@@ -74,7 +78,162 @@ function devicePrompt(row: any) {
 
 function canExposeControl(row: any) {
   const family = deviceFamily(row);
-  return ["light", "switch", "outlet", "hvac", "device"].includes(family);
+  return ["light", "switch", "outlet", "heater"].includes(family);
+}
+
+function isFavoriteDevice(row: any) {
+  const metadata = row?.metadata || {};
+  return Boolean(metadata.favorite || metadata.is_favorite || metadata.watch_favorite);
+}
+
+function actionDevicePayload(device: any, verb: "on" | "off") {
+  const family = deviceFamily(device);
+  return {
+    id: `device:${device.id}:${verb}`,
+    title: safeTitle(`${device.name || "Device"} ${verb.toUpperCase()}`),
+    label: safeTitle(`${device.name || "Device"} ${verb.toUpperCase()}`),
+    category: family,
+    action_type: "device",
+    prompt: `turn ${verb} ${device.name || "device"}`,
+    action_key: `device_${verb}`,
+    risk: "low",
+    enabled: true,
+    disabled_reason: null,
+    confirmation_required: false,
+    icon_type: family,
+    state_color: "blue",
+    device_id: device.id,
+    command: { switch: verb === "on" },
+    last_updated: device.updated_at || null,
+  };
+}
+
+function watchDeviceCard(device: any, canControl: boolean) {
+  const runtime = runtimeStatusLabel(device);
+  const disabled = isDeviceDefinitelyOffline(device);
+  return {
+    id: String(device.id),
+    name: safeTitle(device.name || "Device"),
+    room: safeDetail(device.room_name || device?.metadata?.room_name || device.room || "", ""),
+    family: deviceFamily(device),
+    status: runtime,
+    online: runtime === "online",
+    enabled: canControl && !disabled && canExposeControl(device),
+    disabled_reason: !canControl ? "permission_required" : disabled ? "device_offline" : !canExposeControl(device) ? "unsupported_device" : null,
+    controls: canControl && !disabled && canExposeControl(device) ? [actionDevicePayload(device, "on"), actionDevicePayload(device, "off")] : [],
+    last_updated: device.updated_at || null,
+  };
+}
+
+function cleanSceneActions(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 24).map((item: any) => ({
+    device_id: String(item?.device_id || item?.deviceId || "").trim(),
+    command: item?.command && typeof item.command === "object" ? item.command : {},
+  })).filter((item) => item.device_id && Object.keys(item.command).length);
+}
+
+function safeSceneCommand(command: Record<string, any>) {
+  const keys = Object.keys(command || {});
+  return keys.length > 0 && keys.every((key) => ["switch", "power", "on"].includes(key));
+}
+
+function sceneEnabled(scene: any) {
+  if (scene?.enabled === false) return false;
+  const status = String(scene?.status || "").toLowerCase();
+  return !["disabled", "archived", "deleted"].includes(status);
+}
+
+function scenePayload(scene: any, canControl: boolean) {
+  const actions = cleanSceneActions(scene.actions);
+  return {
+    id: String(scene.id),
+    title: safeTitle(scene.name || scene.title || "Scene"),
+    label: safeTitle(scene.name || scene.title || "Scene"),
+    description: safeDetail(scene.description || scene.mood || `${actions.length} action${actions.length === 1 ? "" : "s"}`),
+    category: "scene",
+    action_type: "scene",
+    prompt: `run ${scene.name || scene.title || "scene"}`,
+    action_key: "run_scene",
+    risk: "low",
+    enabled: canControl && sceneEnabled(scene) && actions.length > 0,
+    disabled_reason: !canControl ? "permission_required" : !sceneEnabled(scene) ? "scene_disabled" : !actions.length ? "scene_empty" : null,
+    confirmation_required: true,
+    icon_type: "scene",
+    state_color: "blue",
+    scene_id: String(scene.id),
+    action_count: actions.length,
+    last_updated: scene.updated_at || scene.created_at || null,
+  };
+}
+
+async function visibleConsumerScenes(actor: AuthUser, limit = 12) {
+  try {
+    let query = supabaseAdmin.from("consumer_scenes").select("*").order("updated_at", { ascending: false, nullsFirst: false }).limit(limit);
+    if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
+    if (actor.home_id) query = query.eq("home_id", actor.home_id);
+    const { data, error } = await query;
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+async function auditSceneExecution(actor: AuthUser, scene: any, results: any[], req?: Request) {
+  await emitAuditEvent({
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: "watch.scene.executed",
+    resourceType: "scene",
+    resourceId: String(scene.id),
+    estateId: actor.estate_id,
+    homeId: actor.home_id,
+    status: results.every((item) => item.status !== "failed" && item.status !== "denied") ? "success" : "partial",
+    metadata: { surface: "watch", results },
+    req,
+  } as any);
+}
+
+async function runConsumerScene(req: Request | undefined, actor: AuthUser, sceneId: string) {
+  let query = supabaseAdmin.from("consumer_scenes").select("*").eq("id", sceneId);
+  if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
+  if (actor.home_id) query = query.eq("home_id", actor.home_id);
+  const { data: scene, error } = await query.maybeSingle();
+  if (error || !scene) {
+    return { state: "failed", reply: "Scene unavailable.", code: "scene_not_found", tools: [], confirmations: [] };
+  }
+  if (!sceneEnabled(scene)) {
+    return { state: "denied", reply: "Scene disabled.", code: "scene_disabled", tools: [], confirmations: [] };
+  }
+  const actions = cleanSceneActions((scene as any).actions);
+  if (!actions.length) {
+    return { state: "failed", reply: "Scene has no actions yet.", code: "scene_empty", tools: [], confirmations: [] };
+  }
+  const results = [];
+  for (const action of actions) {
+    if (!safeSceneCommand(action.command)) {
+      results.push({ device_id: action.device_id, status: "denied" });
+      continue;
+    }
+    try {
+      const result = await executeDeviceCommandForActor({ actor, deviceId: action.device_id, command: action.command, req });
+      results.push({ device_id: action.device_id, status: result.status });
+    } catch (runError: any) {
+      results.push({ device_id: action.device_id, status: "failed", error: runError?.message || "command_failed" });
+    }
+  }
+  await auditSceneExecution(actor, scene, results, req);
+  const ok = results.every((item) => item.status !== "failed" && item.status !== "denied");
+  return {
+    state: ok ? "success" : "failed",
+    reply: ok ? `${safeTitle(scene.name || scene.title || "Scene")} executed.` : `${safeTitle(scene.name || scene.title || "Scene")} could not complete.`,
+    scene_id: scene.id,
+    results,
+    tools: [{ tool_id: "watch_scene", status: ok ? "executed" : "failed", summary: ok ? "Scene executed." : "Scene failed." }],
+    confirmations: [],
+  };
 }
 
 async function countTable(table: string, filters: Record<string, string | null> = {}) {
@@ -169,20 +328,15 @@ export async function getWatchGlances(actor: AuthUser) {
   if (!hasWatchScope(actor)) {
     return { items: [], source: "missing_context", code: "watch_scope_required" };
   }
-  const [status, notifications, devices] = await Promise.all([getWatchHomeStatus(actor), recentNotifications(actor, 8), visibleDevices(actor, 12)]);
-  const deviceGlances = devices.slice(0, 3).map((device: any) => {
-    const state = runtimeStatusLabel(device);
-    return {
-      id: `device-${device.id}`,
-      type: deviceFamily(device),
-      icon_type: deviceFamily(device),
-      title: safeTitle(device.name || "Device"),
-      detail: state === "offline" ? "Offline" : state === "online" ? "Available" : "No live state yet",
-      state,
-      state_color: stateColor(state),
-      last_updated: device.updated_at || null,
-    };
-  });
+  const [status, notifications, devices, visitors] = await Promise.all([
+    getWatchHomeStatus(actor),
+    recentNotifications(actor, 8),
+    visibleDevices(actor, 12),
+    countTable("visitor_access", actorHomeId(actor) ? { home_id: actorHomeId(actor) } : actorEstateId(actor) ? { estate_id: actorEstateId(actor) } : {}),
+  ]);
+  const offline = (status as any)?.counts?.offline_devices || 0;
+  const maintenance = (status as any)?.counts?.maintenance || 0;
+  const unread = (status as any)?.counts?.unread_notifications || 0;
   const notificationGlances = notifications.slice(0, 5).map((item: any) => {
     const state = String(item.status || "unread").toLowerCase() === "read" ? "read" : "unread";
     return {
@@ -208,9 +362,83 @@ export async function getWatchGlances(actor: AuthUser) {
         state_color: stateColor(status.state),
         last_updated: status.updated_at,
       },
+      {
+        id: "security-state",
+        type: "security",
+        icon_type: "security",
+        title: unread > 0 ? "Alerts visible" : "Security calm",
+        detail: unread > 0 ? `${unread} update${unread === 1 ? "" : "s"} to review` : "No urgent alerts",
+        state: unread > 0 ? "aware" : "calm",
+        state_color: unread > 0 ? "blue" : "green",
+        last_updated: status.updated_at,
+      },
+      {
+        id: "visitors-state",
+        type: "visitor",
+        icon_type: "visitor",
+        title: visitors.count ? "Visitors" : "No visitors active",
+        detail: visitors.count ? `${visitors.count} visitor record${visitors.count === 1 ? "" : "s"}` : "Gate quiet",
+        state: visitors.count ? "aware" : "calm",
+        state_color: visitors.count ? "blue" : "green",
+        last_updated: status.updated_at,
+      },
+      {
+        id: "maintenance-state",
+        type: "maintenance",
+        icon_type: "maintenance",
+        title: maintenance ? "Maintenance" : "No maintenance pending",
+        detail: maintenance ? `${maintenance} request${maintenance === 1 ? "" : "s"} visible` : "No open request",
+        state: maintenance ? "aware" : "calm",
+        state_color: maintenance ? "blue" : "green",
+        last_updated: status.updated_at,
+      },
+      {
+        id: "devices-state",
+        type: "device",
+        icon_type: "device",
+        title: offline ? "Device attention" : "Devices healthy",
+        detail: offline ? `${offline} offline` : "No offline devices",
+        state: offline ? "offline" : "online",
+        state_color: offline ? "red" : "green",
+        last_updated: status.updated_at,
+      },
       ...notificationGlances,
-      ...deviceGlances,
     ].slice(0, 8),
+    source: "backend",
+    generated_at: new Date().toISOString(),
+  };
+}
+
+export async function getWatchFavorites(actor: AuthUser) {
+  if (!hasWatchScope(actor)) {
+    return { favorite_devices: [], favorite_scenes: [], favorite_actions: [], source: "missing_context", code: "watch_scope_required" };
+  }
+  const canControl = hasPermission(actor, "devices.control");
+  const [devices, scenes] = await Promise.all([visibleDevices(actor, 30), visibleConsumerScenes(actor, 10)]);
+  const simpleDevices = devices.filter(canExposeControl);
+  const favoriteDevices = simpleDevices.filter(isFavoriteDevice);
+  const selectedDevices = (favoriteDevices.length ? favoriteDevices : simpleDevices).slice(0, 3).map((device: any) => watchDeviceCard(device, canControl));
+  const selectedScenes = scenes.filter(sceneEnabled).slice(0, 3).map((scene: any) => scenePayload(scene, canControl));
+  return {
+    favorite_devices: selectedDevices,
+    favorite_scenes: selectedScenes,
+    favorite_actions: [
+      ...selectedDevices.flatMap((device: any) => device.controls || []),
+      ...selectedScenes,
+    ].slice(0, 6),
+    source: "backend",
+    generated_at: new Date().toISOString(),
+  };
+}
+
+export async function getWatchScenes(actor: AuthUser) {
+  if (!hasWatchScope(actor)) {
+    return { scenes: [], source: "missing_context", code: "watch_scope_required" };
+  }
+  const canControl = hasPermission(actor, "devices.control");
+  const scenes = await visibleConsumerScenes(actor, 12);
+  return {
+    scenes: scenes.filter(sceneEnabled).map((scene: any) => scenePayload(scene, canControl)),
     source: "backend",
     generated_at: new Date().toISOString(),
   };
@@ -220,9 +448,7 @@ export async function getWatchQuickActions(actor: AuthUser) {
   if (!hasWatchScope(actor)) {
     return { actions: [], source: "missing_context", code: "watch_scope_required" };
   }
-  const canControl = hasPermission(actor, "devices.control");
-  const devices = await visibleDevices(actor, 20);
-  const actionableDevices = devices.filter(canExposeControl).slice(0, 3);
+  const favorites = await getWatchFavorites(actor);
   const actions = [
     {
       id: "show_status",
@@ -239,33 +465,10 @@ export async function getWatchQuickActions(actor: AuthUser) {
       confirmation_required: false,
       command: null,
     },
-    ...actionableDevices.map((device: any) => {
-      const verb = deviceActionVerb(device);
-      const family = deviceFamily(device);
-      const disabled = isDeviceDefinitelyOffline(device);
-      const command = ["on", "off"].includes(verb) ? { switch: verb === "on" } : undefined;
-      const label = safeTitle(verb === "off" ? `${device.name || "Device"} off` : verb === "on" ? `${device.name || "Device"} on` : `${device.name || "Device"} status`, "Device");
-      return {
-        id: `device:${device.id}:${verb}`,
-        title: label,
-        label,
-        category: family,
-        prompt: devicePrompt(device),
-        action_key: `device_${verb}`,
-        risk: family === "access" ? "medium" : "low",
-        enabled: canControl && !disabled,
-        disabled_reason: !canControl ? "permission_required" : disabled ? "device_offline" : null,
-        confirmation_required: family === "access",
-        icon_type: family,
-        state_color: disabled ? "red" : "blue",
-        device_id: device.id,
-        command,
-        last_updated: device.updated_at || null,
-      };
-    }),
+    ...(favorites.favorite_actions || []),
   ];
   return {
-    actions: actions.slice(0, 5),
+    actions: actions.slice(0, 6),
     source: "backend",
     generated_at: new Date().toISOString(),
   };
@@ -296,6 +499,9 @@ export async function getWatchStatus(actor: AuthUser) {
 
 function proposedToolsForWatch(input: { command?: string; action_id?: string; device_id?: string; device_command?: Record<string, any> }, matched: any): ProposedAiTool[] {
   const command = String(matched?.prompt || input.command || "show home status").toLowerCase();
+  if (matched?.action_type === "scene" || matched?.scene_id) {
+    return [{ tool_id: "run_scene", arguments: { scene_id: matched.scene_id } }];
+  }
   if (!matched?.device_id && /home status|readiness|home health/.test(command)) {
     return [{ tool_id: "summarize_readiness", arguments: {} }];
   }
@@ -330,6 +536,9 @@ export async function runWatchCommand(req: Request | undefined, actor: AuthUser,
   }
   if (matched && !matched.enabled) {
     return { state: "denied", reply: matched.disabled_reason === "device_offline" ? "That device is offline." : "You do not have permission.", tools: [], confirmations: [] };
+  }
+  if (matched?.action_type === "scene" && matched.scene_id) {
+    return runConsumerScene(req, actor, String(matched.scene_id));
   }
   const prompt = String((matched as any)?.prompt || input.command || "show home status").trim();
   const online = matched?.device_id ? normalizeDeviceOnlineState(matched) : null;
