@@ -36,12 +36,16 @@ const PANELS = [
 ] as const;
 
 type AiChatResponse = {
+  message: string;
   reply: string;
   panel?: string | null;
   deviceId?: string | null;
   actions?: never[];
   tools?: any[];
   confirmations?: any[];
+  cards?: any[];
+  sources?: any[];
+  suggested_actions?: any[];
   safe_mode: true;
   requiresConfirmation?: boolean;
 };
@@ -87,6 +91,30 @@ function openPanelFromPrompt(message: string) {
 
 function deterministicTools(message: string): ProposedAiTool[] {
   const t = normalizeText(message);
+  if (/what happened|today|recent activity|recent updates|what changed/.test(t)) {
+    return [{ tool_id: "summarize_recent_activity", arguments: {} }];
+  }
+  if (/needs my attention|need attention|attention|urgent|offline devices|devices offline|home status|home state|summary|overview/.test(t)) {
+    return [{ tool_id: "summarize_home_state", arguments: {} }, { tool_id: "summarize_recent_activity", arguments: {} }];
+  }
+  if (/who visited|visitors today|visitor summary|recent visitors/.test(t)) {
+    return [{ tool_id: "summarize_visitors", arguments: {} }];
+  }
+  if (/maintenance pending|pending maintenance|any maintenance|maintenance status|maintenance summary/.test(t)) {
+    return [{ tool_id: "summarize_maintenance", arguments: {} }];
+  }
+  if (/community|notice|announcement|urgent notice/.test(t) && !/create|post|send/.test(t)) {
+    return [{ tool_id: "summarize_community", arguments: {} }];
+  }
+  if (/watch|apple watch|oyi watch/.test(t)) {
+    return [{ tool_id: "summarize_watch_status", arguments: {} }];
+  }
+  if (/run|start|activate|execute/.test(t) && /scene|good morning|good night|relax|movie|away|vacation|leaving home|welcome home/.test(t)) {
+    return [{ tool_id: "run_scene", arguments: { scene_name: message } }];
+  }
+  if (/create|open|raise|log|file/.test(t) && /maintenance|ticket|complaint|request|repair|fix|not cooling|leak|broken/.test(t)) {
+    return [{ tool_id: "create_maintenance_request", arguments: { title: message.slice(0, 120), description: message } }];
+  }
   if (/turn on|turn off|switch on|switch off|open gate|close gate|unlock|lock|set\s+\d+|brightness|temperature/.test(t)) {
     return [{ tool_id: "device_command", arguments: { intent: "device_control_request" } }];
   }
@@ -149,11 +177,11 @@ async function suggestToolsWithModel(message: string, context: any): Promise<Pro
 function buildReply(message: string, toolResults: any[]) {
   const confirmation = toolResults.find((item) => item.status === "pending_confirmation");
   if (confirmation) {
-    return "I can prepare that request, but it needs confirmation before anything operational is executed. No device, visitor, wallet, twin, or admin action has been performed.";
+    return confirmation.summary || "I need confirmation before doing that. No action has been performed yet.";
   }
   const denied = toolResults.find((item) => item.status === "denied");
   if (denied && !toolResults.some((item) => item.status === "executed")) {
-    return `I cannot perform that action yet. Reason: ${denied.reason || denied.error || "permission or safety policy"}.`;
+    return "I don’t have access to do that yet.";
   }
   const summaries = toolResults
     .filter((item) => item.status === "executed" && item.summary)
@@ -161,7 +189,17 @@ function buildReply(message: string, toolResults: any[]) {
   if (summaries.length) return summaries.join("\n");
   const failed = toolResults.find((item) => item.status === "failed" && (item.summary || item.error));
   if (failed) return failed.summary || `That action could not complete: ${failed.error}.`;
-  return `I received: ${message}. I kept this in safe command mode and did not execute any sensitive action.`;
+  return "I can help with your home, devices, visitors, maintenance, community, and recent activity.";
+}
+
+function uniqueBy<T>(rows: T[], keyOf: (row: T) => string) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = keyOf(row);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 router.post("/chat", requireAuth, async (req, res) => {
@@ -185,13 +223,21 @@ router.post("/chat", requireAuth, async (req, res) => {
   const routedResults = routed.results as any[];
   const panel = routedResults.find((item) => item.data?.panel)?.data?.panel || openPanelFromPrompt(message);
   const confirmations = routedResults.filter((item) => item.status === "pending_confirmation");
+  const cards = routedResults.flatMap((item) => Array.isArray(item.data?.cards) ? item.data.cards : []);
+  const sources = uniqueBy(routedResults.flatMap((item) => Array.isArray(item.data?.sources) ? item.data.sources : []), (item: any) => `${item.label || ""}:${item.timestamp || ""}`).slice(0, 12);
+  const suggestedActions = uniqueBy(routedResults.flatMap((item) => Array.isArray(item.data?.suggested_actions) ? item.data.suggested_actions : []), (item: any) => `${item.label || ""}:${item.route || ""}`).slice(0, 8);
+  const reply = buildReply(message, routedResults);
   const response: AiChatResponse = {
-    reply: buildReply(message, routedResults),
+    message: reply,
+    reply,
     panel: typeof panel === "string" && (PANELS as readonly string[]).includes(panel) ? panel : null,
     deviceId: null,
     actions: [],
     tools: routedResults,
     confirmations,
+    cards,
+    sources,
+    suggested_actions: suggestedActions,
     safe_mode: true,
     requiresConfirmation: confirmations.length > 0,
   };
