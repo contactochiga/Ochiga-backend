@@ -174,7 +174,136 @@ async function suggestToolsWithModel(message: string, context: any): Promise<Pro
   }
 }
 
-function buildReply(message: string, toolResults: any[]) {
+function cardByType(cards: any[], type: string) {
+  return cards.find((card) => String(card?.type || "").toLowerCase() === type);
+}
+
+function itemValue(card: any, label: string) {
+  const item = (Array.isArray(card?.items) ? card.items : []).find((entry: any) => String(entry?.label || entry?.title || "").toLowerCase() === label.toLowerCase());
+  const value = item?.value;
+  if (typeof value === "number") return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function cardItems(card: any) {
+  return Array.isArray(card?.items) ? card.items : [];
+}
+
+function compactLines(lines: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  return lines
+    .map((line) => String(line || "").replace(/\s+/g, " ").trim())
+    .filter((line) => {
+      if (!line || seen.has(line)) return false;
+      seen.add(line);
+      return true;
+    });
+}
+
+function formatCount(label: string, count: number, ok: string) {
+  return count > 0 ? `${count} ${label}${count === 1 ? "" : "s"}` : ok;
+}
+
+function responseIntent(message: string) {
+  const text = normalizeText(message);
+  if (/who visited|visitors today|visitor summary|recent visitors/.test(text)) return "visitors_today";
+  if (/needs my attention|need attention|attention|urgent/.test(text)) return "attention";
+  if (/maintenance pending|pending maintenance|any maintenance|maintenance status|maintenance summary/.test(text)) return "maintenance_pending";
+  if (/what happened|today|recent activity|recent updates|what changed/.test(text)) return "today";
+  if (/how is my home|home health|home status|home state|home summary|home overview/.test(text)) return "home_health";
+  return "general";
+}
+
+function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) {
+  const intent = responseIntent(message);
+  const home = cardByType(cards, "home_summary");
+  const visitors = cardByType(cards, "visitors");
+  const recentVisitors = cardByType(cards, "recent_visitors");
+  const maintenance = cardByType(cards, "maintenance");
+  const activityTypes = ["urgent", "devices", "visitors", "community", "maintenance", "security"].map((type) => cardByType(cards, type)).filter(Boolean);
+  const community = cardByType(cards, "community");
+
+  if (intent === "visitors_today") {
+    const visitorRows = cardItems(recentVisitors).slice(0, 5);
+    if (!visitorRows.length && !itemValue(visitors, "Active") && !itemValue(visitors, "Pending")) {
+      return "No visitors were recorded today.";
+    }
+    const names = visitorRows.map((row: any) => row.title).filter(Boolean).join(", ");
+    const total = itemValue(visitors, "Recent") || visitorRows.length;
+    return compactLines([
+      names ? `${names} ${visitorRows.length === 1 ? "was" : "were"} recorded recently.` : `${total} visitor${total === 1 ? "" : "s"} were recorded recently.`,
+      `Context: ${formatCount("active visitor", itemValue(visitors, "Active"), "no active visitors")}; ${formatCount("pending visitor", itemValue(visitors, "Pending"), "no pending visitors")}.`,
+      itemValue(visitors, "Pending") ? "Suggested action: Open Visitors to review pending access." : null,
+    ]).join("\n");
+  }
+
+  if (intent === "attention") {
+    const security = activityTypes.find((card: any) => String(card.type).toLowerCase() === "security" || String(card.type).toLowerCase() === "urgent");
+    const openMaintenance = itemValue(home, "Open maintenance") || itemValue(maintenance, "Open");
+    const offlineDevices = itemValue(home, "Offline");
+    const pendingVisitors = itemValue(visitors, "Pending");
+    const unreadNotices = itemValue(community, "Unread") || itemValue(home, "Unread activity");
+    const priorities = compactLines([
+      security ? "Security needs review." : null,
+      openMaintenance ? `${openMaintenance} maintenance request${openMaintenance === 1 ? "" : "s"} need attention.` : null,
+      offlineDevices ? `${offlineDevices} device${offlineDevices === 1 ? "" : "s"} appear offline.` : null,
+      pendingVisitors ? `${pendingVisitors} visitor${pendingVisitors === 1 ? "" : "s"} are pending.` : null,
+      unreadNotices ? `${unreadNotices} unread update${unreadNotices === 1 ? "" : "s"} may need review.` : null,
+    ]);
+    if (!priorities.length) return "Everything looks normal.";
+    return compactLines([
+      priorities[0],
+      `Context: ${priorities.slice(1).join(" ") || "No other priority items are visible."}`,
+      "Suggested action: Open Activity to review the latest details.",
+    ]).join("\n");
+  }
+
+  if (intent === "maintenance_pending") {
+    const open = itemValue(maintenance, "Open");
+    const waiting = itemValue(maintenance, "Waiting resident");
+    const inProgress = itemValue(maintenance, "In progress");
+    if (!open && !waiting && !inProgress) return "No maintenance requests are pending.";
+    return compactLines([
+      `${open || inProgress || waiting} maintenance request${(open || inProgress || waiting) === 1 ? "" : "s"} need tracking.`,
+      `Context: ${formatCount("open request", open, "no open requests")}; ${formatCount("waiting request", waiting, "none waiting on you")}; ${formatCount("in-progress request", inProgress, "none in progress")}.`,
+      "Suggested action: Open Maintenance to review request details.",
+    ]).join("\n");
+  }
+
+  if (intent === "today") {
+    if (!activityTypes.length) return "No activity was recorded today.";
+    const summaries = activityTypes.slice(0, 5).map((card: any) => {
+      const label = String(card.title || card.type || "Update").replace(/_/g, " ");
+      const first = cardItems(card)[0];
+      return first?.title ? `${label}: ${first.title}.` : `${label}: ${card.summary || "recent update"}.`;
+    });
+    return compactLines([
+      summaries[0] || "Your home has recent activity.",
+      `Context: ${summaries.slice(1).join(" ") || "No other grouped updates are visible."}`,
+      "Suggested action: Open Activity for the full timeline.",
+    ]).join("\n");
+  }
+
+  if (intent === "home_health") {
+    if (!home) return "I do not have enough home context yet.";
+    const offline = itemValue(home, "Offline");
+    const maintenanceOpen = itemValue(home, "Open maintenance");
+    const unread = itemValue(home, "Unread activity");
+    const status = offline || maintenanceOpen ? "Needs attention" : unread ? "Aware" : "Healthy";
+    return compactLines([
+      `Home status: ${status}.`,
+      `Context: ${itemValue(home, "Online")} devices online; ${offline ? `${offline} offline` : "no offline devices"}; ${maintenanceOpen ? `${maintenanceOpen} active maintenance issue${maintenanceOpen === 1 ? "" : "s"}` : "no active maintenance issues"}; ${unread ? `${unread} unread update${unread === 1 ? "" : "s"}` : "no urgent unread updates"}.`,
+      offline || maintenanceOpen || unread ? "Suggested action: Open Activity to review what changed." : null,
+    ]).join("\n");
+  }
+
+  const successful = toolResults.find((item) => item.status === "executed" && item.summary);
+  if (successful?.summary) return String(successful.summary).replace(/^I found\s+/i, "").trim();
+  return "";
+}
+
+function buildReply(message: string, toolResults: any[], cards: any[] = []) {
   const confirmation = toolResults.find((item) => item.status === "pending_confirmation");
   if (confirmation) {
     return confirmation.summary || "I need confirmation before doing that. No action has been performed yet.";
@@ -183,10 +312,12 @@ function buildReply(message: string, toolResults: any[]) {
   if (denied && !toolResults.some((item) => item.status === "executed")) {
     return "I don’t have access to do that yet.";
   }
+  const narrative = buildNarrativeReply(message, toolResults, cards);
+  if (narrative) return narrative;
   const summaries = toolResults
     .filter((item) => item.status === "executed" && item.summary)
     .map((item) => item.summary);
-  if (summaries.length) return summaries.join("\n");
+  if (summaries.length) return compactLines(summaries).join("\n");
   const failed = toolResults.find((item) => item.status === "failed" && (item.summary || item.error));
   if (failed) return failed.summary || `That action could not complete: ${failed.error}.`;
   return "I can help with your home, devices, visitors, maintenance, community, and recent activity.";
@@ -226,7 +357,7 @@ router.post("/chat", requireAuth, async (req, res) => {
   const cards = routedResults.flatMap((item) => Array.isArray(item.data?.cards) ? item.data.cards : []);
   const sources = uniqueBy(routedResults.flatMap((item) => Array.isArray(item.data?.sources) ? item.data.sources : []), (item: any) => `${item.label || ""}:${item.timestamp || ""}`).slice(0, 12);
   const suggestedActions = uniqueBy(routedResults.flatMap((item) => Array.isArray(item.data?.suggested_actions) ? item.data.suggested_actions : []), (item: any) => `${item.label || ""}:${item.route || ""}`).slice(0, 8);
-  const reply = buildReply(message, routedResults);
+  const reply = buildReply(message, routedResults, cards);
   const response: AiChatResponse = {
     message: reply,
     reply,
