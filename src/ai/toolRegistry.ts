@@ -56,6 +56,17 @@ export const AI_TOOL_REGISTRY: AiToolDefinition[] = [
     enabled: true,
   },
   {
+    tool_id: "summarize_home_awareness",
+    description: "Interpret the resident's home awareness from devices, activity, visitors, maintenance, community, notifications, and Watch status.",
+    category: "home_intelligence",
+    risk_level: "authenticated_read",
+    requires_auth: true,
+    required_permissions: ["devices.read"],
+    confirmation_required: false,
+    allowed_scopes: ["estate", "home", "user"],
+    enabled: true,
+  },
+  {
     tool_id: "summarize_recent_activity",
     description: "Summarize recent resident activity grouped by source and severity.",
     category: "home_intelligence",

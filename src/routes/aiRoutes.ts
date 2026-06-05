@@ -94,8 +94,8 @@ function deterministicTools(message: string): ProposedAiTool[] {
   if (/what happened|today|recent activity|recent updates|what changed/.test(t)) {
     return [{ tool_id: "summarize_recent_activity", arguments: {} }];
   }
-  if (/needs my attention|need attention|attention|urgent|offline devices|devices offline|home status|home state|summary|overview/.test(t)) {
-    return [{ tool_id: "summarize_home_state", arguments: {} }, { tool_id: "summarize_recent_activity", arguments: {} }];
+  if (/how is my home|home health|home status|home state|home summary|home overview|needs my attention|need attention|attention|urgent|anything important|what is going on|whats going on|what s going on|offline devices|devices offline|summary|overview/.test(t)) {
+    return [{ tool_id: "summarize_home_awareness", arguments: {} }, { tool_id: "summarize_recent_activity", arguments: {} }];
   }
   if (/who visited|visitors today|visitor summary|recent visitors/.test(t)) {
     return [{ tool_id: "summarize_visitors", arguments: {} }];
@@ -206,6 +206,7 @@ function cleanAssistantText(value: any) {
     .replace(/\s+/g, " ")
     .replace(/^I found\s+/i, "")
     .replace(/^There are\s+/i, "")
+    .replace(/\b(ai tool requested|ai command received|ai response generated|device command requested|device command executed|support_mutation success|tool name|audit event|database|route)\b/gi, "home update")
     .trim();
 }
 
@@ -231,7 +232,7 @@ function isToday(value: any) {
 function responseIntent(message: string) {
   const text = normalizeText(message);
   if (/who visited|visitors today|visitor summary|recent visitors/.test(text)) return "visitors_today";
-  if (/needs my attention|need attention|attention|urgent/.test(text)) return "attention";
+  if (/needs my attention|need attention|attention|urgent|anything important|what is going on|whats going on|what s going on/.test(text)) return "attention";
   if (/maintenance pending|pending maintenance|any maintenance|maintenance status|maintenance summary/.test(text)) return "maintenance_pending";
   if (/what happened|today|recent activity|recent updates|what changed/.test(text)) return "today";
   if (/how is my home|home health|home status|home state|home summary|home overview/.test(text)) return "home_health";
@@ -241,10 +242,12 @@ function responseIntent(message: string) {
 function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) {
   const intent = responseIntent(message);
   const home = cardByType(cards, "home_summary");
+  const awareness = cardByType(cards, "home_awareness");
   const visitors = cardByType(cards, "visitors");
   const recentVisitors = cardByType(cards, "recent_visitors");
   const maintenance = cardByType(cards, "maintenance");
-  const activityTypes = ["urgent", "devices", "visitors", "community", "maintenance", "security"].map((type) => cardByType(cards, type)).filter(Boolean);
+  const latestMaintenance = cardByType(cards, "latest_maintenance");
+  const activityTypes = ["security", "devices", "visitors", "community", "maintenance", "scenes", "automations", "utilities"].map((type) => cardByType(cards, type)).filter(Boolean);
   const community = cardByType(cards, "community");
 
   if (intent === "visitors_today") {
@@ -252,7 +255,7 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
       .filter((row: any) => isToday(row.timestamp || row.created_at || row.updated_at))
       .slice(0, 5);
     if (!visitorRows.length) {
-      return "No visitors were recorded today.";
+      return "No visitor activity has been recorded today.";
     }
     const timedNames = visitorRows
       .map((row: any) => {
@@ -270,13 +273,13 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
 
   if (intent === "attention") {
     const security = activityTypes.find((card: any) => String(card.type).toLowerCase() === "security" || String(card.type).toLowerCase() === "urgent");
-    const openMaintenance = itemValue(home, "Open maintenance") || itemValue(maintenance, "Open");
-    const offlineDevices = itemValue(home, "Offline");
+    const openMaintenance = itemValue(awareness, "Open maintenance") || itemValue(home, "Open maintenance") || itemValue(maintenance, "Open");
+    const offlineDevices = itemValue(awareness, "Offline devices") || itemValue(home, "Offline");
     const pendingVisitors = itemValue(visitors, "Pending");
     const unreadNotices = itemValue(community, "Unread") || itemValue(home, "Unread activity");
     const priorities = compactLines([
-      security ? "Security needs review." : null,
-      openMaintenance ? `${openMaintenance} maintenance request${openMaintenance === 1 ? "" : "s"} need attention.` : null,
+      security ? "A security update needs review." : null,
+      openMaintenance ? `${openMaintenance} maintenance request${openMaintenance === 1 ? "" : "s"} require attention.` : null,
       offlineDevices ? `${offlineDevices} device${offlineDevices === 1 ? "" : "s"} appear offline.` : null,
       pendingVisitors ? `${pendingVisitors} visitor${pendingVisitors === 1 ? "" : "s"} are pending.` : null,
       unreadNotices ? `${unreadNotices} unread update${unreadNotices === 1 ? "" : "s"} may need review.` : null,
@@ -294,11 +297,11 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
     const waiting = itemValue(maintenance, "Waiting resident");
     const inProgress = itemValue(maintenance, "In progress");
     if (!open && !waiting && !inProgress) return "No maintenance requests are pending.";
-    const total = open || waiting + inProgress;
+    const latest = cardItems(latestMaintenance)[0];
     return compactLines([
-      `Maintenance needs tracking.`,
-      `Context: ${formatCount("open request", open, "no open requests")}; ${formatCount("waiting request", waiting, "none waiting on you")}; ${formatCount("in-progress request", inProgress, "none in progress")}.`,
-      total ? "Suggested action: Open Maintenance to review request details." : null,
+      `${open || waiting || inProgress} maintenance request${(open || waiting || inProgress) === 1 ? "" : "s"} currently need tracking.`,
+      `Context: ${latest?.title ? `Issue: ${latest.title}. ` : ""}${formatCount("open request", open, "no open requests")}; ${formatCount("waiting request", waiting, "none waiting on you")}; ${formatCount("in-progress request", inProgress, "none in progress")}.`,
+      "Suggested action: Review the maintenance request details.",
     ]).join("\n");
   }
 
@@ -311,20 +314,21 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
     });
     return compactLines([
       `Your home has updates across ${activityTypes.length} area${activityTypes.length === 1 ? "" : "s"} today.`,
-      `Context: ${summaries.join(" ")}`,
+      `Context: ${summaries.join(" ")} ${activityTypes.some((card: any) => String(card.type).toLowerCase() === "security") ? "" : "No security incidents were recorded in the visible updates."}`,
       "Suggested action: Open Activity for the full timeline.",
     ]).join("\n");
   }
 
   if (intent === "home_health") {
-    if (!home) return "I do not have enough home context yet.";
-    const offline = itemValue(home, "Offline");
-    const maintenanceOpen = itemValue(home, "Open maintenance");
+    const source = awareness || home;
+    if (!source) return "I do not have enough home context yet.";
+    const offline = itemValue(awareness, "Offline devices") || itemValue(home, "Offline");
+    const maintenanceOpen = itemValue(awareness, "Open maintenance") || itemValue(home, "Open maintenance");
     const unread = itemValue(home, "Unread activity");
-    const status = offline || maintenanceOpen ? "Needs attention" : unread ? "Aware" : "Healthy";
+    const status = String(cardItems(awareness).find((item: any) => String(item.label || "").toLowerCase() === "home health")?.value || (offline || maintenanceOpen ? "Needs Attention" : unread ? "Good" : "Excellent"));
     return compactLines([
       `Home status: ${status}.`,
-      `Context: ${itemValue(home, "Online")} devices online; ${offline ? `${offline} offline` : "no offline devices"}; ${maintenanceOpen ? `${maintenanceOpen} active maintenance issue${maintenanceOpen === 1 ? "" : "s"}` : "no active maintenance issues"}; ${unread ? `${unread} unread update${unread === 1 ? "" : "s"}` : "no urgent unread updates"}.`,
+      `Context: ${itemValue(awareness, "Online devices") || itemValue(home, "Online")} devices online; ${offline ? `${offline} offline` : "no offline devices"}; ${maintenanceOpen ? `${maintenanceOpen} active maintenance issue${maintenanceOpen === 1 ? "" : "s"}` : "no active maintenance issues"}; ${unread ? `${unread} unread update${unread === 1 ? "" : "s"}` : "no urgent unread updates"}.`,
       offline || maintenanceOpen || unread ? "Suggested action: Open Activity to review what changed." : null,
     ]).join("\n");
   }

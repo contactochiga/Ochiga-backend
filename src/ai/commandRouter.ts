@@ -141,6 +141,17 @@ function shortText(value: any, fallback = "", max = 160) {
   return text.slice(0, max);
 }
 
+function compactLines(lines: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  return lines
+    .map((line) => String(line || "").replace(/\s+/g, " ").trim())
+    .filter((line) => {
+      if (!line || seen.has(line)) return false;
+      seen.add(line);
+      return true;
+    });
+}
+
 function isUnread(row: any) {
   return !row?.read_at && !/read|seen|ack/.test(String(row?.status || "").toLowerCase());
 }
@@ -155,6 +166,75 @@ function sourceLabel(label: string, at?: any) {
 
 function suggestedAction(label: string, route: string, kind = "open_module", payload: Record<string, any> = {}) {
   return { label, route, kind, payload };
+}
+
+function titleCase(value: any, fallback = "Home update") {
+  const text = shortText(value, fallback, 120);
+  return text.replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function sceneDisplayName(scene: any) {
+  return shortText(scene?.name || scene?.title || "Scene", "Scene", 80);
+}
+
+function cleanName(value: any, fallback = "Item") {
+  return shortText(value, fallback, 90);
+}
+
+function healthFromCounts(input: {
+  offlineDevices?: number;
+  openMaintenance?: number;
+  pendingVisitors?: number;
+  urgentNotices?: number;
+  criticalNotifications?: number;
+}) {
+  const critical = Number(input.criticalNotifications || 0);
+  const urgent = Number(input.urgentNotices || 0);
+  const offline = Number(input.offlineDevices || 0);
+  const maintenance = Number(input.openMaintenance || 0);
+  const visitors = Number(input.pendingVisitors || 0);
+  if (critical > 0 || urgent > 1) return { home_health: "Critical Attention Required", attention_level: "critical" };
+  if (offline > 0 || maintenance > 0 || visitors > 0 || urgent > 0) return { home_health: "Needs Attention", attention_level: "attention" };
+  return { home_health: "Excellent", attention_level: "calm" };
+}
+
+function humanStatus(value: any) {
+  const status = String(value || "").replace(/_/g, " ").trim();
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : "Updated";
+}
+
+function humanizeInternalEvent(row: any) {
+  const action = String(row?.action || row?.type || row?.payload?.kind || "").toLowerCase();
+  const meta = row?.metadata && typeof row.metadata === "object" ? row.metadata : row?.payload && typeof row.payload === "object" ? row.payload : {};
+  const title = row?.title || row?.message || row?.summary || "";
+  const resource = String(row?.resource_type || row?.category || "").toLowerCase();
+  const deviceName = cleanName(meta.device_name || meta.name || row?.device_name, "Device");
+  const sceneName = cleanName(meta.scene_name || meta.name || title, "Scene");
+  const maintenanceTitle = cleanName(meta.title || title, "Maintenance request");
+  const visitorName = cleanName(meta.visitor_name || meta.name || title, "Visitor");
+
+  if (/ai\.tool|ai\.command|ai\.response|support_mutation|tool/.test(action)) return null;
+  if (/device.*command|device\.state|device\.status|device/.test(action) || resource === "device") {
+    const command = meta.command && typeof meta.command === "object" ? meta.command : {};
+    const state = command.switch === true || command.power === true || command.on === true ? "turned on" : command.switch === false || command.power === false || command.on === false ? "turned off" : "updated";
+    return { category: "devices", title: `${deviceName} ${state}`, summary: "Device activity", timestamp: row.created_at || row.occurred_at };
+  }
+  if (/scene/.test(action) || resource === "scene") {
+    return { category: "scenes", title: `${sceneName} scene activated`, summary: "Scene activity", timestamp: row.created_at || row.occurred_at };
+  }
+  if (/maintenance|support/.test(action) || resource.includes("maintenance")) {
+    return { category: "maintenance", title: maintenanceTitle, summary: humanStatus(row?.status || "Maintenance updated"), timestamp: row.created_at || row.updated_at };
+  }
+  if (/visitor|access|gate/.test(action) || resource.includes("visitor")) {
+    return { category: "visitors", title: visitorName, summary: humanStatus(row?.status || "Visitor access updated"), timestamp: row.created_at || row.updated_at };
+  }
+  if (/community|post|comment|announcement/.test(action) || resource.includes("community")) {
+    return { category: "community", title: cleanName(title, "Community update"), summary: "Community update", timestamp: row.created_at || row.updated_at };
+  }
+  if (/security|incident|alert/.test(action) || resource.includes("incident")) {
+    return { category: "security", title: cleanName(title, "Security update"), summary: humanStatus(row?.status || "Security update"), timestamp: row.created_at || row.updated_at };
+  }
+  return null;
 }
 
 async function safeWatchStatus(actor: AuthUser) {
@@ -248,6 +328,73 @@ async function summarizeHomeStateTool(actor: AuthUser) {
   };
 }
 
+function cardItemValue(card: any, label: string) {
+  const item = (Array.isArray(card?.items) ? card.items : []).find((entry: any) => String(entry?.label || entry?.title || "").toLowerCase() === label.toLowerCase());
+  const value = item?.value;
+  if (typeof value === "number") return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function summarizeHomeAwarenessTool(actor: AuthUser) {
+  const homeState = await summarizeHomeStateTool(actor);
+  const cards = Array.isArray(homeState.data?.cards) ? homeState.data.cards : [];
+  const home = cards.find((card: any) => card.type === "home_summary");
+  const community = cards.find((card: any) => card.type === "urgent_notices");
+  const offlineDevices = cardItemValue(home, "Offline");
+  const onlineDevices = cardItemValue(home, "Online");
+  const openMaintenance = cardItemValue(home, "Open maintenance");
+  const activeVisitors = cardItemValue(home, "Active visitors");
+  const unreadActivity = cardItemValue(home, "Unread activity");
+  const urgentNotices = Array.isArray(community?.items) ? community.items.length : 0;
+  const health = healthFromCounts({ offlineDevices, openMaintenance, pendingVisitors: 0, urgentNotices, criticalNotifications: 0 });
+  const highlights = compactLines([
+    onlineDevices ? `${onlineDevices} monitored device${onlineDevices === 1 ? " is" : "s are"} online.` : "No online device signal is visible yet.",
+    offlineDevices ? `${offlineDevices} device${offlineDevices === 1 ? " appears" : "s appear"} offline.` : "No offline devices are visible.",
+    openMaintenance ? `${openMaintenance} maintenance request${openMaintenance === 1 ? " is" : "s are"} open.` : "No maintenance requests require attention.",
+    activeVisitors ? `${activeVisitors} visitor${activeVisitors === 1 ? " is" : "s are"} active or pending.` : "No visitors are waiting.",
+    urgentNotices ? `${urgentNotices} urgent community notice${urgentNotices === 1 ? " is" : "s are"} visible.` : "",
+  ]);
+  const summary = health.attention_level === "calm"
+    ? "Your home is calm. No visible maintenance, visitor, device, or security item needs attention."
+    : health.attention_level === "critical"
+      ? "Your home needs immediate attention based on the latest visible signals."
+      : "Your home needs some attention based on the latest visible signals.";
+  const recommended = compactLines([
+    offlineDevices ? "Check Devices for offline equipment." : "",
+    openMaintenance ? "Review Maintenance for the open request." : "",
+    activeVisitors ? "Open Visitors to review active or pending access." : "",
+    unreadActivity || urgentNotices ? "Open Activity for the latest updates." : "",
+  ]);
+  return {
+    summary,
+    data: {
+      home_health: health.home_health,
+      attention_level: health.attention_level,
+      highlights,
+      recommended_actions: recommended,
+      cards: [
+        structuredCard("home_awareness", "Home awareness", summary, [
+          { label: "Home health", value: health.home_health },
+          { label: "Attention", value: titleCase(health.attention_level) },
+          { label: "Online devices", value: onlineDevices },
+          { label: "Offline devices", value: offlineDevices },
+          { label: "Open maintenance", value: openMaintenance },
+          { label: "Active visitors", value: activeVisitors },
+        ]),
+        ...cards.filter((card: any) => ["urgent_notices", "watch_status"].includes(String(card.type))),
+      ],
+      sources: homeState.data?.sources || [],
+      suggested_actions: [
+        ...(openMaintenance ? [suggestedAction("Review Maintenance", "/maintenance")] : []),
+        ...(offlineDevices ? [suggestedAction("Open Devices", "/devices")] : []),
+        ...(activeVisitors ? [suggestedAction("Open Visitors", "/visitors")] : []),
+        suggestedAction("Open Activity", "/activity"),
+      ],
+    },
+  };
+}
+
 function eventBucket(row: any) {
   const text = `${row?.category || ""} ${row?.type || ""} ${row?.title || ""} ${row?.summary || ""} ${row?.message || ""} ${row?.payload?.kind || ""}`.toLowerCase();
   if (/critical|urgent|emergency|security|alert|lockdown|alarm/.test(text)) return "urgent";
@@ -268,31 +415,44 @@ async function summarizeRecentActivityTool(actor: AuthUser) {
     if (actor.home_id) next = next.eq("home_id", actor.home_id);
     return next;
   });
-  const rows = [
-    ...feed.rows.map((row: any) => ({ ...row, title: row.title || "Home update", summary: row.message || row.type || "Activity", source_label: "Activity" })),
-    ...audit.rows.map((row: any) => ({ ...row, title: String(row.action || "Activity").replace(/[._]/g, " "), summary: row.status || row.resource_type || "System activity", source_label: "Audit" })),
-  ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 40);
+  const notificationRows = feed.rows.map((row: any) => ({
+    ...row,
+    title: cleanName(row.title, "Home update"),
+    summary: shortText(row.message || row.type, "Home update", 140),
+    source_label: "Activity",
+  }));
+  const humanizedAuditRows = audit.rows
+    .map(humanizeInternalEvent)
+    .filter(Boolean)
+    .map((row: any) => ({
+      ...row,
+      created_at: row.timestamp,
+      source_label: "Activity",
+    }));
+  const rows = [...notificationRows, ...humanizedAuditRows]
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    .slice(0, 40);
   const groups = rows.reduce<Record<string, any[]>>((acc, row) => {
-    const key = eventBucket(row);
+    const key = row.category || eventBucket(row);
     acc[key] = acc[key] || [];
     acc[key].push(row);
     return acc;
   }, {});
-  const order = ["urgent", "devices", "visitors", "maintenance", "community", "messages", "wallet_services", "security", "scenes"];
+  const order = ["security", "devices", "visitors", "maintenance", "community", "scenes", "automations", "wallet_services", "messages", "urgent"];
   const cards = order
     .filter((key) => groups[key]?.length)
-    .map((key) => structuredCard(key, key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()), `${groups[key].length} recent update${groups[key].length === 1 ? "" : "s"}.`, groups[key].slice(0, 5).map((row: any) => ({
+    .map((key) => structuredCard(key, key.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()), `${groups[key].length} home update${groups[key].length === 1 ? "" : "s"}.`, groups[key].slice(0, 5).map((row: any) => ({
       title: shortText(row.title, "Activity", 90),
       subtitle: shortText(row.summary || row.message, "Home update", 120),
       timestamp: row.created_at,
       severity: /urgent|critical|failed|error|security|alert/.test(`${row.title} ${row.summary}`.toLowerCase()) ? "attention" : "info",
     }))));
   return {
-    summary: rows.length ? `I found ${rows.length} recent home update${rows.length === 1 ? "" : "s"}. ${groups.urgent?.length ? `${groups.urgent.length} need attention.` : "No critical attention is visible from recent activity."}` : "No activity yet. Your home updates will appear here.",
+    summary: rows.length ? `Your home has recent activity across ${Object.keys(groups).length} area${Object.keys(groups).length === 1 ? "" : "s"}.` : "No activity yet. Your home updates will appear here.",
     data: {
       cards: cards.length ? cards : [structuredCard("recent_activity", "Recent activity", "No activity yet. Your home updates will appear here.", [])],
       sources: rows.slice(0, 6).map((row: any) => sourceLabel(row.source_label || "Activity", row.created_at)),
-      suggested_actions: [suggestedAction("Open Activity", "/activity"), ...(groups.urgent?.length ? [suggestedAction("Review attention items", "/activity?filter=attention")] : [])],
+      suggested_actions: [suggestedAction("Open Activity", "/activity"), ...(groups.urgent?.length || groups.security?.length ? [suggestedAction("Review attention items", "/activity?filter=attention")] : [])],
     },
   };
 }
@@ -431,33 +591,134 @@ function sceneActionCommand(action: any) {
   return null;
 }
 
+function normalizeSceneName(value: any) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\bscene\b/g, " ")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sceneSearchText(scene: any) {
+  return normalizeSceneName(`${scene?.name || ""} ${scene?.title || ""} ${scene?.mood || ""} ${Array.isArray(scene?.aliases) ? scene.aliases.join(" ") : ""}`);
+}
+
+function sceneSimilarity(requested: string, scene: any) {
+  const target = sceneSearchText(scene);
+  if (!requested || !target) return 0;
+  if (target === requested) return 100;
+  if (target.includes(requested) || requested.includes(target)) return 80;
+  const words = requested.split(" ").filter((word) => word.length > 2);
+  return words.reduce((score, word) => score + (target.includes(word) ? 8 : 0), 0);
+}
+
+function cleanConsumerSceneActions(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 50).map((item: any) => ({
+    device_id: String(item?.device_id || item?.deviceId || "").trim(),
+    command: item?.command && typeof item.command === "object" ? item.command : {},
+  })).filter((item) => item.device_id && Object.keys(item.command).length);
+}
+
+function safeConsumerSceneCommand(command: Record<string, any>) {
+  const keys = Object.keys(command || {});
+  return keys.length > 0 && keys.every((key) => ["switch", "power", "on", "temperature", "temp_set"].includes(key));
+}
+
 function sceneNeedsConfirmation(scene: any, actions: any[]) {
   const text = `${scene?.name || ""} ${scene?.title || ""} ${scene?.category || ""} ${JSON.stringify(actions || [])}`.toLowerCase();
-  return actions.length > 1 || /security|lock|gate|door|alarm|access/.test(text);
+  return /security|lock|gate|door|alarm|access/.test(text);
 }
 
 async function findSceneForPrompt(actor: AuthUser, prompt: string, args: Record<string, any>) {
   const ctx = await homeContext(actor, args.estate_id || args.estateId || null, args.home_id || args.homeId || null);
   const explicitId = args.scene_id || args.sceneId || args.id;
-  const requested = sceneNameFromPrompt(prompt, args).toLowerCase();
-  const scenes = await selectRows("scenes", (q) => {
+  const requested = normalizeSceneName(sceneNameFromPrompt(prompt, args));
+  const consumerScenes = await selectRows("consumer_scenes", (q) => {
     let next = q.select("*").order("updated_at", { ascending: false, nullsFirst: false }).limit(80);
     if (explicitId) return next.eq("id", explicitId).limit(1);
     if (ctx.homeId) next = next.eq("home_id", ctx.homeId);
     else if (ctx.estateId) next = next.eq("estate_id", ctx.estateId);
     return next;
   });
-  if (!scenes.rows.length) return { scene: null, ctx, reason: "scene_not_found" };
-  const normalized = requested.replace(/\bscene\b/g, "").trim();
-  const matches = scenes.rows.filter((scene: any) => {
-    const name = `${scene.name || ""} ${scene.title || ""}`.toLowerCase();
-    return explicitId ? true : (normalized && name.includes(normalized)) || (normalized && normalized.includes(name.trim()));
+  const legacyScenes = await selectRows("scenes", (q) => {
+    let next = q.select("*").order("updated_at", { ascending: false, nullsFirst: false }).limit(80);
+    if (explicitId) return next.eq("id", explicitId).limit(1);
+    if (ctx.homeId) next = next.eq("home_id", ctx.homeId);
+    else if (ctx.estateId) next = next.eq("estate_id", ctx.estateId);
+    return next;
   });
+  const scenes = [
+    ...consumerScenes.rows.map((scene: any) => ({ ...scene, __oyi_scene_source: "consumer_scenes" })),
+    ...legacyScenes.rows.map((scene: any) => ({ ...scene, __oyi_scene_source: "scenes" })),
+  ];
+  if (!scenes.length) return { scene: null, ctx, reason: "scene_not_found", matches: [] };
+  if (explicitId) return { scene: scenes[0] || null, ctx, reason: scenes[0] ? "" : "scene_not_found", matches: [] };
+  const scored = scenes
+    .map((scene: any) => ({ scene, score: sceneSimilarity(requested, scene) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+  if (!scored.length) {
+    const suggestions = scenes
+      .map((scene: any) => ({ scene, score: sceneSimilarity(requested.split(" ")[0] || requested, scene) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((item) => item.scene);
+    return { scene: null, ctx, reason: "scene_not_found", matches: suggestions };
+  }
+  const top = scored[0].score;
+  const matches = scored.filter((item) => item.score === top).map((item) => item.scene);
   if (matches.length > 1) return { scene: null, ctx, reason: "scene_ambiguous", matches: matches.slice(0, 5) };
-  return { scene: matches[0] || (explicitId ? scenes.rows[0] : null), ctx, reason: matches[0] || explicitId ? "" : "scene_not_found" };
+  return { scene: matches[0], ctx, reason: "" };
 }
 
 async function executeScene(actor: AuthUser, scene: any, req?: Request) {
+  if (scene.__oyi_scene_source === "consumer_scenes") {
+    const actions = cleanConsumerSceneActions(scene.actions);
+    if (!actions.length) {
+      return { ok: false, status: "failed" as AiCommandStatus, summary: `${sceneDisplayName(scene)} has no configured actions yet.`, error: "scene_has_no_actions" };
+    }
+    const results = [];
+    for (const action of actions) {
+      if (!safeConsumerSceneCommand(action.command)) {
+        results.push({ device_id: action.device_id, status: "denied", reason: "unsupported_scene_action" });
+        continue;
+      }
+      const device = await resolveVisibleDevice(actor, action.device_id);
+      if (!device || !deviceWithinActorScope(actor, device) || deviceOffline(device)) {
+        results.push({ device_id: action.device_id, status: "skipped", reason: "device_unavailable" });
+        continue;
+      }
+      try {
+        const result = await executeDeviceCommandForActor({ actor, deviceId: action.device_id, command: action.command, req });
+        results.push({ device_id: action.device_id, status: result.status });
+      } catch (error: any) {
+        results.push({ device_id: action.device_id, status: "failed", reason: error?.message || "command_failed" });
+      }
+    }
+    const completed = results.filter((item) => item.status === "command_queued" || item.status === "executed" || item.status === "success").length;
+    await emitAuditEvent({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      action: "scene.executed",
+      resourceType: "scene",
+      resourceId: String(scene.id),
+      estateId: scene.estate_id || actor.estate_id,
+      homeId: scene.home_id || actor.home_id,
+      status: completed ? "success" : "failed",
+      metadata: { source: "oyi_intelligence", scene_name: sceneDisplayName(scene), results },
+      req,
+    } as any);
+    return {
+      ok: Boolean(completed),
+      status: completed ? "executed" as AiCommandStatus : "failed" as AiCommandStatus,
+      summary: completed ? `${sceneDisplayName(scene)} scene activated.` : `${sceneDisplayName(scene)} could not run right now.`,
+      data: { scene_id: scene.id, results },
+      error: completed ? "" : "scene_execution_failed",
+    };
+  }
   const actions = await selectRows("scene_actions", (q) => q.select("*").eq("scene_id", scene.id).order("position", { ascending: true }).limit(50));
   if (!actions.rows.length) {
     return { ok: false, status: "failed" as AiCommandStatus, summary: "That scene has no configured actions yet.", error: "scene_has_no_actions" };
@@ -508,14 +769,19 @@ async function executeScene(actor: AuthUser, scene: any, req?: Request) {
 async function executeRunSceneTool(req: Request | undefined, actor: AuthUser, prompt: string, args: Record<string, any>) {
   const found = await findSceneForPrompt(actor, prompt, args);
   if (!found.scene) {
+    const names = (found.matches || []).map((scene: any) => sceneDisplayName(scene)).filter(Boolean);
     const summary = found.reason === "scene_ambiguous"
-      ? `I found more than one matching scene: ${(found.matches || []).map((scene: any) => scene.name || scene.title).filter(Boolean).join(", ")}.`
-      : "I could not find that scene in your home.";
+      ? `I found more than one matching scene: ${names.join(", ")}. Which one should I run?`
+      : names.length
+        ? `I couldn't find that exact scene. Did you mean: ${names.join(", ")}?`
+        : "I could not find that scene in your home.";
     const ledger = await writeLedger({ actor, toolId: "run_scene", prompt, status: "failed", estateId: found.ctx.estateId, homeId: found.ctx.homeId, errorMessage: found.reason, resultSummary: summary });
-    return { tool_id: "run_scene", status: "failed", ledger_id: ledger.id || null, summary, error: found.reason };
+    return { tool_id: "run_scene", status: "failed", ledger_id: ledger.id || null, summary, error: found.reason, data: { suggestions: names } };
   }
-  const actions = await selectRows("scene_actions", (q) => q.select("*").eq("scene_id", found.scene.id).limit(50));
-  if (sceneNeedsConfirmation(found.scene, actions.rows)) {
+  const actionRows = found.scene.__oyi_scene_source === "consumer_scenes"
+    ? cleanConsumerSceneActions(found.scene.actions)
+    : (await selectRows("scene_actions", (q) => q.select("*").eq("scene_id", found.scene.id).limit(50))).rows;
+  if (sceneNeedsConfirmation(found.scene, actionRows)) {
     const ledger = await writeLedger({
       actor,
       toolId: "run_scene",
@@ -524,7 +790,7 @@ async function executeRunSceneTool(req: Request | undefined, actor: AuthUser, pr
       estateId: found.ctx.estateId,
       homeId: found.ctx.homeId,
       resultSummary: "I need confirmation before running this scene.",
-      metadata: { proposed_arguments: { scene_id: found.scene.id }, scene_id: found.scene.id, scene_name: found.scene.name || found.scene.title, action_count: actions.rows.length },
+      metadata: { proposed_arguments: { scene_id: found.scene.id }, scene_id: found.scene.id, scene_name: sceneDisplayName(found.scene), action_count: actionRows.length },
     });
     await audit(req, actor, "ai.command.confirmation.required", "pending", { tool_id: "run_scene", ledger_id: ledger.id, scene_id: found.scene.id });
     return { tool_id: "run_scene", status: "pending_confirmation", confirmation_required: true, ledger_id: ledger.id || null, summary: "I need confirmation before running this scene." };
@@ -650,6 +916,7 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
     };
   }
   if (toolId === "summarize_home_state") return summarizeHomeStateTool(actor);
+  if (toolId === "summarize_home_awareness") return summarizeHomeAwarenessTool(actor);
   if (toolId === "summarize_recent_activity") return summarizeRecentActivityTool(actor);
   if (toolId === "summarize_visitors") return summarizeVisitorsTool(actor);
   if (toolId === "summarize_maintenance") return summarizeMaintenanceTool(actor);
