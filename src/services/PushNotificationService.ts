@@ -8,6 +8,7 @@ type PushPayload = {
   body: string;
   sound?: string;
   badge?: number;
+  category?: string;
   data?: Record<string, any>;
 };
 
@@ -27,6 +28,12 @@ const APNS_PRIVATE_KEY_RAW = String(
   process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64 || ""
 ).trim();
 const APNS_PRODUCTION = String(process.env.APNS_PRODUCTION || "true").toLowerCase() !== "false";
+const WATCH_NOTIFICATION_CATEGORIES = new Set([
+  "OYI_VISITOR_ALERT",
+  "OYI_SECURITY_ALERT",
+  "OYI_ENVIRONMENT_ALERT",
+  "OYI_DEVICE_ALERT",
+]);
 
 function canSendFcm() {
   return !!FCM_SERVER_KEY;
@@ -88,6 +95,21 @@ function splitTokensByPlatform(rows: PushTokenRow[]) {
     ios: Array.from(new Set(ios)),
     other: Array.from(new Set(other)),
   };
+}
+
+function safeApnsCategory(payload: PushPayload) {
+  const explicit = String(payload.category || payload.data?.category || payload.data?.watch_category || "").trim();
+  if (WATCH_NOTIFICATION_CATEGORIES.has(explicit)) return explicit;
+  const type = String(payload.data?.type || "").toLowerCase();
+  if (type === "visitor") return "OYI_VISITOR_ALERT";
+  if (type === "device") return "OYI_DEVICE_ALERT";
+  if (type === "system" && /environment|utility|water|power|air|weather/i.test(`${payload.title} ${payload.body}`)) {
+    return "OYI_ENVIRONMENT_ALERT";
+  }
+  if (/security|incident|alert|emergency|lockdown/i.test(`${type} ${payload.title} ${payload.body}`)) {
+    return "OYI_SECURITY_ALERT";
+  }
+  return null;
 }
 
 async function sendViaFcm(tokens: string[], payload: PushPayload) {
@@ -162,6 +184,7 @@ async function sendViaApns(tokens: string[], payload: PushPayload) {
   let sent = 0;
 
   try {
+    const category = safeApnsCategory(payload);
     for (const deviceToken of tokens) {
       const result = await new Promise<{ status: number; body: string }>((resolve) => {
         const req = client.request({
@@ -199,6 +222,7 @@ async function sendViaApns(tokens: string[], payload: PushPayload) {
               },
               sound: payload.sound || "default",
               badge: Number(payload.badge || 1),
+              ...(category ? { category } : {}),
             },
             data: payload.data || {},
           })

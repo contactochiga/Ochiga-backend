@@ -7,6 +7,7 @@ import {
   getWatchGlances,
   getWatchHomeStatus,
   getWatchQuickActions,
+  getWatchStatus,
   runWatchCommand,
 } from "../services/watchAdapterService";
 
@@ -35,6 +36,10 @@ router.get("/quick-actions", requirePermission("devices.read"), async (req, res)
   res.json(await getWatchQuickActions(req.user!));
 });
 
+router.get("/status", requirePermission("devices.read"), async (req, res) => {
+  res.json(await getWatchStatus(req.user!));
+});
+
 router.post("/command", requirePermission("devices.control"), async (req, res) => {
   const payload = await runWatchCommand(req, req.user!, {
     command: req.body?.command,
@@ -51,7 +56,7 @@ router.post("/confirm", requirePermission("devices.control"), async (req, res) =
   res.json(await confirmWatchCommand(req.user!, ledgerId));
 });
 
-router.post("/cancel", async (req, res) => {
+router.post("/cancel", requirePermission("devices.control"), async (req, res) => {
   const ledgerId = String(req.body?.ledger_id || req.body?.ledgerId || "").trim();
   if (!ledgerId) return res.status(400).json({ error: "ledger_id is required" });
   res.json(await cancelWatchCommand(req.user!, ledgerId));

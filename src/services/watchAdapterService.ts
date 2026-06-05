@@ -224,16 +224,34 @@ export async function getWatchQuickActions(actor: AuthUser) {
   const devices = await visibleDevices(actor, 20);
   const actionableDevices = devices.filter(canExposeControl).slice(0, 3);
   const actions = [
-    { id: "show_status", label: "Home status", prompt: "show home status", risk: "read", enabled: true, icon_type: "home", state_color: "blue", confirmation_required: false },
+    {
+      id: "show_status",
+      title: "Home status",
+      label: "Home status",
+      category: "home",
+      prompt: "show home status",
+      action_key: "show_status",
+      risk: "read",
+      enabled: true,
+      disabled_reason: null,
+      icon_type: "home",
+      state_color: "blue",
+      confirmation_required: false,
+      command: null,
+    },
     ...actionableDevices.map((device: any) => {
       const verb = deviceActionVerb(device);
       const family = deviceFamily(device);
       const disabled = isDeviceDefinitelyOffline(device);
       const command = ["on", "off"].includes(verb) ? { switch: verb === "on" } : undefined;
+      const label = safeTitle(verb === "off" ? `${device.name || "Device"} off` : verb === "on" ? `${device.name || "Device"} on` : `${device.name || "Device"} status`, "Device");
       return {
         id: `device:${device.id}:${verb}`,
-        label: safeTitle(verb === "off" ? `${device.name || "Device"} off` : verb === "on" ? `${device.name || "Device"} on` : `${device.name || "Device"} status`, "Device"),
+        title: label,
+        label,
+        category: family,
         prompt: devicePrompt(device),
+        action_key: `device_${verb}`,
         risk: family === "access" ? "medium" : "low",
         enabled: canControl && !disabled,
         disabled_reason: !canControl ? "permission_required" : disabled ? "device_offline" : null,
@@ -249,6 +267,29 @@ export async function getWatchQuickActions(actor: AuthUser) {
   return {
     actions: actions.slice(0, 5),
     source: "backend",
+    generated_at: new Date().toISOString(),
+  };
+}
+
+export async function getWatchStatus(actor: AuthUser) {
+  if (!hasWatchScope(actor)) {
+    return {
+      authenticated: true,
+      scoped: false,
+      home_context_available: false,
+      estate_context_available: false,
+      quick_action_count: 0,
+      generated_at: new Date().toISOString(),
+    };
+  }
+  const quick = await getWatchQuickActions(actor);
+  return {
+    authenticated: true,
+    scoped: true,
+    home_context_available: Boolean(actor.home_id),
+    estate_context_available: Boolean(actor.estate_id),
+    quick_action_count: (quick.actions || []).filter((action: any) => action.enabled).length,
+    disabled_action_count: (quick.actions || []).filter((action: any) => !action.enabled).length,
     generated_at: new Date().toISOString(),
   };
 }
