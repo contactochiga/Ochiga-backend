@@ -111,7 +111,7 @@ export async function executeDeviceCommandForActor(input: {
     metadata: {
       raw_device_ref: rawId,
       resolved_device_uuid: deviceRow?.id || null,
-      source: "oyi_ai",
+      source: "oyi_app",
     },
   });
   void emitAuditEvent({
@@ -124,7 +124,7 @@ export async function executeDeviceCommandForActor(input: {
     estateId: deviceRow?.estate_id || user.estate_id,
     homeId: deviceRow?.home_id || user.home_id,
     status: "success",
-    metadata: { command, raw_device_ref: rawId, resolved_device_uuid: deviceRow?.id || null, source: "oyi_ai" },
+    metadata: { command, raw_device_ref: rawId, resolved_device_uuid: deviceRow?.id || null, source: "oyi_app" },
     req: input.req,
   } as any);
 
@@ -190,7 +190,7 @@ export async function executeDeviceCommandForActor(input: {
         home_id: String(deviceRow.home_id || ""),
         command: normalized,
         kind: "device.command.executed",
-        source: "oyi_ai",
+        source: "oyi_app",
       },
       entityId: String(deviceRow.id),
     });
@@ -204,7 +204,7 @@ export async function executeDeviceCommandForActor(input: {
       estateId: deviceRow.estate_id,
       homeId: deviceRow.home_id,
       status: "success",
-      metadata: { command: normalized, vendor: deviceRow.vendor, external_id: deviceRow.external_id, source: "oyi_ai" },
+      metadata: { command: normalized, vendor: deviceRow.vendor, external_id: deviceRow.external_id, source: "oyi_app" },
       req: input.req,
     } as any);
 
@@ -376,6 +376,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
           home_id: String(deviceRow.home_id || ""),
           command: normalized,
           kind: "device.command.executed",
+          source: "oyi_app",
         },
         entityId: String(deviceRow.id),
       });

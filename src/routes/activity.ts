@@ -451,6 +451,7 @@ function auditEvent(row: any): ActivityEvent | null {
 function deviceStateEvent(row: any, device: any): ActivityEvent {
   const status = objectValue(row?.status);
   const command = objectValue(status.last_command || status);
+  const controlSource = firstString(status.control_source, status.source, status.event_source, status.origin, command.source);
   const value =
     typeof command.switch === "boolean" ? command.switch :
     typeof command.power === "boolean" ? command.power :
@@ -473,6 +474,14 @@ function deviceStateEvent(row: any, device: any): ActivityEvent {
     actor: null,
     target: row?.device_id ? { id: String(row.device_id), type: "device" } : null,
     label: cleanText(device?.category || device?.type, "Device"),
+    metadata: {
+      device_id: row?.device_id ? String(row.device_id) : null,
+      home_id: firstString(device?.home_id) || null,
+      room_id: firstString(device?.room_id) || null,
+      source: controlSource || null,
+      event_type: "device.status.updated",
+      new_state: status,
+    },
   });
 }
 
@@ -508,7 +517,7 @@ async function buildActivity(req: express.Request) {
     estateId ? safeSelect("facility_incidents", (q) => q.select("*").eq("estate_id", estateId).order("created_at", { ascending: false }).limit(20)) : Promise.resolve({ rows: [], available: true, reason: null }),
     estateId ? safeSelect("community_posts", (q) => q.select("*").eq("estate_id", estateId).neq("status", "deleted").order("created_at", { ascending: false }).limit(30)) : Promise.resolve({ rows: [], available: true, reason: null }),
     safeSelect("devices", (q) => {
-      let next = q.select("id,name,category,type,home_id,estate_id,room_name").limit(100);
+      let next = q.select("id,name,category,type,home_id,estate_id,room_id,room_name").limit(100);
       if (estateId) next = next.eq("estate_id", estateId);
       if (homeId) next = next.eq("home_id", homeId);
       return next;

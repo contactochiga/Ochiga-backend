@@ -2,6 +2,7 @@
 import mqtt from "mqtt";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
+import { emitAuditEvent } from "../core/foundation";
 
 // ✅ Use IO registry (prevents circular imports)
 import { getIO } from "../realtime/io";
@@ -22,7 +23,35 @@ function isTruthySwitch(status: any) {
   for (const key of ["switch", "power", "on", "running", "enabled"]) {
     if ((status as any)[key] === true) return true;
   }
+  if (status.last_command && typeof status.last_command === "object") {
+    return isTruthySwitch(status.last_command);
+  }
   return Object.entries(status).some(([key, value]) => /^switch(_\d+)?$/i.test(String(key)) && value === true);
+}
+
+function normalizeSource(value: any): "oyi_app" | "physical_switch" | "provider_app" | "watch" | "automation" | "scene" | "facility" | "system" {
+  const text = String(value || "").toLowerCase().replace(/[\s-]+/g, "_");
+  if (/physical|wall|manual|local|button/.test(text)) return "physical_switch";
+  if (/smart_life|tuya_app|provider_app|provider|tuya/.test(text)) return "provider_app";
+  if (/watch|watchos/.test(text)) return "watch";
+  if (/automation/.test(text)) return "automation";
+  if (/scene/.test(text)) return "scene";
+  if (/facility|operator|admin/.test(text)) return "facility";
+  if (/oyi|consumer|app|user/.test(text)) return "oyi_app";
+  return "system";
+}
+
+function sourceFromPayload(status: any, topic: string) {
+  const meta = status?.metadata || status?.meta || {};
+  return normalizeSource(
+    status?.source ||
+    status?.control_source ||
+    status?.event_source ||
+    status?.origin ||
+    meta?.source ||
+    meta?.control_source ||
+    topic
+  );
 }
 
 function didMeaningfulStateChange(prev: any, next: any) {
@@ -106,6 +135,9 @@ function buildDeviceStateSignal(args: {
   deviceId: string;
   state: any;
   source?: string;
+  homeId?: string | null;
+  roomId?: string | null;
+  event?: Record<string, any>;
 }): Signal {
   return {
     schemaVersion: SIGNAL_SCHEMA_VERSION,
@@ -116,6 +148,9 @@ function buildDeviceStateSignal(args: {
     // payload (contract uses deviceId + state)
     deviceId: args.deviceId,
     state: args.state,
+    homeId: args.homeId ?? undefined,
+    roomId: args.roomId ?? undefined,
+    event: args.event,
 
     // routing context (helps realtime subscriber target rooms)
     estateId: args.estateId ?? undefined,
@@ -159,6 +194,9 @@ export async function initMqttBridge() {
         if (!deviceId) return;
 
         const status = safeJson(payload);
+        const occurredAt = new Date().toISOString();
+        const eventSource = sourceFromPayload(status, topic);
+        const providerEventId = String(status?.provider_event_id || status?.event_id || status?.id || "");
         const { data: previousState } = await supabaseAdmin
           .from("device_states")
           .select("status")
@@ -179,7 +217,7 @@ export async function initMqttBridge() {
 
         const { data: device } = await supabaseAdmin
           .from("devices")
-          .select("id,name,estate_id,home_id")
+          .select("id,name,estate_id,home_id,room_id,category,type,external_id")
           .eq("id", deviceId)
           .limit(1)
           .single();
@@ -188,7 +226,28 @@ export async function initMqttBridge() {
           estateId = device?.estate_id ?? null;
         }
 
-        const change = didMeaningfulStateChange(previousState?.status || {}, status);
+        const previousStatus = previousState?.status || {};
+        const change = didMeaningfulStateChange(previousStatus, status);
+        const normalizedEvent = {
+          device_id: String(deviceId),
+          home_id: String(device?.home_id || ""),
+          room_id: String(device?.room_id || ""),
+          event_type: String((change as any).kind || "device.state.reported"),
+          previous_state: previousStatus,
+          new_state: status,
+          source: eventSource,
+          actor_id: null,
+          occurred_at: occurredAt,
+          latency_ms: null,
+          provider_event_id: providerEventId || null,
+          metadata: {
+            topic,
+            estate_id: String(device?.estate_id || estateId || ""),
+            device_name: String(device?.name || ""),
+            category: String(device?.category || device?.type || ""),
+          },
+        };
+
         if (change.changed && device?.home_id) {
           const { data: homeUsers } = await supabaseAdmin
             .from("users")
@@ -208,12 +267,30 @@ export async function initMqttBridge() {
                 device_id: String(deviceId),
                 estate_id: String(device?.estate_id || estateId || ""),
                 home_id: String(device?.home_id || ""),
+                room_id: String(device?.room_id || ""),
                 kind: String((change as any).kind || "device.state.changed"),
                 state: status,
+                previous_state: previousStatus,
+                source: eventSource,
+                control_source: eventSource,
+                provider_event_id: providerEventId || null,
+                normalized_event: normalizedEvent,
               },
               entityId: String(deviceId),
             });
           }
+          void emitAuditEvent({
+            actorId: null,
+            actorEmail: "",
+            actorRole: eventSource,
+            action: String((change as any).kind || "device.state.changed"),
+            resourceType: "device",
+            resourceId: String(deviceId),
+            estateId: String(device?.estate_id || estateId || "") || undefined,
+            homeId: String(device?.home_id || "") || undefined,
+            status: "success",
+            metadata: normalizedEvent,
+          } as any);
         }
 
         // ✅ 1) Emit legacy websocket event (backwards compatible)
@@ -226,7 +303,10 @@ export async function initMqttBridge() {
             estateId,
             deviceId,
             state: status,
-            source: "mqtt",
+            homeId: device?.home_id || null,
+            roomId: device?.room_id || null,
+            source: eventSource,
+            event: normalizedEvent,
           })
         );
       } catch (err) {
