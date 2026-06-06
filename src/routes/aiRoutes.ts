@@ -5,6 +5,7 @@ import { emitAuditEvent } from "../core/foundation";
 import { requireAuth } from "../middleware/auth";
 import { routeAiCommand, listAiLedger, listAiConfirmations, updateAiConfirmation, type ProposedAiTool } from "../ai/commandRouter";
 import { AI_TOOL_REGISTRY } from "../ai/toolRegistry";
+import { recordIntelligenceMemory } from "../services/intelligenceMemoryService";
 
 const router = Router();
 
@@ -46,6 +47,8 @@ type AiChatResponse = {
   cards?: any[];
   sources?: any[];
   suggested_actions?: any[];
+  response_mode?: "answer" | "insight" | "action" | "dashboard";
+  awareness?: Record<string, any> | null;
   safe_mode: true;
   requiresConfirmation?: boolean;
 };
@@ -101,6 +104,9 @@ function deterministicTools(message: string): ProposedAiTool[] {
     return [{ tool_id: "summarize_visitors", arguments: {} }];
   }
   if (/maintenance pending|pending maintenance|any maintenance|maintenance status|maintenance summary/.test(t)) {
+    return [{ tool_id: "summarize_maintenance", arguments: {} }];
+  }
+  if (/^(what'?s|what is|check|show)?\s*(the\s*)?status\??$|what'?s the status|what is the status/i.test(message.trim())) {
     return [{ tool_id: "summarize_maintenance", arguments: {} }];
   }
   if (/community|notice|announcement|urgent notice/.test(t) && !/create|post|send/.test(t)) {
@@ -307,16 +313,18 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
 
   if (intent === "today") {
     if (!activityTypes.length) return "No activity was recorded today.";
-    const summaries = activityTypes.slice(0, 5).map((card: any) => {
+    const summaries = activityTypes.slice(0, 6).map((card: any) => {
       const label = String(card.title || card.type || "Update").replace(/_/g, " ");
       const first = cardItems(card)[0];
-      return first?.title ? `${label}: ${first.title}.` : `${label}: ${cleanAssistantText(card.summary) || "recent update"}.`;
+      const time = formatEventTime(first?.timestamp);
+      return first?.title ? `${label}:\n${first.title}${time ? ` at ${time}` : ""}.` : `${label}:\n${cleanAssistantText(card.summary) || "Recent update"}.`;
     });
-    return compactLines([
+    return [
       `Your home has updates across ${activityTypes.length} area${activityTypes.length === 1 ? "" : "s"} today.`,
-      `Context: ${summaries.join(" ")} ${activityTypes.some((card: any) => String(card.type).toLowerCase() === "security") ? "" : "No security incidents were recorded in the visible updates."}`,
+      summaries.join("\n\n"),
+      activityTypes.some((card: any) => String(card.type).toLowerCase() === "security") ? "" : "No security incidents were recorded in the visible updates.",
       "Suggested action: Open Activity for the full timeline.",
-    ]).join("\n");
+    ].filter(Boolean).join("\n\n");
   }
 
   if (intent === "home_health") {
@@ -358,6 +366,90 @@ function buildReply(message: string, toolResults: any[], cards: any[] = []) {
   return "I can help with your home, devices, visitors, maintenance, community, and recent activity.";
 }
 
+type ResponseMode = "answer" | "insight" | "action" | "dashboard";
+
+function responseModeFor(message: string, proposedTools: ProposedAiTool[], results: any[]): ResponseMode {
+  const text = normalizeText(message);
+  if (/^(show|open|display|take me to|view)\b/.test(text)) return "dashboard";
+  if (/what happened|summarize activity|today s updates|today updates|recent activity|what has been happening|give me today/.test(text)) return "insight";
+  if (proposedTools.some((tool) => /run_scene|device_command|create_maintenance_request|visitor_create|support_mutation/.test(tool.tool_id))) return "action";
+  if (results.some((result) => /run_scene|device_command|create_maintenance_request|visitor_create|support_mutation/.test(String(result?.tool_id || "")))) return "action";
+  return "answer";
+}
+
+function actionResultReply(results: any[], fallback: string) {
+  const action = results.find((result) => /run_scene|device_command|create_maintenance_request|visitor_create|support_mutation/.test(String(result?.tool_id || "")));
+  if (!action) return fallback;
+  if (action.status === "pending_confirmation") return action.summary || "I need confirmation before doing that.";
+  if (action.status === "failed") return action.summary || "That action could not complete.";
+  if (action.status === "denied") return "I don’t have access to do that yet.";
+  const summary = cleanAssistantText(action.summary || fallback);
+  if (!summary) return fallback;
+  return summary.startsWith("✓") ? summary : `✓ ${summary.replace(/\.$/, "")}`;
+}
+
+function actionResultCard(results: any[], reply: string) {
+  const action = results.find((result) => /run_scene|device_command|create_maintenance_request|visitor_create|support_mutation/.test(String(result?.tool_id || "")));
+  if (!action) return null;
+  const existing = Array.isArray(action.data?.cards) ? action.data.cards[0] : null;
+  if (existing) return existing;
+  return {
+    type: "action_result",
+    title: reply.replace(/^✓\s*/, ""),
+    summary: action.status === "failed" ? "The action did not complete." : "Action completed.",
+    items: action.data?.request_id ? [{ label: "Status", value: "Open" }] : [],
+  };
+}
+
+function primaryCardForIntent(message: string, cards: any[]) {
+  const intent = responseIntent(message);
+  const preferred = intent === "maintenance_pending"
+    ? ["maintenance"]
+    : intent === "visitors_today"
+      ? ["visitors"]
+      : ["home_awareness", "home_summary"];
+  for (const type of preferred) {
+    const card = cardByType(cards, type);
+    if (card) return card;
+  }
+  return null;
+}
+
+function compressCardsForMode(mode: ResponseMode, message: string, results: any[], cards: any[], reply: string) {
+  if (mode === "action") {
+    const card = actionResultCard(results, reply);
+    return card ? [card] : [];
+  }
+  if (mode === "insight") return [];
+  if (mode === "dashboard") return uniqueBy(cards, (card: any) => String(card?.type || card?.title || "")).slice(0, 6);
+  const primary = primaryCardForIntent(message, cards);
+  return primary ? [primary] : [];
+}
+
+function suggestedActionsForMode(mode: ResponseMode, actions: any[]) {
+  if (mode === "action") return [];
+  if (mode === "dashboard") return actions.slice(0, 6);
+  return actions.slice(0, 1);
+}
+
+function buildAwarenessObject(cards: any[]) {
+  const awareness = cardByType(cards, "home_awareness");
+  const home = cardByType(cards, "home_summary");
+  const visitors = cardByType(cards, "visitors");
+  const maintenance = cardByType(cards, "maintenance");
+  const source = awareness || home;
+  if (!source && !visitors && !maintenance) return null;
+  return {
+    home_health: cardItems(awareness).find((item: any) => String(item.label || "").toLowerCase() === "home health")?.value || null,
+    attention_level: cardItems(awareness).find((item: any) => String(item.label || "").toLowerCase() === "attention")?.value || null,
+    devices_online: itemValue(awareness, "Online devices") || itemValue(home, "Online"),
+    devices_offline: itemValue(awareness, "Offline devices") || itemValue(home, "Offline"),
+    maintenance_open: itemValue(awareness, "Open maintenance") || itemValue(home, "Open maintenance") || itemValue(maintenance, "Open"),
+    visitors_active: itemValue(awareness, "Active visitors") || itemValue(home, "Active visitors") || itemValue(visitors, "Active"),
+    visitors_pending: itemValue(visitors, "Pending"),
+  };
+}
+
 function uniqueBy<T>(rows: T[], keyOf: (row: T) => string) {
   const seen = new Set<string>();
   return rows.filter((row) => {
@@ -392,7 +484,18 @@ router.post("/chat", requireAuth, async (req, res) => {
   const cards = routedResults.flatMap((item) => Array.isArray(item.data?.cards) ? item.data.cards : []);
   const sources = uniqueBy(routedResults.flatMap((item) => Array.isArray(item.data?.sources) ? item.data.sources : []), (item: any) => `${item.label || ""}:${item.timestamp || ""}`).slice(0, 12);
   const suggestedActions = uniqueBy(routedResults.flatMap((item) => Array.isArray(item.data?.suggested_actions) ? item.data.suggested_actions : []), (item: any) => `${item.label || ""}:${item.route || ""}`).slice(0, 8);
-  const reply = buildReply(message, routedResults, cards);
+  const responseMode = responseModeFor(message, proposedTools, routedResults);
+  const baseReply = buildReply(message, routedResults, cards);
+  const reply = responseMode === "action" ? actionResultReply(routedResults, baseReply) : baseReply;
+  const compressedCards = compressCardsForMode(responseMode, message, routedResults, cards, reply);
+  const compressedActions = suggestedActionsForMode(responseMode, suggestedActions);
+  const awareness = buildAwarenessObject(cards);
+  void recordIntelligenceMemory(req.user, {
+    prompt: message,
+    responseMode,
+    reply,
+    results: routedResults,
+  });
   const response: AiChatResponse = {
     message: reply,
     reply,
@@ -401,9 +504,11 @@ router.post("/chat", requireAuth, async (req, res) => {
     actions: [],
     tools: routedResults,
     confirmations,
-    cards,
-    sources,
-    suggested_actions: suggestedActions,
+    cards: compressedCards,
+    sources: responseMode === "action" ? [] : sources.slice(0, responseMode === "dashboard" ? 12 : 4),
+    suggested_actions: compressedActions,
+    response_mode: responseMode,
+    awareness,
     safe_mode: true,
     requiresConfirmation: confirmations.length > 0,
   };
