@@ -568,7 +568,18 @@ function maintenancePayloadFromPrompt(prompt: string, args: Record<string, any>)
     /power|light|electric|socket/.test(categorySource) ? "electrical" :
     /security|gate|door|lock/.test(categorySource) ? "security" :
     "general";
-  const title = shortText(args.title || raw.replace(/^create\s+(a\s+)?maintenance\s+(request|ticket)\s+(for|about)?/i, ""), "Maintenance request", 120);
+  const cleanedPromptTitle = raw
+    .replace(/^create\s+(a\s+)?maintenance\s+(request|ticket)?\s*(for|about)?\s*/i, "")
+    .replace(/^open\s+(a\s+)?maintenance\s+(request|ticket)?\s*(for|about)?\s*/i, "")
+    .replace(/^raise\s+(a\s+)?maintenance\s+(request|ticket)?\s*(for|about)?\s*/i, "")
+    .replace(/^log\s+(a\s+)?maintenance\s+(request|ticket)?\s*(for|about)?\s*/i, "")
+    .replace(/^file\s+(a\s+)?maintenance\s+(request|ticket)?\s*(for|about)?\s*/i, "")
+    .trim();
+  const rawTitle = String(args.title || "").trim();
+  const titleSource = /^create\s+maintenance|^create\s+a\s+maintenance|^open\s+maintenance|^raise\s+maintenance|^log\s+maintenance|^file\s+maintenance/i.test(rawTitle)
+    ? cleanedPromptTitle
+    : rawTitle || cleanedPromptTitle;
+  const title = shortText(titleSource, "Maintenance request", 120);
   return {
     title,
     category,
@@ -697,7 +708,7 @@ async function executeScene(actor: AuthUser, scene: any, req?: Request) {
         results.push({ device_id: action.device_id, status: "failed", reason: error?.message || "command_failed" });
       }
     }
-    const completed = results.filter((item) => item.status === "command_queued" || item.status === "executed" || item.status === "success").length;
+    const completed = results.filter((item) => item.status === "command_queued" || item.status === "command_executed" || item.status === "executed" || item.status === "success").length;
     await emitAuditEvent({
       actorId: actor.id,
       actorEmail: actor.email,
@@ -743,7 +754,7 @@ async function executeScene(actor: AuthUser, scene: any, req?: Request) {
       results.push({ device_id: deviceId, status: "failed", reason: error?.message || "command_failed" });
     }
   }
-  const completed = results.filter((item) => item.status === "command_queued" || item.status === "executed" || item.status === "success").length;
+  const completed = results.filter((item) => item.status === "command_queued" || item.status === "command_executed" || item.status === "executed" || item.status === "success").length;
   await emitAuditEvent({
     actorId: actor.id,
     actorEmail: actor.email,
@@ -760,7 +771,7 @@ async function executeScene(actor: AuthUser, scene: any, req?: Request) {
   return {
     ok: Boolean(completed),
     status: completed ? "executed" as AiCommandStatus : "failed" as AiCommandStatus,
-    summary: completed ? `${scene.name || scene.title || "Scene"} ran for ${completed} action${completed === 1 ? "" : "s"}.` : "That scene could not run right now.",
+    summary: completed ? `${sceneDisplayName(scene)} scene activated.` : `${sceneDisplayName(scene)} could not run right now.`,
     data: { scene_id: scene.id, results },
     error: completed ? "" : "scene_execution_failed",
   };
@@ -867,7 +878,12 @@ async function createMaintenanceRequestTool(req: Request | undefined, actor: Aut
     payload: { request_id: data.id || null, source: "oyi_intelligence" },
     entityId: data.id || null,
   }).catch(() => undefined);
-  const summary = `Maintenance request created: ${payload.title}.`;
+  const summary = compactLines([
+    "Your maintenance request has been submitted.",
+    `Issue: ${payload.title}.`,
+    "Status: Open.",
+    "The maintenance team will review it shortly.",
+  ]).join("\n");
   const ledger = await writeLedger({ actor, toolId: "create_maintenance_request", prompt, status: "executed", estateId: row.estate_id, homeId: row.home_id, resultSummary: summary, metadata: { request_id: data.id || null, category: payload.category } });
   return {
     tool_id: "create_maintenance_request",
@@ -875,10 +891,11 @@ async function createMaintenanceRequestTool(req: Request | undefined, actor: Aut
     ledger_id: ledger.id || null,
     summary,
     data: {
-      cards: [structuredCard("maintenance_created", "Maintenance request created", payload.title, [{ label: "Category", value: payload.category }, { label: "Status", value: "Open" }])],
+      cards: [structuredCard("action_result", "Maintenance Request Submitted", `Issue: ${payload.title}.`, [{ label: "Status", value: "Open" }])],
       sources: [sourceLabel("Maintenance request", data.created_at || now)],
       suggested_actions: [suggestedAction("Open Maintenance", `/maintenance?requestId=${encodeURIComponent(String(data.id || ""))}`)],
       request_id: data.id || null,
+      issue: payload.title,
     },
   };
 }

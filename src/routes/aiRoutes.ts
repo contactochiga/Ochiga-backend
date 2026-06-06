@@ -5,7 +5,7 @@ import { emitAuditEvent } from "../core/foundation";
 import { requireAuth } from "../middleware/auth";
 import { routeAiCommand, listAiLedger, listAiConfirmations, updateAiConfirmation, type ProposedAiTool } from "../ai/commandRouter";
 import { AI_TOOL_REGISTRY } from "../ai/toolRegistry";
-import { recordIntelligenceMemory } from "../services/intelligenceMemoryService";
+import { getLatestMaintenanceContext, recordIntelligenceMemory } from "../services/intelligenceMemoryService";
 
 const router = Router();
 
@@ -90,6 +90,18 @@ function openPanelFromPrompt(message: string) {
   if (/readiness|health|status|diagnostic/.test(t)) return "readiness";
   if (/room|space|floor/.test(t)) return "rooms";
   return "home";
+}
+
+function isStatusContinuationPrompt(message: string) {
+  const raw = String(message || "").trim();
+  const t = normalizeText(raw);
+  return /^(what s|whats|what is|check|show)?\s*(the\s*)?status$/.test(t) || /^what'?s the status\??$/i.test(raw) || /^what is the status\??$/i.test(raw);
+}
+
+function shouldForceDeterministicTools(message: string) {
+  const t = normalizeText(message);
+  return isStatusContinuationPrompt(message)
+    || /^(how is my home|what needs my attention|anything important|any maintenance pending|who visited today|what happened today|run relax|run movie time|run good night)/.test(t);
 }
 
 function deterministicTools(message: string): ProposedAiTool[] {
@@ -216,6 +228,42 @@ function cleanAssistantText(value: any) {
     .trim();
 }
 
+function humanIssueTitle(value: any) {
+  const cleaned = String(value || "Maintenance request")
+    .replace(/^maintenance request created:\s*/i, "")
+    .replace(/^your maintenance request has been submitted\.?\s*/i, "")
+    .replace(/^issue:\s*/i, "")
+    .replace(/\bstatus:\s*open\b/ig, "")
+    .replace(/the maintenance team will review it shortly\.?/ig, "")
+    .replace(/\s+/g, " ")
+    .replace(/\.$/, "")
+    .trim() || "Maintenance request";
+  if (/ac|air|cooling|hvac/i.test(cleaned)) return "AC cooling";
+  return cleaned;
+}
+
+function humanMaintenanceStatus(value: any) {
+  const status = String(value || "open").toLowerCase().replace(/_/g, " ");
+  if (/open|new|pending/.test(status)) return "still open and awaiting review";
+  if (/assigned|scheduled/.test(status)) return status;
+  if (/progress/.test(status)) return "in progress";
+  if (/waiting.*resident|resident/.test(status)) return "waiting for your response";
+  if (/completed|resolved|closed/.test(status)) return "completed";
+  return status || "open";
+}
+
+async function statusContinuationReply(actor: any) {
+  const latest = await getLatestMaintenanceContext(actor).catch(() => null);
+  if (!latest) return null;
+  const issue = humanIssueTitle(latest.title);
+  const status = humanMaintenanceStatus(latest.status);
+  return compactLines([
+    `Your ${issue} request is ${status}.`,
+    /open|awaiting review|pending/.test(status) ? "No update has been posted yet." : null,
+    "Suggested action: Open Maintenance to review the request.",
+  ]).join("\n");
+}
+
 function formatCount(label: string, count: number, ok: string) {
   return count > 0 ? `${count} ${label}${count === 1 ? "" : "s"}` : ok;
 }
@@ -292,8 +340,8 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
     ]);
     if (!priorities.length) return "Everything looks normal.";
     return compactLines([
-      priorities[0],
-      `Context: ${priorities.slice(1).join(" ") || "No other priority items are visible."}`,
+      "Your home needs attention.",
+      ...priorities,
       "Suggested action: Open Activity to review the latest details.",
     ]).join("\n");
   }
@@ -332,11 +380,15 @@ function buildNarrativeReply(message: string, toolResults: any[], cards: any[]) 
     if (!source) return "I do not have enough home context yet.";
     const offline = itemValue(awareness, "Offline devices") || itemValue(home, "Offline");
     const maintenanceOpen = itemValue(awareness, "Open maintenance") || itemValue(home, "Open maintenance");
+    const activeVisitors = itemValue(awareness, "Active visitors") || itemValue(home, "Active visitors");
     const unread = itemValue(home, "Unread activity");
     const status = String(cardItems(awareness).find((item: any) => String(item.label || "").toLowerCase() === "home health")?.value || (offline || maintenanceOpen ? "Needs Attention" : unread ? "Good" : "Excellent"));
+    const calm = !offline && !maintenanceOpen && !unread;
     return compactLines([
-      `Home status: ${status}.`,
-      `Context: ${itemValue(awareness, "Online devices") || itemValue(home, "Online")} devices online; ${offline ? `${offline} offline` : "no offline devices"}; ${maintenanceOpen ? `${maintenanceOpen} active maintenance issue${maintenanceOpen === 1 ? "" : "s"}` : "no active maintenance issues"}; ${unread ? `${unread} unread update${unread === 1 ? "" : "s"}` : "no urgent unread updates"}.`,
+      calm ? "Your home is operating normally." : `Your home ${String(status).toLowerCase().includes("attention") ? "needs attention" : "looks mostly okay"}.`,
+      maintenanceOpen ? `${maintenanceOpen === 1 ? "One maintenance request is" : `${maintenanceOpen} maintenance requests are`} currently open.` : "No maintenance issues are active.",
+      offline ? `${offline === 1 ? "One device appears" : `${offline} devices appear`} offline.` : "No device connectivity issues are visible.",
+      activeVisitors ? `${activeVisitors === 1 ? "One visitor is" : `${activeVisitors} visitors are`} active or pending.` : "No visitors are waiting.",
       offline || maintenanceOpen || unread ? "Suggested action: Open Activity to review what changed." : null,
     ]).join("\n");
   }
@@ -385,7 +437,7 @@ function actionResultReply(results: any[], fallback: string) {
   if (action.status === "denied") return "I don’t have access to do that yet.";
   const summary = cleanAssistantText(action.summary || fallback);
   if (!summary) return fallback;
-  return summary.startsWith("✓") ? summary : `✓ ${summary.replace(/\.$/, "")}`;
+  return summary;
 }
 
 function actionResultCard(results: any[], reply: string) {
@@ -403,6 +455,27 @@ function actionResultCard(results: any[], reply: string) {
 
 function primaryCardForIntent(message: string, cards: any[]) {
   const intent = responseIntent(message);
+  if (intent === "home_health" || intent === "attention" || intent === "general") {
+    const awareness = cardByType(cards, "home_awareness");
+    const home = cardByType(cards, "home_summary");
+    if (awareness || home) {
+      const offline = itemValue(awareness, "Offline devices") || itemValue(home, "Offline");
+      const maintenanceOpen = itemValue(awareness, "Open maintenance") || itemValue(home, "Open maintenance");
+      const visitors = itemValue(awareness, "Active visitors") || itemValue(home, "Active visitors");
+      const health = cardItems(awareness).find((item: any) => String(item.label || "").toLowerCase() === "home health")?.value || (offline || maintenanceOpen ? "Needs Attention" : "Normal");
+      return {
+        type: "summary",
+        title: "Home status",
+        summary: offline || maintenanceOpen || visitors ? "A few items may need your attention." : "Everything looks normal.",
+        items: [
+          maintenanceOpen ? { label: "Maintenance", value: maintenanceOpen } : null,
+          offline ? { label: "Offline devices", value: offline } : null,
+          visitors ? { label: "Visitors", value: visitors } : null,
+          !maintenanceOpen && !offline && !visitors ? { label: "Status", value: health } : null,
+        ].filter(Boolean),
+      };
+    }
+  }
   const preferred = intent === "maintenance_pending"
     ? ["maintenance"]
     : intent === "visitors_today"
@@ -467,7 +540,10 @@ router.post("/chat", requireAuth, async (req, res) => {
   if (!message) return res.status(400).json({ error: "message is required" });
   if (!req.user) return res.status(401).json({ error: "Not authenticated" });
 
-  const proposedTools = (await suggestToolsWithModel(message, context)) || deterministicTools(message);
+  const deterministic = deterministicTools(message);
+  const proposedTools = shouldForceDeterministicTools(message)
+    ? deterministic
+    : (await suggestToolsWithModel(message, context)) || deterministic;
   const routed = await routeAiCommand(req, {
     actor: req.user,
     prompt: message,
@@ -486,7 +562,8 @@ router.post("/chat", requireAuth, async (req, res) => {
   const suggestedActions = uniqueBy(routedResults.flatMap((item) => Array.isArray(item.data?.suggested_actions) ? item.data.suggested_actions : []), (item: any) => `${item.label || ""}:${item.route || ""}`).slice(0, 8);
   const responseMode = responseModeFor(message, proposedTools, routedResults);
   const baseReply = buildReply(message, routedResults, cards);
-  const reply = responseMode === "action" ? actionResultReply(routedResults, baseReply) : baseReply;
+  const continuationReply = isStatusContinuationPrompt(message) ? await statusContinuationReply(req.user) : null;
+  const reply = continuationReply || (responseMode === "action" ? actionResultReply(routedResults, baseReply) : baseReply);
   const compressedCards = compressCardsForMode(responseMode, message, routedResults, cards, reply);
   const compressedActions = suggestedActionsForMode(responseMode, suggestedActions);
   const awareness = buildAwarenessObject(cards);

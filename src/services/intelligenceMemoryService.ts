@@ -124,16 +124,17 @@ export async function recordIntelligenceMemory(actor: AuthUser, input: {
 
     if (toolId === "create_maintenance_request") {
       const requestId = result?.data?.request_id || null;
+      const issue = String(result?.data?.issue || result?.summary || "Maintenance request").trim();
       await upsertResidentMemory(actor, {
         memoryType: "conversation_context",
         key: "latest_maintenance_request",
-        value: { request_id: requestId, title: result?.summary || "Maintenance request", status: "open" },
+        value: { request_id: requestId, title: issue, status: "open" },
         weight: 3,
       }).catch(() => undefined);
       await upsertResidentMemory(actor, {
         memoryType: "recent_maintenance_issue",
         key: requestId || result?.summary || "maintenance_request",
-        value: { request_id: requestId, title: result?.summary || "Maintenance request", status: "open" },
+        value: { request_id: requestId, title: issue, status: "open" },
         weight: 2,
       }).catch(() => undefined);
       await recordHomeTimelineEvent(actor, {
@@ -157,6 +158,36 @@ export async function recordIntelligenceMemory(actor: AuthUser, input: {
       }).catch(() => undefined);
     }
   }
+}
+
+export async function getLatestMaintenanceContext(actor: AuthUser) {
+  let query = supabaseAdmin
+    .from("resident_memory")
+    .select("*")
+    .eq("user_id", actor.id)
+    .eq("memory_type", "conversation_context")
+    .eq("memory_key", "latest_maintenance_request")
+    .order("last_seen_at", { ascending: false })
+    .limit(1);
+  if (actor.home_id) query = query.eq("home_id", actor.home_id);
+
+  const { data } = await query.maybeSingle();
+  const memory = data?.memory_value && typeof data.memory_value === "object" ? data.memory_value : null;
+  if (!memory?.request_id) return memory || null;
+
+  const { data: request } = await supabaseAdmin
+    .from("maintenance_requests")
+    .select("id,title,status,updated_at,created_at")
+    .eq("id", memory.request_id)
+    .maybeSingle();
+
+  return {
+    ...memory,
+    request_id: memory.request_id,
+    title: request?.title || memory.title || "Maintenance request",
+    status: request?.status || memory.status || "open",
+    updated_at: request?.updated_at || request?.created_at || null,
+  };
 }
 
 export async function buildHomeTimeline(actor: AuthUser, limit = 80) {
