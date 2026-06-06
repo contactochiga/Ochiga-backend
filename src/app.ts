@@ -31,6 +31,7 @@ import walletRoutes from "./routes/wallets";
 import servicesRoutes from "./routes/services";
 import roomsRoutes from "./routes/rooms";
 import geoRoutes from "./routes/geo";
+import proximityRoutes from "./routes/proximityRoutes";
 import officeExportRoutes from "./routes/officeExport";
 
 // ✅ OTP routes (email verification)
@@ -247,6 +248,8 @@ app.use("/services", servicesRoutes);
 
 app.use("/rooms", roomsRoutes);
 app.use("/geo", geoRoutes);
+app.use("/proximity", proximityRoutes);
+app.use("/api/proximity", proximityRoutes);
 
 app.use("/facility", facilityRoutes);
 app.use("/signals", signalRoutes);
