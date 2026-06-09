@@ -9,6 +9,7 @@ import { NotificationService } from "../services/NotificationService";
 import { emitAuditEvent } from "../core/foundation";
 import type { AuthUser } from "../middleware/auth";
 import { logDeviceCommandDiagnostic, normalizeDeviceOnlineState, resolveVisibleDevice } from "../services/deviceRuntimeService";
+import { recordDeviceEvent } from "../services/deviceAnalyticsService";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -73,6 +74,7 @@ export async function executeDeviceCommandForActor(input: {
   command: Record<string, any>;
   req?: Request;
 }) {
+  const startedAt = Date.now();
   const rawId = String(input.deviceId || "").trim();
   const command = input.command;
   const user = input.actor;
@@ -207,6 +209,23 @@ export async function executeDeviceCommandForActor(input: {
       metadata: { command: normalized, vendor: deviceRow.vendor, external_id: deviceRow.external_id, source: "oyi_app" },
       req: input.req,
     } as any);
+    void recordDeviceEvent({
+      deviceId: String(deviceRow.id),
+      estateId: deviceRow.estate_id || user.estate_id || null,
+      homeId: deviceRow.home_id || user.home_id || null,
+      roomId: deviceRow.room_id || null,
+      userId: user.id,
+      actorId: user.id,
+      eventType: "device.command.executed",
+      previousState: null,
+      newState: { last_command: normalized, verified_state: verifiedState || null },
+      source: "oyi_app",
+      confidence: "confirmed",
+      latencyMs: Date.now() - startedAt,
+      metadata: { command: normalized, vendor: deviceRow.vendor, external_id: deviceRow.external_id },
+      title: activityCopy.title,
+      summary: activityCopy.message,
+    });
 
     return {
       ok: true,
@@ -216,6 +235,24 @@ export async function executeDeviceCommandForActor(input: {
       state: verifiedState,
     };
   }
+
+  void recordDeviceEvent({
+    deviceId: String(deviceRow.id),
+    estateId: deviceRow.estate_id || user.estate_id || null,
+    homeId: deviceRow.home_id || user.home_id || null,
+    roomId: deviceRow.room_id || null,
+    userId: user.id,
+    actorId: user.id,
+    eventType: "device.command.queued",
+    previousState: null,
+    newState: { last_command: command },
+    source: "oyi_app",
+    confidence: "confirmed",
+    latencyMs: Date.now() - startedAt,
+    metadata: { command, vendor: deviceRow.vendor, external_id: deviceRow.external_id },
+    title: `${String(deviceRow.name || "Device")} command queued`,
+    summary: `${String(deviceRow.name || "Device")} command was queued.`,
+  });
 
   return {
     ok: true,

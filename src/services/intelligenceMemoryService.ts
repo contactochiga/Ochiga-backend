@@ -221,3 +221,112 @@ export async function buildHomeTimeline(actor: AuthUser, limit = 80) {
     .sort((a, b) => new Date(b.occurred_at || 0).getTime() - new Date(a.occurred_at || 0).getTime())
     .slice(0, limit);
 }
+
+function startOfTodayIso() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+}
+
+function startOfWeekIso() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  start.setDate(start.getDate() - start.getDay());
+  return start.toISOString();
+}
+
+function formatDeviceHistoryTime(value: any) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function deviceNameFromEvent(row: any) {
+  return String(row?.metadata?.device_name || row?.devices?.name || "Device").trim() || "Device";
+}
+
+export async function answerDeviceHistoryQuestion(actor: AuthUser, prompt: string) {
+  const text = String(prompt || "").toLowerCase();
+  const wantsHistory = /device|light|switch|offline|online|power|used|usage|active|unstable|changed|happened|today|week|away/.test(text);
+  if (!wantsHistory) return null;
+  const since = /week/.test(text) ? startOfWeekIso() : startOfTodayIso();
+  let eventsQuery = supabaseAdmin
+    .from("device_events")
+    .select("id,device_id,event_type,new_state,source,confidence_level,occurred_at,metadata")
+    .gte("occurred_at", since)
+    .order("occurred_at", { ascending: false })
+    .limit(80);
+  if (actor.home_id) eventsQuery = eventsQuery.eq("home_id", actor.home_id);
+  else if (actor.estate_id) eventsQuery = eventsQuery.eq("estate_id", actor.estate_id);
+  else eventsQuery = eventsQuery.eq("user_id", actor.id);
+
+  let countersQuery = supabaseAdmin
+    .from("device_usage_counters")
+    .select("device_id,total_toggles,last_used_at,last_source,offline_count,online_count,failure_count,stability_score,last_offline_at,last_online_at,metadata")
+    .order("last_used_at", { ascending: false })
+    .limit(20);
+  if (actor.home_id) countersQuery = countersQuery.eq("home_id", actor.home_id);
+  else if (actor.estate_id) countersQuery = countersQuery.eq("estate_id", actor.estate_id);
+
+  const [{ data: events }, { data: counters }] = await Promise.all([eventsQuery, countersQuery]);
+  const rows = Array.isArray(events) ? events : [];
+  const counterRows = Array.isArray(counters) ? counters : [];
+  if (!rows.length && !counterRows.length) return "I don't have enough device history yet.";
+
+  if (/power.*(off|out|failure)|did power/.test(text)) {
+    let timelineQuery = supabaseAdmin
+      .from("home_timeline")
+      .select("title,summary,occurred_at,metadata")
+      .eq("event_type", "power_event_possible")
+      .gte("occurred_at", since)
+      .order("occurred_at", { ascending: false })
+      .limit(3);
+    if (actor.home_id) timelineQuery = timelineQuery.eq("home_id", actor.home_id);
+    const { data: powerRows } = await timelineQuery;
+    if (!powerRows?.length) return "No confirmed power issue is visible in today's device history. I also did not see a cluster of devices going offline together.";
+    const first: any = powerRows[0];
+    return `${first.title || "Several devices went offline."}
+Context: ${first.summary || "This may indicate a power or network interruption."}
+Suggested action: Open Activity to review the affected devices.`;
+  }
+
+  if (/offline|unstable/.test(text)) {
+    const offline = rows.filter((row: any) => /offline/.test(String(row.event_type || ""))).slice(0, 5);
+    const unstable = counterRows.filter((row: any) => Number(row?.stability_score ?? 100) < 80 || Number(row?.failure_count || 0) > 0).slice(0, 5);
+    if (!offline.length && !unstable.length) return "No device offline or instability event is visible in the current device history.";
+    const lines = (offline.length ? offline : unstable).map((row: any) => {
+      const name = deviceNameFromEvent(row);
+      const time = formatDeviceHistoryTime(row.occurred_at || row.last_offline_at || row.last_used_at);
+      return `${name}${time ? ` at ${time}` : ""}`;
+    });
+    return `Device attention is visible.
+Context: ${lines.join(", ")}.
+Suggested action: Open Devices to check connectivity.`;
+  }
+
+  if (/most used|used most|which device/.test(text)) {
+    const sorted = [...counterRows].sort((a: any, b: any) => Number(b.total_toggles || 0) - Number(a.total_toggles || 0));
+    const top = sorted[0];
+    if (!top || !Number(top.total_toggles || 0)) return "I don't have enough device usage history yet.";
+    return `Your most-used device is ${deviceNameFromEvent(top)}.
+Context: It has ${Number(top.total_toggles || 0)} recorded toggle${Number(top.total_toggles || 0) === 1 ? "" : "s"}.
+Suggested action: Open Devices if you want to review its status.`;
+  }
+
+  if (/how many|times/.test(text)) {
+    const target = text.replace(/how many|times|was|were|used|switched|today|the|device|light|switch|\?/g, "").trim();
+    const matched = rows.filter((row: any) => !target || deviceNameFromEvent(row).toLowerCase().includes(target)).filter((row: any) => /on|off|executed|state/.test(String(row.event_type || "")));
+    if (!matched.length) return "I don't have enough matching device history yet.";
+    const name = deviceNameFromEvent(matched[0]);
+    return `${name} has ${matched.length} recorded device update${matched.length === 1 ? "" : "s"} today.
+Context: These are based only on events Oyi actually received.
+Suggested action: Open Activity for the timeline.`;
+  }
+
+  const latest = rows.slice(0, 5).map((row: any) => {
+    const time = formatDeviceHistoryTime(row.occurred_at);
+    return `${deviceNameFromEvent(row)} ${String(row.event_type || "updated").replace(/^device.state./, "").replace(/./g, " ")}${time ? ` at ${time}` : ""}`;
+  });
+  return `Your device history has recent activity.
+Context: ${latest.join("; ")}.
+Suggested action: Open Activity for the complete timeline.`;
+}

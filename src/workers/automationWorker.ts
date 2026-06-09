@@ -4,6 +4,7 @@ import { Worker, Queue, Job } from "bullmq";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishDeviceAction } from "../device/bridge";
 import { NotificationService } from "../services/NotificationService";
+import { recordDeviceEvent } from "../services/deviceAnalyticsService";
 
 /**
  * ============================================
@@ -89,12 +90,22 @@ export function startAutomationWorker() {
         // Publish device command
         await publishDeviceAction(deviceTopic, command);
 
-        // Audit log
-        await supabaseAdmin.from("device_events").insert({
-          device_id,
-          user_id: automation.created_by,
-          action: "automation_run",
-          params: command,
+        // Device history / timeline
+        await recordDeviceEvent({
+          deviceId: String(device_id),
+          estateId: automation.estate_id || null,
+          homeId: automation.home_id || null,
+          roomId: automation.room_id || null,
+          userId: automation.created_by || null,
+          actorId: automation.created_by || null,
+          eventType: "automation.command.queued",
+          previousState: null,
+          newState: { last_command: command },
+          source: "automation",
+          confidence: "confirmed",
+          metadata: { automation_id: automation.id, automation_name: automation.name, command },
+          title: `${String(automation.name || "Automation")} ran`,
+          summary: `${String(automation.name || "Automation")} sent a device command.`,
         });
 
         await NotificationService.sendToUser(String(automation.created_by), {

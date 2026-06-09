@@ -16,6 +16,9 @@ type PushTokenRow = {
   token: string;
   user_id: string;
   platform?: string | null;
+  provider?: string | null;
+  environment?: string | null;
+  app_bundle?: string | null;
 };
 
 const FCM_SERVER_KEY = String(process.env.FCM_SERVER_KEY || "").trim();
@@ -270,6 +273,9 @@ export class PushNotificationService {
     platform?: string | null;
     deviceId?: string | null;
     appVersion?: string | null;
+    provider?: string | null;
+    environment?: string | null;
+    appBundle?: string | null;
   }) {
     const token = String(params.token || "").trim();
     if (!token) return { error: "Push token is required" };
@@ -280,6 +286,9 @@ export class PushNotificationService {
       platform: params.platform ? String(params.platform) : null,
       device_id: params.deviceId ? String(params.deviceId) : null,
       app_version: params.appVersion ? String(params.appVersion) : null,
+      provider: params.provider ? String(params.provider) : null,
+      environment: params.environment ? String(params.environment) : null,
+      app_bundle: params.appBundle ? String(params.appBundle) : null,
       active: true,
       last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -290,6 +299,17 @@ export class PushNotificationService {
       .upsert(payload, { onConflict: "token" })
       .select("*")
       .maybeSingle();
+
+    if (!error) {
+      console.log("[push] token registration saved", {
+        userId: params.userId,
+        platform: payload.platform,
+        provider: payload.provider,
+        environment: payload.environment,
+        appBundle: payload.app_bundle,
+        tokenPrefix: token.slice(0, 12),
+      });
+    }
 
     return { data, error };
   }
@@ -322,7 +342,7 @@ export class PushNotificationService {
 
     const { data: rows, error } = await supabaseAdmin
       .from("user_push_tokens")
-      .select("token,user_id,platform")
+      .select("token,user_id,platform,provider,environment,app_bundle")
       .in("user_id", uniqueUserIds)
       .eq("active", true);
 

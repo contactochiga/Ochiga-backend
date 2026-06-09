@@ -5,7 +5,7 @@ import { emitAuditEvent } from "../core/foundation";
 import { requireAuth } from "../middleware/auth";
 import { routeAiCommand, listAiLedger, listAiConfirmations, updateAiConfirmation, type ProposedAiTool } from "../ai/commandRouter";
 import { AI_TOOL_REGISTRY } from "../ai/toolRegistry";
-import { getLatestMaintenanceContext, recordIntelligenceMemory } from "../services/intelligenceMemoryService";
+import { answerDeviceHistoryQuestion, getLatestMaintenanceContext, recordIntelligenceMemory } from "../services/intelligenceMemoryService";
 
 const router = Router();
 
@@ -539,6 +539,26 @@ router.post("/chat", requireAuth, async (req, res) => {
 
   if (!message) return res.status(400).json({ error: "message is required" });
   if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+
+  const deviceHistoryReply = await answerDeviceHistoryQuestion(req.user, message).catch(() => null);
+  if (deviceHistoryReply) {
+    return res.json({
+      message: deviceHistoryReply,
+      reply: deviceHistoryReply,
+      panel: null,
+      deviceId: null,
+      actions: [],
+      tools: [],
+      confirmations: [],
+      cards: [],
+      sources: [],
+      suggested_actions: [],
+      response_mode: /what happened|what changed|today|week/i.test(message) ? "insight" : "answer",
+      awareness: null,
+      safe_mode: true,
+      requiresConfirmation: false,
+    });
+  }
 
   const deterministic = deterministicTools(message);
   const proposedTools = shouldForceDeterministicTools(message)

@@ -3,6 +3,7 @@ import mqtt from "mqtt";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { emitAuditEvent } from "../core/foundation";
+import { recordDeviceEvent, recordPossiblePowerEvent } from "../services/deviceAnalyticsService";
 
 // ✅ Use IO registry (prevents circular imports)
 import { getIO } from "../realtime/io";
@@ -29,10 +30,11 @@ function isTruthySwitch(status: any) {
   return Object.entries(status).some(([key, value]) => /^switch(_\d+)?$/i.test(String(key)) && value === true);
 }
 
-function normalizeSource(value: any): "oyi_app" | "physical_switch" | "provider_app" | "watch" | "automation" | "scene" | "facility" | "system" {
+function normalizeSource(value: any): "oyi_app" | "physical_switch" | "provider_reported" | "provider_app" | "watch" | "automation" | "scene" | "facility" | "system" {
   const text = String(value || "").toLowerCase().replace(/[\s-]+/g, "_");
   if (/physical|wall|manual|local|button/.test(text)) return "physical_switch";
-  if (/smart_life|tuya_app|provider_app|provider|tuya/.test(text)) return "provider_app";
+  if (/smart_life|tuya_app/.test(text)) return "provider_app";
+  if (/provider|tuya|mqtt|state/.test(text)) return "provider_reported";
   if (/watch|watchos/.test(text)) return "watch";
   if (/automation/.test(text)) return "automation";
   if (/scene/.test(text)) return "scene";
@@ -247,6 +249,51 @@ export async function initMqttBridge() {
             category: String(device?.category || device?.type || ""),
           },
         };
+
+        if (change.changed && device?.id) {
+          const analyticsKind = String((change as any).kind || "device.state.reported");
+          const analyticsTitle = analyticsKind.includes("offline")
+            ? `${String(device?.name || "Device")} went offline`
+            : analyticsKind.includes("online")
+              ? `${String(device?.name || "Device")} came back online`
+              : `${String(device?.name || "Device")} ${String((change as any).title || "updated").replace(/^Device /i, "").toLowerCase()}`;
+          void recordDeviceEvent({
+            deviceId: String(device.id),
+            estateId: device?.estate_id || estateId || null,
+            homeId: device?.home_id || null,
+            roomId: device?.room_id || null,
+            userId: null,
+            actorId: null,
+            eventType: analyticsKind,
+            previousState: previousStatus,
+            newState: status,
+            source: eventSource,
+            confidence: eventSource === "physical_switch" ? "confirmed" : eventSource === "system" ? "unknown" : "probable",
+            providerEventId: providerEventId || null,
+            metadata: { topic, device_name: String(device?.name || ""), category: String(device?.category || device?.type || "") },
+            title: analyticsTitle,
+            summary: `${String(device?.name || "Device")} ${String((change as any).message || "updated.").replace(/^A connected device /i, "")}`,
+          });
+
+          if (analyticsKind === "device.state.offline" && device?.home_id) {
+            const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+            const { data: recentOffline } = await supabaseAdmin
+              .from("device_events")
+              .select("device_id")
+              .eq("home_id", device.home_id)
+              .eq("event_type", "device.state.offline")
+              .gte("occurred_at", since)
+              .limit(20);
+            const affected = Array.from(new Set((recentOffline || []).map((row: any) => String(row?.device_id || "")).filter(Boolean)));
+            await recordPossiblePowerEvent({
+              estateId: device?.estate_id || estateId || null,
+              homeId: device?.home_id || null,
+              affectedDeviceIds: affected,
+              occurredAt,
+              metadata: { source: "provider_reported", window_minutes: 5 },
+            });
+          }
+        }
 
         if (change.changed && device?.home_id) {
           const { data: homeUsers } = await supabaseAdmin
