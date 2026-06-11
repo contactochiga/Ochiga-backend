@@ -7,6 +7,7 @@ import { listPersistedIntelligenceEvents, type IntelligenceEventFilters } from "
 import { loadNormalizedTimelineEvents } from "../intelligence-core/normalizers";
 import { applyRoleScopeToFilters, filterEventsForActor, getIntelligencePermissionPolicy } from "../intelligence-core/permissionEngine";
 import { buildIntelligenceSummary, inferSummaryType, type IntelligenceSummaryType } from "../intelligence-core/summaryEngine";
+import { acknowledgePrediction, generateIntelligencePredictions, listIntelligencePredictions, summarizePredictions } from "../intelligence-core/predictionEngine";
 import { AGENT_COLLABORATION_RULES, getCollaborationHints } from "../intelligence-core/collaboration";
 import { getIntelligenceHealth } from "../intelligence-core/health";
 import { observeAgentAction } from "../intelligence-core/observability";
@@ -47,6 +48,11 @@ function mergeEvents(persisted: any[], normalized: any[], limit: number) {
   return Array.from(byKey.values())
     .sort((a, b) => new Date(b.occurred_at || b.created_at).getTime() - new Date(a.occurred_at || a.created_at).getTime())
     .slice(0, limit);
+}
+
+function canRunPredictions(user: any) {
+  const role = getIntelligencePermissionPolicy(user).role;
+  return ["facility_manager", "security_operator", "estate_admin", "ochiga_admin", "super_admin"].includes(role);
 }
 
 async function loadRoleAwareEvents(req: any, limitFallback = 50) {
@@ -137,9 +143,24 @@ router.get("/summary", requireAuth, async (req, res) => {
       async () => {
         const { events, warnings } = await loadRoleAwareEvents(req, 100);
         const type = summaryType(req.query.type, inferSummaryType(req.user || null));
+        const predictionResult = await listIntelligencePredictions({
+          actor: req.user || null,
+          estate_id: req.query.estate_id ? String(req.query.estate_id) : undefined,
+          home_id: req.query.home_id ? String(req.query.home_id) : undefined,
+          status: "open",
+          limit: 25,
+        });
+        const predictionSummary = summarizePredictions(predictionResult.predictions || []);
+        const summary = buildIntelligenceSummary(type, events, req.user || null);
         return {
           ok: true,
-          summary: buildIntelligenceSummary(type, events, req.user || null),
+          summary: {
+            ...summary,
+            prediction_count: predictionSummary.prediction_count,
+            critical_prediction_count: predictionSummary.critical_prediction_count,
+            top_predictions: predictionSummary.top_predictions,
+            recommended_actions: Array.from(new Set([...(summary.suggested_actions || []), ...predictionSummary.recommended_actions])),
+          },
           collaboration_hints: getCollaborationHints(events),
           memory_directory: getMemoryDirectory().map((entry) => ({
             scope: entry.scope,
@@ -154,6 +175,79 @@ router.get("/summary", requireAuth, async (req, res) => {
     return res.json(body);
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to build intelligence summary" });
+  }
+});
+
+router.get("/predictions", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "oyi", action: "intelligence.predictions.list", tool: "intelligence:predictions", surface: "api", actor: req.user },
+      async () => {
+        const result = await listIntelligencePredictions({
+          actor: req.user || null,
+          estate_id: req.query.estate_id ? String(req.query.estate_id) : undefined,
+          home_id: req.query.home_id ? String(req.query.home_id) : undefined,
+          status: req.query.status ? String(req.query.status) : null,
+          prediction_type: req.query.prediction_type ? String(req.query.prediction_type) : null,
+          limit: parseLimit(req.query.limit, 50),
+        });
+        return { ok: true, predictions: result.predictions, warning: result.warning || null };
+      }
+    );
+    return res.json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load intelligence predictions" });
+  }
+});
+
+router.get("/predictions/summary", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "oyi", action: "intelligence.predictions.summary", tool: "intelligence:predictions.summary", surface: "api", actor: req.user },
+      async () => {
+        const result = await listIntelligencePredictions({
+          actor: req.user || null,
+          estate_id: req.query.estate_id ? String(req.query.estate_id) : undefined,
+          home_id: req.query.home_id ? String(req.query.home_id) : undefined,
+          status: req.query.status ? String(req.query.status) : "open",
+          limit: parseLimit(req.query.limit, 100),
+        });
+        return { ok: true, summary: summarizePredictions(result.predictions || []), warning: result.warning || null };
+      }
+    );
+    return res.json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to summarize intelligence predictions" });
+  }
+});
+
+router.post("/predictions/:id/ack", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "oyi", action: "intelligence.predictions.ack", tool: "intelligence:predictions.ack", surface: "api", actor: req.user },
+      async () => acknowledgePrediction(String(req.params.id), req.user as any)
+    );
+    return res.status(body.ok ? 200 : 403).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to acknowledge prediction" });
+  }
+});
+
+router.post("/predictions/run", requireAuth, async (req, res) => {
+  if (!canRunPredictions(req.user)) {
+    return res.status(403).json({ ok: false, error: "Prediction runs require an operator or admin role" });
+  }
+  try {
+    const body = await generateIntelligencePredictions({
+      actor: req.user || null,
+      estate_id: req.body?.estate_id ? String(req.body.estate_id) : req.user?.estate_id || null,
+      home_id: req.body?.home_id ? String(req.body.home_id) : null,
+      persist: req.body?.persist !== false,
+      limit: req.body?.limit || 100,
+    });
+    return res.json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to run intelligence predictions" });
   }
 });
 

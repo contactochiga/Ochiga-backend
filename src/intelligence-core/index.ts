@@ -8,6 +8,7 @@ export * from "./normalizers";
 export * from "./memoryDirectory";
 export * from "./permissionEngine";
 export * from "./summaryEngine";
+export * from "./predictionEngine";
 export * from "./collaboration";
 export * from "./observability";
 export * from "./health";
