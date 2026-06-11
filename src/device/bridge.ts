@@ -82,6 +82,32 @@ function didMeaningfulStateChange(prev: any, next: any) {
   return { changed: false };
 }
 
+async function shouldPushDeviceStateNotification(args: {
+  userId: string;
+  homeId: string;
+  device: any;
+  kind: string;
+  source: string;
+}) {
+  const metadata = args.device?.metadata && typeof args.device.metadata === "object" ? args.device.metadata : {};
+  const watched = Boolean(metadata.strict_alerts || metadata.strictAlert || metadata.watchlist || metadata.watched || metadata.important);
+  const kind = String(args.kind || "").toLowerCase();
+  const critical = /critical|security|camera|intrusion|alert/.test(kind);
+  const offline = /offline|failure|failed/.test(kind);
+  if (critical || offline || watched) return true;
+
+  const { data } = await supabaseAdmin
+    .from("resident_proximity_settings")
+    .select("enabled,last_state")
+    .eq("user_id", args.userId)
+    .eq("home_id", args.homeId)
+    .maybeSingle();
+
+  if (data?.enabled !== true) return false;
+  const state = String((data as any)?.last_state || "").toLowerCase();
+  return ["away", "leaving_home", "approaching_estate"].includes(state);
+}
+
 async function recentDeviceActivityExists(userId: string, deviceId: string, kind: string) {
   const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const { data, error } = await supabaseAdmin
@@ -219,7 +245,7 @@ export async function initMqttBridge() {
 
         const { data: device } = await supabaseAdmin
           .from("devices")
-          .select("id,name,estate_id,home_id,room_id,category,type,external_id")
+          .select("id,name,estate_id,home_id,room_id,category,type,external_id,metadata")
           .eq("id", deviceId)
           .limit(1)
           .single();
@@ -306,6 +332,14 @@ export async function initMqttBridge() {
             if (!userId) continue;
             const alreadySent = await recentDeviceActivityExists(userId, deviceId, String((change as any).kind || ""));
             if (alreadySent) continue;
+            const shouldPush = await shouldPushDeviceStateNotification({
+              userId,
+              homeId: String(device.home_id),
+              device,
+              kind: String((change as any).kind || "device.state.changed"),
+              source: eventSource,
+            });
+            if (!shouldPush) continue;
             await NotificationService.sendToUser(userId, {
               title: String((change as any).title || "Device activity"),
               message: `${String(device?.name || "A device")} ${String((change as any).message || "").toLowerCase()}`,

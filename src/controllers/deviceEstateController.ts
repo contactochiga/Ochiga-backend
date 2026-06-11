@@ -59,22 +59,48 @@ function buildUiCapabilities(device: any, metadata: any) {
   ]);
   const text = values.join(" ");
   const category = String(device?.category || device?.type || "").toLowerCase();
+  const identityText = [
+    device?.category,
+    device?.type,
+    device?.name,
+    metadata?.category,
+    metadata?.type,
+    metadata?.product_name,
+    metadata?.productName,
+    metadata?.model,
+    metadata?.remote_type,
+    metadata?.remoteType,
+    metadata?.ir_profile,
+    metadata?.irProfile,
+    metadata?.raw?.category,
+    metadata?.raw?.product_name,
+    metadata?.raw?.model,
+  ].map((item) => String(item || "").toLowerCase()).join(" ");
+  const isCamera = /(^| )(camera|cctv|ipc|ipcamera|nvr|dvr|onvif|rtsp)( |$)/.test(`${category} ${identityText}`);
+  const isAc = /(^| )(ac|a\/c|air_conditioner|aircon|hvac|climate|thermostat|kt)( |$)/.test(`${category} ${identityText}`);
+  const isTv = /(^| )(tv|television|smart_tv|android_tv|google_tv|samsung_tv|lg_tv|hisense_tv|tcl|set_top|set_top_box|decoder|stb)( |$)/.test(`${category} ${identityText}`);
+  const isIrRemote = /(^| )(ir|infrared|remote|remote_control|universal_remote|wnykq)( |$)/.test(`${category} ${identityText}`);
+  const isSimplePower = /(^| )(light|switch|plug|socket|outlet|relay)( |$)/.test(`${category} ${identityText}`);
 
   const switchable =
-    includesAny(values, [/^switch(_\d+)?$/, /^switch_led$/, /^power$/, /^on$/, /^on_off$/, /^relay/]) ||
-    /(^| )(light|switch|plug|socket|outlet|relay)( |$)/.test(`${category} ${text}`);
+    !isCamera &&
+    !isTv &&
+    !isIrRemote &&
+    !isAc &&
+    (includesAny(values, [/^switch(_\d+)?$/, /^switch_led$/, /^power$/, /^on$/, /^on_off$/, /^relay/]) ||
+      isSimplePower);
   const timer = includesAny(values, [/timer/, /countdown/, /count_down/]);
   const schedule = includesAny(values, [/schedule/, /timer_schedule/]);
   const cycle = includesAny(values, [/cycle/, /loop/]);
   const inching = includesAny(values, [/inching/, /jog/]);
-  const temperature = includesAny(values, [/temp/, /temperature/, /temp_set/, /temp_current/]) || /air|ac|hvac|climate|thermostat/.test(`${category} ${text}`);
+  const temperature = includesAny(values, [/temp/, /temperature/, /temp_set/, /temp_current/]) || isAc;
   const fan = includesAny(values, [/fan/, /windspeed/, /wind_speed/]) || /fan/.test(`${category} ${text}`);
   const swing = includesAny(values, [/swing/, /shake/, /oscillat/]);
-  const tvRemote = /(^| )(tv|television|remote|ir|infrared|set_top|decoder)( |$)/.test(`${category} ${text}`);
-  const acRemote = /(^| )(ac|air_conditioner|aircon|hvac|climate|thermostat)( |$)/.test(`${category} ${text}`);
+  const tvRemote = isTv;
+  const acRemote = isAc;
 
   const tvControls = [
-    includesAny(values, [/power/, /^switch$/]) && "power",
+    includesAny(values, [/power/]) && "power",
     includesAny(values, [/mute/]) && "mute",
     includesAny(values, [/volume/, /vol_up/, /vol_down/]) && "volume",
     includesAny(values, [/channel/, /ch_up/, /ch_down/]) && "channel",
@@ -87,7 +113,7 @@ function buildUiCapabilities(device: any, metadata: any) {
   ].filter(Boolean) as string[];
 
   const acControls = [
-    (switchable || includesAny(values, [/power/])) && "power",
+    includesAny(values, [/power/]) && "power",
     includesAny(values, [/mode/]) && "mode",
     temperature && "temperature",
     fan && "fan",
@@ -109,7 +135,7 @@ function buildUiCapabilities(device: any, metadata: any) {
   ].filter(Boolean) as string[];
 
   return {
-    kind: tvRemote ? "tv_remote" : acRemote ? "ac_remote" : category || "device",
+    kind: isCamera ? "camera" : tvRemote ? "tv_remote" : acRemote ? "ac_remote" : isIrRemote ? "ir_remote" : category || "device",
     can_switch: switchable,
     timer,
     schedule,

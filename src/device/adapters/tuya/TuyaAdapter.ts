@@ -85,6 +85,8 @@ function toDeviceCategory(raw?: string): DeviceCategory {
   if (["switch", "switch_1", "switch_2", "switch_3", "switch_4"].includes(c)) return "switch" as DeviceCategory;
   if (["socket", "plug", "smart_plug", "outlet"].includes(c)) return "plug" as DeviceCategory;
   if (["camera", "ipc", "ipcamera"].includes(c)) return "camera" as DeviceCategory;
+  if (["wnykq", "infrared_remote", "ir_remote", "remote_control", "universal_remote", "tv_remote", "set_top_box", "stb"].includes(c)) return "unknown" as DeviceCategory;
+  if (["kt", "air_conditioner", "ac", "climate"].includes(c)) return "thermostat" as DeviceCategory;
   if (["doorlock", "lock"].includes(c)) return "lock" as DeviceCategory;
   if (["sensor", "pir", "motion", "smoke_sensor", "gas_sensor"].includes(c)) return "sensor" as DeviceCategory;
   if (["curtain", "blind", "shade"].includes(c)) return "curtain" as DeviceCategory;

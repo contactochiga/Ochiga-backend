@@ -15,7 +15,96 @@ function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 }
 
-function normalizeCommand(input: any): Record<string, any> {
+function textFromDevice(device: any) {
+  return [
+    device?.name,
+    device?.type,
+    device?.category,
+    device?.device_type,
+    device?.vendor,
+    device?.provider,
+    device?.adapter,
+    device?.metadata?.category,
+    device?.metadata?.type,
+    device?.metadata?.product_name,
+    device?.metadata?.productName,
+    device?.metadata?.model,
+    device?.metadata?.remote_type,
+    device?.metadata?.remoteType,
+    device?.metadata?.ir_profile,
+    device?.metadata?.irProfile,
+    device?.metadata?.raw?.category,
+    device?.metadata?.raw?.product_name,
+    device?.metadata?.raw?.model,
+  ].map((item) => String(item || "").toLowerCase()).join(" ");
+}
+
+function deviceCommandFamily(device: any) {
+  const text = textFromDevice(device);
+  if (/\b(camera|cctv|ipc|ipcamera|nvr|dvr|onvif|rtsp)\b/.test(text)) return "camera";
+  if (/\b(ac|a\/c|air conditioner|air_conditioner|aircon|hvac|climate|thermostat|kt)\b/.test(text)) return "ac";
+  if (/\b(tv|television|smart tv|android tv|google tv|samsung tv|lg tv|hisense tv|tcl|set top|set_top_box|decoder|stb)\b/.test(text)) return "tv";
+  if (/\b(ir|infrared|remote|remote control|remote_control|universal remote|universal_remote|wnykq)\b/.test(text)) return "ir";
+  if (/\b(light|switch|plug|socket|outlet|relay|heater)\b/.test(text)) return "switch";
+  return "unknown";
+}
+
+function commandKeys(command: any) {
+  if (Array.isArray(command?.commands)) return command.commands.map((item: any) => String(item?.code || "").toLowerCase()).filter(Boolean);
+  return Object.keys(command || {}).map((key) => key.toLowerCase());
+}
+
+function isSwitchPayload(command: Record<string, any>) {
+  const keys = commandKeys(command);
+  return keys.some((key: string) => key === "switch" || key === "on" || key === "state" || key === "power" || /^switch_\d+$/i.test(key));
+}
+
+function isTvPayload(command: Record<string, any>) {
+  const type = String((command as any)?.type || "").toLowerCase();
+  const keys = commandKeys(command);
+  return type === "tv_remote" || keys.some((key: string) => /^(ir_code|remote_key|key_code|control|command_key|key)$/.test(key));
+}
+
+function isAcPayload(command: Record<string, any>) {
+  const type = String((command as any)?.type || "").toLowerCase();
+  const keys = commandKeys(command);
+  return type === "ac_remote" || keys.some((key: string) => /temp|temperature|mode|fan|swing|wind|power/.test(key));
+}
+
+function assertDeviceCommandSupported(device: any, command: Record<string, any>) {
+  const family = deviceCommandFamily(device);
+  const switchPayload = isSwitchPayload(command);
+
+  if (family === "switch") return;
+  if (family === "tv" || family === "ir") {
+    if (!isTvPayload(command) || switchPayload) {
+      const error: any = new Error("This device does not support switch control.");
+      error.statusCode = 400;
+      throw error;
+    }
+    return;
+  }
+  if (family === "ac") {
+    if (!isAcPayload(command) || switchPayload) {
+      const error: any = new Error("This device does not support switch control.");
+      error.statusCode = 400;
+      throw error;
+    }
+    return;
+  }
+  if (family === "camera") {
+    const error: any = new Error("This device does not support switch control.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (switchPayload) {
+    const error: any = new Error("This device does not support switch control.");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+function normalizeCommand(input: any, device?: any): Record<string, any> {
   // ✅ allow command to be:
   // { switch: true } OR { commands: [{code,value}] } OR { on: true }
   const c = input ?? {};
@@ -30,8 +119,9 @@ function normalizeCommand(input: any): Record<string, any> {
   }
 
   // Common aliases → Tuya DP codes (best-effort)
-  if (typeof c.on === "boolean" && c.switch === undefined) return { switch: c.on };
-  if (typeof c.power === "boolean" && c.switch === undefined) return { switch: c.power };
+  const family = device ? deviceCommandFamily(device) : "switch";
+  if (family === "switch" && typeof c.on === "boolean" && c.switch === undefined) return { switch: c.on };
+  if (family === "switch" && typeof c.power === "boolean" && c.switch === undefined) return { switch: c.power };
 
   return c;
 }
@@ -135,7 +225,8 @@ export async function executeDeviceCommandForActor(input: {
     const adapter = adapterRegistry.get("tuya");
     if (!adapter) throw new Error("Tuya adapter not registered");
 
-    const normalized = normalizeCommand(command);
+    assertDeviceCommandSupported(deviceRow, command);
+    const normalized = normalizeCommand(command, deviceRow);
     await adapter.executeCommand(deviceRow.external_id, normalized, {
       estateId: deviceRow.estate_id,
       homeId: deviceRow.home_id,
@@ -278,7 +369,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     if (isUuid(rawId)) {
         let q = supabaseAdmin
         .from("devices")
-        .select("id, name, vendor, external_id, estate_id, home_id, room_id")
+        .select("id, name, vendor, provider, adapter, type, category, metadata, external_id, estate_id, home_id, room_id")
         .eq("id", rawId)
         .eq("estate_id", user.estate_id);
 
@@ -291,7 +382,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     } else {
       let q = supabaseAdmin
         .from("devices")
-        .select("id, name, vendor, external_id, estate_id, home_id, room_id")
+        .select("id, name, vendor, provider, adapter, type, category, metadata, external_id, estate_id, home_id, room_id")
         .eq("external_id", rawId)
         .eq("estate_id", user.estate_id);
 
@@ -355,7 +446,8 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         return res.status(500).json({ error: "Tuya adapter not registered" });
       }
 
-      const normalized = normalizeCommand(command);
+      assertDeviceCommandSupported(deviceRow, command);
+      const normalized = normalizeCommand(command, deviceRow);
 
       await adapter.executeCommand(deviceRow.external_id, normalized, {
         estateId: deviceRow.estate_id,
@@ -466,7 +558,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         });
       } catch {}
     }
-    return res.status(500).json({
+    return res.status(e?.statusCode || 500).json({
       error: "Command failed",
       details: e?.message || String(e),
     });
