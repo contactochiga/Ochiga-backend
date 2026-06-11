@@ -4,7 +4,7 @@ import { requireEdgeToken } from "../middleware/edgeToken";
 import { emitAuditEvent } from "../core/foundation";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
-import { normalizeIntelligenceEvent } from "../intelligence-core";
+import { normalizeIntelligenceEvent, publishIntelligenceEvent } from "../intelligence-core";
 
 export const edgeDiscoveryRouter = Router();
 
@@ -505,6 +505,11 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, asy
 
   if (error) return res.status(500).json({ error: error.message });
 
+  const bus = await publishIntelligenceEvent(coreEvent, {
+    source_table: "camera_events",
+    source_event_id: String(data?.id || ""),
+  });
+
   emitEdgeSignal("camera.event", {
     site_id: siteId,
     agent_id: agentId,
@@ -515,7 +520,7 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, asy
     event_id: data?.id,
   });
 
-  return res.json({ ok: true, event: data, intelligence_event: coreEvent });
+  return res.json({ ok: true, event: data, intelligence_event: coreEvent, intelligence_bus: bus });
 });
 
 edgeDiscoveryRouter.get("/edge/discovery/:siteId", requireAuth, requirePermission("devices.read"), async (req, res) => {

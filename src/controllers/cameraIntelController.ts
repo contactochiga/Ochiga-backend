@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.service";
 import { canAccessCamera, requireCameraAccess } from "../modules/cameras/cameraAccess.policy";
+import { normalizeIntelligenceEvent, publishIntelligenceEvent } from "../intelligence-core";
 
 const MAX_REWIND_SECONDS = 24 * 60 * 60; // 24h
 const DEFAULT_REWIND_SECONDS = 5 * 60;
@@ -282,7 +283,34 @@ export async function createEvent(req: Request, res: Response) {
     // fail-soft: event ingestion remains successful even if alert fanout fails
   }
 
-  return res.json({ ok: true, event: data });
+  const confidenceScore = Number.isFinite(Number(confidence)) ? Number(confidence) : 0;
+  const coreEvent = normalizeIntelligenceEvent({
+    agent_id: "camera",
+    surface: "camera",
+    actor_id: user.id,
+    estate_id: String(cam.estate_id || ""),
+    camera_id: cameraId,
+    event_type: eventType,
+    category: "camera",
+    title: `${eventType.replace(/_/g, " ")} detected`,
+    summary: payload.message || `${eventType.replace(/_/g, " ")} detected on ${cam.name || "camera"}.`,
+    confidence: confidenceScore >= 0.8 ? "confirmed" : confidenceScore >= 0.5 ? "probable" : "possible",
+    source: "camera_events",
+    metadata: {
+      source_table: "camera_events",
+      source_event_id: String(data?.id || ""),
+      snapshot_url: payload.snapshot_url,
+      camera_name: cam.name || null,
+      ...(payload.metadata || {}),
+    },
+    occurred_at: String(data?.created_at || new Date().toISOString()),
+  });
+  const intelligenceBus = await publishIntelligenceEvent(coreEvent, {
+    source_table: "camera_events",
+    source_event_id: String(data?.id || ""),
+  });
+
+  return res.json({ ok: true, event: data, intelligence_event: coreEvent, intelligence_bus: intelligenceBus });
 }
 
 export async function getAnalyticsCapabilities(_req: Request, res: Response) {

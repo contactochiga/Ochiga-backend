@@ -10,6 +10,7 @@ import type {
 } from "../types";
 import { OCHIGA_INTELLIGENCE_CORE_ID } from "../types";
 import { getToolsForAgent } from "../toolRegistry";
+import { publishIntelligenceEvent } from "../eventBus";
 
 export abstract class BaseIntelligenceAdapter implements IntelligenceAdapter {
   constructor(public readonly agent: IntelligenceAgentDefinition, protected readonly actor?: AuthUser | null) {}
@@ -49,10 +50,19 @@ export abstract class BaseIntelligenceAdapter implements IntelligenceAdapter {
   }
 
   async writeTimelineEvent(
-    _context: IntelligenceContext,
-    _event: IntelligenceEvent
+    context: IntelligenceContext,
+    event: IntelligenceEvent
   ): ReturnType<IntelligenceAdapter["writeTimelineEvent"]> {
-    return { ok: false, skipped: true, reason: "adapter_timeline_not_configured" };
+    return publishIntelligenceEvent({
+      ...event,
+      actor_id: event.actor_id || context.actor_id || null,
+      agent_id: event.agent_id || this.agent.id,
+      surface: event.surface || context.surface,
+      estate_id: event.estate_id || context.estate_id || null,
+      home_id: event.home_id || context.home_id || null,
+      office_id: event.office_id || context.office_id || null,
+      camera_id: event.camera_id || context.camera_id || null,
+    });
   }
 
   formatResponse(_context: IntelligenceContext, response: IntelligenceResponse): IntelligenceResponse {

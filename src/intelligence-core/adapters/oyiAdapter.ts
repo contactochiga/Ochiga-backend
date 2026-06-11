@@ -1,5 +1,6 @@
 import type { AuthUser } from "../../middleware/auth";
 import { writeScopedMemory } from "../memory";
+import { publishIntelligenceEvent } from "../eventBus";
 import { writeHomeTimelineFromCore } from "../timeline";
 import type { IntelligenceContext, IntelligenceEvent, IntelligenceMemoryRecord, IntelligenceResponse } from "../types";
 import { getIntelligenceAgent } from "../agentRegistry";
@@ -17,7 +18,9 @@ export class OyiAdapter extends BaseIntelligenceAdapter {
   }
 
   async writeTimelineEvent(_context: IntelligenceContext, event: IntelligenceEvent) {
-    return writeHomeTimelineFromCore(this.actor as AuthUser, event);
+    const timeline = await writeHomeTimelineFromCore(this.actor as AuthUser, event);
+    const bus = await publishIntelligenceEvent(event);
+    return timeline.ok ? { ...timeline, intelligence_event: bus } : timeline;
   }
 
   formatResponse(context: IntelligenceContext, response: IntelligenceResponse): IntelligenceResponse {

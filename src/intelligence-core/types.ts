@@ -37,6 +37,18 @@ export type IntelligenceToolCategory =
   | "facility"
   | "edge";
 
+export type IntelligenceEventCategory =
+  | "operational"
+  | "security"
+  | "maintenance"
+  | "visitor"
+  | "community"
+  | "marketing"
+  | "sales"
+  | "camera"
+  | "edge"
+  | "system";
+
 export type IntelligenceSurface =
   | "consumer"
   | "facility"
@@ -112,7 +124,7 @@ export type IntelligenceEvent = {
   office_id?: string | null;
   camera_id?: string | null;
   event_type: string;
-  category: string;
+  category: IntelligenceEventCategory | string;
   title: string;
   summary: string;
   confidence: "confirmed" | "probable" | "possible" | "unknown";
