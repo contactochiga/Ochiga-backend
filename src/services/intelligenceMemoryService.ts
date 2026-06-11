@@ -26,6 +26,7 @@ async function existingMemory(actor: AuthUser, memoryType: string, key: string) 
     .eq("memory_key", key)
     .limit(1);
   if (actor.home_id) query = query.eq("home_id", actor.home_id);
+  else if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
   const { data } = await query.maybeSingle();
   return data || null;
 }
@@ -170,6 +171,7 @@ export async function getLatestMaintenanceContext(actor: AuthUser) {
     .order("last_seen_at", { ascending: false })
     .limit(1);
   if (actor.home_id) query = query.eq("home_id", actor.home_id);
+  else if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
 
   const { data } = await query.maybeSingle();
   const memory = data?.memory_value && typeof data.memory_value === "object" ? data.memory_value : null;
@@ -179,6 +181,10 @@ export async function getLatestMaintenanceContext(actor: AuthUser) {
     .from("maintenance_requests")
     .select("id,title,status,updated_at,created_at")
     .eq("id", memory.request_id)
+    .match({
+      ...(actor.home_id ? { home_id: actor.home_id } : {}),
+      ...(!actor.home_id && actor.estate_id ? { estate_id: actor.estate_id } : {}),
+    })
     .maybeSingle();
 
   return {
@@ -196,6 +202,10 @@ export async function buildHomeTimeline(actor: AuthUser, limit = 80) {
       .from("home_timeline")
       .select("*")
       .eq("user_id", actor.id)
+      .match({
+        ...(actor.home_id ? { home_id: actor.home_id } : {}),
+        ...(!actor.home_id && actor.estate_id ? { estate_id: actor.estate_id } : {}),
+      })
       .order("occurred_at", { ascending: false })
       .limit(limit),
     supabaseAdmin
@@ -207,6 +217,11 @@ export async function buildHomeTimeline(actor: AuthUser, limit = 80) {
     supabaseAdmin
       .from("audit_events")
       .select("id,action,resource_type,status,created_at,metadata,home_id,estate_id")
+      .eq("actor_id", actor.id)
+      .match({
+        ...(actor.home_id ? { home_id: actor.home_id } : {}),
+        ...(!actor.home_id && actor.estate_id ? { estate_id: actor.estate_id } : {}),
+      })
       .order("created_at", { ascending: false })
       .limit(limit),
   ]);
@@ -246,7 +261,9 @@ function deviceNameFromEvent(row: any) {
 
 export async function answerDeviceHistoryQuestion(actor: AuthUser, prompt: string) {
   const text = String(prompt || "").toLowerCase();
-  const wantsHistory = /device|light|switch|offline|online|power|used|usage|active|unstable|changed|happened|today|week|away/.test(text);
+  const wantsHistory =
+    /device|light|switch|offline|online|power|used|usage|active|unstable|bedroom|living room|socket|plug|ac|tv/.test(text)
+    || /did power|power.*(off|out|fail)|which .*active recently|which .*used/.test(text);
   if (!wantsHistory) return null;
   const since = /week/.test(text) ? startOfWeekIso() : startOfTodayIso();
   let eventsQuery = supabaseAdmin
@@ -282,10 +299,10 @@ export async function answerDeviceHistoryQuestion(actor: AuthUser, prompt: strin
       .limit(3);
     if (actor.home_id) timelineQuery = timelineQuery.eq("home_id", actor.home_id);
     const { data: powerRows } = await timelineQuery;
-    if (!powerRows?.length) return "No confirmed power issue is visible in today's device history. I also did not see a cluster of devices going offline together.";
+    if (!powerRows?.length) return "No confirmed power outage is visible in today's device history. I also did not see a cluster of devices going offline together.";
     const first: any = powerRows[0];
-    return `${first.title || "Several devices went offline."}
-Context: ${first.summary || "This may indicate a power or network interruption."}
+    return `A possible power or network interruption was detected.
+Context: ${first.summary || first.title || "Several devices went offline close together."} This is not a confirmed power outage.
 Suggested action: Open Activity to review the affected devices.`;
   }
 
@@ -312,6 +329,16 @@ Context: It has ${Number(top.total_toggles || 0)} recorded toggle${Number(top.to
 Suggested action: Open Devices if you want to review its status.`;
   }
 
+  if (/active recently|recently active|active device/.test(text)) {
+    const recent: any = rows[0] || counterRows.find((row: any) => row.last_used_at);
+    if (!recent) return "I don't have enough device history yet.";
+    const name = deviceNameFromEvent(recent);
+    const time = formatDeviceHistoryTime(recent.occurred_at || recent.last_used_at);
+    return `${name} was active recently${time ? ` at ${time}` : ""}.
+Context: This is based only on device events Oyi actually received.
+Suggested action: Open Activity for the full device timeline.`;
+  }
+
   if (/how many|times/.test(text)) {
     const target = text.replace(/how many|times|was|were|used|switched|today|the|device|light|switch|\?/g, "").trim();
     const matched = rows.filter((row: any) => !target || deviceNameFromEvent(row).toLowerCase().includes(target)).filter((row: any) => /on|off|executed|state/.test(String(row.event_type || "")));
@@ -324,7 +351,10 @@ Suggested action: Open Activity for the timeline.`;
 
   const latest = rows.slice(0, 5).map((row: any) => {
     const time = formatDeviceHistoryTime(row.occurred_at);
-    return `${deviceNameFromEvent(row)} ${String(row.event_type || "updated").replace(/^device.state./, "").replace(/./g, " ")}${time ? ` at ${time}` : ""}`;
+    const event = String(row.event_type || "updated")
+      .replace(/^device\.state\./, "")
+      .replace(/\./g, " ");
+    return `${deviceNameFromEvent(row)} ${event}${time ? ` at ${time}` : ""}`;
   });
   return `Your device history has recent activity.
 Context: ${latest.join("; ")}.

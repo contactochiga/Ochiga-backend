@@ -112,10 +112,10 @@ function deterministicTools(message: string): ProposedAiTool[] {
   if (/how is my home|home health|home status|home state|home summary|home overview|needs my attention|need attention|attention|urgent|anything important|what is going on|whats going on|what s going on|offline devices|devices offline|summary|overview/.test(t)) {
     return [{ tool_id: "summarize_home_awareness", arguments: {} }, { tool_id: "summarize_recent_activity", arguments: {} }];
   }
-  if (/who visited|visitors today|visitor summary|recent visitors/.test(t)) {
+  if (/who visited|who came|visitors today|visitor summary|recent visitors|any visitors/.test(t)) {
     return [{ tool_id: "summarize_visitors", arguments: {} }];
   }
-  if (/maintenance pending|pending maintenance|any maintenance|maintenance status|maintenance summary/.test(t)) {
+  if (/maintenance pending|pending maintenance|any maintenance|maintenance status|maintenance summary|maintenance update|maintenance updates/.test(t)) {
     return [{ tool_id: "summarize_maintenance", arguments: {} }];
   }
   if (/^(what'?s|what is|check|show)?\s*(the\s*)?status\??$|what'?s the status|what is the status/i.test(message.trim())) {
@@ -285,9 +285,9 @@ function isToday(value: any) {
 
 function responseIntent(message: string) {
   const text = normalizeText(message);
-  if (/who visited|visitors today|visitor summary|recent visitors/.test(text)) return "visitors_today";
+  if (/who visited|who came|visitors today|visitor summary|recent visitors|any visitors/.test(text)) return "visitors_today";
   if (/needs my attention|need attention|attention|urgent|anything important|what is going on|whats going on|what s going on/.test(text)) return "attention";
-  if (/maintenance pending|pending maintenance|any maintenance|maintenance status|maintenance summary/.test(text)) return "maintenance_pending";
+  if (/maintenance pending|pending maintenance|any maintenance|maintenance status|maintenance summary|maintenance update|maintenance updates/.test(text)) return "maintenance_pending";
   if (/what happened|today|recent activity|recent updates|what changed/.test(text)) return "today";
   if (/how is my home|home health|home status|home state|home summary|home overview/.test(text)) return "home_health";
   return "general";
@@ -405,7 +405,7 @@ function buildReply(message: string, toolResults: any[], cards: any[] = []) {
   }
   const denied = toolResults.find((item) => item.status === "denied");
   if (denied && !toolResults.some((item) => item.status === "executed")) {
-    return "I don’t have access to do that yet.";
+    return denied.summary || "I can’t do that from your current home context.";
   }
   const narrative = buildNarrativeReply(message, toolResults, cards);
   if (narrative) return narrative;
@@ -434,7 +434,7 @@ function actionResultReply(results: any[], fallback: string) {
   if (!action) return fallback;
   if (action.status === "pending_confirmation") return action.summary || "I need confirmation before doing that.";
   if (action.status === "failed") return action.summary || "That action could not complete.";
-  if (action.status === "denied") return "I don’t have access to do that yet.";
+  if (action.status === "denied") return action.summary || "I can’t do that from your current home context.";
   const summary = cleanAssistantText(action.summary || fallback);
   if (!summary) return fallback;
   return summary;

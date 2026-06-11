@@ -51,6 +51,14 @@ function actorHome(actor: AuthUser, explicit?: string | null) {
   return explicit || actor.home_id || null;
 }
 
+function activeScopeFilter(actor: AuthUser, estateId?: string | null, homeId?: string | null): Record<string, string | null> {
+  const resolvedHomeId = actorHome(actor, homeId || null);
+  const resolvedEstateId = actorEstate(actor, estateId || null);
+  if (resolvedHomeId) return { home_id: resolvedHomeId };
+  if (resolvedEstateId) return { estate_id: resolvedEstateId };
+  return {};
+}
+
 function scopeAllowed(tool: AiToolDefinition, actor: AuthUser, scope: string) {
   const normalized = String(scope || "user").toLowerCase();
   if (!tool.allowed_scopes.includes(normalized as any)) return false;
@@ -158,6 +166,17 @@ function isUnread(row: any) {
 
 function structuredCard(type: string, title: string, summary: string, items: any[] = [], meta: Record<string, any> = {}) {
   return { type, title, summary, items, ...meta };
+}
+
+function rowMatchesActorScope(actor: AuthUser, row: any) {
+  const meta = row?.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
+  const rowHome = String(row?.home_id || payload.home_id || payload.homeId || meta.home_id || meta.homeId || "");
+  const rowEstate = String(row?.estate_id || payload.estate_id || payload.estateId || meta.estate_id || meta.estateId || "");
+  if (actor.home_id && rowHome && rowHome !== String(actor.home_id)) return false;
+  if (actor.estate_id && rowEstate && rowEstate !== String(actor.estate_id)) return false;
+  if (actor.home_id && rowEstate && actor.estate_id && rowEstate !== String(actor.estate_id)) return false;
+  return true;
 }
 
 function sourceLabel(label: string, at?: any) {
@@ -415,12 +434,14 @@ async function summarizeRecentActivityTool(actor: AuthUser) {
     if (actor.home_id) next = next.eq("home_id", actor.home_id);
     return next;
   });
-  const notificationRows = feed.rows.map((row: any) => ({
-    ...row,
-    title: cleanName(row.title, "Home update"),
-    summary: shortText(row.message || row.type, "Home update", 140),
-    source_label: "Activity",
-  }));
+  const notificationRows = feed.rows
+    .filter((row: any) => rowMatchesActorScope(actor, row))
+    .map((row: any) => ({
+      ...row,
+      title: cleanName(row.title, "Home update"),
+      summary: shortText(row.message || row.type, "Home update", 140),
+      source_label: "Activity",
+    }));
   const humanizedAuditRows = audit.rows
     .map(humanizeInternalEvent)
     .filter(Boolean)
@@ -940,20 +961,30 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
   if (toolId === "summarize_community") return summarizeCommunityTool(actor);
   if (toolId === "summarize_watch_status") return summarizeWatchStatusTool(actor);
   if (toolId === "summarize_estate") {
+    const filters = activeScopeFilter(actor, estateId, homeId);
     const [estates, homes, devices] = await Promise.all([
       countTable("estates", estateId ? { id: estateId } : {}),
-      countTable("homes", estateId ? { estate_id: estateId } : homeId ? { id: homeId } : {}),
-      countTable("devices", estateId ? { estate_id: estateId } : homeId ? { home_id: homeId } : {}),
+      countTable("homes", homeId ? { id: homeId } : estateId ? { estate_id: estateId } : {}),
+      countTable("devices", filters),
     ]);
     return { summary: `Estate context: ${estates.count} estate record(s), ${homes.count} home/unit record(s), ${devices.count} device record(s) visible.`, data: { estates, homes, devices } };
   }
   if (toolId === "summarize_devices") {
-    const devices = await countTable("devices", estateId ? { estate_id: estateId } : homeId ? { home_id: homeId } : {});
-    const states = await countTable("device_states");
+    const devices = await countTable("devices", activeScopeFilter(actor, estateId, homeId));
+    const scopedDeviceRows = await selectRows("devices", (q) => {
+      let next = q.select("id").limit(500);
+      const filters = activeScopeFilter(actor, estateId, homeId);
+      Object.entries(filters).forEach(([key, value]) => { if (value) next = next.eq(key, value); });
+      return next;
+    });
+    const deviceIds = scopedDeviceRows.rows.map((row: any) => row.id).filter(Boolean);
+    const states = deviceIds.length
+      ? await selectRows("device_states", (q) => q.select("device_id").in("device_id", deviceIds).limit(500)).then((result) => ({ available: result.available, count: result.rows.length, error: result.error }))
+      : { available: true, count: 0 };
     return { summary: `Device context: ${devices.count} device record(s), ${states.count} state record(s) available.`, data: { devices, states } };
   }
   if (toolId === "summarize_support" || toolId === "search_support") {
-    const maintenance = await countTable("maintenance_requests", estateId ? { estate_id: estateId } : homeId ? { home_id: homeId } : {});
+    const maintenance = await countTable("maintenance_requests", activeScopeFilter(actor, estateId, homeId));
     return { summary: `Support context: ${maintenance.count} maintenance/support record(s) visible.`, data: { maintenance } };
   }
   if (toolId === "summarize_wallet") {
@@ -962,9 +993,9 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
   }
   if (toolId === "summarize_readiness") {
     const [devices, maintenance, notifications] = await Promise.all([
-      countTable("devices", estateId ? { estate_id: estateId } : {}),
-      countTable("maintenance_requests", estateId ? { estate_id: estateId } : {}),
-      countTable("notifications"),
+      countTable("devices", activeScopeFilter(actor, estateId, homeId)),
+      countTable("maintenance_requests", activeScopeFilter(actor, estateId, homeId)),
+      countTable("notifications", { user_id: actor.id }),
     ]);
     return { summary: "Readiness context generated from available backend tables. Missing table metadata is returned as source availability, not fake values.", data: { devices, maintenance, notifications } };
   }
@@ -1335,6 +1366,9 @@ export async function routeAiCommand(req: Request | undefined, input: AiCommandR
 
     if (!tool.enabled || tool.confirmation_required) {
       const status: AiCommandStatus = tool.confirmation_required ? "pending_confirmation" : "denied";
+      const summary = tool.confirmation_required
+        ? "I need confirmation before doing that. No action has been performed yet."
+        : "That action is not available from Oyi Intelligence yet.";
       const ledger = await writeLedger({
         actor,
         toolId: tool.tool_id,
@@ -1342,12 +1376,12 @@ export async function routeAiCommand(req: Request | undefined, input: AiCommandR
         status,
         estateId: input.estateId,
         homeId: input.homeId,
-        resultSummary: tool.confirmation_required ? "Confirmation required before execution. No action executed." : "That action is not available yet.",
+        resultSummary: summary,
         errorMessage: tool.enabled ? "" : "Tool disabled",
         metadata: { proposed_arguments: proposed.arguments || {}, risk_level: tool.risk_level },
       });
       await audit(req, actor, tool.confirmation_required ? "ai.command.confirmation.required" : "ai.tool.denied", status === "denied" ? "denied" : "pending", { tool_id: tool.tool_id, ledger_id: ledger.id, risk_level: tool.risk_level });
-      results.push({ tool_id: tool.tool_id, status, confirmation_required: tool.confirmation_required, enabled: tool.enabled, ledger_id: ledger.id || null });
+      results.push({ tool_id: tool.tool_id, status, confirmation_required: tool.confirmation_required, enabled: tool.enabled, ledger_id: ledger.id || null, summary });
       continue;
     }
 
