@@ -32,6 +32,45 @@ router.get(
   CamerasCtrl.listByHome
 );
 
+router.get(
+  "/inventory/estate/:estateId",
+  requireAuth,
+  requirePermission("cameras.view"),
+  auditOnSuccess("camera.viewed", "estate", "estateId"),
+  CamerasCtrl.inventoryByEstate
+);
+
+router.get(
+  "/edge-registry/estate/:estateId",
+  requireAuth,
+  requirePermission("cameras.view"),
+  CamerasCtrl.edgeRegistry
+);
+
+router.get(
+  "/dvrs/estate/:estateId",
+  requireAuth,
+  requirePermission("cameras.view"),
+  auditOnSuccess("camera.viewed", "estate", "estateId"),
+  CamerasCtrl.listDvrsByEstate
+);
+
+router.post(
+  "/dvrs/test",
+  requireAuth,
+  requirePermission("devices.control"),
+  auditOnSuccess("camera.action.requested", "dvr", "estateId"),
+  CamerasCtrl.testDvrConnection
+);
+
+router.post(
+  "/dvrs/import",
+  requireAuth,
+  requirePermission("devices.control"),
+  auditOnSuccess("camera.action.requested", "dvr", "estateId"),
+  CamerasCtrl.importDvr
+);
+
 router.post(
   "/bind",
   requireAuth,
@@ -74,6 +113,14 @@ router.get(
   requirePermission("cameras.view"),
   auditOnSuccess("camera.viewed", "camera", "cameraId"),
   CameraIntelCtrl.getPlaybackUrl
+);
+
+router.post(
+  "/:cameraId/validate-stream",
+  requireAuth,
+  requirePermission("cameras.view"),
+  auditOnSuccess("camera.action.requested", "camera", "cameraId"),
+  CamerasCtrl.validateStream
 );
 
 router.get(

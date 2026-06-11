@@ -3,6 +3,18 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { scanCameras } from "../device/cameras/cameraOrchestrator";
 import { canAccessCamera } from "../modules/cameras/cameraAccess.policy";
+import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.service";
+import {
+  buildChannelRows,
+  buildCredentialRef,
+  channelStreamKey,
+  displayCameraBrand,
+  normalizeCameraBrand,
+  normalizeDvrStatus,
+  providerForBrand,
+  rtspPathTemplateForBrand,
+  testTcpReachability,
+} from "../modules/cameras/cameraDvr.service";
 
 function pickError(err: any, fallback: string) {
   return (
@@ -11,6 +23,30 @@ function pickError(err: any, fallback: string) {
     err?.message ||
     fallback
   );
+}
+
+function clean(value: any, fallback = "") {
+  const str = String(value ?? "").trim();
+  return str || fallback;
+}
+
+function intFrom(value: any, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+async function assertEstateMember(user: any, estateId: string) {
+  if (String(user?.role || "").toLowerCase() === "admin") return null;
+  const { data: membership, error } = await supabaseAdmin
+    .from("estate_memberships")
+    .select("id, role, status")
+    .eq("estate_id", estateId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (error) return { status: 500, error: error.message };
+  if (!membership) return { status: 403, error: "Unauthorized (not a member of this estate)" };
+  if (membership.status && membership.status !== "active") return { status: 403, error: "Unauthorized (membership not active)" };
+  return null;
 }
 
 /**
@@ -143,13 +179,11 @@ export async function bind(req: Request, res: Response) {
     home_id: safePrivacyScope === "home" ? user.home_id || null : undefined,
   };
 
-  // prevent duplicates per estate+ip
-  const { data: existing } = await supabaseAdmin
-    .from("facility_cameras")
-    .select("*")
-    .eq("estate_id", resolvedEstateId)
-    .eq("ip", ip)
-    .maybeSingle();
+  const existingQuery = supabaseAdmin.from("facility_cameras").select("*").eq("estate_id", resolvedEstateId);
+  const { data: existing } =
+    dvr_id && channel_number
+      ? await existingQuery.eq("nvr_id", dvr_id).eq("channel", String(channel_number)).maybeSingle()
+      : await existingQuery.eq("ip", ip).is("nvr_id", null).maybeSingle();
 
   if (existing) {
     // update instead
@@ -166,6 +200,7 @@ export async function bind(req: Request, res: Response) {
         nvr_id: dvr_id ?? existing.nvr_id,
         channel: channel_number ? String(channel_number) : existing.channel,
         credential_ref: credentialRef ?? existing.credential_ref,
+        privacy_scope: safePrivacyScope,
         metadata: { ...(existing.metadata || {}), ...metadata },
         updated_at: new Date().toISOString(),
       })
@@ -192,6 +227,7 @@ export async function bind(req: Request, res: Response) {
       nvr_id: dvr_id ?? null,
       channel: channel_number ? String(channel_number) : null,
       credential_ref: credentialRef,
+      privacy_scope: safePrivacyScope,
       status: enabled === false ? "disabled" : "pending",
       metadata,
       created_by: user.id,
@@ -201,6 +237,271 @@ export async function bind(req: Request, res: Response) {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true, camera: data });
+}
+
+export async function testDvrConnection(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const estateId = clean(req.body?.estateId || user.estate_id);
+  const ipAddress = clean(req.body?.ip_address || req.body?.ip);
+  const brand = normalizeCameraBrand(req.body?.brand);
+  const port = intFrom(req.body?.port, 554);
+  const suppliedChannelCount = intFrom(req.body?.channel_count, 0);
+  if (!estateId) return res.status(400).json({ error: "estateId is required" });
+  if (!ipAddress) return res.status(400).json({ error: "ip_address is required" });
+
+  const membershipError = await assertEstateMember(user, estateId);
+  if (membershipError) return res.status(membershipError.status).json({ error: membershipError.error });
+
+  const tcp = await testTcpReachability(ipAddress, port);
+  const status = tcp.reachable ? (suppliedChannelCount > 0 ? "healthy" : "warning") : "failed";
+  return res.status(tcp.reachable ? 200 : 424).json({
+    ok: tcp.reachable,
+    status,
+    dvr_online: tcp.reachable,
+    brand,
+    brand_label: displayCameraBrand(brand),
+    model: clean(req.body?.model) || null,
+    ip_address: ipAddress,
+    port,
+    onvif_enabled: Boolean(req.body?.onvif_enabled),
+    rtsp_enabled: tcp.reachable,
+    channel_count: suppliedChannelCount,
+    channels: buildChannelRows(suppliedChannelCount),
+    latency_ms: tcp.latency_ms,
+    message: tcp.reachable
+      ? suppliedChannelCount > 0
+        ? "DVR reachable. Channels are ready to name and import."
+        : "DVR reachable. Enter the channel count to import channels."
+      : `DVR is not reachable from backend network${tcp.error ? `: ${tcp.error}` : "."}`,
+  });
+}
+
+export async function importDvr(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const body = req.body || {};
+  const estateId = clean(body.estateId || body.estate_id || user.estate_id);
+  const name = clean(body.name, "Estate DVR");
+  const brand = normalizeCameraBrand(body.brand);
+  const ipAddress = clean(body.ip_address || body.ip);
+  const port = intFrom(body.port, 554);
+  const channelCount = Math.max(0, Math.min(intFrom(body.channel_count, 0), 128));
+  const edgeNodeId = clean(body.edge_node_id);
+  const credentialRef = clean(body.credential_ref) || buildCredentialRef({ estateId, name, ipAddress, prefix: "dvr" });
+  if (!estateId) return res.status(400).json({ error: "estateId is required" });
+  if (!ipAddress) return res.status(400).json({ error: "ip_address is required" });
+  if (channelCount < 1) return res.status(400).json({ error: "channel_count is required" });
+
+  const membershipError = await assertEstateMember(user, estateId);
+  if (membershipError) return res.status(membershipError.status).json({ error: membershipError.error });
+
+  const tcp = await testTcpReachability(ipAddress, port).catch(() => ({ reachable: false, latency_ms: null as number | null }));
+  const status = normalizeDvrStatus(Boolean(tcp.reachable), channelCount);
+  const dvrRow = {
+    estate_id: estateId,
+    name,
+    brand,
+    model: clean(body.model) || null,
+    ip_address: ipAddress,
+    port,
+    credential_ref: credentialRef,
+    channel_count: channelCount,
+    edge_node_id: edgeNodeId || null,
+    onvif_enabled: Boolean(body.onvif_enabled),
+    rtsp_enabled: true,
+    status,
+    last_seen_at: tcp.reachable ? new Date().toISOString() : null,
+    metadata: {
+      brand_label: displayCameraBrand(brand),
+      provider: providerForBrand(brand),
+      rtsp_path_template: rtspPathTemplateForBrand(brand),
+      credential_storage: "edge_local_reference",
+      connection_test: tcp,
+      imported_by: user.id,
+    },
+    created_by: user.id,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: existingDvr } = await supabaseAdmin
+    .from("camera_dvrs")
+    .select("*")
+    .eq("estate_id", estateId)
+    .eq("ip_address", ipAddress)
+    .maybeSingle();
+
+  const dvrResult = existingDvr?.id
+    ? await supabaseAdmin.from("camera_dvrs").update(dvrRow as any).eq("id", existingDvr.id).select("*").single()
+    : await supabaseAdmin.from("camera_dvrs").insert(dvrRow as any).select("*").single();
+
+  if (dvrResult.error) return res.status(500).json({ error: dvrResult.error.message });
+  const dvr = dvrResult.data;
+  const channels = buildChannelRows(channelCount, Array.isArray(body.channels) ? body.channels : []);
+  const cameras = [] as any[];
+  const errors = [] as any[];
+
+  for (const channel of channels.filter((item) => item.enabled !== false)) {
+    const cameraName = clean(channel.camera_name, `${name} Channel ${channel.channel_number}`);
+    const privacyScope = ["facility", "home", "office"].includes(clean(channel.privacy_scope)) ? clean(channel.privacy_scope) : "facility";
+    const row = {
+      estate_id: estateId,
+      camera_id: channelStreamKey({ dvrId: dvr.id, ipAddress, channelNumber: channel.channel_number }),
+      name: cameraName,
+      location: clean(channel.location) || null,
+      ip: ipAddress,
+      stream_protocol: "rtsp",
+      provider: providerForBrand(brand),
+      rtsp_url: null,
+      onvif_port: null,
+      username: null,
+      password: null,
+      edge_node_id: edgeNodeId || null,
+      nvr_id: dvr.id,
+      channel: String(channel.channel_number),
+      rtsp_path_template: rtspPathTemplateForBrand(brand),
+      credential_ref: credentialRef,
+      privacy_scope: privacyScope,
+      status: status === "online" ? "pending_stream_details" : "pending",
+      health_status: "pending_stream_details",
+      metadata: {
+        camera_type: "dvr_channel",
+        privacy_scope: privacyScope,
+        dvr_id: dvr.id,
+        dvr_name: name,
+        dvr_brand: brand,
+        channel_number: channel.channel_number,
+        stream_key: channelStreamKey({ dvrId: dvr.id, ipAddress, channelNumber: channel.channel_number }),
+        credential_ref: credentialRef,
+        credential_storage: "edge_local_reference",
+        rtsp_path_template: rtspPathTemplateForBrand(brand),
+      },
+      created_by: user.id,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: existingCamera } = await supabaseAdmin
+      .from("facility_cameras")
+      .select("id")
+      .eq("estate_id", estateId)
+      .eq("nvr_id", dvr.id)
+      .eq("channel", String(channel.channel_number))
+      .maybeSingle();
+
+    const result = existingCamera?.id
+      ? await supabaseAdmin.from("facility_cameras").update(row as any).eq("id", existingCamera.id).select("*").single()
+      : await supabaseAdmin.from("facility_cameras").insert(row as any).select("*").single();
+    if (result.error) errors.push({ channel: channel.channel_number, error: result.error.message });
+    else cameras.push(result.data);
+  }
+
+  return res.status(errors.length ? 207 : 200).json({
+    ok: errors.length === 0,
+    dvr,
+    cameras,
+    errors,
+    edge_registry_ready: cameras.length > 0,
+    message: errors.length ? "DVR imported with some channel errors." : "DVR imported and channel cameras prepared.",
+  });
+}
+
+export async function listDvrsByEstate(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  const estateId = clean(req.params.estateId || user.estate_id);
+  if (!estateId) return res.status(400).json({ error: "estateId is required" });
+  const membershipError = await assertEstateMember(user, estateId);
+  if (membershipError) return res.status(membershipError.status).json({ error: membershipError.error });
+  const { data, error } = await supabaseAdmin.from("camera_dvrs").select("*").eq("estate_id", estateId).order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ ok: true, items: data || [] });
+}
+
+export async function inventoryByEstate(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  const estateId = clean(req.params.estateId || user.estate_id);
+  if (!estateId) return res.status(400).json({ error: "estateId is required" });
+  const membershipError = await assertEstateMember(user, estateId);
+  if (membershipError) return res.status(membershipError.status).json({ error: membershipError.error });
+
+  const [dvrs, cameras] = await Promise.all([
+    supabaseAdmin.from("camera_dvrs").select("*").eq("estate_id", estateId).order("created_at", { ascending: false }),
+    supabaseAdmin.from("facility_cameras").select("*").eq("estate_id", estateId).order("created_at", { ascending: false }),
+  ]);
+  if (dvrs.error) return res.status(500).json({ error: dvrs.error.message });
+  if (cameras.error) return res.status(500).json({ error: cameras.error.message });
+  const cameraItems = (cameras.data || []).filter((camera: any) => canAccessCamera(camera, user).ok);
+  const healthy = cameraItems.filter((camera: any) => ["online", "active", "healthy", "ok"].includes(clean(camera.stream_status || camera.health_status || camera.status).toLowerCase())).length;
+  const offline = cameraItems.filter((camera: any) => ["offline", "error", "failed", "degraded"].includes(clean(camera.stream_status || camera.health_status || camera.status).toLowerCase())).length;
+  const edgeNodes = new Set(cameraItems.map((camera: any) => clean(camera.edge_node_id)).filter(Boolean));
+  const aiEnabled = cameraItems.filter((camera: any) => Boolean(camera.ai_enabled)).length;
+  return res.json({
+    ok: true,
+    dvrs: dvrs.data || [],
+    cameras: cameraItems,
+    summary: {
+      dvrs: dvrs.data?.length || 0,
+      cameras: cameraItems.length,
+      healthy_streams: healthy,
+      offline_streams: offline,
+      edge_nodes: edgeNodes.size,
+      ai_enabled_cameras: aiEnabled,
+    },
+  });
+}
+
+export async function edgeRegistry(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  const estateId = clean(req.params.estateId || user.estate_id);
+  if (!estateId) return res.status(400).json({ error: "estateId is required" });
+  const membershipError = await assertEstateMember(user, estateId);
+  if (membershipError) return res.status(membershipError.status).json({ error: membershipError.error });
+  const { data, error } = await supabaseAdmin.from("facility_cameras").select("*").eq("estate_id", estateId).order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  const cameras = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok).map((camera: any) => ({
+    camera_id: camera.camera_id || camera.id,
+    name: camera.name || camera.location || "Camera",
+    provider: camera.provider || camera.metadata?.provider || "generic_rtsp",
+    protocol: camera.stream_protocol || camera.metadata?.protocol || "rtsp",
+    host: camera.ip,
+    dvr_id: camera.nvr_id || camera.metadata?.dvr_id || null,
+    channel: camera.channel || camera.metadata?.channel_number || "1",
+    credential_ref: camera.credential_ref || camera.metadata?.credential_ref || null,
+    rtsp_path_template: camera.rtsp_path_template || camera.metadata?.rtsp_path_template || rtspPathTemplateForBrand(camera.provider),
+    enabled: camera.status !== "disabled",
+  }));
+  return res.json({ ok: true, site_id: estateId, cameras });
+}
+
+export async function validateStream(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  const { cameraId } = req.params;
+  const { data: camera, error } = await supabaseAdmin.from("facility_cameras").select("*").eq("id", cameraId).maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+  if (!camera) return res.status(404).json({ error: "Camera not found" });
+  const access = canAccessCamera(camera, user);
+  if (!access.ok) return res.status(403).json({ error: "Permission denied", code: access.reason });
+
+  const playback = buildCameraPlaybackContract(req, camera, user, 0);
+  const rtspReady = Boolean(camera.rtsp_url || camera.credential_ref);
+  const hlsReady = Boolean(playback.hls_url);
+  const status = rtspReady && hlsReady ? "healthy" : rtspReady ? "warning" : "failed";
+  return res.status(status === "failed" ? 424 : 200).json({
+    ok: status !== "failed",
+    status,
+    checks: {
+      rtsp_reachable: rtspReady ? "prepared_for_edge" : "missing_source",
+      hls_generation: hlsReady ? "ready" : "waiting_for_edge_runtime",
+      playback_contract: playback.ok ? "ready" : "warning",
+    },
+    playback,
+    reason: status === "healthy" ? "Stream playback contract is ready." : status === "warning" ? "Camera source is prepared; Edge must publish HLS health." : "Camera is missing RTSP or credential reference.",
+  });
 }
 
 /**

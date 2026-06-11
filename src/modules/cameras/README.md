@@ -59,3 +59,19 @@ Common RTSP templates:
 - Xmeye/generic: `/user={user}&password={pass}&channel={channel}&stream=0.sdp`
 
 Use `credential_ref`; do not persist frontend-submitted raw camera passwords in long-term records.
+
+## V2 Import Endpoints
+
+- `POST /cameras/dvrs/test`: checks backend-side DVR/IP reachability and returns channel drafts only when a real channel count is supplied or discovered.
+- `POST /cameras/dvrs/import`: creates or updates a `camera_dvrs` record and creates `facility_cameras` rows for enabled DVR/NVR channels.
+- `GET /cameras/dvrs/estate/:estateId`: lists DVR/NVR records for an estate.
+- `GET /cameras/inventory/estate/:estateId`: returns DVRs, cameras, and deployment-readiness counts.
+- `GET /cameras/edge-registry/estate/:estateId`: returns an Edge/go2rtc-ready registry contract without raw credentials.
+- `POST /cameras/:cameraId/validate-stream`: validates source readiness plus the playback contract.
+
+## Privacy Rules
+
+- `facility` cameras are estate/facility scoped.
+- `home` cameras require matching private `home_id` metadata.
+- `office` cameras require explicit allowed-user metadata.
+- Frontend-submitted passwords are accepted only for immediate connection/import flow and are not persisted to camera or DVR records.
