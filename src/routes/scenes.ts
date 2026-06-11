@@ -130,7 +130,7 @@ router.post("/:id/run", requirePermission("devices.control"), async (req, res) =
       continue;
     }
     try {
-      const result = await executeDeviceCommandForActor({ actor: req.user!, deviceId: action.device_id, command: action.command, req });
+      const result = await executeDeviceCommandForActor({ actor: req.user!, deviceId: action.device_id, command: action.command, source: "scene", req });
       results.push({ device_id: action.device_id, status: result.status });
     } catch (runError: any) {
       results.push({ device_id: action.device_id, status: "failed", error: runError?.message || "command_failed" });

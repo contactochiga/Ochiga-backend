@@ -218,7 +218,7 @@ async function runConsumerScene(req: Request | undefined, actor: AuthUser, scene
       continue;
     }
     try {
-      const result = await executeDeviceCommandForActor({ actor, deviceId: action.device_id, command: action.command, req });
+      const result = await executeDeviceCommandForActor({ actor, deviceId: action.device_id, command: action.command, source: "watch", req });
       results.push({ device_id: action.device_id, status: result.status });
     } catch (runError: any) {
       results.push({ device_id: action.device_id, status: "failed", error: runError?.message || "command_failed" });

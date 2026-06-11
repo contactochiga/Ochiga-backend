@@ -73,6 +73,15 @@ io.on("connection", (socket) => {
     socket.join(`room:${roomId}`);
   });
 
+  socket.on("subscribe:home", (homeId: string) => {
+    if (!canUseSocket(socket, "homes.read")) return denySocket(socket, "homes.read", "home", String(homeId || ""));
+    const user = socket.data.user;
+    if (user?.home_id && String(user.home_id) !== String(homeId || "") && !canUseSocket(socket, "office.read")) {
+      return denySocket(socket, "homes.read", "home", String(homeId || ""));
+    }
+    socket.join(`home:${homeId}`);
+  });
+
   socket.on("subscribe:thread", (threadId: string) => {
     if (!canUseSocket(socket, "support.read")) return denySocket(socket, "support.read", "thread", String(threadId || ""));
     socket.join(`thread:${threadId}`);

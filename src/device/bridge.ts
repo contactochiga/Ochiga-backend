@@ -30,16 +30,46 @@ function isTruthySwitch(status: any) {
   return Object.entries(status).some(([key, value]) => /^switch(_\d+)?$/i.test(String(key)) && value === true);
 }
 
-function normalizeSource(value: any): "oyi_app" | "physical_switch" | "provider_reported" | "provider_app" | "watch" | "automation" | "scene" | "facility" | "system" {
+function boolValue(value: any): boolean | null {
+  if (value === true || value === false) return value;
+  const text = String(value ?? "").toLowerCase();
+  if (["true", "on", "1", "yes", "active"].includes(text)) return true;
+  if (["false", "off", "0", "no", "inactive"].includes(text)) return false;
+  return null;
+}
+
+function switchSnapshot(status: any) {
+  const out: Record<string, boolean> = {};
+  if (!status || typeof status !== "object") return out;
+  const keys = ["switch", "power", "on", "running", "enabled"];
+  for (const key of keys) {
+    const value = boolValue(status[key]);
+    if (value !== null) out[key] = value;
+  }
+  for (const [key, value] of Object.entries(status)) {
+    if (/^switch(_\d+)?$/i.test(String(key))) {
+      const next = boolValue(value);
+      if (next !== null) out[String(key)] = next;
+    }
+  }
+  if (status.last_command && typeof status.last_command === "object") {
+    Object.assign(out, switchSnapshot(status.last_command));
+  }
+  return out;
+}
+
+type DeviceStateSource = "app" | "physical_switch" | "provider_reported" | "provider_app" | "watch" | "automation" | "scene" | "facility" | "system";
+
+function normalizeSource(value: any): DeviceStateSource {
   const text = String(value || "").toLowerCase().replace(/[\s-]+/g, "_");
   if (/physical|wall|manual|local|button/.test(text)) return "physical_switch";
-  if (/smart_life|tuya_app/.test(text)) return "provider_app";
+  if (/smart_life|tuya_app|provider_app/.test(text)) return "provider_app";
   if (/provider|tuya|mqtt|state/.test(text)) return "provider_reported";
   if (/watch|watchos/.test(text)) return "watch";
   if (/automation/.test(text)) return "automation";
   if (/scene/.test(text)) return "scene";
   if (/facility|operator|admin/.test(text)) return "facility";
-  if (/oyi|consumer|app|user/.test(text)) return "oyi_app";
+  if (/oyi|consumer|app|user/.test(text)) return "app";
   return "system";
 }
 
@@ -57,6 +87,20 @@ function sourceFromPayload(status: any, topic: string) {
 }
 
 function didMeaningfulStateChange(prev: any, next: any) {
+  const prevSwitches = switchSnapshot(prev);
+  const nextSwitches = switchSnapshot(next);
+  const switchKeys = Array.from(new Set([...Object.keys(prevSwitches), ...Object.keys(nextSwitches)]));
+  for (const key of switchKeys) {
+    if (prevSwitches[key] !== undefined && nextSwitches[key] !== undefined && prevSwitches[key] !== nextSwitches[key]) {
+      return {
+        changed: true,
+        title: nextSwitches[key] ? "Device turned on" : "Device turned off",
+        message: nextSwitches[key] ? "A connected device is now active." : "A connected device is no longer active.",
+        kind: nextSwitches[key] ? "device.state.on" : "device.state.off",
+      };
+    }
+  }
+
   const prevOn = isTruthySwitch(prev);
   const nextOn = isTruthySwitch(next);
   if (prevOn !== nextOn) {
@@ -94,7 +138,7 @@ async function shouldPushDeviceStateNotification(args: {
   const kind = String(args.kind || "").toLowerCase();
   const critical = /critical|security|camera|intrusion|alert/.test(kind);
   const offline = /offline|failure|failed/.test(kind);
-  if (critical || offline || watched) return true;
+  if (critical || offline) return true;
 
   const { data } = await supabaseAdmin
     .from("resident_proximity_settings")
@@ -105,7 +149,8 @@ async function shouldPushDeviceStateNotification(args: {
 
   if (data?.enabled !== true) return false;
   const state = String((data as any)?.last_state || "").toLowerCase();
-  return ["away", "leaving_home", "approaching_estate"].includes(state);
+  const awayLike = ["away", "leaving_home", "approaching_estate"].includes(state);
+  return watched && awayLike;
 }
 
 async function recentDeviceActivityExists(userId: string, deviceId: string, kind: string) {
@@ -146,16 +191,72 @@ function safeJson(payload: Buffer) {
   }
 }
 
-function emitLegacyDeviceUpdate(estateId: string | null, deviceId: string, state: any, topic: string) {
+function scopeValue(...values: any[]) {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return null;
+}
+
+async function resolveDeviceForStateEvent(input: {
+  ref: string;
+  estateId?: string | null;
+}) {
+  const ref = String(input.ref || "").trim();
+  if (!ref) return null;
+  const select = "id,name,estate_id,home_id,room_id,category,type,external_id,metadata";
+
+  let byId = supabaseAdmin.from("devices").select(select).eq("id", ref);
+  if (input.estateId) byId = byId.eq("estate_id", input.estateId);
+  const { data: idMatch } = await byId.limit(1).maybeSingle();
+  if (idMatch) return idMatch;
+
+  let byExternal = supabaseAdmin.from("devices").select(select).eq("external_id", ref);
+  if (input.estateId) byExternal = byExternal.eq("estate_id", input.estateId);
+  const { data: externalMatch } = await byExternal.limit(1).maybeSingle();
+  return externalMatch || null;
+}
+
+function emitLegacyDeviceUpdate(args: {
+  estateId: string | null;
+  homeId?: string | null;
+  roomId?: string | null;
+  deviceId: string;
+  externalDeviceId?: string | null;
+  state: any;
+  topic: string;
+  source: DeviceStateSource;
+  providerEventId?: string | null;
+  occurredAt?: string;
+  event?: Record<string, any>;
+}) {
   // ✅ Keep backward compatibility for any existing dashboards listening to device:update
   const io = getIO();
   if (!io) return;
+  const payload = {
+    deviceId: args.deviceId,
+    device_id: args.deviceId,
+    external_device_id: args.externalDeviceId || null,
+    estate_id: args.estateId || null,
+    estateId: args.estateId || null,
+    home_id: args.homeId || null,
+    homeId: args.homeId || null,
+    room_id: args.roomId || null,
+    roomId: args.roomId || null,
+    state: args.state,
+    topic: args.topic,
+    source: args.source,
+    provider_event_id: args.providerEventId || null,
+    occurred_at: args.occurredAt || new Date().toISOString(),
+    event: args.event || null,
+  };
 
-  if (estateId) {
-    io.to(`estate:${estateId}`).emit("device:update", { deviceId, state, topic });
-  } else {
-    io.to(`device:${deviceId}`).emit("device:update", { deviceId, state, topic });
-  }
+  let target = io.to(`device:${args.deviceId}`);
+  if (args.estateId) target = target.to(`estate:${args.estateId}`);
+  if (args.homeId) target = target.to(`home:${args.homeId}`);
+  target.emit("device:update", payload);
+  target.emit("device.status.updated", payload);
 }
 
 function buildDeviceStateSignal(args: {
@@ -218,13 +319,28 @@ export async function initMqttBridge() {
       try {
         const parsedTopic = parseTopic(topic);
         let estateId = parsedTopic.estateId;
-        const deviceId = parsedTopic.deviceId;
-        if (!deviceId) return;
+        const incomingDeviceId = parsedTopic.deviceId;
+        if (!incomingDeviceId) return;
 
         const status = safeJson(payload);
         const occurredAt = new Date().toISOString();
         const eventSource = sourceFromPayload(status, topic);
         const providerEventId = String(status?.provider_event_id || status?.event_id || status?.id || "");
+        const device = await resolveDeviceForStateEvent({ ref: incomingDeviceId, estateId });
+        const deviceId = String(device?.id || incomingDeviceId);
+        const externalDeviceId = scopeValue(device?.external_id, device?.metadata?.external_id, incomingDeviceId);
+        if (!estateId) estateId = device?.estate_id ?? null;
+
+        console.info("[device-bridge] provider state event", {
+          incoming_device_id: incomingDeviceId,
+          device_id: deviceId,
+          estate_id: estateId || null,
+          home_id: device?.home_id || null,
+          source: eventSource,
+          provider_event_id: providerEventId || null,
+          keys: status && typeof status === "object" ? Object.keys(status).slice(0, 12) : [],
+        });
+
         const { data: previousState } = await supabaseAdmin
           .from("device_states")
           .select("status")
@@ -243,17 +359,6 @@ export async function initMqttBridge() {
             { onConflict: "device_id" }
           );
 
-        const { data: device } = await supabaseAdmin
-          .from("devices")
-          .select("id,name,estate_id,home_id,room_id,category,type,external_id,metadata")
-          .eq("id", deviceId)
-          .limit(1)
-          .single();
-
-        if (!estateId) {
-          estateId = device?.estate_id ?? null;
-        }
-
         const previousStatus = previousState?.status || {};
         const change = didMeaningfulStateChange(previousStatus, status);
         const normalizedEvent = {
@@ -270,6 +375,8 @@ export async function initMqttBridge() {
           provider_event_id: providerEventId || null,
           metadata: {
             topic,
+            incoming_device_id: incomingDeviceId,
+            external_device_id: externalDeviceId,
             estate_id: String(device?.estate_id || estateId || ""),
             device_name: String(device?.name || ""),
             category: String(device?.category || device?.type || ""),
@@ -296,7 +403,7 @@ export async function initMqttBridge() {
             source: eventSource,
             confidence: eventSource === "physical_switch" ? "confirmed" : eventSource === "system" ? "unknown" : "probable",
             providerEventId: providerEventId || null,
-            metadata: { topic, device_name: String(device?.name || ""), category: String(device?.category || device?.type || "") },
+            metadata: { topic, incoming_device_id: incomingDeviceId, external_device_id: externalDeviceId, device_name: String(device?.name || ""), category: String(device?.category || device?.type || "") },
             title: analyticsTitle,
             summary: `${String(device?.name || "Device")} ${String((change as any).message || "updated.").replace(/^A connected device /i, "")}`,
           });
@@ -375,7 +482,19 @@ export async function initMqttBridge() {
         }
 
         // ✅ 1) Emit legacy websocket event (backwards compatible)
-        emitLegacyDeviceUpdate(estateId, deviceId, status, topic);
+        emitLegacyDeviceUpdate({
+          estateId,
+          homeId: device?.home_id || null,
+          roomId: device?.room_id || null,
+          deviceId,
+          externalDeviceId,
+          state: status,
+          topic,
+          source: eventSource,
+          providerEventId: providerEventId || null,
+          occurredAt,
+          event: normalizedEvent,
+        });
 
         // ✅ 2) Emit as Control-Plane signal (single truth)
         // This will also trigger your realtimeSubscriber (signal stream)

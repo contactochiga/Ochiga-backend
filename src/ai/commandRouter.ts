@@ -702,7 +702,7 @@ async function executeScene(actor: AuthUser, scene: any, req?: Request) {
         continue;
       }
       try {
-        const result = await executeDeviceCommandForActor({ actor, deviceId: action.device_id, command: action.command, req });
+        const result = await executeDeviceCommandForActor({ actor, deviceId: action.device_id, command: action.command, source: "scene", req });
         results.push({ device_id: action.device_id, status: result.status });
       } catch (error: any) {
         results.push({ device_id: action.device_id, status: "failed", reason: error?.message || "command_failed" });
@@ -748,7 +748,7 @@ async function executeScene(actor: AuthUser, scene: any, req?: Request) {
       continue;
     }
     try {
-      const result = await executeDeviceCommandForActor({ actor, deviceId: String(device.id || device.external_id), command, req });
+      const result = await executeDeviceCommandForActor({ actor, deviceId: String(device.id || device.external_id), command, source: "scene", req });
       results.push({ device_id: device.id || deviceId, status: result.status, command });
     } catch (error: any) {
       results.push({ device_id: deviceId, status: "failed", reason: error?.message || "command_failed" });

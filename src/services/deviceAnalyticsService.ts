@@ -2,7 +2,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent } from "../core/foundation";
 
 type DeviceEventSource =
-  | "oyi_app"
+  | "app"
   | "physical_switch"
   | "provider_reported"
   | "provider_app"
@@ -70,13 +70,13 @@ function normalizeSource(source: string): DeviceEventSource {
   if (/facility|operator|admin/.test(text)) return "facility";
   if (/smart_life|tuya_app|provider_app/.test(text)) return "provider_app";
   if (/provider|tuya|mqtt|report/.test(text)) return "provider_reported";
-  if (/oyi|consumer|app|user/.test(text)) return "oyi_app";
+  if (/oyi|consumer|app|user/.test(text)) return "app";
   return "system";
 }
 
 function confidenceFor(source: DeviceEventSource, explicit?: Confidence): Confidence {
   if (explicit) return explicit;
-  if (["oyi_app", "watch", "scene", "automation", "facility"].includes(source)) return "confirmed";
+  if (["app", "watch", "scene", "automation", "facility"].includes(source)) return "confirmed";
   if (source === "physical_switch") return "confirmed";
   if (source === "provider_app" || source === "provider_reported") return "probable";
   return "unknown";
@@ -140,7 +140,7 @@ async function updateCounters(input: RecordDeviceEventInput, source: DeviceEvent
   if (toggled) patch.total_toggles = num(current.total_toggles) + 1;
   if (nextSwitch === true && toggled) patch.on_count = num(current.on_count) + 1;
   if (nextSwitch === false && toggled) patch.off_count = num(current.off_count) + 1;
-  if (["oyi_app", "facility"].includes(source)) patch.app_control_count = num(current.app_control_count) + 1;
+  if (["app", "facility"].includes(source)) patch.app_control_count = num(current.app_control_count) + 1;
   if (source === "watch") patch.watch_control_count = num(current.watch_control_count) + 1;
   if (source === "scene") patch.scene_control_count = num(current.scene_control_count) + 1;
   if (source === "automation") patch.automation_control_count = num(current.automation_control_count) + 1;
