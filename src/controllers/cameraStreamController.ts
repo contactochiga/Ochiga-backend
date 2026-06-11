@@ -2,6 +2,8 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { canAccessCamera } from "../modules/cameras/cameraAccess.policy";
+import { issueCameraPlaybackToken, playbackExpiry } from "../modules/cameras/cameraPlayback.service";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 
@@ -28,10 +30,6 @@ function verifyHlsToken(req: Request): any | null {
   } catch {
     return null;
   }
-}
-
-function sameEstateOrAdmin(camEstateId: any, user: any) {
-  return String(camEstateId) === String(user.estate_id) || user.role === "admin";
 }
 
 function reqBaseUrl(req: Request) {
@@ -132,29 +130,29 @@ export async function issueHlsToken(req: Request, res: Response) {
   }
 
   const { cameraId } = req.params;
+  if (user.camera_id && String(user.camera_id) !== String(cameraId)) {
+    return res.status(403).json({ error: "Playback token is not valid for this camera" });
+  }
   if (!cameraId) return res.status(400).json({ error: "cameraId is required" });
 
   const { data: cam, error } = await supabaseAdmin
     .from("facility_cameras")
-    .select("id, estate_id")
+    .select("id, estate_id, metadata")
     .eq("id", cameraId)
     .maybeSingle();
 
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
 
-  if (!sameEstateOrAdmin(cam.estate_id, user)) {
-    return res.status(403).json({ error: "Unauthorized" });
+  const access = canAccessCamera(cam, user);
+  if (!access.ok) {
+    return res.status(403).json({ error: "Permission denied", code: access.reason });
   }
 
-  // short-lived token (2 minutes)
-  const token = jwt.sign(
-    { id: user.id, role: user.role, estate_id: user.estate_id },
-    APP_JWT_SECRET,
-    { expiresIn: "2m" }
-  );
+  const token = issueCameraPlaybackToken(user, cam, APP_JWT_SECRET);
+  if (!token) return res.status(500).json({ error: "Token generation failed" });
 
-  return res.json({ ok: true, token, expires_in: 120 });
+  return res.json({ ok: true, token, expires_in: 120, expires_at: playbackExpiry() });
 }
 
 /**
@@ -166,18 +164,20 @@ export async function hlsPlaylist(req: Request, res: Response) {
   if (!user) return res.status(401).json({ error: "Missing or invalid token" });
 
   const { cameraId } = req.params;
+  if (user.camera_id && String(user.camera_id) !== String(cameraId)) return res.status(403).end();
 
   const { data: cam, error } = await supabaseAdmin
     .from("facility_cameras")
-    .select("id, estate_id, edge_hls_url")
+    .select("id, estate_id, edge_hls_url, metadata")
     .eq("id", cameraId)
     .maybeSingle();
 
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
 
-  if (!sameEstateOrAdmin(cam.estate_id, user)) {
-    return res.status(403).json({ error: "Unauthorized" });
+  const access = canAccessCamera(cam, user);
+  if (!access.ok) {
+    return res.status(403).json({ error: "Permission denied", code: access.reason });
   }
 
   if (!cam.edge_hls_url) {
@@ -244,13 +244,13 @@ export async function hlsSegment(req: Request, res: Response) {
 
   const { data: cam, error } = await supabaseAdmin
     .from("facility_cameras")
-    .select("id, estate_id, edge_hls_url")
+    .select("id, estate_id, edge_hls_url, metadata")
     .eq("id", cameraId)
     .maybeSingle();
 
   if (error) return res.status(500).end();
   if (!cam) return res.status(404).end();
-  if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).end();
+  if (!canAccessCamera(cam, user).ok) return res.status(403).end();
   if (!cam.edge_hls_url) return res.status(409).end();
 
   const token = (req.query.token as string) || "";

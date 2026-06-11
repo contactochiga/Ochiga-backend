@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { scanCameras } from "../device/cameras/cameraOrchestrator";
+import { canAccessCamera } from "../modules/cameras/cameraAccess.policy";
 
 function pickError(err: any, fallback: string) {
   return (
@@ -83,7 +84,31 @@ export async function listByEstate(req: Request, res: Response) {
     .order("created_at", { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
-  return res.json({ ok: true, items: data || [] });
+  const items = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok);
+  return res.json({ ok: true, items });
+}
+
+/**
+ * GET /cameras/home/:homeId
+ * Lists private home cameras scoped through camera metadata.
+ */
+export async function listByHome(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const { homeId } = req.params;
+  if (!homeId) return res.status(400).json({ error: "homeId is required" });
+  if (String(user.home_id || "") !== String(homeId) && String(user.role || "").toLowerCase() !== "admin") {
+    return res.status(403).json({ error: "Permission denied" });
+  }
+
+  let query = supabaseAdmin.from("facility_cameras").select("*").order("created_at", { ascending: false });
+  if (user.estate_id) query = query.eq("estate_id", user.estate_id);
+  const { data, error } = await query;
+
+  if (error) return res.status(500).json({ error: error.message });
+  const items = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok);
+  return res.json({ ok: true, items });
 }
 
 /**
@@ -94,13 +119,29 @@ export async function bind(req: Request, res: Response) {
   const user = req.user as any;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  const { estateId, name, ip, onvif_port, rtsp_url, username, password } =
+  const { estateId, name, ip, onvif_port, rtsp_url, username, password, credential_ref, location, camera_type, privacy_scope, access_policy, edge_node_id, dvr_id, channel_number, enabled } =
     req.body || {};
 
   const resolvedEstateId = estateId || user.estate_id;
   if (!resolvedEstateId) return res.status(400).json({ error: "estateId is required" });
   if (!ip) return res.status(400).json({ error: "ip is required" });
-  if (!rtsp_url) return res.status(400).json({ error: "rtsp_url is required" });
+  if (!rtsp_url && !credential_ref) return res.status(400).json({ error: "rtsp_url or credential_ref is required" });
+
+  const safePrivacyScope = ["facility", "home", "office"].includes(String(privacy_scope || "").toLowerCase())
+    ? String(privacy_scope).toLowerCase()
+    : "facility";
+  const safeCameraType = ["ip_camera", "dvr_channel", "nvr_channel"].includes(String(camera_type || "").toLowerCase())
+    ? String(camera_type).toLowerCase()
+    : (dvr_id || channel_number ? "dvr_channel" : "ip_camera");
+  const credentialRef = String(credential_ref || "").trim() || (username || password ? "local:camera-credential-required" : null);
+  const metadata = {
+    camera_type: safeCameraType,
+    privacy_scope: safePrivacyScope,
+    access_policy: access_policy && typeof access_policy === "object" ? access_policy : {},
+    credentials_present: Boolean(username || password || credentialRef),
+    credential_storage: credentialRef ? "edge_local_reference" : "none",
+    home_id: safePrivacyScope === "home" ? user.home_id || null : undefined,
+  };
 
   // prevent duplicates per estate+ip
   const { data: existing } = await supabaseAdmin
@@ -117,9 +158,16 @@ export async function bind(req: Request, res: Response) {
       .update({
         name: name ?? existing.name,
         onvif_port: onvif_port ?? existing.onvif_port,
-        rtsp_url,
-        username: username ?? existing.username,
-        password: password ?? existing.password,
+        rtsp_url: rtsp_url ?? existing.rtsp_url,
+        username: null,
+        password: null,
+        location: location ?? existing.location,
+        edge_node_id: edge_node_id ?? existing.edge_node_id,
+        nvr_id: dvr_id ?? existing.nvr_id,
+        channel: channel_number ? String(channel_number) : existing.channel,
+        credential_ref: credentialRef ?? existing.credential_ref,
+        metadata: { ...(existing.metadata || {}), ...metadata },
+        updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id)
       .select("*")
@@ -136,9 +184,16 @@ export async function bind(req: Request, res: Response) {
       name: name ?? `Camera ${ip}`,
       ip,
       onvif_port: onvif_port ?? null,
-      rtsp_url,
-      username: username ?? null,
-      password: password ?? null,
+      rtsp_url: rtsp_url ?? null,
+      username: null,
+      password: null,
+      location: location ?? null,
+      edge_node_id: edge_node_id ?? null,
+      nvr_id: dvr_id ?? null,
+      channel: channel_number ? String(channel_number) : null,
+      credential_ref: credentialRef,
+      status: enabled === false ? "disabled" : "pending",
+      metadata,
       created_by: user.id,
     })
     .select("*")

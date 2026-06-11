@@ -1,9 +1,8 @@
 import { Request, Response } from "express";
-import jwt from "jsonwebtoken";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
-
-const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
+import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.service";
+import { canAccessCamera, requireCameraAccess } from "../modules/cameras/cameraAccess.policy";
 
 const MAX_REWIND_SECONDS = 24 * 60 * 60; // 24h
 const DEFAULT_REWIND_SECONDS = 5 * 60;
@@ -16,27 +15,6 @@ function clamp(n: number, min: number, max: number) {
 function parseIntSafe(v: any, fallback: number) {
   const n = Number.parseInt(String(v ?? ""), 10);
   return Number.isFinite(n) ? n : fallback;
-}
-
-function sameEstateOrAdmin(camEstateId: any, user: any) {
-  return String(camEstateId) === String(user?.estate_id) || String(user?.role) === "admin";
-}
-
-function reqBaseUrl(req: Request) {
-  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
-  const host = (req.headers["x-forwarded-host"] as string) || req.get("host") || "";
-  return `${proto}://${host}`;
-}
-
-function withQuery(url: string, key: string, value: string | number) {
-  try {
-    const u = new URL(url);
-    u.searchParams.set(key, String(value));
-    return u.toString();
-  } catch {
-    const sep = url.includes("?") ? "&" : "?";
-    return `${url}${sep}${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`;
-  }
 }
 
 function isMissingCameraEventsTable(err: any) {
@@ -110,18 +88,9 @@ function reportWindow(periodRaw: string | undefined) {
 async function resolveCamera(cameraId: string) {
   return supabaseAdmin
     .from("facility_cameras")
-    .select("id, estate_id, name, edge_hls_url")
+    .select("id, estate_id, name, edge_hls_url, hls_url, stream_status, health_status, status, edge_node_id, metadata")
     .eq("id", cameraId)
     .maybeSingle();
-}
-
-function issuePlaybackToken(user: any) {
-  if (!APP_JWT_SECRET) return null;
-  return jwt.sign(
-    { id: user.id, role: user.role, estate_id: user.estate_id },
-    APP_JWT_SECRET,
-    { expiresIn: "2m" }
-  );
 }
 
 /**
@@ -131,8 +100,6 @@ function issuePlaybackToken(user: any) {
 export async function getPlaybackUrl(req: Request, res: Response) {
   const user = req.user as any;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
-  if (!APP_JWT_SECRET) return res.status(500).json({ error: "APP_JWT_SECRET missing" });
-
   const { cameraId } = req.params;
   if (!cameraId) return res.status(400).json({ error: "cameraId is required" });
 
@@ -142,23 +109,12 @@ export async function getPlaybackUrl(req: Request, res: Response) {
   const { data: cam, error } = await resolveCamera(cameraId);
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
-  if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).json({ error: "Unauthorized" });
+  const access = canAccessCamera(cam, user);
+  if (!access.ok) return res.status(403).json({ error: "Permission denied", code: access.reason });
 
-  const token = issuePlaybackToken(user);
-  if (!token) return res.status(500).json({ error: "Token generation failed" });
-
-  const baseUrl = reqBaseUrl(req);
-  const url = `${baseUrl}/cameras/${encodeURIComponent(String(cameraId))}/hls.m3u8?token=${encodeURIComponent(
-    token
-  )}&rewind=${encodeURIComponent(String(rewind))}`;
-
-  return res.json({
-    ok: true,
-    type: "hls",
-    url,
-    camera: { id: cam.id, name: cam.name || "Camera" },
-    rewind,
-  });
+  const playback = buildCameraPlaybackContract(req, cam, user, rewind);
+  if (!playback.hls_url) return res.status(409).json(playback);
+  return res.json(playback);
 }
 
 /**
@@ -174,7 +130,11 @@ export async function listEvents(req: Request, res: Response) {
   const { data: cam, error } = await resolveCamera(cameraId);
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
-  if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).json({ error: "Unauthorized" });
+  try {
+    requireCameraAccess(cam, user);
+  } catch (accessErr: any) {
+    return res.status(accessErr?.statusCode || 403).json({ error: "Permission denied", code: accessErr?.reason || "camera_permission_denied" });
+  }
 
   const limit = clamp(parseIntSafe(req.query.limit, 50), 1, 200);
   const sinceMinutes = clamp(parseIntSafe(req.query.sinceMinutes, 24 * 60), 1, 24 * 60 * 7);
@@ -212,7 +172,11 @@ export async function createEvent(req: Request, res: Response) {
   const { data: cam, error } = await resolveCamera(cameraId);
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
-  if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).json({ error: "Unauthorized" });
+  try {
+    requireCameraAccess(cam, user);
+  } catch (accessErr: any) {
+    return res.status(accessErr?.statusCode || 403).json({ error: "Permission denied", code: accessErr?.reason || "camera_permission_denied" });
+  }
 
   const eventType = String(req.body?.event_type || req.body?.type || "").trim().toLowerCase();
   if (!eventType) return res.status(400).json({ error: "event_type is required" });
@@ -351,7 +315,11 @@ export async function getAiProfile(req: Request, res: Response) {
   const { data: cam, error } = await resolveCamera(cameraId);
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
-  if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).json({ error: "Unauthorized" });
+  try {
+    requireCameraAccess(cam, user);
+  } catch (accessErr: any) {
+    return res.status(accessErr?.statusCode || 403).json({ error: "Permission denied", code: accessErr?.reason || "camera_permission_denied" });
+  }
 
   const { data, error: qErr } = await supabaseAdmin
     .from("camera_ai_profiles")
@@ -385,7 +353,11 @@ export async function upsertAiProfile(req: Request, res: Response) {
   const { data: cam, error } = await resolveCamera(cameraId);
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
-  if (!sameEstateOrAdmin(cam.estate_id, user)) return res.status(403).json({ error: "Unauthorized" });
+  try {
+    requireCameraAccess(cam, user);
+  } catch (accessErr: any) {
+    return res.status(accessErr?.statusCode || 403).json({ error: "Permission denied", code: accessErr?.reason || "camera_permission_denied" });
+  }
 
   const b = req.body || {};
   const n = (v: any, fallback: number, min: number, max: number) =>

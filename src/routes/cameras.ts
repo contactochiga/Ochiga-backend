@@ -24,6 +24,14 @@ router.get(
   CamerasCtrl.listByEstate
 );
 
+router.get(
+  "/home/:homeId",
+  requireAuth,
+  requirePermission("cameras.view"),
+  auditOnSuccess("camera.viewed", "home", "homeId"),
+  CamerasCtrl.listByHome
+);
+
 router.post(
   "/bind",
   requireAuth,
