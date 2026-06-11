@@ -4,6 +4,7 @@ import { requireEdgeToken } from "../middleware/edgeToken";
 import { emitAuditEvent } from "../core/foundation";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
+import { normalizeIntelligenceEvent } from "../intelligence-core";
 
 export const edgeDiscoveryRouter = Router();
 
@@ -428,6 +429,93 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeTok
     camera: data || null,
     persistence: error ? { available: false, reason: error.message, required_source: "facility_cameras" } : "stored",
   });
+});
+
+edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, async (req, res) => {
+  const cameraRef = asString(req.params.cameraId);
+  const payload = req.body || {};
+  const siteId = asString(payload.site_id || payload.estate_id);
+  const agentId = asString(payload.agent_id || payload.edge_node_id || (req as any).edgeAgent?.id);
+  const eventType = asString(payload.event_type || payload.type).toLowerCase();
+  if (!cameraRef || !siteId || !agentId || !eventType) {
+    return res.status(400).json({ error: "cameraId, site_id, agent_id and event_type required" });
+  }
+
+  let camera: any = null;
+  const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cameraRef);
+  const matchers = uuidLike ? ["id", "camera_id", "ip"] : ["camera_id", "ip"];
+  for (const field of matchers) {
+    const { data } = await supabaseAdmin
+      .from("facility_cameras")
+      .select("id,estate_id,name,camera_id,ip,metadata")
+      .eq("estate_id", siteId)
+      .eq(field, cameraRef)
+      .maybeSingle();
+    if (data) {
+      camera = data;
+      break;
+    }
+  }
+  if (!camera?.id) return res.status(404).json({ error: "Camera not found" });
+
+  const confidenceRaw = Number(payload.confidence);
+  const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : null;
+  const coreEvent = normalizeIntelligenceEvent({
+    agent_id: "camera",
+    surface: "edge",
+    actor_id: agentId,
+    estate_id: String(camera.estate_id || siteId),
+    camera_id: String(camera.id),
+    event_type: eventType,
+    category: "Camera",
+    title: asString(payload.title || `${eventType.replace(/_/g, " ")} detected`),
+    summary: asString(payload.message || payload.summary || `${eventType.replace(/_/g, " ")} detected on ${camera.name || "camera"}`),
+    confidence: confidence !== null && confidence >= 0.8 ? "confirmed" : confidence !== null && confidence >= 0.5 ? "probable" : "possible",
+    source: "edge_camera_ai",
+    metadata: {
+      edge_node_id: agentId,
+      camera_ref: cameraRef,
+      detector: safeMeta(payload.detector || {}),
+      detections: Array.isArray(payload.detections) ? payload.detections.slice(0, 20).map(safeMeta) : [],
+      source_metadata: safeMeta(payload.metadata || {}),
+    },
+    occurred_at: asString(payload.occurred_at) || nowIso(),
+  });
+
+  const { data, error } = await supabaseAdmin
+    .from("camera_events")
+    .insert({
+      camera_id: camera.id,
+      estate_id: camera.estate_id,
+      event_type: eventType,
+      confidence,
+      snapshot_url: asString(payload.snapshot_url) || null,
+      message: asString(payload.message || coreEvent.summary) || null,
+      metadata: {
+        ...safeMeta(payload.metadata || {}),
+        source: "edge_camera_ai",
+        edge_node_id: agentId,
+        core_event: coreEvent,
+        detections: Array.isArray(payload.detections) ? payload.detections.slice(0, 20).map(safeMeta) : [],
+      },
+      created_by: null,
+    } as any)
+    .select("*")
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  emitEdgeSignal("camera.event", {
+    site_id: siteId,
+    agent_id: agentId,
+    camera_id: camera.id,
+    camera_ref: cameraRef,
+    event_type: eventType,
+    confidence,
+    event_id: data?.id,
+  });
+
+  return res.json({ ok: true, event: data, intelligence_event: coreEvent });
 });
 
 edgeDiscoveryRouter.get("/edge/discovery/:siteId", requireAuth, requirePermission("devices.read"), async (req, res) => {
