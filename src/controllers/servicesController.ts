@@ -4,6 +4,7 @@ import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
 import { NotificationService } from "../services/NotificationService";
 import { sendEmail } from "../services/emailService";
+import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
 
 type ServiceKey =
   | "utility_token"
@@ -117,6 +118,19 @@ const MANAGE_ESTATE_ROLES = new Set(["owner", "admin", "manager", "security"]);
 const FACILITY_ALERT_ROLES = ["owner", "admin", "manager", "security", "operator"];
 const LOW_BALANCE_THRESHOLD = Number(process.env.LOW_WALLET_BALANCE_THRESHOLD || 5000);
 
+
+async function assertCanReadEstate(userId: string, estateId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("estate_memberships")
+    .select("status")
+    .eq("estate_id", estateId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return String(data?.status || "") === "active";
+}
+
 async function assertCanManageEstate(userId: string, estateId: string) {
   const { data, error } = await supabaseAdmin
     .from("estate_memberships")
@@ -154,6 +168,7 @@ type ServiceConfigRow = {
   unit_name?: string | null;
   billing_mode?: "wallet_only" | "metered" | "fixed";
   updated_at?: string;
+  metadata?: Record<string, any> | null;
   created_at?: string;
 };
 
@@ -316,10 +331,8 @@ function buildReceiptDetails(config: ServiceConfigRow | null, serviceKey: Servic
     computed_units: computedUnits,
     bundle_name: extras?.bundle_name ? String(extras.bundle_name) : null,
     period_label: extras?.period_label ? String(extras.period_label) : null,
-    token_code:
-      serviceKey === "utility_token"
-        ? Array.from({ length: 5 }, () => String(Math.floor(1000 + Math.random() * 9000))).join("-")
-        : null,
+    token_code: null,
+    fulfillment_status: providerFulfillmentStatus(serviceKey),
   };
 }
 
@@ -497,7 +510,7 @@ async function resolveHomeForUser(user: any) {
   if (user?.home_id) {
     const { data, error } = await supabaseAdmin
       .from("homes")
-      .select("id, electricity_meter, internet_id")
+      .select("id, estate_id, name, unit, block, electricity_meter, water_meter, internet_id")
       .eq("id", user.home_id)
       .maybeSingle();
     if (!error && data?.id) return data;
@@ -516,7 +529,7 @@ async function resolveHomeForUser(user: any) {
 
   const { data: home, error: homeErr } = await supabaseAdmin
     .from("homes")
-    .select("id, electricity_meter, internet_id")
+    .select("id, estate_id, name, unit, block, electricity_meter, water_meter, internet_id")
     .eq("id", membership.home_id)
     .maybeSingle();
   if (homeErr) return null;
@@ -527,10 +540,152 @@ function expectedAccountRef(serviceKey: ServiceKey, home: any): string {
   if (!home?.id) return "";
   if (serviceKey === "utility_token") return String(home.electricity_meter || "");
   if (serviceKey === "water_service") return String(home.water_meter || "");
+  if (serviceKey === "service_charge") return String(home.id || "");
   if (serviceKey === "other_facility_fees") return String(home.id || "");
   if (serviceKey === "internet_service" || serviceKey === "fiber_internet")
     return String(home.internet_id || "");
   return String(home.id || "");
+}
+
+
+function providerFulfillmentStatus(serviceKey: ServiceKey) {
+  if (serviceKey === "service_charge" || serviceKey === "other_facility_fees") return "completed";
+  return "manual_review";
+}
+
+function serviceStatusFrom(enabled: boolean, linked: boolean, serviceKey: ServiceKey) {
+  if (!enabled) return "unavailable";
+  if (!linked && ["utility_token", "water_service", "internet_service", "fiber_internet"].includes(serviceKey)) return "setup_needed";
+  return providerFulfillmentStatus(serviceKey) === "manual_review" && serviceKey !== "service_charge" ? "available" : "active";
+}
+
+async function findLastServicePayments(walletId: string) {
+  const rows = await listWalletTransactionsWithFallback(walletId, 200).catch(() => []);
+  const byKey = new Map<string, any>();
+  for (const row of rows || []) {
+    const meta = row?.metadata || {};
+    const key = String(meta?.service_key || "");
+    if (!key || byKey.has(key)) continue;
+    if (String(meta?.source || "") !== "services_api") continue;
+    byKey.set(key, row);
+  }
+  return byKey;
+}
+
+async function readHomeServiceAccounts(homeId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("home_service_accounts")
+    .select("service_key, provider, account_ref, meter_id, plan, balance, outstanding, status, due_date, expires_at, linked, metadata")
+    .eq("home_id", homeId);
+  if (error) {
+    if (tableMissing(error)) return new Map<string, any>();
+    throw new Error(error.message);
+  }
+  return new Map((data || []).map((row: any) => [String(row.service_key || ""), row]));
+}
+
+async function readEstateServiceCount(estateId: string) {
+  const { count, error } = await supabaseAdmin
+    .from("estate_services")
+    .select("id", { count: "exact", head: true })
+    .eq("estate_id", estateId);
+  if (error) return 0;
+  return Number(count || 0);
+}
+
+function accountValue(accounts: Map<string, any>, serviceKey: ServiceKey, key: string, fallback: any = null) {
+  const account = accounts.get(serviceKey) || accounts.get(serviceKey === "internet_service" ? "fiber_internet" : serviceKey);
+  return account?.[key] ?? fallback;
+}
+
+async function buildHomeServiceRegistry(user: any) {
+  const home = await resolveHomeForUser(user);
+  if (!home?.id) throw Object.assign(new Error("No home linked to this account"), { statusCode: 400 });
+
+  const estateId = String(home.estate_id || user.estate_id || "").trim();
+  if (!estateId) throw Object.assign(new Error("No estate linked to this home"), { statusCode: 400 });
+
+  const [{ configs, usingFallback }, wallet, accounts, facilityCount] = await Promise.all([
+    readServiceConfigsForEstate(estateId),
+    getOrCreateWallet(user.id),
+    readHomeServiceAccounts(String(home.id)),
+    readEstateServiceCount(estateId),
+  ]);
+  const configByKey = new Map(configs.map((cfg) => [cfg.service_key, cfg]));
+  const paymentsByKey = await findLastServicePayments(String(wallet.id));
+
+  const configEnabled = (key: ServiceKey) => Boolean(configByKey.get(key)?.active ?? true);
+  const lastPaid = (key: ServiceKey) => paymentsByKey.get(key)?.created_at || null;
+  const linked = (key: ServiceKey, fallback: any) => Boolean(accountValue(accounts, key, "linked", fallback));
+  const status = (key: ServiceKey, isLinked: boolean) => String(accountValue(accounts, key, "status", serviceStatusFrom(configEnabled(key), isLinked, key)) || "available");
+
+  const electricityLinked = linked("utility_token", Boolean(home.electricity_meter));
+  const waterLinked = linked("water_service", Boolean(home.water_meter));
+  const internetLinked = linked("internet_service", Boolean(home.internet_id));
+  const serviceChargeEnabled = configEnabled("service_charge");
+  const facilityEnabled = configEnabled("other_facility_fees");
+
+  return {
+    ok: true,
+    estate_id: estateId,
+    home_id: String(home.id),
+    using_fallback: usingFallback,
+    wallet: {
+      balance: Number(wallet?.balance || 0),
+      currency: String(wallet?.currency || "NGN"),
+    },
+    electricity: {
+      enabled: configEnabled("utility_token"),
+      meter_id: String(accountValue(accounts, "utility_token", "meter_id", home.electricity_meter || "") || ""),
+      provider: accountValue(accounts, "utility_token", "provider", configByKey.get("utility_token")?.metadata?.provider || null),
+      linked: electricityLinked,
+      status: status("utility_token", electricityLinked),
+      balance: accountValue(accounts, "utility_token", "balance", null),
+      last_payment_at: lastPaid("utility_token"),
+    },
+    water: {
+      enabled: configEnabled("water_service"),
+      meter_id: String(accountValue(accounts, "water_service", "meter_id", home.water_meter || "") || ""),
+      linked: waterLinked,
+      status: status("water_service", waterLinked),
+      balance: accountValue(accounts, "water_service", "balance", null),
+      last_payment_at: lastPaid("water_service"),
+    },
+    internet: {
+      enabled: configEnabled("internet_service") || configEnabled("fiber_internet"),
+      provider: accountValue(accounts, "internet_service", "provider", null),
+      plan: accountValue(accounts, "internet_service", "plan", null),
+      account_id: String(accountValue(accounts, "internet_service", "account_ref", home.internet_id || "") || ""),
+      linked: internetLinked,
+      status: status("internet_service", internetLinked),
+      expires_at: accountValue(accounts, "internet_service", "expires_at", null),
+    },
+    estate_fees: {
+      enabled: serviceChargeEnabled,
+      outstanding: accountValue(accounts, "service_charge", "outstanding", null),
+      status: String(accountValue(accounts, "service_charge", "status", serviceChargeEnabled ? "active" : "unavailable") || "active"),
+      due_date: accountValue(accounts, "service_charge", "due_date", null),
+      last_payment_at: lastPaid("service_charge"),
+    },
+    facility_services: {
+      enabled: facilityEnabled,
+      available_count: facilityCount,
+      status: facilityEnabled ? "available" : "unavailable",
+      last_payment_at: lastPaid("other_facility_fees"),
+    },
+  };
+}
+
+export async function getHomeServiceRegistry(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  try {
+    const registry = await buildHomeServiceRegistry(user);
+    return res.json(registry);
+  } catch (e: any) {
+    return res.status(Number(e?.statusCode || 500)).json({ error: e?.message || "Failed to load home service registry" });
+  }
 }
 
 export async function listServiceConfigs(req: Request, res: Response) {
@@ -541,6 +696,8 @@ export async function listServiceConfigs(req: Request, res: Response) {
   if (!estateId) return res.status(400).json({ error: "No estate linked to this account" });
 
   try {
+    const canRead = ["admin", "super_admin", "ochiga_admin"].includes(String(user.role || "")) || await assertCanReadEstate(user.id, estateId);
+    if (!canRead) return res.status(403).json({ error: "Insufficient permissions" });
     const { configs, usingFallback } = await readServiceConfigsForEstate(estateId);
     return res.json({ ok: true, estate_id: estateId, configs, using_fallback: usingFallback });
   } catch (e: any) {
@@ -614,7 +771,16 @@ export async function upsertServiceConfig(req: Request, res: Response) {
     return res.status(500).json({ error: error.message });
   }
 
-  return res.json({ ok: true, config: normalizeServiceConfig(estateId, serviceKey, data as any) });
+  const config = normalizeServiceConfig(estateId, serviceKey, data as any);
+  await emitServiceRegistryEvent({
+    event: "service.config.updated",
+    estate_id: estateId,
+    service_key: serviceKey,
+    user_id: String(user.id),
+    actor_id: String(user.id),
+    payload: { config },
+  });
+  return res.json({ ok: true, config });
 }
 
 export async function payServiceFromWallet(req: Request, res: Response) {
@@ -693,6 +859,8 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     }),
   };
 
+  const fulfillmentStatus = providerFulfillmentStatus(serviceKey);
+
   let txRow: any;
   try {
     txRow = await insertWalletTransactionWithFallback({
@@ -701,12 +869,37 @@ export async function payServiceFromWallet(req: Request, res: Response) {
       type: SERVICE_TX_TYPE[serviceKey],
       amount,
       reference,
-      status: "completed",
+      status: fulfillmentStatus,
       metadata,
       created_at: now,
     });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || "Failed to record wallet transaction" });
+  }
+
+  try {
+    await supabaseAdmin.from("service_provider_transactions").insert([
+      {
+        service_key: serviceKey,
+        estate_id: estateId || null,
+        home_id: String(home.id),
+        user_id: String(user.id),
+        wallet_transaction_id: txRow?.id || null,
+        provider: activeConfig?.metadata?.provider || null,
+        account_ref: accountRef,
+        amount,
+        currency: String(wallet.currency || "NGN"),
+        status: fulfillmentStatus,
+        metadata: { reference, bundle_name: bundleName, period_label: periodLabel },
+        created_at: now,
+        updated_at: now,
+      },
+    ]);
+  } catch (providerErr: any) {
+    const msg = String(providerErr?.message || "");
+    if (!msg.includes("service_provider_transactions") && !msg.includes("schema cache") && !msg.includes("does not exist")) {
+      console.warn("service provider transaction insert failed:", providerErr);
+    }
   }
 
   await handleSignal({
@@ -728,7 +921,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     service_title: metadata.receipt.title,
     account_ref: accountRef,
     amount,
-    status: "completed",
+    status: fulfillmentStatus,
     created_at: now,
     home_id: String(home.id),
     unit_cost: metadata.receipt.unit_cost,
@@ -741,8 +934,10 @@ export async function payServiceFromWallet(req: Request, res: Response) {
 
   try {
     await NotificationService.sendToUser(String(user.id), {
-      title: `${metadata.receipt.title} payment successful`,
-      message: `Receipt ${reference} for NGN ${amount.toLocaleString("en-NG")} is ready.`,
+      title: `${metadata.receipt.title} payment recorded`,
+      message: fulfillmentStatus === "completed"
+        ? `Receipt ${reference} for NGN ${amount.toLocaleString("en-NG")} is ready.`
+        : `Payment ${reference} is recorded and awaiting provider confirmation.`,
       type: "wallet",
       payload: {
         estate_id: estateId || null,
@@ -766,6 +961,25 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   } catch (mailErr) {
     console.warn("service receipt email failed:", mailErr);
   }
+
+  await emitServiceRegistryEvent({
+    event: "wallet.service_payment.updated",
+    estate_id: estateId || null,
+    home_id: String(home.id),
+    service_key: serviceKey,
+    user_id: String(user.id),
+    actor_id: String(user.id),
+    payload: { receipt, balance: nextBalance },
+  });
+  await emitServiceRegistryEvent({
+    event: "home.service_registry.updated",
+    estate_id: estateId || null,
+    home_id: String(home.id),
+    service_key: serviceKey,
+    user_id: String(user.id),
+    actor_id: String(user.id),
+    payload: { reason: "service_payment" },
+  });
 
   return res.json({
     ok: true,

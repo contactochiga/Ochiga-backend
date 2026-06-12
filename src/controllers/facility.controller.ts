@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { hasPermission } from "../core/foundation";
+import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
 
 // ---------------------------
 // Helpers
@@ -325,6 +326,29 @@ export async function createHome(req: any, res: Response) {
       }
     }
 
+    await emitServiceRegistryEvent({
+      event: "home.service_registry.updated",
+      estate_id,
+      home_id: String(home.id),
+      user_id: resident_id ? String(resident_id) : null,
+      actor_id: String(req.user.id),
+      payload: { reason: "home_created" },
+    });
+    if (electricity_meter || water_meter || internet_id) {
+      await emitServiceRegistryEvent({
+        event: "home.utility_account.updated",
+        estate_id,
+        home_id: String(home.id),
+        user_id: resident_id ? String(resident_id) : null,
+        actor_id: String(req.user.id),
+        payload: {
+          electricity_meter: Boolean(electricity_meter),
+          water_meter: Boolean(water_meter),
+          internet_id: Boolean(internet_id),
+        },
+      });
+    }
+
     return res.json({ message: "Home created", home });
   } catch (e: any) {
     console.error("createHome error:", e);
@@ -385,6 +409,30 @@ export async function updateHome(req: any, res: Response) {
     });
 
     const home = await updateWithSchemaFallback<any>("homes", { id: homeId }, patch);
+
+    const utilityChanged = electricity_meter !== undefined || water_meter !== undefined || internet_id !== undefined;
+    await emitServiceRegistryEvent({
+      event: "home.service_registry.updated",
+      estate_id: String(existing.estate_id),
+      home_id: String(homeId),
+      user_id: resident_id === undefined ? String(home?.resident_id || "") || null : resident_id ? String(resident_id) : null,
+      actor_id: String(req.user.id),
+      payload: { reason: utilityChanged ? "utility_account_updated" : "home_updated" },
+    });
+    if (utilityChanged) {
+      await emitServiceRegistryEvent({
+        event: "home.utility_account.updated",
+        estate_id: String(existing.estate_id),
+        home_id: String(homeId),
+        user_id: resident_id === undefined ? String(home?.resident_id || "") || null : resident_id ? String(resident_id) : null,
+        actor_id: String(req.user.id),
+        payload: {
+          electricity_meter: electricity_meter !== undefined,
+          water_meter: water_meter !== undefined,
+          internet_id: internet_id !== undefined,
+        },
+      });
+    }
 
     return res.json({ message: "Home updated", home });
   } catch (e: any) {
