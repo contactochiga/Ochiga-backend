@@ -506,18 +506,50 @@ async function fetchEstateServicePayments(estateId: string, limit: number) {
     });
 }
 
-async function resolveHomeForUser(user: any) {
+async function canUseHomeContext(user: any, homeId: string, estateId?: string | null) {
+  const { data: membership, error } = await supabaseAdmin
+    .from("home_memberships")
+    .select("home_id,status,homes(id,estate_id)")
+    .eq("user_id", user.id)
+    .eq("home_id", homeId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  const home = Array.isArray((membership as any)?.homes) ? (membership as any).homes[0] : (membership as any)?.homes;
+  if (home?.id && (!estateId || String(home.estate_id || "") === String(estateId))) return true;
+
+  if (["admin", "super_admin", "ochiga_admin"].includes(String(user.role || ""))) return true;
+  if (!estateId) return false;
+  return assertCanReadEstate(String(user.id), String(estateId));
+}
+
+async function resolveHomeForUser(user: any, requested?: { homeId?: string | null; estateId?: string | null }) {
+  const requestedHomeId = String(requested?.homeId || "").trim();
+  const requestedEstateId = String(requested?.estateId || "").trim();
+  const select = "id, estate_id, name, unit, block, electricity_meter, water_meter, internet_id";
+
+  if (requestedHomeId) {
+    const allowed = await canUseHomeContext(user, requestedHomeId, requestedEstateId || null);
+    if (!allowed) throw Object.assign(new Error("No access to selected home"), { statusCode: 403 });
+    let query = supabaseAdmin.from("homes").select(select).eq("id", requestedHomeId);
+    if (requestedEstateId) query = query.eq("estate_id", requestedEstateId);
+    const { data, error } = await query.maybeSingle();
+    if (error) throw new Error(error.message);
+    return data || null;
+  }
+
   if (user?.home_id) {
     const { data, error } = await supabaseAdmin
       .from("homes")
-      .select("id, estate_id, name, unit, block, electricity_meter, water_meter, internet_id")
+      .select(select)
       .eq("id", user.home_id)
       .maybeSingle();
     if (!error && data?.id) return data;
   }
 
   const { data: membership, error: memErr } = await supabaseAdmin
-    .from("estate_memberships")
+    .from("home_memberships")
     .select("home_id,status")
     .eq("user_id", user.id)
     .eq("status", "active")
@@ -529,7 +561,7 @@ async function resolveHomeForUser(user: any) {
 
   const { data: home, error: homeErr } = await supabaseAdmin
     .from("homes")
-    .select("id, estate_id, name, unit, block, electricity_meter, water_meter, internet_id")
+    .select(select)
     .eq("id", membership.home_id)
     .maybeSingle();
   if (homeErr) return null;
@@ -598,8 +630,8 @@ function accountValue(accounts: Map<string, any>, serviceKey: ServiceKey, key: s
   return account?.[key] ?? fallback;
 }
 
-async function buildHomeServiceRegistry(user: any) {
-  const home = await resolveHomeForUser(user);
+async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string | null; estateId?: string | null; includeDebug?: boolean }) {
+  const home = await resolveHomeForUser(user, requested);
   if (!home?.id) throw Object.assign(new Error("No home linked to this account"), { statusCode: 400 });
 
   const estateId = String(home.estate_id || user.estate_id || "").trim();
@@ -616,7 +648,7 @@ async function buildHomeServiceRegistry(user: any) {
 
   const configEnabled = (key: ServiceKey) => Boolean(configByKey.get(key)?.active ?? true);
   const lastPaid = (key: ServiceKey) => paymentsByKey.get(key)?.created_at || null;
-  const linked = (key: ServiceKey, fallback: any) => Boolean(accountValue(accounts, key, "linked", fallback));
+  const linked = (key: ServiceKey, fallback: any) => Boolean(fallback || accountValue(accounts, key, "linked", fallback));
   const status = (key: ServiceKey, isLinked: boolean) => String(accountValue(accounts, key, "status", serviceStatusFrom(configEnabled(key), isLinked, key)) || "available");
 
   const electricityLinked = linked("utility_token", Boolean(home.electricity_meter));
@@ -625,7 +657,7 @@ async function buildHomeServiceRegistry(user: any) {
   const serviceChargeEnabled = configEnabled("service_charge");
   const facilityEnabled = configEnabled("other_facility_fees");
 
-  return {
+  const response: any = {
     ok: true,
     estate_id: estateId,
     home_id: String(home.id),
@@ -674,6 +706,20 @@ async function buildHomeServiceRegistry(user: any) {
       last_payment_at: lastPaid("other_facility_fees"),
     },
   };
+
+  if (requested?.includeDebug || process.env.NODE_ENV !== "production") {
+    response.debug = {
+      estate_id: estateId,
+      home_id: String(home.id),
+      home_name: String(home.name || [home.block, home.unit].filter(Boolean).join(" / ") || ""),
+      utility_source: "homes",
+      electricity_meter_present: Boolean(String(home.electricity_meter || "").trim()),
+      water_meter_present: Boolean(String(home.water_meter || "").trim()),
+      internet_id_present: Boolean(String(home.internet_id || "").trim()),
+    };
+  }
+
+  return response;
 }
 
 export async function getHomeServiceRegistry(req: Request, res: Response) {
@@ -681,7 +727,11 @@ export async function getHomeServiceRegistry(req: Request, res: Response) {
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
   try {
-    const registry = await buildHomeServiceRegistry(user);
+    const registry = await buildHomeServiceRegistry(user, {
+      homeId: String(req.query.home_id || "").trim() || null,
+      estateId: String(req.query.estate_id || "").trim() || null,
+      includeDebug: String(req.query.debug || "") === "1",
+    });
     return res.json(registry);
   } catch (e: any) {
     return res.status(Number(e?.statusCode || 500)).json({ error: e?.message || "Failed to load home service registry" });
