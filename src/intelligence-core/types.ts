@@ -8,6 +8,7 @@ export type IntelligenceAgentId =
   | "edge"
   | "camera"
   | "watch"
+  | "ochiga_executive"
   | "twin"
   | "plan_studio";
 
@@ -20,6 +21,10 @@ export type IntelligenceMemoryScope =
   | "lead"
   | "camera"
   | "edge"
+  | "employee"
+  | "team"
+  | "department"
+  | "company"
   | "system";
 
 export type IntelligenceRiskLevel = "low" | "medium" | "high" | "critical";

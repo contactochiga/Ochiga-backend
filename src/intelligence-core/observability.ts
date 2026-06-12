@@ -11,6 +11,10 @@ export type AgentObservationInput = {
   success: boolean;
   failure_reason?: string | null;
   latency_ms?: number | null;
+  department_id?: string | null;
+  team_id?: string | null;
+  role_id?: string | null;
+  employee_id?: string | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -31,6 +35,10 @@ export async function recordAgentObservation(input: AgentObservationInput) {
     success: input.success,
     failure_reason: input.failure_reason || null,
     latency_ms: input.latency_ms ?? null,
+    department_id: input.department_id || null,
+    team_id: input.team_id || null,
+    role_id: input.role_id || null,
+    employee_id: input.employee_id || null,
     metadata: input.metadata || {},
   };
 
@@ -57,7 +65,7 @@ export async function observeAgentAction<T>(input: Omit<AgentObservationInput, "
 export async function getAgentObservabilitySummary(limit = 100) {
   const { data, error } = await supabaseAdmin
     .from("ochiga_agent_observability")
-    .select("agent_id,action,tool,success,latency_ms,occurred_at")
+    .select("agent_id,action,tool,success,latency_ms,department_id,team_id,role_id,employee_id,occurred_at")
     .order("occurred_at", { ascending: false })
     .limit(Math.max(1, Math.min(500, limit)));
 

@@ -1,6 +1,17 @@
 import type { IntelligenceAgentId } from "./types";
 
-export type IntelligenceMemoryDirectoryScope = "resident" | "lead" | "estate" | "facility" | "camera" | "edge" | "office";
+export type IntelligenceMemoryDirectoryScope =
+  | "resident"
+  | "lead"
+  | "estate"
+  | "facility"
+  | "camera"
+  | "edge"
+  | "office"
+  | "employee"
+  | "team"
+  | "department"
+  | "company";
 
 export type IntelligenceMemoryDirectoryEntry = {
   scope: IntelligenceMemoryDirectoryScope;
@@ -63,9 +74,41 @@ export const INTELLIGENCE_MEMORY_DIRECTORY: IntelligenceMemoryDirectoryEntry[] =
   {
     scope: "office",
     owner_hint: "office_id or workspace identity",
-    agents: ["oma", "osa", "plan_studio", "twin"],
+    agents: ["oma", "osa", "ochiga_executive", "plan_studio", "twin"],
     storage: ["office CRM/task/document memory", "ochiga_memory_directory", "ochiga_intelligence_events"],
     boundary: "Office memory is commercial and operational. It must consume Oyi data through explicit adapters and permissions only.",
+    visibility: "scoped",
+  },
+  {
+    scope: "employee",
+    owner_hint: "employee_id + user_id",
+    agents: ["ochiga_executive"],
+    storage: ["ochiga_organization_employees", "ochiga_agent_observability"],
+    boundary: "Employee memory is organizational only. It must not include resident-private memory or raw CRM notes.",
+    visibility: "scoped",
+  },
+  {
+    scope: "team",
+    owner_hint: "team_id",
+    agents: ["ochiga_executive"],
+    storage: ["ochiga_organization_teams", "ochiga_agent_collaborations", "ochiga_agent_observability"],
+    boundary: "Team memory summarizes responsibility and workflow activity only. It must not merge home, estate, resident, or lead memory.",
+    visibility: "scoped",
+  },
+  {
+    scope: "department",
+    owner_hint: "department_id",
+    agents: ["ochiga_executive"],
+    storage: ["ochiga_organization_departments", "ochiga_organization_responsibilities", "ochiga_agent_collaborations"],
+    boundary: "Department memory is organizational coordination context. Executive Intelligence receives summaries, not raw private source memory.",
+    visibility: "scoped",
+  },
+  {
+    scope: "company",
+    owner_hint: "company",
+    agents: ["ochiga_executive"],
+    storage: ["ochiga_intelligence_events", "ochiga_intelligence_predictions", "ochiga_agent_collaborations"],
+    boundary: "Company memory is cross-system summary memory. It must not directly expose resident memory, OMA lead notes, OSA customer notes, or camera credentials.",
     visibility: "scoped",
   },
 ];

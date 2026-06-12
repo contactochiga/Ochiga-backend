@@ -18,6 +18,13 @@ export async function getIntelligenceHealth() {
     getAgentObservabilitySummary(100),
   ]);
   const predictions = await tableHealth("ochiga_intelligence_predictions");
+  const [departments, teams, roles, employees, collaborations] = await Promise.all([
+    tableHealth("ochiga_organization_departments"),
+    tableHealth("ochiga_organization_teams"),
+    tableHealth("ochiga_organization_roles"),
+    tableHealth("ochiga_organization_employees"),
+    tableHealth("ochiga_agent_collaborations"),
+  ]);
 
   const components = {
     agents: { ok: INTELLIGENCE_AGENTS.length >= 7, count: INTELLIGENCE_AGENTS.length },
@@ -25,11 +32,12 @@ export async function getIntelligenceHealth() {
     memory_directory: { ok: INTELLIGENCE_MEMORY_DIRECTORY.length >= 7 && memoryDirectory.ok, count: INTELLIGENCE_MEMORY_DIRECTORY.length, table: memoryDirectory },
     event_bus: events,
     predictions: { ...predictions, engine_ready: predictions.ok },
+    organization: { ok: departments.ok && teams.ok && roles.ok && employees.ok, departments, teams, roles, employees },
     observability,
-    collaboration: { ok: AGENT_COLLABORATION_RULES.every((rule) => rule.enabled), count: AGENT_COLLABORATION_RULES.length },
+    collaboration: { ok: AGENT_COLLABORATION_RULES.every((rule) => rule.enabled) && collaborations.ok, count: AGENT_COLLABORATION_RULES.length, table: collaborations },
   };
 
-  const checks = [components.agents.ok, components.tools.ok, components.memory_directory.ok, components.event_bus.ok, components.predictions.ok, components.observability.ok, components.collaboration.ok];
+  const checks = [components.agents.ok, components.tools.ok, components.memory_directory.ok, components.event_bus.ok, components.predictions.ok, components.organization.ok, components.observability.ok, components.collaboration.ok];
   const readiness = Math.round((checks.filter(Boolean).length / checks.length) * 100);
   return {
     ok: readiness >= 80,

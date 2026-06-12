@@ -72,6 +72,16 @@ export const INTELLIGENCE_AGENTS: IntelligenceAgentDefinition[] = [
     default_response_tone: "glanceable, compact, resident-safe",
   },
   {
+    id: "ochiga_executive",
+    name: "Ochiga Executive Intelligence",
+    domain: "cross-system executive awareness and agent orchestration",
+    allowed_surfaces: ["office", "api"],
+    tools: ["intelligence:summary", "intelligence:predictions", "intelligence:collaboration", "intelligence:observability"],
+    memory_scope: ["company", "department", "team", "system"],
+    risk_level: "high",
+    default_response_tone: "executive, concise, cross-functional, boundary-aware",
+  },
+  {
     id: "twin",
     name: "Digital Twin Intelligence",
     domain: "future digital twin understanding",

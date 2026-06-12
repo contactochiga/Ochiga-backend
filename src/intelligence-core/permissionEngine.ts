@@ -37,7 +37,7 @@ const ALL_CATEGORIES: IntelligenceEventCategory[] = [
   "system",
 ];
 
-const ALL_AGENTS: IntelligenceAgentId[] = ["oyi", "oma", "osa", "facility", "edge", "camera", "watch", "twin", "plan_studio"];
+const ALL_AGENTS: IntelligenceAgentId[] = ["oyi", "oma", "osa", "facility", "edge", "camera", "watch", "ochiga_executive", "twin", "plan_studio"];
 
 export function normalizeIntelligenceRole(input?: string | null): IntelligenceRole {
   const raw = String(input || "resident").trim().toLowerCase();
@@ -97,7 +97,7 @@ export function getIntelligencePermissionPolicy(actor?: AuthUser | null): Intell
     return {
       role,
       allowed_categories: ["operational", "security", "maintenance", "visitor", "community", "camera", "edge", "system"],
-      allowed_agents: ["oyi", "facility", "edge", "camera", "watch"],
+      allowed_agents: ["oyi", "facility", "edge", "camera", "watch", "ochiga_executive"],
       scope: "estate",
       can_view_office: false,
       can_view_camera: hasPermission(actor, "cameras.view"),

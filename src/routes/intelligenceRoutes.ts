@@ -11,6 +11,10 @@ import { acknowledgePrediction, generateIntelligencePredictions, listIntelligenc
 import { AGENT_COLLABORATION_RULES, getCollaborationHints } from "../intelligence-core/collaboration";
 import { getIntelligenceHealth } from "../intelligence-core/health";
 import { observeAgentAction } from "../intelligence-core/observability";
+import { getExecutiveIntelligence } from "../intelligence-core/executive";
+import { getOrganizationDirectory, getOrganizationSummary, listDepartments, listTeams } from "../intelligence-core/organization";
+import { getAgentHealth, getExpandedObservability, listAgentHealthContracts } from "../intelligence-core/organizationObservability";
+import { listAgentCollaborations } from "../intelligence-core/collaboration";
 
 const router = Router();
 
@@ -112,6 +116,96 @@ router.get("/agents", requireAuth, async (req, res) => {
     return res.json(body);
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to load intelligence agents" });
+  }
+});
+
+router.get("/executive", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.executive", tool: "intelligence:executive", surface: "api", actor: req.user },
+      async () => getExecutiveIntelligence(req.user || null)
+    );
+    return res.status(body.ok ? 200 : 403).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load executive intelligence" });
+  }
+});
+
+router.get("/organization", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.organization", tool: "intelligence:organization", surface: "api", actor: req.user },
+      async () => {
+        const [summary, directory] = await Promise.all([getOrganizationSummary(req.user || null), getOrganizationDirectory(req.user || null)]);
+        return { ok: summary.ok && directory.ok, summary, directory };
+      }
+    );
+    return res.status(body.ok ? 200 : 403).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load organization intelligence" });
+  }
+});
+
+router.get("/departments", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.departments", tool: "intelligence:departments", surface: "api", actor: req.user },
+      async () => listDepartments(req.user || null)
+    );
+    return res.status(body.ok ? 200 : 403).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load departments" });
+  }
+});
+
+router.get("/teams", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.teams", tool: "intelligence:teams", surface: "api", actor: req.user },
+      async () => listTeams(req.user || null)
+    );
+    return res.status(body.ok ? 200 : 403).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load teams" });
+  }
+});
+
+router.get("/observability", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.observability", tool: "intelligence:observability", surface: "api", actor: req.user },
+      async () => getExpandedObservability(req.user || null)
+    );
+    return res.json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load observability" });
+  }
+});
+
+router.get("/agents/:id/health", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.agent.health", tool: "intelligence:agent.health", surface: "api", actor: req.user },
+      async () => getAgentHealth(String(req.params.id), req.user || null)
+    );
+    return res.status(body.error === "Unknown intelligence agent" ? 404 : 200).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load agent health" });
+  }
+});
+
+router.get("/collaboration", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.collaboration", tool: "intelligence:collaboration", surface: "api", actor: req.user },
+      async () => {
+        const data = await listAgentCollaborations(req.user || null, parseLimit(req.query.limit, 100));
+        return { ...data, agent_health_contracts: listAgentHealthContracts() };
+      }
+    );
+    return res.json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load collaboration contracts" });
   }
 });
 
