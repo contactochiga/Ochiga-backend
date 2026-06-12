@@ -11,10 +11,11 @@ import { acknowledgePrediction, generateIntelligencePredictions, listIntelligenc
 import { AGENT_COLLABORATION_RULES, getCollaborationHints } from "../intelligence-core/collaboration";
 import { getIntelligenceHealth } from "../intelligence-core/health";
 import { observeAgentAction } from "../intelligence-core/observability";
-import { getExecutiveIntelligence } from "../intelligence-core/executive";
+import { getExecutiveBrief, getExecutiveIntelligence } from "../intelligence-core/executive";
 import { getOrganizationDirectory, getOrganizationSummary, listDepartments, listTeams } from "../intelligence-core/organization";
 import { getAgentHealth, getExpandedObservability, listAgentHealthContracts } from "../intelligence-core/organizationObservability";
 import { listAgentCollaborations } from "../intelligence-core/collaboration";
+import { getAgentResponsibilities, getEscalatedWorkflows, getOpenWorkflows, getWorkflow, listWorkflows, WORKFLOW_CONTRACTS } from "../intelligence-core/workflows";
 
 const router = Router();
 
@@ -57,6 +58,12 @@ function mergeEvents(persisted: any[], normalized: any[], limit: number) {
 function canRunPredictions(user: any) {
   const role = getIntelligencePermissionPolicy(user).role;
   return ["facility_manager", "security_operator", "estate_admin", "ochiga_admin", "super_admin"].includes(role);
+}
+
+function workflowHttpStatus(body: any) {
+  if (body?.ok) return 200;
+  if (String(body?.error || "").toLowerCase().includes("access requires")) return 403;
+  return 200;
 }
 
 async function loadRoleAwareEvents(req: any, limitFallback = 50) {
@@ -125,7 +132,7 @@ router.get("/executive", requireAuth, async (req, res) => {
       { agent_id: "ochiga_executive", action: "intelligence.executive", tool: "intelligence:executive", surface: "api", actor: req.user },
       async () => getExecutiveIntelligence(req.user || null)
     );
-    return res.status(body.ok ? 200 : 403).json(body);
+    return res.status(workflowHttpStatus(body)).json(body);
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to load executive intelligence" });
   }
@@ -164,7 +171,7 @@ router.get("/teams", requireAuth, async (req, res) => {
       { agent_id: "ochiga_executive", action: "intelligence.teams", tool: "intelligence:teams", surface: "api", actor: req.user },
       async () => listTeams(req.user || null)
     );
-    return res.status(body.ok ? 200 : 403).json(body);
+    return res.status(workflowHttpStatus(body)).json(body);
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to load teams" });
   }
@@ -206,6 +213,78 @@ router.get("/collaboration", requireAuth, async (req, res) => {
     return res.json(body);
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to load collaboration contracts" });
+  }
+});
+
+router.get("/workflows", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.workflows", tool: "intelligence:workflows", surface: "api", actor: req.user },
+      async () => {
+        const data = await listWorkflows(req.user || null, {
+          status: req.query.status ? String(req.query.status) : null,
+          limit: parseLimit(req.query.limit, 100),
+        });
+        const responsibilities = await getAgentResponsibilities(req.user || null);
+        return {
+          ...data,
+          workflow_contracts: WORKFLOW_CONTRACTS,
+          agent_responsibilities: responsibilities.responsibilities,
+          safety: "Agents may create, assign, track, escalate, and recommend workflow actions only. High-risk actions require explicit approval.",
+        };
+      }
+    );
+    return res.status(workflowHttpStatus(body)).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load intelligence workflows" });
+  }
+});
+
+router.get("/workflows/open", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.workflows.open", tool: "intelligence:workflows.open", surface: "api", actor: req.user },
+      async () => getOpenWorkflows(req.user || null, parseLimit(req.query.limit, 100))
+    );
+    return res.status(workflowHttpStatus(body)).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load open workflows" });
+  }
+});
+
+router.get("/workflows/escalated", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.workflows.escalated", tool: "intelligence:workflows.escalated", surface: "api", actor: req.user },
+      async () => getEscalatedWorkflows(req.user || null, parseLimit(req.query.limit, 100))
+    );
+    return res.status(workflowHttpStatus(body)).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load escalated workflows" });
+  }
+});
+
+router.get("/workflows/:id", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.workflow.detail", tool: "intelligence:workflow.detail", surface: "api", actor: req.user },
+      async () => getWorkflow(String(req.params.id), req.user || null)
+    );
+    return res.status(body.ok ? 200 : body.error === "Workflow not found" ? 404 : 403).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load workflow" });
+  }
+});
+
+router.get("/brief", requireAuth, async (req, res) => {
+  try {
+    const body = await observeAgentAction(
+      { agent_id: "ochiga_executive", action: "intelligence.brief", tool: "intelligence:brief", surface: "api", actor: req.user },
+      async () => getExecutiveBrief(req.user || null)
+    );
+    return res.status(body.ok ? 200 : 403).json(body);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load executive brief" });
   }
 });
 

@@ -4,6 +4,7 @@ import { INTELLIGENCE_TOOL_REGISTRY } from "./toolRegistry";
 import { INTELLIGENCE_MEMORY_DIRECTORY } from "./memoryDirectory";
 import { AGENT_COLLABORATION_RULES } from "./collaboration";
 import { getAgentObservabilitySummary } from "./observability";
+import { AGENT_RESPONSIBILITY_CONTRACTS, WORKFLOW_CONTRACTS } from "./workflows";
 
 async function tableHealth(table: string) {
   const { error } = await supabaseAdmin.from(table).select("id", { count: "exact", head: true }).limit(1);
@@ -25,6 +26,11 @@ export async function getIntelligenceHealth() {
     tableHealth("ochiga_organization_employees"),
     tableHealth("ochiga_agent_collaborations"),
   ]);
+  const [workflows, workflowEvents, agentResponsibilities] = await Promise.all([
+    tableHealth("ochiga_workflows"),
+    tableHealth("ochiga_workflow_events"),
+    tableHealth("ochiga_agent_responsibilities"),
+  ]);
 
   const components = {
     agents: { ok: INTELLIGENCE_AGENTS.length >= 7, count: INTELLIGENCE_AGENTS.length },
@@ -35,9 +41,16 @@ export async function getIntelligenceHealth() {
     organization: { ok: departments.ok && teams.ok && roles.ok && employees.ok, departments, teams, roles, employees },
     observability,
     collaboration: { ok: AGENT_COLLABORATION_RULES.every((rule) => rule.enabled) && collaborations.ok, count: AGENT_COLLABORATION_RULES.length, table: collaborations },
+    workflows: {
+      ok: workflows.ok && workflowEvents.ok && agentResponsibilities.ok,
+      workflow_contracts: WORKFLOW_CONTRACTS.length,
+      responsibility_contracts: AGENT_RESPONSIBILITY_CONTRACTS.length,
+      tables: { workflows, workflowEvents, agentResponsibilities },
+      safety: "Workflow orchestration is tracking and recommendation only. High-risk device, payment, access, wallet, and permission actions remain blocked without explicit approval.",
+    },
   };
 
-  const checks = [components.agents.ok, components.tools.ok, components.memory_directory.ok, components.event_bus.ok, components.predictions.ok, components.organization.ok, components.observability.ok, components.collaboration.ok];
+  const checks = [components.agents.ok, components.tools.ok, components.memory_directory.ok, components.event_bus.ok, components.predictions.ok, components.organization.ok, components.observability.ok, components.collaboration.ok, components.workflows.ok];
   const readiness = Math.round((checks.filter(Boolean).length / checks.length) * 100);
   return {
     ok: readiness >= 80,

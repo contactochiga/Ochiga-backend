@@ -14,6 +14,7 @@ export * from "./executive";
 export * from "./organizationObservability";
 export * from "./collaboration";
 export * from "./observability";
+export * from "./workflows";
 export * from "./health";
 export * from "./adapters/baseAdapter";
 export * from "./adapters/oyiAdapter";
