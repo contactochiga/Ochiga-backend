@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent } from "../core/foundation";
+import { updateDeviceRuntimeSession } from "./deviceRuntimeSessionsService";
 
 type DeviceEventSource =
   | "app"
@@ -227,6 +228,16 @@ export async function recordDeviceEvent(input: RecordDeviceEventInput) {
   });
 
   await updateCounters(input, source).catch((error) => console.warn("[device_usage_counters] update failed", error?.message || String(error)));
+  await updateDeviceRuntimeSession({
+    deviceId,
+    estateId: input.estateId || null,
+    homeId: input.homeId || null,
+    roomId: input.roomId || null,
+    source,
+    previousState: input.previousState || null,
+    newState: input.newState || null,
+    occurredAt,
+  }).catch((error) => console.warn("[device_runtime_sessions] update failed", error?.message || String(error)));
 
   return { ok: true, source, confidence, title };
 }

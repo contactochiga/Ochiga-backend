@@ -1,6 +1,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { summarizeDeviceRuntime } from "../services/deviceRuntimeSessionsService";
 
 type ActivityCategory =
   | "device"
@@ -485,6 +486,31 @@ function deviceStateEvent(row: any, device: any): ActivityEvent {
   });
 }
 
+function runtimeEvent(row: any, device: any): ActivityEvent {
+  const name = cleanText(device?.name, "Device");
+  const duration = Number(row?.duration_seconds || 0);
+  const mins = Math.max(1, Math.round(duration / 60));
+  const open = !row?.ended_at;
+  return baseEvent({
+    id: `device_runtime:${row.id}`,
+    source: "device_runtime_sessions",
+    type: open ? "device.runtime.active" : "device.runtime.completed",
+    category: "device",
+    severity: "info",
+    title: open ? `${name} is still active` : `${name} was active for ${mins} min`,
+    summary: open ? "Runtime session is currently open." : `Runtime session completed after ${mins} minute${mins === 1 ? "" : "s"}.`,
+    occurred_at: iso(row?.ended_at || row?.started_at),
+    estate_id: firstString(row?.estate_id) || null,
+    home_id: firstString(row?.home_id) || null,
+    user_id: null,
+    actor: null,
+    target: row?.device_id ? { id: String(row.device_id), type: "device" } : null,
+    label: "Runtime",
+    action: row?.device_id ? action(`/devices?deviceId=${encodeURIComponent(String(row.device_id))}`, "Open device", "device", String(row.device_id)) : null,
+    metadata: { source: row?.source || null, duration_seconds: duration, started_at: row?.started_at || null, ended_at: row?.ended_at || null },
+  });
+}
+
 function sourceMap(sources: Record<string, SourceResult>) {
   return Object.fromEntries(Object.entries(sources).map(([key, value]) => [key, { available: value.available, reason: value.reason }]));
 }
@@ -565,6 +591,9 @@ async function buildActivity(req: express.Request) {
   const deviceStates = deviceIds.length
     ? await safeSelect("device_states", (q) => q.select("device_id,status,last_seen,updated_at,created_at").in("device_id", deviceIds).order("last_seen", { ascending: false }).limit(30))
     : { rows: [], available: devices.available, reason: devices.reason };
+  const runtimeSessions = deviceIds.length
+    ? await safeSelect("device_runtime_sessions", (q) => q.select("*").in("device_id", deviceIds).gte("started_at", sinceIso).order("started_at", { ascending: false }).limit(30))
+    : { rows: [], available: devices.available, reason: devices.reason };
 
   const auditEvents = audits.rows.map(auditEvent).filter(Boolean) as ActivityEvent[];
   const events = uniqueEvents([
@@ -585,6 +614,7 @@ async function buildActivity(req: express.Request) {
     ...scenes.rows.map((row: any) => sceneEvent(row, "scene")),
     ...automations.rows.map((row: any) => sceneEvent(row, "automation")),
     ...deviceStates.rows.map((row: any) => deviceStateEvent(row, deviceMap.get(String(row.device_id)) || {})),
+    ...runtimeSessions.rows.map((row: any) => runtimeEvent(row, deviceMap.get(String(row.device_id)) || {})),
     ...auditEvents,
   ])
     .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
@@ -622,6 +652,7 @@ async function buildActivity(req: express.Request) {
     consumer_automations: automations,
     devices,
     device_states: deviceStates,
+    device_runtime_sessions: runtimeSessions,
     audit_events: audits,
   });
 
@@ -643,6 +674,38 @@ router.get("/summary", requireAuth, async (req, res) => {
     res.json({ summary: data.summary, generated_at: data.generated_at });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Failed to load activity summary" });
+  }
+});
+
+router.get("/runtime-summary", requireAuth, async (req, res) => {
+  try {
+    const user = req.user!;
+    const homeId = user.home_id ? String(user.home_id) : String(req.query.home_id || "");
+    if (!homeId) return res.json({ range: String(req.query.range || "today"), total_seconds: 0, activations: 0, open_sessions: 0, sessions: [] });
+    if (user.home_id && homeId !== String(user.home_id)) return res.status(403).json({ error: "Home is outside active context" });
+    const runtime = await summarizeDeviceRuntime({ homeId, range: String(req.query.range || "today") });
+    res.json(runtime);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Failed to load runtime summary" });
+  }
+});
+
+router.get("/awareness", requireAuth, async (req, res) => {
+  try {
+    const data = await buildActivity(req);
+    const events = data.events || [];
+    const candidates = [
+      ...events.filter((event) => event.category === "security" || event.severity === "critical").map((event) => ({ priority: 100, headline: "Security requires attention.", context: event.title, destination: event.action?.href || "/activity?filter=attention", source: event.source })),
+      ...events.filter((event) => event.category === "visitor" && event.severity !== "info").map((event) => ({ priority: 90, headline: "Visitor update available.", context: event.title, destination: event.action?.href || "/visitors", source: event.source })),
+      ...events.filter((event) => event.category === "maintenance" && ["attention", "warning", "critical"].includes(event.severity)).map((event) => ({ priority: 80, headline: "Maintenance requires attention.", context: event.title, destination: event.action?.href || "/maintenance", source: event.source })),
+      ...events.filter((event) => event.category === "service" || event.category === "wallet").map((event) => ({ priority: 70, headline: "Service update available.", context: event.title, destination: event.action?.href || "/services", source: event.source })),
+      ...events.filter((event) => event.category === "device" && ["warning", "critical"].includes(event.severity)).map((event) => ({ priority: 60, headline: "Device needs attention.", context: event.title, destination: event.action?.href || "/devices", source: event.source })),
+      ...events.filter((event) => event.category === "community" && event.severity !== "info").map((event) => ({ priority: 50, headline: "Community update available.", context: event.title, destination: event.action?.href || "/community", source: event.source })),
+    ].sort((a, b) => b.priority - a.priority).slice(0, 8);
+    const items = candidates.length ? candidates : [{ priority: 10, headline: "Home is operating normally.", context: "No action required.", destination: "/activity", source: "activity" }];
+    res.json({ items, generated_at: data.generated_at });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Failed to load awareness" });
   }
 });
 

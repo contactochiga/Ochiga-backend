@@ -301,7 +301,13 @@ export async function executeDeviceCommandForActor(input: {
       }
     }
 
-    const persistedState = { ...(verifiedState || {}), last_command: normalized };
+    const previousStateRow = await supabaseAdmin
+      .from("device_states")
+      .select("status")
+      .eq("device_id", deviceRow.id)
+      .maybeSingle();
+    const previousState = (previousStateRow.data as any)?.status || null;
+    const persistedState = { ...(verifiedState || normalized || {}), last_command: normalized };
     await supabaseAdmin
       .from("device_states")
       .upsert(
@@ -351,8 +357,8 @@ export async function executeDeviceCommandForActor(input: {
       userId: user.id,
       actorId: user.id,
       eventType: "device.command.executed",
-      previousState: null,
-      newState: { last_command: normalized, verified_state: verifiedState || null },
+      previousState,
+      newState: persistedState,
       source: commandSource,
       confidence: "confirmed",
       latencyMs: Date.now() - startedAt,

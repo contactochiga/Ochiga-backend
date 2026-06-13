@@ -1,6 +1,7 @@
 import express from "express";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { getUserNotificationPreferences, upsertUserNotificationPreference, type NotificationCategory } from "../services/notificationPolicyService";
 
 const router = express.Router();
 
@@ -50,6 +51,28 @@ router.get("/", requireAuth, requirePermission("notifications.read"), async (req
 
   // ✅ wrap with items (your UI supports both, but this is cleaner)
   return res.json({ items: data || [] });
+});
+
+router.get("/preferences", requireAuth, requirePermission("notifications.read"), async (req, res) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  try {
+    const items = await getUserNotificationPreferences(String(user.id));
+    return res.json({ items });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Failed to load notification preferences" });
+  }
+});
+
+router.patch("/preferences/:category", requireAuth, requirePermission("notifications.read"), async (req, res) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  try {
+    const item = await upsertUserNotificationPreference(String(user.id), String(req.params.category || "") as NotificationCategory, req.body || {});
+    return res.json({ ok: true, item });
+  } catch (error: any) {
+    return res.status(error?.statusCode || 400).json({ error: error?.message || "Failed to update notification preference" });
+  }
 });
 
 // =============================

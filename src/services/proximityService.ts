@@ -4,10 +4,10 @@ import { AuthUser } from "../middleware/auth";
 import { NotificationService } from "./NotificationService";
 import { emitAuditEvent } from "../core/foundation";
 
-export type ProximityState = "near_home" | "leaving_home" | "away" | "approaching_estate";
+export type ProximityState = "unknown" | "home" | "near_home" | "leaving_home" | "away" | "returning" | "approaching_estate";
 
 const ALLOWED_RADII = new Set([20, 100, 500, 1000]);
-const ALLOWED_STATES = new Set<ProximityState>(["near_home", "leaving_home", "away", "approaching_estate"]);
+const ALLOWED_STATES = new Set<ProximityState>(["unknown", "home", "near_home", "leaving_home", "away", "returning", "approaching_estate"]);
 const NOTIFICATION_COOLDOWN_MS = 15 * 60 * 1000;
 
 type ProximitySettings = {
@@ -20,7 +20,12 @@ type ProximitySettings = {
   estate_lat: number | null;
   estate_lng: number | null;
   last_state: ProximityState | null;
+  last_distance: number | null;
+  last_direction: string | null;
+  last_notified_state: ProximityState | null;
   last_notification_at: string | null;
+  session_id: string | null;
+  last_event_at: string | null;
 };
 
 function finiteNumber(value: any): number | null {
@@ -61,7 +66,12 @@ function defaultSettings(user: AuthUser): ProximitySettings {
     estate_lat: null,
     estate_lng: null,
     last_state: null,
+    last_distance: null,
+    last_direction: null,
+    last_notified_state: null,
     last_notification_at: null,
+    session_id: null,
+    last_event_at: null,
   };
 }
 
@@ -77,7 +87,12 @@ function toSettings(row: any, user: AuthUser): ProximitySettings {
     estate_lat: coord(row?.estate_lat, "lat"),
     estate_lng: coord(row?.estate_lng, "lng"),
     last_state: ALLOWED_STATES.has(row?.last_state) ? row.last_state : null,
+    last_distance: finiteNumber(row?.last_distance),
+    last_direction: row?.last_direction || null,
+    last_notified_state: ALLOWED_STATES.has(row?.last_notified_state) ? row.last_notified_state : null,
     last_notification_at: row?.last_notification_at || null,
+    session_id: row?.session_id || null,
+    last_event_at: row?.last_event_at || null,
   };
 }
 
@@ -275,8 +290,33 @@ async function awarenessMessage(user: AuthUser, state: ProximityState) {
     return "You're away from home. No urgent issues detected.";
   }
 
+  if (state === "returning") return "You're heading home. Oyi is checking your home status.";
+  if (state === "home") return "You're home. No action required.";
+
   if (typeof attention === "number" && attention > 0) return `You're near home. ${attention} update${attention === 1 ? " needs" : "s need"} attention.`;
   return "You're near home. Everything looks normal.";
+}
+
+function directionFrom(previous: number | null, current: number | null) {
+  if (previous === null || current === null) return null;
+  if (current > previous + 15) return "increasing";
+  if (current < previous - 15) return "decreasing";
+  return "stable";
+}
+
+function shouldNotifyProximity(settings: ProximitySettings, state: ProximityState, direction: string | null, distance: number | null, sessionId: string, now: Date) {
+  if (state === "unknown" || state === "home") return { notify: false, reason: "non_attention_state" };
+  if (state === "leaving_home" && settings.last_distance !== null && direction !== "increasing") return { notify: false, reason: "leaving_not_confirmed" };
+  if (state === "returning" && settings.last_distance !== null && direction !== "decreasing") return { notify: false, reason: "returning_not_confirmed" };
+  if ((state === "near_home" || state === "approaching_estate") && settings.last_notified_state === state && settings.session_id === sessionId) return { notify: false, reason: "already_notified_this_session" };
+
+  const lastNotificationAt = settings.last_notification_at ? new Date(settings.last_notification_at).getTime() : 0;
+  if (Number.isFinite(lastNotificationAt) && now.getTime() - lastNotificationAt < NOTIFICATION_COOLDOWN_MS && settings.last_notified_state === state) {
+    return { notify: false, reason: "cooldown_duplicate" };
+  }
+
+  if (state === "away" && distance !== null && settings.last_state === "away" && settings.last_notified_state === "away") return { notify: false, reason: "already_away" };
+  return { notify: true, reason: "state_transition" };
 }
 
 export async function recordProximityEvent(user: AuthUser, body: any, req?: Request) {
@@ -296,13 +336,20 @@ export async function recordProximityEvent(user: AuthUser, body: any, req?: Requ
   }
 
   const now = new Date();
-  const lastNotificationAt = settings.last_notification_at ? new Date(settings.last_notification_at).getTime() : 0;
-  const sameRecentState = settings.last_state === state && Number.isFinite(lastNotificationAt) && now.getTime() - lastNotificationAt < NOTIFICATION_COOLDOWN_MS;
+  const distance = finiteNumber(body?.distance_meters);
+  const direction = directionFrom(settings.last_distance, distance);
+  const sessionId = String(body?.session_id || settings.session_id || `${user.id}:${settings.home_id || "home"}:${now.toISOString().slice(0, 10)}`);
+  const decision = shouldNotifyProximity(settings, state, direction, distance, sessionId, now);
   const message = await awarenessMessage(user, state);
 
   await upsertSettingsRow(user, {
     last_state: state,
-    last_notification_at: sameRecentState ? settings.last_notification_at : now.toISOString(),
+    last_distance: distance,
+    last_direction: direction,
+    last_notified_state: decision.notify ? state : settings.last_notified_state,
+    last_notification_at: decision.notify ? now.toISOString() : settings.last_notification_at,
+    session_id: sessionId,
+    last_event_at: now.toISOString(),
   });
 
   void emitAuditEvent({
@@ -318,12 +365,14 @@ export async function recordProximityEvent(user: AuthUser, body: any, req?: Requ
     metadata: {
       state,
       distance_bucket: distanceBucket(body?.distance_meters),
-      notified: !sameRecentState,
+      direction,
+      notified: decision.notify,
+      decision_reason: decision.reason,
     },
     req,
   });
 
-  if (!sameRecentState) {
+  if (decision.notify) {
     await NotificationService.sendToUser(user.id, {
       title: "Home awareness",
       type: "home",
@@ -339,5 +388,5 @@ export async function recordProximityEvent(user: AuthUser, body: any, req?: Requ
     });
   }
 
-  return { ok: true, state, message, notified: !sameRecentState };
+  return { ok: true, state, message, notified: decision.notify, decision_reason: decision.reason };
 }

@@ -3,6 +3,7 @@
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { io } from "../server";
 import { PushNotificationService } from "./PushNotificationService";
+import { decideNotification, recordNotificationDecision } from "./notificationPolicyService";
 
 /**
  * Types of notifications
@@ -51,6 +52,7 @@ function compact<T extends Record<string, any>>(obj: T): Partial<T> {
 }
 
 async function insertNotificationRows(rows: Record<string, any>[]) {
+  if (!rows.length) return { data: [], error: null };
   let payload = rows.map((row) => ({ ...compact(row) }));
   let lastErrorMsg = "";
 
@@ -98,11 +100,14 @@ export class NotificationService {
     return {
       user_id: userId,
       estate_id: estateId ?? (notification.payload as any)?.estate_id ?? null,
+      home_id: (notification.payload as any)?.home_id ?? null,
       title: notification.title,
       message: notification.message,
       type: notification.type,
       payload: notification.payload || {},
       entity_id: notification.entityId || null,
+      delivery_channel: (notification.payload as any)?.delivery_channel,
+      notification_key: (notification.payload as any)?.notification_key,
     };
   }
 
@@ -157,20 +162,46 @@ export class NotificationService {
 
   /** Send notification to a single user */
   static async sendToUser(userId: string, notification: NotificationPayload) {
+    const policy = await decideNotification(userId, notification).catch(() => null);
+    const nextPayload = {
+      ...(notification.payload || {}),
+      notification_key: policy?.key || (notification.payload as any)?.notification_key,
+      delivery_channel: policy?.decision || "push",
+      notification_category: policy?.category || null,
+      notification_reason: policy?.reason || null,
+    };
+    if (policy) {
+      await recordNotificationDecision({
+        userId,
+        estateId: (nextPayload as any).estate_id || null,
+        homeId: (nextPayload as any).home_id || null,
+        key: policy.key,
+        category: policy.category,
+        decision: policy.decision,
+        title: notification.title,
+        reason: policy.reason,
+      });
+    }
+    if (policy?.decision === "activity_only" || policy?.decision === "suppressed") {
+      return { data: null, error: null, skipped: true, decision: policy.decision };
+    }
+    const decorated = { ...notification, payload: nextPayload };
     const { data: rows, error } = await insertNotificationRows([
-      this.normalizeRow(userId, notification),
+      this.normalizeRow(userId, decorated),
     ]);
     const data = rows?.[0] || null;
 
     if (!error && data) {
       io.to(`user:${userId}`).emit("notification:new", data);
-      await PushNotificationService.sendToUsers([userId], {
-        title: notification.title,
-        body: notification.message,
-        sound: "default",
-        badge: 1,
-        data: this.buildPushData(data),
-      });
+      if (!policy || policy.decision === "push" || policy.decision === "critical_push") {
+        await PushNotificationService.sendToUsers([userId], {
+          title: notification.title,
+          body: notification.message,
+          sound: "default",
+          badge: 1,
+          data: this.buildPushData(data),
+        });
+      }
     }
 
     return { data, error };
@@ -185,14 +216,35 @@ export class NotificationService {
 
     if (error || !users?.length) return { error };
 
-    const insertData = users.map((u) => this.normalizeRow(String(u.id), notification));
-    const { data, error: insertError } = await insertNotificationRows(insertData);
+    const prepared: any[] = [];
+    const pushRows = new Set<string>();
+    for (const u of users) {
+      const userId = String(u.id);
+      const policy = await decideNotification(userId, notification).catch(() => null);
+      const nextPayload = {
+        ...(notification.payload || {}),
+        notification_key: policy?.key || (notification.payload as any)?.notification_key,
+        delivery_channel: policy?.decision || "push",
+        notification_category: policy?.category || null,
+        notification_reason: policy?.reason || null,
+      };
+      if (policy) {
+        await recordNotificationDecision({ userId, estateId: (nextPayload as any).estate_id || null, homeId: (nextPayload as any).home_id || homeId || null, key: policy.key, category: policy.category, decision: policy.decision, title: notification.title, reason: policy.reason });
+        if (policy.decision === "activity_only" || policy.decision === "suppressed") continue;
+        if (policy.decision === "push" || policy.decision === "critical_push") pushRows.add(userId);
+      } else {
+        pushRows.add(userId);
+      }
+      prepared.push(this.normalizeRow(userId, { ...notification, payload: nextPayload }));
+    }
+    const { data, error: insertError } = await insertNotificationRows(prepared);
 
     (data || []).forEach((row: any) =>
       io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
     for (const row of data || []) {
+      if (!pushRows.has(String((row as any).user_id))) continue;
       await PushNotificationService.sendToUsers([String((row as any).user_id)], {
         title: String((row as any).title || notification.title),
         body: String((row as any).message || notification.message),
@@ -214,14 +266,36 @@ export class NotificationService {
 
     if (error || !users?.length) return { error };
 
-    const insertData = users.map((u) => this.normalizeRow(String(u.id), notification, estateId));
-    const { data, error: insertError } = await insertNotificationRows(insertData);
+    const prepared: any[] = [];
+    const pushRows = new Set<string>();
+    for (const u of users) {
+      const userId = String(u.id);
+      const policy = await decideNotification(userId, notification).catch(() => null);
+      const nextPayload = {
+        ...(notification.payload || {}),
+        estate_id: (notification.payload as any)?.estate_id || estateId,
+        notification_key: policy?.key || (notification.payload as any)?.notification_key,
+        delivery_channel: policy?.decision || "push",
+        notification_category: policy?.category || null,
+        notification_reason: policy?.reason || null,
+      };
+      if (policy) {
+        await recordNotificationDecision({ userId, estateId, homeId: (nextPayload as any).home_id || null, key: policy.key, category: policy.category, decision: policy.decision, title: notification.title, reason: policy.reason });
+        if (policy.decision === "activity_only" || policy.decision === "suppressed") continue;
+        if (policy.decision === "push" || policy.decision === "critical_push") pushRows.add(userId);
+      } else {
+        pushRows.add(userId);
+      }
+      prepared.push(this.normalizeRow(userId, { ...notification, payload: nextPayload }, estateId));
+    }
+    const { data, error: insertError } = await insertNotificationRows(prepared);
 
     (data || []).forEach((row: any) =>
       io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
     for (const row of data || []) {
+      if (!pushRows.has(String((row as any).user_id))) continue;
       await PushNotificationService.sendToUsers([String((row as any).user_id)], {
         title: String((row as any).title || notification.title),
         body: String((row as any).message || notification.message),
@@ -243,14 +317,35 @@ export class NotificationService {
 
     if (error || !users?.length) return { error };
 
-    const insertData = users.map((u) => this.normalizeRow(String(u.id), notification));
-    const { data, error: insertError } = await insertNotificationRows(insertData);
+    const prepared: any[] = [];
+    const pushRows = new Set<string>();
+    for (const u of users) {
+      const userId = String(u.id);
+      const policy = await decideNotification(userId, notification).catch(() => null);
+      const nextPayload = {
+        ...(notification.payload || {}),
+        notification_key: policy?.key || (notification.payload as any)?.notification_key,
+        delivery_channel: policy?.decision || "push",
+        notification_category: policy?.category || null,
+        notification_reason: policy?.reason || null,
+      };
+      if (policy) {
+        await recordNotificationDecision({ userId, estateId: (nextPayload as any).estate_id || null, homeId: (nextPayload as any).home_id || null, key: policy.key, category: policy.category, decision: policy.decision, title: notification.title, reason: policy.reason });
+        if (policy.decision === "activity_only" || policy.decision === "suppressed") continue;
+        if (policy.decision === "push" || policy.decision === "critical_push") pushRows.add(userId);
+      } else {
+        pushRows.add(userId);
+      }
+      prepared.push(this.normalizeRow(userId, { ...notification, payload: nextPayload }));
+    }
+    const { data, error: insertError } = await insertNotificationRows(prepared);
 
     (data || []).forEach((row: any) =>
       io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
     for (const row of data || []) {
+      if (!pushRows.has(String((row as any).user_id))) continue;
       await PushNotificationService.sendToUsers([String((row as any).user_id)], {
         title: String((row as any).title || notification.title),
         body: String((row as any).message || notification.message),
@@ -272,17 +367,36 @@ export class NotificationService {
     const userIds = await this.getEstateUserIdsByRole(estateId, role);
     if (!userIds.length) return { error: null };
 
-    const insertData = userIds.map((userId) => ({
-      ...this.normalizeRow(userId, notification, estateId),
-    }));
+    const prepared: any[] = [];
+    const pushRows = new Set<string>();
+    for (const userId of userIds) {
+      const policy = await decideNotification(userId, notification).catch(() => null);
+      const nextPayload = {
+        ...(notification.payload || {}),
+        estate_id: (notification.payload as any)?.estate_id || estateId,
+        notification_key: policy?.key || (notification.payload as any)?.notification_key,
+        delivery_channel: policy?.decision || "push",
+        notification_category: policy?.category || null,
+        notification_reason: policy?.reason || null,
+      };
+      if (policy) {
+        await recordNotificationDecision({ userId, estateId, homeId: (nextPayload as any).home_id || null, key: policy.key, category: policy.category, decision: policy.decision, title: notification.title, reason: policy.reason });
+        if (policy.decision === "activity_only" || policy.decision === "suppressed") continue;
+        if (policy.decision === "push" || policy.decision === "critical_push") pushRows.add(userId);
+      } else {
+        pushRows.add(userId);
+      }
+      prepared.push({ ...this.normalizeRow(userId, { ...notification, payload: nextPayload }, estateId) });
+    }
 
-    const { data, error: insertError } = await insertNotificationRows(insertData);
+    const { data, error: insertError } = await insertNotificationRows(prepared);
 
     (data || []).forEach((row: any) =>
       io.to(`user:${row.user_id}`).emit("notification:new", row)
     );
 
     for (const row of data || []) {
+      if (!pushRows.has(String((row as any).user_id))) continue;
       await PushNotificationService.sendToUsers([String((row as any).user_id)], {
         title: String((row as any).title || notification.title),
         body: String((row as any).message || notification.message),
