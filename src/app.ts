@@ -19,6 +19,7 @@ import signalRoutes from "./routes/signals";
 import facilityRoutes from "./routes/facility.routes";
 import aiRoutes from "./routes/aiRoutes";
 import intelligenceRoutes from "./routes/intelligenceRoutes";
+import oyiRoutes from "./routes/oyiRoutes";
 import watchRoutes from "./routes/watchRoutes";
 import activityRoutes from "./routes/activity";
 import scenesRoutes from "./routes/scenes";
@@ -215,6 +216,7 @@ app.use("/residents", residentsRoutes);
 app.use("/devices", devicesRoutes);
 
 app.use("/ai", aiRoutes);
+app.use("/oyi", oyiRoutes);
 app.use("/intelligence", intelligenceRoutes);
 app.use("/watch", watchRoutes);
 app.use("/activity", activityRoutes);
