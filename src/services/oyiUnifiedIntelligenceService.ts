@@ -10,7 +10,7 @@ import { listWorkflows, summarizeWorkflows } from "../intelligence-core/workflow
 import { observeAgentAction } from "../intelligence-core/observability";
 
 export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge";
-export type AwarenessSeverity = "normal" | "info" | "attention" | "critical";
+export type AwarenessSeverity = "normal" | "info" | "attention" | "warning" | "critical";
 
 type OyiChatInput = {
   surface?: OyiSurface;
@@ -24,11 +24,15 @@ type OyiChatInput = {
 
 type AwarenessResult = {
   headline: string;
+  summary: string;
   body: string;
   severity: AwarenessSeverity;
+  recommended_action: string;
   destination: string;
   cards: Array<Record<string, unknown>>;
   sources: Array<Record<string, unknown>>;
+  suggested_actions: Array<Record<string, unknown>>;
+  awareness_score: number;
   score: number;
   generated_at: string;
 };
@@ -108,19 +112,12 @@ function parseLimit(raw: unknown, fallback = 20) {
   return Math.max(1, Math.min(100, value));
 }
 
-function severityRank(value: unknown) {
-  const raw = String(value || "").toLowerCase();
-  if (/critical|emergency|breach|tamper|security/.test(raw)) return 3;
-  if (/warning|attention|offline|overdue|failed|risk/.test(raw)) return 2;
-  if (/info|pending|visitor|maintenance/.test(raw)) return 1;
+function maxSeverityRank(severity: AwarenessSeverity) {
+  if (severity === "critical") return 4;
+  if (severity === "warning") return 3;
+  if (severity === "attention") return 2;
+  if (severity === "info") return 1;
   return 0;
-}
-
-function severityFromRank(rank: number): AwarenessSeverity {
-  if (rank >= 3) return "critical";
-  if (rank >= 2) return "attention";
-  if (rank >= 1) return "info";
-  return "normal";
 }
 
 function mergeEvents(persisted: any[], normalized: any[], limit: number) {
@@ -166,203 +163,345 @@ async function loadUnifiedContext(actor: AuthUser | null, input: { surface: OyiS
   return { filters, events, predictions, workflows, summary, predictionSummary, workflowSummary, warnings };
 }
 
-function eventBucket(event: any) {
+type AwarenessDomain =
+  | "security"
+  | "visitors"
+  | "maintenance"
+  | "infrastructure"
+  | "devices"
+  | "camera"
+  | "utilities"
+  | "finance"
+  | "community"
+  | "automation"
+  | "predictions"
+  | "workflows"
+  | "activity";
+
+type AwarenessSignal = {
+  domain: AwarenessDomain;
+  severity: AwarenessSeverity;
+  headline: string;
+  summary: string;
+  recommended_action: string;
+  route: string;
+  source: string;
+  items: any[];
+  priority: number;
+};
+
+function eventText(event: any) {
+  return `${event.category || ""} ${event.event_type || ""} ${event.title || ""} ${event.summary || ""} ${event.source || ""}`.toLowerCase();
+}
+
+function isInternalAiEvent(event: any) {
+  const text = eventText(event);
+  return /ai response generated|ai tool executed|ai tool requested|ai command received|workflow evaluated|prediction generated|oyi\.chat|oyi\.awareness|tool executed|tool requested/.test(text);
+}
+
+function eventBucket(event: any): AwarenessDomain {
   const category = String(event.category || event.event_type || "operational").toLowerCase();
   const text = `${category} ${event.event_type || ""} ${event.title || ""} ${event.summary || ""}`.toLowerCase();
   if (/camera|cctv|stream/.test(text)) return "camera";
   if (/visitor|access/.test(text)) return "visitors";
   if (/maintenance|repair|work.?order/.test(text)) return "maintenance";
-  if (/device|offline|switch|sensor|edge|runtime/.test(text)) return "devices";
+  if (/edge|runtime|infrastructure|offline|sync|webhook|api|storage/.test(text)) return "infrastructure";
+  if (/device|switch|sensor|relay|socket/.test(text)) return "devices";
   if (/security|critical|emergency|tamper/.test(text)) return "security";
   if (/community|notice|message|report/.test(text)) return "community";
-  if (/wallet|payment|service|utility|water|electric|internet/.test(text)) return "utilities";
-  if (/workflow/.test(text)) return "workflow";
+  if (/wallet|payment|invoice|outstanding|fee|charge|balance/.test(text)) return "finance";
+  if (/service|utility|water|electric|internet/.test(text)) return "utilities";
+  if (/automation|scene|schedule/.test(text)) return "automation";
+  if (/workflow/.test(text)) return "workflows";
   return "activity";
 }
 
 function cardTypeForBucket(bucket: string) {
   if (bucket === "visitors") return "visitors";
   if (bucket === "maintenance") return "maintenance";
-  if (bucket === "devices") return "devices";
+  if (bucket === "devices" || bucket === "infrastructure") return "devices";
   if (bucket === "security") return "security";
   if (bucket === "camera") return "camera";
-  if (bucket === "workflow") return "workflow";
+  if (bucket === "workflows" || bucket === "predictions") return "workflow";
   if (bucket === "community") return "community";
-  if (bucket === "utilities") return "utilities";
+  if (bucket === "utilities" || bucket === "finance") return bucket === "finance" ? "wallet" : "utilities";
   return "attention";
 }
 
-function buildCards(surface: OyiSurface, context: Awaited<ReturnType<typeof loadUnifiedContext>>) {
-  const buckets = new Map<string, any[]>();
-  for (const event of context.events.slice(0, 40)) {
+function signalSeverity(domain: AwarenessDomain, rows: any[], fallback: AwarenessSeverity = "info") {
+  const text = rows.map((row) => `${row.severity || ""} ${row.status || ""} ${row.workflow_priority || ""} ${row.workflow_status || ""} ${row.title || ""} ${row.summary || ""}`).join(" ").toLowerCase();
+  if (/critical|emergency|breach|tamper|intrusion|security incident/.test(text)) return "critical";
+  if (/outage|offline|failed|overdue|disruption|risk|warning|expired/.test(text)) return "warning";
+  if (/pending|awaiting|open|assigned|in_progress|attention|visitor|maintenance/.test(text)) return "attention";
+  if (domain === "activity" || domain === "automation") return "info";
+  return fallback;
+}
+
+function awarenessDomainCopy(surface: OyiSurface, domain: AwarenessDomain, count: number, severity: AwarenessSeverity) {
+  const plural = count === 1 ? "item" : "items";
+  const facility = surface === "facility";
+  const copy: Record<AwarenessDomain, { headline: string; summary: string; action: string }> = {
+    security: {
+      headline: severity === "critical" ? "Security requires immediate attention." : facility ? "Security requires review." : "Security requires attention.",
+      summary: facility ? `${count} security ${plural} should be reviewed by operations.` : `${count} security ${plural} should be reviewed.`,
+      action: facility ? "Review the security queue and confirm whether escalation is needed." : "Review the security item before taking any other action.",
+    },
+    visitors: {
+      headline: facility ? "Visitor access needs attention." : "Visitor approval is waiting.",
+      summary: `${count} visitor ${plural} may require review or approval.`,
+      action: "Review the pending visitor request.",
+    },
+    maintenance: {
+      headline: facility ? "Maintenance requires operational attention." : "Maintenance requires attention.",
+      summary: `${count} maintenance ${plural} remain active or unresolved.`,
+      action: facility ? "Assign or follow up on the unresolved maintenance issue." : "Review the open maintenance request.",
+    },
+    infrastructure: {
+      headline: facility ? "Infrastructure health requires review." : "Device health requires review.",
+      summary: `${count} infrastructure ${plural} indicate degraded health or runtime risk.`,
+      action: "Investigate the affected infrastructure component.",
+    },
+    devices: {
+      headline: facility ? "Device operations need review." : "Device attention required.",
+      summary: `${count} device ${plural} show activity that may need review.`,
+      action: facility ? "Check device health before changing configuration." : "Review device status before taking action.",
+    },
+    camera: {
+      headline: "Camera operations require review.",
+      summary: `${count} camera ${plural} indicate security, stream, or health activity.`,
+      action: "Review the camera event and confirm stream health.",
+    },
+    utilities: {
+      headline: facility ? "Utility services need review." : "Service status needs review.",
+      summary: `${count} utility ${plural} may affect service continuity.`,
+      action: "Review the affected utility service.",
+    },
+    finance: {
+      headline: facility ? "Finance or wallet status needs review." : "Payment status needs review.",
+      summary: `${count} finance ${plural} may require payment or reconciliation.`,
+      action: facility ? "Review outstanding charges or wallet activity." : "Review the outstanding balance or payment status.",
+    },
+    community: {
+      headline: facility ? "Community activity needs moderation." : "Community update available.",
+      summary: `${count} community ${plural} may need reading or moderation.`,
+      action: facility ? "Review the community item for moderation." : "Review the community update.",
+    },
+    automation: {
+      headline: "Automation activity is running normally.",
+      summary: `${count} automation ${plural} were recorded recently.`,
+      action: "No automation action is required unless the result looks unexpected.",
+    },
+    predictions: {
+      headline: facility ? "Prediction requires operational review." : "Recommendation available.",
+      summary: `${count} prediction ${plural} indicate possible future risk or opportunity.`,
+      action: "Review the prediction evidence before deciding next steps.",
+    },
+    workflows: {
+      headline: facility ? "Operational workflow needs attention." : "Workflow requires attention.",
+      summary: `${count} workflow ${plural} are open or waiting for review.`,
+      action: facility ? "Review the open workflow and assign ownership if needed." : "Review the workflow recommendation.",
+    },
+    activity: {
+      headline: facility ? "Operations have recent activity." : "Home activity is normal.",
+      summary: `${count} recent activity ${plural} were recorded without a clear risk signal.`,
+      action: "No immediate action is required from this activity.",
+    },
+  };
+  return copy[domain];
+}
+
+function domainRoute(surface: OyiSurface, domain: AwarenessDomain) {
+  const routes = ROUTES[surface] || ROUTES.consumer;
+  if (domain === "infrastructure") return routes.devices || routes.activity || "/";
+  if (domain === "predictions" || domain === "workflows") return routes.workflow || routes.activity || "/";
+  if (domain === "finance") return routes.wallet || routes.utilities || routes.activity || "/";
+  return routes[domain] || routes.activity || routes.calm || "/";
+}
+
+function buildSignals(surface: OyiSurface, context: Awaited<ReturnType<typeof loadUnifiedContext>>) {
+  const buckets = new Map<AwarenessDomain, any[]>();
+  for (const event of context.events.slice(0, 80)) {
+    if (isInternalAiEvent(event)) continue;
     const bucket = eventBucket(event);
     buckets.set(bucket, [...(buckets.get(bucket) || []), event]);
   }
-  if (context.predictions.length) buckets.set("workflow", [...(buckets.get("workflow") || []), ...context.predictions.map((prediction: any) => ({ ...prediction, title: prediction.title, summary: prediction.summary, occurred_at: prediction.created_at }))]);
-  const cards = Array.from(buckets.entries()).slice(0, 6).map(([bucket, rows]) => ({
-    type: cardTypeForBucket(bucket),
-    title: bucket === "activity" ? (surface === "facility" ? "Operational activity" : "Recent home activity") : `${bucket.charAt(0).toUpperCase()}${bucket.slice(1)} signals`,
-    summary: rows.length === 1 ? String(rows[0]?.summary || rows[0]?.title || "One item requires review.") : `${rows.length} recent item${rows.length === 1 ? "" : "s"} from ${bucket.replace(/_/g, " ")}.`,
-    items: rows.slice(0, 5).map((row: any) => ({
+  if (context.predictions.length) {
+    buckets.set("predictions", [
+      ...(buckets.get("predictions") || []),
+      ...context.predictions.map((prediction: any) => ({ ...prediction, occurred_at: prediction.created_at, source: "ochiga_intelligence_predictions" })),
+    ]);
+  }
+  const openWorkflows = (context.workflows || []).filter((workflow: any) => !["completed", "cancelled"].includes(String(workflow.workflow_status || workflow.status).toLowerCase()));
+  if (openWorkflows.length) {
+    buckets.set("workflows", [
+      ...(buckets.get("workflows") || []),
+      ...openWorkflows.map((workflow: any) => ({ ...workflow, occurred_at: workflow.created_at, source: "ochiga_workflows" })),
+    ]);
+  }
+
+  const priorityOrder: AwarenessDomain[] = surface === "facility"
+    ? ["security", "camera", "visitors", "maintenance", "infrastructure", "devices", "utilities", "finance", "community", "predictions", "workflows", "activity", "automation"]
+    : ["security", "visitors", "maintenance", "devices", "infrastructure", "utilities", "finance", "automation", "community", "predictions", "workflows", "activity"];
+
+  return Array.from(buckets.entries()).map(([domain, rows]) => {
+    const severity = signalSeverity(domain, rows);
+    const copy = awarenessDomainCopy(surface, domain, rows.length, severity);
+    const priority = priorityOrder.indexOf(domain);
+    return {
+      domain,
+      severity,
+      headline: copy.headline,
+      summary: copy.summary,
+      recommended_action: copy.action,
+      route: domainRoute(surface, domain),
+      source: String(rows[0]?.source || rows[0]?.metadata?.source_table || domain),
+      items: rows.slice(0, 5),
+      priority: priority === -1 ? 99 : priority,
+    } satisfies AwarenessSignal;
+  });
+}
+
+function buildCardsFromSignals(signals: AwarenessSignal[]) {
+  return signals.slice(0, 6).map((signal) => ({
+    type: cardTypeForBucket(signal.domain),
+    title: signal.headline.replace(/\.$/, ""),
+    summary: signal.summary,
+    items: signal.items.slice(0, 5).map((row: any) => ({
       id: row.id || row.workflow_id || null,
-      title: row.title || row.prediction_type || row.event_type || "Update",
-      summary: row.summary || row.recommended_action || "Review this item.",
-      status: row.status || row.workflow_status || row.severity || null,
+      title: row.location || row.device_name || row.camera_name || row.name || row.title || row.prediction_type || "Supporting evidence",
+      summary: row.recommended_action || row.summary || row.status || "Review this supporting item.",
+      status: row.status || row.workflow_status || row.severity || signal.severity,
       occurred_at: row.occurred_at || row.created_at || null,
     })),
   }));
-  return cards;
+}
+
+function pickPrimarySignal(signals: AwarenessSignal[]) {
+  return [...signals].sort((a, b) => {
+    const severityDelta = maxSeverityRank(b.severity) - maxSeverityRank(a.severity);
+    if (severityDelta) return severityDelta;
+    return a.priority - b.priority;
+  })[0] || null;
+}
+
+function scoreFromDecision(severity: AwarenessSeverity, signals: AwarenessSignal[]) {
+  const base = severity === "critical" ? 25 : severity === "warning" ? 48 : severity === "attention" ? 68 : severity === "info" ? 82 : 96;
+  const pressure = Math.min(12, Math.max(0, signals.length - 1) * 2);
+  return Math.max(0, Math.min(100, base - pressure));
+}
+
+function calmAwareness(surface: OyiSurface, signals: AwarenessSignal[], generatedAt: string): AwarenessResult {
+  const routes = ROUTES[surface] || ROUTES.consumer;
+  const facility = surface === "facility";
+  const summary = facility
+    ? "No critical security alerts detected. Visitor, maintenance, infrastructure, and utility signals are stable."
+    : "No security issues detected. No visitor approvals are pending. Maintenance, services, and device activity appear normal.";
+  const score = scoreFromDecision("normal", signals);
+  return {
+    headline: facility ? "Estate operations are stable." : "Your home is operating normally.",
+    summary,
+    body: summary,
+    severity: "normal",
+    recommended_action: "No action is currently required.",
+    destination: routes.calm || "/activity",
+    cards: buildCardsFromSignals(signals.filter((signal) => signal.severity === "info").slice(0, 3)),
+    sources: [],
+    suggested_actions: [],
+    awareness_score: score,
+    score,
+    generated_at: generatedAt,
+  };
 }
 
 function buildAwareness(surface: OyiSurface, context: Awaited<ReturnType<typeof loadUnifiedContext>>): AwarenessResult {
-  const routes = ROUTES[surface] || ROUTES.consumer;
-  const candidates = context.events.slice(0, 60).map((event: any) => {
-    const bucket = eventBucket(event);
-    return {
-      bucket,
-      rank: severityRank(`${event.category} ${event.event_type} ${event.title} ${event.summary}`),
-      title: String(event.title || "Update"),
-      summary: String(event.summary || "Review recent activity."),
-      route: routes[bucket] || routes.activity || "/activity",
-      source: event.source || event.metadata?.source_table || "intelligence_events",
-    };
-  });
+  const generatedAt = new Date().toISOString();
+  const signals = buildSignals(surface, context);
+  const actionableSignals = signals.filter((signal) => maxSeverityRank(signal.severity) >= maxSeverityRank("attention"));
+  const primary = pickPrimarySignal(actionableSignals);
+  if (!primary) return calmAwareness(surface, signals, generatedAt);
 
-  for (const prediction of context.predictions || []) {
-    candidates.push({
-      bucket: "workflow",
-      rank: severityRank(`${prediction.severity} ${prediction.title} ${prediction.summary}`),
-      title: String(prediction.title || "Prediction requires review"),
-      summary: String(prediction.recommended_action || prediction.summary || "Review this recommendation."),
-      route: routes.workflow || routes.activity || "/activity",
-      source: "ochiga_intelligence_predictions",
-    });
-  }
-
-  for (const workflow of context.workflows || []) {
-    if (["completed", "cancelled"].includes(String(workflow.workflow_status))) continue;
-    candidates.push({
-      bucket: "workflow",
-      rank: severityRank(`${workflow.workflow_priority} ${workflow.workflow_status} ${workflow.title}`),
-      title: String(workflow.title || "Workflow requires attention"),
-      summary: String(workflow.summary || workflow.recommended_action || "Review this workflow."),
-      route: routes.workflow || routes.activity || "/activity",
-      source: "ochiga_workflows",
-    });
-  }
-
-  const top = candidates.sort((a, b) => b.rank - a.rank)[0];
-  const cards = buildCards(surface, context);
-  if (!top) {
-    return {
-      headline: surface === "facility" ? "Estate operating normally." : "Home is operating normally.",
-      body: surface === "facility" ? "No operational action is required right now." : "No action required right now.",
-      severity: "normal",
-      destination: routes.calm || "/activity",
-      cards,
-      sources: [],
-      score: 0,
-      generated_at: new Date().toISOString(),
-    };
-  }
-
-  const headlineByBucket: Record<string, string> = surface === "facility"
-    ? {
-        security: "Security needs review.",
-        camera: "Camera event requires attention.",
-        visitors: "Visitor access needs review.",
-        maintenance: "Maintenance needs attention.",
-        devices: "Infrastructure needs review.",
-        utilities: "Utility signal needs review.",
-        community: "Community item needs moderation.",
-        workflow: "Operational workflow needs attention.",
-        activity: "Operations have recent activity.",
-      }
-    : {
-        security: "Security event detected.",
-        visitors: "Visitor awaiting approval.",
-        maintenance: "Maintenance requires attention.",
-        devices: "Device attention required.",
-        utilities: "Service update available.",
-        community: "Community update available.",
-        workflow: "Recommendation available.",
-        activity: "Home activity updated.",
-      };
-
+  const secondary = actionableSignals.find((signal) => signal.domain !== primary.domain);
+  const summary = secondary ? `${primary.summary} ${secondary.summary}` : primary.summary;
+  const cards = buildCardsFromSignals([primary, ...actionableSignals.filter((signal) => signal.domain !== primary.domain)]);
+  const sources = actionableSignals.slice(0, 6).map((signal) => ({ label: signal.domain.replace(/_/g, " "), route: signal.route, table: signal.source }));
+  const suggested_actions = actionableSignals.slice(0, 5).map((signal) => ({
+    label: signal.recommended_action,
+    route: signal.route,
+    risk: "read",
+  }));
+  const score = scoreFromDecision(primary.severity, actionableSignals);
   return {
-    headline: headlineByBucket[top.bucket] || top.title,
-    body: top.summary,
-    severity: severityFromRank(top.rank),
-    destination: top.route,
+    headline: primary.headline,
+    summary,
+    body: summary,
+    severity: primary.severity,
+    recommended_action: primary.recommended_action,
+    destination: primary.route,
     cards,
-    sources: [{ label: top.source, route: top.route }],
-    score: Math.min(100, Math.max(0, top.rank * 25 + candidates.length)),
-    generated_at: new Date().toISOString(),
+    sources,
+    suggested_actions,
+    awareness_score: score,
+    score,
+    generated_at: generatedAt,
   };
 }
 
 function buildSources(surface: OyiSurface, context: Awaited<ReturnType<typeof loadUnifiedContext>>) {
   const rows = new Map<string, any>();
-  const routes = ROUTES[surface] || ROUTES.consumer;
-  for (const event of context.events.slice(0, 40)) {
-    const bucket = eventBucket(event);
-    rows.set(bucket, { label: bucket.replace(/_/g, " "), route: routes[bucket] || routes.activity, table: event.metadata?.source_table || event.source || undefined });
+  for (const signal of buildSignals(surface, context)) {
+    rows.set(signal.domain, { label: signal.domain.replace(/_/g, " "), route: signal.route, table: signal.source });
   }
-  if (context.predictions.length) rows.set("predictions", { label: "predictions", route: routes.workflow, table: "ochiga_intelligence_predictions" });
-  if (context.workflows.length) rows.set("workflows", { label: "workflows", route: routes.workflow, table: "ochiga_workflows" });
   return Array.from(rows.values()).slice(0, 8);
 }
 
 function buildSuggestedActions(surface: OyiSurface, message: string, awareness: AwarenessResult, context: Awaited<ReturnType<typeof loadUnifiedContext>>) {
-  const routes = ROUTES[surface] || ROUTES.consumer;
   const lower = message.toLowerCase();
+  const signals = buildSignals(surface, context);
   const actions = new Map<string, any>();
   const add = (label: string, route?: string, risk = "read") => {
     if (!route) return;
     actions.set(`${label}:${route}`, { label, route, risk });
   };
-  add("Open attention item", awareness.destination, "read");
-  if (/maintenance|repair|work/.test(lower) || context.events.some((e: any) => eventBucket(e) === "maintenance")) add("Open maintenance", routes.maintenance, "read");
-  if (/visitor|access|gate/.test(lower) || context.events.some((e: any) => eventBucket(e) === "visitors")) add("Open visitors", routes.visitors, "read");
-  if (/device|infrastructure|offline|health/.test(lower) || context.events.some((e: any) => eventBucket(e) === "devices")) add(surface === "facility" ? "Open infrastructure" : "Open devices", routes.devices, "read");
-  if (/camera|security|cctv/.test(lower) || context.events.some((e: any) => ["camera", "security"].includes(eventBucket(e)))) add(surface === "facility" ? "Open security" : "Open security activity", routes.security, "read");
-  if (/utility|service|wallet|payment|water|electric|internet/.test(lower)) add(surface === "facility" ? "Open utilities" : "Open services", routes.utilities, "read");
-  if (context.workflows.length) add("Review workflows", routes.workflow, "read");
+  add(awareness.recommended_action, awareness.destination, "read");
+  for (const signal of signals.filter((item) => maxSeverityRank(item.severity) >= maxSeverityRank("attention")).slice(0, 5)) {
+    add(signal.recommended_action, signal.route, "read");
+  }
+  if (/maintenance|repair|work/.test(lower)) add("Review the maintenance queue.", domainRoute(surface, "maintenance"), "read");
+  if (/visitor|access|gate/.test(lower)) add("Review visitor access.", domainRoute(surface, "visitors"), "read");
+  if (/device|infrastructure|offline|health/.test(lower)) add("Check infrastructure health.", domainRoute(surface, surface === "facility" ? "infrastructure" : "devices"), "read");
+  if (/camera|security|cctv/.test(lower)) add("Review security activity.", domainRoute(surface, "security"), "read");
+  if (/utility|service|wallet|payment|water|electric|internet/.test(lower)) add("Review utility or payment status.", domainRoute(surface, "utilities"), "read");
   return Array.from(actions.values()).slice(0, 6);
 }
 
-function answerMessage(surface: OyiSurface, message: string, awareness: AwarenessResult, context: Awaited<ReturnType<typeof loadUnifiedContext>>) {
+function answerMessage(surface: OyiSurface, message: string, awareness: AwarenessResult) {
   const lower = message.toLowerCase();
-  const predictionCount = context.predictionSummary.prediction_count || 0;
-  const workflowOpen = context.workflowSummary.open_workflows || 0;
-  const attentionCount = context.summary.attention_count || 0;
-  const latest = context.summary.latest?.[0];
-  const tone = surface === "facility" ? "operations" : "home";
+  const facility = surface === "facility";
 
   if (/what('?s| is) happening|summary|today|status/.test(lower)) {
-    if (attentionCount || predictionCount || workflowOpen) {
-      return `Here is the current ${tone} picture: ${awareness.headline} ${awareness.body} I found ${attentionCount} attention signal${attentionCount === 1 ? "" : "s"}, ${predictionCount} open prediction${predictionCount === 1 ? "" : "s"}, and ${workflowOpen} open workflow${workflowOpen === 1 ? "" : "s"}.`;
-    }
-    return `${awareness.headline} ${awareness.body}`;
+    return `${awareness.headline} ${awareness.summary}`;
   }
 
   if (/needs attention|attention|urgent|risk|problem|issue/.test(lower)) {
-    return attentionCount || predictionCount || workflowOpen
-      ? `${awareness.headline} ${awareness.body} I’ve grouped the relevant sources below so you can open the right operational surface.`
-      : `${surface === "facility" ? "No facility item" : "No home item"} currently needs attention from the signals I can see.`;
+    if (awareness.severity === "normal") {
+      return facility
+        ? "No operational item currently needs attention. Estate operations are stable from the signals I can see."
+        : "No home item currently needs attention. Your home is operating normally from the signals I can see.";
+    }
+    return `${awareness.headline} ${awareness.summary} Recommended action: ${awareness.recommended_action}`;
   }
 
   if (/what should i do|next|recommend|action/.test(lower)) {
-    const action = context.predictionSummary.recommended_actions?.[0] || context.summary.suggested_actions?.[0] || "Review the latest activity.";
-    return `${awareness.headline} Recommended next step: ${action}`;
+    return awareness.severity === "normal"
+      ? "No action is currently required."
+      : `${awareness.recommended_action} ${awareness.summary}`;
   }
 
   if (/maintenance|visitor|device|camera|security|utility|community|workflow/.test(lower)) {
-    return `${awareness.headline} I found the related ${surface === "facility" ? "operational" : "home"} items and added routes below. I will not perform approvals, assignments, access changes, payments, or device actions without explicit confirmation.`;
+    return `${awareness.headline} ${awareness.summary} I can show the relevant supporting evidence, but I will not perform approvals, assignments, access changes, payments, or device actions without explicit confirmation.`;
   }
 
-  if (latest) return `${awareness.headline} Latest signal: ${latest.title}. ${latest.summary || awareness.body}`;
-  return `${awareness.headline} ${awareness.body}`;
+  return `${awareness.headline} ${awareness.summary}`;
 }
 
 async function persistThread(actor: AuthUser | null, input: OyiChatInput, response: any, userMessage: string) {
@@ -512,21 +651,18 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
     async () => {
       const context = await loadUnifiedContext(actor, { surface, estate_id: input.estate_id, home_id: input.home_id });
       const awareness = buildAwareness(surface, context);
-      const cards = buildCards(surface, context);
+      const cards = awareness.cards;
       const sources = buildSources(surface, context);
       const suggestedActions = buildSuggestedActions(surface, message, awareness, context);
       const response: any = {
         ok: true,
-        message: answerMessage(surface, message, awareness, context),
+        message: answerMessage(surface, message, awareness),
         cards,
         sources,
         suggested_actions: suggestedActions,
-        awareness: {
-          headline: awareness.headline,
-          body: awareness.body,
-          severity: awareness.severity,
-          destination: awareness.destination,
-        },
+        awareness: { ...awareness, suggested_actions: suggestedActions },
+        recommended_action: awareness.recommended_action,
+        awareness_score: awareness.awareness_score,
         thread_id: validUuid(input.thread_id) ? String(input.thread_id) : randomUUID(),
         role_policy: getIntelligencePermissionPolicy(actor),
         warnings: context.warnings,
