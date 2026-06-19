@@ -28,6 +28,7 @@ type ConversationEntity = {
   id?: string | null;
   title: string;
   status?: string | null;
+  details?: Record<string, unknown>;
 };
 
 type ConversationState = {
@@ -35,6 +36,7 @@ type ConversationState = {
   last_intent?: OyiIntentCategory;
   last_user_message?: string;
   entities: ConversationEntity[];
+  list_offset?: number;
   pending_confirmation_id?: string | null;
   pending_action_summary?: string | null;
 };
@@ -164,7 +166,18 @@ function entitiesFromCards(cards: any[]): ConversationEntity[] {
       const key = `${type}:${id || title.toLowerCase()}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      entities.push({ type, id: id ? String(id) : null, title: title.slice(0, 140), status: String(row?.status || row?.subtitle || "") || null });
+      entities.push({
+        type,
+        id: id ? String(id) : null,
+        title: title.slice(0, 140),
+        status: String(row?.status || row?.subtitle || "") || null,
+        details: {
+          created_at: row?.created_at || row?.timestamp || null,
+          updated_at: row?.updated_at || row?.timestamp || null,
+          reported_by: row?.reported_by || row?.created_by_name || row?.reporter_name || null,
+          summary: row?.summary || row?.description || null,
+        },
+      });
     }
   }
   return entities.slice(0, 20);
@@ -173,12 +186,15 @@ function entitiesFromCards(cards: any[]): ConversationEntity[] {
 function conversationStateFromResponse(previous: ConversationState, response: any, userMessage: string): ConversationState {
   const results = Array.isArray(response?.execution?.results) ? response.execution.results : [];
   const pending = results.find((row: any) => row?.status === "pending_confirmation" && row?.ledger_id);
-  const entities = entitiesFromCards(response?.cards || []);
+  const entities = Array.isArray(response?.conversation_entities)
+    ? response.conversation_entities.slice(0, 50)
+    : entitiesFromCards(response?.cards || []);
   return {
     version: 1,
     last_intent: response?.intent || previous.last_intent,
     last_user_message: userMessage.slice(0, 500),
     entities: entities.length ? entities : previous.entities.slice(0, 20),
+    list_offset: Number.isFinite(Number(response?.conversation_offset)) ? Number(response.conversation_offset) : previous.list_offset || 0,
     pending_confirmation_id: pending?.ledger_id || null,
     pending_action_summary: pending?.summary || null,
   };
@@ -772,6 +788,8 @@ type OperatingResult = {
   sources: Array<Record<string, unknown>>;
   suggested_actions: Array<Record<string, unknown>>;
   execution?: Record<string, unknown>;
+  conversation_entities?: ConversationEntity[];
+  conversation_offset?: number;
 };
 
 export function classifyOyiOperatingIntentForTest(message: string): OyiIntentCategory {
@@ -871,6 +889,11 @@ function proposedToolsForIntent(intent: OyiIntentCategory, message: string, inpu
   return [];
 }
 
+function wantsSupportingCards(message: string, intent: OyiIntentCategory) {
+  if (intent === "report_generation" || intent === "investigation") return true;
+  return /\b(show|list|audit|log|history|details?|report|transactions?|records?)\b/i.test(message);
+}
+
 function commandSummary(results: any[]) {
   const first = results[0] || {};
   if (!results.length) return "No executable operation was selected.";
@@ -914,6 +937,36 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   const entity = ordinalEntity(message, state.entities);
   const intent = followUpIntent(message, state);
   const surface = safeSurface(input.surface);
+  const details = entity?.details || {};
+  const dateLabel = (value: unknown, label: string) => value ? `${label} ${new Date(String(value)).toLocaleString()}.` : "The available record does not include that time.";
+
+  if (/show (me )?(the )?(first|second|third|last) one|^(why|when|who)\??$/i.test(message) && entity) {
+    if (/^when\??$/i.test(message)) {
+      return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.created_at || details.updated_at, "It was recorded")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" } };
+    }
+    if (/^who\??$/i.test(message)) {
+      return { intent: "investigation", understood: `I found ${entity.title}.`, message: details.reported_by ? `${entity.title} was reported by ${String(details.reported_by)}.` : `I found ${entity.title}, but the available record does not identify who reported it.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" } };
+    }
+    if (/^why\??$/i.test(message)) {
+      const explanation = details.summary ? `The available record says: ${String(details.summary)}.` : `Its current status is ${entity.status || "recorded"}.`;
+      return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title}: ${explanation} I do not have enough verified evidence to state a cause beyond the recorded details.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" } };
+    }
+    return { intent, understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}.${details.created_at ? ` Recorded ${new Date(String(details.created_at)).toLocaleString()}.` : ""}`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: operatingSuggestedActions(surface, intent), execution: { status: "read_only" } };
+  }
+
+  if (/show me more|more details/i.test(message) && state.entities.length) {
+    const offset = Math.min(state.list_offset || 0, Math.max(0, state.entities.length - 1));
+    const next = state.entities.slice(offset + 5, offset + 10);
+    if (!next.length) return { intent, understood: "I reached the end of the available results.", message: "That is everything available in this conversation. Tell me which item you would like to inspect.", cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
+    return {
+      intent,
+      understood: "I’ll continue with the next available records.",
+      message: `Here are ${next.length} more ${next[0].type === "maintenance" ? "maintenance requests" : `${next[0].type} records`}.`,
+      cards: [{ type: "list", title: "More results", summary: "Additional records from this conversation.", items: next.map((row) => ({ title: row.title, status: row.status || "recorded" })) }],
+      sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" },
+      conversation_entities: state.entities, conversation_offset: offset + 5,
+    } as OperatingResult;
+  }
 
   if (/^(do it|go ahead|confirm|yes)$/i.test(message)) {
     if (!actor?.id || !state.pending_confirmation_id) {
@@ -1006,7 +1059,9 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       homeId: input.home_id || actor.home_id || null,
       proposedTools,
     });
-    const cards = routed.results.flatMap((result: any) => Array.isArray(result?.data?.cards) ? result.data.cards : []).slice(0, 3);
+    const availableCards = routed.results.flatMap((result: any) => Array.isArray(result?.data?.cards) ? result.data.cards : []);
+    const conversationEntities = routed.results.flatMap((result: any) => Array.isArray(result?.data?.conversation_entities) ? result.data.conversation_entities : []);
+    const cards = wantsSupportingCards(message, intent) ? availableCards.slice(0, 3) : [];
     return {
       intent,
       understood,
@@ -1015,6 +1070,8 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       sources: userFacingSources(surface, "operation"),
       suggested_actions: operatingSuggestedActions(surface, intent),
       execution: { status: "processed", safe_mode: routed.safe_mode, scope: routed.scope, results: routed.results },
+      conversation_entities: conversationEntities,
+      conversation_offset: 0,
     };
   }
 
