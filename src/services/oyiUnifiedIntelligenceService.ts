@@ -828,7 +828,56 @@ type OperatingResult = {
   conversation_topic?: ConversationState["active_topic"];
   conversation_result_state?: ConversationState["active_result_state"];
   display_mode?: "conversation" | "list" | "detail" | "audit" | "report" | "awareness";
+  domain?: string | null;
 };
+
+type DomainIntent = {
+  key: string;
+  surfaces: OyiSurface[];
+  phrases: RegExp;
+  intent: OyiIntentCategory;
+  tool_id?: ProposedAiTool["tool_id"];
+  label: string;
+  unavailable: string;
+};
+
+const DOMAIN_INTENTS: DomainIntent[] = [
+  { key: "visitors", surfaces: ["consumer", "facility"], phrases: /visitor|guest|access pass|visitor approval/i, intent: "visitor_operation", tool_id: "summarize_visitors", label: "visitor requests", unavailable: "I can’t see visitor records for this context yet." },
+  { key: "maintenance", surfaces: ["consumer", "facility"], phrases: /maintenance|repair|service ticket|work order/i, intent: "maintenance_operation", tool_id: "summarize_maintenance", label: "maintenance issues", unavailable: "I can’t see maintenance records for this context yet." },
+  { key: "devices", surfaces: ["consumer", "facility"], phrases: /device|light|switch|socket|hardware/i, intent: "device_status", tool_id: "summarize_devices", label: "devices", unavailable: "I can’t see device records for this context yet." },
+  { key: "rooms", surfaces: ["consumer"], phrases: /room|rooms|space|spaces/i, intent: "general_help", label: "rooms and spaces", unavailable: "I don’t have room records available through this chat context yet." },
+  { key: "scenes", surfaces: ["consumer"], phrases: /scene|scenes/i, intent: "general_help", label: "scenes", unavailable: "I don’t have scene records available through this chat context yet." },
+  { key: "automation", surfaces: ["consumer"], phrases: /automation|automations|routine|routines/i, intent: "general_help", label: "automations", unavailable: "I don’t have automation records available through this chat context yet." },
+  { key: "services", surfaces: ["consumer", "facility"], phrases: /service|services|fiber|internet plan/i, intent: "service_operation", label: "services", unavailable: "I don’t have service records available through this chat context yet." },
+  { key: "wallet", surfaces: ["consumer", "facility"], phrases: /wallet|payment|payments|transaction|transactions|balance|charge/i, intent: "wallet_operation", tool_id: "summarize_wallet", label: "wallet information", unavailable: "I can’t see wallet records for this context yet." },
+  { key: "community", surfaces: ["consumer", "facility"], phrases: /community|announcement|announcements|notice|notices|complaint|feedback/i, intent: "community_operation", tool_id: "summarize_community", label: "community updates", unavailable: "There are no recent community updates available in this context." },
+  { key: "activity", surfaces: ["consumer", "facility"], phrases: /activity|timeline|recent activity|who did what/i, intent: "investigation", tool_id: "summarize_recent_activity", label: "activity", unavailable: "I don’t have activity records available in this context yet." },
+  { key: "notifications", surfaces: ["consumer", "facility"], phrases: /notification|notifications|alert|alerts/i, intent: "notification_operation", label: "notifications", unavailable: "There are no notifications available in this context." },
+  { key: "security", surfaces: ["consumer", "facility"], phrases: /security|alarm|gate|door/i, intent: "investigation", label: "security activity", unavailable: "I don’t have security records available in this chat context yet." },
+  { key: "utilities", surfaces: ["consumer", "facility"], phrases: /utility|utilities|water|electricity|electric|meter/i, intent: "service_operation", label: "utility information", unavailable: "I don’t have utility records available in this chat context yet." },
+  { key: "profile", surfaces: ["consumer"], phrases: /profile|home context|my home|household/i, intent: "general_help", label: "home context", unavailable: "I don’t have additional home profile records available in this chat context yet." },
+  { key: "cameras", surfaces: ["facility"], phrases: /camera|cameras|cctv|camera event/i, intent: "device_status", label: "camera events", unavailable: "There are no camera events currently visible." },
+  { key: "infrastructure", surfaces: ["facility"], phrases: /infrastructure|runtime|edge node|stream health/i, intent: "device_status", tool_id: "summarize_devices", label: "infrastructure records", unavailable: "I don’t have infrastructure records available in this chat context yet." },
+  { key: "sensors", surfaces: ["facility"], phrases: /sensor|sensors|environment|temperature|humidity/i, intent: "device_status", label: "sensor readings", unavailable: "I don’t have sensor readings available in this chat context yet." },
+  { key: "traffic", surfaces: ["facility"], phrases: /traffic|mobility|parking|vehicle flow/i, intent: "general_help", label: "traffic and mobility records", unavailable: "I don’t have traffic or mobility records available in this chat context yet." },
+  { key: "staff", surfaces: ["facility"], phrases: /staff|team|operator|operators/i, intent: "general_help", label: "staff records", unavailable: "I don’t have staff records available in this chat context yet." },
+  { key: "reports", surfaces: ["facility"], phrases: /report|reports|daily estate/i, intent: "report_generation", label: "reports", unavailable: "I don’t have report records available in this chat context yet." },
+  { key: "estate", surfaces: ["facility"], phrases: /estate structure|estate|homes|home list|building|units/i, intent: "general_help", label: "estate structure", unavailable: "I don’t have estate structure records available in this chat context yet." },
+];
+
+function detectDomainIntent(message: string, surface: OyiSurface): DomainIntent | null {
+  return DOMAIN_INTENTS.find((domain) => domain.surfaces.includes(surface) && domain.phrases.test(message)) || null;
+}
+
+export function detectOyiDomainForTest(message: string, surface: OyiSurface) {
+  return detectDomainIntent(message, surface)?.key || null;
+}
+
+export function resolveOyiDomainIntentForTest(message: string, surface: OyiSurface) {
+  const domain = detectDomainIntent(message, surface);
+  const classified = classifyOyiOperatingIntentForTest(message);
+  return { domain: domain?.key || null, intent: domain?.intent || classified, awareness_fallback_used: !domain && classified === "awareness" };
+}
 
 export function classifyOyiOperatingIntentForTest(message: string): OyiIntentCategory {
   const text = message.toLowerCase().replace(/[’`]/g, "'");
@@ -925,6 +974,33 @@ function proposedToolsForIntent(intent: OyiIntentCategory, message: string, inpu
   if (intent === "community_operation") return [{ tool_id: "summarize_community", arguments: args }];
   if (intent === "capability_query") return [{ tool_id: "get_ai_status", arguments: args }];
   return [];
+}
+
+function isDomainMutationRequest(message: string) {
+  return /\b(add|invite|create|approve|reject|assign|pay|purchase|buy|turn on|turn off|switch on|switch off|control)\b/i.test(message);
+}
+
+function domainActionPreparation(domain: DomainIntent, message: string, surface: OyiSurface): OperatingResult {
+  const name = domain.key === "visitors"
+    ? message.match(/(?:add|invite|create)\s+([a-z][a-z .'-]{1,80}?)(?:\s+as\s+(?:a\s+)?visitor|\s+visitor|$)/i)?.[1]?.trim()
+    : null;
+  const subject = name ? ` a visitor invite for ${name}` : ` the requested ${domain.label.replace(/s$/, "")} action`;
+  const workflow = domain.key === "visitors" ? "Visitor Access" : domain.key === "wallet" || domain.key === "utilities" || domain.key === "services" ? "payment or service" : domain.key === "maintenance" ? "maintenance" : "device";
+  return {
+    intent: domain.intent,
+    understood: `I understood a ${domain.label} action request.`,
+    message: `I can help prepare${subject}, but ${workflow} changes still need confirmation through the ${workflow} workflow.`,
+    cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, display_mode: "conversation", domain: domain.key,
+  };
+}
+
+function domainUnavailableResult(domain: DomainIntent): OperatingResult {
+  return {
+    intent: domain.intent,
+    understood: `I understood that you are asking about ${domain.label}.`,
+    message: domain.unavailable,
+    cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" }, display_mode: "conversation", domain: domain.key,
+  };
 }
 
 function wantsSupportingCards(message: string, intent: OyiIntentCategory) {
@@ -1128,8 +1204,16 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
 async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, context: Awaited<ReturnType<typeof loadUnifiedContext>>, awareness: AwarenessResult): Promise<OperatingResult> {
   const surface = safeSurface(input.surface);
   const message = String(input.message || "");
-  const intent = classifyOyiOperatingIntentForTest(message);
+  const domain = detectDomainIntent(message, surface);
+  const classifiedIntent = classifyOyiOperatingIntentForTest(message);
+  const intent = domain?.key === "devices" && isDomainMutationRequest(message)
+    ? classifiedIntent === "device_control" ? classifiedIntent : "device_control"
+    : domain?.intent || classifiedIntent;
   const understood = understoodText(surface, intent);
+
+  if (domain && isDomainMutationRequest(message) && domain.key !== "devices") {
+    return domainActionPreparation(domain, message, surface);
+  }
 
   if (intent === "awareness" || intent === "recommendation" || intent === "general_help") {
     return {
@@ -1168,7 +1252,7 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     };
   }
 
-  const proposedTools = actor ? proposedToolsForIntent(intent, message, input) : [];
+  const proposedTools = actor ? (domain?.tool_id && intent !== "device_control" ? [{ tool_id: domain.tool_id, arguments: { estate_id: input.estate_id || null, home_id: input.home_id || null } }] : proposedToolsForIntent(intent, message, input)) : [];
   if (actor && proposedTools.length) {
     const { routeAiCommand } = await import("../ai/commandRouter");
     const routed = await routeAiCommand(undefined, {
@@ -1200,8 +1284,11 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       conversation_topic: conversationTopic,
       conversation_result_state: conversationTopic ? (activeEntities.length ? "list" : "empty") : null,
       display_mode: displayModeFor(intent, message, cards.length > 0),
+      domain: domain?.key || null,
     };
   }
+
+  if (domain) return domainUnavailableResult(domain);
 
   const reportLike = intent === "report_generation" || intent === "investigation";
   const provider = reportLike ? "reporting/investigation" : "operating_context";
@@ -1324,6 +1411,7 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
           understood: response.understood || null,
           execution: response.execution || null,
           display_mode: response.display_mode || "conversation",
+          domain: response.domain || null,
           recommended_action: response.recommended_action || null,
           awareness_score: response.awareness_score || null,
         },
@@ -1461,6 +1549,7 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         understood: operation.understood,
         execution: operation.execution,
         display_mode: operation.display_mode || displayModeFor(operation.intent, message, operation.cards.length > 0),
+        domain: operation.domain || detectDomainIntent(message, surface)?.key || null,
         cards,
         sources,
         suggested_actions: suggestedActions,
@@ -1477,6 +1566,15 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
       };
       const nextConversationState = conversationStateFromResponse(conversation.state, response, message);
       response.thread_id = await persistThread(actor, effectiveInput, response, message, nextConversationState);
+      console.info("[oyi-chat]", JSON.stringify({
+        message,
+        domain: response.domain,
+        intent: response.intent,
+        display_mode: response.display_mode,
+        surface,
+        awareness_fallback_used: response.display_mode === "awareness" && !response.domain,
+        response: String(response.message || "").slice(0, 240),
+      }));
       return response;
     }
   );

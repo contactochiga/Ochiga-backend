@@ -2,7 +2,7 @@
 process.env.SUPABASE_URL ||= 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'local-smoke-service-role-key';
 
-const { classifyOyiOperatingIntentForTest, buildOyiAwarenessScenarioForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
+const { classifyOyiOperatingIntentForTest, buildOyiAwarenessScenarioForTest, resolveOyiDomainIntentForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
 
 const cases = [
   ['What’s happening?', 'awareness'],
@@ -23,6 +23,17 @@ const cases = [
   ['What changed overnight?', 'awareness'],
 ];
 
+const domainCases = [
+  ['consumer', 'Show visitor requests', 'visitors'], ['consumer', 'Add Michael as visitor', 'visitors'], ['consumer', 'Show maintenance requests', 'maintenance'],
+  ['consumer', 'Show devices', 'devices'], ['consumer', 'Show rooms', 'rooms'], ['consumer', 'Show scenes', 'scenes'], ['consumer', 'Show automations', 'automation'],
+  ['consumer', 'Show services', 'services'], ['consumer', 'Show wallet', 'wallet'], ['consumer', 'Show community updates', 'community'], ['consumer', 'Show notifications', 'notifications'],
+  ['consumer', 'Show activity', 'activity'], ['consumer', 'Show security', 'security'], ['consumer', 'Show utilities', 'utilities'],
+  ['facility', 'Show visitor access', 'visitors'], ['facility', 'Show maintenance issues', 'maintenance'], ['facility', 'Show device health', 'devices'],
+  ['facility', 'Show cameras', 'cameras'], ['facility', 'Show infrastructure', 'infrastructure'], ['facility', 'Show utilities', 'utilities'], ['facility', 'Show sensors', 'sensors'],
+  ['facility', 'Show traffic', 'traffic'], ['facility', 'Show community reports', 'community'], ['facility', 'Show wallet operations', 'wallet'], ['facility', 'Show staff', 'staff'],
+  ['facility', 'Show reports', 'reports'], ['facility', 'Show estate structure', 'estate'], ['facility', 'Show activity timeline', 'activity'], ['facility', 'Show notifications', 'notifications'],
+];
+
 let failed = 0;
 for (const [prompt, expected] of cases) {
   const actual = classifyOyiOperatingIntentForTest(prompt);
@@ -31,6 +42,16 @@ for (const [prompt, expected] of cases) {
     console.error(`FAIL intent: ${prompt} expected ${expected}, got ${actual}`);
   } else {
     console.log(`PASS intent: ${prompt} -> ${actual}`);
+  }
+}
+
+for (const [surface, prompt, expectedDomain] of domainCases) {
+  const resolved = resolveOyiDomainIntentForTest(prompt, surface);
+  if (resolved.domain !== expectedDomain || resolved.awareness_fallback_used) {
+    failed += 1;
+    console.error(`FAIL domain: ${surface} ${prompt}`, resolved);
+  } else {
+    console.log(`PASS domain: ${surface} ${prompt} -> ${resolved.domain}`);
   }
 }
 
