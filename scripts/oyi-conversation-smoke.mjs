@@ -2,7 +2,7 @@
 process.env.SUPABASE_URL ||= 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'local-smoke-service-role-key';
 
-const { resolveConversationFollowUpForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
+const { resolveConversationFollowUpForTest, displayModeForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
 
 const state = {
   last_intent: 'visitor_operation',
@@ -43,6 +43,14 @@ const resolverCases = [
   ['facility awareness remains awareness', { last_intent: 'awareness', active_topic: 'awareness', active_result_state: 'list', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'entity'],
 ];
 
+const displayCases = [
+  ['conversation', 'visitor_operation', false, 'conversation'],
+  ['Show visitor requests', 'visitor_operation', true, 'list'],
+  ['Show me the first one', 'visitor_operation', false, 'detail'],
+  ['Generate report', 'report_generation', true, 'report'],
+  ['What’s happening?', 'awareness', true, 'awareness'],
+];
+
 let failed = 0;
 for (const [message, assertion] of cases) {
   const value = resolveConversationFollowUpForTest(message, state);
@@ -71,6 +79,16 @@ for (const [name, resolverState, message, expectedResolution] of resolverCases) 
     console.error(`FAIL resolver: ${name}`, value);
   } else {
     console.log(`PASS resolver: ${name}`);
+  }
+}
+
+for (const [message, intent, hasCards, expected] of displayCases) {
+  const actual = displayModeForTest(message, intent, hasCards);
+  if (actual !== expected) {
+    failed += 1;
+    console.error(`FAIL display mode: ${message} expected ${expected}, got ${actual}`);
+  } else {
+    console.log(`PASS display mode: ${message} -> ${actual}`);
   }
 }
 

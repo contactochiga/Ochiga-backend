@@ -827,17 +827,18 @@ type OperatingResult = {
   conversation_offset?: number;
   conversation_topic?: ConversationState["active_topic"];
   conversation_result_state?: ConversationState["active_result_state"];
+  display_mode?: "conversation" | "list" | "detail" | "audit" | "report" | "awareness";
 };
 
 export function classifyOyiOperatingIntentForTest(message: string): OyiIntentCategory {
   const text = message.toLowerCase().replace(/[’`]/g, "'");
   if (/what can you do|what can you control|what can you show|capabilit|available actions|help me/.test(text)) return "capability_query";
-  if (/what'?s happening|what is happening|needs attention|what should i do|everything okay|urgent|changed today|overnight|status|summary/.test(text)) return "awareness";
+  if (/visitor|guest|visitor access|visitor approval|invite .*visitor|add .+ as visitor|create visitor/.test(text)) return "visitor_operation";
+  if (/maintenance|repair|service ticket|open issue|overdue ticket/.test(text)) return "maintenance_operation";
   if (/who opened|who approved|who is associated|when (did|was|is)|why is|what caused|last device command|activity around|incident/.test(text)) return "investigation";
+  if (/offline devices|device health|camera status|device status|summarize device|show .*devices|infrastructure issue|camera event/.test(text)) return "device_status";
   if (/turn on|turn off|switch on|switch off|set .*temperature|control .*device|control .*light|control .*ac|pump|generator|gate/.test(text)) return "device_control";
-  if (/offline devices|device health|camera status|device status|summarize device|show .*devices/.test(text)) return "device_status";
-  if (/approve visitor|reject visitor|pending visitor|today.?s visitor|who entered|who is waiting|visitor log|visitor summary/.test(text)) return "visitor_operation";
-  if (/open maintenance|assign maintenance|escalate|mark .*resolved|overdue ticket|maintenance trend|maintenance issue/.test(text)) return "maintenance_operation";
+  if (/what'?s happening|what is happening|needs attention|what should i do|everything okay|urgent|changed today|overnight|status|summary/.test(text)) return "awareness";
   if (/wallet|balance|transaction|payment|charge|statement/.test(text)) return "wallet_operation";
   if (/service request|service status|utility|water|electric|internet|fiber/.test(text)) return "service_operation";
   if (/announcement|notice|resident notice|community|complaint|feedback/.test(text)) return "community_operation";
@@ -929,6 +930,19 @@ function proposedToolsForIntent(intent: OyiIntentCategory, message: string, inpu
 function wantsSupportingCards(message: string, intent: OyiIntentCategory) {
   if (intent === "report_generation" || intent === "investigation") return true;
   return /\b(show|list|audit|log|history|details?|report|transactions?|records?)\b/i.test(message);
+}
+
+function displayModeFor(intent: OyiIntentCategory, message: string, hasCards = false): OperatingResult["display_mode"] {
+  if (intent === "awareness" || intent === "recommendation") return "awareness";
+  if (intent === "report_generation") return "report";
+  if (intent === "investigation") return "audit";
+  if (/details?|first one|second one|third one|last one/i.test(message)) return "detail";
+  if (hasCards || /\b(show|list|log|history|records?)\b/i.test(message)) return "list";
+  return "conversation";
+}
+
+export function displayModeForTest(message: string, intent: OyiIntentCategory, hasCards = false) {
+  return displayModeFor(intent, message, hasCards);
 }
 
 function commandSummary(results: any[]) {
@@ -1126,6 +1140,7 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       sources: userFacingSources(surface, "awareness"),
       suggested_actions: awareness.suggested_actions.length ? awareness.suggested_actions : buildSuggestedActions(surface, message, awareness, context),
       execution: { status: "read_only", provider: "awareness" },
+      display_mode: intent === "general_help" ? "conversation" : "awareness",
     };
   }
 
@@ -1138,6 +1153,18 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       sources: [],
       suggested_actions: operatingSuggestedActions(surface, intent),
       execution: { status: "read_only", provider: "capability_registry" },
+      display_mode: "conversation",
+    };
+  }
+
+  if (intent === "visitor_operation" && /\b(add|invite|create)\b/i.test(message)) {
+    const name = message.match(/(?:add|invite|create)\s+([a-z][a-z .'-]{1,80}?)(?:\s+as\s+(?:a\s+)?visitor|\s+visitor|$)/i)?.[1]?.trim();
+    return {
+      intent,
+      understood: name ? `I understood that you want to prepare a visitor invite for ${name}.` : "I understood that you want to prepare a visitor invite.",
+      message: `I can help prepare${name ? ` a visitor invite for ${name}` : " a visitor invite"}, but visitor creation still needs confirmation through the Visitor Access workflow.`,
+      cards: [], sources: [], suggested_actions: operatingSuggestedActions(surface, intent), execution: { status: "validation_required" }, display_mode: "conversation",
+      conversation_topic: "visitor", conversation_result_state: null,
     };
   }
 
@@ -1172,6 +1199,7 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       conversation_offset: 0,
       conversation_topic: conversationTopic,
       conversation_result_state: conversationTopic ? (activeEntities.length ? "list" : "empty") : null,
+      display_mode: displayModeFor(intent, message, cards.length > 0),
     };
   }
 
@@ -1197,6 +1225,7 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     sources: userFacingSources(surface, reportLike ? "report" : "awareness"),
     suggested_actions: operatingSuggestedActions(surface, intent),
     execution: { status: "read_only", provider },
+    display_mode: displayModeFor(intent, message, reportLike),
   };
 }
 
@@ -1294,6 +1323,7 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
           intent: response.intent || null,
           understood: response.understood || null,
           execution: response.execution || null,
+          display_mode: response.display_mode || "conversation",
           recommended_action: response.recommended_action || null,
           awareness_score: response.awareness_score || null,
         },
@@ -1430,6 +1460,7 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         intent: operation.intent,
         understood: operation.understood,
         execution: operation.execution,
+        display_mode: operation.display_mode || displayModeFor(operation.intent, message, operation.cards.length > 0),
         cards,
         sources,
         suggested_actions: suggestedActions,
