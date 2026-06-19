@@ -23,6 +23,29 @@ type OyiChatInput = {
   thread_id?: string | null;
 };
 
+type ConversationEntity = {
+  type: "device" | "visitor" | "maintenance" | "service" | "wallet" | "community" | "report" | "awareness";
+  id?: string | null;
+  title: string;
+  status?: string | null;
+};
+
+type ConversationState = {
+  version: 1;
+  last_intent?: OyiIntentCategory;
+  last_user_message?: string;
+  entities: ConversationEntity[];
+  pending_confirmation_id?: string | null;
+  pending_action_summary?: string | null;
+};
+
+type ConversationContext = {
+  state: ConversationState;
+  estate_id?: string | null;
+  home_id?: string | null;
+  warning?: string;
+};
+
 type AwarenessResult = {
   headline: string;
   summary: string;
@@ -105,6 +128,106 @@ function safeSurface(value: unknown): OyiSurface {
 
 function validUuid(value?: string | null) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
+function emptyConversationState(): ConversationState {
+  return { version: 1, entities: [] };
+}
+
+function entityTypeFromCard(card: any): ConversationEntity["type"] | null {
+  const value = `${card?.type || ""} ${card?.title || ""}`.toLowerCase();
+  if (/visitor|guest|access/.test(value)) return "visitor";
+  if (/maintenance|support|repair/.test(value)) return "maintenance";
+  if (/device|infrastructure|camera|sensor/.test(value)) return "device";
+  if (/wallet|payment|transaction/.test(value)) return "wallet";
+  if (/service|utility|water|electric|internet/.test(value)) return "service";
+  if (/community|notice|announcement/.test(value)) return "community";
+  if (/report|audit|investigation/.test(value)) return "report";
+  if (/attention|normal|awareness/.test(value)) return "awareness";
+  return null;
+}
+
+function entityIdFromRow(row: any) {
+  return row?.entity_id || row?.entityId || row?.device_id || row?.deviceId || row?.visitor_id || row?.visitorId || row?.maintenance_id || row?.maintenanceId || row?.request_id || row?.requestId || row?.id || null;
+}
+
+function entitiesFromCards(cards: any[]): ConversationEntity[] {
+  const seen = new Set<string>();
+  const entities: ConversationEntity[] = [];
+  for (const card of cards || []) {
+    const type = entityTypeFromCard(card);
+    if (!type) continue;
+    for (const row of Array.isArray(card?.items) ? card.items : []) {
+      const title = String(row?.title || row?.label || row?.name || "").trim();
+      if (!title) continue;
+      const id = entityIdFromRow(row);
+      const key = `${type}:${id || title.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      entities.push({ type, id: id ? String(id) : null, title: title.slice(0, 140), status: String(row?.status || row?.subtitle || "") || null });
+    }
+  }
+  return entities.slice(0, 20);
+}
+
+function conversationStateFromResponse(previous: ConversationState, response: any, userMessage: string): ConversationState {
+  const results = Array.isArray(response?.execution?.results) ? response.execution.results : [];
+  const pending = results.find((row: any) => row?.status === "pending_confirmation" && row?.ledger_id);
+  const entities = entitiesFromCards(response?.cards || []);
+  return {
+    version: 1,
+    last_intent: response?.intent || previous.last_intent,
+    last_user_message: userMessage.slice(0, 500),
+    entities: entities.length ? entities : previous.entities.slice(0, 20),
+    pending_confirmation_id: pending?.ledger_id || null,
+    pending_action_summary: pending?.summary || null,
+  };
+}
+
+function ordinalEntity(message: string, entities: ConversationEntity[]) {
+  const lower = message.toLowerCase();
+  const ordinal = /\bfirst\b/.test(lower) ? 0 : /\bsecond\b/.test(lower) ? 1 : /\bthird\b/.test(lower) ? 2 : /\blast\b/.test(lower) ? Math.max(0, entities.length - 1) : 0;
+  return entities[ordinal] || null;
+}
+
+function isFollowUpMessage(message: string) {
+  const value = message.trim().toLowerCase();
+  if (["why", "why?", "when", "when?", "who", "who?"].includes(value)) return true;
+  return /\b(approve|reject|assign|show me more|more details|what should i do next|do it|go ahead|that one|this one|the first|the second|the third|it)\b/i.test(value);
+}
+
+function followUpIntent(message: string, state: ConversationState): OyiIntentCategory {
+  const lower = message.toLowerCase();
+  if (/why\?|when\?|who\?|more details/.test(lower)) return "investigation";
+  if (/show me more/.test(lower)) return state.last_intent || "general_help";
+  return state.last_intent || "general_help";
+}
+
+function expandFollowUpMessage(message: string, state: ConversationState) {
+  if (!isFollowUpMessage(message)) return message;
+  const entity = ordinalEntity(message, state.entities);
+  const lower = message.toLowerCase().trim();
+  if (/show me more|more details/.test(lower)) return state.last_user_message || message;
+  if (/^why\??$/.test(lower) && entity) return `Why is ${entity.title} in its current state?`;
+  if (/^when\??$/.test(lower) && entity) return `When was ${entity.title} last updated?`;
+  if (/^who\??$/.test(lower) && entity) return `Who is associated with ${entity.title}?`;
+  return message;
+}
+
+export function resolveConversationFollowUpForTest(message: string, state: Partial<ConversationState>) {
+  const normalized: ConversationState = {
+    ...emptyConversationState(),
+    ...state,
+    entities: Array.isArray(state.entities) ? state.entities as ConversationEntity[] : [],
+  };
+  const entity = ordinalEntity(message, normalized.entities);
+  return {
+    is_follow_up: isFollowUpMessage(message),
+    intent: followUpIntent(message, normalized),
+    entity: entity ? { type: entity.type, id: entity.id || null, title: entity.title } : null,
+    expanded_message: expandFollowUpMessage(message, normalized),
+    pending_confirmation_id: normalized.pending_confirmation_id || null,
+  };
 }
 
 function parseLimit(raw: unknown, fallback = 20) {
@@ -655,7 +778,7 @@ export function classifyOyiOperatingIntentForTest(message: string): OyiIntentCat
   const text = message.toLowerCase().replace(/[’`]/g, "'");
   if (/what can you do|what can you control|what can you show|capabilit|available actions|help me/.test(text)) return "capability_query";
   if (/what'?s happening|what is happening|needs attention|what should i do|everything okay|urgent|changed today|overnight|status|summary/.test(text)) return "awareness";
-  if (/who opened|who approved|when did|why is|what caused|last device command|activity around|incident/.test(text)) return "investigation";
+  if (/who opened|who approved|who is associated|when (did|was|is)|why is|what caused|last device command|activity around|incident/.test(text)) return "investigation";
   if (/turn on|turn off|switch on|switch off|set .*temperature|control .*device|control .*light|control .*ac|pump|generator|gate/.test(text)) return "device_control";
   if (/offline devices|device health|camera status|device status|summarize device|show .*devices/.test(text)) return "device_status";
   if (/approve visitor|reject visitor|pending visitor|today.?s visitor|who entered|who is waiting|visitor log|visitor summary/.test(text)) return "visitor_operation";
@@ -756,6 +879,89 @@ function commandSummary(results: any[]) {
   if (first.status === "denied") return "That operation is not permitted for your current role or context.";
   if (first.status === "failed") return "That operation could not be completed.";
   return "The operation was processed.";
+}
+
+async function loadConversationContext(actor: AuthUser | null, input: OyiChatInput): Promise<ConversationContext> {
+  if (!actor?.id || !validUuid(input.thread_id)) return { state: emptyConversationState() };
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_conversation_threads")
+      .select("id,user_id,surface,estate_id,home_id,metadata")
+      .eq("id", String(input.thread_id))
+      .eq("user_id", actor.id)
+      .maybeSingle();
+    if (error || !data) return { state: emptyConversationState(), warning: "Previous conversation context is unavailable." };
+    if (safeSurface(data.surface) !== safeSurface(input.surface)) return { state: emptyConversationState(), warning: "This conversation belongs to a different Oyi workspace." };
+    if (input.estate_id && data.estate_id && String(input.estate_id) !== String(data.estate_id)) return { state: emptyConversationState(), warning: "This conversation belongs to a different estate context." };
+    if (input.home_id && data.home_id && String(input.home_id) !== String(data.home_id)) return { state: emptyConversationState(), warning: "This conversation belongs to a different home context." };
+    const raw = data.metadata?.conversation_state;
+    const state = raw && typeof raw === "object"
+      ? {
+          ...emptyConversationState(),
+          ...raw,
+          entities: Array.isArray(raw.entities) ? raw.entities.slice(0, 20) : [],
+        } as ConversationState
+      : emptyConversationState();
+    return { state, estate_id: data.estate_id || null, home_id: data.home_id || null };
+  } catch {
+    return { state: emptyConversationState(), warning: "Previous conversation context is unavailable." };
+  }
+}
+
+async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatInput, state: ConversationState): Promise<OperatingResult | null> {
+  const message = String(input.message || "").trim();
+  if (!isFollowUpMessage(message)) return null;
+  const entity = ordinalEntity(message, state.entities);
+  const intent = followUpIntent(message, state);
+  const surface = safeSurface(input.surface);
+
+  if (/^(do it|go ahead|confirm|yes)$/i.test(message)) {
+    if (!actor?.id || !state.pending_confirmation_id) {
+      return {
+        intent,
+        understood: "I need a pending Oyi action to confirm.",
+        message: "I do not have a pending action to confirm in this conversation. Tell me what you would like Oyi to do.",
+        cards: [], sources: [], suggested_actions: operatingSuggestedActions(surface, intent), execution: { status: "validation_required" },
+      };
+    }
+    const { updateAiConfirmation } = await import("../ai/commandRouter");
+    const confirmed = await updateAiConfirmation(actor, state.pending_confirmation_id, "confirmed");
+    const record = confirmed.record;
+    const status = record?.execution_status || (confirmed.ok ? "executed" : "failed");
+    return {
+      intent,
+      understood: "I’ll confirm the pending action from this conversation.",
+      message: confirmed.ok
+        ? String(record?.result_summary || "The requested action has been processed.")
+        : "I could not confirm that action. It may have expired or is no longer available.",
+      cards: [],
+      sources: userFacingSources(surface, "operation"),
+      suggested_actions: operatingSuggestedActions(surface, intent),
+      execution: { status: "processed", results: [{ status, summary: record?.result_summary || confirmed.error || "Action confirmation processed." }] },
+    };
+  }
+
+  if (/^(approve|reject)\b/i.test(message) && entity?.type === "visitor") {
+    return {
+      intent: "visitor_operation",
+      understood: `I found ${entity.title} from the previous visitor results.`,
+      message: `I found ${entity.title}. Visitor approval is not enabled as an Oyi chat action yet, so no access decision was made. Review the visitor in Visitor Access to complete it safely.`,
+      cards: [], sources: userFacingSources(surface, "operation"),
+      suggested_actions: operatingSuggestedActions(surface, "visitor_operation"), execution: { status: "validation_required" },
+    };
+  }
+
+  if (/^assign\b/i.test(message) && entity?.type === "maintenance") {
+    return {
+      intent: "maintenance_operation",
+      understood: `I found ${entity.title} from the previous maintenance results.`,
+      message: `I found ${entity.title}. Assignment needs the existing maintenance workflow so the assignee and audit record are captured correctly. No assignment has been made yet.`,
+      cards: [], sources: userFacingSources(surface, "operation"),
+      suggested_actions: operatingSuggestedActions(surface, "maintenance_operation"), execution: { status: "validation_required" },
+    };
+  }
+
+  return null;
 }
 
 async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, context: Awaited<ReturnType<typeof loadUnifiedContext>>, awareness: AwarenessResult): Promise<OperatingResult> {
@@ -894,7 +1100,7 @@ export function buildOyiAwarenessScenarioForTest(input: {
   };
 }
 
-async function persistThread(actor: AuthUser | null, input: OyiChatInput, response: any, userMessage: string) {
+async function persistThread(actor: AuthUser | null, input: OyiChatInput, response: any, userMessage: string, conversationState: ConversationState) {
   const now = new Date().toISOString();
   const threadId = validUuid(input.thread_id) ? String(input.thread_id) : randomUUID();
   try {
@@ -907,7 +1113,7 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
       module: input.module || null,
       title: userMessage.slice(0, 96) || "Oyi conversation",
       updated_at: now,
-      metadata: { role_policy: getIntelligencePermissionPolicy(actor) },
+      metadata: { role_policy: getIntelligencePermissionPolicy(actor), conversation_state: conversationState },
     } as any);
     await supabaseAdmin.from("oyi_conversation_messages").insert([
       {
@@ -1046,9 +1252,18 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
   return observeAgentAction(
     { agent_id: surface === "facility" ? "facility" : "oyi", action: "oyi.chat", tool: "oyi:chat", surface, actor },
     async () => {
-      const context = await loadUnifiedContext(actor, { surface, estate_id: input.estate_id, home_id: input.home_id });
+      const conversation = await loadConversationContext(actor, input);
+      const effectiveInput: OyiChatInput = {
+        ...input,
+        surface,
+        message: expandFollowUpMessage(message, conversation.state),
+        estate_id: input.estate_id || conversation.estate_id || null,
+        home_id: input.home_id || conversation.home_id || null,
+      };
+      const context = await loadUnifiedContext(actor, { surface, estate_id: effectiveInput.estate_id, home_id: effectiveInput.home_id });
       const awareness = buildAwareness(surface, context, actor);
-      const operation = await runOperatingLayer(actor, input, context, awareness);
+      const followUp = await resolveFollowUpOperation(actor, effectiveInput, conversation.state);
+      const operation = followUp || await runOperatingLayer(actor, effectiveInput, context, awareness);
       const cards = operation.cards;
       const sources = operation.sources.length ? operation.sources : buildSources(surface, context);
       const suggestedActions = operation.suggested_actions.length ? operation.suggested_actions : buildSuggestedActions(surface, message, awareness, context);
@@ -1064,11 +1279,12 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         awareness: { ...awareness, suggested_actions: suggestedActions },
         recommended_action: awareness.recommended_action,
         awareness_score: awareness.awareness_score,
-        thread_id: validUuid(input.thread_id) ? String(input.thread_id) : randomUUID(),
+        thread_id: validUuid(effectiveInput.thread_id) ? String(effectiveInput.thread_id) : randomUUID(),
         role_policy: getIntelligencePermissionPolicy(actor),
-        warnings: context.warnings,
+        warnings: [...context.warnings, ...(conversation.warning ? [conversation.warning] : [])],
       };
-      response.thread_id = await persistThread(actor, input, response, message);
+      const nextConversationState = conversationStateFromResponse(conversation.state, response, message);
+      response.thread_id = await persistThread(actor, effectiveInput, response, message, nextConversationState);
       return response;
     }
   );
