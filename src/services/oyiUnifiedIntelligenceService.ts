@@ -901,7 +901,14 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
         cards: response.cards || [],
         sources: response.sources || [],
         suggested_actions: response.suggested_actions || [],
-        metadata: { awareness: response.awareness },
+        metadata: {
+          awareness: response.awareness,
+          intent: response.intent || null,
+          understood: response.understood || null,
+          execution: response.execution || null,
+          recommended_action: response.recommended_action || null,
+          awareness_score: response.awareness_score || null,
+        },
         created_at: new Date(Date.now() + 1).toISOString(),
       },
     ] as any);
