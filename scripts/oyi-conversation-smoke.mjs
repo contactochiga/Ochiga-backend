@@ -33,6 +33,16 @@ const subsystemCases = [
   ['awareness', { last_intent: 'awareness', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'awareness'],
 ];
 
+const resolverCases = [
+  ['consumer empty visitors', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Why?', 'empty_explanation'],
+  ['consumer empty visitor ordinal', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Show me the first one', 'empty_ordinal'],
+  ['consumer empty maintenance', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'empty', entities: [] }, 'Show me the first one', 'empty_ordinal'],
+  ['maintenance clarification', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'list', entities: [] }, 'Who reported it?', 'topic_clarification'],
+  ['facility visitor empty', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Why?', 'empty_explanation'],
+  ['facility maintenance detail', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'list', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Gate light repair', status: 'open' }] }, 'Show me the first one', 'entity'],
+  ['facility awareness remains awareness', { last_intent: 'awareness', active_topic: 'awareness', active_result_state: 'list', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'entity'],
+];
+
 let failed = 0;
 for (const [message, assertion] of cases) {
   const value = resolveConversationFollowUpForTest(message, state);
@@ -51,6 +61,16 @@ for (const [subsystem, subsystemState, message, expectedType] of subsystemCases)
     console.error(`FAIL subsystem conversation: ${subsystem}`, value);
   } else {
     console.log(`PASS subsystem conversation: ${subsystem}`);
+  }
+}
+
+for (const [name, resolverState, message, expectedResolution] of resolverCases) {
+  const value = resolveConversationFollowUpForTest(message, resolverState);
+  if (value.resolution !== expectedResolution) {
+    failed += 1;
+    console.error(`FAIL resolver: ${name}`, value);
+  } else {
+    console.log(`PASS resolver: ${name}`);
   }
 }
 

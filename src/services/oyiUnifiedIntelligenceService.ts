@@ -36,6 +36,8 @@ type ConversationState = {
   last_intent?: OyiIntentCategory;
   last_user_message?: string;
   entities: ConversationEntity[];
+  active_topic?: ConversationEntity["type"] | null;
+  active_result_state?: "empty" | "list" | "entity" | null;
   list_offset?: number;
   pending_confirmation_id?: string | null;
   pending_action_summary?: string | null;
@@ -189,11 +191,15 @@ function conversationStateFromResponse(previous: ConversationState, response: an
   const entities = Array.isArray(response?.conversation_entities)
     ? response.conversation_entities.slice(0, 50)
     : entitiesFromCards(response?.cards || []);
+  const activeTopic = response?.conversation_topic || topicForIntent(response?.intent) || previous.active_topic || null;
+  const activeResultState = response?.conversation_result_state || (activeTopic ? (entities.length ? "list" : "empty") : previous.active_result_state || null);
   return {
     version: 1,
     last_intent: response?.intent || previous.last_intent,
     last_user_message: userMessage.slice(0, 500),
-    entities: entities.length ? entities : previous.entities.slice(0, 20),
+    entities: activeResultState === "empty" ? [] : entities.length ? entities : previous.entities.slice(0, 20),
+    active_topic: activeTopic,
+    active_result_state: activeResultState,
     list_offset: Number.isFinite(Number(response?.conversation_offset)) ? Number(response.conversation_offset) : previous.list_offset || 0,
     pending_confirmation_id: pending?.ledger_id || null,
     pending_action_summary: pending?.summary || null,
@@ -209,7 +215,24 @@ function ordinalEntity(message: string, entities: ConversationEntity[]) {
 function isFollowUpMessage(message: string) {
   const value = message.trim().toLowerCase();
   if (["why", "why?", "when", "when?", "who", "who?"].includes(value)) return true;
-  return /\b(approve|reject|assign|show me more|more details|what should i do next|do it|go ahead|that one|this one|the first|the second|the third|it)\b/i.test(value);
+  return /\b(approve|reject|assign|show me more|more details|what should i do next|do it|go ahead|that one|this one|the first|the second|the third|when was|who reported|why did|it)\b/i.test(value);
+}
+
+function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] | null {
+  if (intent === "visitor_operation") return "visitor";
+  if (intent === "maintenance_operation") return "maintenance";
+  if (intent === "device_status" || intent === "device_control") return "device";
+  if (intent === "wallet_operation") return "wallet";
+  if (intent === "service_operation") return "service";
+  if (intent === "community_operation") return "community";
+  if (intent === "report_generation" || intent === "investigation") return "report";
+  if (intent === "awareness" || intent === "recommendation") return "awareness";
+  return null;
+}
+
+function topicLabel(topic?: ConversationState["active_topic"] | null, plural = false) {
+  const labels: Record<string, string> = { visitor: plural ? "visitor requests" : "visitor request", maintenance: plural ? "maintenance issues" : "maintenance issue", device: plural ? "devices" : "device", service: plural ? "service requests" : "service request", wallet: plural ? "wallet records" : "wallet record", community: plural ? "community reports" : "community report", report: plural ? "reports" : "report", awareness: plural ? "attention items" : "attention item" };
+  return labels[String(topic || "")] || (plural ? "records" : "record");
 }
 
 function followUpIntent(message: string, state: ConversationState): OyiIntentCategory {
@@ -237,12 +260,24 @@ export function resolveConversationFollowUpForTest(message: string, state: Parti
     entities: Array.isArray(state.entities) ? state.entities as ConversationEntity[] : [],
   };
   const entity = ordinalEntity(message, normalized.entities);
+  const lower = message.trim().toLowerCase();
+  const resolution = normalized.active_result_state === "empty" && normalized.active_topic
+    ? /show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message) ? "empty_ordinal"
+      : /^(why|why\?)|why did/i.test(message) ? "empty_explanation"
+      : "empty_topic"
+    : !entity && normalized.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who reported|why did/i.test(message) ? "topic_clarification"
+      : !entity && /show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message) ? "no_active_list"
+        : /show me more/.test(lower) ? "continuation"
+          : entity ? "entity" : "none";
   return {
     is_follow_up: isFollowUpMessage(message),
     intent: followUpIntent(message, normalized),
     entity: entity ? { type: entity.type, id: entity.id || null, title: entity.title } : null,
     expanded_message: expandFollowUpMessage(message, normalized),
     pending_confirmation_id: normalized.pending_confirmation_id || null,
+    active_topic: normalized.active_topic || null,
+    active_result_state: normalized.active_result_state || null,
+    resolution,
   };
 }
 
@@ -790,6 +825,8 @@ type OperatingResult = {
   execution?: Record<string, unknown>;
   conversation_entities?: ConversationEntity[];
   conversation_offset?: number;
+  conversation_topic?: ConversationState["active_topic"];
+  conversation_result_state?: ConversationState["active_result_state"];
 };
 
 export function classifyOyiOperatingIntentForTest(message: string): OyiIntentCategory {
@@ -904,6 +941,46 @@ function commandSummary(results: any[]) {
   return "The operation was processed.";
 }
 
+function plainEntityList(entities: ConversationEntity[]) {
+  return entities.slice(0, 5).map((entity, index) => `${index + 1}. ${entity.title}${entity.status ? ` — ${entity.status}` : ""}`).join("\n");
+}
+
+function operationalConversationMessage(intent: OyiIntentCategory, entities: ConversationEntity[], fallback: string, message = "") {
+  const topic = topicForIntent(intent);
+  if (!topic) return fallback;
+  if (!entities.length) {
+    if (topic === "visitor") return "There are currently no visitor requests awaiting approval.";
+    if (topic === "maintenance") return "There are currently no open maintenance issues.";
+    if (topic === "device") return "There are currently no matching device or infrastructure records to show.";
+    if (topic === "service") return "There are currently no service issues to show.";
+    if (topic === "community") return "There are currently no community reports to show.";
+    if (topic === "wallet") return "There are currently no wallet records to show.";
+    return `There are currently no ${topicLabel(topic, true)} to show.`;
+  }
+  const open = topic === "maintenance" ? entities.filter((row) => /open|new|assigned|scheduled|progress|waiting/i.test(String(row.status || ""))) : entities;
+  const pending = topic === "visitor" && /pending|approval|waiting/.test(message.toLowerCase())
+    ? entities.filter((row) => /pending|requested/i.test(String(row.status || "")))
+    : entities;
+  const relevant = topic === "maintenance" ? open : pending;
+  if (!relevant.length) {
+    if (topic === "maintenance") return "There are currently no open maintenance issues.";
+    if (topic === "visitor") return "There are currently no visitor requests awaiting approval.";
+  }
+  const label = topicLabel(topic, true);
+  return `There ${relevant.length === 1 ? "is" : "are"} ${relevant.length} ${label} available.\n${plainEntityList(relevant)}\nWhich one would you like to inspect?`;
+}
+
+function activeEntitiesForMessage(intent: OyiIntentCategory, entities: ConversationEntity[], message: string) {
+  const lower = message.toLowerCase();
+  if (intent === "visitor_operation" && /pending|approval|waiting/.test(lower)) {
+    return entities.filter((row) => /pending|requested/i.test(String(row.status || "")));
+  }
+  if (intent === "maintenance_operation" && /open|issue|overdue|maintenance/.test(lower)) {
+    return entities.filter((row) => /open|new|assigned|scheduled|progress|waiting/i.test(String(row.status || "")));
+  }
+  return entities;
+}
+
 async function loadConversationContext(actor: AuthUser | null, input: OyiChatInput): Promise<ConversationContext> {
   if (!actor?.id || !validUuid(input.thread_id)) return { state: emptyConversationState() };
   try {
@@ -940,14 +1017,31 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   const details = entity?.details || {};
   const dateLabel = (value: unknown, label: string) => value ? `${label} ${new Date(String(value)).toLocaleString()}.` : "The available record does not include that time.";
 
-  if (/show (me )?(the )?(first|second|third|last) one|^(why|when|who)\??$/i.test(message) && entity) {
-    if (/^when\??$/i.test(message)) {
+  if (state.active_result_state === "empty" && state.active_topic) {
+    if (/show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message)) {
+      return { intent, understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `There is no ${/second|third/.test(message.toLowerCase()) ? "matching" : "first"} ${topicLabel(state.active_topic)} to show because none are currently available in this context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
+    }
+    if (/^(why|why\?)|why did/i.test(message)) {
+      return { intent: "investigation", understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `Because there are no ${topicLabel(state.active_topic, true)} in the current ${surface === "facility" ? "estate" : "home"} context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
+    }
+  }
+
+  if (!entity && state.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who reported|why did/i.test(message)) {
+    return { intent: "investigation", understood: `The active topic is ${topicLabel(state.active_topic, true)}.`, message: `Which ${topicLabel(state.active_topic)} do you mean? You can say “the first one” or name it.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
+  }
+
+  if (!entity && /show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message)) {
+    return { intent, understood: "There is no active result list.", message: "I don’t have an active list open right now. Ask me to show visitor requests, maintenance issues, devices, or activity first.", cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
+  }
+
+  if (/show (me )?(the )?(first|second|third|last) one|^(why|when|who)\??$|when was|who reported|why did/i.test(message) && entity) {
+    if (/^when\??$|when was/i.test(message)) {
       return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.created_at || details.updated_at, "It was recorded")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" } };
     }
-    if (/^who\??$/i.test(message)) {
+    if (/^who\??$|who reported/i.test(message)) {
       return { intent: "investigation", understood: `I found ${entity.title}.`, message: details.reported_by ? `${entity.title} was reported by ${String(details.reported_by)}.` : `I found ${entity.title}, but the available record does not identify who reported it.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" } };
     }
-    if (/^why\??$/i.test(message)) {
+    if (/^why\??$|why did/i.test(message)) {
       const explanation = details.summary ? `The available record says: ${String(details.summary)}.` : `Its current status is ${entity.status || "recorded"}.`;
       return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title}: ${explanation} I do not have enough verified evidence to state a cause beyond the recorded details.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" } };
     }
@@ -1061,17 +1155,23 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     });
     const availableCards = routed.results.flatMap((result: any) => Array.isArray(result?.data?.cards) ? result.data.cards : []);
     const conversationEntities = routed.results.flatMap((result: any) => Array.isArray(result?.data?.conversation_entities) ? result.data.conversation_entities : []);
-    const cards = wantsSupportingCards(message, intent) ? availableCards.slice(0, 3) : [];
+    const activeEntities = activeEntitiesForMessage(intent, conversationEntities, message);
+    const cards = wantsSupportingCards(message, intent) && activeEntities.length ? availableCards.slice(0, 3) : [];
+    const conversationTopic = topicForIntent(intent);
     return {
       intent,
       understood,
-      message: `${commandSummary(routed.results)} ${routed.results.some((item: any) => item.status === "pending_confirmation") ? "No action has been performed yet." : ""}`.trim(),
+      message: routed.results.some((item: any) => item.status === "pending_confirmation")
+        ? `${commandSummary(routed.results)} No action has been performed yet.`.trim()
+        : operationalConversationMessage(intent, activeEntities, commandSummary(routed.results), message),
       cards,
       sources: userFacingSources(surface, "operation"),
       suggested_actions: operatingSuggestedActions(surface, intent),
       execution: { status: "processed", safe_mode: routed.safe_mode, scope: routed.scope, results: routed.results },
-      conversation_entities: conversationEntities,
+      conversation_entities: activeEntities,
       conversation_offset: 0,
+      conversation_topic: conversationTopic,
+      conversation_result_state: conversationTopic ? (activeEntities.length ? "list" : "empty") : null,
     };
   }
 
@@ -1336,6 +1436,10 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         awareness: { ...awareness, suggested_actions: suggestedActions },
         recommended_action: awareness.recommended_action,
         awareness_score: awareness.awareness_score,
+        conversation_entities: operation.conversation_entities,
+        conversation_offset: operation.conversation_offset,
+        conversation_topic: operation.conversation_topic,
+        conversation_result_state: operation.conversation_result_state,
         thread_id: validUuid(effectiveInput.thread_id) ? String(effectiveInput.thread_id) : randomUUID(),
         role_policy: getIntelligencePermissionPolicy(actor),
         warnings: [...context.warnings, ...(conversation.warning ? [conversation.warning] : [])],
