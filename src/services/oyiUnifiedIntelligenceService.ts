@@ -9,7 +9,6 @@ import { listIntelligencePredictions, summarizePredictions } from "../intelligen
 import { listWorkflows, summarizeWorkflows } from "../intelligence-core/workflows";
 import { observeAgentAction } from "../intelligence-core/observability";
 import type { ProposedAiTool } from "../ai/commandRouter";
-import { AI_TOOL_REGISTRY } from "../ai/toolRegistry";
 
 export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge";
 export type AwarenessSeverity = "normal" | "info" | "attention" | "warning" | "critical";
@@ -670,36 +669,50 @@ export function classifyOyiOperatingIntentForTest(message: string): OyiIntentCat
   return "general_help";
 }
 
-function capabilityCards(surface: OyiSurface, actor: AuthUser | null) {
-  const role = String(actor?.role || "user").replace(/_/g, " ");
-  const capabilities = [
-    { domain: "Awareness", value: "Home and facility state, urgency, and recommended action" },
-    { domain: "Investigation", value: "Who, when, why, and incident context from available audit/activity data" },
-    { domain: "Devices", value: "Status summaries and permitted device commands through existing safety gates" },
-    { domain: "Visitors", value: "Pending visitor queues, access history, and facility-visible visitor summaries" },
-    { domain: "Maintenance", value: "Open, overdue, and trend summaries; mutations require supported permissions" },
-    { domain: "Wallet", value: "Balances, transactions, charges, and statements where available" },
-    { domain: "Services", value: "Utility and service status from configured registry records" },
-    { domain: "Community", value: "Announcements, reports, and resident communication summaries" },
-    { domain: "Reports", value: "Daily, incident, visitor, maintenance, device, and wallet/service reports" },
-  ];
-  return [
-    {
-      type: "capability",
-      title: surface === "facility" ? "Oyi Facility operating capabilities" : "Oyi Home operating capabilities",
-      summary: `Capabilities are scoped to ${role}, active estate/home context, and permissions.`,
-      items: capabilities,
-    },
-    {
-      type: "capability_registry",
-      title: "Execution safety",
-      summary: "Restricted commands go through intent, entity resolution, permission checks, validation, execution, and audit logging.",
-      items: AI_TOOL_REGISTRY.filter((tool) => tool.enabled).slice(0, 8).map((tool) => ({
-        title: tool.tool_id,
-        status: tool.risk_level,
-      })),
-    },
-  ];
+function capabilityMessage(surface: OyiSurface) {
+  return surface === "facility"
+    ? "I can help manage estate operations. I can summarize what needs attention, review devices and infrastructure, check visitor activity, track maintenance, support service operations, summarize wallet and finance activity, prepare reports, and carry out permitted operational actions through safety checks."
+    : "I can help you understand and operate your home. I can check what’s happening, summarize device status, show offline devices, review visitor activity, track maintenance, explain wallet activity, and generate home reports. Where useful, I can also carry out permitted actions safely.";
+}
+
+function understoodText(surface: OyiSurface, intent: OyiIntentCategory) {
+  const audience = surface === "facility" ? "estate" : "home";
+  const labels: Record<OyiIntentCategory, string> = {
+    awareness: `I’ll review the current ${audience} state.`,
+    investigation: "I’ll look through the available operational history.",
+    device_control: "I’ll check whether that device action can be completed safely.",
+    device_status: "I’ll check the available device and infrastructure status.",
+    visitor_operation: "I’ll review the relevant visitor activity.",
+    maintenance_operation: "I’ll review the maintenance situation.",
+    wallet_operation: "I’ll review the available wallet and payment information.",
+    service_operation: "I’ll review the available service and utility information.",
+    community_operation: "I’ll review the available community activity.",
+    notification_operation: "I’ll review the relevant notifications.",
+    report_generation: "I’ll prepare a summary from the available operational records.",
+    capability_query: "I’ll outline the ways I can help in this context.",
+    recommendation: `I’ll identify the most useful next step for this ${audience}.`,
+    general_help: "I’ll help with the information available in this context.",
+  };
+  return labels[intent];
+}
+
+function awarenessSupportCards(awareness: AwarenessResult, includeCalmState = false) {
+  if (awareness.severity === "normal" && !includeCalmState) return [];
+  return [{
+    type: awareness.severity === "normal" ? "normal" : "attention",
+    title: awareness.headline,
+    summary: awareness.summary || awareness.recommended_action,
+    items: awareness.recommended_action && awareness.severity !== "normal"
+      ? [{ title: "Recommended action", status: awareness.recommended_action }]
+      : [],
+  }];
+}
+
+function userFacingSources(surface: OyiSurface, type: "awareness" | "operation" | "report") {
+  const scope = surface === "facility" ? "Estate operations" : "Home activity";
+  if (type === "report") return [{ label: `${scope} report` }];
+  if (type === "operation") return [{ label: "Oyi action record" }];
+  return [{ label: scope }];
 }
 
 function operatingSuggestedActions(surface: OyiSurface, intent: OyiIntentCategory) {
@@ -713,6 +726,11 @@ function operatingSuggestedActions(surface: OyiSurface, intent: OyiIntentCategor
   if (intent === "service_operation") rows.push(action(surface === "facility" ? "Review utilities" : "Review services", routes.utilities));
   if (intent === "community_operation") rows.push(action("Review community", routes.community));
   if (intent === "report_generation") rows.push(action(surface === "facility" ? "Open reports" : "Open activity", surface === "facility" ? "/reports" : "/activity"));
+  if (intent === "capability_query") {
+    rows.push(action(surface === "facility" ? "Check estate status" : "Check home status", routes.calm || routes.activity));
+    rows.push(action(surface === "facility" ? "Review infrastructure" : "Review devices", routes.devices));
+    rows.push(action("Review visitors", routes.visitors));
+  }
   rows.push(action("Review current awareness", routes.calm || routes.activity));
   return rows.filter(Boolean).slice(0, 5) as Array<Record<string, unknown>>;
 }
@@ -744,15 +762,15 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
   const surface = safeSurface(input.surface);
   const message = String(input.message || "");
   const intent = classifyOyiOperatingIntentForTest(message);
-  const understood = `Intent: ${intent.replace(/_/g, " ")}. Surface: ${surface}. Scope: ${input.home_id || input.estate_id || actor?.home_id || actor?.estate_id || "user"}.`;
+  const understood = understoodText(surface, intent);
 
   if (intent === "awareness" || intent === "recommendation" || intent === "general_help") {
     return {
       intent,
       understood,
       message: answerMessage(surface, message, awareness),
-      cards: awareness.cards,
-      sources: awareness.sources,
+      cards: awarenessSupportCards(awareness, /what('?s| is) happening|status|everything okay/.test(message.toLowerCase())),
+      sources: userFacingSources(surface, "awareness"),
       suggested_actions: awareness.suggested_actions.length ? awareness.suggested_actions : buildSuggestedActions(surface, message, awareness, context),
       execution: { status: "read_only", provider: "awareness" },
     };
@@ -762,9 +780,9 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     return {
       intent,
       understood,
-      message: "I can understand awareness, investigate activity, summarize operations, generate reports, and execute permitted actions through Oyi safety checks.",
-      cards: capabilityCards(surface, actor),
-      sources: [{ label: "capability registry", table: "AI_TOOL_REGISTRY" }],
+      message: capabilityMessage(surface),
+      cards: [],
+      sources: [],
       suggested_actions: operatingSuggestedActions(surface, intent),
       execution: { status: "read_only", provider: "capability_registry" },
     };
@@ -782,13 +800,13 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       homeId: input.home_id || actor.home_id || null,
       proposedTools,
     });
-    const cards = routed.results.flatMap((result: any) => Array.isArray(result?.data?.cards) ? result.data.cards : []).slice(0, 4);
+    const cards = routed.results.flatMap((result: any) => Array.isArray(result?.data?.cards) ? result.data.cards : []).slice(0, 3);
     return {
       intent,
       understood,
       message: `${commandSummary(routed.results)} ${routed.results.some((item: any) => item.status === "pending_confirmation") ? "No action has been performed yet." : ""}`.trim(),
-      cards: cards.length ? cards : awareness.cards,
-      sources: [{ label: "execution engine", table: "ai_execution_ledger" }, ...awareness.sources],
+      cards,
+      sources: userFacingSources(surface, "operation"),
       suggested_actions: operatingSuggestedActions(surface, intent),
       execution: { status: "processed", safe_mode: routed.safe_mode, scope: routed.scope, results: routed.results },
     };
@@ -805,8 +823,15 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     intent,
     understood,
     message: `${focus} ${awareness.severity === "normal" ? "No urgent issue is currently ranked above normal activity." : awareness.recommended_action}`,
-    cards: awareness.cards,
-    sources: awareness.sources,
+    cards: reportLike
+      ? [{
+          type: intent === "investigation" ? "investigation" : "report",
+          title: surface === "facility" ? "Estate operations summary" : "Home activity summary",
+          summary: awareness.summary || awareness.recommended_action,
+          items: [],
+        }]
+      : awarenessSupportCards(awareness),
+    sources: userFacingSources(surface, reportLike ? "report" : "awareness"),
     suggested_actions: operatingSuggestedActions(surface, intent),
     execution: { status: "read_only", provider },
   };
