@@ -33,6 +33,13 @@ type AwarenessResult = {
   generated_at: string;
 };
 
+type ThreadListInput = {
+  surface?: OyiSurface;
+  estate_id?: string | null;
+  home_id?: string | null;
+  limit?: number;
+};
+
 const SURFACES: OyiSurface[] = ["consumer", "facility", "office", "watch", "edge"];
 const SUMMARY_BY_SURFACE: Record<OyiSurface, IntelligenceSummaryType> = {
   consumer: "consumer",
@@ -93,6 +100,12 @@ function safeSurface(value: unknown): OyiSurface {
 
 function validUuid(value?: string | null) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
+function parseLimit(raw: unknown, fallback = 20) {
+  const value = Number.parseInt(String(raw ?? ""), 10);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.min(100, value));
 }
 
 function severityRank(value: unknown) {
@@ -392,6 +405,89 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
     response.persistence_warning = err?.message || "Conversation storage unavailable";
   }
   return threadId;
+}
+
+function threadRow(row: any) {
+  return {
+    id: row.id,
+    surface: row.surface,
+    estate_id: row.estate_id,
+    home_id: row.home_id,
+    module: row.module,
+    title: row.title || "Oyi conversation",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    metadata: row.metadata || {},
+  };
+}
+
+function messageRow(row: any) {
+  return {
+    id: row.id,
+    thread_id: row.thread_id,
+    role: row.role,
+    content: row.content || "",
+    cards: Array.isArray(row.cards) ? row.cards : [],
+    sources: Array.isArray(row.sources) ? row.sources : [],
+    suggested_actions: Array.isArray(row.suggested_actions) ? row.suggested_actions : [],
+    metadata: row.metadata || {},
+    created_at: row.created_at,
+  };
+}
+
+function scopedThreadQuery(actor: AuthUser, input: ThreadListInput = {}) {
+  const surface = safeSurface(input.surface);
+  let query = supabaseAdmin
+    .from("oyi_conversation_threads")
+    .select("id,user_id,surface,estate_id,home_id,module,title,metadata,created_at,updated_at")
+    .eq("user_id", actor.id)
+    .eq("surface", surface)
+    .order("updated_at", { ascending: false })
+    .limit(parseLimit(input.limit, 24));
+  const estateId = input.estate_id || actor.estate_id || null;
+  const homeId = input.home_id || actor.home_id || null;
+  if (estateId) query = query.eq("estate_id", estateId);
+  if (homeId) query = query.eq("home_id", homeId);
+  return query;
+}
+
+export async function listOyiConversationThreads(actor: AuthUser | null, input: ThreadListInput = {}) {
+  if (!actor?.id) return { ok: false, error: "Authentication required", threads: [] };
+  const surface = safeSurface(input.surface);
+  return observeAgentAction(
+    { agent_id: surface === "facility" ? "facility" : "oyi", action: "oyi.threads.list", tool: "oyi:threads", surface, actor },
+    async () => {
+      const { data, error } = await scopedThreadQuery(actor, input);
+      if (error) return { ok: false, error: error.message, threads: [] };
+      return { ok: true, threads: (data || []).map(threadRow), role_policy: getIntelligencePermissionPolicy(actor) };
+    }
+  );
+}
+
+export async function getOyiConversationMessages(actor: AuthUser | null, threadId: string) {
+  if (!actor?.id) return { ok: false, error: "Authentication required", messages: [] };
+  if (!validUuid(threadId)) return { ok: false, error: "Invalid thread id", messages: [] };
+  return observeAgentAction(
+    { agent_id: "oyi", action: "oyi.threads.messages", tool: "oyi:thread.messages", surface: "api", actor },
+    async () => {
+      const thread = await supabaseAdmin
+        .from("oyi_conversation_threads")
+        .select("id,user_id,surface,estate_id,home_id,module,title,metadata,created_at,updated_at")
+        .eq("id", threadId)
+        .eq("user_id", actor.id)
+        .maybeSingle();
+      if (thread.error) return { ok: false, error: thread.error.message, messages: [] };
+      if (!thread.data) return { ok: false, error: "Thread not found", messages: [] };
+      const messages = await supabaseAdmin
+        .from("oyi_conversation_messages")
+        .select("id,thread_id,user_id,role,content,cards,sources,suggested_actions,metadata,created_at")
+        .eq("thread_id", threadId)
+        .order("created_at", { ascending: true })
+        .limit(200);
+      if (messages.error) return { ok: false, error: messages.error.message, thread: threadRow(thread.data), messages: [] };
+      return { ok: true, thread: threadRow(thread.data), messages: (messages.data || []).map(messageRow), role_policy: getIntelligencePermissionPolicy(actor) };
+    }
+  );
 }
 
 export async function getOyiUnifiedAwareness(actor: AuthUser | null, input: { surface?: OyiSurface; estate_id?: string | null; home_id?: string | null }) {
