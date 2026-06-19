@@ -14,7 +14,8 @@
     "start:workers": "node dist/worker.js",
     "start:events": "node dist/events.js",
     "smoke:oyi": "node scripts/oyi-unified-smoke.mjs",
-    "smoke:oyi-awareness": "npm run build && node scripts/oyi-awareness-v3-smoke.mjs"
+    "smoke:oyi-awareness": "npm run build && node scripts/oyi-awareness-v3-smoke.mjs",
+    "smoke:oyi-operating": "npm run build && node scripts/oyi-operating-layer-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

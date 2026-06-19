@@ -8,6 +8,8 @@ import { buildIntelligenceSummary, type IntelligenceSummaryType } from "../intel
 import { listIntelligencePredictions, summarizePredictions } from "../intelligence-core/predictionEngine";
 import { listWorkflows, summarizeWorkflows } from "../intelligence-core/workflows";
 import { observeAgentAction } from "../intelligence-core/observability";
+import type { ProposedAiTool } from "../ai/commandRouter";
+import { AI_TOOL_REGISTRY } from "../ai/toolRegistry";
 
 export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge";
 export type AwarenessSeverity = "normal" | "info" | "attention" | "warning" | "critical";
@@ -624,6 +626,192 @@ function buildSuggestedActions(surface: OyiSurface, message: string, awareness: 
   return Array.from(actions.values()).slice(0, 6);
 }
 
+type OyiIntentCategory =
+  | "awareness"
+  | "investigation"
+  | "device_control"
+  | "device_status"
+  | "visitor_operation"
+  | "maintenance_operation"
+  | "wallet_operation"
+  | "service_operation"
+  | "community_operation"
+  | "notification_operation"
+  | "report_generation"
+  | "capability_query"
+  | "recommendation"
+  | "general_help";
+
+type OperatingResult = {
+  intent: OyiIntentCategory;
+  understood: string;
+  message: string;
+  cards: Array<Record<string, unknown>>;
+  sources: Array<Record<string, unknown>>;
+  suggested_actions: Array<Record<string, unknown>>;
+  execution?: Record<string, unknown>;
+};
+
+export function classifyOyiOperatingIntentForTest(message: string): OyiIntentCategory {
+  const text = message.toLowerCase().replace(/[’`]/g, "'");
+  if (/what can you do|what can you control|what can you show|capabilit|available actions|help me/.test(text)) return "capability_query";
+  if (/what'?s happening|what is happening|needs attention|what should i do|everything okay|urgent|changed today|overnight|status|summary/.test(text)) return "awareness";
+  if (/who opened|who approved|when did|why is|what caused|last device command|activity around|incident/.test(text)) return "investigation";
+  if (/turn on|turn off|switch on|switch off|set .*temperature|control .*device|control .*light|control .*ac|pump|generator|gate/.test(text)) return "device_control";
+  if (/offline devices|device health|camera status|device status|summarize device|show .*devices/.test(text)) return "device_status";
+  if (/approve visitor|reject visitor|pending visitor|today.?s visitor|who entered|who is waiting|visitor log|visitor summary/.test(text)) return "visitor_operation";
+  if (/open maintenance|assign maintenance|escalate|mark .*resolved|overdue ticket|maintenance trend|maintenance issue/.test(text)) return "maintenance_operation";
+  if (/wallet|balance|transaction|payment|charge|statement/.test(text)) return "wallet_operation";
+  if (/service request|service status|utility|water|electric|internet|fiber/.test(text)) return "service_operation";
+  if (/announcement|notice|resident notice|community|complaint|feedback/.test(text)) return "community_operation";
+  if (/notification|notify|alert/.test(text)) return "notification_operation";
+  if (/report|daily estate|home activity report|maintenance report|visitor report|incident report|who did what/.test(text)) return "report_generation";
+  if (/recommend|next action|suggest/.test(text)) return "recommendation";
+  return "general_help";
+}
+
+function capabilityCards(surface: OyiSurface, actor: AuthUser | null) {
+  const role = String(actor?.role || "user").replace(/_/g, " ");
+  const capabilities = [
+    { domain: "Awareness", value: "Home and facility state, urgency, and recommended action" },
+    { domain: "Investigation", value: "Who, when, why, and incident context from available audit/activity data" },
+    { domain: "Devices", value: "Status summaries and permitted device commands through existing safety gates" },
+    { domain: "Visitors", value: "Pending visitor queues, access history, and facility-visible visitor summaries" },
+    { domain: "Maintenance", value: "Open, overdue, and trend summaries; mutations require supported permissions" },
+    { domain: "Wallet", value: "Balances, transactions, charges, and statements where available" },
+    { domain: "Services", value: "Utility and service status from configured registry records" },
+    { domain: "Community", value: "Announcements, reports, and resident communication summaries" },
+    { domain: "Reports", value: "Daily, incident, visitor, maintenance, device, and wallet/service reports" },
+  ];
+  return [
+    {
+      type: "capability",
+      title: surface === "facility" ? "Oyi Facility operating capabilities" : "Oyi Home operating capabilities",
+      summary: `Capabilities are scoped to ${role}, active estate/home context, and permissions.`,
+      items: capabilities,
+    },
+    {
+      type: "capability_registry",
+      title: "Execution safety",
+      summary: "Restricted commands go through intent, entity resolution, permission checks, validation, execution, and audit logging.",
+      items: AI_TOOL_REGISTRY.filter((tool) => tool.enabled).slice(0, 8).map((tool) => ({
+        title: tool.tool_id,
+        status: tool.risk_level,
+      })),
+    },
+  ];
+}
+
+function operatingSuggestedActions(surface: OyiSurface, intent: OyiIntentCategory) {
+  const routes = ROUTES[surface] || ROUTES.consumer;
+  const action = (label: string, route?: string, risk = "read") => route ? { label, route, risk } : null;
+  const rows: Array<Record<string, unknown> | null> = [];
+  if (intent === "device_control" || intent === "device_status") rows.push(action(surface === "facility" ? "Check infrastructure health" : "Open devices", routes.devices));
+  if (intent === "visitor_operation") rows.push(action("Review visitor access", routes.visitors));
+  if (intent === "maintenance_operation") rows.push(action("Review maintenance queue", routes.maintenance));
+  if (intent === "wallet_operation") rows.push(action("Review wallet", routes.wallet));
+  if (intent === "service_operation") rows.push(action(surface === "facility" ? "Review utilities" : "Review services", routes.utilities));
+  if (intent === "community_operation") rows.push(action("Review community", routes.community));
+  if (intent === "report_generation") rows.push(action(surface === "facility" ? "Open reports" : "Open activity", surface === "facility" ? "/reports" : "/activity"));
+  rows.push(action("Review current awareness", routes.calm || routes.activity));
+  return rows.filter(Boolean).slice(0, 5) as Array<Record<string, unknown>>;
+}
+
+function proposedToolsForIntent(intent: OyiIntentCategory, message: string, input: OyiChatInput): ProposedAiTool[] {
+  const args = { estate_id: input.estate_id || null, home_id: input.home_id || null };
+  if (intent === "device_control") return [{ tool_id: "device_command", arguments: args }];
+  if (intent === "device_status") return [{ tool_id: "summarize_devices", arguments: args }];
+  if (intent === "maintenance_operation" && /create|new request|raise|log/.test(message.toLowerCase())) return [{ tool_id: "create_maintenance_request", arguments: args }];
+  if (intent === "wallet_operation") return [{ tool_id: "summarize_wallet", arguments: args }];
+  if (intent === "maintenance_operation") return [{ tool_id: "summarize_maintenance", arguments: args }, { tool_id: "summarize_support", arguments: args }];
+  if (intent === "visitor_operation") return [{ tool_id: "summarize_visitors", arguments: args }];
+  if (intent === "community_operation") return [{ tool_id: "summarize_community", arguments: args }];
+  if (intent === "capability_query") return [{ tool_id: "get_ai_status", arguments: args }];
+  return [];
+}
+
+function commandSummary(results: any[]) {
+  const first = results[0] || {};
+  if (!results.length) return "No executable operation was selected.";
+  if (first.summary) return String(first.summary);
+  if (first.status === "pending_confirmation") return "I need confirmation before completing that operation.";
+  if (first.status === "denied") return "That operation is not permitted for your current role or context.";
+  if (first.status === "failed") return "That operation could not be completed.";
+  return "The operation was processed.";
+}
+
+async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, context: Awaited<ReturnType<typeof loadUnifiedContext>>, awareness: AwarenessResult): Promise<OperatingResult> {
+  const surface = safeSurface(input.surface);
+  const message = String(input.message || "");
+  const intent = classifyOyiOperatingIntentForTest(message);
+  const understood = `Intent: ${intent.replace(/_/g, " ")}. Surface: ${surface}. Scope: ${input.home_id || input.estate_id || actor?.home_id || actor?.estate_id || "user"}.`;
+
+  if (intent === "awareness" || intent === "recommendation" || intent === "general_help") {
+    return {
+      intent,
+      understood,
+      message: answerMessage(surface, message, awareness),
+      cards: awareness.cards,
+      sources: awareness.sources,
+      suggested_actions: awareness.suggested_actions.length ? awareness.suggested_actions : buildSuggestedActions(surface, message, awareness, context),
+      execution: { status: "read_only", provider: "awareness" },
+    };
+  }
+
+  if (intent === "capability_query") {
+    return {
+      intent,
+      understood,
+      message: "I can understand awareness, investigate activity, summarize operations, generate reports, and execute permitted actions through Oyi safety checks.",
+      cards: capabilityCards(surface, actor),
+      sources: [{ label: "capability registry", table: "AI_TOOL_REGISTRY" }],
+      suggested_actions: operatingSuggestedActions(surface, intent),
+      execution: { status: "read_only", provider: "capability_registry" },
+    };
+  }
+
+  const proposedTools = actor ? proposedToolsForIntent(intent, message, input) : [];
+  if (actor && proposedTools.length) {
+    const { routeAiCommand } = await import("../ai/commandRouter");
+    const routed = await routeAiCommand(undefined, {
+      actor,
+      prompt: message,
+      surface,
+      scope: surface === "facility" ? "facility" : input.home_id || actor.home_id ? "home" : "estate",
+      estateId: input.estate_id || actor.estate_id || null,
+      homeId: input.home_id || actor.home_id || null,
+      proposedTools,
+    });
+    const cards = routed.results.flatMap((result: any) => Array.isArray(result?.data?.cards) ? result.data.cards : []).slice(0, 4);
+    return {
+      intent,
+      understood,
+      message: `${commandSummary(routed.results)} ${routed.results.some((item: any) => item.status === "pending_confirmation") ? "No action has been performed yet." : ""}`.trim(),
+      cards: cards.length ? cards : awareness.cards,
+      sources: [{ label: "execution engine", table: "ai_execution_ledger" }, ...awareness.sources],
+      suggested_actions: operatingSuggestedActions(surface, intent),
+      execution: { status: "processed", safe_mode: routed.safe_mode, scope: routed.scope, results: routed.results },
+    };
+  }
+
+  const reportLike = intent === "report_generation" || intent === "investigation";
+  const provider = reportLike ? "reporting/investigation" : "operating_context";
+  const focus = intent === "investigation"
+    ? "I can investigate available activity, audit, visitor, maintenance, device, and notification records for this context."
+    : intent === "report_generation"
+    ? "I can generate an operational report from awareness, events, predictions, workflows, and visible module records."
+    : "I can summarize the requested operational area from available context.";
+  return {
+    intent,
+    understood,
+    message: `${focus} ${awareness.severity === "normal" ? "No urgent issue is currently ranked above normal activity." : awareness.recommended_action}`,
+    cards: awareness.cards,
+    sources: awareness.sources,
+    suggested_actions: operatingSuggestedActions(surface, intent),
+    execution: { status: "read_only", provider },
+  };
+}
+
 function answerMessage(surface: OyiSurface, message: string, awareness: AwarenessResult) {
   const lower = message.toLowerCase();
   const facility = surface === "facility";
@@ -828,12 +1016,16 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
     async () => {
       const context = await loadUnifiedContext(actor, { surface, estate_id: input.estate_id, home_id: input.home_id });
       const awareness = buildAwareness(surface, context, actor);
-      const cards = awareness.cards;
-      const sources = buildSources(surface, context);
-      const suggestedActions = buildSuggestedActions(surface, message, awareness, context);
+      const operation = await runOperatingLayer(actor, input, context, awareness);
+      const cards = operation.cards;
+      const sources = operation.sources.length ? operation.sources : buildSources(surface, context);
+      const suggestedActions = operation.suggested_actions.length ? operation.suggested_actions : buildSuggestedActions(surface, message, awareness, context);
       const response: any = {
         ok: true,
-        message: answerMessage(surface, message, awareness),
+        message: operation.message,
+        intent: operation.intent,
+        understood: operation.understood,
+        execution: operation.execution,
         cards,
         sources,
         suggested_actions: suggestedActions,
