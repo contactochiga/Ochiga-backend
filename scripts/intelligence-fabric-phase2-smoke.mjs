@@ -16,6 +16,32 @@ assert.equal(orchestrator.workflowRuleForTest({ source: "consumer", event_type: 
 assert.equal(orchestrator.workflowRuleForTest({ source: "facility", event_type: "maintenance.created", category: "maintenance", title: "Repair", entity_id: "maintenance-1" })?.workflow_type, "maintenance");
 assert.equal(intents.classifyUniversalIntent({ message: "Assign it to Ade", surface: "facility" }).intent, "assignment");
 assert.equal(intents.classifyUniversalIntent({ message: "Show visitor access", surface: "consumer" }).domain, "visitor");
+const universalDomainCases = [
+  ["consumer", "Show rooms", "room"],
+  ["consumer", "Show scenes", "scene"],
+  ["consumer", "Show automations", "automation"],
+  ["consumer", "Show wallet", "wallet"],
+  ["consumer", "Show community updates", "community"],
+  ["consumer", "Show notifications", "notification"],
+  ["consumer", "Show activity", "activity"],
+  ["consumer", "Show services", "service"],
+  ["facility", "Show camera events", "camera"],
+  ["facility", "Show infrastructure alerts", "infrastructure"],
+  ["facility", "Show utility issues", "service"],
+  ["facility", "Show sensors", "sensor"],
+  ["facility", "Show traffic", "traffic"],
+  ["facility", "Show staff", "staff"],
+  ["facility", "Show estate structure", "estate"],
+  ["facility", "Show reports", "report"],
+  ["office", "Show leads", "lead"],
+];
+for (const [surface, message, expectedDomain] of universalDomainCases) {
+  assert.equal(
+    intents.classifyUniversalIntent({ message, surface }).domain,
+    expectedDomain,
+    `${surface} "${message}" should classify as ${expectedDomain}`,
+  );
+}
 assert.equal(execution.getRegisteredExecutionAction("visitor.revoke")?.confirmation_required, true);
 assert.equal(execution.getRegisteredExecutionAction("device.off")?.available, true);
 assert.equal((await execution.executeRegisteredAction({ action_id: "visitor.revoke", actor: { id: "actor", role: "resident" }, entity_id: "visitor-1", confirmed: false })).status, "confirmation_required");
