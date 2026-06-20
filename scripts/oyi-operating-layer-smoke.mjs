@@ -17,6 +17,7 @@ const cases = [
   ['Show open maintenance', 'maintenance_operation'],
   ['Show maintenance issues', 'maintenance_operation'],
   ['Show maintenance requests', 'maintenance_operation'],
+  ['Show maintainance requests', 'maintenance_operation'],
   ['Generate daily estate report', 'report_generation'],
   ['Show wallet balance', 'wallet_operation'],
   ['Who opened the gate?', 'investigation'],
@@ -25,11 +26,13 @@ const cases = [
 
 const domainCases = [
   ['consumer', 'Show visitor requests', 'visitors'], ['consumer', 'Add Michael as visitor', 'visitors'], ['consumer', 'Show maintenance requests', 'maintenance'],
+  ['consumer', 'Show maintainance requests', 'maintenance'],
   ['consumer', 'Show devices', 'devices'], ['consumer', 'Show rooms', 'rooms'], ['consumer', 'Show scenes', 'scenes'], ['consumer', 'Show automations', 'automation'],
   ['consumer', 'Show services', 'services'], ['consumer', 'Show wallet', 'wallet'], ['consumer', 'Show community updates', 'community'], ['consumer', 'Show notifications', 'notifications'],
   ['consumer', 'Show activity', 'activity'], ['consumer', 'Show security', 'security'], ['consumer', 'Show utilities', 'utilities'],
   ['facility', 'Show visitor access', 'visitors'], ['facility', 'Show maintenance issues', 'maintenance'], ['facility', 'Show device health', 'devices'],
-  ['facility', 'Open most recent requests', 'operational_queue'], ['facility', 'Open operator request', 'operational_queue'],
+  ['facility', 'Open most recent requests', 'operational_queue'], ['facility', 'Open operator request', 'operational_queue'], ['facility', 'Open most important issue', 'operational_queue'], ['facility', 'Show pending tasks', 'operational_queue'], ['facility', 'Show assigned tasks', 'operational_queue'],
+  ['facility', 'Show active workflows', 'workflows'], ['facility', 'Open pending workflows', 'workflows'],
   ['facility', 'Show cameras', 'cameras'], ['facility', 'Show infrastructure', 'infrastructure'], ['facility', 'Show utilities', 'utilities'], ['facility', 'Show sensors', 'sensors'],
   ['facility', 'Show traffic', 'traffic'], ['facility', 'Show community reports', 'community'], ['facility', 'Show wallet operations', 'wallet'], ['facility', 'Show staff', 'staff'],
   ['facility', 'Show reports', 'reports'], ['facility', 'Show estate structure', 'estate'], ['facility', 'Show activity timeline', 'activity'], ['facility', 'Show notifications', 'notifications'],

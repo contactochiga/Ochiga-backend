@@ -43,6 +43,27 @@ function utcDayRange(d = new Date()) {
   return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
 
+function missingUpdatedAtColumn(error: any) {
+  const message = String(error?.message || error?.details || error?.hint || "").toLowerCase();
+  return /updated_at/.test(message) && /column|schema cache|could not find/.test(message);
+}
+
+async function updateVisitorAccessStatus(id: string, status: string) {
+  const first = await supabaseAdmin
+    .from("visitor_access")
+    .update({ status, updated_at: new Date().toISOString() } as any)
+    .eq("id", id)
+    .select()
+    .single();
+  if (!first.error || !missingUpdatedAtColumn(first.error)) return first;
+  return supabaseAdmin
+    .from("visitor_access")
+    .update({ status } as any)
+    .eq("id", id)
+    .select()
+    .single();
+}
+
 /**
  * FACILITY: GET /facility/visitors?today=true&status=active
  * Reads from visitor_access (your real table with data).
@@ -133,14 +154,9 @@ export async function updateVisitorStatusFacility(req: AuthReq, res: Response) {
     if (!existing) return res.status(404).json({ error: "Visitor not found" });
     if (existing.estate_id !== estateId) return res.status(403).json({ error: "Forbidden" });
 
-    const { data, error } = await supabaseAdmin
-      .from("visitor_access")
-      .update({ status, updated_at: new Date().toISOString() } as any)
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await updateVisitorAccessStatus(id, status);
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return res.status(500).json({ error: "Visitor status could not be updated." });
 
     void publishSourceIntelligenceEvent({
       source: "facility",

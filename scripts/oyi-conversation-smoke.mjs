@@ -54,9 +54,9 @@ const ordinalState = {
 };
 
 const ordinalCases = [
-  ['first', 'visitor-1'], ['first one', 'visitor-1'], ['the first one', 'visitor-1'], ['1', 'visitor-1'], ['number 1', 'visitor-1'], ['number one', 'visitor-1'], ['one', 'visitor-1'],
-  ['second', 'visitor-2'], ['second one', 'visitor-2'], ['2', 'visitor-2'], ['2nd', 'visitor-2'], ['number 2', 'visitor-2'], ['number two', 'visitor-2'],
-  ['third', 'visitor-3'], ['third one', 'visitor-3'], ['3', 'visitor-3'], ['3rd', 'visitor-3'], ['number 3', 'visitor-3'], ['number three', 'visitor-3'],
+  ['first', 'visitor-1'], ['first one', 'visitor-1'], ['the first one', 'visitor-1'], ['1', 'visitor-1'], ['1st', 'visitor-1'], ['number 1', 'visitor-1'], ['number one', 'visitor-1'], ['one', 'visitor-1'],
+  ['second', 'visitor-2'], ['second one', 'visitor-2'], ['the second one', 'visitor-2'], ['2', 'visitor-2'], ['2nd', 'visitor-2'], ['number 2', 'visitor-2'], ['number two', 'visitor-2'], ['two', 'visitor-2'],
+  ['third', 'visitor-3'], ['third one', 'visitor-3'], ['the third one', 'visitor-3'], ['3', 'visitor-3'], ['3rd', 'visitor-3'], ['number 3', 'visitor-3'], ['number three', 'visitor-3'],
   ['Show John Delivery', 'visitor-3'], ['Ezekel', 'visitor-2'],
 ];
 
@@ -64,10 +64,15 @@ const resolverCases = [
   ['consumer empty visitors', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Why?', 'empty_explanation'],
   ['consumer empty visitor ordinal', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Show me the first one', 'empty_ordinal'],
   ['consumer empty maintenance', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'empty', entities: [] }, 'Show me the first one', 'empty_ordinal'],
+  ['consumer empty maintenance typo', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'empty', entities: [] }, 'The first one', 'empty_ordinal'],
+  ['facility empty community', { last_intent: 'community_operation', active_topic: 'community', active_result_state: 'empty', entities: [] }, 'The first one', 'empty_ordinal'],
+  ['workflow empty', { last_intent: 'investigation', active_topic: 'workflow', active_result_state: 'empty', entities: [] }, 'Open the first one', 'empty_ordinal'],
   ['maintenance clarification', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'list', entities: [] }, 'Who reported it?', 'topic_clarification'],
   ['facility visitor empty', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Why?', 'empty_explanation'],
   ['facility maintenance detail', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'list', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Gate light repair', status: 'open' }] }, 'Show me the first one', 'entity'],
   ['facility queue detail', { last_intent: 'investigation', active_topic: 'queue', active_result_state: 'list', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Gate light repair', status: 'open' }] }, 'Open the 1st one', 'entity'],
+  ['workflow owner detail', { last_intent: 'investigation', active_topic: 'workflow', active_result_state: 'list', entities: [{ type: 'workflow', id: 'workflow-1', title: 'Assign gate repair', status: 'assigned', details: { owner: 'Ade' } }] }, 'Who owns it?', 'entity'],
+  ['visitor assign guard', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'list', active_entity_id: 'visitor-1', active_entity_label: 'Salish Males', entities: [{ type: 'visitor', id: 'visitor-1', title: 'Salish Males', status: 'pending' }] }, 'Assign it to Ade', 'entity'],
   ['facility awareness remains awareness', { last_intent: 'awareness', active_topic: 'awareness', active_result_state: 'list', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'none'],
 ];
 
@@ -93,6 +98,7 @@ const normalizationCases = [
   ['Who is at my house?', 'show visitor access'],
   ['Turn lights on', 'turn on lights'],
   ['Power off lights', 'turn off lights'],
+  ['Show maintainance requests', 'Show maintenance requests'],
 ];
 
 let failed = 0;

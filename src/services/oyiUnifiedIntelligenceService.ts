@@ -26,7 +26,7 @@ type OyiChatInput = {
 };
 
 type ConversationEntity = {
-  type: "device" | "visitor" | "maintenance" | "service" | "wallet" | "community" | "report" | "awareness" | "queue";
+  type: "device" | "visitor" | "maintenance" | "service" | "wallet" | "community" | "report" | "awareness" | "queue" | "workflow";
   id?: string | null;
   title: string;
   status?: string | null;
@@ -150,6 +150,12 @@ function validUuid(value?: string | null) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
 
+function humanLabel(value?: unknown) {
+  const label = String(value || "").trim();
+  if (!label || validUuid(label)) return null;
+  return label;
+}
+
 function emptyConversationState(): ConversationState {
   return { version: 1, entities: [], active_list: [], last_displayed_records: [], conversation_state: "idle" };
 }
@@ -162,6 +168,7 @@ function entityTypeFromCard(card: any): ConversationEntity["type"] | null {
   if (/wallet|payment|transaction/.test(value)) return "wallet";
   if (/service|utility|water|electric|internet/.test(value)) return "service";
   if (/community|notice|announcement/.test(value)) return "community";
+  if (/workflow/.test(value)) return "workflow";
   if (/report|audit|investigation/.test(value)) return "report";
   if (/attention|normal|awareness/.test(value)) return "awareness";
   return null;
@@ -203,6 +210,7 @@ function entitiesFromCards(cards: any[]): ConversationEntity[] {
 
 function topicForDomain(domain?: string | null): ConversationState["active_topic"] | null {
   const value = String(domain || "").toLowerCase();
+  if (/workflow/.test(value)) return "workflow";
   if (/visitor|access/.test(value)) return "visitor";
   if (/maintenance|repair/.test(value)) return "maintenance";
   if (/device|camera|infrastructure|sensor/.test(value)) return "device";
@@ -223,19 +231,20 @@ function conversationStateFromResponse(previous: ConversationState, response: an
     ? response.conversation_entities.slice(0, 50)
     : entitiesFromCards(response?.cards || []);
   const activeEntity = response?.conversation_active_entity || null;
+  const domainSwitch = Boolean(response?.domain && response.domain !== previous.active_domain);
   // A detail/investigation reply must retain the list and domain it came from.
   const entities = hasResponseEntities
     ? responseEntities
-    : activeEntity ? previous.entities.slice(0, 50) : responseEntities.length ? responseEntities : previous.entities.slice(0, 50);
+    : activeEntity && !domainSwitch ? previous.entities.slice(0, 50) : responseEntities.length ? responseEntities : domainSwitch ? [] : previous.entities.slice(0, 50);
   const activeTopic = response?.conversation_topic
     || topicForDomain(response?.domain)
-    || (activeEntity ? previous.active_topic : null)
+    || (activeEntity && !domainSwitch ? previous.active_topic : null)
     || topicForIntent(response?.intent)
-    || previous.active_topic
+    || (domainSwitch ? null : previous.active_topic)
     || null;
   const activeResultState = response?.conversation_result_state
     || (activeEntity ? "entity" : hasResponseEntities ? (entities.length ? "list" : "empty") : previous.active_result_state || null);
-  const workflow = response?.execution_workflow || previous.active_workflow || null;
+  const workflow = response?.execution_workflow !== undefined ? response.execution_workflow : domainSwitch ? null : previous.active_workflow || null;
   const workflowStage = String((workflow as any)?.stage || "");
   const conversationState = workflowStage === "confirmation_required" ? "confirming"
     : /execution_started/.test(workflowStage) ? "executing"
@@ -249,14 +258,14 @@ function conversationStateFromResponse(previous: ConversationState, response: an
     last_user_message: userMessage.slice(0, 500),
     entities: activeResultState === "empty" ? [] : entities.slice(0, 50),
     active_domain: response?.domain || previous.active_domain || null,
-    active_entity_type: activeEntity?.type || (activeResultState === "list" ? null : previous.active_entity_type || null),
-    active_entity: activeEntity || (activeResultState === "list" ? null : previous.active_entity || null),
-    active_entity_id: activeEntity?.id || (activeResultState === "list" ? null : previous.active_entity_id || null),
-    active_entity_label: activeEntity?.title || (activeResultState === "list" ? null : previous.active_entity_label || null),
-    active_list_position: Number.isFinite(Number(activeEntity?.position)) ? Number(activeEntity.position) : activeResultState === "list" ? null : previous.active_list_position || null,
-    active_entity_position: Number.isFinite(Number(activeEntity?.position)) ? Number(activeEntity.position) : activeResultState === "list" ? null : previous.active_entity_position || null,
+    active_entity_type: activeEntity?.type || (activeResultState === "list" || activeResultState === "empty" || domainSwitch ? null : previous.active_entity_type || null),
+    active_entity: activeEntity || (activeResultState === "list" || activeResultState === "empty" || domainSwitch ? null : previous.active_entity || null),
+    active_entity_id: activeEntity?.id || (activeResultState === "list" || activeResultState === "empty" || domainSwitch ? null : previous.active_entity_id || null),
+    active_entity_label: activeEntity?.title || (activeResultState === "list" || activeResultState === "empty" || domainSwitch ? null : previous.active_entity_label || null),
+    active_list_position: Number.isFinite(Number(activeEntity?.position)) ? Number(activeEntity.position) : activeResultState === "list" || activeResultState === "empty" || domainSwitch ? null : previous.active_list_position || null,
+    active_entity_position: Number.isFinite(Number(activeEntity?.position)) ? Number(activeEntity.position) : activeResultState === "list" || activeResultState === "empty" || domainSwitch ? null : previous.active_entity_position || null,
     active_list_count: activeResultState === "empty" ? 0 : entities.length,
-    active_action: response?.conversation_action || previous.active_action || null,
+    active_action: response?.conversation_action !== undefined ? response.conversation_action : domainSwitch ? null : previous.active_action || null,
     active_workflow: workflow,
     last_response_type: response?.display_mode || previous.last_response_type || "conversation",
     active_list: activeResultState === "empty" ? [] : entities.slice(0, 50),
@@ -265,8 +274,8 @@ function conversationStateFromResponse(previous: ConversationState, response: an
     active_topic: activeTopic,
     active_result_state: activeResultState,
     list_offset: Number.isFinite(Number(response?.conversation_offset)) ? Number(response.conversation_offset) : previous.list_offset || 0,
-    pending_confirmation_id: pending?.ledger_id || (workflowStage === "execution_result" ? null : previous.pending_confirmation_id || null),
-    pending_action_summary: pending?.summary || (workflowStage === "execution_result" ? null : previous.pending_action_summary || null),
+    pending_confirmation_id: pending?.ledger_id || (workflowStage === "execution_result" || workflowStage === "cancelled" || domainSwitch ? null : previous.pending_confirmation_id || null),
+    pending_action_summary: pending?.summary || (workflowStage === "execution_result" || workflowStage === "cancelled" || domainSwitch ? null : previous.pending_action_summary || null),
   };
 }
 
@@ -304,6 +313,11 @@ function ordinalEntity(message: string, entities: ConversationEntity[]) {
 }
 
 function activeEntityFromState(state: ConversationState) {
+  const workflow = state.active_workflow as any;
+  if (!state.active_entity_id && !state.active_entity_label && workflow?.workflow) {
+    return workflowEntity(workflow.workflow);
+  }
+  if (!state.active_entity_id && !state.active_entity_label && state.entities.length === 1) return state.entities[0];
   if (!state.active_entity_id && !state.active_entity_label) return state.active_entity || null;
   return state.entities.find((entity) => (state.active_entity_id && entity.id === state.active_entity_id) || (state.active_entity_label && entity.title === state.active_entity_label)) || state.active_entity || null;
 }
@@ -324,7 +338,7 @@ function isFollowUpMessage(message: string, state?: ConversationState) {
   const value = message.trim().toLowerCase();
   if (["why", "why?", "when", "when?", "who", "who?"].includes(value)) return true;
   if (state && referencedEntity(message, state)) return true;
-  return /\b(approve|reject|remove|assign|show me more|more details|show activity|show history|show details|what should i do next|do it|go ahead|proceed|cancel|that one|this one|the first|the second|the third|1st|2nd|3rd|when was|who reported|why did|it|he|she|they|him|her)\b/i.test(value);
+  return /\b(approve|reject|remove|assign|verify|owner|blocking|overdue|show me more|more details|show activity|show history|show details|what should i do next|do it|go ahead|proceed|cancel|that one|this one|first|second|third|number one|number two|number three|1st|2nd|3rd|when was|who reported|who owns|why did|it|he|she|they|him|her)\b|^(?:one|two|three|1|2|3)$/i.test(value);
 }
 
 function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] | null {
@@ -340,8 +354,17 @@ function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] 
 }
 
 function topicLabel(topic?: ConversationState["active_topic"] | null, plural = false) {
-  const labels: Record<string, string> = { visitor: plural ? "visitor requests" : "visitor request", maintenance: plural ? "maintenance issues" : "maintenance issue", device: plural ? "devices" : "device", service: plural ? "service requests" : "service request", wallet: plural ? "wallet records" : "wallet record", community: plural ? "community reports" : "community report", report: plural ? "reports" : "report", queue: plural ? "operational requests" : "operational request", awareness: plural ? "attention items" : "attention item" };
+  const labels: Record<string, string> = { visitor: plural ? "visitor requests" : "visitor request", maintenance: plural ? "maintenance requests" : "maintenance request", device: plural ? "devices" : "device", service: plural ? "service requests" : "service request", wallet: plural ? "wallet records" : "wallet record", community: plural ? "community reports" : "community report", report: plural ? "reports" : "report", queue: plural ? "operational requests" : "operational request", workflow: plural ? "workflows" : "workflow", awareness: plural ? "attention items" : "attention item" };
   return labels[String(topic || "")] || (plural ? "records" : "record");
+}
+
+function emptyOrdinalMessage(topic?: ConversationState["active_topic"] | null, ordinal = "first") {
+  if (topic === "visitor") return `There is no ${ordinal} visitor request to show because no visitor requests are currently pending.`;
+  if (topic === "maintenance") return `There is no ${ordinal} maintenance request to show because no maintenance requests are currently open.`;
+  if (topic === "community") return `There is no ${ordinal} community report to show because no community reports are currently available.`;
+  if (topic === "workflow") return `There is no ${ordinal} workflow to show because no active workflows require attention.`;
+  if (topic === "queue") return `There is no ${ordinal} operational request to show because no operational requests are currently available.`;
+  return `There is no ${ordinal} ${topicLabel(topic)} to show because none are currently available in this context.`;
 }
 
 function followUpIntent(message: string, state: ConversationState): OyiIntentCategory {
@@ -371,11 +394,11 @@ export function resolveConversationFollowUpForTest(message: string, state: Parti
   const entity = referencedEntity(message, normalized);
   const lower = message.trim().toLowerCase();
   const resolution = normalized.active_result_state === "empty" && normalized.active_topic
-    ? /show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message) ? "empty_ordinal"
+    ? /show (me )?(the )?(first|second|third|last) one|(?:open|show) (?:the )?(?:first|second|third|last|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "empty_ordinal"
       : /^(why|why\?)|why did/i.test(message) ? "empty_explanation"
       : "empty_topic"
     : !entity && normalized.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who reported|why did/i.test(message) ? "topic_clarification"
-      : !entity && /show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message) ? "no_active_list"
+      : !entity && /show (me )?(the )?(first|second|third|last) one|(?:open|show) (?:the )?(?:first|second|third|last|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "no_active_list"
         : /show me more/.test(lower) ? "continuation"
           : entity ? "entity" : "none";
   return {
@@ -984,7 +1007,8 @@ type DomainIntent = {
 };
 
 const DOMAIN_INTENTS: DomainIntent[] = [
-  { key: "operational_queue", surfaces: ["facility"], phrases: /(?:open|show)\s+(?:the\s+)?(?:most\s+)?recent(?:\s+operational)?\s+requests?|operator\s+requests?|recent\s+requests?/i, intent: "investigation", label: "recent operational requests", unavailable: "There are currently no recent operational requests to show." },
+  { key: "operational_queue", surfaces: ["facility"], phrases: /(?:open|show|review)\s+(?:the\s+)?(?:most\s+)?(?:important\s+issue|recent(?:\s+operational)?\s+requests?|pending\s+(?:issues?|requests?|tasks?)|assigned\s+tasks?|operator\s+requests?|operator\s+request|recent\s+requests?)/i, intent: "investigation", label: "recent operational requests", unavailable: "There are currently no recent operational requests to show." },
+  { key: "workflows", surfaces: ["consumer", "facility", "office"], phrases: /(?:show|open|list|review)\s+(?:active|open|pending)?\s*workflows?|workflow\s+(?:status|queue|owner|overdue|blocking)/i, intent: "investigation", label: "workflows", unavailable: "There are currently no active workflows requiring attention." },
   { key: "visitors", surfaces: ["consumer", "facility"], phrases: /visitor|guest|access pass|visitor approval/i, intent: "visitor_operation", tool_id: "summarize_visitors", label: "visitor requests", unavailable: "I can’t see visitor records for this context yet." },
   { key: "maintenance", surfaces: ["consumer", "facility"], phrases: /maintenance|repair|service ticket|work order/i, intent: "maintenance_operation", tool_id: "summarize_maintenance", label: "maintenance issues", unavailable: "I can’t see maintenance records for this context yet." },
   { key: "devices", surfaces: ["consumer", "facility"], phrases: /device|light|switch|socket|hardware/i, intent: "device_status", tool_id: "summarize_devices", label: "devices", unavailable: "I can’t see device records for this context yet." },
@@ -1014,6 +1038,7 @@ function detectDomainIntent(message: string, surface: OyiSurface): DomainIntent 
 
 function normalizeOyiMessage(message: string) {
   return String(message || "")
+    .replace(/\b(?:maintainance|maintenence|maintainence)\b/gi, "maintenance")
     .replace(/who(?:'s| is) visiting|who is at (?:my )?(?:home|house)|any visitors|who(?:'s| is) active/gi, "show visitor access")
     .replace(/turn lights on|switch on lights|enable lights|power on lights/gi, "turn on lights")
     .replace(/turn lights off|switch off lights|disable lights|power off lights/gi, "turn off lights")
@@ -1028,17 +1053,18 @@ export function normalizeOyiMessageForTest(message: string) {
 }
 
 export function detectOyiDomainForTest(message: string, surface: OyiSurface) {
-  return detectDomainIntent(message, surface)?.key || null;
+  return detectDomainIntent(normalizeOyiMessage(message), surface)?.key || null;
 }
 
 export function resolveOyiDomainIntentForTest(message: string, surface: OyiSurface) {
-  const domain = detectDomainIntent(message, surface);
-  const classified = classifyOyiOperatingIntentForTest(message);
+  const normalized = normalizeOyiMessage(message);
+  const domain = detectDomainIntent(normalized, surface);
+  const classified = classifyOyiOperatingIntentForTest(normalized);
   return { domain: domain?.key || null, intent: domain?.intent || classified, awareness_fallback_used: !domain && classified === "awareness" };
 }
 
 export function classifyOyiOperatingIntentForTest(message: string): OyiIntentCategory {
-  const text = message.toLowerCase().replace(/[’`]/g, "'");
+  const text = normalizeOyiMessage(message).toLowerCase().replace(/[’`]/g, "'");
   if (/what can you do|what can you control|what can you show|capabilit|available actions|help me/.test(text)) return "capability_query";
   if (/visitor|guest|visitor access|visitor approval|invite .*visitor|add .+ as visitor|create visitor/.test(text)) return "visitor_operation";
   if (/maintenance|repair|service ticket|open issue|overdue ticket/.test(text)) return "maintenance_operation";
@@ -1158,6 +1184,9 @@ function domainUnavailableResult(domain: DomainIntent): OperatingResult {
     understood: `I understood that you are asking about ${domain.label}.`,
     message: domain.unavailable,
     cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" }, display_mode: "conversation", domain: domain.key,
+    conversation_entities: [],
+    conversation_topic: topicForDomain(domain.key) || topicForIntent(domain.intent),
+    conversation_result_state: "empty",
   };
 }
 
@@ -1203,7 +1232,7 @@ function operationalConversationMessage(intent: OyiIntentCategory, entities: Con
   if (!entities.length) {
     if (topic === "visitor") return "There are currently no visitor requests awaiting approval.";
     if (topic === "maintenance") return "There are currently no open maintenance issues.";
-    if (topic === "device") return "There are currently no matching device or infrastructure records to show.";
+    if (topic === "device") return "I could not find registered devices for this home context.";
     if (topic === "service") return "There are currently no service issues to show.";
     if (topic === "community") return "There are currently no community reports to show.";
     if (topic === "wallet") return "There are currently no wallet records to show.";
@@ -1231,6 +1260,118 @@ function activeEntitiesForMessage(intent: OyiIntentCategory, entities: Conversat
     return entities.filter((row) => /open|new|assigned|scheduled|progress|waiting/i.test(String(row.status || "")));
   }
   return entities;
+}
+
+function workflowEntity(row: any): ConversationEntity | null {
+  if (!row) return null;
+  const id = row.id || row.workflow_id || null;
+  const title = String(row.title || row.workflow_type || "Workflow").trim();
+  if (!title) return null;
+  return {
+    type: "workflow",
+    id: id ? String(id) : null,
+    title,
+    status: String(row.workflow_status || row.status || "open"),
+    details: {
+      workflow_type: row.workflow_type || null,
+      priority: row.workflow_priority || row.priority || null,
+      owner: row.workflow_owner || row.owner || row.responsible_agent || row.responsible || null,
+      assignee: row.workflow_assignee || row.assignee || row.assigned_to || null,
+      due_at: row.workflow_due_at || row.due_at || null,
+      escalation_at: row.workflow_escalation_at || row.escalation_at || null,
+      resolution: row.workflow_resolution || row.resolution || null,
+      summary: row.summary || row.description || null,
+      created_at: row.created_at || null,
+      updated_at: row.updated_at || null,
+    },
+  };
+}
+
+function activeWorkflowEntities(context: Awaited<ReturnType<typeof loadUnifiedContext>>) {
+  const active = rankActiveWorkflowsForAwareness(context.workflows || []);
+  return active.map(workflowEntity).filter(Boolean).slice(0, 50) as ConversationEntity[];
+}
+
+function queueEntity(row: any, index: number): ConversationEntity | null {
+  if (!row) return null;
+  if (row.workflow_type || row.workflow_status) return workflowEntity(row);
+  const title = String(row.title || row.summary || row.event_type || `Operational request ${index + 1}`).trim();
+  if (!title) return null;
+  const type = entityTypeFromCard({ type: row.category || row.event_type, title }) || topicForDomain(row.category || row.event_type || "") || "queue";
+  return {
+    type,
+    id: entityIdFromRow(row) ? String(entityIdFromRow(row)) : null,
+    title: title.slice(0, 140),
+    status: String(row.status || row.workflow_status || row.severity || "recorded"),
+    details: {
+      created_at: row.created_at || row.occurred_at || null,
+      updated_at: row.updated_at || row.occurred_at || null,
+      reported_by: row.actor_name || row.created_by_name || row.reporter_name || row.actor_id || null,
+      summary: row.summary || row.description || null,
+    },
+  };
+}
+
+function operationalQueueEntities(context: Awaited<ReturnType<typeof loadUnifiedContext>>, awareness: AwarenessResult) {
+  const workflowRows = rankActiveWorkflowsForAwareness(context.workflows || []);
+  const attentionRows = (context.events || []).filter((event: any) => {
+    if (isInternalAiEvent(event) || isSuccessfulRoutineEvent(event)) return false;
+    return /critical|warning|attention|pending|open|assigned|in_progress|failed|overdue/i.test(`${event.severity || ""} ${event.status || ""} ${event.title || ""} ${event.summary || ""}`);
+  });
+  const awarenessRows = (awareness.cards || []).flatMap((card: any) => Array.isArray(card?.items) ? card.items : []);
+  const rows = [...workflowRows, ...attentionRows, ...awarenessRows];
+  const seen = new Set<string>();
+  return rows.map(queueEntity).filter((entity): entity is ConversationEntity => {
+    if (!entity) return false;
+    const key = `${entity.type}:${entity.id || entity.title.toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 50);
+}
+
+function workflowDomainResult(context: Awaited<ReturnType<typeof loadUnifiedContext>>, domain: DomainIntent): OperatingResult {
+  const entities = activeWorkflowEntities(context);
+  if (!entities.length) {
+    return { ...domainUnavailableResult(domain), conversation_entities: [], conversation_topic: "workflow", conversation_result_state: "empty" };
+  }
+  return {
+    intent: "investigation",
+    understood: "I found active workflows for this context.",
+    message: `There ${entities.length === 1 ? "is" : "are"} ${entities.length} active ${topicLabel("workflow", true)}.\n${plainEntityList(entities)}\nWhich one would you like to inspect?`,
+    cards: [],
+    sources: [],
+    suggested_actions: [],
+    execution: { status: "read_only", provider: "workflow_orchestrator" },
+    conversation_entities: entities,
+    conversation_offset: 0,
+    conversation_topic: "workflow",
+    conversation_result_state: "list",
+    display_mode: "conversation",
+    domain: domain.key,
+  };
+}
+
+function operationalQueueResult(context: Awaited<ReturnType<typeof loadUnifiedContext>>, awareness: AwarenessResult, domain: DomainIntent): OperatingResult {
+  const entities = operationalQueueEntities(context, awareness);
+  if (!entities.length) {
+    return { ...domainUnavailableResult(domain), conversation_entities: [], conversation_topic: "queue", conversation_result_state: "empty" };
+  }
+  return {
+    intent: "investigation",
+    understood: "I found recent operational requests across your facility.",
+    message: `I found recent operational requests across your facility.\n${plainEntityList(entities)}\nWhich one would you like to inspect?`,
+    cards: [],
+    sources: [],
+    suggested_actions: [],
+    execution: { status: "read_only", provider: "operational_queue" },
+    conversation_entities: entities,
+    conversation_offset: 0,
+    conversation_topic: "queue",
+    conversation_result_state: "list",
+    display_mode: "conversation",
+    domain: domain.key,
+  };
 }
 
 async function loadConversationContext(actor: AuthUser | null, input: OyiChatInput): Promise<ConversationContext> {
@@ -1271,7 +1412,7 @@ async function prepareConversationExecution(input: {
   assignee?: string | null;
 }) {
   const { createWorkflow } = await import("../intelligence-core/workflows");
-  const workflowType = input.entity.type === "visitor" ? "visitor_access" : input.entity.type === "maintenance" ? "maintenance" : "device_action";
+  const workflowType = input.entity.type === "visitor" ? "visitor_access" : input.entity.type === "maintenance" ? "maintenance" : input.entity.type === "service" ? "service_request" : "device_action";
   const responsible = input.surface === "facility" ? "facility" : "oyi";
   const sourceEventId = `chat:${input.action_id}:${input.entity.id || input.entity.title}:${input.actor.id}`;
   const { data: existing } = await supabaseAdmin
@@ -1314,8 +1455,10 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   });
 
   if (state.active_result_state === "empty" && state.active_topic) {
-    if (/show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message)) {
-      return preserveConversation({ intent, understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `There is no ${/second|third/.test(message.toLowerCase()) ? "matching" : "first"} ${topicLabel(state.active_topic)} to show because none are currently available in this context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
+    if (/show (me )?(the )?(first|second|third|last|\d(?:st|nd|rd)?) one|(?:open|show) (?:the )?(?:first|second|third|last|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last)(?:\s+one)?\b|that one|this one|^(?:number\s+)?(?:one|two|three|1|2|3)$/i.test(message)) {
+      const lower = message.toLowerCase();
+      const ordinal = /second|two|2/.test(lower) ? "second" : /third|three|3/.test(lower) ? "third" : /last/.test(lower) ? "last" : "first";
+      return preserveConversation({ intent, understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: emptyOrdinalMessage(state.active_topic, ordinal), cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
     }
     if (/^(why|why\?)|why did/i.test(message)) {
       return preserveConversation({ intent: "investigation", understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `Because there are no ${topicLabel(state.active_topic, true)} in the current ${surface === "facility" ? "estate" : "home"} context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
@@ -1332,6 +1475,16 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
 
   const activeEntity = entity ? { ...entity, position: Math.max(0, state.entities.findIndex((row) => row.id === entity.id && row.type === entity.type)) } : null;
 
+  if (/^assign\b/i.test(message) && entity && !["maintenance", "service"].includes(entity.type)) {
+    return preserveConversation({
+      intent: "maintenance_operation",
+      understood: `I found ${entity.title}, but it is not a maintenance or service request.`,
+      message: "I can only assign maintenance or service requests from this conversation. Ask me to show maintenance requests first, then choose the request you want assigned.",
+      cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" },
+      conversation_active_entity: activeEntity || undefined,
+    });
+  }
+
   if (/^(approve|reject|remove)\b/i.test(message) && entity?.type === "visitor") {
     if (!actor?.id || !entity.id) return preserveConversation({ intent: "visitor_operation", understood: `I found ${entity.title}.`, message: "I need an authenticated visitor record before I can prepare that access action.", cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity! });
     const action_id = /^approve/i.test(message) ? "visitor.approve" : /^reject/i.test(message) ? "visitor.revoke" : "visitor.revoke";
@@ -1341,13 +1494,14 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     return preserveConversation({ intent: "visitor_operation", understood: `I found ${entity.title}.`, message: `${actionLabel} will change this visitor’s access. Proceed?`, cards: [], sources: [], suggested_actions: [], execution: { status: "pending_confirmation" }, conversation_active_entity: activeEntity!, conversation_action: action_id, execution_workflow: { stage: "confirmation_required", workflow: workflow.workflow, action_id, entity_id: entity.id, action_label: actionLabel } });
   }
 
-  if (/^assign\b/i.test(message) && entity?.type === "maintenance") {
+  if (/^assign\b/i.test(message) && (entity?.type === "maintenance" || entity?.type === "service")) {
     const assignee = message.match(/\bto\s+([a-z][a-z .'-]{1,80})$/i)?.[1]?.trim() || null;
     if (!actor?.id || !entity.id) return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title}.`, message: "I need an authenticated maintenance record before I can prepare an assignment.", cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity! });
     if (!assignee) return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title}.`, message: "Who should I assign this maintenance request to?", cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity! });
-    const workflow = await prepareConversationExecution({ actor, entity, action_id: "maintenance.assign", action_label: `Assign to ${assignee}`, surface, estate_id: input.estate_id, home_id: input.home_id, assignee });
+    const workflow = await prepareConversationExecution({ actor, entity, action_id: entity.type === "service" ? "service.assign" : "maintenance.assign", action_label: `Assign to ${assignee}`, surface, estate_id: input.estate_id, home_id: input.home_id, assignee });
     if (!workflow.ok || !workflow.workflow) return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title}.`, message: "I could not prepare the maintenance assignment. No change was made.", cards: [], sources: [], suggested_actions: [], execution: { status: "failed" }, conversation_active_entity: activeEntity! });
-    return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title}.`, message: `Assign ${entity.title} to ${assignee}?`, cards: [], sources: [], suggested_actions: [], execution: { status: "pending_confirmation" }, conversation_active_entity: activeEntity!, conversation_action: "maintenance.assign", execution_workflow: { stage: "confirmation_required", workflow: workflow.workflow, action_id: "maintenance.assign", entity_id: entity.id, assignee, action_label: `Assign to ${assignee}` } });
+    const actionId = entity.type === "service" ? "service.assign" : "maintenance.assign";
+    return preserveConversation({ intent: entity.type === "service" ? "service_operation" : "maintenance_operation", understood: `I found ${entity.title}.`, message: `Assign ${entity.title} to ${assignee}?`, cards: [], sources: [], suggested_actions: [], execution: { status: "pending_confirmation" }, conversation_active_entity: activeEntity!, conversation_action: actionId, execution_workflow: { stage: "confirmation_required", workflow: workflow.workflow, action_id: actionId, entity_id: entity.id, assignee, action_label: `Assign to ${assignee}` } });
   }
 
   if (/^(?:turn|switch|power)\b.*\b(?:on|off)\b/i.test(message) && entity?.type === "device" && activeEntity) {
@@ -1384,11 +1538,29 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   }
 
   if (/show (me )?(the )?(first|second|third|last) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who)\??$|when was|who reported|why did|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
+    if (entity.type === "workflow" && /who owns|who is responsible|owner|assignee|assigned/i.test(message)) {
+      const owner = humanLabel(details.owner) || humanLabel(details.assignee);
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: owner ? `${entity.title} is currently owned by ${owner}.` : `I found ${entity.title}, but the available workflow record does not identify a named owner.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+    }
+    if (entity.type === "workflow" && /blocking|blocked|why/i.test(message)) {
+      const resolution = String(details.resolution || details.summary || "").trim();
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: resolution ? `${entity.title}: ${resolution}` : `${entity.title} is not marked with a specific blocker in the available workflow record.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+    }
+    if (entity.type === "workflow" && /overdue|due/i.test(message)) {
+      const due = details.due_at ? new Date(String(details.due_at)) : null;
+      const overdue = due ? due.getTime() < Date.now() : false;
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: due ? `${entity.title} is due ${due.toLocaleString()}.${overdue ? " It is overdue." : " It is not overdue yet."}` : `${entity.title} does not have a due date in the available workflow record.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+    }
+    if (entity.type === "workflow" && /verify/i.test(message)) {
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} can be verified after its source operation completes. I do not have a completed source action to verify from this message.`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity });
+    }
     if (/^when\??$|when was/i.test(message)) {
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.created_at || details.updated_at, "It was recorded")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (/^who\??$|who reported/i.test(message)) {
-      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: details.reported_by ? `${entity.title} was reported by ${String(details.reported_by)}.` : `I found ${entity.title}, but the available record does not identify who reported it.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+      const reporter = humanLabel(details.reported_by);
+      const unavailable = entity.type === "visitor" ? "the creator name" : "who reported it";
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: reporter ? `${entity.title} was reported by ${reporter}.` : `I found ${entity.title}, but the available record does not include ${unavailable}.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (/^why\??$|why did/i.test(message)) {
       const explanation = details.summary ? `The available record says: ${String(details.summary)}.` : `Its current status is ${entity.status || "recorded"}.`;
@@ -1497,7 +1669,15 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     return domainActionPreparation(domain, message, surface);
   }
 
-  if (intent === "awareness" || intent === "recommendation" || intent === "general_help") {
+  if (domain?.key === "workflows") {
+    return workflowDomainResult(context, domain);
+  }
+
+  if (domain?.key === "operational_queue") {
+    return operationalQueueResult(context, awareness, domain);
+  }
+
+  if (!domain && (intent === "awareness" || intent === "recommendation" || intent === "general_help")) {
     return {
       intent,
       understood,

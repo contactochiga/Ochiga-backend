@@ -42,6 +42,18 @@ function inActorScope(actor: AuthUser, row: any) {
   return true;
 }
 
+function missingUpdatedAtColumn(error: any) {
+  const message = String(error?.message || error?.details || error?.hint || "").toLowerCase();
+  return /updated_at/.test(message) && /column|schema cache|could not find/.test(message);
+}
+
+async function updateVisitorAccessStatus(id: string, status: string) {
+  const patch = { status, updated_at: new Date().toISOString() } as any;
+  const first = await supabaseAdmin.from("visitor_access").update(patch).eq("id", id).select("*").single();
+  if (!first.error || !missingUpdatedAtColumn(first.error)) return first;
+  return supabaseAdmin.from("visitor_access").update({ status } as any).eq("id", id).select("*").single();
+}
+
 export async function executeRegisteredAction(input: { action_id: string; actor: AuthUser; entity_id?: string | null; command?: Record<string, unknown> | null; assignee?: string | null; source?: string; confirmed?: boolean }) {
   const action = getRegisteredExecutionAction(input.action_id);
   if (!action) return { ok: false, status: "failed", reason: "action_not_registered" };
@@ -53,8 +65,8 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
     if (!inActorScope(input.actor, visitor)) return { ok: false, status: "denied", reason: "scope_mismatch" };
     if (!operationalRole(input.actor) && ![visitor.created_by, visitor.resident_id].map(String).includes(String(input.actor.id))) return { ok: false, status: "denied", reason: "visitor_operation_not_permitted" };
     const status = action.id === "visitor.approve" ? "approved" : action.id === "visitor.expire" ? "expired" : "denied";
-    const { data: updated, error: updateError } = await supabaseAdmin.from("visitor_access").update({ status, updated_at: new Date().toISOString() } as any).eq("id", visitor.id).select("*").single();
-    if (updateError) return { ok: false, status: "failed", reason: updateError.message };
+    const { data: updated, error: updateError } = await updateVisitorAccessStatus(visitor.id, status);
+    if (updateError) return { ok: false, status: "failed", reason: "visitor_access_update_failed" };
     void publishSourceIntelligenceEvent({ source: operationalRole(input.actor) ? "facility" : "consumer", surface: operationalRole(input.actor) ? "facility" : "consumer", event_type: `visitor_access.${status}`, category: "visitor", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "visitor_access", entity_id: updated.id, entity_label: updated.visitor_name || "Visitor", severity: status === "denied" ? "attention" : "info", title: `Visitor access ${status}`, summary: `${updated.visitor_name || "Visitor"} access is ${status}.`, payload: { status } }, { source_table: "visitor_access", source_event_id: `${updated.id}:visitor_access.${status}` });
     return { ok: true, status: "executed", result: updated };
   }
