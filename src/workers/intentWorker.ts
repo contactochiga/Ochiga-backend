@@ -4,12 +4,14 @@ import {
   Intent,
   NotifyIntent,
   DeviceCommandIntent,
+  UniversalIntent,
 } from "../core/control-plane/contracts/intent.types";
 import { NotificationService } from "../services/NotificationService";
 import { publishDeviceAction } from "../device/bridge";
 import { intentDlqQueue } from "./intentDlqWorker";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 const connection = {
   url: process.env.REDIS_URL || "redis://localhost:6379",
@@ -49,6 +51,10 @@ export function startIntentWorker() {
         return handleDeviceIntent(intent);
       }
 
+      if (isUniversalIntent(intent)) {
+        return handleUniversalIntent(intent);
+      }
+
       throw new Error("Unhandled intent shape");
     },
     { connection }
@@ -77,6 +83,10 @@ function isNotificationIntent(intent: Intent): intent is NotifyIntent {
 
 function isDeviceIntent(intent: Intent): intent is DeviceCommandIntent {
   return (intent as DeviceCommandIntent).deviceId !== undefined;
+}
+
+function isUniversalIntent(intent: Intent): intent is UniversalIntent {
+  return (intent as UniversalIntent).target === "intelligence" && typeof (intent as UniversalIntent).intent === "string";
 }
 
 // -----------------------------
@@ -152,4 +162,21 @@ async function handleDeviceIntent(intent: DeviceCommandIntent) {
   const topic = `ochiga/device/${deviceKey}/set`;
   await publishDeviceAction(topic, intent.command);
   return { ok: true, vendor: "mqtt", topic };
+}
+
+async function handleUniversalIntent(intent: UniversalIntent) {
+  // Classification is durable and observable; execution remains with the registered tool boundary.
+  await publishSourceIntelligenceEvent({
+    source: intent.surface as any,
+    surface: intent.surface as any,
+    event_type: `intent.${intent.intent}.${intent.action}`,
+    category: intent.intent === "report" ? "operational" : "workflow",
+    estate_id: intent.context.estate_id || null,
+    entity_type: intent.domain,
+    entity_id: intent.entity_id || null,
+    title: `Oyi ${intent.intent} intent`,
+    summary: `Oyi classified a ${intent.domain} ${intent.action} request.`,
+    payload: { intent: intent.intent, action: intent.action, workflow_id: intent.workflow_id || null },
+  }, { source_table: "intents", source_event_id: `${intent.surface}:${intent.intent}:${intent.domain}:${intent.context.created_at}` });
+  return { ok: true, classified: true, intent: intent.intent, domain: intent.domain, action: intent.action };
 }

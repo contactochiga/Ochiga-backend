@@ -1,5 +1,6 @@
 import { publishIntelligenceEvent } from "./eventBus";
 import type { IntelligenceAgentId, IntelligenceEventCategory, IntelligenceSurface } from "./types";
+import { orchestrateWorkflowForSourceEvent } from "./workflowOrchestrator";
 
 export type SourceIntelligenceEvent = {
   source: IntelligenceSurface;
@@ -72,8 +73,13 @@ export function publishSourceIntelligenceEvent(input: SourceIntelligenceEvent, o
     source,
     metadata,
     occurred_at: input.occurred_at || new Date().toISOString(),
-  }, options).then((result) => {
+  }, options).then(async (result) => {
     if (!result.ok && !result.skipped) console.warn("[intelligence-event] publish failed", { source, event_type: eventType, reason: result.reason || "unknown" });
+    if (result.ok) {
+      const workflow = await orchestrateWorkflowForSourceEvent({ ...input, source, event_type: eventType, title }).catch((error: any) => ({ ok: false, reason: error?.message || "workflow_orchestration_failed" }));
+      const workflowResult = workflow as any;
+      if (!workflowResult.ok && !workflowResult.skipped) console.warn("[intelligence-event] workflow orchestration failed", { source, event_type: eventType, reason: workflowResult.reason || workflowResult.error || "unknown" });
+    }
     return result;
   }).catch((error: any) => {
     console.warn("[intelligence-event] publish exception", { source, event_type: eventType, reason: error?.message || String(error) });

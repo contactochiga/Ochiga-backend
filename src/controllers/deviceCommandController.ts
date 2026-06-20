@@ -11,6 +11,7 @@ import { getIO } from "../realtime/io";
 import type { AuthUser } from "../middleware/auth";
 import { logDeviceCommandDiagnostic, normalizeDeviceOnlineState, resolveVisibleDevice } from "../services/deviceRuntimeService";
 import { recordDeviceEvent } from "../services/deviceAnalyticsService";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 function textFromDevice(device: any) {
   return [
@@ -247,6 +248,22 @@ export async function executeDeviceCommandForActor(input: {
       command_source: commandSource,
     },
   });
+  void publishSourceIntelligenceEvent({
+    source: commandSource === "facility" ? "facility" : "consumer",
+    surface: commandSource === "facility" ? "facility" : "consumer",
+    event_type: "device.command.requested",
+    category: "device",
+    estate_id: deviceRow?.estate_id || user.estate_id || null,
+    home_id: deviceRow?.home_id || user.home_id || null,
+    actor_id: user.id,
+    entity_type: "device",
+    entity_id: String(deviceRef),
+    entity_label: String(deviceRow?.name || "Device"),
+    severity: "info",
+    title: `${String(deviceRow?.name || "Device")} command requested`,
+    summary: "A confirmed device command is ready for execution.",
+    payload: { command, source: commandSource },
+  }, { source_table: "device_command_requests", source_event_id: `${deviceRef}:${Date.now()}` });
   void emitAuditEvent({
     actorId: user.id,
     actorEmail: user.email,

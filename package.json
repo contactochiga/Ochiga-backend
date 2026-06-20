@@ -17,7 +17,10 @@
     "smoke:oyi-awareness": "npm run build && node scripts/oyi-awareness-v3-smoke.mjs",
     "smoke:oyi-operating": "npm run build && node scripts/oyi-operating-layer-smoke.mjs",
     "smoke:oyi-conversation": "npm run build && node scripts/oyi-conversation-smoke.mjs",
-    "smoke:intelligence-fabric": "npm run build && node scripts/intelligence-fabric-phase1-smoke.mjs"
+    "smoke:intelligence-fabric": "npm run build && node scripts/intelligence-fabric-phase1-smoke.mjs",
+    "smoke:intelligence-fabric-phase2": "npm run build && node scripts/intelligence-fabric-phase2-smoke.mjs",
+    "smoke:workflow": "npm run smoke:intelligence-fabric-phase2",
+    "smoke:execution": "npm run smoke:intelligence-fabric-phase2"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

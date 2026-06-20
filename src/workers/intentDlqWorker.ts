@@ -3,6 +3,7 @@
 import { Worker, Queue, Job } from "bullmq";
 import { Intent } from "../core/control-plane/contracts/intent.types";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 /**
  * ============================================
@@ -46,6 +47,21 @@ export function startIntentDlqWorker() {
         attempts: job.attemptsMade,
         failed_at: new Date().toISOString(),
       });
+
+      void publishSourceIntelligenceEvent({
+        source: "edge",
+        surface: "api",
+        event_type: "execution.failed",
+        category: "workflow",
+        estate_id: (intent as any)?.context?.estate_id || null,
+        entity_type: String((intent as any)?.target || "intent"),
+        entity_id: String((job as any)?.id || "") || null,
+        entity_label: String((intent as any)?.reason || "Failed intent"),
+        severity: "attention",
+        title: "Operational execution failed",
+        summary: "A queued operational action failed and was sent to the retry queue.",
+        payload: { tool: (intent as any)?.target || null, reason: job.failedReason ?? "unknown", attempts: job.attemptsMade, surface: (intent as any)?.surface || null, workflow_id: (intent as any)?.workflow_id || null },
+      }, { source_table: "failed_intents", source_event_id: String((job as any)?.id || `${Date.now()}`) });
 
       return true;
     },

@@ -1,7 +1,7 @@
 import { INTENT_SCHEMA_VERSION } from "./versions";
 import { NotificationType } from "../../../services/NotificationService";
 
-export type IntentTarget = "device" | "notification" | "system";
+export type IntentTarget = "device" | "notification" | "system" | "intelligence";
 
 export interface IntentContext {
   region_id?: string | null;
@@ -46,4 +46,15 @@ export interface DeviceCommandIntent extends BaseIntent {
   command: Record<string, any>;
 }
 
-export type Intent = NotifyIntent | DeviceCommandIntent;
+export interface UniversalIntent extends BaseIntent {
+  target: "intelligence";
+  surface: "consumer" | "facility" | "office" | "oma" | "osa" | "watch" | "edge";
+  intent: "awareness" | "investigation" | "workflow" | "execution" | "approval" | "assignment" | "notification" | "report" | "analytics" | "prediction";
+  domain: string;
+  action: string;
+  entity_id?: string | null;
+  workflow_id?: string | null;
+  payload?: Record<string, unknown>;
+}
+
+export type Intent = NotifyIntent | DeviceCommandIntent | UniversalIntent;

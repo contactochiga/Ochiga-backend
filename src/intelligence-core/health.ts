@@ -5,6 +5,8 @@ import { INTELLIGENCE_MEMORY_DIRECTORY } from "./memoryDirectory";
 import { AGENT_COLLABORATION_RULES } from "./collaboration";
 import { getAgentObservabilitySummary } from "./observability";
 import { AGENT_RESPONSIBILITY_CONTRACTS, WORKFLOW_CONTRACTS } from "./workflows";
+import { EXECUTION_REGISTRY } from "./executionRegistry";
+import { getAgentCapabilityRegistry } from "./agentCapabilities";
 
 async function tableHealth(table: string) {
   const { error } = await supabaseAdmin.from(table).select("id", { count: "exact", head: true }).limit(1);
@@ -48,9 +50,16 @@ export async function getIntelligenceHealth() {
       tables: { workflows, workflowEvents, agentResponsibilities },
       safety: "Workflow orchestration is tracking and recommendation only. High-risk device, payment, access, wallet, and permission actions remain blocked without explicit approval.",
     },
+    execution: {
+      ok: EXECUTION_REGISTRY.some((action) => action.available),
+      registered: EXECUTION_REGISTRY.length,
+      available: EXECUTION_REGISTRY.filter((action) => action.available).map((action) => action.id),
+      safety: "All registered actions require explicit confirmation; unavailable actions remain in their existing module workflow.",
+    },
+    agent_capabilities: { ok: getAgentCapabilityRegistry().length >= 7, count: getAgentCapabilityRegistry().length },
   };
 
-  const checks = [components.agents.ok, components.tools.ok, components.memory_directory.ok, components.event_bus.ok, components.predictions.ok, components.organization.ok, components.observability.ok, components.collaboration.ok, components.workflows.ok];
+  const checks = [components.agents.ok, components.tools.ok, components.memory_directory.ok, components.event_bus.ok, components.predictions.ok, components.organization.ok, components.observability.ok, components.collaboration.ok, components.workflows.ok, components.execution.ok, components.agent_capabilities.ok];
   const readiness = Math.round((checks.filter(Boolean).length / checks.length) * 100);
   return {
     ok: readiness >= 80,

@@ -5,10 +5,10 @@ import { publishIntelligenceEvent } from "./eventBus";
 import { getIntelligencePermissionPolicy } from "./permissionEngine";
 import { recordAgentObservation } from "./observability";
 
-export type WorkflowStatus = "created" | "reviewed" | "assigned" | "in_progress" | "blocked" | "completed" | "cancelled" | "escalated";
+export type WorkflowStatus = "created" | "reviewed" | "assigned" | "accepted" | "in_progress" | "completed" | "verified" | "cancelled" | "failed" | "blocked" | "escalated";
 export type WorkflowPriority = "low" | "medium" | "high" | "critical";
 
-export const WORKFLOW_STATUSES: WorkflowStatus[] = ["created", "reviewed", "assigned", "in_progress", "blocked", "completed", "cancelled", "escalated"];
+export const WORKFLOW_STATUSES: WorkflowStatus[] = ["created", "reviewed", "assigned", "accepted", "in_progress", "completed", "verified", "cancelled", "failed", "blocked", "escalated"];
 export const WORKFLOW_PRIORITIES: WorkflowPriority[] = ["low", "medium", "high", "critical"];
 
 export const WORKFLOW_CONTRACTS = [
@@ -125,6 +125,61 @@ export async function createWorkflow(input: {
   return { ok: true, workflow: data };
 }
 
+export async function transitionWorkflow(input: {
+  workflow: any;
+  status: WorkflowStatus;
+  actor?: AuthUser | null;
+  agent_id?: IntelligenceAgentId;
+  summary?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const workflow = input.workflow;
+  if (!workflow?.id || !workflow?.workflow_id) return { ok: false, error: "workflow_required" };
+  const now = new Date().toISOString();
+  const status = WORKFLOW_STATUSES.includes(input.status) ? input.status : "blocked";
+  const patch: Record<string, unknown> = {
+    workflow_status: status,
+    updated_at: now,
+    metadata: { ...(workflow.metadata || {}), ...(input.metadata || {}) },
+  };
+  if (status === "completed" || status === "verified") patch.completed_at = now;
+  if (status === "cancelled") patch.cancelled_at = now;
+  if (status === "failed") patch.workflow_resolution = input.summary || "Execution failed";
+  const { data, error } = await supabaseAdmin.from("ochiga_workflows").update(patch as any).eq("id", workflow.id).select("*").single();
+  if (error) return { ok: false, error: error.message };
+
+  const agentId = input.agent_id || workflow.responsible_agent || "oyi";
+  await recordWorkflowEvent({
+    workflow_id: workflow.workflow_id,
+    workflow_record_id: workflow.id,
+    event_type: `workflow_${status}`,
+    from_status: workflow.workflow_status,
+    to_status: status,
+    agent_id: agentId,
+    actor: input.actor,
+    success: status !== "failed",
+    summary: input.summary || `Workflow ${status}.`,
+    metadata: input.metadata,
+  });
+  await recordAgentObservation({ agent_id: agentId, action: `workflow_${status}`, tool: "intelligence:workflow", surface: "api", actor: input.actor || null, success: status !== "failed", workflow_id: workflow.workflow_id, metadata: input.metadata });
+  await publishIntelligenceEvent({
+    actor_id: input.actor?.id || null,
+    agent_id: agentId,
+    surface: "api",
+    estate_id: data?.estate_id || workflow.estate_id || null,
+    home_id: data?.home_id || workflow.home_id || null,
+    event_type: `workflow.${status}`,
+    category: "workflow",
+    title: data?.title || workflow.title || "Workflow updated",
+    summary: input.summary || `Workflow is ${status}.`,
+    confidence: status === "verified" ? "confirmed" : "probable",
+    source: "ochiga_workflows",
+    metadata: { workflow_id: workflow.workflow_id, workflow_type: workflow.workflow_type, status, ...(input.metadata || {}) },
+    occurred_at: now,
+  }, { source_table: "ochiga_workflow_events", source_event_id: `${workflow.workflow_id}:${status}:${now}` });
+  return { ok: true, workflow: data };
+}
+
 export async function listWorkflows(actor?: AuthUser | null, filters: { status?: string | null; escalated?: boolean; limit?: number } = {}) {
   if (!canViewWorkflows(actor)) return { ok: false, error: "Workflow access requires an operational or executive role", workflows: [] };
   let query = supabaseAdmin.from("ochiga_workflows").select("*").order("created_at", { ascending: false }).limit(Math.max(1, Math.min(200, Number(filters.limit || 100))));
@@ -173,10 +228,10 @@ export async function escalateDueWorkflows(actor?: AuthUser | null) {
 
 export function summarizeWorkflows(workflows: any[]) {
   const now = Date.now();
-  const open = workflows.filter((w) => !["completed", "cancelled"].includes(String(w.workflow_status))).length;
+  const open = workflows.filter((w) => !["completed", "verified", "cancelled"].includes(String(w.workflow_status))).length;
   const escalated = workflows.filter((w) => w.workflow_status === "escalated").length;
   const critical = workflows.filter((w) => w.workflow_priority === "critical").length;
-  const overdue = workflows.filter((w) => w.workflow_due_at && new Date(w.workflow_due_at).getTime() < now && !["completed", "cancelled"].includes(String(w.workflow_status))).length;
+  const overdue = workflows.filter((w) => w.workflow_due_at && new Date(w.workflow_due_at).getTime() < now && !["completed", "verified", "cancelled"].includes(String(w.workflow_status))).length;
   return { open_workflows: open, overdue_workflows: overdue, escalated_workflows: escalated, critical_workflows: critical, total_workflows: workflows.length, top_workflows: workflows.slice(0, 5) };
 }
 
@@ -187,7 +242,7 @@ export async function getWorkflowSummary(actor?: AuthUser | null) {
 
 export async function getOpenWorkflows(actor?: AuthUser | null, limit = 100) {
   const result = await listWorkflows(actor, { limit });
-  const workflows = (result.workflows || []).filter((workflow: any) => !["completed", "cancelled"].includes(String(workflow.workflow_status)));
+  const workflows = (result.workflows || []).filter((workflow: any) => !["completed", "verified", "cancelled"].includes(String(workflow.workflow_status)));
   return { ok: result.ok, workflows, summary: summarizeWorkflows(workflows), warning: result.warning || (result as any).error || null };
 }
 

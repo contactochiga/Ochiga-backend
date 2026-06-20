@@ -8,6 +8,8 @@ import { buildIntelligenceSummary, type IntelligenceSummaryType } from "../intel
 import { listIntelligencePredictions, summarizePredictions } from "../intelligence-core/predictionEngine";
 import { listWorkflows, summarizeWorkflows } from "../intelligence-core/workflows";
 import { observeAgentAction } from "../intelligence-core/observability";
+import { rankActiveWorkflowsForAwareness } from "../intelligence-core/awarenessWorkflowProvider";
+import { classifyUniversalIntent } from "../intelligence-core/intentRouter";
 import type { ProposedAiTool } from "../ai/commandRouter";
 
 export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge";
@@ -744,11 +746,21 @@ function buildSignals(surface: OyiSurface, context: Awaited<ReturnType<typeof lo
       ...context.predictions.map((prediction: any) => ({ ...prediction, occurred_at: prediction.created_at, source: "ochiga_intelligence_predictions" })),
     ]);
   }
-  const openWorkflows = (context.workflows || []).filter((workflow: any) => !["completed", "cancelled"].includes(String(workflow.workflow_status || workflow.status).toLowerCase()));
+  const openWorkflows = rankActiveWorkflowsForAwareness(context.workflows || []);
   if (openWorkflows.length) {
+    for (const workflow of openWorkflows) {
+      const type = String(workflow.workflow_type || "").toLowerCase();
+      const domain: AwarenessDomain = /security|camera/.test(type) ? "security"
+        : /visitor/.test(type) ? "visitors"
+        : /maintenance/.test(type) ? "maintenance"
+        : /wallet/.test(type) ? "finance"
+        : /service/.test(type) ? "utilities"
+        : "workflows";
+      buckets.set(domain, [...(buckets.get(domain) || []), { ...workflow, occurred_at: workflow.updated_at || workflow.created_at, source: "ochiga_workflows", workflow_driven: true }]);
+    }
     buckets.set("workflows", [
       ...(buckets.get("workflows") || []),
-      ...openWorkflows.map((workflow: any) => ({ ...workflow, occurred_at: workflow.created_at, source: "ochiga_workflows" })),
+      ...openWorkflows.map((workflow: any) => ({ ...workflow, occurred_at: workflow.updated_at || workflow.created_at, source: "ochiga_workflows", workflow_driven: true })),
     ]);
   }
 
@@ -1248,6 +1260,43 @@ async function loadConversationContext(actor: AuthUser | null, input: OyiChatInp
   }
 }
 
+async function prepareConversationExecution(input: {
+  actor: AuthUser;
+  entity: ConversationEntity;
+  action_id: string;
+  action_label: string;
+  surface: OyiSurface;
+  estate_id?: string | null;
+  home_id?: string | null;
+  assignee?: string | null;
+}) {
+  const { createWorkflow } = await import("../intelligence-core/workflows");
+  const workflowType = input.entity.type === "visitor" ? "visitor_access" : input.entity.type === "maintenance" ? "maintenance" : "device_action";
+  const responsible = input.surface === "facility" ? "facility" : "oyi";
+  const sourceEventId = `chat:${input.action_id}:${input.entity.id || input.entity.title}:${input.actor.id}`;
+  const { data: existing } = await supabaseAdmin
+    .from("ochiga_workflows")
+    .select("*")
+    .eq("source_event_id", sourceEventId)
+    .in("workflow_status", ["created", "assigned", "accepted", "in_progress"])
+    .maybeSingle();
+  if (existing) return { ok: true, workflow: existing, reused: true };
+  const created = await createWorkflow({
+    workflow_type: workflowType,
+    title: `${input.action_label}: ${input.entity.title}`,
+    summary: `Oyi prepared ${input.action_label.toLowerCase()} for ${input.entity.title}.`,
+    priority: "medium",
+    origin_agent: input.surface === "facility" ? "facility" : "oyi",
+    responsible_agent: responsible,
+    actor: input.actor,
+    estate_id: input.estate_id || input.actor.estate_id || null,
+    home_id: input.home_id || input.actor.home_id || null,
+    source_event_id: sourceEventId,
+    metadata: { entity_type: input.entity.type, entity_id: input.entity.id || null, action_id: input.action_id, assignee: input.assignee || null, confirmation_required: true },
+  });
+  return created;
+}
+
 async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatInput, state: ConversationState): Promise<OperatingResult | null> {
   const message = String(input.message || "").trim();
   if (!isFollowUpMessage(message, state)) return null;
@@ -1284,11 +1333,21 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   const activeEntity = entity ? { ...entity, position: Math.max(0, state.entities.findIndex((row) => row.id === entity.id && row.type === entity.type)) } : null;
 
   if (/^(approve|reject|remove)\b/i.test(message) && entity?.type === "visitor") {
-    return preserveConversation({ intent: "visitor_operation", understood: `I found ${entity.title} from the previous visitor results.`, message: `I found ${entity.title}. Visitor approval or removal is not enabled as an Oyi chat action yet, so no access decision was made. Review the visitor in Visitor Access to complete it safely.`, cards: [], sources: [], suggested_actions: operatingSuggestedActions(surface, "visitor_operation"), execution: { status: "validation_required" }, conversation_active_entity: activeEntity!, conversation_action: "visitor_operation" });
+    if (!actor?.id || !entity.id) return preserveConversation({ intent: "visitor_operation", understood: `I found ${entity.title}.`, message: "I need an authenticated visitor record before I can prepare that access action.", cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity! });
+    const action_id = /^approve/i.test(message) ? "visitor.approve" : /^reject/i.test(message) ? "visitor.revoke" : "visitor.revoke";
+    const actionLabel = action_id === "visitor.approve" ? "Approve visitor access" : "Revoke visitor access";
+    const workflow = await prepareConversationExecution({ actor, entity, action_id, action_label: actionLabel, surface, estate_id: input.estate_id, home_id: input.home_id });
+    if (!workflow.ok || !workflow.workflow) return preserveConversation({ intent: "visitor_operation", understood: `I found ${entity.title}.`, message: "I could not prepare the visitor workflow. No access change was made.", cards: [], sources: [], suggested_actions: [], execution: { status: "failed" }, conversation_active_entity: activeEntity! });
+    return preserveConversation({ intent: "visitor_operation", understood: `I found ${entity.title}.`, message: `${actionLabel} will change this visitor’s access. Proceed?`, cards: [], sources: [], suggested_actions: [], execution: { status: "pending_confirmation" }, conversation_active_entity: activeEntity!, conversation_action: action_id, execution_workflow: { stage: "confirmation_required", workflow: workflow.workflow, action_id, entity_id: entity.id, action_label: actionLabel } });
   }
 
   if (/^assign\b/i.test(message) && entity?.type === "maintenance") {
-    return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title} from the previous maintenance results.`, message: `I found ${entity.title}. Assignment needs the existing maintenance workflow so the assignee and audit record are captured correctly. No assignment has been made yet.`, cards: [], sources: [], suggested_actions: operatingSuggestedActions(surface, "maintenance_operation"), execution: { status: "validation_required" }, conversation_active_entity: activeEntity!, conversation_action: "maintenance_operation" });
+    const assignee = message.match(/\bto\s+([a-z][a-z .'-]{1,80})$/i)?.[1]?.trim() || null;
+    if (!actor?.id || !entity.id) return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title}.`, message: "I need an authenticated maintenance record before I can prepare an assignment.", cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity! });
+    if (!assignee) return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title}.`, message: "Who should I assign this maintenance request to?", cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity! });
+    const workflow = await prepareConversationExecution({ actor, entity, action_id: "maintenance.assign", action_label: `Assign to ${assignee}`, surface, estate_id: input.estate_id, home_id: input.home_id, assignee });
+    if (!workflow.ok || !workflow.workflow) return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title}.`, message: "I could not prepare the maintenance assignment. No change was made.", cards: [], sources: [], suggested_actions: [], execution: { status: "failed" }, conversation_active_entity: activeEntity! });
+    return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title}.`, message: `Assign ${entity.title} to ${assignee}?`, cards: [], sources: [], suggested_actions: [], execution: { status: "pending_confirmation" }, conversation_active_entity: activeEntity!, conversation_action: "maintenance.assign", execution_workflow: { stage: "confirmation_required", workflow: workflow.workflow, action_id: "maintenance.assign", entity_id: entity.id, assignee, action_label: `Assign to ${assignee}` } });
   }
 
   if (/^(?:turn|switch|power)\b.*\b(?:on|off)\b/i.test(message) && entity?.type === "device" && activeEntity) {
@@ -1372,6 +1431,28 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   }
 
   if (/^(do it|go ahead|confirm|yes|proceed)$/i.test(message)) {
+    const pendingWorkflow = state.active_workflow as any;
+    if (actor?.id && pendingWorkflow?.stage === "confirmation_required" && pendingWorkflow?.action_id && pendingWorkflow?.entity_id) {
+      const { executeRegisteredAction } = await import("../intelligence-core/executionRegistry");
+      const { transitionWorkflow } = await import("../intelligence-core/workflows");
+      const workflow = pendingWorkflow.workflow;
+      if (workflow?.id) await transitionWorkflow({ workflow, status: "in_progress", actor, agent_id: surface === "facility" ? "facility" : "oyi", summary: `Confirmed ${pendingWorkflow.action_label || pendingWorkflow.action_id}.` });
+      const executed = await executeRegisteredAction({ action_id: pendingWorkflow.action_id, actor, entity_id: pendingWorkflow.entity_id, assignee: pendingWorkflow.assignee || null, confirmed: true, source: "app" });
+      if (workflow?.id) await transitionWorkflow({ workflow: { ...workflow, workflow_status: "in_progress" }, status: executed.ok ? "completed" : "failed", actor, agent_id: surface === "facility" ? "facility" : "oyi", summary: executed.ok ? `${pendingWorkflow.action_label || pendingWorkflow.action_id} completed.` : `Execution failed: ${executed.reason || "unknown"}.` });
+      let verification: any = null;
+      if (executed.ok && workflow?.id) {
+        const verifier = await import("../intelligence-core/verificationService");
+        const verifiedWorkflow = { ...workflow, workflow_status: "completed" };
+        if (/^visitor\./.test(pendingWorkflow.action_id)) {
+          const expected = pendingWorkflow.action_id === "visitor.approve" ? "approved" : pendingWorkflow.action_id === "visitor.expire" ? "expired" : "denied";
+          verification = await verifier.verifyVisitorStatus({ workflow: verifiedWorkflow, visitor_id: pendingWorkflow.entity_id, expected_status: expected });
+        } else if (/^maintenance\./.test(pendingWorkflow.action_id)) {
+          const expected = pendingWorkflow.action_id === "maintenance.assign" ? "assigned" : pendingWorkflow.action_id === "maintenance.complete" ? "completed" : "cancelled";
+          verification = await verifier.verifyMaintenanceStatus({ workflow: verifiedWorkflow, request_id: pendingWorkflow.entity_id, expected_status: expected });
+        }
+      }
+      return preserveConversation({ intent, understood: `I confirmed ${pendingWorkflow.action_label || pendingWorkflow.action_id}.`, message: executed.ok ? `${pendingWorkflow.action_label || "The requested action"} was completed${verification?.state === "verified" ? " and verified" : ""}.` : `I could not complete that action: ${executed.reason || "validation failed"}. No unverified change was reported.`, cards: [], sources: [], suggested_actions: [], execution: { status: executed.ok ? "executed" : executed.status, results: [executed], verification }, conversation_action: pendingWorkflow.action_id, execution_workflow: { stage: "execution_result", ...pendingWorkflow, completed: executed.ok ? 1 : 0, failed: executed.ok ? 0 : 1, verification: verification?.summary || (executed.ok ? "The source workflow was updated and will be verified from authoritative state." : "Execution failed before verification.") } });
+    }
     if (!actor?.id || !state.pending_confirmation_id) {
       return {
         intent,
@@ -1621,6 +1702,7 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
           domain: response.domain || null,
           recommended_action: response.recommended_action || null,
           awareness_score: response.awareness_score || null,
+          intent_routing: response.internal_intent || null,
         },
         created_at: new Date(Date.now() + 1).toISOString(),
       },
@@ -1742,6 +1824,7 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         estate_id: input.estate_id || conversation.estate_id || null,
         home_id: input.home_id || conversation.home_id || null,
       };
+      const internalIntent = classifyUniversalIntent({ message: effectiveInput.message, surface: surface as any, estate_id: effectiveInput.estate_id, home_id: effectiveInput.home_id });
       const context = await loadUnifiedContext(actor, { surface, estate_id: effectiveInput.estate_id, home_id: effectiveInput.home_id });
       const awareness = buildAwareness(surface, context, actor);
       const followUp = await resolveFollowUpOperation(actor, effectiveInput, conversation.state);
@@ -1773,6 +1856,7 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         conversation_active_entity: operation.conversation_active_entity,
         conversation_action: operation.conversation_action,
         execution_workflow: operation.execution_workflow,
+        internal_intent: internalIntent,
         thread_id: validUuid(effectiveInput.thread_id) ? String(effectiveInput.thread_id) : randomUUID(),
         role_policy: getIntelligencePermissionPolicy(actor),
         warnings: [...context.warnings, ...(conversation.warning ? [conversation.warning] : [])],
