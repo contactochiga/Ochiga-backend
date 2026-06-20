@@ -2,7 +2,7 @@
 process.env.SUPABASE_URL ||= 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'local-smoke-service-role-key';
 
-const { resolveConversationFollowUpForTest, displayModeForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
+const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
 
 const state = {
   last_intent: 'visitor_operation',
@@ -45,10 +45,19 @@ const resolverCases = [
 
 const displayCases = [
   ['conversation', 'visitor_operation', false, 'conversation'],
-  ['Show visitor requests', 'visitor_operation', true, 'list'],
-  ['Show me the first one', 'visitor_operation', false, 'detail'],
+  ['Show visitor requests', 'visitor_operation', true, 'conversation'],
+  ['Show me the first one', 'visitor_operation', false, 'conversation'],
   ['Generate report', 'report_generation', true, 'report'],
   ['What’s happening?', 'awareness', true, 'awareness'],
+];
+
+const directDomainPresentationCases = [
+  ['Show wallet', 'wallet_operation'],
+  ['Show devices', 'device_status'],
+  ['Show visitor access', 'visitor_operation'],
+  ['Any visitor pending?', 'visitor_operation'],
+  ['Show community updates', 'community_operation'],
+  ['Show maintenance requests', 'maintenance_operation'],
 ];
 
 let failed = 0;
@@ -89,6 +98,16 @@ for (const [message, intent, hasCards, expected] of displayCases) {
     console.error(`FAIL display mode: ${message} expected ${expected}, got ${actual}`);
   } else {
     console.log(`PASS display mode: ${message} -> ${actual}`);
+  }
+}
+
+for (const [message, intent] of directDomainPresentationCases) {
+  const presentation = responsePresentationForTest(message, intent, true);
+  if (presentation.display_mode !== 'conversation' || presentation.support_payload_attached) {
+    failed += 1;
+    console.error(`FAIL direct domain presentation: ${message}`, presentation);
+  } else {
+    console.log(`PASS direct domain presentation: ${message}`);
   }
 }
 

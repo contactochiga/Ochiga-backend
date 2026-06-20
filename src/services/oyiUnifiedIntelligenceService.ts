@@ -1004,21 +1004,25 @@ function domainUnavailableResult(domain: DomainIntent): OperatingResult {
 }
 
 function wantsSupportingCards(message: string, intent: OyiIntentCategory) {
-  if (intent === "report_generation" || intent === "investigation") return true;
-  return /\b(show|list|audit|log|history|details?|report|transactions?|records?)\b/i.test(message);
+  return /\b(audit|evidence|analysis|detailed inspection|inspect in detail|full report|generate report|prepare report|export report)\b/i.test(message);
 }
 
 function displayModeFor(intent: OyiIntentCategory, message: string, hasCards = false): OperatingResult["display_mode"] {
   if (intent === "awareness" || intent === "recommendation") return "awareness";
-  if (intent === "report_generation") return "report";
-  if (intent === "investigation") return "audit";
-  if (/details?|first one|second one|third one|last one/i.test(message)) return "detail";
-  if (hasCards || /\b(show|list|log|history|records?)\b/i.test(message)) return "list";
+  if (/\b(generate|prepare|export)\b.*\breport\b|\bfull report\b/i.test(message)) return "report";
+  if (/\b(audit|evidence|analysis)\b/i.test(message)) return intent === "investigation" ? "audit" : "audit";
+  if (/detailed inspection|inspect in detail|show .* details/i.test(message)) return "detail";
+  if (hasCards && /\b(evidence|analysis|audit|report|details?)\b/i.test(message)) return "list";
   return "conversation";
 }
 
 export function displayModeForTest(message: string, intent: OyiIntentCategory, hasCards = false) {
   return displayModeFor(intent, message, hasCards);
+}
+
+export function responsePresentationForTest(message: string, intent: OyiIntentCategory, hasCards = false) {
+  const display_mode = displayModeFor(intent, message, hasCards);
+  return { display_mode, support_payload_attached: display_mode !== "conversation" };
 }
 
 function commandSummary(results: any[]) {
@@ -1267,7 +1271,9 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     const availableCards = routed.results.flatMap((result: any) => Array.isArray(result?.data?.cards) ? result.data.cards : []);
     const conversationEntities = routed.results.flatMap((result: any) => Array.isArray(result?.data?.conversation_entities) ? result.data.conversation_entities : []);
     const activeEntities = activeEntitiesForMessage(intent, conversationEntities, message);
-    const cards = wantsSupportingCards(message, intent) && activeEntities.length ? availableCards.slice(0, 3) : [];
+    const displayMode = displayModeFor(intent, message, wantsSupportingCards(message, intent) && activeEntities.length > 0);
+    const supportPayload = displayMode !== "conversation";
+    const cards = supportPayload && activeEntities.length ? availableCards.slice(0, 3) : [];
     const conversationTopic = topicForIntent(intent);
     return {
       intent,
@@ -1276,14 +1282,14 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
         ? `${commandSummary(routed.results)} No action has been performed yet.`.trim()
         : operationalConversationMessage(intent, activeEntities, commandSummary(routed.results), message),
       cards,
-      sources: userFacingSources(surface, "operation"),
-      suggested_actions: operatingSuggestedActions(surface, intent),
+      sources: supportPayload ? userFacingSources(surface, "operation") : [],
+      suggested_actions: supportPayload ? operatingSuggestedActions(surface, intent) : [],
       execution: { status: "processed", safe_mode: routed.safe_mode, scope: routed.scope, results: routed.results },
       conversation_entities: activeEntities,
       conversation_offset: 0,
       conversation_topic: conversationTopic,
       conversation_result_state: conversationTopic ? (activeEntities.length ? "list" : "empty") : null,
-      display_mode: displayModeFor(intent, message, cards.length > 0),
+      display_mode: displayMode,
       domain: domain?.key || null,
     };
   }
@@ -1539,23 +1545,26 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
       const awareness = buildAwareness(surface, context, actor);
       const followUp = await resolveFollowUpOperation(actor, effectiveInput, conversation.state);
       const operation = followUp || await runOperatingLayer(actor, effectiveInput, context, awareness);
-      const cards = operation.cards;
-      const sources = operation.sources.length ? operation.sources : buildSources(surface, context);
-      const suggestedActions = operation.suggested_actions.length ? operation.suggested_actions : buildSuggestedActions(surface, message, awareness, context);
+      const displayMode = operation.display_mode || displayModeFor(operation.intent, message, operation.cards.length > 0);
+      const supportPayloadAttached = displayMode !== "conversation";
+      const cards = supportPayloadAttached ? operation.cards : [];
+      const sources = supportPayloadAttached ? operation.sources : [];
+      const suggestedActions = supportPayloadAttached ? operation.suggested_actions : [];
       const response: any = {
         ok: true,
         message: operation.message,
         intent: operation.intent,
         understood: operation.understood,
         execution: operation.execution,
-        display_mode: operation.display_mode || displayModeFor(operation.intent, message, operation.cards.length > 0),
+        display_mode: displayMode,
         domain: operation.domain || detectDomainIntent(message, surface)?.key || null,
         cards,
         sources,
         suggested_actions: suggestedActions,
-        awareness: { ...awareness, suggested_actions: suggestedActions },
-        recommended_action: awareness.recommended_action,
-        awareness_score: awareness.awareness_score,
+        awareness: supportPayloadAttached && displayMode === "awareness" ? { ...awareness, suggested_actions: suggestedActions } : undefined,
+        recommended_action: supportPayloadAttached && displayMode === "awareness" ? awareness.recommended_action : undefined,
+        awareness_score: supportPayloadAttached && displayMode === "awareness" ? awareness.awareness_score : undefined,
+        support_payload_attached: supportPayloadAttached,
         conversation_entities: operation.conversation_entities,
         conversation_offset: operation.conversation_offset,
         conversation_topic: operation.conversation_topic,
@@ -1571,6 +1580,7 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         domain: response.domain,
         intent: response.intent,
         display_mode: response.display_mode,
+        support_payload_attached: response.support_payload_attached,
         surface,
         awareness_fallback_used: response.display_mode === "awareness" && !response.domain,
         response: String(response.message || "").slice(0, 240),
