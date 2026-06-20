@@ -30,6 +30,8 @@ const cases = [
   ['Show details', (value) => value.is_follow_up && value.entity?.id === 'visitor-1'],
   ['Show me more.', (value) => value.expanded_message === 'Show pending visitors'],
   ['Do it.', (value) => value.pending_confirmation_id === 'ledger-1'],
+  ['Yes', (value) => value.is_follow_up && value.pending_confirmation_id === 'ledger-1'],
+  ['No', (value) => value.is_follow_up && value.pending_confirmation_id === 'ledger-1'],
 ];
 
 const subsystemCases = [
@@ -57,7 +59,7 @@ const ordinalCases = [
   ['first', 'visitor-1'], ['first one', 'visitor-1'], ['the first one', 'visitor-1'], ['1', 'visitor-1'], ['1st', 'visitor-1'], ['number 1', 'visitor-1'], ['number one', 'visitor-1'], ['one', 'visitor-1'],
   ['second', 'visitor-2'], ['second one', 'visitor-2'], ['the second one', 'visitor-2'], ['2', 'visitor-2'], ['2nd', 'visitor-2'], ['number 2', 'visitor-2'], ['number two', 'visitor-2'], ['two', 'visitor-2'],
   ['third', 'visitor-3'], ['third one', 'visitor-3'], ['the third one', 'visitor-3'], ['3', 'visitor-3'], ['3rd', 'visitor-3'], ['number 3', 'visitor-3'], ['number three', 'visitor-3'],
-  ['Show John Delivery', 'visitor-3'], ['Ezekel', 'visitor-2'],
+  ['latest', 'visitor-3'], ['most recent', 'visitor-3'], ['Show John Delivery', 'visitor-3'], ['Ezekel', 'visitor-2'],
 ];
 
 const resolverCases = [
@@ -72,6 +74,8 @@ const resolverCases = [
   ['facility maintenance detail', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'list', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Gate light repair', status: 'open' }] }, 'Show me the first one', 'entity'],
   ['facility queue detail', { last_intent: 'investigation', active_topic: 'queue', active_result_state: 'list', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Gate light repair', status: 'open' }] }, 'Open the 1st one', 'entity'],
   ['workflow owner detail', { last_intent: 'investigation', active_topic: 'workflow', active_result_state: 'list', entities: [{ type: 'workflow', id: 'workflow-1', title: 'Assign gate repair', status: 'assigned', details: { owner: 'Ade' } }] }, 'Who owns it?', 'entity'],
+  ['workflow most recent detail', { last_intent: 'investigation', active_topic: 'workflow', active_result_state: 'list', entities: [{ type: 'workflow', id: 'workflow-1', title: 'Assign gate repair', status: 'assigned' }, { type: 'workflow', id: 'workflow-2', title: 'Verify pump repair', status: 'created' }] }, 'Open the most recent one', 'entity'],
+  ['workflow history detail', { last_intent: 'investigation', active_topic: 'workflow', active_result_state: 'list', active_entity_id: 'workflow-1', active_entity_label: 'Assign gate repair', entities: [{ type: 'workflow', id: 'workflow-1', title: 'Assign gate repair', status: 'assigned', details: { owner: 'Ade', summary: 'Gate repair is assigned.' } }] }, 'Show history', 'entity'],
   ['visitor assign guard', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'list', active_entity_id: 'visitor-1', active_entity_label: 'Salish Males', entities: [{ type: 'visitor', id: 'visitor-1', title: 'Salish Males', status: 'pending' }] }, 'Assign it to Ade', 'entity'],
   ['facility awareness remains awareness', { last_intent: 'awareness', active_topic: 'awareness', active_result_state: 'list', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'none'],
   ['empty wallet ordinal', { last_intent: 'wallet_operation', active_topic: 'wallet', active_result_state: 'empty', entities: [] }, 'The first one', 'empty_ordinal'],

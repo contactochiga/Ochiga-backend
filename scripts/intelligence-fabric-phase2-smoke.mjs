@@ -45,6 +45,14 @@ for (const [surface, message, expectedDomain] of universalDomainCases) {
 assert.equal(execution.getRegisteredExecutionAction("visitor.revoke")?.confirmation_required, true);
 assert.equal(execution.getRegisteredExecutionAction("device.off")?.available, true);
 assert.equal((await execution.executeRegisteredAction({ action_id: "visitor.revoke", actor: { id: "actor", role: "resident" }, entity_id: "visitor-1", confirmed: false })).status, "confirmation_required");
+assert.deepEqual(
+  await execution.executeRegisteredAction({ action_id: "visitor.revoke", actor: { id: "actor", role: "resident" }, confirmed: true }),
+  { ok: false, status: "failed", reason: "entity_required" },
+);
+assert.deepEqual(
+  await execution.executeRegisteredAction({ action_id: "unknown.action", actor: { id: "actor", role: "resident" }, entity_id: "entity-1", confirmed: true }),
+  { ok: false, status: "failed", reason: "action_not_registered" },
+);
 const ranked = awareness.rankActiveWorkflowsForAwareness([{ workflow_type: "maintenance", workflow_priority: "high", workflow_status: "created" }, { workflow_type: "security_incident", workflow_priority: "medium", workflow_status: "created" }]);
 assert.equal(ranked[0].workflow_type, "security_incident");
 

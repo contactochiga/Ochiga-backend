@@ -308,7 +308,7 @@ function ordinalIndex(message: string, entityCount: number) {
   if (/\b(?:the\s+)?first(?:\s+one)?\b|\b1st\b|^(?:number\s+)?(?:one|1)$/.test(lower)) return 0;
   if (/\b(?:the\s+)?second(?:\s+one)?\b|\b2nd\b|^(?:number\s+)?(?:two|2)$/.test(lower)) return 1;
   if (/\b(?:the\s+)?third(?:\s+one)?\b|\b3rd\b|^(?:number\s+)?(?:three|3)$/.test(lower)) return 2;
-  if (/\b(?:the\s+)?(?:last|latest)(?:\s+one|\s+report)?\b/.test(lower)) return Math.max(0, entityCount - 1);
+  if (/\b(?:the\s+)?(?:last|latest|most recent)(?:\s+one|\s+report)?\b/.test(lower)) return Math.max(0, entityCount - 1);
   return null;
 }
 
@@ -362,7 +362,7 @@ function isFollowUpMessage(message: string, state?: ConversationState) {
   const value = message.trim().toLowerCase();
   if (["why", "why?", "when", "when?", "who", "who?"].includes(value)) return true;
   if (state && referencedEntity(message, state)) return true;
-  return /\b(approve|reject|remove|assign|verify|owner|blocking|overdue|show me more|more details|show activity|show history|show details|what should i do next|do it|go ahead|proceed|cancel|that one|this one|first|second|third|number one|number two|number three|1st|2nd|3rd|when was|who reported|who owns|why did|it|he|she|they|him|her)\b|^(?:one|two|three|1|2|3)$/i.test(value);
+  return /\b(approve|reject|remove|assign|verify|owner|blocking|overdue|show me more|more details|show activity|show history|show details|what should i do next|do it|go ahead|proceed|confirm|cancel|yes|no|that one|this one|first|second|third|latest|most recent|number one|number two|number three|1st|2nd|3rd|when was|who reported|who owns|why did|it|he|she|they|him|her)\b|^(?:one|two|three|1|2|3)$/i.test(value);
 }
 
 function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] | null {
@@ -441,11 +441,11 @@ export function resolveConversationFollowUpForTest(message: string, state: Parti
   const entity = referencedEntity(message, normalized);
   const lower = message.trim().toLowerCase();
   const resolution = normalized.active_result_state === "empty" && normalized.active_topic
-    ? /show (me )?(the )?(first|second|third|last|latest) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "empty_ordinal"
+    ? /show (me )?(the )?(first|second|third|last|latest|most recent) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|most recent|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest|most recent)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "empty_ordinal"
       : /^(why|why\?)|why did/i.test(message) ? "empty_explanation"
       : "empty_topic"
     : !entity && normalized.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who reported|why did/i.test(message) ? "topic_clarification"
-      : !entity && /show (me )?(the )?(first|second|third|last|latest) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "no_active_list"
+      : !entity && /show (me )?(the )?(first|second|third|last|latest|most recent) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|most recent|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest|most recent)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "no_active_list"
         : /show me more/.test(lower) ? "continuation"
           : entity ? "entity" : "none";
   return {
@@ -1507,9 +1507,9 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   });
 
   if (state.active_result_state === "empty" && state.active_topic) {
-    if (/show (me )?(the )?(first|second|third|last|latest|\d(?:st|nd|rd)?) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest)(?:\s+one)?\b|that one|this one|^(?:number\s+)?(?:one|two|three|1|2|3)$/i.test(message)) {
+    if (/show (me )?(the )?(first|second|third|last|latest|most recent|\d(?:st|nd|rd)?) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|most recent|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest|most recent)(?:\s+one)?\b|that one|this one|^(?:number\s+)?(?:one|two|three|1|2|3)$/i.test(message)) {
       const lower = message.toLowerCase();
-      const ordinal = /second|two|2/.test(lower) ? "second" : /third|three|3/.test(lower) ? "third" : /last/.test(lower) ? "last" : "first";
+      const ordinal = /second|two|2/.test(lower) ? "second" : /third|three|3/.test(lower) ? "third" : /last|latest|most recent/.test(lower) ? "last" : "first";
       return preserveConversation({ intent, understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: emptyOrdinalMessage(state.active_topic, ordinal), cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
     }
     if (/^(why|why\?)|why did/i.test(message)) {
@@ -1521,7 +1521,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     return preserveConversation({ intent: "investigation", understood: `The active topic is ${topicLabel(state.active_topic, true)}.`, message: `Which ${topicLabel(state.active_topic)} do you mean? You can say “the first one” or name it.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
   }
 
-  if (!entity && /show (me )?(the )?(first|second|third|last|latest) one|that one|this one/i.test(message)) {
+  if (!entity && /show (me )?(the )?(first|second|third|last|latest|most recent) one|that one|this one/i.test(message)) {
     return { intent, understood: "There is no active result list.", message: "I don’t have an active list open right now. Ask me to show visitor requests, maintenance issues, devices, or activity first.", cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
   }
 
@@ -1589,7 +1589,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     });
   }
 
-  if (/show (me )?(the )?(first|second|third|last|latest) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who)\??$|when was|who reported|why did|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
+  if (/show (me )?(the )?(first|second|third|last|latest|most recent) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who)\??$|when was|who reported|why did|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
     if (entity.type === "workflow" && /who owns|who is responsible|owner|assignee|assigned/i.test(message)) {
       const owner = humanLabel(details.owner) || humanLabel(details.assignee);
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: owner ? `${entity.title} is currently owned by ${owner}.` : `I found ${entity.title}, but the available workflow record does not identify a named owner.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
@@ -1605,6 +1605,11 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     }
     if (entity.type === "workflow" && /verify/i.test(message)) {
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} can be verified after its source operation completes. I do not have a completed source action to verify from this message.`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity });
+    }
+    if (entity.type === "workflow" && /history|activity|details|what happened/i.test(message)) {
+      const summary = humanLabel(details.summary) || humanLabel(details.resolution) || `${entity.title} is currently ${entity.status || "recorded"}.`;
+      const created = details.created_at ? ` Created ${new Date(String(details.created_at)).toLocaleString()}.` : "";
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${summary}${created}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (/^when\??$|when was/i.test(message)) {
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.created_at || details.updated_at, "It was recorded")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
@@ -1662,7 +1667,8 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
       const workflow = pendingWorkflow.workflow;
       if (workflow?.id) await transitionWorkflow({ workflow, status: "in_progress", actor, agent_id: surface === "facility" ? "facility" : "oyi", summary: `Confirmed ${pendingWorkflow.action_label || pendingWorkflow.action_id}.` });
       const executed = await executeRegisteredAction({ action_id: pendingWorkflow.action_id, actor, entity_id: pendingWorkflow.entity_id, assignee: pendingWorkflow.assignee || null, confirmed: true, source: "app" });
-      if (workflow?.id) await transitionWorkflow({ workflow: { ...workflow, workflow_status: "in_progress" }, status: executed.ok ? "completed" : "failed", actor, agent_id: surface === "facility" ? "facility" : "oyi", summary: executed.ok ? `${pendingWorkflow.action_label || pendingWorkflow.action_id} completed.` : `Execution failed: ${executed.reason || "unknown"}.` });
+      const executionReason = "reason" in executed ? String(executed.reason || "validation failed") : "validation failed";
+      if (workflow?.id) await transitionWorkflow({ workflow: { ...workflow, workflow_status: "in_progress" }, status: executed.ok ? "completed" : "failed", actor, agent_id: surface === "facility" ? "facility" : "oyi", summary: executed.ok ? `${pendingWorkflow.action_label || pendingWorkflow.action_id} completed.` : `Execution failed: ${executionReason}.` });
       let verification: any = null;
       if (executed.ok && workflow?.id) {
         const verifier = await import("../intelligence-core/verificationService");
@@ -1675,7 +1681,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
           verification = await verifier.verifyMaintenanceStatus({ workflow: verifiedWorkflow, request_id: pendingWorkflow.entity_id, expected_status: expected });
         }
       }
-      return preserveConversation({ intent, understood: `I confirmed ${pendingWorkflow.action_label || pendingWorkflow.action_id}.`, message: executed.ok ? `${pendingWorkflow.action_label || "The requested action"} was completed${verification?.state === "verified" ? " and verified" : ""}.` : `I could not complete that action: ${executed.reason || "validation failed"}. No unverified change was reported.`, cards: [], sources: [], suggested_actions: [], execution: { status: executed.ok ? "executed" : executed.status, results: [executed], verification }, conversation_action: pendingWorkflow.action_id, execution_workflow: { stage: "execution_result", ...pendingWorkflow, completed: executed.ok ? 1 : 0, failed: executed.ok ? 0 : 1, verification: verification?.summary || (executed.ok ? "The source workflow was updated and will be verified from authoritative state." : "Execution failed before verification.") } });
+      return preserveConversation({ intent, understood: `I confirmed ${pendingWorkflow.action_label || pendingWorkflow.action_id}.`, message: executed.ok ? `${pendingWorkflow.action_label || "The requested action"} was completed${verification?.state === "verified" ? " and verified" : ""}.` : `I could not complete that action: ${executionReason}. No unverified change was reported.`, cards: [], sources: [], suggested_actions: [], execution: { status: executed.ok ? "executed" : executed.status, results: [executed], verification }, conversation_action: pendingWorkflow.action_id, execution_workflow: { stage: "execution_result", ...pendingWorkflow, completed: executed.ok ? 1 : 0, failed: executed.ok ? 0 : 1, verification: verification?.summary || (executed.ok ? "The source workflow was updated and will be verified from authoritative state." : "Execution failed before verification.") } });
     }
     if (!actor?.id || !state.pending_confirmation_id) {
       return {

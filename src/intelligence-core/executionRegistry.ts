@@ -32,6 +32,10 @@ export function getRegisteredExecutionAction(id: string) {
   return EXECUTION_REGISTRY.find((action) => action.id === id) || null;
 }
 
+function safeFailure(reason: string) {
+  return { ok: false, status: "failed", reason };
+}
+
 function operationalRole(actor: AuthUser) {
   return ["super_admin", "ochiga_admin", "estate_admin", "facility_manager", "security_operator", "admin", "manager", "security", "operator"].includes(String(actor.role || "").toLowerCase());
 }
@@ -56,12 +60,12 @@ async function updateVisitorAccessStatus(id: string, status: string) {
 
 export async function executeRegisteredAction(input: { action_id: string; actor: AuthUser; entity_id?: string | null; command?: Record<string, unknown> | null; assignee?: string | null; source?: string; confirmed?: boolean }) {
   const action = getRegisteredExecutionAction(input.action_id);
-  if (!action) return { ok: false, status: "failed", reason: "action_not_registered" };
+  if (!action) return safeFailure("action_not_registered");
   if (!input.confirmed) return { ok: false, status: "confirmation_required", reason: "explicit_confirmation_required" };
-  if (!input.entity_id) return { ok: false, status: "failed", reason: "entity_required" };
+  if (!input.entity_id) return safeFailure("entity_required");
   if (["visitor.approve", "visitor.revoke", "visitor.expire"].includes(action.id)) {
     const { data: visitor, error } = await supabaseAdmin.from("visitor_access").select("*").eq("id", input.entity_id).maybeSingle();
-    if (error || !visitor) return { ok: false, status: "failed", reason: error?.message || "visitor_not_found" };
+    if (error || !visitor) return safeFailure("visitor_lookup_failed");
     if (!inActorScope(input.actor, visitor)) return { ok: false, status: "denied", reason: "scope_mismatch" };
     if (!operationalRole(input.actor) && ![visitor.created_by, visitor.resident_id].map(String).includes(String(input.actor.id))) return { ok: false, status: "denied", reason: "visitor_operation_not_permitted" };
     const status = action.id === "visitor.approve" ? "approved" : action.id === "visitor.expire" ? "expired" : "denied";
@@ -72,7 +76,7 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
   }
   if (["maintenance.complete", "maintenance.cancel", "maintenance.assign"].includes(action.id)) {
     const { data: request, error } = await supabaseAdmin.from("maintenance_requests").select("*").eq("id", input.entity_id).maybeSingle();
-    if (error || !request) return { ok: false, status: "failed", reason: error?.message || "maintenance_not_found" };
+    if (error || !request) return safeFailure("maintenance_lookup_failed");
     if (!inActorScope(input.actor, request)) return { ok: false, status: "denied", reason: "scope_mismatch" };
     if (!operationalRole(input.actor) && !(action.id === "maintenance.cancel" && String(request.resident_id || "") === String(input.actor.id))) return { ok: false, status: "denied", reason: "maintenance_operation_not_permitted" };
     if (action.id === "maintenance.assign" && !String(input.assignee || "").trim()) return { ok: false, status: "validation_required", reason: "assignee_required" };
@@ -81,19 +85,19 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
     if (action.id === "maintenance.cancel") patch.status = "cancelled";
     if (action.id === "maintenance.assign") { patch.status = "assigned"; patch.assigned_to = String(input.assignee); }
     const { data: updated, error: updateError } = await supabaseAdmin.from("maintenance_requests").update(patch as any).eq("id", request.id).select("*").single();
-    if (updateError) return { ok: false, status: "failed", reason: updateError.message };
+    if (updateError) return safeFailure("maintenance_update_failed");
     const eventType = `maintenance.${updated.status || "updated"}`;
     void publishSourceIntelligenceEvent({ source: "facility", surface: "facility", event_type: eventType, category: "maintenance", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "maintenance_request", entity_id: updated.id, entity_label: updated.title || "Maintenance request", severity: "info", title: updated.title || "Maintenance request updated", summary: `Maintenance request is ${updated.status || "updated"}.`, payload: { status: updated.status, assigned_to: updated.assigned_to || null } }, { source_table: "maintenance_requests", source_event_id: `${updated.id}:${eventType}` });
     return { ok: true, status: "executed", result: updated };
   }
   if (!action.available) return { ok: false, status: "validation_required", reason: action.reason || "action_not_available" };
-  if (!input.command) return { ok: false, status: "failed", reason: "command_required" };
+  if (!input.command) return safeFailure("command_required");
   try {
     // Load the legacy command boundary only for a confirmed device action.
     const { executeDeviceCommandForActor } = await import("../controllers/deviceCommandController");
     const result = await executeDeviceCommandForActor({ actor: input.actor, deviceId: input.entity_id, command: input.command as Record<string, any>, source: (input.source || "app") as any });
     return { ok: Boolean(result?.ok), status: result?.status || "failed", result };
   } catch (error: any) {
-    return { ok: false, status: "failed", reason: error?.message || "execution_failed" };
+    return safeFailure("execution_failed");
   }
 }
