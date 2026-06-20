@@ -36,6 +36,16 @@ type ConversationState = {
   last_intent?: OyiIntentCategory;
   last_user_message?: string;
   entities: ConversationEntity[];
+  active_domain?: string | null;
+  active_entity_type?: ConversationEntity["type"] | null;
+  active_entity_id?: string | null;
+  active_entity_label?: string | null;
+  active_list_position?: number | null;
+  active_action?: string | null;
+  active_workflow?: Record<string, unknown> | null;
+  last_response_type?: string | null;
+  last_displayed_records?: ConversationEntity[];
+  conversation_state?: "idle" | "browsing" | "inspecting" | "confirming" | "executing" | "reviewing";
   active_topic?: ConversationEntity["type"] | null;
   active_result_state?: "empty" | "list" | "entity" | null;
   list_offset?: number;
@@ -135,7 +145,7 @@ function validUuid(value?: string | null) {
 }
 
 function emptyConversationState(): ConversationState {
-  return { version: 1, entities: [] };
+  return { version: 1, entities: [], last_displayed_records: [], conversation_state: "idle" };
 }
 
 function entityTypeFromCard(card: any): ConversationEntity["type"] | null {
@@ -193,11 +203,30 @@ function conversationStateFromResponse(previous: ConversationState, response: an
     : entitiesFromCards(response?.cards || []);
   const activeTopic = response?.conversation_topic || topicForIntent(response?.intent) || previous.active_topic || null;
   const activeResultState = response?.conversation_result_state || (activeTopic ? (entities.length ? "list" : "empty") : previous.active_result_state || null);
+  const activeEntity = response?.conversation_active_entity || null;
+  const workflow = response?.execution_workflow || previous.active_workflow || null;
+  const workflowStage = String((workflow as any)?.stage || "");
+  const conversationState = workflowStage === "confirmation_required" ? "confirming"
+    : /execution_started/.test(workflowStage) ? "executing"
+    : /execution_result|verification/.test(workflowStage) ? "reviewing"
+    : activeEntity ? "inspecting"
+    : activeResultState === "list" ? "browsing"
+    : previous.conversation_state || "idle";
   return {
     version: 1,
     last_intent: response?.intent || previous.last_intent,
     last_user_message: userMessage.slice(0, 500),
     entities: activeResultState === "empty" ? [] : entities.length ? entities : previous.entities.slice(0, 20),
+    active_domain: response?.domain || previous.active_domain || null,
+    active_entity_type: activeEntity?.type || (activeResultState === "list" ? null : previous.active_entity_type || null),
+    active_entity_id: activeEntity?.id || (activeResultState === "list" ? null : previous.active_entity_id || null),
+    active_entity_label: activeEntity?.title || (activeResultState === "list" ? null : previous.active_entity_label || null),
+    active_list_position: Number.isFinite(Number(activeEntity?.position)) ? Number(activeEntity.position) : activeResultState === "list" ? null : previous.active_list_position || null,
+    active_action: response?.conversation_action || previous.active_action || null,
+    active_workflow: workflow,
+    last_response_type: response?.display_mode || previous.last_response_type || "conversation",
+    last_displayed_records: activeResultState === "empty" ? [] : entities.length ? entities.slice(0, 50) : previous.last_displayed_records || [],
+    conversation_state: conversationState,
     active_topic: activeTopic,
     active_result_state: activeResultState,
     list_offset: Number.isFinite(Number(response?.conversation_offset)) ? Number(response.conversation_offset) : previous.list_offset || 0,
@@ -829,7 +858,30 @@ type OperatingResult = {
   conversation_result_state?: ConversationState["active_result_state"];
   display_mode?: "conversation" | "list" | "detail" | "audit" | "report" | "awareness";
   domain?: string | null;
+  conversation_active_entity?: ConversationEntity & { position?: number };
+  conversation_action?: string | null;
+  execution_workflow?: Record<string, unknown> | null;
 };
+
+function executionWorkflowFromResults(action: string, results: any[]) {
+  const pending = results.find((row) => row?.status === "pending_confirmation");
+  if (pending) return {
+    stage: "confirmation_required",
+    action,
+    candidate_entities: Array.isArray(pending?.data?.entities) ? pending.data.entities : [],
+    confirmation_id: pending.ledger_id || null,
+    message: pending.summary || "Confirmation is required before Oyi executes this action.",
+  };
+  const completed = results.filter((row) => row?.status === "executed").length;
+  const failed = results.filter((row) => ["failed", "denied"].includes(String(row?.status))).length;
+  return {
+    stage: "execution_result",
+    action,
+    completed,
+    failed,
+    verification: "Provider and command results were recorded in the Oyi audit trail.",
+  };
+}
 
 type DomainIntent = {
   key: string;
@@ -867,6 +919,21 @@ const DOMAIN_INTENTS: DomainIntent[] = [
 
 function detectDomainIntent(message: string, surface: OyiSurface): DomainIntent | null {
   return DOMAIN_INTENTS.find((domain) => domain.surfaces.includes(surface) && domain.phrases.test(message)) || null;
+}
+
+function normalizeOyiMessage(message: string) {
+  return String(message || "")
+    .replace(/who(?:'s| is) visiting|who is at (?:my )?(?:home|house)|any visitors|who(?:'s| is) active/gi, "show visitor access")
+    .replace(/turn lights on|switch on lights|enable lights|power on lights/gi, "turn on lights")
+    .replace(/turn lights off|switch off lights|disable lights|power off lights/gi, "turn off lights")
+    .replace(/show maintenance issue/gi, "show maintenance issues")
+    .replace(/show visitor requests?/gi, "show visitor access")
+    .trim()
+    .replace(/[?!.]+$/, "");
+}
+
+export function normalizeOyiMessageForTest(message: string) {
+  return normalizeOyiMessage(message);
 }
 
 export function detectOyiDomainForTest(message: string, surface: OyiSurface) {
@@ -1129,17 +1196,19 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   }
 
   if (/show (me )?(the )?(first|second|third|last) one|^(why|when|who)\??$|when was|who reported|why did/i.test(message) && entity) {
+    const position = Math.max(0, state.entities.findIndex((row) => row.id === entity.id && row.type === entity.type));
+    const activeEntity = { ...entity, position };
     if (/^when\??$|when was/i.test(message)) {
-      return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.created_at || details.updated_at, "It was recorded")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" } };
+      return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.created_at || details.updated_at, "It was recorded")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity, domain: state.active_domain || null };
     }
     if (/^who\??$|who reported/i.test(message)) {
-      return { intent: "investigation", understood: `I found ${entity.title}.`, message: details.reported_by ? `${entity.title} was reported by ${String(details.reported_by)}.` : `I found ${entity.title}, but the available record does not identify who reported it.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" } };
+      return { intent: "investigation", understood: `I found ${entity.title}.`, message: details.reported_by ? `${entity.title} was reported by ${String(details.reported_by)}.` : `I found ${entity.title}, but the available record does not identify who reported it.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity, domain: state.active_domain || null };
     }
     if (/^why\??$|why did/i.test(message)) {
       const explanation = details.summary ? `The available record says: ${String(details.summary)}.` : `Its current status is ${entity.status || "recorded"}.`;
-      return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title}: ${explanation} I do not have enough verified evidence to state a cause beyond the recorded details.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" } };
+      return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title}: ${explanation} I do not have enough verified evidence to state a cause beyond the recorded details.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity, domain: state.active_domain || null };
     }
-    return { intent, understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}.${details.created_at ? ` Recorded ${new Date(String(details.created_at)).toLocaleString()}.` : ""}`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: operatingSuggestedActions(surface, intent), execution: { status: "read_only" } };
+    return { intent, understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}.${details.created_at ? ` Recorded ${new Date(String(details.created_at)).toLocaleString()}.` : ""}`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: operatingSuggestedActions(surface, intent), execution: { status: "read_only" }, conversation_active_entity: activeEntity, domain: state.active_domain || null };
   }
 
   if (/show me more|more details/i.test(message) && state.entities.length) {
@@ -1179,6 +1248,8 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
       sources: userFacingSources(surface, "operation"),
       suggested_actions: operatingSuggestedActions(surface, intent),
       execution: { status: "processed", results: [{ status, summary: record?.result_summary || confirmed.error || "Action confirmation processed." }] },
+      conversation_action: String(record?.tool_id || state.active_action || "confirmed_action"),
+      execution_workflow: { stage: "execution_result", action: String(record?.tool_id || state.active_action || "confirmed_action"), completed: record?.execution_status === "executed" ? 1 : 0, failed: record?.execution_status === "executed" ? 0 : 1, verification: "The confirmed action result was recorded." },
     };
   }
 
@@ -1207,7 +1278,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
 
 async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, context: Awaited<ReturnType<typeof loadUnifiedContext>>, awareness: AwarenessResult): Promise<OperatingResult> {
   const surface = safeSurface(input.surface);
-  const message = String(input.message || "");
+  const message = normalizeOyiMessage(input.message || "");
   const domain = detectDomainIntent(message, surface);
   const classifiedIntent = classifyOyiOperatingIntentForTest(message);
   const intent = domain?.key === "devices" && isDomainMutationRequest(message)
@@ -1291,6 +1362,8 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       conversation_result_state: conversationTopic ? (activeEntities.length ? "list" : "empty") : null,
       display_mode: displayMode,
       domain: domain?.key || null,
+      conversation_action: ["device_control", "maintenance_operation", "visitor_operation", "wallet_operation", "service_operation"].includes(intent) ? intent : null,
+      execution_workflow: executionWorkflowFromResults(intent, routed.results),
     };
   }
 
@@ -1569,6 +1642,9 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         conversation_offset: operation.conversation_offset,
         conversation_topic: operation.conversation_topic,
         conversation_result_state: operation.conversation_result_state,
+        conversation_active_entity: operation.conversation_active_entity,
+        conversation_action: operation.conversation_action,
+        execution_workflow: operation.execution_workflow,
         thread_id: validUuid(effectiveInput.thread_id) ? String(effectiveInput.thread_id) : randomUUID(),
         role_policy: getIntelligencePermissionPolicy(actor),
         warnings: [...context.warnings, ...(conversation.warning ? [conversation.warning] : [])],

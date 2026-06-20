@@ -2,7 +2,7 @@
 process.env.SUPABASE_URL ||= 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'local-smoke-service-role-key';
 
-const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
+const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest, normalizeOyiMessageForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
 
 const state = {
   last_intent: 'visitor_operation',
@@ -60,6 +60,13 @@ const directDomainPresentationCases = [
   ['Show maintenance requests', 'maintenance_operation'],
 ];
 
+const normalizationCases = [
+  ['Who is visiting?', 'show visitor access'],
+  ['Who is at my house?', 'show visitor access'],
+  ['Turn lights on', 'turn on lights'],
+  ['Power off lights', 'turn off lights'],
+];
+
 let failed = 0;
 for (const [message, assertion] of cases) {
   const value = resolveConversationFollowUpForTest(message, state);
@@ -108,6 +115,16 @@ for (const [message, intent] of directDomainPresentationCases) {
     console.error(`FAIL direct domain presentation: ${message}`, presentation);
   } else {
     console.log(`PASS direct domain presentation: ${message}`);
+  }
+}
+
+for (const [message, expected] of normalizationCases) {
+  const actual = normalizeOyiMessageForTest(message);
+  if (actual !== expected) {
+    failed += 1;
+    console.error(`FAIL normalization: ${message} expected ${expected}, got ${actual}`);
+  } else {
+    console.log(`PASS normalization: ${message}`);
   }
 }
 
