@@ -29,6 +29,7 @@ const domainCases = [
   ['consumer', 'Show services', 'services'], ['consumer', 'Show wallet', 'wallet'], ['consumer', 'Show community updates', 'community'], ['consumer', 'Show notifications', 'notifications'],
   ['consumer', 'Show activity', 'activity'], ['consumer', 'Show security', 'security'], ['consumer', 'Show utilities', 'utilities'],
   ['facility', 'Show visitor access', 'visitors'], ['facility', 'Show maintenance issues', 'maintenance'], ['facility', 'Show device health', 'devices'],
+  ['facility', 'Open most recent requests', 'operational_queue'], ['facility', 'Open operator request', 'operational_queue'],
   ['facility', 'Show cameras', 'cameras'], ['facility', 'Show infrastructure', 'infrastructure'], ['facility', 'Show utilities', 'utilities'], ['facility', 'Show sensors', 'sensors'],
   ['facility', 'Show traffic', 'traffic'], ['facility', 'Show community reports', 'community'], ['facility', 'Show wallet operations', 'wallet'], ['facility', 'Show staff', 'staff'],
   ['facility', 'Show reports', 'reports'], ['facility', 'Show estate structure', 'estate'], ['facility', 'Show activity timeline', 'activity'], ['facility', 'Show notifications', 'notifications'],

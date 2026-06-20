@@ -24,7 +24,7 @@ type OyiChatInput = {
 };
 
 type ConversationEntity = {
-  type: "device" | "visitor" | "maintenance" | "service" | "wallet" | "community" | "report" | "awareness";
+  type: "device" | "visitor" | "maintenance" | "service" | "wallet" | "community" | "report" | "awareness" | "queue";
   id?: string | null;
   title: string;
   status?: string | null;
@@ -38,6 +38,7 @@ type ConversationState = {
   entities: ConversationEntity[];
   active_domain?: string | null;
   active_entity_type?: ConversationEntity["type"] | null;
+  active_entity?: ConversationEntity | null;
   active_entity_id?: string | null;
   active_entity_label?: string | null;
   active_list_position?: number | null;
@@ -207,6 +208,7 @@ function topicForDomain(domain?: string | null): ConversationState["active_topic
   if (/service|utility/.test(value)) return "service";
   if (/community|notice/.test(value)) return "community";
   if (/report|audit/.test(value)) return "report";
+  if (/queue|request/.test(value)) return "queue";
   if (/awareness|attention/.test(value)) return "awareness";
   return null;
 }
@@ -235,7 +237,7 @@ function conversationStateFromResponse(previous: ConversationState, response: an
   const workflowStage = String((workflow as any)?.stage || "");
   const conversationState = workflowStage === "confirmation_required" ? "confirming"
     : /execution_started/.test(workflowStage) ? "executing"
-    : /execution_result|verification/.test(workflowStage) ? "reviewing"
+    : /execution_result|verification|cancelled/.test(workflowStage) ? "reviewing"
     : activeEntity ? "inspecting"
     : activeResultState === "list" ? "browsing"
     : previous.conversation_state || "idle";
@@ -246,6 +248,7 @@ function conversationStateFromResponse(previous: ConversationState, response: an
     entities: activeResultState === "empty" ? [] : entities.slice(0, 50),
     active_domain: response?.domain || previous.active_domain || null,
     active_entity_type: activeEntity?.type || (activeResultState === "list" ? null : previous.active_entity_type || null),
+    active_entity: activeEntity || (activeResultState === "list" ? null : previous.active_entity || null),
     active_entity_id: activeEntity?.id || (activeResultState === "list" ? null : previous.active_entity_id || null),
     active_entity_label: activeEntity?.title || (activeResultState === "list" ? null : previous.active_entity_label || null),
     active_list_position: Number.isFinite(Number(activeEntity?.position)) ? Number(activeEntity.position) : activeResultState === "list" ? null : previous.active_list_position || null,
@@ -299,8 +302,8 @@ function ordinalEntity(message: string, entities: ConversationEntity[]) {
 }
 
 function activeEntityFromState(state: ConversationState) {
-  if (!state.active_entity_id && !state.active_entity_label) return null;
-  return state.entities.find((entity) => (state.active_entity_id && entity.id === state.active_entity_id) || (state.active_entity_label && entity.title === state.active_entity_label)) || null;
+  if (!state.active_entity_id && !state.active_entity_label) return state.active_entity || null;
+  return state.entities.find((entity) => (state.active_entity_id && entity.id === state.active_entity_id) || (state.active_entity_label && entity.title === state.active_entity_label)) || state.active_entity || null;
 }
 
 function referencedEntity(message: string, state: ConversationState) {
@@ -309,7 +312,7 @@ function referencedEntity(message: string, state: ConversationState) {
   const named = namedEntity(message, state.entities);
   if (named) return named;
   const lower = message.trim().toLowerCase();
-  if (/\b(it|that one|this one)\b|^(?:why|when|who)(?:\?|$)|^(?:show )?(?:activity|history)$|^(?:approve|reject|remove|assign|turn|switch|run)\b/i.test(lower)) {
+  if (/\b(it|he|she|they|him|her|that one|this one)\b|^(?:why|when|who)(?:\?|$)|^(?:show )?(?:activity|history|details)$|^(?:approve|reject|remove|assign|turn|switch|run)\b/i.test(lower)) {
     return activeEntityFromState(state);
   }
   return null;
@@ -319,7 +322,7 @@ function isFollowUpMessage(message: string, state?: ConversationState) {
   const value = message.trim().toLowerCase();
   if (["why", "why?", "when", "when?", "who", "who?"].includes(value)) return true;
   if (state && referencedEntity(message, state)) return true;
-  return /\b(approve|reject|remove|assign|show me more|more details|show activity|show history|what should i do next|do it|go ahead|proceed|cancel|that one|this one|the first|the second|the third|1st|2nd|3rd|when was|who reported|why did|it)\b/i.test(value);
+  return /\b(approve|reject|remove|assign|show me more|more details|show activity|show history|show details|what should i do next|do it|go ahead|proceed|cancel|that one|this one|the first|the second|the third|1st|2nd|3rd|when was|who reported|why did|it|he|she|they|him|her)\b/i.test(value);
 }
 
 function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] | null {
@@ -335,7 +338,7 @@ function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] 
 }
 
 function topicLabel(topic?: ConversationState["active_topic"] | null, plural = false) {
-  const labels: Record<string, string> = { visitor: plural ? "visitor requests" : "visitor request", maintenance: plural ? "maintenance issues" : "maintenance issue", device: plural ? "devices" : "device", service: plural ? "service requests" : "service request", wallet: plural ? "wallet records" : "wallet record", community: plural ? "community reports" : "community report", report: plural ? "reports" : "report", awareness: plural ? "attention items" : "attention item" };
+  const labels: Record<string, string> = { visitor: plural ? "visitor requests" : "visitor request", maintenance: plural ? "maintenance issues" : "maintenance issue", device: plural ? "devices" : "device", service: plural ? "service requests" : "service request", wallet: plural ? "wallet records" : "wallet record", community: plural ? "community reports" : "community report", report: plural ? "reports" : "report", queue: plural ? "operational requests" : "operational request", awareness: plural ? "attention items" : "attention item" };
   return labels[String(topic || "")] || (plural ? "records" : "record");
 }
 
@@ -969,6 +972,7 @@ type DomainIntent = {
 };
 
 const DOMAIN_INTENTS: DomainIntent[] = [
+  { key: "operational_queue", surfaces: ["facility"], phrases: /(?:open|show)\s+(?:the\s+)?(?:most\s+)?recent(?:\s+operational)?\s+requests?|operator\s+requests?|recent\s+requests?/i, intent: "investigation", label: "recent operational requests", unavailable: "There are currently no recent operational requests to show." },
   { key: "visitors", surfaces: ["consumer", "facility"], phrases: /visitor|guest|access pass|visitor approval/i, intent: "visitor_operation", tool_id: "summarize_visitors", label: "visitor requests", unavailable: "I can’t see visitor records for this context yet." },
   { key: "maintenance", surfaces: ["consumer", "facility"], phrases: /maintenance|repair|service ticket|work order/i, intent: "maintenance_operation", tool_id: "summarize_maintenance", label: "maintenance issues", unavailable: "I can’t see maintenance records for this context yet." },
   { key: "devices", surfaces: ["consumer", "facility"], phrases: /device|light|switch|socket|hardware/i, intent: "device_status", tool_id: "summarize_devices", label: "devices", unavailable: "I can’t see device records for this context yet." },
@@ -1354,6 +1358,19 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     return preserveConversation({ intent, understood: "I’ll cancel the pending action from this conversation.", message: cancelled.ok ? "Cancelled. No action was executed." : "I could not cancel that action. It may already be complete or expired.", cards: [], sources: [], suggested_actions: [], execution: { status: "processed", results: [{ status: cancelled.ok ? "denied" : "failed", summary: cancelled.record?.result_summary || cancelled.error || "Cancellation processed." }] }, conversation_action: state.active_action || "cancelled_action", execution_workflow: { stage: "execution_result", action: state.active_action || "cancelled_action", completed: 0, failed: 0, verification: "The cancellation result was recorded." } });
   }
 
+  if (/^(cancel|no)$/i.test(message) && state.active_action) {
+    return preserveConversation({
+      intent,
+      understood: "I’ll cancel the prepared action from this conversation.",
+      message: state.active_entity_label
+        ? `Cancelled. No change was made to ${state.active_entity_label}.`
+        : "Cancelled. No operational change was made.",
+      cards: [], sources: [], suggested_actions: [], execution: { status: "cancelled" },
+      conversation_action: state.active_action,
+      execution_workflow: { stage: "cancelled", action: state.active_action, completed: 0, failed: 0, verification: "No action was executed." },
+    });
+  }
+
   if (/^(do it|go ahead|confirm|yes|proceed)$/i.test(message)) {
     if (!actor?.id || !state.pending_confirmation_id) {
       return {
@@ -1436,7 +1453,9 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     };
   }
 
-  const proposedTools = actor ? (domain?.tool_id && intent !== "device_control" ? [{ tool_id: domain.tool_id, arguments: { estate_id: input.estate_id || null, home_id: input.home_id || null } }] : proposedToolsForIntent(intent, message, input)) : [];
+  const proposedTools = actor ? (domain?.key === "operational_queue"
+    ? ["summarize_maintenance", "summarize_visitors", "summarize_recent_activity"].map((tool_id) => ({ tool_id: tool_id as ProposedAiTool["tool_id"], arguments: { estate_id: input.estate_id || null, home_id: input.home_id || null } }))
+    : domain?.tool_id && intent !== "device_control" ? [{ tool_id: domain.tool_id, arguments: { estate_id: input.estate_id || null, home_id: input.home_id || null } }] : proposedToolsForIntent(intent, message, input)) : [];
   if (actor && proposedTools.length) {
     const { routeAiCommand } = await import("../ai/commandRouter");
     const routed = await routeAiCommand(undefined, {
@@ -1454,7 +1473,7 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     const displayMode = displayModeFor(intent, message, wantsSupportingCards(message, intent) && activeEntities.length > 0);
     const supportPayload = displayMode !== "conversation";
     const cards = supportPayload && activeEntities.length ? availableCards.slice(0, 3) : [];
-    const conversationTopic = topicForIntent(intent);
+    const conversationTopic = domain?.key === "operational_queue" ? "queue" : topicForIntent(intent);
     return {
       intent,
       understood,

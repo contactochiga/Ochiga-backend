@@ -25,6 +25,9 @@ const cases = [
   ['Why?', (value) => value.intent === 'investigation' && /Ada Okafor/.test(value.expanded_message)],
   ['When?', (value) => value.intent === 'investigation' && /last updated/.test(value.expanded_message)],
   ['Who?', (value) => value.intent === 'investigation' && /associated/.test(value.expanded_message)],
+  ['When was he added?', (value) => value.is_follow_up && value.entity?.id === 'visitor-1'],
+  ['Remove him', (value) => value.is_follow_up && value.entity?.id === 'visitor-1'],
+  ['Show details', (value) => value.is_follow_up && value.entity?.id === 'visitor-1'],
   ['Show me more.', (value) => value.expanded_message === 'Show pending visitors'],
   ['Do it.', (value) => value.pending_confirmation_id === 'ledger-1'],
 ];
@@ -64,6 +67,7 @@ const resolverCases = [
   ['maintenance clarification', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'list', entities: [] }, 'Who reported it?', 'topic_clarification'],
   ['facility visitor empty', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Why?', 'empty_explanation'],
   ['facility maintenance detail', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'list', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Gate light repair', status: 'open' }] }, 'Show me the first one', 'entity'],
+  ['facility queue detail', { last_intent: 'investigation', active_topic: 'queue', active_result_state: 'list', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Gate light repair', status: 'open' }] }, 'Open the 1st one', 'entity'],
   ['facility awareness remains awareness', { last_intent: 'awareness', active_topic: 'awareness', active_result_state: 'list', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'none'],
 ];
 
