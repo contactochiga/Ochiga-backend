@@ -26,7 +26,7 @@ type OyiChatInput = {
 };
 
 type ConversationEntity = {
-  type: "device" | "visitor" | "maintenance" | "service" | "wallet" | "community" | "report" | "awareness" | "queue" | "workflow";
+  type: "device" | "visitor" | "maintenance" | "service" | "wallet" | "community" | "report" | "awareness" | "queue" | "workflow" | "room" | "scene" | "automation" | "notification" | "security" | "camera" | "infrastructure" | "sensor" | "traffic" | "staff" | "estate" | "profile";
   id?: string | null;
   title: string;
   status?: string | null;
@@ -164,10 +164,21 @@ function entityTypeFromCard(card: any): ConversationEntity["type"] | null {
   const value = `${card?.type || ""} ${card?.title || ""}`.toLowerCase();
   if (/visitor|guest|access/.test(value)) return "visitor";
   if (/maintenance|support|repair/.test(value)) return "maintenance";
-  if (/device|infrastructure|camera|sensor/.test(value)) return "device";
+  if (/room|space/.test(value)) return "room";
+  if (/scene/.test(value)) return "scene";
+  if (/automation|routine/.test(value)) return "automation";
+  if (/camera/.test(value)) return "camera";
+  if (/infrastructure|edge/.test(value)) return "infrastructure";
+  if (/sensor|environment/.test(value)) return "sensor";
+  if (/device|hardware/.test(value)) return "device";
   if (/wallet|payment|transaction/.test(value)) return "wallet";
   if (/service|utility|water|electric|internet/.test(value)) return "service";
   if (/community|notice|announcement/.test(value)) return "community";
+  if (/notification|alert/.test(value)) return "notification";
+  if (/security|incident/.test(value)) return "security";
+  if (/traffic|mobility/.test(value)) return "traffic";
+  if (/staff|operator|team/.test(value)) return "staff";
+  if (/estate|building|unit|home/.test(value)) return "estate";
   if (/workflow/.test(value)) return "workflow";
   if (/report|audit|investigation/.test(value)) return "report";
   if (/attention|normal|awareness/.test(value)) return "awareness";
@@ -213,10 +224,23 @@ function topicForDomain(domain?: string | null): ConversationState["active_topic
   if (/workflow/.test(value)) return "workflow";
   if (/visitor|access/.test(value)) return "visitor";
   if (/maintenance|repair/.test(value)) return "maintenance";
-  if (/device|camera|infrastructure|sensor/.test(value)) return "device";
+  if (/room|space/.test(value)) return "room";
+  if (/scene/.test(value)) return "scene";
+  if (/automation|routine/.test(value)) return "automation";
+  if (/camera/.test(value)) return "camera";
+  if (/infrastructure|edge/.test(value)) return "infrastructure";
+  if (/sensor|environment/.test(value)) return "sensor";
+  if (/device|hardware/.test(value)) return "device";
   if (/wallet|finance|payment/.test(value)) return "wallet";
   if (/service|utility/.test(value)) return "service";
   if (/community|notice/.test(value)) return "community";
+  if (/activity|timeline/.test(value)) return "report";
+  if (/notification|alert/.test(value)) return "notification";
+  if (/security|incident/.test(value)) return "security";
+  if (/traffic|mobility/.test(value)) return "traffic";
+  if (/staff|operator|team/.test(value)) return "staff";
+  if (/estate|building|home|unit/.test(value)) return "estate";
+  if (/profile|household/.test(value)) return "profile";
   if (/report|audit/.test(value)) return "report";
   if (/queue|request/.test(value)) return "queue";
   if (/awareness|attention/.test(value)) return "awareness";
@@ -284,7 +308,7 @@ function ordinalIndex(message: string, entityCount: number) {
   if (/\b(?:the\s+)?first(?:\s+one)?\b|\b1st\b|^(?:number\s+)?(?:one|1)$/.test(lower)) return 0;
   if (/\b(?:the\s+)?second(?:\s+one)?\b|\b2nd\b|^(?:number\s+)?(?:two|2)$/.test(lower)) return 1;
   if (/\b(?:the\s+)?third(?:\s+one)?\b|\b3rd\b|^(?:number\s+)?(?:three|3)$/.test(lower)) return 2;
-  if (/\b(?:the\s+)?last(?:\s+one)?\b/.test(lower)) return Math.max(0, entityCount - 1);
+  if (/\b(?:the\s+)?(?:last|latest)(?:\s+one|\s+report)?\b/.test(lower)) return Math.max(0, entityCount - 1);
   return null;
 }
 
@@ -354,7 +378,30 @@ function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] 
 }
 
 function topicLabel(topic?: ConversationState["active_topic"] | null, plural = false) {
-  const labels: Record<string, string> = { visitor: plural ? "visitor requests" : "visitor request", maintenance: plural ? "maintenance requests" : "maintenance request", device: plural ? "devices" : "device", service: plural ? "service requests" : "service request", wallet: plural ? "wallet records" : "wallet record", community: plural ? "community reports" : "community report", report: plural ? "reports" : "report", queue: plural ? "operational requests" : "operational request", workflow: plural ? "workflows" : "workflow", awareness: plural ? "attention items" : "attention item" };
+  const labels: Record<string, string> = {
+    visitor: plural ? "visitor requests" : "visitor request",
+    maintenance: plural ? "maintenance requests" : "maintenance request",
+    device: plural ? "devices" : "device",
+    service: plural ? "service requests" : "service request",
+    wallet: plural ? "wallet records" : "wallet record",
+    community: plural ? "community reports" : "community report",
+    report: plural ? "reports" : "report",
+    queue: plural ? "operational requests" : "operational request",
+    workflow: plural ? "workflows" : "workflow",
+    awareness: plural ? "attention items" : "attention item",
+    room: plural ? "rooms or spaces" : "room or space",
+    scene: plural ? "scenes" : "scene",
+    automation: plural ? "automations" : "automation",
+    notification: plural ? "notifications" : "notification",
+    security: plural ? "security incidents" : "security incident",
+    camera: plural ? "camera events" : "camera event",
+    infrastructure: plural ? "infrastructure records" : "infrastructure record",
+    sensor: plural ? "sensor readings" : "sensor reading",
+    traffic: plural ? "traffic records" : "traffic record",
+    staff: plural ? "staff tasks" : "staff task",
+    estate: plural ? "estate structure records" : "estate structure record",
+    profile: plural ? "home profile records" : "home profile record",
+  };
   return labels[String(topic || "")] || (plural ? "records" : "record");
 }
 
@@ -394,11 +441,11 @@ export function resolveConversationFollowUpForTest(message: string, state: Parti
   const entity = referencedEntity(message, normalized);
   const lower = message.trim().toLowerCase();
   const resolution = normalized.active_result_state === "empty" && normalized.active_topic
-    ? /show (me )?(the )?(first|second|third|last) one|(?:open|show) (?:the )?(?:first|second|third|last|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "empty_ordinal"
+    ? /show (me )?(the )?(first|second|third|last|latest) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "empty_ordinal"
       : /^(why|why\?)|why did/i.test(message) ? "empty_explanation"
       : "empty_topic"
     : !entity && normalized.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who reported|why did/i.test(message) ? "topic_clarification"
-      : !entity && /show (me )?(the )?(first|second|third|last) one|(?:open|show) (?:the )?(?:first|second|third|last|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "no_active_list"
+      : !entity && /show (me )?(the )?(first|second|third|last|latest) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "no_active_list"
         : /show me more/.test(lower) ? "continuation"
           : entity ? "entity" : "none";
   return {
@@ -1007,27 +1054,27 @@ type DomainIntent = {
 };
 
 const DOMAIN_INTENTS: DomainIntent[] = [
-  { key: "operational_queue", surfaces: ["facility"], phrases: /(?:open|show|review)\s+(?:the\s+)?(?:most\s+)?(?:important\s+issue|recent(?:\s+operational)?\s+requests?|pending\s+(?:issues?|requests?|tasks?)|assigned\s+tasks?|operator\s+requests?|operator\s+request|recent\s+requests?)/i, intent: "investigation", label: "recent operational requests", unavailable: "There are currently no recent operational requests to show." },
+  { key: "operational_queue", surfaces: ["facility"], phrases: /(?:open|show|review)\s+(?:the\s+)?(?:most\s+)?(?:important\s+issue|recent(?:\s+operational)?\s+requests?|pending\s+(?:issues?|requests?|tasks?)|assigned\s+tasks?|operator\s+requests?|operator\s+request|recent\s+requests?|work\s+queue|open\s+requests?)/i, intent: "investigation", label: "recent operational requests", unavailable: "There are currently no recent operational requests to show." },
   { key: "workflows", surfaces: ["consumer", "facility", "office"], phrases: /(?:show|open|list|review)\s+(?:active|open|pending)?\s*workflows?|workflow\s+(?:status|queue|owner|overdue|blocking)/i, intent: "investigation", label: "workflows", unavailable: "There are currently no active workflows requiring attention." },
-  { key: "visitors", surfaces: ["consumer", "facility"], phrases: /visitor|guest|access pass|visitor approval/i, intent: "visitor_operation", tool_id: "summarize_visitors", label: "visitor requests", unavailable: "I can’t see visitor records for this context yet." },
-  { key: "maintenance", surfaces: ["consumer", "facility"], phrases: /maintenance|repair|service ticket|work order/i, intent: "maintenance_operation", tool_id: "summarize_maintenance", label: "maintenance issues", unavailable: "I can’t see maintenance records for this context yet." },
-  { key: "devices", surfaces: ["consumer", "facility"], phrases: /device|light|switch|socket|hardware/i, intent: "device_status", tool_id: "summarize_devices", label: "devices", unavailable: "I can’t see device records for this context yet." },
+  { key: "visitors", surfaces: ["consumer", "facility"], phrases: /visitor|vistors|visistor|guest|guest access|gate pass|access pass|access code|visitor access|visitor approval/i, intent: "visitor_operation", tool_id: "summarize_visitors", label: "visitor requests", unavailable: "I can’t see visitor records for this context yet." },
+  { key: "maintenance", surfaces: ["consumer", "facility"], phrases: /maintenance|maint request|mainterequest|repair|fault report|issue request|service ticket|work order/i, intent: "maintenance_operation", tool_id: "summarize_maintenance", label: "maintenance issues", unavailable: "I can’t see maintenance records for this context yet." },
+  { key: "devices", surfaces: ["consumer", "facility"], phrases: /device|appliance|smart device|light|switch|socket|hardware|relay|ac\b/i, intent: "device_status", tool_id: "summarize_devices", label: "devices", unavailable: "I can’t see device records for this context yet." },
   { key: "rooms", surfaces: ["consumer"], phrases: /room|rooms|space|spaces/i, intent: "general_help", label: "rooms and spaces", unavailable: "I don’t have room records available through this chat context yet." },
   { key: "scenes", surfaces: ["consumer"], phrases: /scene|scenes/i, intent: "general_help", label: "scenes", unavailable: "I don’t have scene records available through this chat context yet." },
   { key: "automation", surfaces: ["consumer"], phrases: /automation|automations|routine|routines/i, intent: "general_help", label: "automations", unavailable: "I don’t have automation records available through this chat context yet." },
-  { key: "services", surfaces: ["consumer", "facility"], phrases: /service|services|fiber|internet plan/i, intent: "service_operation", label: "services", unavailable: "I don’t have service records available through this chat context yet." },
-  { key: "wallet", surfaces: ["consumer", "facility"], phrases: /wallet|payment|payments|transaction|transactions|balance|charge/i, intent: "wallet_operation", tool_id: "summarize_wallet", label: "wallet information", unavailable: "I can’t see wallet records for this context yet." },
-  { key: "community", surfaces: ["consumer", "facility"], phrases: /community|announcement|announcements|notice|notices|complaint|feedback/i, intent: "community_operation", tool_id: "summarize_community", label: "community updates", unavailable: "There are no recent community updates available in this context." },
+  { key: "services", surfaces: ["consumer", "facility"], phrases: /service|services|fiber|internet plan|service request/i, intent: "service_operation", label: "services", unavailable: "I don’t have service records available through this chat context yet." },
+  { key: "wallet", surfaces: ["consumer", "facility"], phrases: /wallet|payment|payments|transaction|transactions|balance|charge|service charge|dues|levy|bill|receipt|accounting/i, intent: "wallet_operation", tool_id: "summarize_wallet", label: "wallet information", unavailable: "I can’t see wallet records for this context yet." },
+  { key: "community", surfaces: ["consumer", "facility"], phrases: /community|announcement|announcements|notice|notices|complaint|feedback|post|message|update|communications/i, intent: "community_operation", tool_id: "summarize_community", label: "community updates", unavailable: "There are no recent community updates available in this context." },
   { key: "activity", surfaces: ["consumer", "facility"], phrases: /activity|timeline|recent activity|who did what/i, intent: "investigation", tool_id: "summarize_recent_activity", label: "activity", unavailable: "I don’t have activity records available in this context yet." },
   { key: "notifications", surfaces: ["consumer", "facility"], phrases: /notification|notifications|alert|alerts/i, intent: "notification_operation", label: "notifications", unavailable: "There are no notifications available in this context." },
-  { key: "security", surfaces: ["consumer", "facility"], phrases: /security|alarm|gate|door/i, intent: "investigation", label: "security activity", unavailable: "I don’t have security records available in this chat context yet." },
-  { key: "utilities", surfaces: ["consumer", "facility"], phrases: /utility|utilities|water|electricity|electric|meter/i, intent: "service_operation", label: "utility information", unavailable: "I don’t have utility records available in this chat context yet." },
+  { key: "security", surfaces: ["consumer", "facility"], phrases: /security|incident|incidents|alarm|gate|door|access control/i, intent: "investigation", label: "security activity", unavailable: "I don’t have security records available in this chat context yet." },
+  { key: "utilities", surfaces: ["consumer", "facility"], phrases: /utility|utilities|water|electricity|electric|meter|power|generator/i, intent: "service_operation", label: "utility information", unavailable: "I don’t have utility records available in this chat context yet." },
   { key: "profile", surfaces: ["consumer"], phrases: /profile|home context|my home|household/i, intent: "general_help", label: "home context", unavailable: "I don’t have additional home profile records available in this chat context yet." },
   { key: "cameras", surfaces: ["facility"], phrases: /camera|cameras|cctv|camera event/i, intent: "device_status", label: "camera events", unavailable: "There are no camera events currently visible." },
   { key: "infrastructure", surfaces: ["facility"], phrases: /infrastructure|runtime|edge node|stream health/i, intent: "device_status", tool_id: "summarize_devices", label: "infrastructure records", unavailable: "I don’t have infrastructure records available in this chat context yet." },
   { key: "sensors", surfaces: ["facility"], phrases: /sensor|sensors|environment|temperature|humidity/i, intent: "device_status", label: "sensor readings", unavailable: "I don’t have sensor readings available in this chat context yet." },
   { key: "traffic", surfaces: ["facility"], phrases: /traffic|mobility|parking|vehicle flow/i, intent: "general_help", label: "traffic and mobility records", unavailable: "I don’t have traffic or mobility records available in this chat context yet." },
-  { key: "staff", surfaces: ["facility"], phrases: /staff|team|operator|operators/i, intent: "general_help", label: "staff records", unavailable: "I don’t have staff records available in this chat context yet." },
+  { key: "staff", surfaces: ["facility"], phrases: /staff|team|operator|operators|staff task|staff tasks|technician|cleaner|electrician|mechanic/i, intent: "general_help", label: "staff records", unavailable: "I don’t have staff records available in this chat context yet." },
   { key: "reports", surfaces: ["facility"], phrases: /report|reports|daily estate/i, intent: "report_generation", label: "reports", unavailable: "I don’t have report records available in this chat context yet." },
   { key: "estate", surfaces: ["facility"], phrases: /estate structure|estate|homes|home list|building|units/i, intent: "general_help", label: "estate structure", unavailable: "I don’t have estate structure records available in this chat context yet." },
 ];
@@ -1038,10 +1085,15 @@ function detectDomainIntent(message: string, surface: OyiSurface): DomainIntent 
 
 function normalizeOyiMessage(message: string) {
   return String(message || "")
-    .replace(/\b(?:maintainance|maintenence|maintainence)\b/gi, "maintenance")
-    .replace(/who(?:'s| is) visiting|who is at (?:my )?(?:home|house)|any visitors|who(?:'s| is) active/gi, "show visitor access")
+    .replace(/\b(?:maintainance|maintenence|maintainence|maintenace)\b/gi, "maintenance")
+    .replace(/\bmainterequest\b/gi, "maintenance request")
+    .replace(/\bmaint request\b/gi, "maintenance request")
+    .replace(/\b(?:vistors|visistor)\b/gi, "visitors")
+    .replace(/\bvisitor acess\b/gi, "visitor access")
+    .replace(/who(?:'s| is) visiting|who is at (?:my )?(?:home|house)|who came in|any visitors|who(?:'s| is) active|guest access|gate pass|access code/gi, "show visitor access")
     .replace(/turn lights on|switch on lights|enable lights|power on lights/gi, "turn on lights")
-    .replace(/turn lights off|switch off lights|disable lights|power off lights/gi, "turn off lights")
+    .replace(/turn lights off|switch off lights|disable lights|power off lights|power it down|switch it off/gi, "turn off lights")
+    .replace(/repair request|fault report|issue request|work order/gi, "maintenance request")
     .replace(/show maintenance issue/gi, "show maintenance issues")
     .replace(/show visitor requests?/gi, "show visitor access")
     .trim()
@@ -1455,7 +1507,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   });
 
   if (state.active_result_state === "empty" && state.active_topic) {
-    if (/show (me )?(the )?(first|second|third|last|\d(?:st|nd|rd)?) one|(?:open|show) (?:the )?(?:first|second|third|last|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last)(?:\s+one)?\b|that one|this one|^(?:number\s+)?(?:one|two|three|1|2|3)$/i.test(message)) {
+    if (/show (me )?(the )?(first|second|third|last|latest|\d(?:st|nd|rd)?) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest)(?:\s+one)?\b|that one|this one|^(?:number\s+)?(?:one|two|three|1|2|3)$/i.test(message)) {
       const lower = message.toLowerCase();
       const ordinal = /second|two|2/.test(lower) ? "second" : /third|three|3/.test(lower) ? "third" : /last/.test(lower) ? "last" : "first";
       return preserveConversation({ intent, understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: emptyOrdinalMessage(state.active_topic, ordinal), cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
@@ -1469,7 +1521,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     return preserveConversation({ intent: "investigation", understood: `The active topic is ${topicLabel(state.active_topic, true)}.`, message: `Which ${topicLabel(state.active_topic)} do you mean? You can say “the first one” or name it.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
   }
 
-  if (!entity && /show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message)) {
+  if (!entity && /show (me )?(the )?(first|second|third|last|latest) one|that one|this one/i.test(message)) {
     return { intent, understood: "There is no active result list.", message: "I don’t have an active list open right now. Ask me to show visitor requests, maintenance issues, devices, or activity first.", cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
   }
 
@@ -1537,7 +1589,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     });
   }
 
-  if (/show (me )?(the )?(first|second|third|last) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who)\??$|when was|who reported|why did|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
+  if (/show (me )?(the )?(first|second|third|last|latest) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who)\??$|when was|who reported|why did|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
     if (entity.type === "workflow" && /who owns|who is responsible|owner|assignee|assigned/i.test(message)) {
       const owner = humanLabel(details.owner) || humanLabel(details.assignee);
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: owner ? `${entity.title} is currently owned by ${owner}.` : `I found ${entity.title}, but the available workflow record does not identify a named owner.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });

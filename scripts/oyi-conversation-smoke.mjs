@@ -2,7 +2,7 @@
 process.env.SUPABASE_URL ||= 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'local-smoke-service-role-key';
 
-const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest, normalizeOyiMessageForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
+const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest, normalizeOyiMessageForTest, resolveOyiDomainIntentForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
 
 const state = {
   last_intent: 'visitor_operation',
@@ -74,6 +74,12 @@ const resolverCases = [
   ['workflow owner detail', { last_intent: 'investigation', active_topic: 'workflow', active_result_state: 'list', entities: [{ type: 'workflow', id: 'workflow-1', title: 'Assign gate repair', status: 'assigned', details: { owner: 'Ade' } }] }, 'Who owns it?', 'entity'],
   ['visitor assign guard', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'list', active_entity_id: 'visitor-1', active_entity_label: 'Salish Males', entities: [{ type: 'visitor', id: 'visitor-1', title: 'Salish Males', status: 'pending' }] }, 'Assign it to Ade', 'entity'],
   ['facility awareness remains awareness', { last_intent: 'awareness', active_topic: 'awareness', active_result_state: 'list', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'none'],
+  ['empty wallet ordinal', { last_intent: 'wallet_operation', active_topic: 'wallet', active_result_state: 'empty', entities: [] }, 'The first one', 'empty_ordinal'],
+  ['empty services ordinal', { last_intent: 'service_operation', active_topic: 'service', active_result_state: 'empty', entities: [] }, 'The first one', 'empty_ordinal'],
+  ['empty notifications ordinal', { last_intent: 'notification_operation', active_topic: 'notification', active_result_state: 'empty', entities: [] }, 'The first one', 'empty_ordinal'],
+  ['empty staff ordinal', { last_intent: 'general_help', active_topic: 'staff', active_result_state: 'empty', entities: [] }, 'The first one', 'empty_ordinal'],
+  ['empty camera ordinal', { last_intent: 'device_status', active_topic: 'camera', active_result_state: 'empty', entities: [] }, 'The first one', 'empty_ordinal'],
+  ['empty reports ordinal', { last_intent: 'report_generation', active_topic: 'report', active_result_state: 'empty', entities: [] }, 'The latest report', 'empty_ordinal'],
 ];
 
 const displayCases = [
@@ -91,14 +97,52 @@ const directDomainPresentationCases = [
   ['Any visitor pending?', 'visitor_operation'],
   ['Show community updates', 'community_operation'],
   ['Show maintenance requests', 'maintenance_operation'],
+  ['Show services', 'service_operation'],
+  ['Show wallet', 'wallet_operation'],
+  ['Show notifications', 'notification_operation'],
+  ['Show utility issues', 'service_operation'],
+  ['Show security incidents', 'investigation'],
+  ['Show reports', 'report_generation'],
 ];
 
 const normalizationCases = [
   ['Who is visiting?', 'show visitor access'],
   ['Who is at my house?', 'show visitor access'],
+  ['Who came in?', 'show visitor access'],
+  ['Show vistors', 'Show visitors'],
+  ['visitor acess', 'visitor access'],
+  ['gate pass', 'show visitor access'],
   ['Turn lights on', 'turn on lights'],
   ['Power off lights', 'turn off lights'],
+  ['power it down', 'turn off lights'],
   ['Show maintainance requests', 'Show maintenance requests'],
+  ['Show maintenace requests', 'Show maintenance requests'],
+  ['mainterequest', 'maintenance request'],
+  ['fault report', 'maintenance request'],
+];
+
+const domainCases = [
+  ['consumer', 'open visitor access', 'visitors'],
+  ['consumer', 'any visitors pending', 'visitors'],
+  ['consumer', 'show maintenance request', 'maintenance'],
+  ['consumer', 'show maintainance request', 'maintenance'],
+  ['consumer', 'show devices', 'devices'],
+  ['consumer', 'show wallet', 'wallet'],
+  ['consumer', 'show dues', 'wallet'],
+  ['consumer', 'show community reports', 'community'],
+  ['consumer', 'show service requests', 'services'],
+  ['consumer', 'show utility issues', 'utilities'],
+  ['consumer', 'show rooms', 'rooms'],
+  ['consumer', 'show scenes', 'scenes'],
+  ['consumer', 'show automation', 'automation'],
+  ['facility', 'open most recent requests', 'operational_queue'],
+  ['facility', 'open operator requests', 'operational_queue'],
+  ['facility', 'show staff tasks', 'staff'],
+  ['facility', 'show security incidents', 'security'],
+  ['facility', 'show camera events', 'cameras'],
+  ['facility', 'show utility issues', 'utilities'],
+  ['facility', 'show active workflows', 'workflows'],
+  ['facility', 'show estate structure', 'estate'],
 ];
 
 let failed = 0;
@@ -179,6 +223,16 @@ for (const [message, expected] of normalizationCases) {
     console.error(`FAIL normalization: ${message} expected ${expected}, got ${actual}`);
   } else {
     console.log(`PASS normalization: ${message}`);
+  }
+}
+
+for (const [surface, message, expectedDomain] of domainCases) {
+  const actual = resolveOyiDomainIntentForTest(message, surface);
+  if (actual.domain !== expectedDomain || actual.awareness_fallback_used) {
+    failed += 1;
+    console.error(`FAIL domain coverage: ${surface} ${message}`, actual);
+  } else {
+    console.log(`PASS domain coverage: ${surface} ${message} -> ${actual.domain}`);
   }
 }
 
