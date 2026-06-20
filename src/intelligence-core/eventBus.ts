@@ -23,6 +23,16 @@ const VALID_CATEGORIES: IntelligenceEventCategory[] = [
   "security",
   "maintenance",
   "visitor",
+  "device",
+  "utility",
+  "wallet",
+  "service",
+  "automation",
+  "workflow",
+  "prediction",
+  "office",
+  "lead",
+  "support",
   "community",
   "marketing",
   "sales",
@@ -47,6 +57,16 @@ export function normalizeIntelligenceCategory(category: unknown): IntelligenceEv
   if (raw.includes("security") || raw.includes("incident") || raw.includes("alert")) return "security";
   if (raw.includes("maint")) return "maintenance";
   if (raw.includes("visitor") || raw.includes("invite") || raw.includes("access")) return "visitor";
+  if (raw.includes("device") || raw.includes("hardware")) return "device";
+  if (raw.includes("utility") || raw.includes("water") || raw.includes("electric")) return "utility";
+  if (raw.includes("wallet") || raw.includes("payment") || raw.includes("finance")) return "wallet";
+  if (raw.includes("service")) return "service";
+  if (raw.includes("automation") || raw.includes("scene")) return "automation";
+  if (raw.includes("workflow")) return "workflow";
+  if (raw.includes("prediction")) return "prediction";
+  if (raw.includes("office")) return "office";
+  if (raw.includes("lead")) return "lead";
+  if (raw.includes("support")) return "support";
   if (raw.includes("community") || raw.includes("notice") || raw.includes("announcement")) return "community";
   if (raw.includes("market")) return "marketing";
   if (raw.includes("sales") || raw.includes("lead")) return "sales";

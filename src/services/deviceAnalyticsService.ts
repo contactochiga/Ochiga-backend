@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent } from "../core/foundation";
 import { updateDeviceRuntimeSession } from "./deviceRuntimeSessionsService";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 type DeviceEventSource =
   | "app"
@@ -238,6 +239,25 @@ export async function recordDeviceEvent(input: RecordDeviceEventInput) {
     newState: input.newState || null,
     occurredAt,
   }).catch((error) => console.warn("[device_runtime_sessions] update failed", error?.message || String(error)));
+
+  // The operational write above is authoritative; intelligence publishing is best effort.
+  void publishSourceIntelligenceEvent({
+    source: "edge",
+    surface: "consumer",
+    event_type: input.eventType,
+    category: /offline|failed|failure/i.test(input.eventType) ? "device" : "operational",
+    estate_id: input.estateId || null,
+    home_id: input.homeId || null,
+    actor_id: input.actorId || input.userId || null,
+    entity_type: "device",
+    entity_id: deviceId,
+    entity_label: String(input.metadata?.device_name || "Device"),
+    severity: /offline|failed|failure/i.test(input.eventType) ? "attention" : "normal",
+    title,
+    summary,
+    payload: { source, previous_state: input.previousState || {}, new_state: input.newState || {}, metadata: input.metadata || {} },
+    occurred_at: occurredAt,
+  }, { source_table: "device_events", source_event_id: input.providerEventId || `${deviceId}:${input.eventType}:${occurredAt}` });
 
   return { ok: true, source, confidence, title };
 }

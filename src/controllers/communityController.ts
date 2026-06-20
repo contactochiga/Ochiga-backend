@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { UserRole } from "../types/user";
 import { uploadToS3 } from "../services/s3Service";
 import { NotificationService } from "../services/NotificationService";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { CommunityLiveService } from "../services/communityLiveService";
 // import { handleSignal } from "../core/control-plane"; // enable later
 
@@ -455,6 +456,23 @@ export async function createPost(req: Request, res: Response) {
       console.warn("community announcement notify failed:", notifyErr);
     }
   }
+
+  void publishSourceIntelligenceEvent({
+    source: "facility",
+    surface: "facility",
+    event_type: "community.post.created",
+    category: "community",
+    estate_id: String(resolvedEstateId),
+    actor_id: String(user.id),
+    entity_type: "community_post",
+    entity_id: String(data?.id || ""),
+    entity_label: derivedTitle,
+    severity: payload.priority === "critical" ? "attention" : "info",
+    title: derivedTitle,
+    summary: normalizedBody || "Community update created.",
+    payload: { category: payload.category || null, status: payload.status || "active", audience_type: payload.audience_type || null },
+    occurred_at: data?.created_at,
+  }, { source_table: "community_posts", source_event_id: String(data?.id || "") });
 
   return res.json(normalizePostOutput(data));
 }
@@ -929,6 +947,13 @@ export async function updatePost(req: Request, res: Response) {
 
   try {
     const data = await updateCommunityPostWithFallback(postId, patch);
+    void publishSourceIntelligenceEvent({
+      source: "facility", surface: "facility", event_type: "community.post.moderated", category: "community",
+      estate_id: String(data?.estate_id || post.estate_id || ""), actor_id: String(user.id), entity_type: "community_post",
+      entity_id: String(data?.id || postId), entity_label: data?.title || post.title || "Community post", severity: "info",
+      title: "Community post updated", summary: "A community post was updated through the moderation workflow.",
+      payload: { status: data?.status || patch.status || null, priority: data?.priority || patch.priority || null }, occurred_at: data?.updated_at,
+    }, { source_table: "community_posts", source_event_id: `${data?.id || postId}:community.post.moderated:${data?.updated_at || patch.updated_at}` });
     return res.json(normalizePostOutput(data));
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Failed to update post" });
@@ -965,6 +990,13 @@ export async function deletePost(req: Request, res: Response) {
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
+  void publishSourceIntelligenceEvent({
+    source: "facility", surface: "facility", event_type: "community.post.moderated", category: "community",
+    estate_id: String(data?.estate_id || post.estate_id || ""), actor_id: String(user.id), entity_type: "community_post",
+    entity_id: String(data?.id || postId), entity_label: data?.title || post.title || "Community post", severity: "info",
+    title: "Community post removed", summary: "A community post was removed through the moderation workflow.",
+    payload: { status: "deleted" }, occurred_at: data?.updated_at,
+  }, { source_table: "community_posts", source_event_id: `${data?.id || postId}:community.post.deleted` });
   return res.json(data);
 }
 
@@ -1382,6 +1414,23 @@ export async function reportPost(req: Request, res: Response) {
     }
     return res.status(500).json({ error: error.message });
   }
+
+  void publishSourceIntelligenceEvent({
+    source: "facility",
+    surface: "facility",
+    event_type: "community.report.created",
+    category: "community",
+    estate_id: String(post.estate_id || user.estate_id || ""),
+    actor_id: String(user.id),
+    entity_type: "community_post_report",
+    entity_id: String(data?.id || ""),
+    entity_label: "Community report",
+    severity: "attention",
+    title: "Community report submitted",
+    summary: details || `A community post was reported: ${reason}.`,
+    payload: { post_id: String(postId), reason, status: data?.status || "open" },
+    occurred_at: data?.created_at,
+  }, { source_table: "community_post_reports", source_event_id: String(data?.id || "") });
 
   return res.json({ ok: true, report: data });
 }

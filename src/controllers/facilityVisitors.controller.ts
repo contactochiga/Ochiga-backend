@@ -1,6 +1,7 @@
 // src/controllers/facilityVisitors.controller.ts
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 type AuthReq = Request & { user?: { id: string; estate_id?: string; role?: string } };
 
@@ -140,6 +141,24 @@ export async function updateVisitorStatusFacility(req: AuthReq, res: Response) {
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
+
+    void publishSourceIntelligenceEvent({
+      source: "facility",
+      surface: "facility",
+      event_type: `visitor_access.${status}`,
+      category: "visitor",
+      estate_id: data?.estate_id || estateId,
+      home_id: data?.home_id || null,
+      actor_id: req.user.id,
+      entity_type: "visitor_access",
+      entity_id: data?.id || id,
+      entity_label: data?.visitor_name || "Visitor access",
+      severity: /denied|expired/i.test(status) ? "attention" : "info",
+      title: `${data?.visitor_name || "Visitor"} access ${status}`,
+      summary: `Visitor access was updated to ${status}.`,
+      payload: { status, purpose: data?.purpose || null },
+      occurred_at: data?.updated_at,
+    }, { source_table: "visitor_access", source_event_id: `${data?.id || id}:visitor_access.${status}` });
 
     return res.json({ ok: true, visitor: data });
   } catch (e: any) {

@@ -1,6 +1,7 @@
 // src/controllers/maintenance.controller.ts
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 type AuthReq = Request & {
   user?: { id: string; estate_id?: string; role?: string };
@@ -196,6 +197,24 @@ export async function createMaintenance(req: AuthReq, res: Response) {
       created_at: new Date().toISOString(),
     });
 
+    void publishSourceIntelligenceEvent({
+      source: "consumer",
+      surface: "consumer",
+      event_type: "maintenance.created",
+      category: "maintenance",
+      estate_id: estateId,
+      home_id: homeId || null,
+      actor_id: userId,
+      entity_type: "maintenance_request",
+      entity_id: request.id,
+      entity_label: request.title || "Maintenance request",
+      severity: String(request.priority || priority || "").toLowerCase() === "critical" ? "critical" : "attention",
+      title: request.title || "Maintenance request created",
+      summary: request.description || "A maintenance request was submitted.",
+      payload: { status: request.status || "open", priority: request.priority || priority || "medium", category: request.category || category || null },
+      occurred_at: request.created_at,
+    }, { source_table: "maintenance_requests", source_event_id: `${request.id}:maintenance.created` });
+
     const opsUserIds = await listEstateOpsUserIds(estateId);
 
     if (opsUserIds.length) {
@@ -295,6 +314,27 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
+
+    const eventType = status
+      ? `maintenance.${String(status).toLowerCase().replace(/\s+/g, "_")}`
+      : assigned_to ? "maintenance.assigned" : "maintenance.updated";
+    void publishSourceIntelligenceEvent({
+      source: "facility",
+      surface: "facility",
+      event_type: eventType,
+      category: "maintenance",
+      estate_id: updated?.estate_id || existing.estate_id || null,
+      home_id: updated?.home_id || existing.home_id || null,
+      actor_id: userId,
+      entity_type: "maintenance_request",
+      entity_id: updated?.id || id,
+      entity_label: updated?.title || existing.title || "Maintenance request",
+      severity: /overdue|blocked|cancelled/i.test(String(status || "")) ? "warning" : "info",
+      title: updated?.title || existing.title || "Maintenance request updated",
+      summary: note || `Maintenance request is now ${updated?.status || status || "updated"}.`,
+      payload: { status: updated?.status || status || null, assigned_to: updated?.assigned_to || assigned_to || null },
+      occurred_at: updated?.updated_at,
+    }, { source_table: "maintenance_requests", source_event_id: `${updated?.id || id}:${eventType}` });
 
     // ✅ FIX: requester column is resident_id
     const requesterId = existing.resident_id || null;

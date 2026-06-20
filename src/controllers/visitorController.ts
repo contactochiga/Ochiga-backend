@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { generateAccessCode } from "../services/codeService";
 import { createQrForLink } from "../services/qrService";
 import { notifyUser, NotificationPayload } from "../services/NotificationService";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 const DEFAULT_EXPIRES_HOURS = Number(process.env.VISITOR_DEFAULT_EXPIRES_HOURS || 12);
 const VISITOR_LINK_BASE = process.env.VISITOR_LINK_BASE || "";
@@ -30,6 +31,26 @@ function readUserContext(req: Request) {
     estateId: user?.estate_id || user?.estateId || null,
     homeId: user?.home_id || user?.homeId || null,
   };
+}
+
+function publishVisitorAccessEvent(visitor: any, eventType: string, actorId?: string | null) {
+  void publishSourceIntelligenceEvent({
+    source: "consumer",
+    surface: "consumer",
+    event_type: eventType,
+    category: "visitor",
+    estate_id: visitor?.estate_id || null,
+    home_id: visitor?.home_id || null,
+    actor_id: actorId || visitor?.created_by || visitor?.resident_id || null,
+    entity_type: "visitor_access",
+    entity_id: visitor?.id || null,
+    entity_label: visitor?.visitor_name || "Visitor access",
+    severity: /denied|expired/i.test(eventType) ? "attention" : "info",
+    title: `${visitor?.visitor_name || "Visitor"} access ${eventType.split(".").pop() || "updated"}`,
+    summary: `Visitor access is ${visitor?.status || "updated"}.`,
+    payload: { status: visitor?.status || null, purpose: visitor?.purpose || null, expires_at: visitor?.expires_at || null },
+    occurred_at: visitor?.updated_at || visitor?.created_at,
+  }, { source_table: "visitor_access", source_event_id: `${visitor?.id || "unknown"}:${eventType}` });
 }
 
 /**
@@ -94,6 +115,7 @@ export async function createVisitor(req: Request, res: Response) {
     }
 
     const visitorId = data.id as string;
+    publishVisitorAccessEvent(data, "visitor_access.created", userId);
 
     // Build link + QR (optional)
     const link = VISITOR_LINK_BASE ? `${VISITOR_LINK_BASE}/${visitorId}` : null;
@@ -223,6 +245,7 @@ export async function approveVisitor(req: Request, res: Response) {
       };
       await notifyUser(residentId, payload);
     }
+    publishVisitorAccessEvent(data, "visitor_access.approved");
 
     return res.json({ ok: true, visitor: data });
   } catch (err: any) {
@@ -260,6 +283,7 @@ export async function denyVisitor(req: Request, res: Response) {
       };
       await notifyUser(residentId, payload);
     }
+    publishVisitorAccessEvent(data, "visitor_access.denied");
 
     return res.json({ ok: true, visitor: data });
   } catch (err: any) {
@@ -307,7 +331,8 @@ export async function markEntry(req: Request, res: Response) {
 
     if (aErr) return res.status(500).json({ error: aErr.message });
 
-    await supabaseAdmin.from("visitor_access").update({ status: "entered" }).eq("id", id);
+    const { data: enteredVisitor } = await supabaseAdmin.from("visitor_access").update({ status: "entered" }).eq("id", id).select().maybeSingle();
+    publishVisitorAccessEvent(enteredVisitor || { ...va, status: "entered", updated_at: arrivedAt }, "visitor_access.used", userId);
 
     const residentId = va.resident_id || va.created_by;
     if (residentId) {
@@ -382,7 +407,8 @@ export async function markExit(req: Request, res: Response) {
       } as any);
     }
 
-    await supabaseAdmin.from("visitor_access").update({ status: "exited" }).eq("id", id);
+    const { data: exitedVisitor } = await supabaseAdmin.from("visitor_access").update({ status: "exited" }).eq("id", id).select().maybeSingle();
+    publishVisitorAccessEvent(exitedVisitor || { ...va, status: "exited", updated_at: exitedAt }, "visitor_access.exited", userId);
 
     const residentId = va.resident_id || va.created_by;
     if (residentId) {

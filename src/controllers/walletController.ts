@@ -7,6 +7,7 @@ import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
 import { emitAuditEvent } from "../core/foundation";
 import { recordProviderWebhookEvent } from "../services/providerWebhookEvents";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 /**
  * Wallet funding is enabled by default.
@@ -144,6 +145,13 @@ async function applyFundingCredit(params: {
     reference,
     timestamp: new Date().toISOString(),
   });
+
+  void publishSourceIntelligenceEvent({
+    source: "consumer", surface: "consumer", event_type: "wallet.transaction.completed", category: "wallet",
+    actor_id: userId, entity_type: "wallet_transaction", entity_id: reference, entity_label: "Wallet funding", severity: "info",
+    title: "Wallet funding completed", summary: `Wallet funding of NGN ${Number(amount).toLocaleString("en-NG")} was completed.`,
+    payload: { wallet_id: wallet.id, amount: Number(amount), balance: nextBalance, method, reference },
+  }, { source_table: "wallet_transactions", source_event_id: reference });
 
   return { applied: true, walletId: wallet.id, balance: nextBalance };
 }
@@ -430,6 +438,13 @@ export async function debitWallet(req: Request, res: Response) {
     reason: reason ?? "manual_debit",
     timestamp: new Date().toISOString(),
   });
+  void publishSourceIntelligenceEvent({
+    source: "consumer", surface: "consumer", event_type: "wallet.transaction.debited", category: "wallet",
+    estate_id: user.estate_id || null, home_id: user.home_id || null, actor_id: user.id, entity_type: "wallet_transaction",
+    entity_id: txReference, entity_label: "Wallet debit", severity: "info", title: "Wallet debit recorded",
+    summary: `NGN ${amountNumber.toLocaleString("en-NG")} was debited from the wallet.`,
+    payload: { wallet_id: wallet.id, amount: amountNumber, balance, reason: reason ?? "manual_debit" },
+  }, { source_table: "wallet_transactions", source_event_id: txReference });
   void emitAuditEvent({
     actorId: user.id,
     actorRole: user.role,

@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { io } from "../server";
 import { PushNotificationService } from "./PushNotificationService";
 import { decideNotification, recordNotificationDecision } from "./notificationPolicyService";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 /**
  * Types of notifications
@@ -30,6 +31,27 @@ export interface NotificationPayload {
   type: NotificationType;
   payload?: Record<string, any>; // optional structured data
   entityId?: string;             // optional related entity
+}
+
+function publishNotificationEvent(row: any) {
+  if (!row?.id) return;
+  void publishSourceIntelligenceEvent({
+    source: "consumer",
+    surface: "consumer",
+    event_type: `notification.${String(row.type || "created").toLowerCase()}`,
+    category: String(row.type || "system"),
+    estate_id: row.estate_id || row.payload?.estate_id || null,
+    home_id: row.home_id || row.payload?.home_id || null,
+    actor_id: row.user_id || null,
+    entity_type: "notification",
+    entity_id: row.id,
+    entity_label: row.title || "Notification",
+    severity: /security|critical|emergency/i.test(`${row.type || ""} ${row.title || ""}`) ? "critical" : "info",
+    title: row.title || "Notification",
+    summary: row.message || row.title || "Notification created.",
+    payload: row.payload || {},
+    occurred_at: row.created_at,
+  }, { source_table: "notifications", source_event_id: String(row.id) });
 }
 
 function extractMissingColumnName(msg: string): string | null {
@@ -192,6 +214,7 @@ export class NotificationService {
     const data = rows?.[0] || null;
 
     if (!error && data) {
+      publishNotificationEvent(data);
       io.to(`user:${userId}`).emit("notification:new", data);
       if (!policy || policy.decision === "push" || policy.decision === "critical_push") {
         await PushNotificationService.sendToUsers([userId], {
@@ -239,9 +262,10 @@ export class NotificationService {
     }
     const { data, error: insertError } = await insertNotificationRows(prepared);
 
-    (data || []).forEach((row: any) =>
-      io.to(`user:${row.user_id}`).emit("notification:new", row)
-    );
+    (data || []).forEach((row: any) => {
+      publishNotificationEvent(row);
+      io.to(`user:${row.user_id}`).emit("notification:new", row);
+    });
 
     for (const row of data || []) {
       if (!pushRows.has(String((row as any).user_id))) continue;
@@ -290,9 +314,10 @@ export class NotificationService {
     }
     const { data, error: insertError } = await insertNotificationRows(prepared);
 
-    (data || []).forEach((row: any) =>
-      io.to(`user:${row.user_id}`).emit("notification:new", row)
-    );
+    (data || []).forEach((row: any) => {
+      publishNotificationEvent(row);
+      io.to(`user:${row.user_id}`).emit("notification:new", row);
+    });
 
     for (const row of data || []) {
       if (!pushRows.has(String((row as any).user_id))) continue;
@@ -340,9 +365,10 @@ export class NotificationService {
     }
     const { data, error: insertError } = await insertNotificationRows(prepared);
 
-    (data || []).forEach((row: any) =>
-      io.to(`user:${row.user_id}`).emit("notification:new", row)
-    );
+    (data || []).forEach((row: any) => {
+      publishNotificationEvent(row);
+      io.to(`user:${row.user_id}`).emit("notification:new", row);
+    });
 
     for (const row of data || []) {
       if (!pushRows.has(String((row as any).user_id))) continue;
@@ -391,9 +417,10 @@ export class NotificationService {
 
     const { data, error: insertError } = await insertNotificationRows(prepared);
 
-    (data || []).forEach((row: any) =>
-      io.to(`user:${row.user_id}`).emit("notification:new", row)
-    );
+    (data || []).forEach((row: any) => {
+      publishNotificationEvent(row);
+      io.to(`user:${row.user_id}`).emit("notification:new", row);
+    });
 
     for (const row of data || []) {
       if (!pushRows.has(String((row as any).user_id))) continue;

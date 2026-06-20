@@ -149,6 +149,27 @@ function normalizeVisitor(row: any): IntelligenceEvent {
   });
 }
 
+function normalizeVisitorAccess(row: any): IntelligenceEvent {
+  const name = text(row.visitor_name || row.full_name, "Visitor access");
+  const status = text(row.status, "updated");
+  return normalizeCoreBusEvent({
+    id: row.id,
+    actor_id: row.created_by || row.resident_id || null,
+    agent_id: "facility",
+    surface: "facility",
+    estate_id: row.estate_id || null,
+    home_id: row.home_id || null,
+    event_type: `visitor_access.${status}`,
+    category: "visitor",
+    title: name,
+    summary: `${name} access is ${status}.`,
+    confidence: "confirmed",
+    source: "visitor_access",
+    metadata: { source_table: "visitor_access", source_event_id: row.id, status: row.status || null, purpose: row.purpose || null, expires_at: row.expires_at || null },
+    occurred_at: row.updated_at || row.created_at || new Date().toISOString(),
+  });
+}
+
 function normalizeNotification(row: any): IntelligenceEvent {
   return normalizeCoreBusEvent({
     id: row.id,
@@ -192,7 +213,7 @@ export async function loadNormalizedTimelineEvents(filters: IntelligenceEventFil
   const limit = clampLimit(filters.limit, 50);
   const warnings: string[] = [];
 
-  const [home, devices, cameras, maintenance, visitors, notifications, audit] = await Promise.all([
+  const [home, devices, cameras, maintenance, visitors, visitorAccess, notifications, audit] = await Promise.all([
     safeSelect("home_timeline", "*", (q) => scopedQuery(q.order("occurred_at", { ascending: false }).limit(limit), actor, filters)),
     safeSelect("device_events", "*", (q) => scopedQuery(q.order("occurred_at", { ascending: false }).limit(limit), actor, filters)),
     safeSelect("camera_events", "*", (q) => {
@@ -204,6 +225,7 @@ export async function loadNormalizedTimelineEvents(filters: IntelligenceEventFil
     }),
     safeSelect("maintenance_requests", "*", (q) => scopedQuery(q.order("updated_at", { ascending: false }).limit(limit), actor, filters)),
     safeSelect("visitors", "*", (q) => scopedQuery(q.order("updated_at", { ascending: false }).limit(limit), actor, filters)),
+    safeSelect("visitor_access", "*", (q) => scopedQuery(q.order("updated_at", { ascending: false }).limit(limit), actor, filters)),
     safeSelect("notifications", "id,user_id,estate_id,title,message,type,payload,status,created_at", (q) => {
       let query = q.order("created_at", { ascending: false }).limit(limit);
       if (actor?.id) query = query.eq("user_id", actor.id);
@@ -214,7 +236,7 @@ export async function loadNormalizedTimelineEvents(filters: IntelligenceEventFil
     safeSelect("audit_events", "*", (q) => scopedQuery(q.order("created_at", { ascending: false }).limit(limit), actor, filters)),
   ]);
 
-  for (const result of [home, devices, cameras, maintenance, visitors, notifications, audit]) {
+  for (const result of [home, devices, cameras, maintenance, visitors, visitorAccess, notifications, audit]) {
     if (result.warning) warnings.push(result.warning);
   }
 
@@ -224,6 +246,7 @@ export async function loadNormalizedTimelineEvents(filters: IntelligenceEventFil
     ...cameras.rows.map(normalizeCameraEvent),
     ...maintenance.rows.map(normalizeMaintenance),
     ...visitors.rows.map(normalizeVisitor),
+    ...visitorAccess.rows.map(normalizeVisitorAccess),
     ...notifications.rows.map(normalizeNotification),
     ...audit.rows.map(normalizeActivity),
   ]

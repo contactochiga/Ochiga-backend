@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { getIO } from "../realtime/io";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 export type ServiceRegistryEventName =
   | "service.config.updated"
@@ -43,6 +44,24 @@ export async function emitServiceRegistryEvent(input: ServiceRegistryEventInput)
       console.warn("service registry event insert failed:", err);
     }
   }
+
+  void publishSourceIntelligenceEvent({
+    source: "facility",
+    surface: "facility",
+    event_type: input.event,
+    category: /payment/.test(input.event) ? "wallet" : "service",
+    estate_id: event.estate_id,
+    home_id: event.home_id,
+    actor_id: event.actor_id,
+    entity_type: "service_registry",
+    entity_id: event.service_key || event.home_id || event.estate_id,
+    entity_label: event.service_key || "Service registry",
+    severity: "info",
+    title: `Service registry ${String(input.event).split(".").pop() || "updated"}`,
+    summary: `Service configuration changed for ${event.service_key || "the active scope"}.`,
+    payload: event.payload || {},
+    occurred_at: now,
+  }, { source_table: "service_registry_events", source_event_id: `${input.event}:${event.home_id || event.estate_id || "global"}:${event.service_key || "all"}:${now}` });
 
   const socketPayload = { ...event, event: input.event, timestamp: now };
   const io = getIO();

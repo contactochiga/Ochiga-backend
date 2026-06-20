@@ -47,6 +47,16 @@ export type IntelligenceEventCategory =
   | "security"
   | "maintenance"
   | "visitor"
+  | "device"
+  | "utility"
+  | "wallet"
+  | "service"
+  | "automation"
+  | "workflow"
+  | "prediction"
+  | "office"
+  | "lead"
+  | "support"
   | "community"
   | "marketing"
   | "sales"
@@ -64,7 +74,11 @@ export type IntelligenceSurface =
   | "website"
   | "whatsapp"
   | "widget"
-  | "api";
+  | "api"
+  | "twin"
+  | "plan_studio"
+  | "oma"
+  | "osa";
 
 export type IntelligenceAgentDefinition = {
   id: IntelligenceAgentId;

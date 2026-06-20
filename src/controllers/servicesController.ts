@@ -5,6 +5,7 @@ import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions"
 import { NotificationService } from "../services/NotificationService";
 import { sendEmail } from "../services/emailService";
 import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 type ServiceKey =
   | "utility_token"
@@ -1030,6 +1031,24 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     actor_id: String(user.id),
     payload: { reason: "service_payment" },
   });
+
+  void publishSourceIntelligenceEvent({
+    source: "consumer",
+    surface: "consumer",
+    event_type: "wallet.service_payment.updated",
+    category: "wallet",
+    estate_id: estateId || null,
+    home_id: String(home.id),
+    actor_id: String(user.id),
+    entity_type: "wallet_transaction",
+    entity_id: String(txRow?.id || reference),
+    entity_label: metadata.receipt.title,
+    severity: fulfillmentStatus === "completed" ? "info" : "attention",
+    title: `${metadata.receipt.title} payment recorded`,
+    summary: fulfillmentStatus === "completed" ? "Service payment was completed." : "Service payment is awaiting provider confirmation.",
+    payload: { service_key: serviceKey, receipt, balance: nextBalance, fulfillment_status: fulfillmentStatus },
+    occurred_at: now,
+  }, { source_table: "wallet_transactions", source_event_id: String(txRow?.id || reference) });
 
   return res.json({
     ok: true,
