@@ -41,9 +41,12 @@ type ConversationState = {
   active_entity_id?: string | null;
   active_entity_label?: string | null;
   active_list_position?: number | null;
+  active_entity_position?: number | null;
+  active_list_count?: number;
   active_action?: string | null;
   active_workflow?: Record<string, unknown> | null;
   last_response_type?: string | null;
+  active_list?: ConversationEntity[];
   last_displayed_records?: ConversationEntity[];
   conversation_state?: "idle" | "browsing" | "inspecting" | "confirming" | "executing" | "reviewing";
   active_topic?: ConversationEntity["type"] | null;
@@ -145,7 +148,7 @@ function validUuid(value?: string | null) {
 }
 
 function emptyConversationState(): ConversationState {
-  return { version: 1, entities: [], last_displayed_records: [], conversation_state: "idle" };
+  return { version: 1, entities: [], active_list: [], last_displayed_records: [], conversation_state: "idle" };
 }
 
 function entityTypeFromCard(card: any): ConversationEntity["type"] | null {
@@ -195,15 +198,39 @@ function entitiesFromCards(cards: any[]): ConversationEntity[] {
   return entities.slice(0, 20);
 }
 
+function topicForDomain(domain?: string | null): ConversationState["active_topic"] | null {
+  const value = String(domain || "").toLowerCase();
+  if (/visitor|access/.test(value)) return "visitor";
+  if (/maintenance|repair/.test(value)) return "maintenance";
+  if (/device|camera|infrastructure|sensor/.test(value)) return "device";
+  if (/wallet|finance|payment/.test(value)) return "wallet";
+  if (/service|utility/.test(value)) return "service";
+  if (/community|notice/.test(value)) return "community";
+  if (/report|audit/.test(value)) return "report";
+  if (/awareness|attention/.test(value)) return "awareness";
+  return null;
+}
+
 function conversationStateFromResponse(previous: ConversationState, response: any, userMessage: string): ConversationState {
   const results = Array.isArray(response?.execution?.results) ? response.execution.results : [];
   const pending = results.find((row: any) => row?.status === "pending_confirmation" && row?.ledger_id);
-  const entities = Array.isArray(response?.conversation_entities)
+  const hasResponseEntities = Array.isArray(response?.conversation_entities);
+  const responseEntities = hasResponseEntities
     ? response.conversation_entities.slice(0, 50)
     : entitiesFromCards(response?.cards || []);
-  const activeTopic = response?.conversation_topic || topicForIntent(response?.intent) || previous.active_topic || null;
-  const activeResultState = response?.conversation_result_state || (activeTopic ? (entities.length ? "list" : "empty") : previous.active_result_state || null);
   const activeEntity = response?.conversation_active_entity || null;
+  // A detail/investigation reply must retain the list and domain it came from.
+  const entities = hasResponseEntities
+    ? responseEntities
+    : activeEntity ? previous.entities.slice(0, 50) : responseEntities.length ? responseEntities : previous.entities.slice(0, 50);
+  const activeTopic = response?.conversation_topic
+    || topicForDomain(response?.domain)
+    || (activeEntity ? previous.active_topic : null)
+    || topicForIntent(response?.intent)
+    || previous.active_topic
+    || null;
+  const activeResultState = response?.conversation_result_state
+    || (activeEntity ? "entity" : hasResponseEntities ? (entities.length ? "list" : "empty") : previous.active_result_state || null);
   const workflow = response?.execution_workflow || previous.active_workflow || null;
   const workflowStage = String((workflow as any)?.stage || "");
   const conversationState = workflowStage === "confirmation_required" ? "confirming"
@@ -216,35 +243,83 @@ function conversationStateFromResponse(previous: ConversationState, response: an
     version: 1,
     last_intent: response?.intent || previous.last_intent,
     last_user_message: userMessage.slice(0, 500),
-    entities: activeResultState === "empty" ? [] : entities.length ? entities : previous.entities.slice(0, 20),
+    entities: activeResultState === "empty" ? [] : entities.slice(0, 50),
     active_domain: response?.domain || previous.active_domain || null,
     active_entity_type: activeEntity?.type || (activeResultState === "list" ? null : previous.active_entity_type || null),
     active_entity_id: activeEntity?.id || (activeResultState === "list" ? null : previous.active_entity_id || null),
     active_entity_label: activeEntity?.title || (activeResultState === "list" ? null : previous.active_entity_label || null),
     active_list_position: Number.isFinite(Number(activeEntity?.position)) ? Number(activeEntity.position) : activeResultState === "list" ? null : previous.active_list_position || null,
+    active_entity_position: Number.isFinite(Number(activeEntity?.position)) ? Number(activeEntity.position) : activeResultState === "list" ? null : previous.active_entity_position || null,
+    active_list_count: activeResultState === "empty" ? 0 : entities.length,
     active_action: response?.conversation_action || previous.active_action || null,
     active_workflow: workflow,
     last_response_type: response?.display_mode || previous.last_response_type || "conversation",
-    last_displayed_records: activeResultState === "empty" ? [] : entities.length ? entities.slice(0, 50) : previous.last_displayed_records || [],
+    active_list: activeResultState === "empty" ? [] : entities.slice(0, 50),
+    last_displayed_records: activeResultState === "empty" ? [] : entities.slice(0, 50),
     conversation_state: conversationState,
     active_topic: activeTopic,
     active_result_state: activeResultState,
     list_offset: Number.isFinite(Number(response?.conversation_offset)) ? Number(response.conversation_offset) : previous.list_offset || 0,
-    pending_confirmation_id: pending?.ledger_id || null,
-    pending_action_summary: pending?.summary || null,
+    pending_confirmation_id: pending?.ledger_id || (workflowStage === "execution_result" ? null : previous.pending_confirmation_id || null),
+    pending_action_summary: pending?.summary || (workflowStage === "execution_result" ? null : previous.pending_action_summary || null),
   };
 }
 
-function ordinalEntity(message: string, entities: ConversationEntity[]) {
-  const lower = message.toLowerCase();
-  const ordinal = /\bfirst\b/.test(lower) ? 0 : /\bsecond\b/.test(lower) ? 1 : /\bthird\b/.test(lower) ? 2 : /\blast\b/.test(lower) ? Math.max(0, entities.length - 1) : 0;
-  return entities[ordinal] || null;
+function ordinalIndex(message: string, entityCount: number) {
+  const lower = message.trim().toLowerCase();
+  if (/\b(?:the\s+)?first(?:\s+one)?\b|\b1st\b|^(?:number\s+)?(?:one|1)$/.test(lower)) return 0;
+  if (/\b(?:the\s+)?second(?:\s+one)?\b|\b2nd\b|^(?:number\s+)?(?:two|2)$/.test(lower)) return 1;
+  if (/\b(?:the\s+)?third(?:\s+one)?\b|\b3rd\b|^(?:number\s+)?(?:three|3)$/.test(lower)) return 2;
+  if (/\b(?:the\s+)?last(?:\s+one)?\b/.test(lower)) return Math.max(0, entityCount - 1);
+  return null;
 }
 
-function isFollowUpMessage(message: string) {
+function normalizeEntityReference(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function namedEntity(message: string, entities: ConversationEntity[]) {
+  const reference = String(message || "")
+    .replace(/^(?:show|open|inspect|select|choose|view|tell me about|details? (?:for|of)|the)\s+/i, "")
+    .replace(/[?!.,]+$/g, "")
+    .trim();
+  const query = normalizeEntityReference(reference);
+  if (query.length < 3 || /^(?:it|that one|this one|why|when|who|history|activity|more)$/.test(query)) return null;
+  const exact = entities.find((entity) => normalizeEntityReference(entity.title) === query);
+  if (exact) return exact;
+  return entities.find((entity) => {
+    const label = normalizeEntityReference(entity.title);
+    return label.includes(query) || query.includes(label);
+  }) || null;
+}
+
+function ordinalEntity(message: string, entities: ConversationEntity[]) {
+  const index = ordinalIndex(message, entities.length);
+  return index === null ? null : entities[index] || null;
+}
+
+function activeEntityFromState(state: ConversationState) {
+  if (!state.active_entity_id && !state.active_entity_label) return null;
+  return state.entities.find((entity) => (state.active_entity_id && entity.id === state.active_entity_id) || (state.active_entity_label && entity.title === state.active_entity_label)) || null;
+}
+
+function referencedEntity(message: string, state: ConversationState) {
+  const ordinal = ordinalEntity(message, state.entities);
+  if (ordinal) return ordinal;
+  const named = namedEntity(message, state.entities);
+  if (named) return named;
+  const lower = message.trim().toLowerCase();
+  if (/\b(it|that one|this one)\b|^(?:why|when|who)(?:\?|$)|^(?:show )?(?:activity|history)$|^(?:approve|reject|remove|assign|turn|switch|run)\b/i.test(lower)) {
+    return activeEntityFromState(state);
+  }
+  return null;
+}
+
+function isFollowUpMessage(message: string, state?: ConversationState) {
   const value = message.trim().toLowerCase();
   if (["why", "why?", "when", "when?", "who", "who?"].includes(value)) return true;
-  return /\b(approve|reject|assign|show me more|more details|what should i do next|do it|go ahead|that one|this one|the first|the second|the third|when was|who reported|why did|it)\b/i.test(value);
+  if (state && referencedEntity(message, state)) return true;
+  return /\b(approve|reject|remove|assign|show me more|more details|show activity|show history|what should i do next|do it|go ahead|proceed|cancel|that one|this one|the first|the second|the third|1st|2nd|3rd|when was|who reported|why did|it)\b/i.test(value);
 }
 
 function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] | null {
@@ -272,8 +347,8 @@ function followUpIntent(message: string, state: ConversationState): OyiIntentCat
 }
 
 function expandFollowUpMessage(message: string, state: ConversationState) {
-  if (!isFollowUpMessage(message)) return message;
-  const entity = ordinalEntity(message, state.entities);
+  if (!isFollowUpMessage(message, state)) return message;
+  const entity = referencedEntity(message, state);
   const lower = message.toLowerCase().trim();
   if (/show me more|more details/.test(lower)) return state.last_user_message || message;
   if (/^why\??$/.test(lower) && entity) return `Why is ${entity.title} in its current state?`;
@@ -288,7 +363,7 @@ export function resolveConversationFollowUpForTest(message: string, state: Parti
     ...state,
     entities: Array.isArray(state.entities) ? state.entities as ConversationEntity[] : [],
   };
-  const entity = ordinalEntity(message, normalized.entities);
+  const entity = referencedEntity(message, normalized);
   const lower = message.trim().toLowerCase();
   const resolution = normalized.active_result_state === "empty" && normalized.active_topic
     ? /show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message) ? "empty_ordinal"
@@ -299,7 +374,7 @@ export function resolveConversationFollowUpForTest(message: string, state: Parti
         : /show me more/.test(lower) ? "continuation"
           : entity ? "entity" : "none";
   return {
-    is_follow_up: isFollowUpMessage(message),
+    is_follow_up: isFollowUpMessage(message, normalized),
     intent: followUpIntent(message, normalized),
     entity: entity ? { type: entity.type, id: entity.id || null, title: entity.title } : null,
     expanded_message: expandFollowUpMessage(message, normalized),
@@ -1160,7 +1235,7 @@ async function loadConversationContext(actor: AuthUser | null, input: OyiChatInp
       ? {
           ...emptyConversationState(),
           ...raw,
-          entities: Array.isArray(raw.entities) ? raw.entities.slice(0, 20) : [],
+          entities: Array.isArray(raw.entities) ? raw.entities.slice(0, 50) : Array.isArray(raw.active_list) ? raw.active_list.slice(0, 50) : [],
         } as ConversationState
       : emptyConversationState();
     return { state, estate_id: data.estate_id || null, home_id: data.home_id || null };
@@ -1171,44 +1246,92 @@ async function loadConversationContext(actor: AuthUser | null, input: OyiChatInp
 
 async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatInput, state: ConversationState): Promise<OperatingResult | null> {
   const message = String(input.message || "").trim();
-  if (!isFollowUpMessage(message)) return null;
-  const entity = ordinalEntity(message, state.entities);
+  if (!isFollowUpMessage(message, state)) return null;
+  const entity = referencedEntity(message, state);
   const intent = followUpIntent(message, state);
   const surface = safeSurface(input.surface);
   const details = entity?.details || {};
   const dateLabel = (value: unknown, label: string) => value ? `${label} ${new Date(String(value)).toLocaleString()}.` : "The available record does not include that time.";
+  const preserveConversation = (result: OperatingResult): OperatingResult => ({
+    ...result,
+    domain: result.domain || state.active_domain || null,
+    conversation_topic: result.conversation_topic || state.active_topic || null,
+    conversation_result_state: result.conversation_result_state || (result.conversation_active_entity ? "entity" : state.active_result_state || null),
+    conversation_entities: result.conversation_entities || state.entities,
+  });
 
   if (state.active_result_state === "empty" && state.active_topic) {
     if (/show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message)) {
-      return { intent, understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `There is no ${/second|third/.test(message.toLowerCase()) ? "matching" : "first"} ${topicLabel(state.active_topic)} to show because none are currently available in this context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
+      return preserveConversation({ intent, understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `There is no ${/second|third/.test(message.toLowerCase()) ? "matching" : "first"} ${topicLabel(state.active_topic)} to show because none are currently available in this context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
     }
     if (/^(why|why\?)|why did/i.test(message)) {
-      return { intent: "investigation", understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `Because there are no ${topicLabel(state.active_topic, true)} in the current ${surface === "facility" ? "estate" : "home"} context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
+      return preserveConversation({ intent: "investigation", understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `Because there are no ${topicLabel(state.active_topic, true)} in the current ${surface === "facility" ? "estate" : "home"} context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
     }
   }
 
   if (!entity && state.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who reported|why did/i.test(message)) {
-    return { intent: "investigation", understood: `The active topic is ${topicLabel(state.active_topic, true)}.`, message: `Which ${topicLabel(state.active_topic)} do you mean? You can say “the first one” or name it.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
+    return preserveConversation({ intent: "investigation", understood: `The active topic is ${topicLabel(state.active_topic, true)}.`, message: `Which ${topicLabel(state.active_topic)} do you mean? You can say “the first one” or name it.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
   }
 
   if (!entity && /show (me )?(the )?(first|second|third|last) one|that one|this one/i.test(message)) {
     return { intent, understood: "There is no active result list.", message: "I don’t have an active list open right now. Ask me to show visitor requests, maintenance issues, devices, or activity first.", cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } };
   }
 
-  if (/show (me )?(the )?(first|second|third|last) one|^(why|when|who)\??$|when was|who reported|why did/i.test(message) && entity) {
-    const position = Math.max(0, state.entities.findIndex((row) => row.id === entity.id && row.type === entity.type));
-    const activeEntity = { ...entity, position };
+  const activeEntity = entity ? { ...entity, position: Math.max(0, state.entities.findIndex((row) => row.id === entity.id && row.type === entity.type)) } : null;
+
+  if (/^(approve|reject|remove)\b/i.test(message) && entity?.type === "visitor") {
+    return preserveConversation({ intent: "visitor_operation", understood: `I found ${entity.title} from the previous visitor results.`, message: `I found ${entity.title}. Visitor approval or removal is not enabled as an Oyi chat action yet, so no access decision was made. Review the visitor in Visitor Access to complete it safely.`, cards: [], sources: [], suggested_actions: operatingSuggestedActions(surface, "visitor_operation"), execution: { status: "validation_required" }, conversation_active_entity: activeEntity!, conversation_action: "visitor_operation" });
+  }
+
+  if (/^assign\b/i.test(message) && entity?.type === "maintenance") {
+    return preserveConversation({ intent: "maintenance_operation", understood: `I found ${entity.title} from the previous maintenance results.`, message: `I found ${entity.title}. Assignment needs the existing maintenance workflow so the assignee and audit record are captured correctly. No assignment has been made yet.`, cards: [], sources: [], suggested_actions: operatingSuggestedActions(surface, "maintenance_operation"), execution: { status: "validation_required" }, conversation_active_entity: activeEntity!, conversation_action: "maintenance_operation" });
+  }
+
+  if (/^(?:turn|switch|power)\b.*\b(?:on|off)\b/i.test(message) && entity?.type === "device" && activeEntity) {
+    if (!actor?.id) {
+      return preserveConversation({ intent: "device_control", understood: `I found ${entity.title}.`, message: "I need an authenticated operator session before I can prepare that device action.", cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity, conversation_action: "device_control" });
+    }
+    const actionPrompt = /\boff\b/i.test(message) ? `Turn off ${entity.title}` : `Turn on ${entity.title}`;
+    const proposedTools = proposedToolsForIntent("device_control", actionPrompt, input);
+    if (!proposedTools.length) {
+      return preserveConversation({ intent: "device_control", understood: `I found ${entity.title}.`, message: `I can prepare control for ${entity.title}, but no supported device command is available for it in this context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity, conversation_action: "device_control" });
+    }
+    const { routeAiCommand } = await import("../ai/commandRouter");
+    const routed = await routeAiCommand(undefined, {
+      actor,
+      prompt: actionPrompt,
+      surface,
+      scope: surface === "facility" ? "facility" : input.home_id || actor.home_id ? "home" : "estate",
+      estateId: input.estate_id || actor.estate_id || null,
+      homeId: input.home_id || actor.home_id || null,
+      proposedTools,
+    });
+    return preserveConversation({
+      intent: "device_control",
+      understood: `I found ${entity.title} and prepared the requested device action.`,
+      message: routed.results.some((row: any) => row.status === "pending_confirmation")
+        ? `${commandSummary(routed.results)} No action has been performed yet.`
+        : commandSummary(routed.results),
+      cards: [], sources: [], suggested_actions: [],
+      execution: { status: "processed", safe_mode: routed.safe_mode, scope: routed.scope, results: routed.results },
+      conversation_active_entity: activeEntity,
+      conversation_action: "device_control",
+      execution_workflow: executionWorkflowFromResults("device_control", routed.results),
+    });
+  }
+
+  if (/show (me )?(the )?(first|second|third|last) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who)\??$|when was|who reported|why did|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
     if (/^when\??$|when was/i.test(message)) {
-      return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.created_at || details.updated_at, "It was recorded")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity, domain: state.active_domain || null };
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.created_at || details.updated_at, "It was recorded")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (/^who\??$|who reported/i.test(message)) {
-      return { intent: "investigation", understood: `I found ${entity.title}.`, message: details.reported_by ? `${entity.title} was reported by ${String(details.reported_by)}.` : `I found ${entity.title}, but the available record does not identify who reported it.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity, domain: state.active_domain || null };
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: details.reported_by ? `${entity.title} was reported by ${String(details.reported_by)}.` : `I found ${entity.title}, but the available record does not identify who reported it.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (/^why\??$|why did/i.test(message)) {
       const explanation = details.summary ? `The available record says: ${String(details.summary)}.` : `Its current status is ${entity.status || "recorded"}.`;
-      return { intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title}: ${explanation} I do not have enough verified evidence to state a cause beyond the recorded details.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity, domain: state.active_domain || null };
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title}: ${explanation} I do not have enough verified evidence to state a cause beyond the recorded details.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
-    return { intent, understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}.${details.created_at ? ` Recorded ${new Date(String(details.created_at)).toLocaleString()}.` : ""}`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: operatingSuggestedActions(surface, intent), execution: { status: "read_only" }, conversation_active_entity: activeEntity, domain: state.active_domain || null };
+    return preserveConversation({ intent, understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}.${details.created_at ? ` Recorded ${new Date(String(details.created_at)).toLocaleString()}.` : ""}`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: operatingSuggestedActions(surface, intent), execution: { status: "read_only" }, conversation_active_entity: activeEntity });
   }
 
   if (/show me more|more details/i.test(message) && state.entities.length) {
@@ -1225,7 +1348,13 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     } as OperatingResult;
   }
 
-  if (/^(do it|go ahead|confirm|yes)$/i.test(message)) {
+  if (/^(cancel|no)$/i.test(message) && state.pending_confirmation_id && actor?.id) {
+    const { updateAiConfirmation } = await import("../ai/commandRouter");
+    const cancelled = await updateAiConfirmation(actor, state.pending_confirmation_id, "denied");
+    return preserveConversation({ intent, understood: "I’ll cancel the pending action from this conversation.", message: cancelled.ok ? "Cancelled. No action was executed." : "I could not cancel that action. It may already be complete or expired.", cards: [], sources: [], suggested_actions: [], execution: { status: "processed", results: [{ status: cancelled.ok ? "denied" : "failed", summary: cancelled.record?.result_summary || cancelled.error || "Cancellation processed." }] }, conversation_action: state.active_action || "cancelled_action", execution_workflow: { stage: "execution_result", action: state.active_action || "cancelled_action", completed: 0, failed: 0, verification: "The cancellation result was recorded." } });
+  }
+
+  if (/^(do it|go ahead|confirm|yes|proceed)$/i.test(message)) {
     if (!actor?.id || !state.pending_confirmation_id) {
       return {
         intent,
@@ -1238,7 +1367,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     const confirmed = await updateAiConfirmation(actor, state.pending_confirmation_id, "confirmed");
     const record = confirmed.record;
     const status = record?.execution_status || (confirmed.ok ? "executed" : "failed");
-    return {
+    return preserveConversation({
       intent,
       understood: "I’ll confirm the pending action from this conversation.",
       message: confirmed.ok
@@ -1250,27 +1379,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
       execution: { status: "processed", results: [{ status, summary: record?.result_summary || confirmed.error || "Action confirmation processed." }] },
       conversation_action: String(record?.tool_id || state.active_action || "confirmed_action"),
       execution_workflow: { stage: "execution_result", action: String(record?.tool_id || state.active_action || "confirmed_action"), completed: record?.execution_status === "executed" ? 1 : 0, failed: record?.execution_status === "executed" ? 0 : 1, verification: "The confirmed action result was recorded." },
-    };
-  }
-
-  if (/^(approve|reject)\b/i.test(message) && entity?.type === "visitor") {
-    return {
-      intent: "visitor_operation",
-      understood: `I found ${entity.title} from the previous visitor results.`,
-      message: `I found ${entity.title}. Visitor approval is not enabled as an Oyi chat action yet, so no access decision was made. Review the visitor in Visitor Access to complete it safely.`,
-      cards: [], sources: userFacingSources(surface, "operation"),
-      suggested_actions: operatingSuggestedActions(surface, "visitor_operation"), execution: { status: "validation_required" },
-    };
-  }
-
-  if (/^assign\b/i.test(message) && entity?.type === "maintenance") {
-    return {
-      intent: "maintenance_operation",
-      understood: `I found ${entity.title} from the previous maintenance results.`,
-      message: `I found ${entity.title}. Assignment needs the existing maintenance workflow so the assignee and audit record are captured correctly. No assignment has been made yet.`,
-      cards: [], sources: userFacingSources(surface, "operation"),
-      suggested_actions: operatingSuggestedActions(surface, "maintenance_operation"), execution: { status: "validation_required" },
-    };
+    });
   }
 
   return null;

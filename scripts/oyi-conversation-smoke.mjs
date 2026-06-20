@@ -11,11 +11,17 @@ const state = {
     { type: 'visitor', id: 'visitor-1', title: 'Ada Okafor', status: 'pending' },
     { type: 'visitor', id: 'visitor-2', title: 'Tunde Bello', status: 'pending' },
   ],
+  active_entity_id: 'visitor-1',
+  active_entity_label: 'Ada Okafor',
   pending_confirmation_id: 'ledger-1',
 };
 
 const cases = [
   ['Approve the first one.', (value) => value.is_follow_up && value.entity?.id === 'visitor-1'],
+  ['The first one', (value) => value.is_follow_up && value.entity?.id === 'visitor-1'],
+  ['number 2', (value) => value.is_follow_up && value.entity?.id === 'visitor-2'],
+  ['2nd', (value) => value.is_follow_up && value.entity?.id === 'visitor-2'],
+  ['Tunde', (value) => value.is_follow_up && value.entity?.id === 'visitor-2'],
   ['Why?', (value) => value.intent === 'investigation' && /Ada Okafor/.test(value.expanded_message)],
   ['When?', (value) => value.intent === 'investigation' && /last updated/.test(value.expanded_message)],
   ['Who?', (value) => value.intent === 'investigation' && /associated/.test(value.expanded_message)],
@@ -33,6 +39,24 @@ const subsystemCases = [
   ['awareness', { last_intent: 'awareness', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'awareness'],
 ];
 
+const ordinalState = {
+  last_intent: 'visitor_operation',
+  active_topic: 'visitor',
+  active_result_state: 'list',
+  entities: [
+    { type: 'visitor', id: 'visitor-1', title: 'Salish Males', status: 'pending' },
+    { type: 'visitor', id: 'visitor-2', title: 'Ezekel Salisu', status: 'pending' },
+    { type: 'visitor', id: 'visitor-3', title: 'John Delivery', status: 'pending' },
+  ],
+};
+
+const ordinalCases = [
+  ['first', 'visitor-1'], ['first one', 'visitor-1'], ['the first one', 'visitor-1'], ['1', 'visitor-1'], ['number 1', 'visitor-1'], ['number one', 'visitor-1'], ['one', 'visitor-1'],
+  ['second', 'visitor-2'], ['second one', 'visitor-2'], ['2', 'visitor-2'], ['2nd', 'visitor-2'], ['number 2', 'visitor-2'], ['number two', 'visitor-2'],
+  ['third', 'visitor-3'], ['third one', 'visitor-3'], ['3', 'visitor-3'], ['3rd', 'visitor-3'], ['number 3', 'visitor-3'], ['number three', 'visitor-3'],
+  ['Show John Delivery', 'visitor-3'], ['Ezekel', 'visitor-2'],
+];
+
 const resolverCases = [
   ['consumer empty visitors', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Why?', 'empty_explanation'],
   ['consumer empty visitor ordinal', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Show me the first one', 'empty_ordinal'],
@@ -40,7 +64,7 @@ const resolverCases = [
   ['maintenance clarification', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'list', entities: [] }, 'Who reported it?', 'topic_clarification'],
   ['facility visitor empty', { last_intent: 'visitor_operation', active_topic: 'visitor', active_result_state: 'empty', entities: [] }, 'Why?', 'empty_explanation'],
   ['facility maintenance detail', { last_intent: 'maintenance_operation', active_topic: 'maintenance', active_result_state: 'list', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Gate light repair', status: 'open' }] }, 'Show me the first one', 'entity'],
-  ['facility awareness remains awareness', { last_intent: 'awareness', active_topic: 'awareness', active_result_state: 'list', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'entity'],
+  ['facility awareness remains awareness', { last_intent: 'awareness', active_topic: 'awareness', active_result_state: 'list', entities: [{ type: 'awareness', title: 'Maintenance requires attention' }] }, 'What should I do next?', 'none'],
 ];
 
 const displayCases = [
@@ -79,12 +103,32 @@ for (const [message, assertion] of cases) {
 }
 
 for (const [subsystem, subsystemState, message, expectedType] of subsystemCases) {
-  const value = resolveConversationFollowUpForTest(message, subsystemState);
-  if (!value.is_follow_up || value.entity?.type !== expectedType) {
+  const first = subsystemState.entities?.[0];
+  const value = resolveConversationFollowUpForTest(message, {
+    ...subsystemState,
+    active_entity_id: first?.id,
+    active_entity_label: first?.title,
+  });
+  const passed = subsystem === 'services'
+    ? value.is_follow_up && value.intent === 'service_operation'
+    : subsystem === 'awareness'
+    ? value.is_follow_up && value.intent === 'awareness'
+    : value.is_follow_up && value.entity?.type === expectedType;
+  if (!passed) {
     failed += 1;
     console.error(`FAIL subsystem conversation: ${subsystem}`, value);
   } else {
     console.log(`PASS subsystem conversation: ${subsystem}`);
+  }
+}
+
+for (const [message, expectedId] of ordinalCases) {
+  const value = resolveConversationFollowUpForTest(message, ordinalState);
+  if (!value.is_follow_up || value.entity?.id !== expectedId) {
+    failed += 1;
+    console.error(`FAIL active entity reference: ${message}`, value);
+  } else {
+    console.log(`PASS active entity reference: ${message}`);
   }
 }
 
