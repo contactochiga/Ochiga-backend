@@ -22,7 +22,9 @@
     "smoke:intelligence-fabric-phase2": "npm run build && node scripts/intelligence-fabric-phase2-smoke.mjs",
     "smoke:workflow": "npm run smoke:intelligence-fabric-phase2",
     "smoke:execution": "npm run smoke:intelligence-fabric-phase2",
-    "smoke:security-closure": "npm run build && node scripts/oyi-security-closure-smoke.mjs"
+    "smoke:security-closure": "npm run build && node scripts/oyi-security-closure-smoke.mjs",
+    "audit:security": "node scripts/oyi-security-audit.mjs",
+    "smoke:security-adversarial": "npm run build && node scripts/oyi-security-adversarial-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

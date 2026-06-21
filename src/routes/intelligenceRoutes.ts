@@ -16,6 +16,8 @@ import { getOrganizationDirectory, getOrganizationSummary, listDepartments, list
 import { getAgentHealth, getExpandedObservability, listAgentHealthContracts } from "../intelligence-core/organizationObservability";
 import { listAgentCollaborations } from "../intelligence-core/collaboration";
 import { getAgentResponsibilities, getEscalatedWorkflows, getOpenWorkflows, getWorkflow, listWorkflows, WORKFLOW_CONTRACTS } from "../intelligence-core/workflows";
+import { hasPermission } from "../core/foundation";
+import { getSecurityAuditReport, getSecurityObservability } from "../security/securityObservability";
 
 const router = Router();
 
@@ -36,8 +38,8 @@ function buildFilters(req: any): IntelligenceEventFilters {
     actor: user,
     agent_id: req.query.agent_id ? String(req.query.agent_id) : null,
     category: req.query.category ? String(req.query.category) : null,
-    estate_id: req.query.estate_id ? String(req.query.estate_id) : user?.estate_id || null,
-    home_id: req.query.home_id ? String(req.query.home_id) : user?.home_id || null,
+    estate_id: user?.estate_id || null,
+    home_id: user?.home_id || null,
     camera_id: req.query.camera_id ? String(req.query.camera_id) : null,
     limit: parseLimit(req.query.limit, 50),
   };
@@ -65,6 +67,25 @@ function workflowHttpStatus(body: any) {
   if (String(body?.error || "").toLowerCase().includes("access requires")) return 403;
   return 200;
 }
+
+function canReadSecurityObservability(user: any) {
+  return hasPermission(user, "audit.read");
+}
+
+router.get("/security/audit", requireAuth, async (req, res) => {
+  if (!canReadSecurityObservability(req.user)) return res.status(403).json({ ok: false, error: "Permission denied" });
+  const body = await getSecurityAuditReport();
+  return res.status(body.ok ? 200 : 503).json(body);
+});
+
+router.get("/security/denials", requireAuth, async (req, res) => {
+  if (!canReadSecurityObservability(req.user)) return res.status(403).json({ ok: false, error: "Permission denied" });
+  const body = await getSecurityObservability({
+    estateId: req.user?.estate_id || null,
+    limit: parseLimit(req.query.limit, 100),
+  });
+  return res.status(body.ok ? 200 : 503).json(body);
+});
 
 async function loadRoleAwareEvents(req: any, limitFallback = 50) {
   const filters = buildFilters(req);
