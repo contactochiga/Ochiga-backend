@@ -156,6 +156,25 @@ function humanLabel(value?: unknown) {
   return label;
 }
 
+function durationLabel(ms: number) {
+  const totalMinutes = Math.max(1, Math.round(Math.abs(ms) / 60000));
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days) return `${days}d${hours ? ` ${hours}h` : ""}`;
+  if (hours) return `${hours}h${minutes ? ` ${minutes}m` : ""}`;
+  return `${minutes}m`;
+}
+
+function workflowDueMessage(title: string, dueAt?: unknown) {
+  if (!dueAt) return `${title} does not have a due date in the available workflow record.`;
+  const due = new Date(String(dueAt));
+  if (Number.isNaN(due.getTime())) return `${title} has an invalid due date in the available workflow record.`;
+  const delta = due.getTime() - Date.now();
+  if (delta < 0) return `${title} was due ${due.toLocaleString()}. It is overdue by ${durationLabel(delta)}.`;
+  return `${title} is due ${due.toLocaleString()}. It is due in ${durationLabel(delta)}.`;
+}
+
 function emptyConversationState(): ConversationState {
   return { version: 1, entities: [], active_list: [], last_displayed_records: [], conversation_state: "idle" };
 }
@@ -352,7 +371,7 @@ function referencedEntity(message: string, state: ConversationState) {
   const named = namedEntity(message, state.entities);
   if (named) return named;
   const lower = message.trim().toLowerCase();
-  if (/\b(it|he|she|they|him|her|that one|this one)\b|^(?:why|when|who|how)(?:\?|$)|^(?:show )?(?:activity|history|details|evidence)$|what (?:is|was|happened)|when was|who (?:created|reported|owns)|status|blocking|overdue|verify|^(?:approve|reject|remove|assign|turn|switch|run)\b/i.test(lower)) {
+  if (/\b(it|he|she|they|him|her|that one|this one)\b|^(?:why|when|who|how)(?:\?|$)|^(?:show )?(?:activity|history|details|evidence)$|what (?:is|was|happened|should i do next)|what next|next action|when was|who (?:created|reported|owns)|status|blocking|overdue|verify|^(?:approve|reject|remove|assign|turn|switch|run)\b/i.test(lower)) {
     return activeEntityFromState(state);
   }
   return null;
@@ -444,7 +463,7 @@ export function resolveConversationFollowUpForTest(message: string, state: Parti
     ? /show (me )?(the )?(first|second|third|last|latest|most recent) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|most recent|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest|most recent)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "empty_ordinal"
       : /^(why|why\?)|why did/i.test(message) ? "empty_explanation"
       : "empty_topic"
-    : !entity && normalized.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who reported|why did/i.test(message) ? "topic_clarification"
+    : !entity && normalized.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who reported|who owns|why did|what should i do next|what next|next action|blocking|overdue|verify/i.test(message) ? "topic_clarification"
       : !entity && /show (me )?(the )?(first|second|third|last|latest|most recent) one|(?:open|show) (?:the )?(?:first|second|third|last|latest|most recent|\d(?:st|nd|rd)?)(?: one)?|\b(?:the\s+)?(?:first|second|third|last|latest|most recent)(?:\s+one)?\b|^(?:number\s+)?(?:one|two|three|1|2|3)$|that one|this one/i.test(message) ? "no_active_list"
         : /show me more/.test(lower) ? "continuation"
           : entity ? "entity" : "none";
@@ -1316,6 +1335,7 @@ function activeEntitiesForMessage(intent: OyiIntentCategory, entities: Conversat
 
 function workflowEntity(row: any): ConversationEntity | null {
   if (!row) return null;
+  const metadata = row.metadata || {};
   const id = row.id || row.workflow_id || null;
   const title = String(row.title || row.workflow_type || "Workflow").trim();
   if (!title) return null;
@@ -1329,9 +1349,15 @@ function workflowEntity(row: any): ConversationEntity | null {
       priority: row.workflow_priority || row.priority || null,
       owner: row.workflow_owner || row.owner || row.responsible_agent || row.responsible || null,
       assignee: row.workflow_assignee || row.assignee || row.assigned_to || null,
+      creator: row.created_by || row.creator || row.actor_id || row.origin_agent || metadata.created_by || null,
+      created_by: row.created_by || row.creator || row.actor_id || row.origin_agent || metadata.created_by || null,
       due_at: row.workflow_due_at || row.due_at || null,
       escalation_at: row.workflow_escalation_at || row.escalation_at || null,
       resolution: row.workflow_resolution || row.resolution || null,
+      blocker_reason: row.blocker_reason || row.workflow_blocker || metadata.blocker_reason || metadata.blocker || null,
+      verification_state: row.verification_state || metadata.verification_state || metadata.verification?.state || null,
+      assigned_at: row.assigned_at || metadata.assigned_at || (/assigned|accepted|in_progress/i.test(String(row.workflow_status || row.status || "")) ? row.updated_at : null),
+      completed_at: row.completed_at || metadata.completed_at || null,
       summary: row.summary || row.description || null,
       created_at: row.created_at || null,
       updated_at: row.updated_at || null,
@@ -1404,10 +1430,29 @@ function workflowDomainResult(context: Awaited<ReturnType<typeof loadUnifiedCont
   };
 }
 
-function operationalQueueResult(context: Awaited<ReturnType<typeof loadUnifiedContext>>, awareness: AwarenessResult, domain: DomainIntent): OperatingResult {
+function operationalQueueResult(context: Awaited<ReturnType<typeof loadUnifiedContext>>, awareness: AwarenessResult, domain: DomainIntent, message = ""): OperatingResult {
   const entities = operationalQueueEntities(context, awareness);
   if (!entities.length) {
     return { ...domainUnavailableResult(domain), conversation_entities: [], conversation_topic: "queue", conversation_result_state: "empty" };
+  }
+  if (/most important|highest priority|top issue|main issue|urgent/i.test(message)) {
+    const entity = entities[0];
+    return {
+      intent: "investigation",
+      understood: "I opened the highest-ranked operational issue I can see.",
+      message: `${entity.title} is the most important issue I can see right now. It is currently ${entity.status || "recorded"}.`,
+      cards: [],
+      sources: [],
+      suggested_actions: [],
+      execution: { status: "read_only", provider: "operational_queue" },
+      conversation_entities: entities,
+      conversation_active_entity: { ...entity, position: 0 },
+      conversation_offset: 0,
+      conversation_topic: "queue",
+      conversation_result_state: "entity",
+      display_mode: "conversation",
+      domain: domain.key,
+    };
   }
   return {
     intent: "investigation",
@@ -1520,7 +1565,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     }
   }
 
-  if (!entity && state.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who created|who reported|who owns|why did|status|details|history|activity|evidence|verify|what happened|blocking|overdue/i.test(message)) {
+  if (!entity && state.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who created|who reported|who owns|why did|status|details|history|activity|evidence|verify|what happened|what should i do next|what next|next action|blocking|overdue/i.test(message)) {
     return preserveConversation({ intent: "investigation", understood: `The active topic is ${topicLabel(state.active_topic, true)}.`, message: `Which ${topicLabel(state.active_topic)} do you mean? You can say “the first one” or name it.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
   }
 
@@ -1592,27 +1637,51 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     });
   }
 
-  if (/show (me )?(the )?(first|second|third|last|latest|most recent) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who|how)\??$|when was|who created|who reported|who owns|why did|what happened|status|evidence|verify|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
+  if (/show (me )?(the )?(first|second|third|last|latest|most recent) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who|how)\??$|when was|who created|who reported|who owns|why did|what happened|what should i do next|what next|next action|status|evidence|verify|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
     if (entity.type === "workflow" && /who owns|who is responsible|owner|assignee|assigned/i.test(message)) {
       const owner = humanLabel(details.owner) || humanLabel(details.assignee);
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: owner ? `${entity.title} is currently owned by ${owner}.` : `I found ${entity.title}, but the available workflow record does not identify a named owner.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
+    if (entity.type === "workflow" && /when was.*assigned|assigned at|assignment time/i.test(message)) {
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.assigned_at || details.updated_at, "It was assigned")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+    }
     if (entity.type === "workflow" && /blocking|blocked|why/i.test(message)) {
-      const resolution = String(details.resolution || details.summary || "").trim();
+      const resolution = String(details.blocker_reason || details.resolution || details.summary || "").trim();
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: resolution ? `${entity.title}: ${resolution}` : `${entity.title} is not marked with a specific blocker in the available workflow record.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (entity.type === "workflow" && /overdue|due/i.test(message)) {
-      const due = details.due_at ? new Date(String(details.due_at)) : null;
-      const overdue = due ? due.getTime() < Date.now() : false;
-      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: due ? `${entity.title} is due ${due.toLocaleString()}.${overdue ? " It is overdue." : " It is not overdue yet."}` : `${entity.title} does not have a due date in the available workflow record.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: workflowDueMessage(entity.title, details.due_at), cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (entity.type === "workflow" && /verify/i.test(message)) {
-      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} can be verified after its source operation completes. I do not have a completed source action to verify from this message.`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity });
+      const verificationState = humanLabel(details.verification_state) || "pending";
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} verification is ${verificationState}. I will not mark it verified unless a supported verification action completes successfully.`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity });
+    }
+    if (entity.type === "workflow" && /what should i do next|what next|next action/i.test(message)) {
+      const blocker = humanLabel(details.blocker_reason);
+      const verificationState = humanLabel(details.verification_state);
+      const due = details.due_at ? workflowDueMessage(entity.title, details.due_at) : "";
+      const owner = humanLabel(details.owner) || humanLabel(details.assignee);
+      const next = blocker
+        ? `Resolve the blocker first: ${blocker}.`
+        : /completed/i.test(String(entity.status || "")) && verificationState !== "verified"
+          ? "Verify the completed workflow before closing attention on it."
+          : owner
+            ? `Follow up with ${owner} and confirm the next operational update.`
+            : "Review the workflow details and assign an owner if one is missing.";
+      return preserveConversation({ intent: "recommendation", understood: `I found ${entity.title}.`, message: `${next}${due ? ` ${due}` : ""}`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (entity.type === "workflow" && /history|activity|details|evidence|what happened|status/i.test(message)) {
       const summary = humanLabel(details.summary) || humanLabel(details.resolution) || `${entity.title} is currently ${entity.status || "recorded"}.`;
-      const created = details.created_at ? ` Created ${new Date(String(details.created_at)).toLocaleString()}.` : "";
-      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${summary}${created}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+      const parts = [
+        summary,
+        `Status: ${entity.status || "recorded"}.`,
+        humanLabel(details.owner) || humanLabel(details.assignee) ? `Owner: ${humanLabel(details.owner) || humanLabel(details.assignee)}.` : "",
+        details.created_at ? `Created ${new Date(String(details.created_at)).toLocaleString()}.` : "",
+        details.assigned_at ? `Assigned ${new Date(String(details.assigned_at)).toLocaleString()}.` : "",
+        details.updated_at ? `Last updated ${new Date(String(details.updated_at)).toLocaleString()}.` : "",
+        humanLabel(details.verification_state) ? `Verification: ${humanLabel(details.verification_state)}.` : "",
+      ].filter(Boolean);
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: parts.join(" "), cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (/^when\??$|when was|created|updated/i.test(message)) {
       const target = /updated/i.test(message) ? details.updated_at : details.created_at || details.updated_at;
@@ -1741,7 +1810,7 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
   }
 
   if (domain?.key === "operational_queue") {
-    return operationalQueueResult(context, awareness, domain);
+    return operationalQueueResult(context, awareness, domain, message);
   }
 
   if (!domain && (intent === "awareness" || intent === "recommendation" || intent === "general_help")) {
