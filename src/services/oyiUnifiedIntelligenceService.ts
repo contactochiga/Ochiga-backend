@@ -11,6 +11,7 @@ import { observeAgentAction } from "../intelligence-core/observability";
 import { rankActiveWorkflowsForAwareness } from "../intelligence-core/awarenessWorkflowProvider";
 import { classifyUniversalIntent } from "../intelligence-core/intentRouter";
 import type { ProposedAiTool } from "../ai/commandRouter";
+import { interpretWithLanguageTeacher, languageTeacherResultToMessage, shouldAskLanguageTeacher } from "../language-teacher/languageTeacherService";
 
 export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge";
 export type AwarenessSeverity = "normal" | "info" | "attention" | "warning" | "critical";
@@ -1793,9 +1794,29 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
 
 async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, context: Awaited<ReturnType<typeof loadUnifiedContext>>, awareness: AwarenessResult): Promise<OperatingResult> {
   const surface = safeSurface(input.surface);
-  const message = normalizeOyiMessage(input.message || "");
-  const domain = detectDomainIntent(message, surface);
-  const classifiedIntent = classifyOyiOperatingIntentForTest(message);
+  let message = normalizeOyiMessage(input.message || "");
+  let domain = detectDomainIntent(message, surface);
+  let classifiedIntent = classifyOyiOperatingIntentForTest(message);
+  if (shouldAskLanguageTeacher({ domain, intent: classifiedIntent, phrase: input.message })) {
+    const languageResult = await interpretWithLanguageTeacher({
+      phrase: input.message,
+      surface,
+      context: {
+        estate_id: input.estate_id || null,
+        home_id: input.home_id || null,
+        module: input.module || null,
+      },
+    });
+    if (languageResult && languageResult.confidence >= Number(process.env.LANGUAGE_TEACHER_MIN_CONFIDENCE || 0.65)) {
+      const taughtMessage = normalizeOyiMessage(languageTeacherResultToMessage(languageResult, message));
+      const taughtDomain = detectDomainIntent(taughtMessage, surface)
+        || DOMAIN_INTENTS.find((entry) => entry.key === languageResult.domain && entry.surfaces.includes(surface))
+        || null;
+      message = taughtMessage;
+      domain = taughtDomain;
+      classifiedIntent = languageResult.intent as OyiIntentCategory;
+    }
+  }
   const intent = domain?.key === "devices" && isDomainMutationRequest(message)
     ? classifiedIntent === "device_control" ? classifiedIntent : "device_control"
     : domain?.intent || classifiedIntent;
