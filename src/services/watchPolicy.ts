@@ -6,6 +6,8 @@ type ScopedDevice = {
   home_id?: string | null;
 };
 
+type DeviceScopeOptions = { estateWide?: boolean };
+
 export function hasWatchScope(actor: AuthUser): boolean {
   return Boolean(actor.home_id || actor.estate_id);
 }
@@ -18,9 +20,10 @@ export function canControlWatch(actor: AuthUser): boolean {
   return hasWatchScope(actor) && hasPermission(actor, "devices.control");
 }
 
-export function deviceWithinActorScope(actor: AuthUser, device: ScopedDevice): boolean {
+export function deviceWithinActorScope(actor: AuthUser, device: ScopedDevice, options: DeviceScopeOptions = {}): boolean {
   if (!hasWatchScope(actor)) return false;
   if (actor.estate_id && device.estate_id !== actor.estate_id) return false;
+  if (options.estateWide) return Boolean(actor.estate_id);
   // Some integrations initially create estate-scoped devices before room/home assignment.
   // Allow those for residents in the same estate, but deny explicit cross-home devices.
   if (!actor.estate_id && actor.home_id && !device.home_id) return false;

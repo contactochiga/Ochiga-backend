@@ -7,6 +7,7 @@ import { executeDeviceCommandForActor } from "../controllers/deviceCommandContro
 import { deviceWithinActorScope, hasWatchScope } from "../services/watchPolicy";
 import { NotificationService } from "../services/NotificationService";
 import {
+  type DeviceRuntimeScope,
   isDeviceDefinitelyOffline,
   listVisibleDevices,
   logDeviceCommandDiagnostic,
@@ -57,6 +58,15 @@ function activeScopeFilter(actor: AuthUser, estateId?: string | null, homeId?: s
   if (resolvedHomeId) return { home_id: resolvedHomeId };
   if (resolvedEstateId) return { estate_id: resolvedEstateId };
   return {};
+}
+
+function deviceRuntimeScope(actor: AuthUser, args: Record<string, any>): DeviceRuntimeScope {
+  const estateWide = String(args.__oyi_surface || "").toLowerCase() === "facility" || args.__oyi_estate_wide === true;
+  return {
+    estateId: actorEstate(actor, args.estate_id || args.estateId || null),
+    homeId: estateWide ? null : actorHome(actor, args.home_id || args.homeId || null),
+    estateWide,
+  };
 }
 
 function scopeAllowed(tool: AiToolDefinition, actor: AuthUser, scope: string) {
@@ -972,18 +982,55 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
     return { summary: `Estate context: ${estates.count} estate record(s), ${homes.count} home/unit record(s), ${devices.count} device record(s) visible.`, data: { estates, homes, devices } };
   }
   if (toolId === "summarize_devices") {
-    const devices = await countTable("devices", activeScopeFilter(actor, estateId, homeId));
-    const scopedDeviceRows = await selectRows("devices", (q) => {
-      let next = q.select("id").limit(500);
-      const filters = activeScopeFilter(actor, estateId, homeId);
-      Object.entries(filters).forEach(([key, value]) => { if (value) next = next.eq(key, value); });
-      return next;
-    });
-    const deviceIds = scopedDeviceRows.rows.map((row: any) => row.id).filter(Boolean);
+    const scope = deviceRuntimeScope(actor, args);
+    const rows = await listVisibleDevices(actor, 500, scope);
+    const deviceIds = rows.map((row: any) => row.id).filter(Boolean);
     const states = deviceIds.length
-      ? await selectRows("device_states", (q) => q.select("device_id").in("device_id", deviceIds).limit(500)).then((result) => ({ available: result.available, count: result.rows.length, error: result.error }))
-      : { available: true, count: 0 };
-    return { summary: `Device context: ${devices.count} device record(s), ${states.count} state record(s) available.`, data: { devices, states } };
+      ? await selectRows("device_states", (q) => q.select("device_id,status,last_seen,updated_at").in("device_id", deviceIds).limit(500))
+      : { available: true, rows: [] as any[], error: "" };
+    const stateByDevice = new Map((states.rows || []).map((row: any) => [String(row.device_id), row]));
+    const entities = rows.map((device: any) => {
+      const latest: any = stateByDevice.get(String(device.id)) || null;
+      const state: Record<string, any> = latest?.status && typeof latest.status === "object" ? latest.status : {};
+      const online = normalizeDeviceOnlineState(device).state;
+      const power = typeof state.switch === "boolean" ? (state.switch ? "on" : "off")
+        : typeof state.power === "boolean" ? (state.power ? "on" : "off")
+          : typeof state.on === "boolean" ? (state.on ? "on" : "off") : null;
+      const status = [online, power].filter((value) => value && value !== "unknown").join(" • ") || "status unknown";
+      return {
+        type: "device",
+        id: String(device.id),
+        title: String(device.name || "Unnamed device"),
+        status,
+        details: {
+          estate_id: device.estate_id || null,
+          home_id: device.home_id || null,
+          room_id: device.room_id || null,
+          room_name: device.room_name || device.metadata?.room_name || null,
+          provider: device.provider || device.vendor || device.adapter || null,
+          external_id: device.external_id || null,
+          online_state: online,
+          latest_state: state,
+          last_seen_at: latest?.last_seen || device.last_seen_at || null,
+          updated_at: latest?.updated_at || device.updated_at || null,
+          created_at: device.created_at || null,
+          summary: `${status}${device.room_id ? " in its assigned room" : ""}.`,
+        },
+      };
+    });
+    const offline = entities.filter((entity) => entity.details.online_state === "offline").length;
+    const scopeLabel = scope.estateWide ? "facility" : "home";
+    return {
+      summary: entities.length
+        ? `${entities.length} registered ${scope.estateWide ? "infrastructure device" : "device"}${entities.length === 1 ? "" : "s"} found for this ${scopeLabel} context${offline ? `, including ${offline} offline` : ""}.`
+        : `No registered ${scope.estateWide ? "infrastructure devices" : "devices"} were found for this ${scopeLabel} context.`,
+      data: {
+        devices: { available: true, count: entities.length },
+        states: { available: states.available, count: states.rows.length, error: states.error },
+        conversation_entities: entities,
+        cards: [structuredCard("devices", scope.estateWide ? "Infrastructure devices" : "Devices", `${entities.length} registered device${entities.length === 1 ? "" : "s"}.`, entities.slice(0, 20).map((entity) => ({ title: entity.title, status: entity.status, device_id: entity.id })))],
+      },
+    };
   }
   if (toolId === "summarize_support" || toolId === "search_support") {
     const maintenance = await countTable("maintenance_requests", activeScopeFilter(actor, estateId, homeId));
@@ -1072,9 +1119,10 @@ function classifyDeviceCommand(prompt: string) {
 
 async function findDeviceForPrompt(actor: AuthUser, prompt: string, args: Record<string, any>) {
   if (!hasWatchScope(actor)) return null;
+  const scope = deviceRuntimeScope(actor, args);
   const explicit = args.device_id || args.deviceId || args.external_id || args.externalId;
-  if (explicit) return resolveVisibleDevice(actor, explicit);
-  const rows = await listVisibleDevices(actor, 50);
+  if (explicit) return resolveVisibleDevice(actor, explicit, scope);
+  const rows = await listVisibleDevices(actor, 50, scope);
 
   const room = targetRoom(prompt);
   const family = targetFamily(prompt);
@@ -1125,7 +1173,8 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
   const classification = classifyDeviceCommand(prompt);
   const effectiveCommand = args.command && typeof args.command === "object" ? args.command : classification.command;
   const estateId = actorEstate(actor, args.estate_id || args.estateId || null);
-  const homeId = actorHome(actor, args.home_id || args.homeId || null);
+  const runtimeScope = deviceRuntimeScope(actor, args);
+  const homeId = runtimeScope.estateWide ? null : actorHome(actor, args.home_id || args.homeId || null);
 
   if (classification.risk === "high") {
     const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "denied", estateId, homeId, errorMessage: classification.reason });
@@ -1133,7 +1182,8 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
     return { tool_id: "device_command", status: "denied", reason: classification.reason, ledger_id: ledger.id || null };
   }
 
-  if (classification.risk === "medium") {
+  const oyiMutation = Boolean(args.__oyi_surface) && classification.risk === "low" && classification.action !== "status";
+  if (classification.risk === "medium" || oyiMutation) {
     const device = await findDeviceForPrompt(actor, prompt, args);
     if (device?.__oyi_ambiguous) {
       return { tool_id: "device_command", status: "failed", error: "device_ambiguous", summary: ambiguousDeviceSummary(device) };
@@ -1153,7 +1203,7 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
       resultSummary: "Confirmation required before this home command can execute.",
       metadata: {
         proposed_arguments: { ...args, device_id: device.id || device.external_id },
-        risk_level: "medium",
+        risk_level: classification.risk,
         reason: classification.reason,
         device_id: device.id || device.external_id,
         command: effectiveCommand,
@@ -1202,7 +1252,7 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
       normalized_online_state: normalizeDeviceOnlineState(device).state,
       command: effectiveCommand,
     });
-    const result = await executeDeviceCommandForActor({ actor, deviceId: String(device.id || device.external_id), command: effectiveCommand || {}, req });
+    const result = await executeDeviceCommandForActor({ actor, deviceId: String(device.id || device.external_id), command: effectiveCommand || {}, source: args.__oyi_surface === "facility" ? "facility" : "app", scope: runtimeScope, req });
     const actionText = classification.action === "set_temperature" ? `set to ${(effectiveCommand as any)?.temperature}°` : classification.action === "on" ? "on" : "off";
     const queued = result.status === "command_queued";
     const summary = queued ? `${device.name || "Device"} command queued.` : `${device.name || "Device"} is ${actionText}.`;
@@ -1258,13 +1308,14 @@ async function executeConfirmedWorker(actor: AuthUser, record: any) {
     }
     const classification = classifyDeviceCommand(String(record.prompt_excerpt || ""));
     const device = await findDeviceForPrompt(actor, String(record.prompt_excerpt || ""), args);
-    if (!device || !deviceWithinActorScope(actor, device)) {
+    if (!device || !deviceWithinActorScope(actor, device, deviceRuntimeScope(actor, args))) {
       return { ok: false, status: "denied" as AiCommandStatus, summary: "That device is outside your home scope.", error: "device_not_found_or_out_of_scope" };
     }
     if (deviceOffline(device)) {
       return { ok: false, status: "failed" as AiCommandStatus, summary: "That device is offline.", error: "device_offline" };
     }
-    if (!mediumDeviceCommandAllowed(classification, device)) {
+    const lowRiskSwitch = classification.risk === "low" && ["on", "off", "set_temperature"].includes(String(classification.action || ""));
+    if (!lowRiskSwitch && !mediumDeviceCommandAllowed(classification, device)) {
       return { ok: false, status: "denied" as AiCommandStatus, summary: "That confirmed command is not enabled for watch execution.", error: "worker_not_allowed" };
     }
     try {
@@ -1272,6 +1323,8 @@ async function executeConfirmedWorker(actor: AuthUser, record: any) {
         actor,
         deviceId: String(device.id || device.external_id),
         command: classification.command || {},
+        source: args.__oyi_surface === "facility" ? "facility" : "app",
+        scope: deviceRuntimeScope(actor, args),
       });
       const summary = `${device.name || "Device"} command ${result.status === "command_queued" ? "queued" : "completed"}.`;
       return { ok: true, status: "executed" as AiCommandStatus, summary, data: { device_id: device.id, command_status: result.status } };
@@ -1348,20 +1401,22 @@ export async function routeAiCommand(req: Request | undefined, input: AiCommandR
       continue;
     }
 
+    const toolArgs = { ...(proposed.arguments || {}), __oyi_surface: input.surface || "consumer" };
+
     if (tool.tool_id === "device_command") {
-      const execution = await executeDeviceCommandTool(req, actor, input.prompt, proposed.arguments || {});
+      const execution = await executeDeviceCommandTool(req, actor, input.prompt, toolArgs);
       results.push(execution);
       continue;
     }
 
     if (tool.tool_id === "run_scene") {
-      const execution = await executeRunSceneTool(req, actor, input.prompt, proposed.arguments || {});
+      const execution = await executeRunSceneTool(req, actor, input.prompt, toolArgs);
       results.push(execution);
       continue;
     }
 
     if (tool.tool_id === "create_maintenance_request") {
-      const execution = await createMaintenanceRequestTool(req, actor, input.prompt, proposed.arguments || {});
+      const execution = await createMaintenanceRequestTool(req, actor, input.prompt, toolArgs);
       results.push(execution);
       continue;
     }
@@ -1380,7 +1435,7 @@ export async function routeAiCommand(req: Request | undefined, input: AiCommandR
         homeId: input.homeId,
         resultSummary: summary,
         errorMessage: tool.enabled ? "" : "Tool disabled",
-        metadata: { proposed_arguments: proposed.arguments || {}, risk_level: tool.risk_level },
+        metadata: { proposed_arguments: toolArgs, risk_level: tool.risk_level },
       });
       await audit(req, actor, tool.confirmation_required ? "ai.command.confirmation.required" : "ai.tool.denied", status === "denied" ? "denied" : "pending", { tool_id: tool.tool_id, ledger_id: ledger.id, risk_level: tool.risk_level });
       results.push({ tool_id: tool.tool_id, status, confirmation_required: tool.confirmation_required, enabled: tool.enabled, ledger_id: ledger.id || null, summary });
@@ -1388,7 +1443,7 @@ export async function routeAiCommand(req: Request | undefined, input: AiCommandR
     }
 
     try {
-      const execution = await executeReadTool(tool.tool_id, actor, input.prompt, proposed.arguments || {});
+      const execution = await executeReadTool(tool.tool_id, actor, input.prompt, toolArgs);
       const ledger = await writeLedger({ actor, toolId: tool.tool_id, prompt: input.prompt, status: "executed", estateId: input.estateId, homeId: input.homeId, resultSummary: execution.summary, metadata: { result: execution.data } });
       await audit(req, actor, "ai.tool.executed", "success", { tool_id: tool.tool_id, ledger_id: ledger.id, risk_level: tool.risk_level });
       results.push({ tool_id: tool.tool_id, status: "executed", ledger_id: ledger.id || null, ...execution });

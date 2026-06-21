@@ -9,7 +9,7 @@ import { NotificationService } from "../services/NotificationService";
 import { emitAuditEvent } from "../core/foundation";
 import { getIO } from "../realtime/io";
 import type { AuthUser } from "../middleware/auth";
-import { logDeviceCommandDiagnostic, normalizeDeviceOnlineState, resolveVisibleDevice } from "../services/deviceRuntimeService";
+import { type DeviceRuntimeScope, logDeviceCommandDiagnostic, normalizeDeviceOnlineState, resolveVisibleDevice } from "../services/deviceRuntimeService";
 import { recordDeviceEvent } from "../services/deviceAnalyticsService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
@@ -202,6 +202,7 @@ export async function executeDeviceCommandForActor(input: {
   deviceId: string;
   command: Record<string, any>;
   source?: CommandSource;
+  scope?: DeviceRuntimeScope;
   req?: Request;
 }) {
   const startedAt = Date.now();
@@ -214,7 +215,7 @@ export async function executeDeviceCommandForActor(input: {
   if (!command) throw new Error("command is required");
   if (!user?.id) throw new Error("Not authenticated");
 
-  const deviceRow: any = await resolveVisibleDevice(user, rawId);
+  const deviceRow: any = await resolveVisibleDevice(user, rawId, input.scope);
 
   const deviceRef = deviceRow?.id || rawId;
   logDeviceCommandDiagnostic("device.command.requested", {

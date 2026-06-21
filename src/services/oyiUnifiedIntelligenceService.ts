@@ -372,7 +372,7 @@ function referencedEntity(message: string, state: ConversationState) {
   const named = namedEntity(message, state.entities);
   if (named) return named;
   const lower = message.trim().toLowerCase();
-  if (/\b(it|he|she|they|him|her|that one|this one)\b|^(?:why|when|who|how)(?:\?|$)|^(?:show )?(?:activity|history|details|evidence)$|what (?:is|was|happened|should i do next)|what next|next action|when was|who (?:created|reported|owns)|status|blocking|overdue|verify|^(?:approve|reject|remove|assign|turn|switch|run)\b/i.test(lower)) {
+  if (/\b(it|he|she|they|him|her|that one|this one|this device)\b|^(?:why|when|who|how)(?:\?|$)|^(?:show )?(?:activity|history|details|evidence|diagnostics)$|what (?:is|was|happened|should i do next)|what next|next action|when was|who (?:created|reported|owns)|status|blocking|overdue|verify|^(?:approve|reject|remove|assign|turn|switch|run)\b/i.test(lower)) {
     return activeEntityFromState(state);
   }
   return null;
@@ -382,7 +382,7 @@ function isFollowUpMessage(message: string, state?: ConversationState) {
   const value = message.trim().toLowerCase();
   if (["why", "why?", "when", "when?", "who", "who?"].includes(value)) return true;
   if (state && referencedEntity(message, state)) return true;
-  return /\b(approve|reject|remove|assign|verify|owner|status|created|updated|evidence|blocking|overdue|what happened|show me more|more details|show activity|show history|show details|what should i do next|do it|go ahead|proceed|confirm|cancel|yes|no|that one|this one|first|second|third|latest|most recent|number one|number two|number three|1st|2nd|3rd|when was|who created|who reported|who owns|why did|it|he|she|they|him|her)\b|^(?:one|two|three|1|2|3)$/i.test(value);
+  return /\b(approve|reject|remove|assign|verify|owner|status|created|updated|evidence|diagnostics|blocking|overdue|what happened|show me more|more details|show activity|show history|show details|what should i do next|do it|go ahead|proceed|confirm|cancel|yes|no|that one|this one|this device|first|second|third|latest|most recent|number one|number two|number three|1st|2nd|3rd|when was|who created|who reported|who owns|why did|it|he|she|they|him|her)\b|^(?:one|two|three|1|2|3)$/i.test(value);
 }
 
 function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] | null {
@@ -1298,13 +1298,15 @@ function plainEntityList(entities: ConversationEntity[]) {
   return entities.slice(0, 5).map((entity, index) => `${index + 1}. ${entity.title}${entity.status ? ` — ${entity.status}` : ""}`).join("\n");
 }
 
-function operationalConversationMessage(intent: OyiIntentCategory, entities: ConversationEntity[], fallback: string, message = "") {
+function operationalConversationMessage(surface: OyiSurface, intent: OyiIntentCategory, entities: ConversationEntity[], fallback: string, message = "") {
   const topic = topicForIntent(intent);
   if (!topic) return fallback;
   if (!entities.length) {
     if (topic === "visitor") return "There are currently no visitor requests awaiting approval.";
     if (topic === "maintenance") return "There are currently no open maintenance issues.";
-    if (topic === "device") return "I could not find registered devices for this home context.";
+    if (topic === "device") return surface === "facility"
+      ? "I could not find registered infrastructure devices for this facility context."
+      : "I could not find registered devices for this home context.";
     if (topic === "service") return "There are currently no service issues to show.";
     if (topic === "community") return "There are currently no community reports to show.";
     if (topic === "wallet") return "There are currently no wallet records to show.";
@@ -1319,8 +1321,20 @@ function operationalConversationMessage(intent: OyiIntentCategory, entities: Con
     if (topic === "maintenance") return "There are currently no open maintenance issues.";
     if (topic === "visitor") return "There are currently no visitor requests awaiting approval.";
   }
-  const label = topicLabel(topic, true);
+  const label = topicLabel(topic, relevant.length !== 1);
   return `There ${relevant.length === 1 ? "is" : "are"} ${relevant.length} ${label} available.\n${plainEntityList(relevant)}\nWhich one would you like to inspect?`;
+}
+
+export function deviceConversationResultForTest(input: {
+  surface: OyiSurface;
+  message: string;
+  entities: ConversationEntity[];
+}) {
+  const entities = activeEntitiesForMessage("device_status", input.entities, input.message);
+  return {
+    entities,
+    message: operationalConversationMessage(input.surface, "device_status", entities, "Device registry unavailable.", input.message),
+  };
 }
 
 function activeEntitiesForMessage(intent: OyiIntentCategory, entities: ConversationEntity[], message: string) {
@@ -1330,6 +1344,10 @@ function activeEntitiesForMessage(intent: OyiIntentCategory, entities: Conversat
   }
   if (intent === "maintenance_operation" && /open|issue|overdue|maintenance/.test(lower)) {
     return entities.filter((row) => /open|new|assigned|scheduled|progress|waiting/i.test(String(row.status || "")));
+  }
+  if (intent === "device_status") {
+    if (/offline|down|unavailable/.test(lower)) return entities.filter((row) => /offline|down|unavailable/i.test(String(row.status || row.details?.online_state || "")));
+    if (/online|active|available/.test(lower)) return entities.filter((row) => /online|active|available/i.test(String(row.status || row.details?.online_state || "")));
   }
   return entities;
 }
@@ -1610,7 +1628,8 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
       return preserveConversation({ intent: "device_control", understood: `I found ${entity.title}.`, message: "I need an authenticated operator session before I can prepare that device action.", cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity, conversation_action: "device_control" });
     }
     const actionPrompt = /\boff\b/i.test(message) ? `Turn off ${entity.title}` : `Turn on ${entity.title}`;
-    const proposedTools = proposedToolsForIntent("device_control", actionPrompt, input);
+    const proposedTools = proposedToolsForIntent("device_control", actionPrompt, input)
+      .map((tool) => ({ ...tool, arguments: { ...(tool.arguments || {}), device_id: entity.id, home_id: surface === "facility" ? null : input.home_id || actor.home_id || null } }));
     if (!proposedTools.length) {
       return preserveConversation({ intent: "device_control", understood: `I found ${entity.title}.`, message: `I can prepare control for ${entity.title}, but no supported device command is available for it in this context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity, conversation_action: "device_control" });
     }
@@ -1635,6 +1654,25 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
       conversation_active_entity: activeEntity,
       conversation_action: "device_control",
       execution_workflow: executionWorkflowFromResults("device_control", routed.results),
+    });
+  }
+
+  if (entity?.type === "device" && activeEntity && /verify|online|offline|status|diagnostics/i.test(message)) {
+    const latestState: Record<string, any> = details.latest_state && typeof details.latest_state === "object" ? details.latest_state as Record<string, any> : {};
+    const power = typeof latestState.switch === "boolean" ? (latestState.switch ? "on" : "off")
+      : typeof latestState.power === "boolean" ? (latestState.power ? "on" : "off")
+        : typeof latestState.on === "boolean" ? (latestState.on ? "on" : "off") : null;
+    const online = String(details.online_state || "unknown");
+    const lastSeen = details.last_seen_at || details.updated_at || null;
+    const status = online === "unknown" ? "The registry does not have a confirmed online state" : `It is ${online}`;
+    const state = power ? ` and currently ${power}` : "";
+    const timestamp = lastSeen ? ` Latest state was recorded ${new Date(String(lastSeen)).toLocaleString()}.` : " No provider timestamp is available yet.";
+    return preserveConversation({
+      intent: "device_status",
+      understood: `I checked the latest visible status for ${entity.title}.`,
+      message: `${entity.title}: ${status}${state}.${timestamp} This is the latest registered/provider state available to Oyi.`,
+      cards: [], sources: [], suggested_actions: [], execution: { status: "read_only", provider: "device_registry" },
+      conversation_active_entity: activeEntity,
     });
   }
 
@@ -1897,7 +1935,7 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       understood,
       message: routed.results.some((item: any) => item.status === "pending_confirmation")
         ? `${commandSummary(routed.results)} No action has been performed yet.`.trim()
-        : operationalConversationMessage(intent, activeEntities, commandSummary(routed.results), message),
+        : operationalConversationMessage(surface, intent, activeEntities, commandSummary(routed.results), message),
       cards,
       sources: supportPayload ? userFacingSources(surface, "operation") : [],
       suggested_actions: supportPayload ? operatingSuggestedActions(surface, intent) : [],

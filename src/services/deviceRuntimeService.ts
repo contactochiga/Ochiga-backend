@@ -10,6 +10,13 @@ export type DeviceOnlineState = {
   source: string;
 };
 
+export type DeviceRuntimeScope = {
+  estateId?: string | null;
+  homeId?: string | null;
+  /** Facility operators can work across an estate after the caller has checked devices.read/control. */
+  estateWide?: boolean;
+};
+
 export function normalizeDeviceOnlineState(row: any): DeviceOnlineState {
   const booleanCandidates: Array<[unknown, string]> = [
     [row?.online, "online"],
@@ -39,30 +46,40 @@ export function isDeviceDefinitelyOffline(row: any) {
   return normalized.state === "offline" && normalized.authoritative;
 }
 
-export async function listVisibleDevices(actor: AuthUser, limit = 50) {
-  if (!hasWatchScope(actor)) return [];
-  let query = supabaseAdmin.from("devices").select("*").limit(Math.max(1, Math.min(limit, 100)));
-  if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
-  if (actor.home_id) {
-    query = actor.estate_id
-      ? query.or(`home_id.is.null,home_id.eq.${actor.home_id}`)
-      : query.eq("home_id", actor.home_id);
+export function resolveDeviceRuntimeScope(actor: Pick<AuthUser, "estate_id" | "home_id">, scope: DeviceRuntimeScope = {}) {
+  return {
+    estateId: scope.estateId || actor.estate_id || null,
+    homeId: scope.estateWide ? null : scope.homeId || actor.home_id || null,
+    estateWide: Boolean(scope.estateWide),
+  };
+}
+
+function applyVisibleDeviceScope(query: any, actor: AuthUser, scope: DeviceRuntimeScope = {}) {
+  const resolved = resolveDeviceRuntimeScope(actor, scope);
+  if (resolved.estateId) query = query.eq("estate_id", resolved.estateId);
+  // Preserve the pre-unification behavior: an estate-scoped device may be used by the active home.
+  if (resolved.homeId) {
+    query = resolved.estateId
+      ? query.or(`home_id.is.null,home_id.eq.${resolved.homeId}`)
+      : query.eq("home_id", resolved.homeId);
   }
+  return query;
+}
+
+export async function listVisibleDevices(actor: AuthUser, limit = 50, scope: DeviceRuntimeScope = {}) {
+  if (!hasWatchScope(actor)) return [];
+  let query = supabaseAdmin.from("devices").select("*").limit(Math.max(1, Math.min(limit, 500)));
+  query = applyVisibleDeviceScope(query, actor, scope);
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
 }
 
-export async function resolveVisibleDevice(actor: AuthUser, ref: unknown) {
+export async function resolveVisibleDevice(actor: AuthUser, ref: unknown, scope: DeviceRuntimeScope = {}) {
   const deviceRef = String(ref || "").trim();
   if (!deviceRef || !hasWatchScope(actor)) return null;
   let query = supabaseAdmin.from("devices").select("*");
-  if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
-  if (actor.home_id) {
-    query = actor.estate_id
-      ? query.or(`home_id.is.null,home_id.eq.${actor.home_id}`)
-      : query.eq("home_id", actor.home_id);
-  }
+  query = applyVisibleDeviceScope(query, actor, scope);
   query = UUID_RE.test(deviceRef) ? query.eq("id", deviceRef) : query.eq("external_id", deviceRef);
   const { data, error } = await query.maybeSingle();
   if (error) throw error;

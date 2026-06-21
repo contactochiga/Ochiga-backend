@@ -2,7 +2,8 @@
 process.env.SUPABASE_URL ||= 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'local-smoke-service-role-key';
 
-const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest, normalizeOyiMessageForTest, resolveOyiDomainIntentForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
+const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest, normalizeOyiMessageForTest, resolveOyiDomainIntentForTest, deviceConversationResultForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
+const { resolveDeviceRuntimeScope } = await import('../dist/services/deviceRuntimeService.js');
 
 const state = {
   last_intent: 'visitor_operation',
@@ -163,6 +164,11 @@ const domainCases = [
   ['facility', 'show estate structure', 'estate'],
 ];
 
+const deviceRows = [
+  { type: 'device', id: 'device-1', title: 'Living Room Light', status: 'online • on', details: { online_state: 'online' } },
+  { type: 'device', id: 'device-2', title: 'Water Pump', status: 'offline', details: { online_state: 'offline' } },
+];
+
 let failed = 0;
 for (const [message, assertion] of cases) {
   const value = resolveConversationFollowUpForTest(message, state);
@@ -252,6 +258,39 @@ for (const [surface, message, expectedDomain] of domainCases) {
   } else {
     console.log(`PASS domain coverage: ${surface} ${message} -> ${actual.domain}`);
   }
+}
+
+const consumerDevices = deviceConversationResultForTest({ surface: 'consumer', message: 'Show devices', entities: deviceRows });
+if (!/2 devices available/i.test(consumerDevices.message) || consumerDevices.entities.length !== 2) {
+  failed += 1;
+  console.error('FAIL consumer device list result', consumerDevices);
+} else {
+  console.log('PASS consumer device list result');
+}
+
+const facilityOffline = deviceConversationResultForTest({ surface: 'facility', message: 'Show offline devices', entities: deviceRows });
+if (!/1 device available/i.test(facilityOffline.message) || facilityOffline.entities[0]?.id !== 'device-2') {
+  failed += 1;
+  console.error('FAIL facility offline device result', facilityOffline);
+} else {
+  console.log('PASS facility offline device result');
+}
+
+const facilityEmpty = deviceConversationResultForTest({ surface: 'facility', message: 'Show infrastructure devices', entities: [] });
+if (!/infrastructure devices for this facility context/i.test(facilityEmpty.message) || /home context/i.test(facilityEmpty.message)) {
+  failed += 1;
+  console.error('FAIL facility device empty wording', facilityEmpty);
+} else {
+  console.log('PASS facility device empty wording');
+}
+
+const consumerScope = resolveDeviceRuntimeScope({ estate_id: 'estate-1', home_id: 'home-1' });
+const facilityScope = resolveDeviceRuntimeScope({ estate_id: 'estate-1', home_id: 'home-1' }, { estateWide: true });
+if (consumerScope.homeId !== 'home-1' || facilityScope.homeId !== null || !facilityScope.estateWide) {
+  failed += 1;
+  console.error('FAIL device scope isolation', { consumerScope, facilityScope });
+} else {
+  console.log('PASS device scope isolation');
 }
 
 if (failed) process.exit(1);
