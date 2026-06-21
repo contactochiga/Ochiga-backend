@@ -1337,6 +1337,25 @@ export function deviceConversationResultForTest(input: {
   };
 }
 
+export function deviceTimelineNarrativeForTest(input: {
+  latest_state_at?: unknown;
+  last_seen_at?: unknown;
+  provider_reported_at?: unknown;
+}) {
+  const sameMoment = (first: unknown, second: unknown) => first && second && new Date(String(first)).getTime() === new Date(String(second)).getTime();
+  return [
+    input.latest_state_at ? `Latest state update was received ${new Date(String(input.latest_state_at)).toLocaleString()}.` : "No latest state-update time is available.",
+    input.last_seen_at
+      ? sameMoment(input.latest_state_at, input.last_seen_at)
+        ? "That update also confirmed the device online."
+        : `The device was last confirmed online ${new Date(String(input.last_seen_at)).toLocaleString()}.`
+      : "No separate provider online confirmation is available.",
+    input.provider_reported_at && !sameMoment(input.provider_reported_at, input.latest_state_at) && !sameMoment(input.provider_reported_at, input.last_seen_at)
+      ? `The provider reported this event ${new Date(String(input.provider_reported_at)).toLocaleString()}.`
+      : "",
+  ].filter(Boolean).join(" ");
+}
+
 function activeEntitiesForMessage(intent: OyiIntentCategory, entities: ConversationEntity[], message: string) {
   const lower = message.toLowerCase();
   if (intent === "visitor_operation" && /pending|approval|waiting/.test(lower)) {
@@ -1663,14 +1682,16 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
       : typeof latestState.power === "boolean" ? (latestState.power ? "on" : "off")
         : typeof latestState.on === "boolean" ? (latestState.on ? "on" : "off") : null;
     const online = String(details.online_state || "unknown");
-    const lastSeen = details.last_seen_at || details.updated_at || null;
+    const latestStateAt = details.latest_state_at || details.updated_at || null;
+    const lastSeenAt = details.last_seen_at || null;
+    const providerReportedAt = details.provider_reported_at || null;
     const status = online === "unknown" ? "The registry does not have a confirmed online state" : `It is ${online}`;
     const state = power ? ` and currently ${power}` : "";
-    const timestamp = lastSeen ? ` Latest state was recorded ${new Date(String(lastSeen)).toLocaleString()}.` : " No provider timestamp is available yet.";
+    const timeline = deviceTimelineNarrativeForTest({ latest_state_at: latestStateAt, last_seen_at: lastSeenAt, provider_reported_at: providerReportedAt });
     return preserveConversation({
       intent: "device_status",
       understood: `I checked the latest visible status for ${entity.title}.`,
-      message: `${entity.title}: ${status}${state}.${timestamp} This is the latest registered/provider state available to Oyi.`,
+      message: `${entity.title}: ${status}${state}. ${timeline}`,
       cards: [], sources: [], suggested_actions: [], execution: { status: "read_only", provider: "device_registry" },
       conversation_active_entity: activeEntity,
     });

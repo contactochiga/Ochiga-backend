@@ -191,6 +191,25 @@ function safeJson(payload: Buffer) {
   }
 }
 
+function providerReportedAt(status: any) {
+  const values = [
+    status?._oyi_timeline?.provider_reported_at,
+    status?.provider_reported_at,
+    status?.providerReportedAt,
+    status?.reported_at,
+    status?.reportedAt,
+    status?.event_time,
+    status?.eventTime,
+    status?.timestamp,
+    status?.time,
+  ];
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text && !Number.isNaN(new Date(text).getTime())) return text;
+  }
+  return null;
+}
+
 function scopeValue(...values: any[]) {
   for (const value of values) {
     const text = String(value || "").trim();
@@ -324,6 +343,15 @@ export async function initMqttBridge() {
 
         const status = safeJson(payload);
         const occurredAt = new Date().toISOString();
+        const reportedAt = providerReportedAt(status);
+        const persistedStatus = {
+          ...(status && typeof status === "object" ? status : { raw: status }),
+          _oyi_timeline: {
+            received_at: occurredAt,
+            provider_reported_at: reportedAt,
+            source: sourceFromPayload(status, topic),
+          },
+        };
         const eventSource = sourceFromPayload(status, topic);
         const providerEventId = String(status?.provider_event_id || status?.event_id || status?.id || "");
         const device = await resolveDeviceForStateEvent({ ref: incomingDeviceId, estateId });
@@ -353,8 +381,8 @@ export async function initMqttBridge() {
           .upsert(
             {
               device_id: deviceId,
-              status,
-              last_seen: new Date().toISOString(),
+              status: persistedStatus,
+              last_seen: occurredAt,
             },
             { onConflict: "device_id" }
           );

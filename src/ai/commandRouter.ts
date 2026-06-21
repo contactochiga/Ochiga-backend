@@ -7,6 +7,7 @@ import { executeDeviceCommandForActor } from "../controllers/deviceCommandContro
 import { deviceWithinActorScope, hasWatchScope } from "../services/watchPolicy";
 import { NotificationService } from "../services/NotificationService";
 import {
+  buildDeviceTimeline,
   type DeviceRuntimeScope,
   isDeviceDefinitelyOffline,
   listVisibleDevices,
@@ -992,6 +993,7 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
     const entities = rows.map((device: any) => {
       const latest: any = stateByDevice.get(String(device.id)) || null;
       const state: Record<string, any> = latest?.status && typeof latest.status === "object" ? latest.status : {};
+      const timeline = buildDeviceTimeline(device, latest);
       const online = normalizeDeviceOnlineState(device).state;
       const power = typeof state.switch === "boolean" ? (state.switch ? "on" : "off")
         : typeof state.power === "boolean" ? (state.power ? "on" : "off")
@@ -1011,8 +1013,10 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
           external_id: device.external_id || null,
           online_state: online,
           latest_state: state,
-          last_seen_at: latest?.last_seen || device.last_seen_at || null,
-          updated_at: latest?.updated_at || device.updated_at || null,
+          latest_state_at: timeline.latest_state_at,
+          last_seen_at: timeline.last_seen_at,
+          provider_reported_at: timeline.provider_reported_at,
+          updated_at: timeline.latest_state_at,
           created_at: device.created_at || null,
           summary: `${status}${device.room_id ? " in its assigned room" : ""}.`,
         },

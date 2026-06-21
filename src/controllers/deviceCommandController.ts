@@ -325,7 +325,15 @@ export async function executeDeviceCommandForActor(input: {
       .eq("device_id", deviceRow.id)
       .maybeSingle();
     const previousState = (previousStateRow.data as any)?.status || null;
-    const persistedState = { ...(verifiedState || normalized || {}), last_command: normalized };
+    const persistedState = {
+      ...(verifiedState || normalized || {}),
+      last_command: normalized,
+      _oyi_timeline: {
+        received_at: new Date().toISOString(),
+        provider_reported_at: null,
+        source: commandSource,
+      },
+    };
     await supabaseAdmin
       .from("device_states")
       .upsert(

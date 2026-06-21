@@ -27,12 +27,12 @@ async function finish(workflow: any | null | undefined, state: VerificationState
 }
 
 export async function verifyDeviceAction(input: { workflow?: any; device_id: string; expected_state?: Record<string, unknown> | null }) {
-  const { data, error } = await supabaseAdmin.from("device_states").select("state,updated_at").eq("device_id", input.device_id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await supabaseAdmin.from("device_states").select("status,last_seen,updated_at").eq("device_id", input.device_id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (error || !data) return finish(input.workflow, "timeout", "Device state was not available for verification.", { device_id: input.device_id, reason: error?.message || "state_missing" });
-  const state = data.state || {};
+  const state = data.status || {};
   const expected = input.expected_state || {};
   const matches = Object.entries(expected).every(([key, value]) => state[key] === value);
-  return finish(input.workflow, matches ? "verified" : "failed", matches ? "Device state matches the confirmed command." : "Device state does not match the expected command.", { device_id: input.device_id, expected_state: expected, observed_state: state, observed_at: data.updated_at || null });
+  return finish(input.workflow, matches ? "verified" : "failed", matches ? "Device state matches the confirmed command." : "Device state does not match the expected command.", { device_id: input.device_id, expected_state: expected, observed_state: state, latest_state_at: data.updated_at || data.last_seen || null });
 }
 
 export async function verifyVisitorStatus(input: { workflow?: any; visitor_id: string; expected_status: string }) {

@@ -3,6 +3,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
+import { buildDeviceTimeline } from "../services/deviceRuntimeService";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -37,7 +38,7 @@ export async function getDeviceState(req: any, res: Response) {
     if (isUuid(rawId)) {
       const { data } = await supabaseAdmin
         .from("devices")
-        .select("id, estate_id, external_id, vendor, adapter")
+        .select("id, estate_id, external_id, vendor, adapter, online, status, metadata, last_seen_at, last_event_at, updated_at")
         .eq("id", rawId)
         .eq("estate_id", estateId)
         .maybeSingle();
@@ -45,7 +46,7 @@ export async function getDeviceState(req: any, res: Response) {
     } else {
       const { data } = await supabaseAdmin
         .from("devices")
-        .select("id, estate_id, external_id, vendor, adapter")
+        .select("id, estate_id, external_id, vendor, adapter, online, status, metadata, last_seen_at, last_event_at, updated_at")
         .eq("external_id", rawId)
         .eq("estate_id", estateId)
         .maybeSingle();
@@ -59,17 +60,19 @@ export async function getDeviceState(req: any, res: Response) {
     // 1) ✅ try cached/latest known state
     const { data: st } = await supabaseAdmin
       .from("device_states")
-      .select("device_id, status, last_seen")
+      .select("device_id, status, last_seen, updated_at")
       .eq("device_id", dev.id)
       .maybeSingle();
 
     if (st?.status) {
+      const timeline = buildDeviceTimeline(dev, st);
       return res.json({
         deviceId: st.device_id,
         external_id: dev.external_id,
         vendor: dev.vendor ?? dev.adapter ?? null,
         state: st.status,
         lastSeen: st.last_seen,
+        timeline,
         source: "cache",
       });
     }
@@ -145,7 +148,7 @@ export async function getDeviceState(req: any, res: Response) {
     await supabaseAdmin.from("device_states").upsert(
       {
         device_id: dev.id, // store by our internal device UUID
-        status: live, // jsonb
+        status: { ...live, _oyi_timeline: { received_at: now, provider_reported_at: null, source: "live_poll" } }, // jsonb
         last_seen: now,
       },
       { onConflict: "device_id" }
@@ -159,6 +162,7 @@ export async function getDeviceState(req: any, res: Response) {
       adapter: adapterName,
       state: live,
       lastSeen: now,
+      timeline: buildDeviceTimeline(dev, { status: live, last_seen: now, updated_at: now }),
       source: "live",
     });
   } catch (err: any) {

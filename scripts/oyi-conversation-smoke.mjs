@@ -2,8 +2,8 @@
 process.env.SUPABASE_URL ||= 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'local-smoke-service-role-key';
 
-const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest, normalizeOyiMessageForTest, resolveOyiDomainIntentForTest, deviceConversationResultForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
-const { resolveDeviceRuntimeScope } = await import('../dist/services/deviceRuntimeService.js');
+const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest, normalizeOyiMessageForTest, resolveOyiDomainIntentForTest, deviceConversationResultForTest, deviceTimelineNarrativeForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
+const { resolveDeviceRuntimeScope, buildDeviceTimeline } = await import('../dist/services/deviceRuntimeService.js');
 
 const state = {
   last_intent: 'visitor_operation',
@@ -291,6 +291,23 @@ if (consumerScope.homeId !== 'home-1' || facilityScope.homeId !== null || !facil
   console.error('FAIL device scope isolation', { consumerScope, facilityScope });
 } else {
   console.log('PASS device scope isolation');
+}
+
+const deviceTimeline = buildDeviceTimeline(
+  { online: false, last_seen_at: '2026-02-01T10:41:00.000Z', last_event_at: '2026-06-10T08:00:00.000Z' },
+  { updated_at: '2026-06-12T17:05:00.000Z', last_seen: '2026-06-12T17:05:00.000Z', status: { _oyi_timeline: { provider_reported_at: '2026-06-12T17:04:00.000Z' } } },
+);
+const timelineNarrative = deviceTimelineNarrativeForTest(deviceTimeline);
+if (deviceTimeline.latest_state_at !== '2026-06-12T17:05:00.000Z'
+  || deviceTimeline.last_seen_at !== '2026-02-01T10:41:00.000Z'
+  || deviceTimeline.provider_reported_at !== '2026-06-12T17:04:00.000Z'
+  || !/Latest state update was received/.test(timelineNarrative)
+  || !/last confirmed online/.test(timelineNarrative)
+  || !/provider reported this event/i.test(timelineNarrative)) {
+  failed += 1;
+  console.error('FAIL device timeline contract', { deviceTimeline, timelineNarrative });
+} else {
+  console.log('PASS device timeline contract');
 }
 
 if (failed) process.exit(1);

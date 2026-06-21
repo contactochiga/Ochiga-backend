@@ -17,6 +17,15 @@ export type DeviceRuntimeScope = {
   estateWide?: boolean;
 };
 
+export type DeviceTimeline = {
+  /** When Oyi most recently stored a state payload for this device. */
+  latest_state_at: string | null;
+  /** When the provider most recently confirmed the device was reachable/online. */
+  last_seen_at: string | null;
+  /** Provider-supplied event time, when present in the state payload. */
+  provider_reported_at: string | null;
+};
+
 export function normalizeDeviceOnlineState(row: any): DeviceOnlineState {
   const booleanCandidates: Array<[unknown, string]> = [
     [row?.online, "online"],
@@ -39,6 +48,55 @@ export function normalizeDeviceOnlineState(row: any): DeviceOnlineState {
     return { state: "offline", authoritative: false, source: "registry_status" };
   }
   return { state: "unknown", authoritative: false, source: "unknown" };
+}
+
+function timestamp(value: unknown) {
+  const text = String(value || "").trim();
+  if (!text || Number.isNaN(new Date(text).getTime())) return null;
+  return text;
+}
+
+function firstTimestamp(...values: unknown[]) {
+  for (const value of values) {
+    const resolved = timestamp(value);
+    if (resolved) return resolved;
+  }
+  return null;
+}
+
+/**
+ * Keeps state receipt, reachability, and provider event time distinct. They may
+ * legitimately differ when a provider sync lags a state report or a command is queued.
+ */
+export function buildDeviceTimeline(device: any, deviceState?: any | null): DeviceTimeline {
+  const state = deviceState?.status && typeof deviceState.status === "object" ? deviceState.status : {};
+  const timeline = state?._oyi_timeline && typeof state._oyi_timeline === "object" ? state._oyi_timeline : {};
+  const metadata = device?.metadata && typeof device.metadata === "object" ? device.metadata : {};
+  const online = normalizeDeviceOnlineState(device).state === "online" || state?.online === true;
+  return {
+    latest_state_at: firstTimestamp(
+      deviceState?.updated_at,
+      timeline?.received_at,
+      deviceState?.last_seen,
+      device?.last_event_at,
+      device?.updated_at,
+    ),
+    last_seen_at: firstTimestamp(
+      device?.last_seen_at,
+      online ? deviceState?.last_seen : null,
+    ),
+    provider_reported_at: firstTimestamp(
+      timeline?.provider_reported_at,
+      state?.provider_reported_at,
+      state?.providerReportedAt,
+      state?.reported_at,
+      state?.reportedAt,
+      state?.event_time,
+      state?.eventTime,
+      metadata?.provider_reported_at,
+      metadata?.providerReportedAt,
+    ),
+  };
 }
 
 export function isDeviceDefinitelyOffline(row: any) {
