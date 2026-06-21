@@ -2,7 +2,7 @@
 process.env.SUPABASE_URL ||= 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'local-smoke-service-role-key';
 
-const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest, normalizeOyiMessageForTest, resolveOyiDomainIntentForTest, deviceConversationResultForTest, deviceTimelineNarrativeForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
+const { resolveConversationFollowUpForTest, displayModeForTest, responsePresentationForTest, normalizeOyiMessageForTest, resolveOyiDomainIntentForTest, oyiRequestResolutionForTest, moduleConversationResultForTest, deviceConversationResultForTest, deviceTimelineNarrativeForTest } = await import('../dist/services/oyiUnifiedIntelligenceService.js');
 const { resolveDeviceRuntimeScope, buildDeviceTimeline } = await import('../dist/services/deviceRuntimeService.js');
 
 const state = {
@@ -176,6 +176,16 @@ const deviceRows = [
   { type: 'device', id: 'device-2', title: 'Water Pump', status: 'offline', details: { online_state: 'offline' } },
 ];
 
+const explicitDomainState = { active_topic: 'notification', active_result_state: 'list', entities: [{ type: 'notification', id: 'notification-1', title: 'Latest notification' }] };
+const moduleRegressionCases = [
+  ['completed maintenance empty', moduleConversationResultForTest({ surface: 'consumer', intent: 'maintenance_operation', domain: 'maintenance', message: 'show completed maintenance', entities: [] }), /no completed maintenance records/i],
+  ['completed maintenance records', moduleConversationResultForTest({ surface: 'consumer', intent: 'maintenance_operation', domain: 'maintenance', message: 'show maintenance history', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Resolved leak', status: 'completed' }, { type: 'maintenance', id: 'maintenance-2', title: 'Open gate repair', status: 'open' }] }), /1 completed maintenance record/i],
+  ['all maintenance records', moduleConversationResultForTest({ surface: 'consumer', intent: 'maintenance_operation', domain: 'maintenance', message: 'show maintenance requests', entities: [{ type: 'maintenance', id: 'maintenance-1', title: 'Resolved leak', status: 'completed' }, { type: 'maintenance', id: 'maintenance-2', title: 'Open gate repair', status: 'open' }] }), /2 maintenance requests/i],
+  ['utility empty wording', moduleConversationResultForTest({ surface: 'facility', intent: 'service_operation', domain: 'utilities', message: 'show utility issues', entities: [] }), /no utility issues/i],
+  ['camera empty wording', moduleConversationResultForTest({ surface: 'facility', intent: 'device_status', domain: 'cameras', message: 'show cameras', entities: [] }), /registered cameras for this facility context/i],
+  ['activity empty wording', moduleConversationResultForTest({ surface: 'consumer', intent: 'investigation', domain: 'activity', message: 'show activity', entities: [] }), /no activity available/i],
+];
+
 let failed = 0;
 for (const [message, assertion] of cases) {
   const value = resolveConversationFollowUpForTest(message, state);
@@ -264,6 +274,26 @@ for (const [surface, message, expectedDomain] of domainCases) {
     console.error(`FAIL domain coverage: ${surface} ${message}`, actual);
   } else {
     console.log(`PASS domain coverage: ${surface} ${message} -> ${actual.domain}`);
+  }
+}
+
+for (const [message, expectedDomain] of [['show activity', 'activity'], ['show notifications', 'notifications'], ['show wallet', 'wallet'], ['show cameras', 'cameras']]) {
+  const surface = expectedDomain === 'cameras' ? 'facility' : 'consumer';
+  const resolution = oyiRequestResolutionForTest(message, surface, explicitDomainState);
+  if (resolution.domain !== expectedDomain || resolution.should_resolve_follow_up) {
+    failed += 1;
+    console.error(`FAIL explicit domain override: ${message}`, resolution);
+  } else {
+    console.log(`PASS explicit domain override: ${message}`);
+  }
+}
+
+for (const [name, actual, expected] of moduleRegressionCases) {
+  if (!expected.test(actual) || /no open maintenance issues/i.test(actual) && /completed|history/i.test(name)) {
+    failed += 1;
+    console.error(`FAIL module regression: ${name}`, actual);
+  } else {
+    console.log(`PASS module regression: ${name}`);
   }
 }
 

@@ -1103,16 +1103,27 @@ async function summarizeModuleTool(actor: AuthUser, prompt: string, args: Record
     entities = result.rows.map((row: any) => moduleEntity("security", row, "facility_incidents", "Security incident"));
     label = "security incidents";
   } else if (module === "cameras") {
-    result = await selectRows("camera_events", (q) => applyScope(q.select("*").order("occurred_at", { ascending: false }).limit(50), false));
-    entities = result.rows.map((row: any) => moduleEntity("camera", row, "camera_events", "Camera event"));
-    label = "camera events";
+    const [cameras, events] = await Promise.all([
+      selectRows("facility_cameras", (q) => applyScope(q.select("*").order("updated_at", { ascending: false }).limit(50), false)),
+      selectRows("camera_events", (q) => applyScope(q.select("*").order("occurred_at", { ascending: false }).limit(50), false)),
+    ]);
+    result = { available: cameras.available || events.available, rows: [...cameras.rows, ...events.rows], error: cameras.error || events.error };
+    entities = [
+      ...cameras.rows.map((row: any) => moduleEntity("camera", row, "facility_cameras", row.name || "Camera", { location: row.location || null, last_seen_at: row.last_seen_at || null, health_status: row.health_status || null })),
+      ...events.rows.map((row: any) => moduleEntity("camera", row, "camera_events", "Camera event")),
+    ];
+    label = /event/.test(requested) ? "camera events" : "cameras";
   } else if (module === "sensors" || (module === "utilities" && scope.facility)) {
     result = await selectRows("utility_telemetry", (q) => applyScope(q.select("*").order("observed_at", { ascending: false }).limit(50), !scope.facility));
     entities = result.rows.map((row: any) => moduleEntity("sensor", row, "utility_telemetry", "Telemetry reading"));
     label = module === "sensors" ? "sensor readings" : "utility readings";
   } else if (module === "staff") {
-    result = await selectRows("estate_memberships", (q) => applyScope(q.select("*").eq("status", "active").order("created_at", { ascending: false }).limit(100), false));
-    entities = result.rows.map((row: any) => moduleEntity("staff", row, "estate_memberships", "Facility staff", { user_id: row.user_id || null, role: row.role || null }));
+    result = await selectRows("estate_memberships", (q) => applyScope(q.select("id,user_id,role,status,created_at,updated_at,users(id,email,full_name,username)").eq("status", "active").order("created_at", { ascending: false }).limit(100), false));
+    entities = result.rows.map((row: any) => {
+      const user = row.users || {};
+      const title = user.full_name || user.display_name || user.username || user.email || row.full_name || row.display_name || row.name || "Unnamed staff member";
+      return moduleEntity("staff", { ...row, name: title, status: row.role || row.department || row.status }, "estate_memberships", "Unnamed staff member", { user_id: row.user_id || null, role: row.role || null, department: row.department || null, email: user.email || null });
+    });
     label = "facility staff";
   } else if (module === "estate") {
     result = await selectRows("homes", (q) => applyScope(q.select("*").order("name", { ascending: true }).limit(100), false));

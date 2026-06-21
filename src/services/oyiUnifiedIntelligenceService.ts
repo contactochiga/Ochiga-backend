@@ -1285,6 +1285,16 @@ export function responsePresentationForTest(message: string, intent: OyiIntentCa
   return { display_mode, support_payload_attached: display_mode !== "conversation" };
 }
 
+export function oyiRequestResolutionForTest(message: string, surface: OyiSurface, state: Partial<ConversationState> = {}) {
+  const normalized = normalizeOyiMessage(message);
+  const explicitDomain = detectDomainIntent(normalized, surface);
+  const context: ConversationState = { ...emptyConversationState(), ...state, entities: Array.isArray(state.entities) ? state.entities as ConversationEntity[] : [] };
+  return {
+    domain: explicitDomain?.key || null,
+    should_resolve_follow_up: !explicitDomain && isFollowUpMessage(message, context),
+  };
+}
+
 function commandSummary(results: any[]) {
   const first = results[0] || {};
   if (!results.length) return "No executable operation was selected.";
@@ -1299,31 +1309,70 @@ function plainEntityList(entities: ConversationEntity[]) {
   return entities.slice(0, 5).map((entity, index) => `${index + 1}. ${entity.title}${entity.status ? ` — ${entity.status}` : ""}`).join("\n");
 }
 
-function operationalConversationMessage(surface: OyiSurface, intent: OyiIntentCategory, entities: ConversationEntity[], fallback: string, message = "") {
-  const topic = topicForIntent(intent);
+function maintenanceView(message: string) {
+  const lower = message.toLowerCase();
+  if (/completed|resolved|closed|cancelled|history/.test(lower)) return "history";
+  if (/open|pending|unresolved|overdue/.test(lower)) return "open";
+  return "all";
+}
+
+function operationalConversationMessage(surface: OyiSurface, intent: OyiIntentCategory, entities: ConversationEntity[], fallback: string, message = "", domainKey?: string | null) {
+  const topic = topicForDomain(domainKey) || topicForIntent(intent);
+  const maintenanceMode = topic === "maintenance" ? maintenanceView(message) : "all";
   if (!topic) return fallback;
   if (!entities.length) {
     if (topic === "visitor") return "There are currently no visitor requests awaiting approval.";
-    if (topic === "maintenance") return "There are currently no open maintenance issues.";
+    if (topic === "maintenance") return maintenanceMode === "history"
+      ? "There are no completed maintenance records available in this context."
+      : maintenanceMode === "open"
+        ? "There are currently no open maintenance issues."
+        : "There are currently no maintenance records available in this context.";
     if (topic === "device") return surface === "facility"
       ? "I could not find registered infrastructure devices for this facility context."
       : "I could not find registered devices for this home context.";
+    if (domainKey === "utilities") return "There are currently no utility issues to show.";
+    if (topic === "camera") return "I could not find registered cameras for this facility context.";
+    if (topic === "activity") return "There is currently no activity available in this context.";
     if (topic === "service") return "There are currently no service issues to show.";
     if (topic === "community") return "There are currently no community reports to show.";
     if (topic === "wallet") return "There are currently no wallet records to show.";
     return `There are currently no ${topicLabel(topic, true)} to show.`;
   }
-  const open = topic === "maintenance" ? entities.filter((row) => /open|new|assigned|scheduled|progress|waiting/i.test(String(row.status || ""))) : entities;
+  const maintenance = topic === "maintenance"
+    ? maintenanceMode === "history"
+      ? entities.filter((row) => /completed|resolved|closed|cancelled/i.test(String(row.status || "")))
+      : maintenanceMode === "open"
+        ? entities.filter((row) => /open|new|assigned|scheduled|progress|waiting|overdue/i.test(String(row.status || "")))
+        : entities
+    : entities;
   const pending = topic === "visitor" && /pending|approval|waiting/.test(message.toLowerCase())
     ? entities.filter((row) => /pending|requested/i.test(String(row.status || "")))
     : entities;
-  const relevant = topic === "maintenance" ? open : pending;
+  const relevant = topic === "maintenance" ? maintenance : pending;
   if (!relevant.length) {
-    if (topic === "maintenance") return "There are currently no open maintenance issues.";
+    if (topic === "maintenance") return maintenanceMode === "history"
+      ? "There are no completed maintenance records available in this context."
+      : maintenanceMode === "open"
+        ? "There are currently no open maintenance issues."
+        : "There are currently no maintenance records available in this context.";
     if (topic === "visitor") return "There are currently no visitor requests awaiting approval.";
   }
-  const label = topicLabel(topic, relevant.length !== 1);
+  const label = domainKey === "utilities"
+    ? relevant.length === 1 ? "utility issue" : "utility issues"
+    : topic === "maintenance" && maintenanceMode === "history"
+      ? relevant.length === 1 ? "completed maintenance record" : "completed maintenance records"
+      : topicLabel(topic, relevant.length !== 1);
   return `There ${relevant.length === 1 ? "is" : "are"} ${relevant.length} ${label} available.\n${plainEntityList(relevant)}\nWhich one would you like to inspect?`;
+}
+
+export function moduleConversationResultForTest(input: {
+  surface: OyiSurface;
+  intent: OyiIntentCategory;
+  domain?: string | null;
+  message: string;
+  entities: ConversationEntity[];
+}) {
+  return operationalConversationMessage(input.surface, input.intent, input.entities, "Module registry unavailable.", input.message, input.domain);
 }
 
 export function deviceConversationResultForTest(input: {
@@ -1890,10 +1939,6 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     return workflowDomainResult(context, domain);
   }
 
-  if (domain?.key === "operational_queue") {
-    return operationalQueueResult(context, awareness, domain, message);
-  }
-
   if (!domain && (intent === "awareness" || intent === "recommendation" || intent === "general_help")) {
     return {
       intent,
@@ -1957,7 +2002,7 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       understood,
       message: routed.results.some((item: any) => item.status === "pending_confirmation")
         ? `${commandSummary(routed.results)} No action has been performed yet.`.trim()
-        : operationalConversationMessage(surface, intent, activeEntities, commandSummary(routed.results), message),
+        : operationalConversationMessage(surface, intent, activeEntities, commandSummary(routed.results), message, domain?.key),
       cards,
       sources: supportPayload ? userFacingSources(surface, "operation") : [],
       suggested_actions: supportPayload ? operatingSuggestedActions(surface, intent) : [],
@@ -2214,17 +2259,18 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
     { agent_id: surface === "facility" ? "facility" : "oyi", action: "oyi.chat", tool: "oyi:chat", surface, actor },
     async () => {
       const conversation = await loadConversationContext(actor, input);
+      const explicitDomain = detectDomainIntent(normalizeOyiMessage(message), surface);
       const effectiveInput: OyiChatInput = {
         ...input,
         surface,
-        message: expandFollowUpMessage(message, conversation.state),
+        message: explicitDomain ? message : expandFollowUpMessage(message, conversation.state),
         estate_id: input.estate_id || conversation.estate_id || null,
         home_id: input.home_id || conversation.home_id || null,
       };
       const internalIntent = classifyUniversalIntent({ message: effectiveInput.message, surface: surface as any, estate_id: effectiveInput.estate_id, home_id: effectiveInput.home_id });
       const context = await loadUnifiedContext(actor, { surface, estate_id: effectiveInput.estate_id, home_id: effectiveInput.home_id });
       const awareness = buildAwareness(surface, context, actor);
-      const followUp = await resolveFollowUpOperation(actor, effectiveInput, conversation.state);
+      const followUp = explicitDomain ? null : await resolveFollowUpOperation(actor, effectiveInput, conversation.state);
       const operation = followUp || await runOperatingLayer(actor, effectiveInput, context, awareness);
       const displayMode = operation.display_mode || displayModeFor(operation.intent, message, operation.cards.length > 0);
       const supportPayloadAttached = displayMode !== "conversation";
