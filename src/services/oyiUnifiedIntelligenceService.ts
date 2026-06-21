@@ -352,7 +352,7 @@ function referencedEntity(message: string, state: ConversationState) {
   const named = namedEntity(message, state.entities);
   if (named) return named;
   const lower = message.trim().toLowerCase();
-  if (/\b(it|he|she|they|him|her|that one|this one)\b|^(?:why|when|who)(?:\?|$)|^(?:show )?(?:activity|history|details)$|^(?:approve|reject|remove|assign|turn|switch|run)\b/i.test(lower)) {
+  if (/\b(it|he|she|they|him|her|that one|this one)\b|^(?:why|when|who|how)(?:\?|$)|^(?:show )?(?:activity|history|details|evidence)$|what (?:is|was|happened)|when was|who (?:created|reported|owns)|status|blocking|overdue|verify|^(?:approve|reject|remove|assign|turn|switch|run)\b/i.test(lower)) {
     return activeEntityFromState(state);
   }
   return null;
@@ -362,7 +362,7 @@ function isFollowUpMessage(message: string, state?: ConversationState) {
   const value = message.trim().toLowerCase();
   if (["why", "why?", "when", "when?", "who", "who?"].includes(value)) return true;
   if (state && referencedEntity(message, state)) return true;
-  return /\b(approve|reject|remove|assign|verify|owner|blocking|overdue|show me more|more details|show activity|show history|show details|what should i do next|do it|go ahead|proceed|confirm|cancel|yes|no|that one|this one|first|second|third|latest|most recent|number one|number two|number three|1st|2nd|3rd|when was|who reported|who owns|why did|it|he|she|they|him|her)\b|^(?:one|two|three|1|2|3)$/i.test(value);
+  return /\b(approve|reject|remove|assign|verify|owner|status|created|updated|evidence|blocking|overdue|what happened|show me more|more details|show activity|show history|show details|what should i do next|do it|go ahead|proceed|confirm|cancel|yes|no|that one|this one|first|second|third|latest|most recent|number one|number two|number three|1st|2nd|3rd|when was|who created|who reported|who owns|why did|it|he|she|they|him|her)\b|^(?:one|two|three|1|2|3)$/i.test(value);
 }
 
 function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] | null {
@@ -1515,9 +1515,12 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     if (/^(why|why\?)|why did/i.test(message)) {
       return preserveConversation({ intent: "investigation", understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `Because there are no ${topicLabel(state.active_topic, true)} in the current ${surface === "facility" ? "estate" : "home"} context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
     }
+    if (/status|details|history|activity|evidence|verify|what happened|when was|who created|who reported|who owns|blocking|overdue/i.test(message)) {
+      return preserveConversation({ intent: "investigation", understood: `The current ${topicLabel(state.active_topic, true)} list is empty.`, message: `No ${topicLabel(state.active_topic)} is currently selected because there are no ${topicLabel(state.active_topic, true)} available in this context.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
+    }
   }
 
-  if (!entity && state.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who reported|why did/i.test(message)) {
+  if (!entity && state.active_topic && /^(why|why\?|when|when\?|who|who\?)|when was|who created|who reported|who owns|why did|status|details|history|activity|evidence|verify|what happened|blocking|overdue/i.test(message)) {
     return preserveConversation({ intent: "investigation", understood: `The active topic is ${topicLabel(state.active_topic, true)}.`, message: `Which ${topicLabel(state.active_topic)} do you mean? You can say “the first one” or name it.`, cards: [], sources: [], suggested_actions: [], execution: { status: "read_only" } });
   }
 
@@ -1589,7 +1592,7 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     });
   }
 
-  if (/show (me )?(the )?(first|second|third|last|latest|most recent) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who)\??$|when was|who reported|why did|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
+  if (/show (me )?(the )?(first|second|third|last|latest|most recent) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who|how)\??$|when was|who created|who reported|who owns|why did|what happened|status|evidence|verify|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
     if (entity.type === "workflow" && /who owns|who is responsible|owner|assignee|assigned/i.test(message)) {
       const owner = humanLabel(details.owner) || humanLabel(details.assignee);
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: owner ? `${entity.title} is currently owned by ${owner}.` : `I found ${entity.title}, but the available workflow record does not identify a named owner.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
@@ -1606,22 +1609,28 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     if (entity.type === "workflow" && /verify/i.test(message)) {
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} can be verified after its source operation completes. I do not have a completed source action to verify from this message.`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: [], execution: { status: "validation_required" }, conversation_active_entity: activeEntity });
     }
-    if (entity.type === "workflow" && /history|activity|details|what happened/i.test(message)) {
+    if (entity.type === "workflow" && /history|activity|details|evidence|what happened|status/i.test(message)) {
       const summary = humanLabel(details.summary) || humanLabel(details.resolution) || `${entity.title} is currently ${entity.status || "recorded"}.`;
       const created = details.created_at ? ` Created ${new Date(String(details.created_at)).toLocaleString()}.` : "";
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${summary}${created}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
-    if (/^when\??$|when was/i.test(message)) {
-      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(details.created_at || details.updated_at, "It was recorded")}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+    if (/^when\??$|when was|created|updated/i.test(message)) {
+      const target = /updated/i.test(message) ? details.updated_at : details.created_at || details.updated_at;
+      const label = /updated/i.test(message) ? "It was last updated" : "It was recorded";
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}. ${dateLabel(target, label)}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
-    if (/^who\??$|who reported/i.test(message)) {
-      const reporter = humanLabel(details.reported_by);
-      const unavailable = entity.type === "visitor" ? "the creator name" : "who reported it";
-      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: reporter ? `${entity.title} was reported by ${reporter}.` : `I found ${entity.title}, but the available record does not include ${unavailable}.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+    if (/^who\??$|who created|who reported|who owns/i.test(message)) {
+      const person = humanLabel(details.owner) || humanLabel(details.assignee) || humanLabel(details.reported_by) || humanLabel((details as any).created_by);
+      const unavailable = /owns|owner/i.test(message) ? "an owner name" : entity.type === "visitor" ? "the creator name" : "who reported or created it";
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: person ? `${entity.title} is associated with ${person}.` : `I found ${entity.title}, but the available record does not include ${unavailable}.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     if (/^why\??$|why did/i.test(message)) {
       const explanation = details.summary ? `The available record says: ${String(details.summary)}.` : `Its current status is ${entity.status || "recorded"}.`;
       return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${entity.title}: ${explanation} I do not have enough verified evidence to state a cause beyond the recorded details.`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
+    }
+    if (/status|details|history|activity|evidence|what happened/i.test(message)) {
+      const summary = humanLabel(details.summary) || `${entity.title} is currently ${entity.status || "recorded"}.`;
+      return preserveConversation({ intent: "investigation", understood: `I found ${entity.title}.`, message: `${summary}${details.updated_at ? ` Last updated ${new Date(String(details.updated_at)).toLocaleString()}.` : ""}`, cards: [], sources: userFacingSources(surface, "report"), suggested_actions: [], execution: { status: "read_only" }, conversation_active_entity: activeEntity });
     }
     return preserveConversation({ intent, understood: `I found ${entity.title}.`, message: `${entity.title} is currently ${entity.status || "recorded"}.${details.created_at ? ` Recorded ${new Date(String(details.created_at)).toLocaleString()}.` : ""}`, cards: [], sources: userFacingSources(surface, "operation"), suggested_actions: operatingSuggestedActions(surface, intent), execution: { status: "read_only" }, conversation_active_entity: activeEntity });
   }
