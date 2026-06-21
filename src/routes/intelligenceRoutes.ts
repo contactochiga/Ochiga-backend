@@ -413,8 +413,8 @@ router.post("/predictions/run", requireAuth, async (req, res) => {
   try {
     const body = await generateIntelligencePredictions({
       actor: req.user || null,
-      estate_id: req.body?.estate_id ? String(req.body.estate_id) : req.user?.estate_id || null,
-      home_id: req.body?.home_id ? String(req.body.home_id) : null,
+      estate_id: req.user?.estate_id || null,
+      home_id: req.user?.home_id || null,
       persist: req.body?.persist !== false,
       limit: req.body?.limit || 100,
     });

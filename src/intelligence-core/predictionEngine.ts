@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import type { AuthUser } from "../middleware/auth";
 import { filterEventsForActor, getIntelligencePermissionPolicy } from "./permissionEngine";
 import { recordAgentObservation } from "./observability";
+import { authenticatedActorScope } from "../security/actorScope";
 
 export type IntelligencePredictionType =
   | "device_anomaly"
@@ -96,8 +97,9 @@ function groupBy<T>(rows: T[], keyFn: (row: T) => string) {
 export async function generateIntelligencePredictions(options: PredictionRunOptions = {}) {
   const started = Date.now();
   const actor = options.actor || null;
-  const estateId = options.estate_id || actor?.estate_id || null;
-  const homeId = options.home_id || actor?.home_id || null;
+  const scope = actor ? authenticatedActorScope(actor) : options;
+  const estateId = scope.estate_id || null;
+  const homeId = scope.home_id || null;
   const limit = Math.max(10, Math.min(500, Number(options.limit || 250)));
   const warnings: string[] = [];
 
@@ -323,10 +325,15 @@ export function filterPredictionsForActor(predictions: any[], actor?: AuthUser |
   });
 }
 
+export function canAcknowledgePredictionForActor(prediction: any, actor?: AuthUser | null) {
+  return filterPredictionsForActor([prediction], actor).length === 1;
+}
+
 export async function listIntelligencePredictions(options: PredictionRunOptions & { status?: string | null; prediction_type?: string | null } = {}) {
   const actor = options.actor || null;
-  const estateId = options.estate_id || actor?.estate_id || null;
-  const homeId = options.home_id || actor?.home_id || null;
+  const scope = actor ? authenticatedActorScope(actor) : options;
+  const estateId = scope.estate_id || null;
+  const homeId = scope.home_id || null;
   const limit = Math.max(1, Math.min(200, Number(options.limit || 50)));
   let query = supabaseAdmin.from("ochiga_intelligence_predictions").select("*").order("created_at", { ascending: false }).limit(limit);
   if (estateId) query = query.eq("estate_id", estateId);
@@ -367,14 +374,23 @@ export function summarizePredictions(predictions: any[]) {
 }
 
 export async function acknowledgePrediction(id: string, actor: AuthUser) {
+  const { data: existing, error: readError } = await supabaseAdmin
+    .from("ochiga_intelligence_predictions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (readError) return { ok: false, error: "Prediction lookup failed" };
+  if (!existing || !canAcknowledgePredictionForActor(existing, actor)) {
+    return { ok: false, error: "Prediction not available for this actor" };
+  }
+
   const { data, error } = await supabaseAdmin
     .from("ochiga_intelligence_predictions")
     .update({ status: "acknowledged", acknowledged_at: new Date().toISOString(), acknowledged_by: actor.id, updated_at: new Date().toISOString() } as any)
     .eq("id", id)
+    .eq("status", existing.status)
     .select("*")
     .single();
-  if (error) return { ok: false, error: error.message };
-  const allowed = filterPredictionsForActor([data], actor);
-  if (!allowed.length) return { ok: false, error: "Prediction not available for this actor" };
+  if (error) return { ok: false, error: "Prediction acknowledgement failed" };
   return { ok: true, prediction: data };
 }

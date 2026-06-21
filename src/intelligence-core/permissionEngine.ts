@@ -7,6 +7,8 @@ export type IntelligenceRole =
   | "resident"
   | "facility_manager"
   | "security_operator"
+  | "maintenance_operator"
+  | "finance_operator"
   | "estate_admin"
   | "ochiga_admin"
   | "super_admin"
@@ -47,7 +49,9 @@ export function normalizeIntelligenceRole(input?: string | null): IntelligenceRo
   if (canonical === "super_admin") return "super_admin";
   if (canonical === "ochiga_admin" || canonical === "ochiga_staff") return "ochiga_admin";
   if (canonical === "estate_admin") return "estate_admin";
-  if (canonical === "facility_manager" || canonical === "maintenance_operator" || canonical === "finance_operator") return "facility_manager";
+  if (canonical === "facility_manager") return "facility_manager";
+  if (canonical === "maintenance_operator") return "maintenance_operator";
+  if (canonical === "finance_operator") return "finance_operator";
   if (canonical === "security_operator") return "security_operator";
   return "resident";
 }
@@ -115,6 +119,32 @@ export function getIntelligencePermissionPolicy(actor?: AuthUser | null): Intell
       can_view_office: false,
       can_view_camera: hasPermission(actor, "cameras.view"),
       can_view_edge: true,
+      can_view_private_home: false,
+    };
+  }
+
+  if (role === "maintenance_operator") {
+    return {
+      role,
+      allowed_categories: ["operational", "maintenance", "system"],
+      allowed_agents: ["oyi", "facility", "edge"],
+      scope: "estate",
+      can_view_office: false,
+      can_view_camera: false,
+      can_view_edge: false,
+      can_view_private_home: false,
+    };
+  }
+
+  if (role === "finance_operator") {
+    return {
+      role,
+      allowed_categories: ["operational", "system"],
+      allowed_agents: ["oyi", "facility"],
+      scope: "estate",
+      can_view_office: false,
+      can_view_camera: false,
+      can_view_edge: false,
       can_view_private_home: false,
     };
   }

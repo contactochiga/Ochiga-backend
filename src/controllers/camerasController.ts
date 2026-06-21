@@ -162,6 +162,8 @@ export async function bind(req: Request, res: Response) {
   if (!resolvedEstateId) return res.status(400).json({ error: "estateId is required" });
   if (!ip) return res.status(400).json({ error: "ip is required" });
   if (!rtsp_url && !credential_ref) return res.status(400).json({ error: "rtsp_url or credential_ref is required" });
+  const membershipError = await assertEstateMember(user, resolvedEstateId);
+  if (membershipError) return res.status(membershipError.status).json({ error: "Permission denied" });
 
   const safePrivacyScope = ["facility", "home", "office"].includes(String(privacy_scope || "").toLowerCase())
     ? String(privacy_scope).toLowerCase()
@@ -534,6 +536,8 @@ export async function bindFromDiscovery(req: Request, res: Response) {
   const resolvedEstateId = estateId || user.estate_id;
   if (!resolvedEstateId) return res.status(400).json({ error: "estateId is required" });
   if (!ip) return res.status(400).json({ error: "ip is required" });
+  const membershipError = await assertEstateMember(user, resolvedEstateId);
+  if (membershipError) return res.status(membershipError.status).json({ error: "Permission denied" });
 
   // If RTSP is already known, just bind directly using existing bind()
   if (rtsp_url) {

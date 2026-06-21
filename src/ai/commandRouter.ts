@@ -1,5 +1,6 @@
 import { Request } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { authenticatedActorScope } from "../security/actorScope";
 import { emitAuditEvent, hasPermission } from "../core/foundation";
 import type { AuthUser } from "../middleware/auth";
 import { AI_TOOL_REGISTRY, getAiTool, type AiToolDefinition } from "./toolRegistry";
@@ -46,11 +47,17 @@ function promptExcerpt(prompt: string) {
 }
 
 function actorEstate(actor: AuthUser, explicit?: string | null) {
-  return explicit || actor.estate_id || null;
+  // Request payload scopes are untrusted. Context switching must update the authenticated actor first.
+  return authenticatedActorScope(actor).estate_id;
 }
 
 function actorHome(actor: AuthUser, explicit?: string | null) {
-  return explicit || actor.home_id || null;
+  // Request payload scopes are untrusted. Context switching must update the authenticated actor first.
+  return authenticatedActorScope(actor).home_id;
+}
+
+export function resolveActorScopeForTest(actor: Pick<AuthUser, "estate_id" | "home_id">, requested: { estate_id?: string | null; home_id?: string | null }) {
+  return authenticatedActorScope(actor);
 }
 
 function activeScopeFilter(actor: AuthUser, estateId?: string | null, homeId?: string | null): Record<string, string | null> {

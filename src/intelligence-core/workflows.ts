@@ -183,11 +183,18 @@ export async function transitionWorkflow(input: {
 export async function listWorkflows(actor?: AuthUser | null, filters: { status?: string | null; escalated?: boolean; limit?: number } = {}) {
   if (!canViewWorkflows(actor)) return { ok: false, error: "Workflow access requires an operational or executive role", workflows: [] };
   let query = supabaseAdmin.from("ochiga_workflows").select("*").order("created_at", { ascending: false }).limit(Math.max(1, Math.min(200, Number(filters.limit || 100))));
-  if (actor?.estate_id && getIntelligencePermissionPolicy(actor).role !== "super_admin") query = query.or(`estate_id.is.null,estate_id.eq.${actor.estate_id}`);
+  const policy = getIntelligencePermissionPolicy(actor);
+  if (policy.scope === "estate" && actor?.estate_id) query = query.eq("estate_id", actor.estate_id);
   if (filters.status) query = query.eq("workflow_status", filters.status);
   if (filters.escalated) query = query.eq("workflow_status", "escalated");
   const { data, error } = await query;
   return { ok: !error, workflows: data || [], warning: error?.message || null };
+}
+
+export function workflowVisibleToActorForTest(workflow: { estate_id?: string | null }, actor?: AuthUser | null) {
+  const policy = getIntelligencePermissionPolicy(actor);
+  if (policy.scope === "estate") return Boolean(actor?.estate_id && workflow.estate_id && String(actor.estate_id) === String(workflow.estate_id));
+  return true;
 }
 
 export async function getWorkflow(id: string, actor?: AuthUser | null) {

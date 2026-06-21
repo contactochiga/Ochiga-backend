@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import type { AuthUser } from "../middleware/auth";
 import type { IntelligenceEvent } from "./types";
 import { normalizeCoreBusEvent, normalizeIntelligenceCategory, type IntelligenceEventFilters } from "./eventBus";
+import { authenticatedActorScope } from "../security/actorScope";
 
 function clampLimit(limit: unknown, fallback = 50) {
   const n = Number.parseInt(String(limit ?? ""), 10);
@@ -38,8 +39,9 @@ async function safeSelect(table: string, select: string, apply: (query: any) => 
 }
 
 function scopedQuery(query: any, actor: AuthUser | null, filters: IntelligenceEventFilters) {
-  const estateId = filters.estate_id || actor?.estate_id || null;
-  const homeId = filters.home_id || actor?.home_id || null;
+  const scope = actor ? authenticatedActorScope(actor) : filters;
+  const estateId = scope.estate_id || null;
+  const homeId = scope.home_id || null;
   if (estateId) query = query.eq("estate_id", estateId);
   if (homeId) query = query.eq("home_id", homeId);
   return query;
@@ -218,7 +220,7 @@ export async function loadNormalizedTimelineEvents(filters: IntelligenceEventFil
     safeSelect("device_events", "*", (q) => scopedQuery(q.order("occurred_at", { ascending: false }).limit(limit), actor, filters)),
     safeSelect("camera_events", "*", (q) => {
       let query = q.order("created_at", { ascending: false }).limit(limit);
-      const estateId = filters.estate_id || actor?.estate_id || null;
+      const estateId = (actor ? authenticatedActorScope(actor) : filters).estate_id || null;
       if (estateId) query = query.eq("estate_id", estateId);
       if (filters.camera_id) query = query.eq("camera_id", filters.camera_id);
       return query;
@@ -229,7 +231,7 @@ export async function loadNormalizedTimelineEvents(filters: IntelligenceEventFil
     safeSelect("notifications", "id,user_id,estate_id,title,message,type,payload,status,created_at", (q) => {
       let query = q.order("created_at", { ascending: false }).limit(limit);
       if (actor?.id) query = query.eq("user_id", actor.id);
-      const estateId = filters.estate_id || actor?.estate_id || null;
+      const estateId = (actor ? authenticatedActorScope(actor) : filters).estate_id || null;
       if (estateId) query = query.eq("estate_id", estateId);
       return query;
     }),

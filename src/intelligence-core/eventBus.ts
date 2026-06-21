@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import type { AuthUser } from "../middleware/auth";
 import type { IntelligenceEvent, IntelligenceEventCategory } from "./types";
 import { normalizeIntelligenceEvent } from "./timeline";
+import { authenticatedActorScope } from "../security/actorScope";
 
 export type IntelligenceEventFilters = {
   actor?: AuthUser | null;
@@ -133,8 +134,9 @@ export async function listPersistedIntelligenceEvents(filters: IntelligenceEvent
     .order("occurred_at", { ascending: false })
     .limit(limit);
 
-  const estateId = filters.estate_id || actor?.estate_id || null;
-  const homeId = filters.home_id || actor?.home_id || null;
+  const scope = actor ? authenticatedActorScope(actor) : filters;
+  const estateId = scope.estate_id || null;
+  const homeId = scope.home_id || null;
 
   if (filters.agent_id) query = query.eq("agent_id", filters.agent_id);
   if (filters.category) query = query.eq("category", normalizeIntelligenceCategory(filters.category));
