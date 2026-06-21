@@ -144,6 +144,17 @@ export const AI_TOOL_REGISTRY: AiToolDefinition[] = [
     enabled: true,
   },
   {
+    tool_id: "summarize_module",
+    description: "Read real records for an authorized Oyi module while preserving scoped conversation entities.",
+    category: "operational_intelligence",
+    risk_level: "authenticated_read",
+    requires_auth: true,
+    required_permissions: [],
+    confirmation_required: false,
+    allowed_scopes: ["facility", "estate", "home", "user"],
+    enabled: true,
+  },
+  {
     tool_id: "summarize_readiness",
     description: "Summarize production readiness, integration state, and missing operational signals.",
     category: "platform_intelligence",

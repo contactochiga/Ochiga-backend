@@ -154,6 +154,9 @@ const domainCases = [
   ['consumer', 'show rooms', 'rooms'],
   ['consumer', 'show scenes', 'scenes'],
   ['consumer', 'show automation', 'automation'],
+  ['consumer', 'show home profile', 'profile'],
+  ['consumer', 'show notifications', 'notifications'],
+  ['consumer', 'show activity timeline', 'activity'],
   ['facility', 'open most recent requests', 'operational_queue'],
   ['facility', 'open operator requests', 'operational_queue'],
   ['facility', 'show staff tasks', 'staff'],
@@ -162,6 +165,10 @@ const domainCases = [
   ['facility', 'show utility issues', 'utilities'],
   ['facility', 'show active workflows', 'workflows'],
   ['facility', 'show estate structure', 'estate'],
+  ['facility', 'show traffic records', 'traffic'],
+  ['facility', 'show sensors', 'sensors'],
+  ['facility', 'show accounting', 'wallet'],
+  ['facility', 'show daily estate report', 'reports'],
 ];
 
 const deviceRows = [

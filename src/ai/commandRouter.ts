@@ -945,6 +945,199 @@ function moduleForPrompt(prompt: string) {
   return "home";
 }
 
+type ModuleScope = { estateId: string | null; homeId: string | null; facility: boolean };
+
+function moduleScope(actor: AuthUser, args: Record<string, any>): ModuleScope {
+  const facility = String(args.__oyi_surface || "").toLowerCase() === "facility";
+  return {
+    estateId: actorEstate(actor, args.estate_id || args.estateId || null),
+    homeId: facility ? null : actorHome(actor, args.home_id || args.homeId || null),
+    facility,
+  };
+}
+
+function modulePermission(module: string, facility = false) {
+  const key = String(module || "").toLowerCase();
+  if (["visitors", "security"].includes(key)) return key === "security" ? "support.read" : "visitors.create";
+  if (["maintenance", "reports"].includes(key)) return "support.read";
+  if (["devices", "infrastructure", "sensors"].includes(key)) return "devices.read";
+  if (key === "utilities") return facility ? "devices.read" : "services.read";
+  if (key === "services") return "services.read";
+  if (key === "wallet") return "wallets.read";
+  if (["community", "activity", "notifications"].includes(key)) return key === "community" ? "community.read" : "notifications.read";
+  if (["rooms", "estate", "staff", "profile"].includes(key)) return key === "staff" ? "staff.manage" : "homes.read";
+  if (["scenes", "automation"].includes(key)) return "devices.read";
+  if (key === "cameras") return "cameras.view";
+  return null;
+}
+
+function moduleEntity(type: string, row: any, sourceTable: string, fallback: string, details: Record<string, any> = {}) {
+  const title = String(row?.title || row?.name || row?.visitor_name || row?.service_key || row?.reference || fallback).trim() || fallback;
+  const status = row?.status || row?.state || row?.workflow_status
+    || (row?.active === false ? "inactive" : row?.enabled === false ? "disabled" : "available");
+  return {
+    type,
+    id: row?.id ? String(row.id) : row?.external_id ? String(row.external_id) : null,
+    title,
+    status: String(status),
+    details: {
+      created_at: row?.created_at || row?.occurred_at || row?.observed_at || null,
+      updated_at: row?.updated_at || row?.occurred_at || row?.observed_at || null,
+      reported_by: row?.reported_by || row?.created_by_name || row?.created_by || row?.actor_id || null,
+      owner: row?.owner || row?.assigned_to || row?.assignee || null,
+      source_table: sourceTable,
+      summary: row?.summary || row?.description || row?.body || row?.content || null,
+      ...details,
+    },
+  };
+}
+
+function moduleListSummary(label: string, entities: any[], scope: ModuleScope, sourceAvailable = true) {
+  if (!sourceAvailable) return `The ${label} source is unavailable right now.`;
+  if (!entities.length) return `There are currently no ${label} available in this ${scope.facility ? "facility" : "home"} context.`;
+  return `I found ${entities.length} ${label}.\n${entities.slice(0, 5).map((entity, index) => `${index + 1}. ${entity.title} — ${entity.status}`).join("\n")}\nWhich one would you like to inspect?`;
+}
+
+async function summarizeModuleTool(actor: AuthUser, prompt: string, args: Record<string, any>) {
+  const module = String(args.module || "").toLowerCase();
+  const scope = moduleScope(actor, args);
+  const permission = modulePermission(module, scope.facility);
+  if (permission && !hasPermission(actor, permission as any)) {
+    return { summary: "You do not have access to this operation under your current role.", data: { conversation_entities: [], source_available: true } };
+  }
+  const applyScope = (query: any, homeScoped = true) => {
+    if (scope.estateId) query = query.eq("estate_id", scope.estateId);
+    if (homeScoped && scope.homeId) query = query.eq("home_id", scope.homeId);
+    return query;
+  };
+  const requested = String(prompt || "").toLowerCase();
+  let result: { available: boolean; rows: any[]; error: string } = { available: true, rows: [], error: "" };
+  let entities: any[] = [];
+  let label = module.replace(/_/g, " ") || "records";
+
+  if (module === "visitors") {
+    result = await selectRows("visitor_access", (q) => applyScope(q.select("*").order("created_at", { ascending: false }).limit(50)));
+    entities = result.rows.map((row: any) => moduleEntity("visitor", row, "visitor_access", "Visitor"));
+    label = "visitor requests";
+  } else if (module === "operational_queue") {
+    const [maintenance, visitors, incidents] = await Promise.all([
+      selectRows("maintenance_requests", (q) => applyScope(q.select("*").order("updated_at", { ascending: false }).limit(20), false)),
+      selectRows("visitor_access", (q) => applyScope(q.select("*").order("created_at", { ascending: false }).limit(20), false)),
+      selectRows("facility_incidents", (q) => applyScope(q.select("*").order("updated_at", { ascending: false }).limit(20), false)),
+    ]);
+    result = {
+      available: maintenance.available || visitors.available || incidents.available,
+      rows: [...maintenance.rows, ...visitors.rows, ...incidents.rows],
+      error: maintenance.error || visitors.error || incidents.error,
+    };
+    entities = [
+      ...maintenance.rows.map((row: any) => moduleEntity("maintenance", row, "maintenance_requests", "Maintenance request")),
+      ...visitors.rows.map((row: any) => moduleEntity("visitor", row, "visitor_access", "Visitor request")),
+      ...incidents.rows.map((row: any) => moduleEntity("security", row, "facility_incidents", "Facility incident")),
+    ].sort((a, b) => new Date(String(b.details?.updated_at || b.details?.created_at || 0)).getTime() - new Date(String(a.details?.updated_at || a.details?.created_at || 0)).getTime());
+    label = "recent operational requests";
+  } else if (module === "maintenance") {
+    result = await selectRows("maintenance_requests", (q) => applyScope(q.select("*").order("updated_at", { ascending: false }).limit(50)));
+    const status = (row: any) => String(row.status || "").toLowerCase();
+    const filtered = /completed|resolved|closed/.test(requested)
+      ? result.rows.filter((row) => /completed|resolved|closed/.test(status(row)))
+      : /open|pending|unresolved|overdue/.test(requested)
+        ? result.rows.filter((row) => /open|new|assigned|scheduled|in_progress|waiting|overdue/.test(status(row)))
+        : result.rows;
+    entities = filtered.map((row: any) => moduleEntity("maintenance", row, "maintenance_requests", "Maintenance request", { completed_at: row.completed_at || row.resolved_at || null, handled_by: row.handled_by || row.assigned_to || null }));
+    label = /completed|resolved|closed/.test(requested) ? "completed maintenance requests" : /open|pending|unresolved|overdue/.test(requested) ? "open maintenance requests" : "maintenance requests";
+  } else if (module === "community") {
+    const reports = /report|complaint|moderation|feedback/.test(requested);
+    result = reports
+      ? await selectRows("community_post_reports", (q) => applyScope(q.select("*").order("created_at", { ascending: false }).limit(50), false))
+      : await selectRows("community_posts", (q) => applyScope(q.select("*").neq("status", "deleted").order("created_at", { ascending: false }).limit(50), false));
+    entities = result.rows.map((row: any) => moduleEntity("community", row, reports ? "community_post_reports" : "community_posts", reports ? "Community report" : "Community update"));
+    label = reports ? "community reports" : "community updates";
+  } else if (module === "wallet") {
+    if (scope.facility) {
+      result = await selectRows("service_provider_transactions", (q) => applyScope(q.select("*").order("created_at", { ascending: false }).limit(50), false));
+      entities = result.rows.map((row: any) => moduleEntity("wallet", row, "service_provider_transactions", row.service_key || "Service payment", { amount: row.amount ?? null, currency: row.currency || "NGN", provider: row.provider || null }));
+      label = "facility payment records";
+      return {
+        summary: moduleListSummary(label, entities, scope, result.available),
+        data: { conversation_entities: entities.slice(0, 50), source_available: result.available, source_table: "service_provider_transactions" },
+      };
+    }
+    const wallets = await selectRows("wallets", (q) => q.select("*").eq("user_id", actor.id).order("updated_at", { ascending: false }).limit(10));
+    const walletIds = wallets.rows.map((row: any) => row.id).filter(Boolean);
+    const transactions = walletIds.length ? await selectRows("wallet_transactions", (q) => q.select("*").in("wallet_id", walletIds).order("created_at", { ascending: false }).limit(50)) : { available: wallets.available, rows: [], error: "" };
+    result = { available: wallets.available || transactions.available, rows: [...wallets.rows, ...transactions.rows], error: wallets.error || transactions.error };
+    const showTransactions = /transaction|payment|history|recent/.test(requested);
+    entities = (showTransactions ? transactions.rows : wallets.rows).map((row: any) => moduleEntity("wallet", row, showTransactions ? "wallet_transactions" : "wallets", showTransactions ? "Wallet transaction" : "Wallet", { balance: row.balance ?? null, amount: row.amount ?? null, currency: row.currency || "NGN" }));
+    label = showTransactions ? "wallet transactions" : "wallet accounts";
+  } else if (module === "services" || (module === "utilities" && !scope.facility)) {
+    const accounts = scope.homeId ? await selectRows("home_service_accounts", (q) => q.select("*").eq("home_id", scope.homeId).order("updated_at", { ascending: false }).limit(50)) : { available: true, rows: [], error: "" };
+    const configs = scope.estateId ? await selectRows("estate_service_configs", (q) => q.select("*").eq("estate_id", scope.estateId).order("updated_at", { ascending: false }).limit(50)) : { available: true, rows: [], error: "" };
+    const assignments = scope.estateId ? await selectRows("home_service_assignments", (q) => applyScope(q.select("*").order("updated_at", { ascending: false }).limit(50), !scope.facility)) : { available: true, rows: [], error: "" };
+    result = { available: accounts.available || configs.available || assignments.available, rows: [...accounts.rows, ...configs.rows, ...assignments.rows], error: accounts.error || configs.error || assignments.error };
+    entities = [
+      ...accounts.rows.map((row: any) => moduleEntity("service", row, "home_service_accounts", row.title || row.service_key || "Service", { service_key: row.service_key || null, account_ref: row.account_ref || row.meter_id || null })),
+      ...configs.rows.map((row: any) => moduleEntity("service", row, "estate_service_configs", row.title || row.service_key || "Service", { service_key: row.service_key || null })),
+      ...assignments.rows.map((row: any) => moduleEntity("service", row, "home_service_assignments", row.title || row.service_key || "Service", { service_key: row.service_key || null, assigned_by: row.assigned_by || null })),
+    ];
+    label = module === "utilities" ? "utility services" : "services";
+  } else if (module === "notifications") {
+    result = await selectRows("notifications", (q) => q.select("*").eq("user_id", actor.id).order("created_at", { ascending: false }).limit(50));
+    entities = result.rows.map((row: any) => moduleEntity("notification", row, "notifications", "Notification"));
+    label = "notifications";
+  } else if (module === "activity") {
+    result = await selectRows("home_timeline", (q) => applyScope(q.select("*").order("occurred_at", { ascending: false }).limit(50)));
+    entities = result.rows.map((row: any) => moduleEntity("activity", row, "home_timeline", "Activity"));
+    label = "activity records";
+  } else if (module === "rooms") {
+    result = await selectRows("rooms", (q) => applyScope(q.select("*").order("created_at", { ascending: true }).limit(100)));
+    entities = result.rows.map((row: any) => moduleEntity("room", row, "rooms", "Room"));
+    label = "rooms and spaces";
+  } else if (module === "scenes" || module === "automation") {
+    const table = module === "scenes" ? "consumer_scenes" : "consumer_automations";
+    result = await selectRows(table, (q) => applyScope(q.select("*").order("created_at", { ascending: false }).limit(50)));
+    entities = result.rows.map((row: any) => moduleEntity(module === "scenes" ? "scene" : "automation", row, table, module === "scenes" ? "Scene" : "Automation"));
+    label = module === "scenes" ? "scenes" : "automations";
+  } else if (module === "security") {
+    result = await selectRows("facility_incidents", (q) => applyScope(q.select("*").order("created_at", { ascending: false }).limit(50), !scope.facility));
+    entities = result.rows.map((row: any) => moduleEntity("security", row, "facility_incidents", "Security incident"));
+    label = "security incidents";
+  } else if (module === "cameras") {
+    result = await selectRows("camera_events", (q) => applyScope(q.select("*").order("occurred_at", { ascending: false }).limit(50), false));
+    entities = result.rows.map((row: any) => moduleEntity("camera", row, "camera_events", "Camera event"));
+    label = "camera events";
+  } else if (module === "sensors" || (module === "utilities" && scope.facility)) {
+    result = await selectRows("utility_telemetry", (q) => applyScope(q.select("*").order("observed_at", { ascending: false }).limit(50), !scope.facility));
+    entities = result.rows.map((row: any) => moduleEntity("sensor", row, "utility_telemetry", "Telemetry reading"));
+    label = module === "sensors" ? "sensor readings" : "utility readings";
+  } else if (module === "staff") {
+    result = await selectRows("estate_memberships", (q) => applyScope(q.select("*").eq("status", "active").order("created_at", { ascending: false }).limit(100), false));
+    entities = result.rows.map((row: any) => moduleEntity("staff", row, "estate_memberships", "Facility staff", { user_id: row.user_id || null, role: row.role || null }));
+    label = "facility staff";
+  } else if (module === "estate") {
+    result = await selectRows("homes", (q) => applyScope(q.select("*").order("name", { ascending: true }).limit(100), false));
+    entities = result.rows.map((row: any) => moduleEntity("estate", row, "homes", "Home or unit", { unit: row.unit || null, block: row.block || null }));
+    label = "homes and units";
+  } else if (module === "profile") {
+    result = await selectRows("homes", (q) => applyScope(q.select("*").limit(1)));
+    entities = result.rows.map((row: any) => moduleEntity("profile", row, "homes", row.name || "Home profile", { unit: row.unit || null, block: row.block || null }));
+    label = "home profile records";
+  } else if (module === "traffic") {
+    result = await selectRows("home_timeline", (q) => applyScope(q.select("*").or("category.ilike.%traffic%,event_type.ilike.%traffic%,title.ilike.%traffic%,summary.ilike.%traffic%").order("occurred_at", { ascending: false }).limit(50), false));
+    entities = result.rows.map((row: any) => moduleEntity("traffic", row, "home_timeline", "Traffic record"));
+    label = "traffic and mobility records";
+  } else if (module === "reports") {
+    result = await selectRows("home_timeline", (q) => applyScope(q.select("*").or("event_type.ilike.%report%,category.ilike.%report%").order("occurred_at", { ascending: false }).limit(50), !scope.facility));
+    entities = result.rows.map((row: any) => moduleEntity("report", row, "home_timeline", "Report"));
+    label = "reports";
+  }
+
+  return {
+    summary: moduleListSummary(label, entities, scope, result.available),
+    data: { conversation_entities: entities.slice(0, 50), source_available: result.available, source_table: module },
+  };
+}
+
 async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, args: Record<string, any>) {
   const estateId = actorEstate(actor, args.estate_id || args.estateId || null);
   const homeId = actorHome(actor, args.home_id || args.homeId || null);
@@ -966,6 +1159,7 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
       },
     };
   }
+  if (toolId === "summarize_module") return summarizeModuleTool(actor, prompt, args);
   if (toolId === "summarize_home_state") return summarizeHomeStateTool(actor);
   if (toolId === "summarize_home_awareness") return summarizeHomeAwarenessTool(actor);
   if (toolId === "summarize_recent_activity") return summarizeRecentActivityTool(actor);

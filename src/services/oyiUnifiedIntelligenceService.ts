@@ -27,7 +27,7 @@ type OyiChatInput = {
 };
 
 type ConversationEntity = {
-  type: "device" | "visitor" | "maintenance" | "service" | "wallet" | "community" | "report" | "awareness" | "queue" | "workflow" | "room" | "scene" | "automation" | "notification" | "security" | "camera" | "infrastructure" | "sensor" | "traffic" | "staff" | "estate" | "profile";
+  type: "device" | "visitor" | "maintenance" | "service" | "wallet" | "community" | "report" | "awareness" | "queue" | "workflow" | "room" | "scene" | "automation" | "notification" | "activity" | "security" | "camera" | "infrastructure" | "sensor" | "traffic" | "staff" | "estate" | "profile";
   id?: string | null;
   title: string;
   status?: string | null;
@@ -254,7 +254,7 @@ function topicForDomain(domain?: string | null): ConversationState["active_topic
   if (/wallet|finance|payment/.test(value)) return "wallet";
   if (/service|utility/.test(value)) return "service";
   if (/community|notice/.test(value)) return "community";
-  if (/activity|timeline/.test(value)) return "report";
+  if (/activity|timeline/.test(value)) return "activity";
   if (/notification|alert/.test(value)) return "notification";
   if (/security|incident/.test(value)) return "security";
   if (/traffic|mobility/.test(value)) return "traffic";
@@ -392,7 +392,7 @@ function topicForIntent(intent?: OyiIntentCategory): ConversationEntity["type"] 
   if (intent === "wallet_operation") return "wallet";
   if (intent === "service_operation") return "service";
   if (intent === "community_operation") return "community";
-  if (intent === "report_generation" || intent === "investigation") return "report";
+  if (intent === "report_generation") return "report";
   if (intent === "awareness" || intent === "recommendation") return "awareness";
   return null;
 }
@@ -413,6 +413,7 @@ function topicLabel(topic?: ConversationState["active_topic"] | null, plural = f
     scene: plural ? "scenes" : "scene",
     automation: plural ? "automations" : "automation",
     notification: plural ? "notifications" : "notification",
+    activity: plural ? "activity records" : "activity record",
     security: plural ? "security incidents" : "security incident",
     camera: plural ? "camera events" : "camera event",
     infrastructure: plural ? "infrastructure records" : "infrastructure record",
@@ -1074,29 +1075,29 @@ type DomainIntent = {
 };
 
 const DOMAIN_INTENTS: DomainIntent[] = [
-  { key: "operational_queue", surfaces: ["facility"], phrases: /(?:open|show|review)\s+(?:the\s+)?(?:most\s+)?(?:important\s+issue|recent(?:\s+operational)?\s+requests?|pending\s+(?:issues?|requests?|tasks?)|assigned\s+tasks?|operator\s+requests?|operator\s+request|recent\s+requests?|work\s+queue|open\s+requests?)/i, intent: "investigation", label: "recent operational requests", unavailable: "There are currently no recent operational requests to show." },
+  { key: "operational_queue", surfaces: ["facility"], phrases: /(?:open|show|review)\s+(?:the\s+)?(?:most\s+)?(?:important\s+issue|recent(?:\s+operational)?\s+requests?|pending\s+(?:issues?|requests?|tasks?)|assigned\s+tasks?|operator\s+requests?|operator\s+request|recent\s+requests?|work\s+queue|open\s+requests?)/i, intent: "investigation", tool_id: "summarize_module", label: "recent operational requests", unavailable: "There are currently no recent operational requests to show." },
   { key: "workflows", surfaces: ["consumer", "facility", "office"], phrases: /(?:show|open|list|review)\s+(?:active|open|pending)?\s*workflows?|workflow\s+(?:status|queue|owner|overdue|blocking)/i, intent: "investigation", label: "workflows", unavailable: "There are currently no active workflows requiring attention." },
-  { key: "visitors", surfaces: ["consumer", "facility"], phrases: /visitor|vistors|visistor|guest|guest access|gate pass|access pass|access code|visitor access|visitor approval/i, intent: "visitor_operation", tool_id: "summarize_visitors", label: "visitor requests", unavailable: "I can’t see visitor records for this context yet." },
-  { key: "maintenance", surfaces: ["consumer", "facility"], phrases: /maintenance|maint request|mainterequest|repair|fault report|issue request|service ticket|work order/i, intent: "maintenance_operation", tool_id: "summarize_maintenance", label: "maintenance issues", unavailable: "I can’t see maintenance records for this context yet." },
+  { key: "visitors", surfaces: ["consumer", "facility"], phrases: /visitor|vistors|visistor|guest|guest access|gate pass|access pass|access code|visitor access|visitor approval/i, intent: "visitor_operation", tool_id: "summarize_module", label: "visitor requests", unavailable: "I can’t see visitor records for this context yet." },
+  { key: "maintenance", surfaces: ["consumer", "facility"], phrases: /maintenance|maint request|mainterequest|repair|fault report|issue request|service ticket|work order/i, intent: "maintenance_operation", tool_id: "summarize_module", label: "maintenance issues", unavailable: "I can’t see maintenance records for this context yet." },
   { key: "devices", surfaces: ["consumer", "facility"], phrases: /device|appliance|smart device|light|switch|socket|hardware|relay|ac\b/i, intent: "device_status", tool_id: "summarize_devices", label: "devices", unavailable: "I can’t see device records for this context yet." },
-  { key: "rooms", surfaces: ["consumer"], phrases: /room|rooms|space|spaces/i, intent: "general_help", label: "rooms and spaces", unavailable: "I don’t have room records available through this chat context yet." },
-  { key: "scenes", surfaces: ["consumer"], phrases: /scene|scenes/i, intent: "general_help", label: "scenes", unavailable: "I don’t have scene records available through this chat context yet." },
-  { key: "automation", surfaces: ["consumer"], phrases: /automation|automations|routine|routines/i, intent: "general_help", label: "automations", unavailable: "I don’t have automation records available through this chat context yet." },
-  { key: "services", surfaces: ["consumer", "facility"], phrases: /service|services|fiber|internet plan|service request/i, intent: "service_operation", label: "services", unavailable: "I don’t have service records available through this chat context yet." },
-  { key: "wallet", surfaces: ["consumer", "facility"], phrases: /wallet|payment|payments|transaction|transactions|balance|charge|service charge|dues|levy|bill|receipt|accounting/i, intent: "wallet_operation", tool_id: "summarize_wallet", label: "wallet information", unavailable: "I can’t see wallet records for this context yet." },
-  { key: "community", surfaces: ["consumer", "facility"], phrases: /community|announcement|announcements|notice|notices|complaint|feedback|post|message|update|communications/i, intent: "community_operation", tool_id: "summarize_community", label: "community updates", unavailable: "There are no recent community updates available in this context." },
-  { key: "activity", surfaces: ["consumer", "facility"], phrases: /activity|timeline|recent activity|who did what/i, intent: "investigation", tool_id: "summarize_recent_activity", label: "activity", unavailable: "I don’t have activity records available in this context yet." },
-  { key: "notifications", surfaces: ["consumer", "facility"], phrases: /notification|notifications|alert|alerts/i, intent: "notification_operation", label: "notifications", unavailable: "There are no notifications available in this context." },
-  { key: "security", surfaces: ["consumer", "facility"], phrases: /security|incident|incidents|alarm|gate|door|access control/i, intent: "investigation", label: "security activity", unavailable: "I don’t have security records available in this chat context yet." },
-  { key: "utilities", surfaces: ["consumer", "facility"], phrases: /utility|utilities|water|electricity|electric|meter|power|generator/i, intent: "service_operation", label: "utility information", unavailable: "I don’t have utility records available in this chat context yet." },
-  { key: "profile", surfaces: ["consumer"], phrases: /profile|home context|my home|household/i, intent: "general_help", label: "home context", unavailable: "I don’t have additional home profile records available in this chat context yet." },
-  { key: "cameras", surfaces: ["facility"], phrases: /camera|cameras|cctv|camera event/i, intent: "device_status", label: "camera events", unavailable: "There are no camera events currently visible." },
+  { key: "rooms", surfaces: ["consumer"], phrases: /room|rooms|space|spaces/i, intent: "general_help", tool_id: "summarize_module", label: "rooms and spaces", unavailable: "I don’t have room records available through this chat context yet." },
+  { key: "scenes", surfaces: ["consumer"], phrases: /scene|scenes/i, intent: "general_help", tool_id: "summarize_module", label: "scenes", unavailable: "I don’t have scene records available through this chat context yet." },
+  { key: "automation", surfaces: ["consumer"], phrases: /automation|automations|routine|routines/i, intent: "general_help", tool_id: "summarize_module", label: "automations", unavailable: "I don’t have automation records available through this chat context yet." },
+  { key: "services", surfaces: ["consumer", "facility"], phrases: /service|services|fiber|internet plan|service request/i, intent: "service_operation", tool_id: "summarize_module", label: "services", unavailable: "I don’t have service records available through this chat context yet." },
+  { key: "wallet", surfaces: ["consumer", "facility"], phrases: /wallet|payment|payments|transaction|transactions|balance|charge|service charge|dues|levy|bill|receipt|accounting/i, intent: "wallet_operation", tool_id: "summarize_module", label: "wallet information", unavailable: "I can’t see wallet records for this context yet." },
+  { key: "community", surfaces: ["consumer", "facility"], phrases: /community|announcement|announcements|notice|notices|complaint|feedback|post|message|update|communications/i, intent: "community_operation", tool_id: "summarize_module", label: "community updates", unavailable: "There are no recent community updates available in this context." },
+  { key: "activity", surfaces: ["consumer", "facility"], phrases: /activity|timeline|recent activity|who did what/i, intent: "investigation", tool_id: "summarize_module", label: "activity", unavailable: "I don’t have activity records available in this context yet." },
+  { key: "notifications", surfaces: ["consumer", "facility"], phrases: /notification|notifications|alert|alerts/i, intent: "notification_operation", tool_id: "summarize_module", label: "notifications", unavailable: "There are no notifications available in this context." },
+  { key: "security", surfaces: ["consumer", "facility"], phrases: /security|incident|incidents|alarm|gate|door|access control/i, intent: "investigation", tool_id: "summarize_module", label: "security activity", unavailable: "I don’t have security records available in this chat context yet." },
+  { key: "utilities", surfaces: ["consumer", "facility"], phrases: /utility|utilities|water|electricity|electric|meter|power|generator/i, intent: "service_operation", tool_id: "summarize_module", label: "utility information", unavailable: "I don’t have utility records available in this chat context yet." },
+  { key: "profile", surfaces: ["consumer"], phrases: /profile|home context|my home|household/i, intent: "general_help", tool_id: "summarize_module", label: "home context", unavailable: "I don’t have additional home profile records available in this chat context yet." },
+  { key: "cameras", surfaces: ["facility"], phrases: /camera|cameras|cctv|camera event/i, intent: "device_status", tool_id: "summarize_module", label: "camera events", unavailable: "There are no camera events currently visible." },
   { key: "infrastructure", surfaces: ["facility"], phrases: /infrastructure|runtime|edge node|stream health/i, intent: "device_status", tool_id: "summarize_devices", label: "infrastructure records", unavailable: "I don’t have infrastructure records available in this chat context yet." },
-  { key: "sensors", surfaces: ["facility"], phrases: /sensor|sensors|environment|temperature|humidity/i, intent: "device_status", label: "sensor readings", unavailable: "I don’t have sensor readings available in this chat context yet." },
-  { key: "traffic", surfaces: ["facility"], phrases: /traffic|mobility|parking|vehicle flow/i, intent: "general_help", label: "traffic and mobility records", unavailable: "I don’t have traffic or mobility records available in this chat context yet." },
-  { key: "staff", surfaces: ["facility"], phrases: /staff|team|operator|operators|staff task|staff tasks|technician|cleaner|electrician|mechanic/i, intent: "general_help", label: "staff records", unavailable: "I don’t have staff records available in this chat context yet." },
-  { key: "reports", surfaces: ["facility"], phrases: /report|reports|daily estate/i, intent: "report_generation", label: "reports", unavailable: "I don’t have report records available in this chat context yet." },
-  { key: "estate", surfaces: ["facility"], phrases: /estate structure|estate|homes|home list|building|units/i, intent: "general_help", label: "estate structure", unavailable: "I don’t have estate structure records available in this chat context yet." },
+  { key: "sensors", surfaces: ["facility"], phrases: /sensor|sensors|environment|temperature|humidity/i, intent: "device_status", tool_id: "summarize_module", label: "sensor readings", unavailable: "I don’t have sensor readings available in this chat context yet." },
+  { key: "traffic", surfaces: ["facility"], phrases: /traffic|mobility|parking|vehicle flow/i, intent: "general_help", tool_id: "summarize_module", label: "traffic and mobility records", unavailable: "I don’t have traffic or mobility records available in this chat context yet." },
+  { key: "staff", surfaces: ["facility"], phrases: /staff|team|operator|operators|staff task|staff tasks|technician|cleaner|electrician|mechanic/i, intent: "general_help", tool_id: "summarize_module", label: "staff records", unavailable: "I don’t have staff records available in this chat context yet." },
+  { key: "reports", surfaces: ["facility"], phrases: /report|reports|daily estate/i, intent: "report_generation", tool_id: "summarize_module", label: "reports", unavailable: "I don’t have report records available in this chat context yet." },
+  { key: "estate", surfaces: ["facility"], phrases: /estate structure|estate|homes|home list|building|units/i, intent: "general_help", tool_id: "summarize_module", label: "estate structure", unavailable: "I don’t have estate structure records available in this chat context yet." },
 ];
 
 function detectDomainIntent(message: string, surface: OyiSurface): DomainIntent | null {
@@ -1361,7 +1362,7 @@ function activeEntitiesForMessage(intent: OyiIntentCategory, entities: Conversat
   if (intent === "visitor_operation" && /pending|approval|waiting/.test(lower)) {
     return entities.filter((row) => /pending|requested/i.test(String(row.status || "")));
   }
-  if (intent === "maintenance_operation" && /open|issue|overdue|maintenance/.test(lower)) {
+  if (intent === "maintenance_operation" && /open|pending|unresolved|overdue/.test(lower)) {
     return entities.filter((row) => /open|new|assigned|scheduled|progress|waiting/i.test(String(row.status || "")));
   }
   if (intent === "device_status") {
@@ -1930,9 +1931,9 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     };
   }
 
-  const proposedTools = actor ? (domain?.key === "operational_queue"
-    ? ["summarize_maintenance", "summarize_visitors", "summarize_recent_activity"].map((tool_id) => ({ tool_id: tool_id as ProposedAiTool["tool_id"], arguments: { estate_id: input.estate_id || null, home_id: input.home_id || null } }))
-    : domain?.tool_id && intent !== "device_control" ? [{ tool_id: domain.tool_id, arguments: { estate_id: input.estate_id || null, home_id: input.home_id || null } }] : proposedToolsForIntent(intent, message, input)) : [];
+  const proposedTools = actor ? (domain?.tool_id && intent !== "device_control"
+    ? [{ tool_id: domain.tool_id, arguments: { estate_id: input.estate_id || null, home_id: input.home_id || null, module: domain.key } }]
+    : proposedToolsForIntent(intent, message, input)) : [];
   if (actor && proposedTools.length) {
     const { routeAiCommand } = await import("../ai/commandRouter");
     const routed = await routeAiCommand(undefined, {
@@ -1950,7 +1951,7 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
     const displayMode = displayModeFor(intent, message, wantsSupportingCards(message, intent) && activeEntities.length > 0);
     const supportPayload = displayMode !== "conversation";
     const cards = supportPayload && activeEntities.length ? availableCards.slice(0, 3) : [];
-    const conversationTopic = domain?.key === "operational_queue" ? "queue" : topicForIntent(intent);
+    const conversationTopic = domain?.key === "operational_queue" ? "queue" : topicForDomain(domain?.key) || topicForIntent(intent);
     return {
       intent,
       understood,
