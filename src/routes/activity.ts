@@ -1,6 +1,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { withNotificationRouting } from "../services/notifications/notificationRoutingService";
 import { summarizeDeviceRuntime } from "../services/deviceRuntimeSessionsService";
 
 type ActivityCategory =
@@ -125,6 +126,25 @@ function baseEvent(input: Omit<ActivityEvent, "description" | "metadata"> & { me
 }
 
 function notificationAction(row: any, category: ActivityCategory) {
+  const routing = withNotificationRouting(row).routing;
+  const target = routing.target;
+  if (target) {
+    const id = target.target_id || null;
+    const routeByTarget: Record<string, string> = {
+      visitor: id ? `/visitors?visitorId=${encodeURIComponent(id)}` : "/visitors",
+      maintenance: id ? `/maintenance?requestId=${encodeURIComponent(id)}` : "/maintenance",
+      device: id ? `/devices?deviceId=${encodeURIComponent(id)}` : "/devices",
+      wallet: id ? `/wallet?transactionId=${encodeURIComponent(id)}` : "/wallet",
+      service: id ? `/services?serviceId=${encodeURIComponent(id)}` : "/services",
+      community: id ? `/community?postId=${encodeURIComponent(id)}` : "/community",
+      message: id ? `/messages?threadId=${encodeURIComponent(id)}` : "/messages",
+      incident: id ? `/security?incidentId=${encodeURIComponent(id)}` : "/security",
+      camera: "/security",
+      infrastructure: "/security",
+    };
+    const route = routeByTarget[target.target_type];
+    if (route) return action(route, "Open source", target.target_type, id);
+  }
   const payload = objectValue(row?.payload);
   const typeText = `${row?.type || ""} ${row?.title || ""} ${row?.message || ""} ${payload?.kind || ""}`.toLowerCase();
   const entityId = firstString(row?.entity_id, payload?.entity_id, payload?.id);
@@ -189,7 +209,7 @@ function notificationEvent(row: any): ActivityEvent {
     label: cleanText(row?.type, category),
     thumbnail_url: typeof payload.thumbnail_url === "string" ? payload.thumbnail_url : null,
     action: notificationAction(row, category),
-    metadata: { payload },
+    metadata: { payload, routing: withNotificationRouting(row).routing },
   });
 }
 

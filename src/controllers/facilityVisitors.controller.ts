@@ -1,6 +1,7 @@
 // src/controllers/facilityVisitors.controller.ts
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { normalizeNotificationRouting, routingColumns } from "../services/notifications/notificationRoutingService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 type AuthReq = Request & { user?: { id: string; estate_id?: string; role?: string } };
@@ -245,7 +246,8 @@ export async function triggerLockdownFacility(req: AuthReq, res: Response) {
 
     if (recipients.length) {
       await supabaseAdmin.from("notifications").insert(
-        recipients.map((uid) => ({
+        recipients.map((uid) => {
+          const notification = {
           user_id: uid,
           estate_id: estateId,
           type: "security",
@@ -254,7 +256,9 @@ export async function triggerLockdownFacility(req: AuthReq, res: Response) {
           payload: { mode, source: "facility_visitors", at: now },
           status: "unread",
           created_at: now,
-        })) as any
+          };
+          return { ...notification, ...routingColumns(normalizeNotificationRouting({ ...notification, routing: { source_type: "incident", destination: "attention", actionability: "acknowledge", attention_eligible: true, queue_eligible: false, acknowledgement_required: true } })) };
+        }) as any
       );
     }
 

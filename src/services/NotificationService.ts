@@ -5,6 +5,8 @@ import { io } from "../server";
 import { PushNotificationService } from "./PushNotificationService";
 import { decideNotification, recordNotificationDecision } from "./notificationPolicyService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
+import { normalizeNotificationRouting, routingColumns, withNotificationRouting } from "./notifications/notificationRoutingService";
+import type { OisNotificationRouting } from "../types/notificationRouting";
 
 /**
  * Types of notifications
@@ -31,6 +33,7 @@ export interface NotificationPayload {
   type: NotificationType;
   payload?: Record<string, any>; // optional structured data
   entityId?: string;             // optional related entity
+  routing?: Partial<OisNotificationRouting>;
 }
 
 function publishNotificationEvent(row: any) {
@@ -49,7 +52,7 @@ function publishNotificationEvent(row: any) {
     severity: /security|critical|emergency/i.test(`${row.type || ""} ${row.title || ""}`) ? "critical" : "info",
     title: row.title || "Notification",
     summary: row.message || row.title || "Notification created.",
-    payload: row.payload || {},
+    payload: { ...(row.payload || {}), routing: withNotificationRouting(row).routing },
     occurred_at: row.created_at,
   }, { source_table: "notifications", source_event_id: String(row.id) });
 }
@@ -119,7 +122,7 @@ async function insertNotificationRows(rows: Record<string, any>[]) {
  */
 export class NotificationService {
   private static normalizeRow(userId: string, notification: NotificationPayload, estateId?: string | null) {
-    return {
+    const base = {
       user_id: userId,
       estate_id: estateId ?? (notification.payload as any)?.estate_id ?? null,
       home_id: (notification.payload as any)?.home_id ?? null,
@@ -131,6 +134,7 @@ export class NotificationService {
       delivery_channel: (notification.payload as any)?.delivery_channel,
       notification_key: (notification.payload as any)?.notification_key,
     };
+    return { ...base, ...routingColumns(normalizeNotificationRouting({ ...base, routing: notification.routing })) };
   }
 
   private static buildPushData(row: any) {
@@ -143,6 +147,7 @@ export class NotificationService {
       entityId: row?.entityId || row?.entity_id || null,
       created_at: row?.created_at || new Date().toISOString(),
       payload: row?.payload || {},
+      routing: withNotificationRouting(row).routing,
       estate_id: row?.estate_id || null,
     };
   }

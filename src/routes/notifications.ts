@@ -2,6 +2,7 @@ import express from "express";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { getUserNotificationPreferences, upsertUserNotificationPreference, type NotificationCategory } from "../services/notificationPolicyService";
+import { withNotificationRouting } from "../services/notifications/notificationRoutingService";
 
 const router = express.Router();
 
@@ -50,7 +51,7 @@ router.get("/", requireAuth, requirePermission("notifications.read"), async (req
   if (error) return res.status(500).json({ error: error.message });
 
   // ✅ wrap with items (your UI supports both, but this is cleaner)
-  return res.json({ items: data || [] });
+  return res.json({ items: (data || []).map(withNotificationRouting) });
 });
 
 router.get("/preferences", requireAuth, requirePermission("notifications.read"), async (req, res) => {
@@ -88,7 +89,7 @@ router.post("/read/:id", requireAuth, requirePermission("notifications.read"), a
 
   if (error) return res.status(500).json({ error: error.message });
 
-  return res.json({ ok: true, item: data });
+  return res.json({ ok: true, item: data ? withNotificationRouting(data) : data });
 });
 
 // Canonical acknowledgement alias for activity/notification consumers.
@@ -102,7 +103,7 @@ router.post("/ack/:id", requireAuth, requirePermission("notifications.read"), as
 
   if (error) return res.status(500).json({ error: error.message });
 
-  return res.json({ ok: true, item: data });
+  return res.json({ ok: true, item: data ? withNotificationRouting(data) : data });
 });
 
 router.patch("/:id/lifecycle", requireAuth, requirePermission("notifications.manage"), async (req, res) => {
@@ -120,7 +121,7 @@ router.patch("/:id/lifecycle", requireAuth, requirePermission("notifications.man
   else query = query.eq("user_id", user.id);
   const { data, error } = await query.select().single();
   if (error) return res.status(400).json({ error: "Unable to update notification lifecycle" });
-  return res.json({ ok: true, item: data });
+  return res.json({ ok: true, item: data ? withNotificationRouting(data) : data });
 });
 
 export default router;
