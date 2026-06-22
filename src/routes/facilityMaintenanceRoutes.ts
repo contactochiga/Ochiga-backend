@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   listFacilityMaintenance,
   updateMaintenance,
+  getMaintenanceTimeline,
 } from "../controllers/maintenance.controller";
 
 import { requireAuth, requirePermission } from "../middleware/auth";
@@ -15,6 +16,7 @@ router.use(requireAuth);
 
 // GET /facility/maintenance
 router.get("/", requirePermission("support.read"), listFacilityMaintenance);
+router.get("/:id/timeline", requirePermission("support.read"), getMaintenanceTimeline);
 
 // PATCH /facility/maintenance/:id
 router.patch("/:id", requirePermission("support.assign"), auditOnSuccess("support.ticket.assigned", "support_ticket", "id"), updateMaintenance);

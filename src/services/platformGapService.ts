@@ -226,14 +226,20 @@ export const platformGapService = {
 
   async updateIncident(req: Request) {
     const current = actor(req);
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) throw new Error("No estate context");
     const body = req.body || {};
     const updates: Record<string, any> = {};
-    for (const key of ["status", "severity", "assigned_to", "location", "description", "metadata", "home_id", "room_id"] as const) if (body[key] !== undefined) updates[key] = body[key];
-    if (body.status === "acknowledged") updates.acknowledged_at = new Date().toISOString();
-    if (body.status === "resolved") updates.resolved_at = new Date().toISOString();
-    if (body.status === "closed") updates.closed_at = new Date().toISOString();
-    updates.updated_at = new Date().toISOString();
-    const { data, error } = await supabaseAdmin.from("facility_incidents").update(updates).eq("id", req.params.incidentId).select("*").single();
+    for (const key of ["status", "severity", "assigned_to", "location", "description", "metadata", "home_id", "room_id", "evidence", "response_log", "blocking_reason"] as const) if (body[key] !== undefined) updates[key] = body[key];
+    const now = new Date().toISOString();
+    if (body.assigned_to !== undefined) updates.assigned_at = now;
+    if (body.status === "acknowledged") updates.acknowledged_at = now;
+    if (body.status === "escalated") updates.escalated_at = now;
+    if (body.status === "resolved") updates.resolved_at = now;
+    if (body.status === "verified") { updates.verified_at = now; updates.verified_by = current.id; }
+    if (body.status === "closed") updates.closed_at = now;
+    updates.updated_at = now;
+    const { data, error } = await supabaseAdmin.from("facility_incidents").update(updates).eq("id", req.params.incidentId).eq("estate_id", estate_id).select("*").single();
     if (error) throw error;
     await supabaseAdmin.from("facility_incident_timeline").insert({ incident_id: data.id, estate_id: data.estate_id, actor_id: current.id, action: body.action || "updated", status: data.status, note: body.note || null, metadata: cleanObject(body.timeline_metadata) } as any);
     await audit(current, "incident.updated", data.id, { status: data.status, severity: data.severity }, req);

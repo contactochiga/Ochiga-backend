@@ -289,7 +289,7 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const id = req.params.id;
-    const { status, assigned_to, note } = req.body || {};
+    const { status, assigned_to, note, completion_summary, completion_proof, blocking_reason, resident_rating, resident_feedback, verified_by_resident } = req.body || {};
 
     const { data: existing, error: exErr } = await supabaseAdmin
       .from("maintenance_requests")
@@ -299,6 +299,16 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
 
     if (exErr) return res.status(500).json({ error: exErr.message });
     if (!existing) return res.status(404).json({ error: "Not found" });
+    const { estateId } = await resolveEstateAndHome(req, null);
+    if (!estateId || String(existing.estate_id) !== String(estateId)) return res.status(404).json({ error: "Not found" });
+
+    const now = new Date().toISOString();
+    const lifecycle: Record<string, unknown> = {};
+    if (status === "accepted") lifecycle.accepted_at = now;
+    if (status === "completed") lifecycle.completed_at = now;
+    if (status === "verified") lifecycle.verified_at = now;
+    if (status === "closed") lifecycle.closed_at = now;
+    if (status === "cancelled") lifecycle.cancelled_at = now;
 
     const { data: updated, error } = await supabaseAdmin
       .from("maintenance_requests")
@@ -306,7 +316,14 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
         compact({
           status,
           assigned_to,
-          updated_at: new Date().toISOString(),
+          completion_summary,
+          completion_proof: Array.isArray(completion_proof) ? completion_proof : undefined,
+          blocking_reason,
+          resident_rating,
+          resident_feedback,
+          verified_by_resident,
+          updated_at: now,
+          ...lifecycle,
         })
       )
       .eq("id", id)
@@ -314,6 +331,16 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
+    await supabaseAdmin.from("maintenance_request_timeline").insert({
+      maintenance_request_id: id,
+      estate_id: existing.estate_id,
+      actor_id: userId,
+      action: status ? `maintenance_${String(status)}` : assigned_to ? "maintenance_assigned" : "maintenance_updated",
+      from_status: existing.status || null,
+      to_status: updated.status || status || existing.status || null,
+      note: note || completion_summary || blocking_reason || null,
+      metadata: { assigned_to: updated.assigned_to || assigned_to || null, completion_proof: Array.isArray(completion_proof) ? completion_proof : [] },
+    } as any);
 
     const eventType = status
       ? `maintenance.${String(status).toLowerCase().replace(/\s+/g, "_")}`
@@ -367,5 +394,19 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
   } catch (e: any) {
     console.error("updateMaintenance error:", e?.message || e);
     return res.status(500).json({ error: e.message || "Server error" });
+  }
+}
+
+export async function getMaintenanceTimeline(req: AuthReq, res: Response) {
+  try {
+    const { estateId } = await resolveEstateAndHome(req, null);
+    if (!estateId) return res.status(400).json({ error: "No estate linked" });
+    const { data: request } = await supabaseAdmin.from("maintenance_requests").select("id").eq("id", req.params.id).eq("estate_id", estateId).maybeSingle();
+    if (!request) return res.status(404).json({ error: "Not found" });
+    const { data, error } = await supabaseAdmin.from("maintenance_request_timeline").select("*").eq("maintenance_request_id", request.id).order("created_at", { ascending: true }).limit(200);
+    if (error) return res.status(500).json({ error: "Unable to load maintenance history" });
+    return res.json({ ok: true, items: data || [] });
+  } catch {
+    return res.status(500).json({ error: "Unable to load maintenance history" });
   }
 }
