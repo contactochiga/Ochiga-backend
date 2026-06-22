@@ -13,6 +13,7 @@ import { classifyUniversalIntent } from "../intelligence-core/intentRouter";
 import type { ProposedAiTool } from "../ai/commandRouter";
 import { interpretWithLanguageTeacher, languageTeacherResultToMessage, shouldAskLanguageTeacher } from "../language-teacher/languageTeacherService";
 import type { OisContext } from "../types/oisContext";
+import { decorateOyiTargets } from "./oyi/oyiTargetService";
 
 export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge";
 export type AwarenessSeverity = "normal" | "info" | "attention" | "warning" | "critical";
@@ -2256,7 +2257,7 @@ export async function getOyiUnifiedAwareness(actor: AuthUser | null, input: { su
     async () => {
       const context = await loadUnifiedContext(actor, { surface, estate_id: input.estate_id, home_id: input.home_id });
       const awareness = buildAwareness(surface, context, actor);
-      return { ok: true, ...awareness, role_policy: getIntelligencePermissionPolicy(actor), warnings: context.warnings };
+      return { ok: true, ...decorateOyiTargets(awareness), role_policy: getIntelligencePermissionPolicy(actor), warnings: context.warnings };
     }
   );
 }
@@ -2315,6 +2316,7 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         role_policy: getIntelligencePermissionPolicy(actor),
         warnings: [...context.warnings, ...(conversation.warning ? [conversation.warning] : [])],
       };
+      Object.assign(response, decorateOyiTargets(response, operation.conversation_active_entity || response.conversation_active_entity));
       const nextConversationState = conversationStateFromResponse(conversation.state, response, message);
       response.thread_id = await persistThread(actor, effectiveInput, response, message, nextConversationState);
       console.info("[oyi-chat]", JSON.stringify({
