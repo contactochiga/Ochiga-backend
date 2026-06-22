@@ -34,6 +34,8 @@ router.post("/incidents", requirePermission("support.assign"), wrap((req) => pla
 router.patch("/incidents/:incidentId", requirePermission("support.assign"), wrap((req) => platformGapService.updateIncident(req)));
 router.get("/incidents/:incidentId/timeline", requirePermission("support.read"), wrap((req) => platformGapService.incidentTimeline(req)));
 router.get("/handover", requirePermission("support.read"), wrap((req) => platformGapService.handover(req)));
+router.get("/handovers", requirePermission("support.read"), wrap((req) => platformGapService.handovers(req)));
+router.post("/handovers", requirePermission("support.assign"), wrap((req) => platformGapService.createHandover(req)));
 
 router.get("/camera-infrastructure", requirePermission("cameras.view"), wrap((req) => platformGapService.cameraInfrastructure(req)));
 router.put("/camera-infrastructure", requirePermission("cameras.view"), wrap((req) => platformGapService.upsertCameraInfrastructure(req)));

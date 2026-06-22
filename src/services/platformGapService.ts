@@ -274,6 +274,35 @@ export const platformGapService = {
     return { ok: true, estate_id, handover_date: new Date().toISOString().slice(0, 10), summary: { open: open.length, completed_today: all.filter((x: any) => closed.has(String(x.status || "").toLowerCase()) && String(x.updated_at || x.created_at || "").slice(0, 10) === new Date().toISOString().slice(0, 10)).length, overdue: overdue.length, unassigned: unassigned.length, escalated: escalated.length, verification: open.filter((x: any) => String(x.status || "").toLowerCase() === "completed" || !!x.verified_at === false && String(x.status || "").toLowerCase() === "resolved").length }, items: open.slice(0, 100) };
   },
 
+  async handovers(req: Request) {
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) throw new Error("No estate context");
+    const { data, error } = await supabaseAdmin.from("facility_shift_handovers").select("*").eq("estate_id", estate_id).order("handover_date", { ascending: false }).order("created_at", { ascending: false }).limit(limitFrom(req, 30));
+    if (error) throw error;
+    return { ok: true, estate_id, items: data || [] };
+  },
+
+  async createHandover(req: Request) {
+    const current = actor(req);
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) throw new Error("No estate context");
+    const body = req.body || {};
+    const payload = {
+      estate_id,
+      author_id: current.id,
+      handover_date: body.handover_date || new Date().toISOString().slice(0, 10),
+      summary: String(body.summary || "").trim() || null,
+      open_items: Array.isArray(body.open_items) ? body.open_items.slice(0, 100) : [],
+      handover_items: Array.isArray(body.handover_items) ? body.handover_items.slice(0, 100) : [],
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabaseAdmin.from("facility_shift_handovers").upsert(payload as any, { onConflict: "estate_id,handover_date,author_id" }).select("*").single();
+    if (error) throw error;
+    await audit(current, "handover.created", data.id, { handover_date: payload.handover_date, open_items: payload.open_items.length }, req);
+    emit("facility.handover.updated", estate_id, { handover: data });
+    return { ok: true, handover: data };
+  },
+
   async cameraInfrastructure(req: Request) {
     const estate_id = await scopedEstate(req);
     if (!estate_id) return { estate_id: null, items: [], history: [], sources: { cameras: source("No estate context", false, "No estate context") } };
