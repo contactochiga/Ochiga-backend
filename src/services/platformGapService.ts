@@ -248,7 +248,12 @@ export const platformGapService = {
   },
 
   async incidentTimeline(req: Request) {
-    const { data, error } = await supabaseAdmin.from("facility_incident_timeline").select("*").eq("incident_id", req.params.incidentId).order("created_at", { ascending: true }).limit(120);
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) throw new Error("No estate context");
+    const { data: incident, error: incidentError } = await supabaseAdmin.from("facility_incidents").select("id").eq("id", req.params.incidentId).eq("estate_id", estate_id).maybeSingle();
+    if (incidentError) throw incidentError;
+    if (!incident) throw new Error("Incident not found in the active facility context");
+    const { data, error } = await supabaseAdmin.from("facility_incident_timeline").select("*").eq("incident_id", req.params.incidentId).eq("estate_id", estate_id).order("created_at", { ascending: true }).limit(120);
     return { ok: true, items: data || [], error: error?.message };
   },
 
@@ -257,8 +262,8 @@ export const platformGapService = {
     if (!estate_id) throw new Error("No estate context");
     const [maintenance, incidents, workflows] = await Promise.all([
       supabaseAdmin.from("maintenance_requests").select("id,title,status,assigned_to,priority,created_at,updated_at").eq("estate_id", estate_id).order("created_at", { ascending: false }).limit(200),
-      supabaseAdmin.from("facility_incidents").select("id,title,status,severity,assigned_to,opened_at,created_at").eq("estate_id", estate_id).order("created_at", { ascending: false }).limit(200),
-      supabaseAdmin.from("ochiga_workflows").select("id,title,workflow_status,workflow_priority,workflow_assignee,workflow_due_at,created_at").eq("estate_id", estate_id).order("created_at", { ascending: false }).limit(200),
+      supabaseAdmin.from("facility_incidents").select("id,title,status,severity,assigned_to,opened_at,created_at,updated_at,blocking_reason,verified_at").eq("estate_id", estate_id).order("created_at", { ascending: false }).limit(200),
+      supabaseAdmin.from("ochiga_workflows").select("id,title,workflow_status,workflow_priority,workflow_assignee,workflow_due_at,created_at,updated_at,workflow_resolution").eq("estate_id", estate_id).order("created_at", { ascending: false }).limit(200),
     ]);
     const closed = new Set(["completed", "verified", "resolved", "closed", "cancelled"]);
     const all = [...(maintenance.data || []).map((x: any) => ({ ...x, module: "maintenance", owner: x.assigned_to })), ...(incidents.data || []).map((x: any) => ({ ...x, module: "incidents", owner: x.assigned_to })), ...(workflows.data || []).map((x: any) => ({ ...x, module: "workflows", status: x.workflow_status, priority: x.workflow_priority, owner: x.workflow_assignee, due_at: x.workflow_due_at }))];
@@ -266,7 +271,7 @@ export const platformGapService = {
     const overdue = open.filter((x: any) => x.due_at && new Date(x.due_at).getTime() < Date.now());
     const unassigned = open.filter((x: any) => !x.owner);
     const escalated = open.filter((x: any) => String(x.status) === "escalated");
-    return { ok: true, estate_id, handover_date: new Date().toISOString().slice(0, 10), summary: { open: open.length, completed_today: all.filter((x: any) => closed.has(String(x.status || "").toLowerCase()) && String(x.updated_at || x.created_at || "").slice(0, 10) === new Date().toISOString().slice(0, 10)).length, overdue: overdue.length, unassigned: unassigned.length, escalated: escalated.length }, items: open.slice(0, 100) };
+    return { ok: true, estate_id, handover_date: new Date().toISOString().slice(0, 10), summary: { open: open.length, completed_today: all.filter((x: any) => closed.has(String(x.status || "").toLowerCase()) && String(x.updated_at || x.created_at || "").slice(0, 10) === new Date().toISOString().slice(0, 10)).length, overdue: overdue.length, unassigned: unassigned.length, escalated: escalated.length, verification: open.filter((x: any) => String(x.status || "").toLowerCase() === "completed" || !!x.verified_at === false && String(x.status || "").toLowerCase() === "resolved").length }, items: open.slice(0, 100) };
   },
 
   async cameraInfrastructure(req: Request) {

@@ -108,6 +108,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, readonly PermissionKey[]> = 
     "community.broadcast",
     "community.manage_announcements",
     "notifications.read",
+    "notifications.manage",
   ],
   facility_manager: [
     "estates.read",
@@ -131,6 +132,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, readonly PermissionKey[]> = 
     "community.broadcast",
     "community.manage_announcements",
     "notifications.read",
+    "notifications.manage",
   ],
   security_operator: [
     "estates.read",
@@ -142,6 +144,7 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, readonly PermissionKey[]> = 
     "visitors.manage",
     "support.read",
     "notifications.read",
+    "notifications.manage",
   ],
   maintenance_operator: [
     "estates.read",
