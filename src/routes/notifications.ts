@@ -105,4 +105,22 @@ router.post("/ack/:id", requireAuth, requirePermission("notifications.read"), as
   return res.json({ ok: true, item: data });
 });
 
+router.patch("/:id/lifecycle", requireAuth, requirePermission("notifications.manage"), async (req, res) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+  const status = String(req.body?.status || "").toLowerCase();
+  if (!["acknowledged", "assigned", "resolved"].includes(status)) return res.status(400).json({ error: "Unsupported notification lifecycle state" });
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = { status, updated_at: now };
+  if (status === "acknowledged") patch.acknowledged_at = now;
+  if (status === "assigned") { patch.assigned_at = now; patch.assigned_to = req.body?.assigned_to || null; }
+  if (status === "resolved") { patch.resolved_at = now; patch.resolution_note = req.body?.resolution_note || null; }
+  let query = supabaseAdmin.from("notifications").update(patch as any).eq("id", req.params.id);
+  if (user.estate_id) query = query.eq("estate_id", user.estate_id);
+  else query = query.eq("user_id", user.id);
+  const { data, error } = await query.select().single();
+  if (error) return res.status(400).json({ error: "Unable to update notification lifecycle" });
+  return res.json({ ok: true, item: data });
+});
+
 export default router;
