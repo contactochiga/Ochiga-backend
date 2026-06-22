@@ -4,6 +4,7 @@ import { Request, Response, NextFunction } from "express";
 import { UserRole } from "../types/user";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent, hasPermission, permissionsForRole, type PermissionKey } from "../core/foundation";
+import type { OisContext } from "../types/oisContext";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 if (!APP_JWT_SECRET) {
@@ -31,6 +32,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
+      oisContext?: OisContext;
     }
   }
 }

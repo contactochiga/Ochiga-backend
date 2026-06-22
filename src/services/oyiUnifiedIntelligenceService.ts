@@ -12,11 +12,12 @@ import { rankActiveWorkflowsForAwareness } from "../intelligence-core/awarenessW
 import { classifyUniversalIntent } from "../intelligence-core/intentRouter";
 import type { ProposedAiTool } from "../ai/commandRouter";
 import { interpretWithLanguageTeacher, languageTeacherResultToMessage, shouldAskLanguageTeacher } from "../language-teacher/languageTeacherService";
+import type { OisContext } from "../types/oisContext";
 
 export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge";
 export type AwarenessSeverity = "normal" | "info" | "attention" | "warning" | "critical";
 
-type OyiChatInput = {
+export type OyiChatInput = {
   surface?: OyiSurface;
   estate_id?: string | null;
   home_id?: string | null;
@@ -24,6 +25,7 @@ type OyiChatInput = {
   role?: string | null;
   message: string;
   thread_id?: string | null;
+  context?: OisContext | null;
 };
 
 type ConversationEntity = {
@@ -2116,7 +2118,16 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
       module: input.module || null,
       title: userMessage.slice(0, 96) || "Oyi conversation",
       updated_at: now,
-      metadata: { role_policy: getIntelligencePermissionPolicy(actor), conversation_state: conversationState },
+      metadata: {
+        role_policy: getIntelligencePermissionPolicy(actor),
+        conversation_state: conversationState,
+        resolved_context_snapshot: input.context || {
+          surface: safeSurface(input.surface),
+          estate_id: input.estate_id || actor?.estate_id || null,
+          home_id: input.home_id || actor?.home_id || null,
+          module: input.module || null,
+        },
+      },
     } as any);
     await supabaseAdmin.from("oyi_conversation_messages").insert([
       {
@@ -2238,7 +2249,7 @@ export async function getOyiConversationMessages(actor: AuthUser | null, threadI
   );
 }
 
-export async function getOyiUnifiedAwareness(actor: AuthUser | null, input: { surface?: OyiSurface; estate_id?: string | null; home_id?: string | null }) {
+export async function getOyiUnifiedAwareness(actor: AuthUser | null, input: { surface?: OyiSurface; estate_id?: string | null; home_id?: string | null; context?: OisContext | null }) {
   const surface = safeSurface(input.surface);
   return observeAgentAction(
     { agent_id: surface === "facility" ? "facility" : "oyi", action: "oyi.awareness", tool: "oyi:awareness", surface, actor },

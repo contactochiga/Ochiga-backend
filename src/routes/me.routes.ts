@@ -3,6 +3,7 @@ import { requireAuth, requirePermission } from "../middleware/auth";
 import { auditOnSuccess } from "../middleware/audit";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { syncTuyaRegistryForActor } from "../services/tuyaRegistrySyncService";
+import { resolveRequestContext } from "../middleware/contextResolver";
 
 const router = express.Router();
 const SUPPORTED_INTEGRATIONS = new Set(["tuya", "alexa", "google_assistant"]);
@@ -446,6 +447,12 @@ router.get("/context", requireAuth, async (req, res) => {
     active_home_membership: verification.active_home_membership,
     verification,
   });
+});
+
+// Canonical OIS operating scope. Product shells may request a permitted estate/home
+// as a hint; the resolver validates membership before returning a context.
+router.get("/context/resolved", requireAuth, resolveRequestContext, async (req, res) => {
+  return res.json({ context: req.oisContext });
 });
 
 router.get("/contexts", requireAuth, async (req, res) => {
