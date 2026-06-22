@@ -43,7 +43,7 @@ const ALLOWED_ACTIONS = ["create_workflows", "assign_workflows", "track_workflow
 
 function canViewWorkflows(actor?: AuthUser | null) {
   const role = getIntelligencePermissionPolicy(actor).role;
-  return ["super_admin", "ochiga_admin", "estate_admin", "facility_manager", "security_operator"].includes(role);
+  return ["super_admin", "ochiga_admin", "estate_admin", "facility_manager", "security_operator", "maintenance_operator"].includes(role);
 }
 
 export function dueAtForPriority(priority: WorkflowPriority, now = new Date()) {
@@ -203,7 +203,7 @@ export async function getWorkflow(id: string, actor?: AuthUser | null) {
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: "Workflow not found" };
   const policy = getIntelligencePermissionPolicy(actor);
-  if (actor?.estate_id && policy.role !== "super_admin" && data.estate_id && data.estate_id !== actor.estate_id) {
+  if (!workflowVisibleToActorForTest(data, actor)) {
     return { ok: false, error: "Workflow not found" };
   }
   const events = await supabaseAdmin.from("ochiga_workflow_events").select("*").eq("workflow_id", data.workflow_id).order("occurred_at", { ascending: false }).limit(100);
