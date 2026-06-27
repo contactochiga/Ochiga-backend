@@ -1,8 +1,9 @@
 import { getIO } from "./io";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import type { Signal } from "../core/control-plane/contracts/signal.types";
+import { oyiCoreRuntime } from "../oyi-core/service";
 
-export function emitSignal(signal: Signal) {
+export async function emitSignal(signal: Signal) {
   const io = getIO();
   if (!io) return;
 
@@ -13,15 +14,17 @@ export function emitSignal(signal: Signal) {
   const userId = anySig?.requestedBy?.userId || anySig?.requestedBy?.user_id;
 
   // Broadcast to the most relevant scopes
-  if (estateId) io.to(`estate:${estateId}`).emit("signal", signal);
-  if (roomId) io.to(`room:${roomId}`).emit("signal", signal);
-  if (userId) io.to(`user:${userId}`).emit("signal", signal);
-  if (deviceId) io.to(`device:${deviceId}`).emit("signal", signal);
+  const envelope = await oyiCoreRuntime.decorateRealtimePayload(String(anySig.type || "signal"), anySig, []);
+  const enriched = { ...anySig, ...envelope };
+  if (estateId) io.to(`estate:${estateId}`).emit("signal", enriched);
+  if (roomId) io.to(`room:${roomId}`).emit("signal", enriched);
+  if (userId) io.to(`user:${userId}`).emit("signal", enriched);
+  if (deviceId) io.to(`device:${deviceId}`).emit("signal", enriched);
 
   const standardEvent = standardRealtimeEvent(anySig.type);
   if (standardEvent) {
     const payload = {
-      ...anySig,
+      ...enriched,
       event: standardEvent,
       timestamp: anySig.timestamp || new Date().toISOString(),
     };

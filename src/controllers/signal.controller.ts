@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import { Signal } from "../core/control-plane/contracts/signal.types";
+import { oyiCoreRuntime } from "../oyi-core/service";
 
 export async function ingestSignal(req: any, res: Response) {
   try {
@@ -37,10 +38,15 @@ export async function ingestSignal(req: any, res: Response) {
     }
 
     await handleSignal(signal as Signal);
+    const runtime = oyiCoreRuntime.evaluate({
+      signals: [signal],
+      permissions: Array.isArray(req.user?.permissions) ? req.user.permissions : [],
+    });
 
     return res.status(202).json({
       status: "accepted",
       signalType: signal.type,
+      runtime,
     });
   } catch (err) {
     console.error("Signal ingestion failed:", err);
