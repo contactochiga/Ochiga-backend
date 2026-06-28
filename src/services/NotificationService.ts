@@ -1,7 +1,7 @@
 // src/services/NotificationService.ts
 
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { io } from "../server";
+import { getIO } from "../realtime/io";
 import { PushNotificationService } from "./PushNotificationService";
 import { decideNotification, recordNotificationDecision } from "./notificationPolicyService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
@@ -74,6 +74,11 @@ function compact<T extends Record<string, any>>(obj: T): Partial<T> {
     if (v !== undefined) out[k] = v;
   }
   return out as Partial<T>;
+}
+
+function emitRealtimeNotification(userId: string, payload: any) {
+  const io = getIO();
+  io?.to(`user:${userId}`).emit("notification:new", payload);
 }
 
 async function insertNotificationRows(rows: Record<string, any>[]) {
@@ -220,7 +225,7 @@ export class NotificationService {
 
     if (!error && data) {
       publishNotificationEvent(data);
-      io.to(`user:${userId}`).emit("notification:new", data);
+      emitRealtimeNotification(userId, data);
       if (!policy || policy.decision === "push" || policy.decision === "critical_push") {
         await PushNotificationService.sendToUsers([userId], {
           title: notification.title,
@@ -269,7 +274,7 @@ export class NotificationService {
 
     (data || []).forEach((row: any) => {
       publishNotificationEvent(row);
-      io.to(`user:${row.user_id}`).emit("notification:new", row);
+      emitRealtimeNotification(String(row.user_id), row);
     });
 
     for (const row of data || []) {
@@ -321,7 +326,7 @@ export class NotificationService {
 
     (data || []).forEach((row: any) => {
       publishNotificationEvent(row);
-      io.to(`user:${row.user_id}`).emit("notification:new", row);
+      emitRealtimeNotification(String(row.user_id), row);
     });
 
     for (const row of data || []) {
@@ -372,7 +377,7 @@ export class NotificationService {
 
     (data || []).forEach((row: any) => {
       publishNotificationEvent(row);
-      io.to(`user:${row.user_id}`).emit("notification:new", row);
+      emitRealtimeNotification(String(row.user_id), row);
     });
 
     for (const row of data || []) {
@@ -424,7 +429,7 @@ export class NotificationService {
 
     (data || []).forEach((row: any) => {
       publishNotificationEvent(row);
-      io.to(`user:${row.user_id}`).emit("notification:new", row);
+      emitRealtimeNotification(String(row.user_id), row);
     });
 
     for (const row of data || []) {

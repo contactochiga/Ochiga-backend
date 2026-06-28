@@ -4,6 +4,8 @@ import { DeviceAdapter } from "../DeviceAdapter";
 import type { AdapterContext, DiscoveredDevice } from "../types";
 import type { Signal } from "../../../core/control-plane/contracts/signal.types";
 import { probeTcp, cidrToIps, mapLimit } from "../network/ipScan";
+import { operationalMetrics } from "../../../observability/metrics";
+import { providerHealthRegistry } from "../../../observability/providerHealth";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const onvif = require("onvif");
@@ -14,12 +16,17 @@ export class OnvifAdapter implements DeviceAdapter {
   readonly protocols = ["http", "other"];
 
   async discover(context: AdapterContext): Promise<DiscoveredDevice[]> {
+    const startedAt = Date.now();
+    providerHealthRegistry.markConfigured("onvif", { note: "discovery_started" });
     const cidr = (context.credentials?.cidr as string | undefined)?.trim();
     const username = (context.credentials?.username as string | undefined)?.trim();
     const password = (context.credentials?.password as string | undefined)?.trim();
 
     if (!cidr) {
-      return await this.discoverViaProbe(username, password);
+      const discovered = await this.discoverViaProbe(username, password);
+      operationalMetrics.increment("oyi_provider_discoveries_total", { provider: "onvif", mode: "probe" }, discovered.length);
+      providerHealthRegistry.heartbeat("onvif", { latencyMs: Date.now() - startedAt, note: `discovered:${discovered.length}`, wired: true });
+      return discovered;
     }
 
     const ips = cidrToIps(cidr, 512);
@@ -68,7 +75,10 @@ export class OnvifAdapter implements DeviceAdapter {
       }
     });
 
-    return devices.filter(Boolean) as DiscoveredDevice[];
+    const discovered = devices.filter(Boolean) as DiscoveredDevice[];
+    operationalMetrics.increment("oyi_provider_discoveries_total", { provider: "onvif", mode: "cidr" }, discovered.length);
+    providerHealthRegistry.heartbeat("onvif", { latencyMs: Date.now() - startedAt, note: `discovered:${discovered.length}`, wired: true });
+    return discovered;
   }
 
   private discoverViaProbe(username?: string, password?: string): Promise<DiscoveredDevice[]> {
@@ -167,10 +177,12 @@ export class OnvifAdapter implements DeviceAdapter {
   }
 
   async executeCommand(): Promise<void> {
+    providerHealthRegistry.markConfigured("onvif", { status: "degraded", note: "command_not_supported" });
     throw new Error("ONVIF adapter currently supports discovery only (stream URI).");
   }
 
   async startEventStream(_context: AdapterContext, _emit: (signal: Signal) => Promise<void>) {
+    providerHealthRegistry.markConfigured("onvif", { status: "degraded", note: "event_stream_not_supported" });
     return;
   }
 }

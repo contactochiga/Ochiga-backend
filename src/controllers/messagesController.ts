@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { uploadToS3 } from "../services/s3Service";
-import { io } from "../server";
+import { getIO } from "../realtime/io";
 
 const MOD_ROLES = new Set(["admin", "estate_admin", "manager", "owner", "security", "operator"]);
 const PRESENCE_ONLINE_WINDOW_MS = 2 * 60 * 1000;
@@ -462,12 +462,13 @@ export async function sendMessage(req: Request, res: Response) {
 
   const senderName = clean(user.username || "");
   const title = senderName ? `New message from ${senderName}` : "New message";
-  io.to(`thread:${threadId}`).emit("dm:new", msg);
-  io.to(`user:${user.id}`).emit("dm:new", msg);
+  const io = getIO();
+  io?.to(`thread:${threadId}`).emit("dm:new", msg);
+  io?.to(`user:${user.id}`).emit("dm:new", msg);
   for (const r of recipients || []) {
     const uid = String((r as any).user_id || "");
     if (!uid) continue;
-    io.to(`user:${uid}`).emit("dm:new", msg);
+    io?.to(`user:${uid}`).emit("dm:new", msg);
     await NotificationService.sendToUser(uid, {
       title,
       message:

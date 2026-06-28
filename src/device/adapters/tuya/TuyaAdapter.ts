@@ -5,6 +5,8 @@ import { DeviceAdapter } from "../DeviceAdapter";
 import { AdapterContext, DiscoveredDevice } from "../types";
 import { Signal } from "../../../core/control-plane/contracts/signal.types";
 import type { DeviceCategory } from "../types";
+import { operationalMetrics } from "../../../observability/metrics";
+import { providerHealthRegistry } from "../../../observability/providerHealth";
 
 // v1.0 users/{uid}/devices response item shape (common fields)
 type TuyaUserDevice = {
@@ -148,6 +150,8 @@ export class TuyaAdapter implements DeviceAdapter {
    * DISCOVERY
    * ------------------------------------------------ */
   async discover(context: AdapterContext): Promise<DiscoveredDevice[]> {
+    const startedAt = Date.now();
+    providerHealthRegistry.markConfigured("tuya", { note: "discovery_started" });
     console.log("[TuyaAdapter.discover] starting…");
 
     // ✅ UID-based discovery (Smart Life / App Account)
@@ -191,6 +195,8 @@ export class TuyaAdapter implements DeviceAdapter {
         },
       }));
 
+      operationalMetrics.increment("oyi_provider_discoveries_total", { provider: "tuya", mode: "uid" }, discovered.length);
+      providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: `discovered:${discovered.length}`, wired: true });
       console.log("[TuyaAdapter.discover] done (uid). devices=", discovered.length);
       return discovered;
     }
@@ -254,6 +260,8 @@ export class TuyaAdapter implements DeviceAdapter {
       },
     }));
 
+    operationalMetrics.increment("oyi_provider_discoveries_total", { provider: "tuya", mode: "project" }, discovered.length);
+    providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: `discovered:${discovered.length}`, wired: true });
     console.log("[TuyaAdapter.discover] done (fallback). devices=", discovered.length);
     return discovered;
   }
@@ -272,8 +280,12 @@ export class TuyaAdapter implements DeviceAdapter {
    * It won’t break anything else even if unused.
    */
   async getLiveState(deviceId: string): Promise<Record<string, any>> {
+    const startedAt = Date.now();
     const cached = this.statusCache.get(deviceId);
-    if (cached && Date.now() - cached.fetchedAt < this.STATUS_TTL_MS) return cached.state;
+    if (cached && Date.now() - cached.fetchedAt < this.STATUS_TTL_MS) {
+      providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "state_cache_hit", wired: true });
+      return cached.state;
+    }
 
     // Optional: schema helps us coerce booleans nicely for switch codes
     let schema: DeviceSchema | null = null;
@@ -316,6 +328,8 @@ export class TuyaAdapter implements DeviceAdapter {
 
     const packed = { fetchedAt: Date.now(), state };
     this.statusCache.set(deviceId, packed);
+    operationalMetrics.increment("oyi_provider_state_reads_total", { provider: "tuya" });
+    providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "state_read", wired: true });
     return state;
   }
 
@@ -486,6 +500,7 @@ export class TuyaAdapter implements DeviceAdapter {
     command: Record<string, any>,
     _context: AdapterContext
   ): Promise<void> {
+    const startedAt = Date.now();
     const schema = await this.getDeviceSchema(deviceId);
 
     const commands = this.buildTuyaCommands(schema, command);
@@ -502,6 +517,8 @@ export class TuyaAdapter implements DeviceAdapter {
 
     // Force fresh state on the next read after command execution.
     this.statusCache.delete(deviceId);
+    operationalMetrics.increment("oyi_provider_commands_total", { provider: "tuya" });
+    providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "command_executed", wired: true });
   }
 
   /* ------------------------------------------------
@@ -511,6 +528,7 @@ export class TuyaAdapter implements DeviceAdapter {
     _context: AdapterContext,
     _emit: (signal: Signal) => Promise<void>
   ): Promise<void> {
+    providerHealthRegistry.markConfigured("tuya", { note: "event_stream_placeholder_cloud_polling", status: "degraded" });
     return;
   }
 

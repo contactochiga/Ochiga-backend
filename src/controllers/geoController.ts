@@ -2,7 +2,7 @@
 
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { io } from "../server";
+import { getIO } from "../realtime/io";
 import { calculateDistance } from "../utils/geoMath";
 import { notifyUser, NotificationPayload } from "../services/NotificationService";
 
@@ -59,7 +59,7 @@ export async function updateDeviceLocation(req: Request, res: Response) {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    io.emit("device:location:update", {
+    getIO()?.emit("device:location:update", {
       id: deviceId,
       lat: Number(lat),
       lng: Number(lng),
@@ -110,7 +110,7 @@ export async function updateVisitorLocation(req: Request, res: Response) {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    io.emit("visitor:location:update", {
+    getIO()?.emit("visitor:location:update", {
       id: visitorId,
       lat: Number(lat),
       lng: Number(lng),

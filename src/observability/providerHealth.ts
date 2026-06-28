@@ -18,8 +18,12 @@ export type ProviderHealthState = {
   failures: number;
   reconnects: number;
   lastEventAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
   lastError: string | null;
   healthScore: number;
+  wired: boolean;
+  note: string | null;
 };
 
 const DEFAULT_PROVIDERS: ProviderName[] = ["tuya", "onvif", "mqtt", "matter", "ble", "thread", "zigbee", "modbus", "bacnet", "knx", "ir"];
@@ -35,8 +39,12 @@ class ProviderHealthRegistry {
         failures: 0,
         reconnects: 0,
         lastEventAt: null,
+        lastSuccessAt: null,
+        lastFailureAt: null,
         lastError: null,
         healthScore: 50,
+        wired: false,
+        note: "provider_not_initialized",
       },
     ])
   );
@@ -54,7 +62,10 @@ class ProviderHealthRegistry {
       status: patch.status || "online",
       latencyMs: patch.latencyMs ?? this.state.get(provider)?.latencyMs ?? null,
       lastEventAt: patch.lastEventAt || new Date().toISOString(),
+      lastSuccessAt: patch.lastSuccessAt || new Date().toISOString(),
       lastError: patch.lastError ?? null,
+      wired: patch.wired ?? this.state.get(provider)?.wired ?? true,
+      note: patch.note ?? this.state.get(provider)?.note ?? null,
     });
   }
 
@@ -64,7 +75,9 @@ class ProviderHealthRegistry {
       status: "degraded",
       failures: current.failures + 1,
       lastEventAt: new Date().toISOString(),
+      lastFailureAt: new Date().toISOString(),
       lastError: error instanceof Error ? error.message : String(error || "provider_failure"),
+      wired: true,
     });
   }
 
@@ -74,7 +87,38 @@ class ProviderHealthRegistry {
       status: "online",
       reconnects: current.reconnects + 1,
       lastEventAt: new Date().toISOString(),
+      lastSuccessAt: new Date().toISOString(),
       lastError: null,
+      wired: true,
+    });
+  }
+
+  markConfigured(provider: ProviderName, patch: Partial<ProviderHealthState> = {}) {
+    const current = this.state.get(provider)!;
+    return this.update(provider, {
+      status: patch.status || current.status,
+      wired: true,
+      note: patch.note ?? "provider_wired",
+      latencyMs: patch.latencyMs ?? current.latencyMs,
+    });
+  }
+
+  markPlaceholder(provider: ProviderName, note: string) {
+    return this.update(provider, {
+      status: "unknown",
+      wired: false,
+      note,
+    });
+  }
+
+  markOffline(provider: ProviderName, reason: string) {
+    const current = this.state.get(provider)!;
+    return this.update(provider, {
+      status: "offline",
+      lastFailureAt: new Date().toISOString(),
+      lastError: reason,
+      wired: current.wired,
+      note: current.note,
     });
   }
 

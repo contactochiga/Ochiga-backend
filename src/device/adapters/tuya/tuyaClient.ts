@@ -2,6 +2,8 @@
 
 import crypto from "crypto";
 import axios, { AxiosInstance } from "axios";
+import { operationalMetrics } from "../../../observability/metrics";
+import { providerHealthRegistry } from "../../../observability/providerHealth";
 
 /* ------------------------------------------------
  * ENV (LAZY + TYPE-SAFE)
@@ -92,28 +94,39 @@ export class TuyaClient {
       return this.accessToken;
     }
 
+    const startedAt = Date.now();
     const t = Date.now().toString();
     const path = "/v1.0/token?grant_type=1";
     const sign = this.sign("GET", path, "", t);
 
-    const res = await this.client.get<TuyaResponse<{ access_token: string; expire_time: number }>>(path, {
-      headers: {
-        t,
-        sign,
-        client_id: this.ACCESS_ID,
-        sign_method: "HMAC-SHA256",
-      },
-    });
+    let res;
+    try {
+      res = await this.client.get<TuyaResponse<{ access_token: string; expire_time: number }>>(path, {
+        headers: {
+          t,
+          sign,
+          client_id: this.ACCESS_ID,
+          sign_method: "HMAC-SHA256",
+        },
+      });
+    } catch (error) {
+      operationalMetrics.increment("oyi_provider_failures_total", { provider: "tuya", action: "token" });
+      providerHealthRegistry.failure("tuya", error);
+      throw error;
+    }
 
     const token = res.data?.result?.access_token;
     const expire = res.data?.result?.expire_time;
 
     if (!token || !expire) {
+      operationalMetrics.increment("oyi_provider_failures_total", { provider: "tuya", action: "token_payload" });
+      providerHealthRegistry.failure("tuya", "missing_access_token");
       throw new Error(`❌ Failed to obtain Tuya access token: ${JSON.stringify(res.data)}`);
     }
 
     this.accessToken = token;
     this.tokenExpireAt = Date.now() + expire * 1000;
+    providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "token_acquired", wired: true });
 
     return token;
   }
@@ -122,31 +135,48 @@ export class TuyaClient {
    * REQUEST
    * ------------------------------------------------ */
   async request<T = any>(method: "GET" | "POST", pathWithQuery: string, body?: any): Promise<T> {
+    const startedAt = Date.now();
     const accessToken = await this.getAccessToken();
     const t = Date.now().toString();
     const bodyStr = body ? JSON.stringify(body) : "";
 
     const sign = this.sign(method, pathWithQuery, bodyStr, t, accessToken);
 
-    const res = await this.client.request<TuyaResponse<T>>({
-      method,
-      url: pathWithQuery,
-      data: body,
-      headers: {
-        t,
-        sign,
-        client_id: this.ACCESS_ID,
-        access_token: accessToken,
-        sign_method: "HMAC-SHA256",
-        "Content-Type": "application/json",
-      },
-    });
+    let res;
+    try {
+      res = await this.client.request<TuyaResponse<T>>({
+        method,
+        url: pathWithQuery,
+        data: body,
+        headers: {
+          t,
+          sign,
+          client_id: this.ACCESS_ID,
+          access_token: accessToken,
+          sign_method: "HMAC-SHA256",
+          "Content-Type": "application/json",
+        },
+      });
+    } catch (error) {
+      operationalMetrics.increment("oyi_provider_failures_total", { provider: "tuya", action: method.toLowerCase() });
+      providerHealthRegistry.failure("tuya", error);
+      throw error;
+    }
 
     if (!res.data?.success) {
       const code = res.data?.code;
       const msg = res.data?.msg || "Unknown Tuya error";
+      operationalMetrics.increment("oyi_provider_failures_total", { provider: "tuya", action: "api_response" });
+      providerHealthRegistry.failure("tuya", `Tuya API error (${code ?? "?"}): ${msg}`);
       throw new Error(`❌ Tuya API error (${code ?? "?"}): ${msg}`);
     }
+
+    operationalMetrics.increment("oyi_provider_requests_total", { provider: "tuya", method });
+    providerHealthRegistry.heartbeat("tuya", {
+      latencyMs: Date.now() - startedAt,
+      note: pathWithQuery,
+      wired: true,
+    });
 
     return res.data.result as T;
   }

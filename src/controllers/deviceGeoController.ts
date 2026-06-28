@@ -1,7 +1,7 @@
 // src/controllers/deviceGeoController.ts
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { io } from "../server";
+import { getIO } from "../realtime/io";
 import { calculateDistance } from "../utils/geoMath";
 
 /**
@@ -38,7 +38,7 @@ export async function updateDeviceLocation(req: Request, res: Response) {
 
     // Try emitting via socket
     try {
-      io.emit("device:location:update", {
+      getIO()?.emit("device:location:update", {
         id: deviceId,
         lat: Number(lat),
         lng: Number(lng),
