@@ -8,8 +8,9 @@ const router = Router();
 
 // Canonical ownership note:
 // - /oyi/runtime/* is the backend-owned Oyi Core kernel surface.
-// - /oyi/awareness and /oyi/chat remain compatibility routes while older
-//   consumers still depend on legacy response shapes.
+// - /oyi/awareness and /oyi/chat are compatibility-only adapters.
+// - Compatibility routes should prefer src/oyi-core for safe read-only
+//   responses while preserving legacy payload shapes for older clients.
 router.get("/awareness", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const body = await getOyiUnifiedAwareness(req.user || null, {

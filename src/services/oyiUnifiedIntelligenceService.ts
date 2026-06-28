@@ -14,6 +14,7 @@ import type { ProposedAiTool } from "../ai/commandRouter";
 import { interpretWithLanguageTeacher, languageTeacherResultToMessage, shouldAskLanguageTeacher } from "../language-teacher/languageTeacherService";
 import type { OisContext } from "../types/oisContext";
 import { decorateOyiTargets } from "./oyi/oyiTargetService";
+import { oyiCoreRuntime } from "../oyi-core/service";
 
 // Transitional compatibility service:
 // src/oyi-core is the canonical runtime for normalized signals, awareness,
@@ -96,6 +97,19 @@ type ThreadListInput = {
   estate_id?: string | null;
   home_id?: string | null;
   limit?: number;
+};
+
+type CompatibilityChatResponse = {
+  ok: true;
+  message: string;
+  intent: string;
+  understood: string;
+  execution: Record<string, unknown>;
+  display_mode: "conversation" | "awareness";
+  cards: Array<Record<string, unknown>>;
+  sources: Array<Record<string, unknown>>;
+  suggested_actions: Array<Record<string, unknown>>;
+  awareness?: AwarenessResult;
 };
 
 const SURFACES: OyiSurface[] = ["consumer", "facility", "office", "watch", "edge"];
@@ -183,6 +197,179 @@ function workflowDueMessage(title: string, dueAt?: unknown) {
   const delta = due.getTime() - Date.now();
   if (delta < 0) return `${title} was due ${due.toLocaleString()}. It is overdue by ${durationLabel(delta)}.`;
   return `${title} is due ${due.toLocaleString()}. It is due in ${durationLabel(delta)}.`;
+}
+
+function awarenessSeverityToSignalSeverity(value?: AwarenessSeverity) {
+  if (value === "critical") return "critical" as const;
+  if (value === "warning") return "warning" as const;
+  if (value === "attention") return "attention" as const;
+  return "info" as const;
+}
+
+function awarenessSignalType(destination?: string | null) {
+  const value = String(destination || "").trim().toLowerCase();
+  if (/security|incident|camera|access/.test(value)) return "security" as const;
+  if (/visitor/.test(value)) return "human" as const;
+  if (/wallet|finance|payment/.test(value)) return "financial" as const;
+  if (/community|message|communication/.test(value)) return "community" as const;
+  if (/maintenance|service/.test(value)) return "maintenance" as const;
+  if (/utility|environment|meter|device|infrastructure/.test(value)) return "infrastructure" as const;
+  return "operational" as const;
+}
+
+function awarenessDomain(destination?: string | null) {
+  const value = String(destination || "").trim().toLowerCase();
+  if (/security|incident|camera|access/.test(value)) return "security";
+  if (/visitor/.test(value)) return "visitor";
+  if (/wallet|finance|payment/.test(value)) return "financial";
+  if (/community|message|communication/.test(value)) return "community";
+  if (/maintenance/.test(value)) return "maintenance";
+  if (/service/.test(value)) return "service";
+  if (/utility/.test(value)) return "utility";
+  if (/environment/.test(value)) return "environmental";
+  if (/device|infrastructure|provider|edge/.test(value)) return "infrastructure";
+  return "operational";
+}
+
+function compatibilitySignalFromAwareness(
+  awareness: AwarenessResult,
+  actor: AuthUser | null,
+  input: { surface?: OyiSurface; estate_id?: string | null; home_id?: string | null; context?: OisContext | null }
+) {
+  const context = input.context || null;
+  const headlineSlug = String(awareness.headline || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-");
+  return {
+    id: `compat:${input.surface || "consumer"}:${headlineSlug || "awareness"}`,
+    type: awarenessSignalType(awareness.destination),
+    source: "oyi_compatibility_awareness",
+    domain: awarenessDomain(awareness.destination),
+    entity: {
+      id: awareness.destination || headlineSlug || "awareness",
+      name: awareness.headline,
+      type: awarenessDomain(awareness.destination),
+      status: awareness.severity,
+    },
+    estate: {
+      id: input.estate_id || context?.estate_id || actor?.estate_id || "",
+      name: "",
+    },
+    building: {
+      id: "",
+      name: "",
+    },
+    room: {
+      id: input.home_id || context?.home_id || actor?.home_id || "",
+      name: "",
+    },
+    actor: {
+      id: actor?.id || "",
+      name: actor?.username || actor?.email || "",
+      role: actor?.role || "system",
+    },
+    severity: awarenessSeverityToSignalSeverity(awareness.severity),
+    confidence: Math.max(0.45, Math.min(0.95, Number(awareness.awareness_score ?? awareness.score ?? 0.72) / 100 || 0.72)),
+    timestamp: awareness.generated_at || new Date().toISOString(),
+    context: {
+      surface: input.surface || "consumer",
+      module: context?.module || null,
+      recommended_action: awareness.recommended_action,
+      summary: awareness.summary,
+    },
+    metadata: {
+      message: awareness.body || awareness.summary || awareness.headline,
+      summary: awareness.summary || awareness.headline,
+      recommended_action: awareness.recommended_action,
+      destination: awareness.destination,
+      compatibility_source: "legacy_oyi_awareness",
+    },
+    evidence: Array.isArray(awareness.sources)
+      ? awareness.sources.slice(0, 5).map((item, index) => ({
+          id: String(item?.id || `compat-evidence-${index + 1}`),
+          type: String(item?.type || "compatibility_source"),
+          source: String(item?.source || "legacy_oyi_awareness"),
+          summary: String(item?.summary || item?.title || awareness.headline),
+          timestamp: String(item?.timestamp || awareness.generated_at || new Date().toISOString()),
+          metadata: item,
+        }))
+      : [],
+  };
+}
+
+function isReadOnlyCompatibilityMessage(message: string) {
+  const value = String(message || "").trim().toLowerCase();
+  const readOnly =
+    /attention|summary|summar|status|posture|health|what happened|what changed|why|explain|recommend|what should|evidence|verify|verification/.test(
+      value
+    );
+  const mutating =
+    /approve|reject|assign|create|open gate|grant|deny|turn on|turn off|switch on|switch off|run automation|execute|fund|pay|remove|delete|broadcast|post /.test(
+      value
+    );
+  return readOnly && !mutating;
+}
+
+export function shouldUseOyiCoreCompatibilityChatForTest(message: string) {
+  return isReadOnlyCompatibilityMessage(message);
+}
+
+function compatibilityConversationPayload(
+  actor: AuthUser | null,
+  input: OyiChatInput,
+  awareness: AwarenessResult
+): CompatibilityChatResponse | null {
+  const signal = compatibilitySignalFromAwareness(awareness, actor, input);
+  const response = oyiCoreRuntime.conversation(
+    {
+      id: `compat:${input.surface || "consumer"}:${Date.now()}`,
+      query: input.message,
+      estateId: input.estate_id || input.context?.estate_id || actor?.estate_id || null,
+      unitId: input.home_id || input.context?.home_id || actor?.home_id || null,
+      actor: {
+        id: actor?.id || null,
+        name: actor?.username || actor?.email || null,
+        role: actor?.role || null,
+        permissions: Array.isArray(actor?.permissions) ? actor.permissions : [],
+      },
+      context: input.context || undefined,
+      requestedDomain: detectDomainIntent(normalizeOyiMessage(input.message), safeSurface(input.surface))?.key || null,
+    },
+    {
+      signals: [signal],
+      context: input.context || undefined,
+      permissions: Array.isArray(actor?.permissions) ? actor.permissions : [],
+    }
+  );
+
+  const summary = String(response.summary || response.answer || "").trim();
+  const answer = String(response.answer || response.summary || "").trim();
+  if (!summary && !answer) return null;
+
+  return {
+    ok: true,
+    message: answer || summary,
+    intent: response.intent,
+    understood: summary || "Oyi Core reviewed the current operational context.",
+    execution: {
+      status: "read_only",
+      source: "oyi_core_compatibility",
+      approval_required: response.approvalRequired,
+      confidence: response.confidence,
+    },
+    display_mode: awareness.severity === "normal" ? "conversation" : "awareness",
+    cards: [],
+    sources: awareness.sources || [],
+    suggested_actions:
+      awareness.suggested_actions ||
+      response.availableActions.map((action) => ({
+        label: action.title,
+        action: action.type,
+        target: action.target || null,
+      })),
+    awareness: awareness.severity === "normal" ? undefined : awareness,
+  };
 }
 
 function emptyConversationState(): ConversationState {
@@ -2262,6 +2449,8 @@ export async function getOyiUnifiedAwareness(actor: AuthUser | null, input: { su
     { agent_id: surface === "facility" ? "facility" : "oyi", action: "oyi.awareness", tool: "oyi:awareness", surface, actor },
     async () => {
       const context = await loadUnifiedContext(actor, { surface, estate_id: input.estate_id, home_id: input.home_id });
+      // Compatibility-only: awareness payloads still use the legacy contract
+      // while chat/read-only summaries progressively cut over to src/oyi-core.
       const awareness = buildAwareness(surface, context, actor);
       return { ok: true, ...decorateOyiTargets(awareness), role_policy: getIntelligencePermissionPolicy(actor), warnings: context.warnings };
     }
@@ -2289,6 +2478,20 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
       const context = await loadUnifiedContext(actor, { surface, estate_id: effectiveInput.estate_id, home_id: effectiveInput.home_id });
       const awareness = buildAwareness(surface, context, actor);
       const followUp = explicitDomain ? null : await resolveFollowUpOperation(actor, effectiveInput, conversation.state);
+      if (!followUp && isReadOnlyCompatibilityMessage(effectiveInput.message)) {
+        const runtimeCompat = compatibilityConversationPayload(actor, effectiveInput, awareness);
+        if (runtimeCompat) {
+          const response: any = {
+            ...runtimeCompat,
+            thread_id: validUuid(effectiveInput.thread_id) ? String(effectiveInput.thread_id) : randomUUID(),
+            role_policy: getIntelligencePermissionPolicy(actor),
+            warnings: [...context.warnings, ...(conversation.warning ? [conversation.warning] : [])],
+          };
+          Object.assign(response, decorateOyiTargets(response));
+          await persistThread(actor, effectiveInput, response, message, conversation.state);
+          return response;
+        }
+      }
       const operation = followUp || await runOperatingLayer(actor, effectiveInput, context, awareness);
       const displayMode = operation.display_mode || displayModeFor(operation.intent, message, operation.cards.length > 0);
       const supportPayloadAttached = displayMode !== "conversation";

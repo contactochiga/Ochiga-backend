@@ -28,7 +28,8 @@
     "audit:security": "node scripts/oyi-security-audit.mjs",
     "smoke:security-adversarial": "npm run build && node scripts/oyi-security-adversarial-smoke.mjs",
     "smoke:notification-routing": "npm run build && node scripts/notification-routing-smoke.mjs",
-    "smoke:oyi-targets": "npm run build && node scripts/oyi-target-smoke.mjs"
+    "smoke:oyi-targets": "npm run build && node scripts/oyi-target-smoke.mjs",
+    "smoke:oyi-core-compatibility": "npm run build && node scripts/oyi-core-compatibility-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
