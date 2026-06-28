@@ -15,6 +15,12 @@ import { interpretWithLanguageTeacher, languageTeacherResultToMessage, shouldAsk
 import type { OisContext } from "../types/oisContext";
 import { decorateOyiTargets } from "./oyi/oyiTargetService";
 
+// Transitional compatibility service:
+// src/oyi-core is the canonical runtime for normalized signals, awareness,
+// reasoning, recommendations, automation, conversation, and executive output.
+// This service stays in place only to preserve older /oyi/awareness and
+// /oyi/chat payload contracts while the remaining clients complete cutover.
+
 export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge";
 export type AwarenessSeverity = "normal" | "info" | "attention" | "warning" | "critical";
 

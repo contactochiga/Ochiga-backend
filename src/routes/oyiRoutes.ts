@@ -6,6 +6,10 @@ import { oyiCoreRuntime } from "../oyi-core/service";
 
 const router = Router();
 
+// Canonical ownership note:
+// - /oyi/runtime/* is the backend-owned Oyi Core kernel surface.
+// - /oyi/awareness and /oyi/chat remain compatibility routes while older
+//   consumers still depend on legacy response shapes.
 router.get("/awareness", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const body = await getOyiUnifiedAwareness(req.user || null, {
