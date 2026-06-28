@@ -32,6 +32,9 @@ import { startIntentWorker } from "./workers/intentWorker";
 import { CommunityLiveService } from "./services/communityLiveService";
 import { hasPermission } from "./core/foundation";
 import { supabaseAdmin } from "./supabase/supabaseClient";
+import { logger } from "./observability/logger";
+import { operationalMetrics } from "./observability/metrics";
+import { runtimeHealthRegistry } from "./observability/runtimeHealth";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -95,7 +98,12 @@ io.use(authenticateSocket);
 // SOCKET.IO CONNECTIONS
 // ---------------------------
 io.on("connection", (socket) => {
-  console.log("🔌 Socket connected →", socket.id, socket.data.user?.id || "");
+  operationalMetrics.increment("oyi_socket_events_total", { event: "connection" });
+  runtimeHealthRegistry.markSocketConnected(io.of("/").sockets.size);
+  logger.info("socket_connected", {
+    socket_id: socket.id,
+    user_id: socket.data.user?.id || null,
+  });
 
   socket.on("subscribe:estate", (estateId: string) => {
     if (!canUseSocket(socket, "estates.read")) return denySocket(socket, "estates.read", "estate", String(estateId || ""));
@@ -462,6 +470,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", async () => {
+    operationalMetrics.increment("oyi_socket_events_total", { event: "disconnect" });
+    runtimeHealthRegistry.markSocketConnected(Math.max(0, io.of("/").sockets.size - 1));
+    logger.info("socket_disconnected", {
+      socket_id: socket.id,
+      user_id: socket.data.user?.id || null,
+    });
     const impacted = await CommunityLiveService.detachSocket(socket.id);
     for (const item of impacted) {
       io.to(`community-live:${item.postId}:viewers`).emit("community-live:stats", {
@@ -495,39 +509,41 @@ io.on("connection", (socket) => {
 // START FULL BACKEND STACK
 // ---------------------------
 httpServer.listen(PORT, async () => {
-  console.log(`🚀 HTTP + WebSocket server running on port ${PORT}`);
+  logger.info("server_listening", { port: PORT });
 
   try {
     await CommunityLiveService.init();
-    console.log("🟢 Community live session cache initialized");
+    logger.info("community_live_initialized");
 
     // ---------------------------
     // CONNECT REDIS
     // ---------------------------
     await redis.connect();
-    console.log("🟢 Redis connected successfully");
+    logger.info("redis_connect_complete");
 
     // ---------------------------
     // START INTENT WORKER (BullMQ)
     // ---------------------------
     startIntentWorker();
-    console.log("🟢 Intent worker running");
+    logger.info("intent_worker_running");
 
     // ---------------------------
     // START MQTT BRIDGE
     // ---------------------------
     await initMqttBridge();
-    console.log("🟢 MQTT bridge initialized");
+    logger.info("mqtt_bridge_initialized");
 
     // ---------------------------
     // START EVENT PROCESSOR
     // ---------------------------
     startEventProcessor();
-    console.log("📡 Event processor running");
+    runtimeHealthRegistry.markQueue("healthy", "intent worker and event processor running");
+    logger.info("event_processor_running");
 
-    console.log("✅ Ochiga backend fully online");
+    logger.info("backend_fully_online");
   } catch (error) {
-    console.error("🔴 Backend startup failed →", error);
+    operationalMetrics.increment("oyi_provider_failures_total", { provider: "bootstrap" });
+    logger.error("backend_startup_failed", { error });
     process.exit(1);
   }
 });

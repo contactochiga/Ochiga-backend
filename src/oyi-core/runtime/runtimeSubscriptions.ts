@@ -5,6 +5,8 @@ import type { OperationalRecommendation } from "./operationalRecommendations";
 import type { AutomationPlan } from "./safeAutomation";
 import type { ConversationRequest, ConversationResponse } from "./conversation";
 import type { ExecutiveBriefing } from "./executive";
+import { operationalMetrics } from "../../observability/metrics";
+import { runtimeHealthRegistry } from "../../observability/runtimeHealth";
 
 export type RuntimeChannel =
   | "facility:signal"
@@ -124,6 +126,7 @@ export class RuntimeSubscriptionEngine {
     const createdAt = input.createdAt || new Date().toISOString();
     const dedupeKey = input.dedupeKey || dedupeIdentity(input.payload);
     for (const channel of input.channels) {
+      const startedAt = Date.now();
       const delivery: RuntimeDelivery = {
         id: `${channel}:${this.sequence + 1}`,
         sequence: ++this.sequence,
@@ -134,6 +137,9 @@ export class RuntimeSubscriptionEngine {
       };
       this.store(channel, delivery);
       this.deliver(channel, delivery, dedupeKey);
+      operationalMetrics.increment("oyi_runtime_subscription_deliveries_total", { channel, kind: input.kind });
+      operationalMetrics.observe("oyi_runtime_stage_latency_ms", Math.max(0, Date.now() - startedAt), { stage: "subscription.dispatch", channel, kind: input.kind });
+      runtimeHealthRegistry.markStage(`subscription.dispatch:${channel}`, Math.max(0, Date.now() - startedAt));
     }
   }
 

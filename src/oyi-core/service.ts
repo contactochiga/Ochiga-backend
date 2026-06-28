@@ -9,6 +9,10 @@ import { buildOperationalRecommendations, type OperationalRecommendation } from 
 import { operationalReasoningRuntime, type OperationalInsight } from "./runtime/operationalReasoning";
 import { runtimeSubscriptionEngine } from "./runtime/runtimeSubscriptions";
 import { normalizeSignal, type NormalizedSignal } from "./contracts/operationalSignal";
+import { logger } from "../observability/logger";
+import { operationalMetrics } from "../observability/metrics";
+import { createRuntimeContext, getRuntimeContext, markRuntimeStage, patchRuntimeContext, runtimeTraceFields, withRuntimeContext, type RuntimeStage } from "../observability/runtimeContext";
+import { runtimeHealthRegistry } from "../observability/runtimeHealth";
 
 export type RuntimeBundle = {
   signals: NormalizedSignal[];
@@ -48,6 +52,24 @@ function scopeKey(signal?: NormalizedSignal | null) {
   return text(signal?.estate.id || signal?.building.id || signal?.room.id || "global");
 }
 
+function traceForSignal(signal?: Partial<NormalizedSignal> & Record<string, unknown>) {
+  return {
+    estateId: text(signal?.estate?.id || signal?.estate_id || signal?.estateId) || null,
+    buildingId: text(signal?.building?.id || signal?.building_id || signal?.buildingId) || null,
+    roomId: text(signal?.room?.id || signal?.room_id || signal?.roomId) || null,
+    deviceId: text(signal?.entity?.id || signal?.entity_id || signal?.deviceId || signal?.device_id) || null,
+    actorId: text(signal?.actor?.id || signal?.actor_id || signal?.actorId) || null,
+  };
+}
+
+function observeStage(stage: RuntimeStage, startedAt: number, labels: Record<string, string> = {}) {
+  const latencyMs = Math.max(0, Date.now() - startedAt);
+  markRuntimeStage(stage, startedAt);
+  runtimeHealthRegistry.markStage(stage, latencyMs);
+  operationalMetrics.observe("oyi_runtime_stage_latency_ms", latencyMs, { stage, ...labels });
+  return latencyMs;
+}
+
 class OyiCoreRuntimeKernel {
   private recentSignals = new Map<string, NormalizedSignal[]>();
   private hooks: RuntimeHooks = {};
@@ -57,152 +79,246 @@ class OyiCoreRuntimeKernel {
   }
 
   evaluate(input: RuntimeEvaluationInput): RuntimeBundle {
-    const signals = (input.signals || []).map((item) => normalizeSignal(item));
-    const awareness = buildAwareness(signals, input.context);
-    const insights = operationalReasoningRuntime.evaluate({ signals, awareness, context: input.context, signalHistory: signals });
-    const recommendations = buildOperationalRecommendations({ signals, awareness, insights, context: input.context });
-    const automationPlans = buildAutomationPlans({ signals, awareness, insights, recommendations, context: input.context, permissions: input.permissions || [] });
-    return { signals, awareness, insights, recommendations, automationPlans };
+    const active = getRuntimeContext();
+    const seedSignal = (input.signals || [])[0];
+    const execute = () => {
+      operationalMetrics.increment("oyi_runtime_evaluations_total");
+
+      const normalizeStartedAt = Date.now();
+      const signals = (input.signals || []).map((item) => normalizeSignal(item));
+      if (signals[0]) patchRuntimeContext(traceForSignal(signals[0]));
+      observeStage("signal.receive", normalizeStartedAt, { mode: "evaluate" });
+
+      const awarenessStartedAt = Date.now();
+      const awareness = buildAwareness(signals, input.context);
+      operationalMetrics.increment("oyi_awareness_generated_total", {}, awareness.length);
+      observeStage("awareness.build", awarenessStartedAt, { mode: "evaluate" });
+
+      const insightStartedAt = Date.now();
+      const insights = operationalReasoningRuntime.evaluate({ signals, awareness, context: input.context, signalHistory: signals });
+      operationalMetrics.increment("oyi_insights_generated_total", {}, insights.length);
+      observeStage("reasoning.build", insightStartedAt, { mode: "evaluate" });
+
+      const recommendationStartedAt = Date.now();
+      const recommendations = buildOperationalRecommendations({ signals, awareness, insights, context: input.context });
+      operationalMetrics.increment("oyi_recommendations_generated_total", {}, recommendations.length);
+      observeStage("recommendation.build", recommendationStartedAt, { mode: "evaluate" });
+
+      const automationStartedAt = Date.now();
+      const automationPlans = buildAutomationPlans({ signals, awareness, insights, recommendations, context: input.context, permissions: input.permissions || [] });
+      operationalMetrics.increment("oyi_automation_plans_generated_total", {}, automationPlans.length);
+      observeStage("automation.build", automationStartedAt, { mode: "evaluate" });
+      return { signals, awareness, insights, recommendations, automationPlans };
+    };
+
+    if (active) return execute();
+    return withRuntimeContext(createRuntimeContext({ producer: "oyi_core_runtime", consumer: "evaluate", ...traceForSignal(seedSignal) }), execute);
   }
 
   async receiveSignal(input: Partial<NormalizedSignal> & Record<string, unknown>, options: { permissions?: string[] } = {}): Promise<RuntimeEnvelope> {
-    const receipt = universalSignalRuntime.receive(input);
-    const seedSignal = receipt.signal;
-    const key = scopeKey(seedSignal);
-    const history = this.recentSignals.get(key) || [];
-    const nextHistory = [seedSignal, ...history.filter((item) => item.id !== seedSignal.id)].slice(0, 80);
-    this.recentSignals.set(key, nextHistory);
+    const active = getRuntimeContext();
+    const execute = async () => {
+      operationalMetrics.increment("oyi_signals_received_total", { source: text(input.source || "unknown") || "unknown" });
 
-    const awareness = buildAwarenessFromSignal(seedSignal, { signalHistory: nextHistory });
-    const insights = operationalReasoningRuntime.evaluate({
-      signals: nextHistory,
-      awareness: [awareness, ...buildAwareness(nextHistory)],
-      signalHistory: nextHistory,
-    });
-    const recommendations = buildOperationalRecommendations({
-      signals: nextHistory,
-      awareness: [awareness],
-      insights,
-    });
-    const automationPlans = buildAutomationPlans({
-      signals: nextHistory,
-      awareness: [awareness],
-      insights,
-      recommendations,
-      permissions: options.permissions || [],
-    });
-    const bundle: RuntimeBundle = {
-      signals: nextHistory,
-      awareness: [awareness],
-      insights,
-      recommendations,
-      automationPlans,
+      const receiptStartedAt = Date.now();
+      const receipt = universalSignalRuntime.receive(input);
+      let seedSignal: NormalizedSignal = {
+        ...receipt.signal,
+        metadata: {
+          ...receipt.signal.metadata,
+          runtime_trace: runtimeTraceFields(),
+        },
+      };
+      patchRuntimeContext(traceForSignal(seedSignal));
+      observeStage("signal.receive", receiptStartedAt, { mode: "receive" });
+
+      const key = scopeKey(seedSignal);
+      const history = this.recentSignals.get(key) || [];
+      const nextHistory = [seedSignal, ...history.filter((item) => item.id !== seedSignal.id)].slice(0, 80);
+      this.recentSignals.set(key, nextHistory);
+
+      const awarenessStartedAt = Date.now();
+      const awareness = buildAwarenessFromSignal(seedSignal, { signalHistory: nextHistory });
+      operationalMetrics.increment("oyi_awareness_generated_total");
+      observeStage("awareness.build", awarenessStartedAt, { mode: "receive" });
+
+      const insightStartedAt = Date.now();
+      const insights = operationalReasoningRuntime.evaluate({
+        signals: nextHistory,
+        awareness: [awareness, ...buildAwareness(nextHistory)],
+        signalHistory: nextHistory,
+      });
+      operationalMetrics.increment("oyi_insights_generated_total", {}, insights.length);
+      observeStage("reasoning.build", insightStartedAt, { mode: "receive" });
+
+      const recommendationStartedAt = Date.now();
+      const recommendations = buildOperationalRecommendations({
+        signals: nextHistory,
+        awareness: [awareness],
+        insights,
+      });
+      operationalMetrics.increment("oyi_recommendations_generated_total", {}, recommendations.length);
+      observeStage("recommendation.build", recommendationStartedAt, { mode: "receive" });
+
+      const automationStartedAt = Date.now();
+      const automationPlans = buildAutomationPlans({
+        signals: nextHistory,
+        awareness: [awareness],
+        insights,
+        recommendations,
+        permissions: options.permissions || [],
+      });
+      operationalMetrics.increment("oyi_automation_plans_generated_total", {}, automationPlans.length);
+      observeStage("automation.build", automationStartedAt, { mode: "receive" });
+
+      const bundle: RuntimeBundle = {
+        signals: nextHistory,
+        awareness: [awareness],
+        insights,
+        recommendations,
+        automationPlans,
+      };
+      const envelope: RuntimeEnvelope = {
+        receipt: { ...receipt, signal: seedSignal },
+        bundle,
+        operational_signal: seedSignal,
+        operational_awareness: awareness,
+        operational_insights: insights,
+        operational_recommendations: recommendations,
+        operational_automation_plans: automationPlans,
+      };
+
+      const publishStartedAt = Date.now();
+      runtimeSubscriptionEngine.publishSignal({ signal: seedSignal, receipt: envelope.receipt, source: "oyi_core_runtime" });
+      runtimeSubscriptionEngine.publishAwareness({ signal: seedSignal, awareness, receipt: envelope.receipt, source: "oyi_core_runtime" });
+      runtimeSubscriptionEngine.publishInsights({ signal: seedSignal, insights, receipt: envelope.receipt, source: "oyi_core_runtime" });
+      runtimeSubscriptionEngine.publishRecommendations({ signal: seedSignal, recommendations, receipt: envelope.receipt, source: "oyi_core_runtime" });
+      runtimeSubscriptionEngine.publishAutomation({ signal: seedSignal, automationPlans, receipt: envelope.receipt, source: "oyi_core_runtime" });
+      observeStage("subscription.dispatch", publishStartedAt, { mode: "receive" });
+
+      await this.safeHook(() => this.hooks.persistSignal?.(seedSignal, envelope.receipt));
+      await this.safeHook(() => this.hooks.persistBundle?.(bundle, key));
+      await this.safeHook(async () => {
+        await this.hooks.audit?.(envelope.receipt);
+        if (envelope.receipt.accepted && (seedSignal.severity === "critical" || seedSignal.severity === "warning")) {
+          await emitAuditEvent({
+            actorId: seedSignal.actor.id || "oyi_core_runtime",
+            actorRole: seedSignal.actor.role || "system",
+            actorEmail: "",
+            action: "oyi.runtime.signal.received",
+            resourceType: "operational_signal",
+            resourceId: seedSignal.id,
+            estateId: seedSignal.estate.id || null,
+            homeId: null,
+            status: envelope.receipt.accepted ? "success" : "denied",
+            metadata: {
+              duplicate: envelope.receipt.duplicate,
+              issues: envelope.receipt.issues,
+              priority: envelope.receipt.priority,
+              domain: seedSignal.domain,
+              runtime_trace: runtimeTraceFields(),
+            },
+          } as any);
+        }
+      });
+
+      logger.info("oyi_runtime_signal_processed", {
+        signal_id: seedSignal.id,
+        domain: seedSignal.domain,
+        accepted: envelope.receipt.accepted,
+        outputs: envelope.receipt.outputs,
+      });
+      return envelope;
     };
-    const envelope: RuntimeEnvelope = {
-      receipt,
-      bundle,
-      operational_signal: receipt.signal,
-      operational_awareness: awareness,
-      operational_insights: insights,
-      operational_recommendations: recommendations,
-      operational_automation_plans: automationPlans,
-    };
 
-    runtimeSubscriptionEngine.publishSignal({ signal: receipt.signal, receipt, source: "oyi_core_runtime" });
-    runtimeSubscriptionEngine.publishAwareness({ signal: receipt.signal, awareness, receipt, source: "oyi_core_runtime" });
-    runtimeSubscriptionEngine.publishInsights({ signal: receipt.signal, insights, receipt, source: "oyi_core_runtime" });
-    runtimeSubscriptionEngine.publishRecommendations({ signal: receipt.signal, recommendations, receipt, source: "oyi_core_runtime" });
-    runtimeSubscriptionEngine.publishAutomation({ signal: receipt.signal, automationPlans, receipt, source: "oyi_core_runtime" });
-
-    await this.safeHook(() => this.hooks.persistSignal?.(receipt.signal, receipt));
-    await this.safeHook(() => this.hooks.persistBundle?.(bundle, key));
-    await this.safeHook(async () => {
-      await this.hooks.audit?.(receipt);
-      if (receipt.accepted && (receipt.signal.severity === "critical" || receipt.signal.severity === "warning")) {
-        await emitAuditEvent({
-          actorId: receipt.signal.actor.id || "oyi_core_runtime",
-          actorRole: receipt.signal.actor.role || "system",
-          actorEmail: "",
-          action: "oyi.runtime.signal.received",
-          resourceType: "operational_signal",
-          resourceId: receipt.signal.id,
-          estateId: receipt.signal.estate.id || null,
-          homeId: null,
-          status: receipt.accepted ? "success" : "denied",
-          metadata: { duplicate: receipt.duplicate, issues: receipt.issues, priority: receipt.priority, domain: receipt.signal.domain },
-        } as any);
-      }
-    });
-
-    return envelope;
+    if (active) return execute();
+    return withRuntimeContext(createRuntimeContext({ producer: text(input.source || "signal"), consumer: "oyi_core_runtime", ...traceForSignal(input) }), execute);
   }
 
   conversation(request: ConversationRequest, input: RuntimeEvaluationInput): ConversationResponse {
-    const bundle = this.evaluate(input);
-    const response = buildConversationResponse({
-      request,
-      signals: bundle.signals,
-      awareness: bundle.awareness,
-      insights: bundle.insights,
-      recommendations: bundle.recommendations,
-      automationPlans: bundle.automationPlans,
-      permissions: request.actor?.permissions || input.permissions || [],
-      context: request.context,
-    });
-    runtimeSubscriptionEngine.publishConversation({
-      event: "conversation.runtime",
-      conversationRequest: request,
-      conversationResponse: response,
-      source: "conversation_runtime",
-    });
-    return response;
+    const execute = () => {
+      operationalMetrics.increment("oyi_conversation_requests_total");
+      const bundle = this.evaluate(input);
+      const startedAt = Date.now();
+      const response = buildConversationResponse({
+        request,
+        signals: bundle.signals,
+        awareness: bundle.awareness,
+        insights: bundle.insights,
+        recommendations: bundle.recommendations,
+        automationPlans: bundle.automationPlans,
+        permissions: request.actor?.permissions || input.permissions || [],
+        context: request.context,
+      });
+      observeStage("conversation.build", startedAt);
+      runtimeSubscriptionEngine.publishConversation({
+        event: "conversation.runtime",
+        conversationRequest: request,
+        conversationResponse: response,
+        source: "conversation_runtime",
+      });
+      return response;
+    };
+    if (getRuntimeContext()) return execute();
+    return withRuntimeContext(createRuntimeContext({ producer: "conversation_request", consumer: "oyi_core_runtime", estateId: text(request.estateId) || null, actorId: text(request.actor?.id) || null }), execute);
   }
 
   executive(period: ExecutivePeriod, input: RuntimeEvaluationInput): ExecutiveBriefing {
-    const bundle = this.evaluate(input);
-    const conversation = buildConversationResponse({
-      request: {
-        id: `executive:${period}`,
-        query: `Summarize the ${period} operational posture.`,
-        requestedDomain: "executive",
-      },
-      signals: bundle.signals,
-      awareness: bundle.awareness,
-      insights: bundle.insights,
-      recommendations: bundle.recommendations,
-      automationPlans: bundle.automationPlans,
-    });
-    const briefing = buildExecutiveBriefing({
-      period,
-      signals: bundle.signals,
-      awareness: bundle.awareness,
-      insights: bundle.insights,
-      recommendations: bundle.recommendations,
-      automationPlans: bundle.automationPlans,
-      conversationSummaries: [conversation],
-    });
-    runtimeSubscriptionEngine.publishExecutive({
-      event: "executive.runtime",
-      executiveBriefing: briefing,
-      conversationResponse: conversation,
-      source: "executive_runtime",
-    });
-    return briefing;
+    const execute = () => {
+      operationalMetrics.increment("oyi_executive_requests_total", { period });
+      const bundle = this.evaluate(input);
+      const conversation = buildConversationResponse({
+        request: {
+          id: `executive:${period}`,
+          query: `Summarize the ${period} operational posture.`,
+          requestedDomain: "executive",
+        },
+        signals: bundle.signals,
+        awareness: bundle.awareness,
+        insights: bundle.insights,
+        recommendations: bundle.recommendations,
+        automationPlans: bundle.automationPlans,
+      });
+      const startedAt = Date.now();
+      const briefing = buildExecutiveBriefing({
+        period,
+        signals: bundle.signals,
+        awareness: bundle.awareness,
+        insights: bundle.insights,
+        recommendations: bundle.recommendations,
+        automationPlans: bundle.automationPlans,
+        conversationSummaries: [conversation],
+      });
+      observeStage("executive.build", startedAt, { period });
+      runtimeSubscriptionEngine.publishExecutive({
+        event: "executive.runtime",
+        executiveBriefing: briefing,
+        conversationResponse: conversation,
+        source: "executive_runtime",
+      });
+      return briefing;
+    };
+    if (getRuntimeContext()) return execute();
+    return withRuntimeContext(createRuntimeContext({ producer: "executive_request", consumer: "oyi_core_runtime" }), execute);
   }
 
   decorateRealtimePayload(event: string, payload: Record<string, unknown>, permissions: string[] = []) {
-    return this.receiveSignal(
-      {
-        ...payload,
-        source: text(payload.source) || event,
-        domain: text(payload.domain) || event,
-        metadata: { ...(payload.metadata as Record<string, unknown> | undefined), event },
-      },
-      { permissions }
-    );
+    const execute = () =>
+      this.receiveSignal(
+        {
+          ...payload,
+          source: text(payload.source) || event,
+          domain: text(payload.domain) || event,
+          metadata: { ...(payload.metadata as Record<string, unknown> | undefined), event },
+        },
+        { permissions }
+      );
+    if (getRuntimeContext()) return execute();
+    return withRuntimeContext(createRuntimeContext({ producer: event, consumer: "realtime_payload", ...traceForSignal(payload as any) }), execute);
   }
 
   emitRealtime(event: string, payload: Record<string, unknown>, envelope: RuntimeEnvelope) {
+    const startedAt = Date.now();
     const io = getIO();
     if (!io) return;
     const signal = envelope.operational_signal;
@@ -219,6 +335,7 @@ class OyiCoreRuntimeKernel {
     if (roomId) io.to(`room:${roomId}`).emit(event, enriched);
     if (userId) io.to(`user:${userId}`).emit(event, enriched);
     if (deviceId) io.to(`device:${deviceId}`).emit(event, enriched);
+    observeStage("realtime.emit", startedAt, { event });
   }
 
   private async safeHook(run: () => Promise<void> | void) {

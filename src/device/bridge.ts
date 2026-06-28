@@ -12,6 +12,9 @@ import { getIO } from "../realtime/io";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import type { Signal } from "../core/control-plane/contracts/signal.types";
+import { logger } from "../observability/logger";
+import { operationalMetrics } from "../observability/metrics";
+import { providerHealthRegistry } from "../observability/providerHealth";
 
 const MQTT_URL = process.env.MQTT_URL || "";
 const MQTT_USERNAME = process.env.MQTT_USERNAME || undefined;
@@ -308,7 +311,8 @@ function buildDeviceStateSignal(args: {
 export async function initMqttBridge() {
   return new Promise<void>((resolve) => {
     if (!MQTT_URL) {
-      console.warn("MQTT_URL not set — MQTT bridge disabled");
+      providerHealthRegistry.update("mqtt", { status: "offline", lastError: "MQTT_URL not set" });
+      logger.warn("mqtt_bridge_disabled", { reason: "missing_mqtt_url" });
       return resolve();
     }
 
@@ -319,23 +323,34 @@ export async function initMqttBridge() {
     });
 
     client.on("connect", () => {
-      console.log("MQTT connected to", MQTT_URL);
+      providerHealthRegistry.reconnect("mqtt");
+      logger.info("mqtt_connected", { mqtt_url: MQTT_URL });
 
       // ✅ Subscribe to both conventions:
       // 1) preferred: ochiga/estate/:estateId/device/:deviceId/state
       // 2) fallback older: ochiga/+/device/+/state
       client?.subscribe("ochiga/estate/+/device/+/state", { qos: 0 }, (err) => {
-        if (err) console.error("MQTT subscribe error", err);
+        if (err) {
+          operationalMetrics.increment("oyi_provider_failures_total", { provider: "mqtt", action: "subscribe" });
+          providerHealthRegistry.failure("mqtt", err);
+          logger.error("mqtt_subscribe_error", { error: err, topic: "ochiga/estate/+/device/+/state" });
+        }
       });
       client?.subscribe("ochiga/+/device/+/state", { qos: 0 }, (err) => {
-        if (err) console.error("MQTT subscribe error", err);
+        if (err) {
+          operationalMetrics.increment("oyi_provider_failures_total", { provider: "mqtt", action: "subscribe" });
+          providerHealthRegistry.failure("mqtt", err);
+          logger.error("mqtt_subscribe_error", { error: err, topic: "ochiga/+/device/+/state" });
+        }
       });
 
       resolve();
     });
 
     client.on("message", async (topic, payload) => {
+      const startedAt = Date.now();
       try {
+        operationalMetrics.increment("oyi_device_events_total", { provider: "mqtt", event: "message" });
         const parsedTopic = parseTopic(topic);
         let estateId = parsedTopic.estateId;
         const incomingDeviceId = parsedTopic.deviceId;
@@ -359,7 +374,8 @@ export async function initMqttBridge() {
         const externalDeviceId = scopeValue(device?.external_id, device?.metadata?.external_id, incomingDeviceId);
         if (!estateId) estateId = device?.estate_id ?? null;
 
-        console.info("[device-bridge] provider state event", {
+        providerHealthRegistry.heartbeat("mqtt", { latencyMs: Date.now() - startedAt });
+        logger.info("mqtt_device_state_received", {
           incoming_device_id: incomingDeviceId,
           device_id: deviceId,
           estate_id: estateId || null,
@@ -367,6 +383,7 @@ export async function initMqttBridge() {
           source: eventSource,
           provider_event_id: providerEventId || null,
           keys: status && typeof status === "object" ? Object.keys(status).slice(0, 12) : [],
+          latency_ms: Date.now() - startedAt,
         });
 
         const { data: previousState } = await supabaseAdmin
@@ -538,12 +555,21 @@ export async function initMqttBridge() {
           })
         );
       } catch (err) {
-        console.error("Error processing MQTT message", err);
+        operationalMetrics.increment("oyi_provider_failures_total", { provider: "mqtt", action: "message" });
+        providerHealthRegistry.failure("mqtt", err);
+        logger.error("mqtt_message_processing_failed", { error: err, topic });
       }
     });
 
+    client.on("reconnect", () => {
+      providerHealthRegistry.reconnect("mqtt");
+      logger.warn("mqtt_reconnecting");
+    });
+
     client.on("error", (err) => {
-      console.error("MQTT error", err);
+      operationalMetrics.increment("oyi_provider_failures_total", { provider: "mqtt", action: "runtime" });
+      providerHealthRegistry.failure("mqtt", err);
+      logger.error("mqtt_error", { error: err });
     });
   });
 }

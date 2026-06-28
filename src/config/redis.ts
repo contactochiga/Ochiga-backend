@@ -1,5 +1,8 @@
 // src/config/redis.ts
 import { createClient } from "redis";
+import { logger } from "../observability/logger";
+import { operationalMetrics } from "../observability/metrics";
+import { runtimeHealthRegistry } from "../observability/runtimeHealth";
 
 /**
  * Redis MUST be configured via REDIS_URL
@@ -20,15 +23,19 @@ export const redis = createClient({
  * EVENTS
  * --------------------- */
 redis.on("connect", () => {
-  console.log("🟢 Redis connected");
+  runtimeHealthRegistry.markQueue("healthy", "redis connected");
+  logger.info("redis_connected");
 });
 
 redis.on("ready", () => {
-  console.log("⚡ Redis ready");
+  runtimeHealthRegistry.markQueue("healthy", "redis ready");
+  logger.info("redis_ready");
 });
 
 redis.on("error", (err) => {
-  console.error("🔴 Redis error:", err.message);
+  operationalMetrics.increment("oyi_provider_failures_total", { provider: "redis" });
+  runtimeHealthRegistry.markQueue("offline", err.message);
+  logger.error("redis_error", { error: err });
   process.exit(1); // ⛔ fail fast, no infinite loops
 });
 

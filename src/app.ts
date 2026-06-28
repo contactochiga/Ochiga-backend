@@ -2,8 +2,8 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import { healthHandler, metricsHandler, requestContextMiddleware, requestLoggingMiddleware, runtimeHealthHandler } from "./observability/http";
 
 // -------------------------------
 // ROUTES
@@ -174,10 +174,11 @@ app.post(
 // -------------------------------
 // BODY PARSING & LOGGING
 // -------------------------------
+app.use(requestContextMiddleware);
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(morgan("dev"));
+app.use(requestLoggingMiddleware);
 
 // -------------------------------
 // ROOT & HEALTH
@@ -187,12 +188,11 @@ app.get("/", (_req, res) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    message: "Ochiga Backend Connected 🔥",
-    timestamp: new Date().toISOString(),
-  });
+  return healthHandler(_req, res);
 });
+
+app.get("/health/runtime", runtimeHealthHandler);
+app.get("/metrics", metricsHandler);
 
 // -------------------------------
 // ROUTE MOUNTING
