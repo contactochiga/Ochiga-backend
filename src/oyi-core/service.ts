@@ -8,6 +8,7 @@ import { buildExecutiveBriefing, type ExecutiveBriefing, type ExecutivePeriod } 
 import { buildOperationalRecommendations, type OperationalRecommendation } from "./runtime/operationalRecommendations";
 import { operationalReasoningRuntime, type OperationalInsight } from "./runtime/operationalReasoning";
 import { runtimeSubscriptionEngine } from "./runtime/runtimeSubscriptions";
+import { executionLedger, type ExecutionLedgerRecord } from "./runtime/executionLedger";
 import { normalizeSignal, type NormalizedSignal } from "./contracts/operationalSignal";
 import { logger } from "../observability/logger";
 import { operationalMetrics } from "../observability/metrics";
@@ -25,6 +26,7 @@ export type RuntimeBundle = {
 export type RuntimeEnvelope = {
   receipt: SignalRuntimeReceipt;
   bundle: RuntimeBundle;
+  execution_record?: ExecutionLedgerRecord;
   operational_signal: NormalizedSignal;
   operational_awareness: OperationalAwareness;
   operational_insights: OperationalInsight[];
@@ -129,6 +131,38 @@ class OyiCoreRuntimeKernel {
           runtime_trace: runtimeTraceFields(),
         },
       };
+      const execution = executionLedger.startForSignal(seedSignal, receipt, receipt.receivedAt);
+      seedSignal = {
+        ...seedSignal,
+        runtimeId: execution.runtimeId,
+        metadata: {
+          ...seedSignal.metadata,
+          execution_id: execution.executionId,
+          runtime_id: execution.runtimeId,
+          correlation_id: execution.correlationId,
+          provenance: {
+            origin: seedSignal.origin,
+            initiatorType: seedSignal.initiatorType,
+            initiatorId: seedSignal.initiatorId,
+            provider: seedSignal.provider,
+            providerEventId: seedSignal.providerEventId,
+            sessionId: seedSignal.sessionId,
+            runtimeId: execution.runtimeId,
+            correlationId: execution.correlationId,
+            triggerReason: seedSignal.triggerReason,
+            verified: seedSignal.verified,
+            verificationMethod: seedSignal.verificationMethod,
+            trustScore: seedSignal.trustScore,
+            executionSource: seedSignal.executionSource,
+          },
+        },
+        context: {
+          ...seedSignal.context,
+          executionId: execution.executionId,
+          runtimeId: execution.runtimeId,
+          correlationId: execution.correlationId,
+        },
+      };
       patchRuntimeContext(traceForSignal(seedSignal));
       observeStage("signal.receive", receiptStartedAt, { mode: "receive" });
 
@@ -181,6 +215,7 @@ class OyiCoreRuntimeKernel {
       const envelope: RuntimeEnvelope = {
         receipt: { ...receipt, signal: seedSignal },
         bundle,
+        execution_record: execution,
         operational_signal: seedSignal,
         operational_awareness: awareness,
         operational_insights: insights,
@@ -195,6 +230,28 @@ class OyiCoreRuntimeKernel {
       runtimeSubscriptionEngine.publishRecommendations({ signal: seedSignal, recommendations, receipt: envelope.receipt, source: "oyi_core_runtime" });
       runtimeSubscriptionEngine.publishAutomation({ signal: seedSignal, automationPlans, receipt: envelope.receipt, source: "oyi_core_runtime" });
       observeStage("subscription.dispatch", publishStartedAt, { mode: "receive" });
+
+      const completedAt = new Date().toISOString();
+      const completedExecution = executionLedger.complete(execution.executionId, {
+        completedAt,
+        duration: Math.max(0, new Date(completedAt).getTime() - new Date(execution.startedAt).getTime()),
+        status: envelope.receipt.accepted ? "executed" : "failed",
+        result: {
+          accepted: envelope.receipt.accepted,
+          duplicate: envelope.receipt.duplicate,
+          outputs: envelope.receipt.outputs,
+          issues: envelope.receipt.issues,
+          priority: envelope.receipt.priority,
+          summary: envelope.receipt.accepted
+            ? `Signal processed through awareness, reasoning, recommendation, and automation runtimes.`
+            : `Signal failed runtime acceptance checks.`,
+        },
+        evidence: seedSignal.evidence,
+        reasoningReference: insights[0]?.id || null,
+        recommendationReference: recommendations[0]?.id || null,
+        automationReference: automationPlans[0]?.id || null,
+      });
+      envelope.execution_record = completedExecution || execution;
 
       await this.safeHook(() => this.hooks.persistSignal?.(seedSignal, envelope.receipt));
       await this.safeHook(() => this.hooks.persistBundle?.(bundle, key));
@@ -247,9 +304,13 @@ class OyiCoreRuntimeKernel {
         insights: bundle.insights,
         recommendations: bundle.recommendations,
         automationPlans: bundle.automationPlans,
+        executions: executionLedger.findRelated(bundle.signals),
         permissions: request.actor?.permissions || input.permissions || [],
         context: request.context,
       });
+      for (const executionId of response.relatedExecutions || []) {
+        executionLedger.complete(executionId, { conversationReference: response.id });
+      }
       observeStage("conversation.build", startedAt);
       runtimeSubscriptionEngine.publishConversation({
         event: "conversation.runtime",
@@ -278,6 +339,7 @@ class OyiCoreRuntimeKernel {
         insights: bundle.insights,
         recommendations: bundle.recommendations,
         automationPlans: bundle.automationPlans,
+        executions: executionLedger.findRelated(bundle.signals),
       });
       const startedAt = Date.now();
       const briefing = buildExecutiveBriefing({
@@ -288,7 +350,14 @@ class OyiCoreRuntimeKernel {
         recommendations: bundle.recommendations,
         automationPlans: bundle.automationPlans,
         conversationSummaries: [conversation],
+        executions: executionLedger.findRelated(bundle.signals),
       });
+      for (const executionId of briefing.supportingEvidence
+        .map((item) => String(item.metadata?.executionId || item.id || ""))
+        .filter((item) => item.startsWith("execution:"))
+        .map((item) => item.replace(/^execution:/, ""))) {
+        executionLedger.complete(executionId, { executiveReference: briefing.id });
+      }
       observeStage("executive.build", startedAt, { period });
       runtimeSubscriptionEngine.publishExecutive({
         event: "executive.runtime",

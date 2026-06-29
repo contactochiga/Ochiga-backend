@@ -4,6 +4,7 @@ import type { OperationalRecommendation } from "./operationalRecommendations";
 import type { OperationalInsight } from "./operationalReasoning";
 import type { AutomationPlan } from "./safeAutomation";
 import type { OperationalAwareness } from "./contextAwareness";
+import type { ExecutionLedgerRecord, ExecutionStatistics, NamedExecutionStat } from "./executionLedger";
 
 export type ExecutivePeriod =
   | "morning"
@@ -42,6 +43,11 @@ export type ExecutiveBriefing = {
   confidence: number;
   portfolioImpact: string;
   nextActions: string[];
+  executionStatistics?: ExecutionStatistics;
+  mostActiveOperators?: NamedExecutionStat[];
+  providerReliability?: NamedExecutionStat[];
+  mostActiveEstates?: NamedExecutionStat[];
+  accountabilitySummary?: string[];
 };
 
 export type ExecutiveInput = {
@@ -52,6 +58,7 @@ export type ExecutiveInput = {
   recommendations?: OperationalRecommendation[];
   automationPlans?: AutomationPlan[];
   conversationSummaries?: ConversationResponse[];
+  executions?: ExecutionLedgerRecord[];
   generatedAt?: string;
 };
 
@@ -93,7 +100,8 @@ function evidenceFrom(
   awareness: OperationalAwareness[],
   insights: OperationalInsight[],
   recommendations: OperationalRecommendation[],
-  automationPlans: AutomationPlan[]
+  automationPlans: AutomationPlan[],
+  executions: ExecutionLedgerRecord[]
 ) {
   const found = new Map<string, SignalEvidence>();
   for (const signal of signals.slice(0, 3)) {
@@ -118,7 +126,73 @@ function evidenceFrom(
       metadata: { executionMode: plan.executionMode, approvalRequired: plan.approvalRequired },
     });
   }
+  for (const execution of executions.slice(0, 2)) {
+    found.set(`execution:${execution.executionId}`, {
+      id: `execution:${execution.executionId}`,
+      type: "execution_ledger",
+      source: "executive_runtime",
+      summary: `${execution.action} ${execution.status}`,
+      timestamp: execution.completedAt || execution.startedAt || execution.requestedAt,
+      metadata: {
+        executionId: execution.executionId,
+        origin: execution.origin,
+        provider: execution.provider,
+        initiatorType: execution.initiator.type,
+        approvedBy: execution.approvedBy,
+      },
+    });
+  }
   return [...found.values()].slice(0, 10);
+}
+
+function summarizeExecutions(executions: ExecutionLedgerRecord[]) {
+  const total = executions.length;
+  const successful = executions.filter((item) => item.status === "executed").length;
+  const failed = executions.filter((item) => item.status === "failed").length;
+  const physical = executions.filter((item) => item.origin === "physical").length;
+  const manual = executions.filter((item) => ["consumer_app", "facility_app", "office_app", "voice_assistant", "api"].includes(lower(item.origin))).length;
+  const automation = executions.filter((item) => item.origin === "automation").length;
+  const provider = executions.filter((item) => item.origin === "provider").length;
+  const approvalRequired = executions.filter((item) => item.approvalRequired).length;
+  const approvalsGranted = executions.filter((item) => Boolean(item.approvedBy)).length;
+  const rollbackAvailable = executions.filter((item) => item.rollbackAvailable).length;
+  const rollbacksExecuted = executions.filter((item) => item.rollbackExecuted).length;
+  const group = (selector: (item: ExecutionLedgerRecord) => { id: string; label: string }) =>
+    [...executions.reduce((map, item) => {
+      const key = selector(item);
+      const current = map.get(key.id) || { id: key.id, label: key.label, count: 0, ok: 0 };
+      current.count += 1;
+      if (item.status === "executed") current.ok += 1;
+      map.set(key.id, current);
+      return map;
+    }, new Map<string, { id: string; label: string; count: number; ok: number }>()).values()]
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        count: item.count,
+        successRate: item.count ? Math.round((item.ok / item.count) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.count - a.count || b.successRate - a.successRate)
+      .slice(0, 5);
+
+  return {
+    stats: {
+      total,
+      successRate: total ? Math.round((successful / total) * 1000) / 10 : 0,
+      failedExecutions: failed,
+      approvalRequired,
+      approvalsGranted,
+      rollbackAvailable,
+      rollbacksExecuted,
+      physicalActions: physical,
+      manualActions: manual,
+      automationActions: automation,
+      providerActions: provider,
+    } satisfies ExecutionStatistics,
+    operators: group((item) => ({ id: text(item.initiator.id || item.initiator.name || "system"), label: text(item.initiator.name || item.initiator.role || item.initiator.id || "System") })),
+    providers: group((item) => ({ id: text(item.provider || "unknown"), label: text(item.provider || "unknown") })),
+    estates: group((item) => ({ id: text(item.estate || "unknown"), label: text(item.estate || "unknown") })),
+  };
 }
 
 export function buildExecutiveBriefing(input: ExecutiveInput): ExecutiveBriefing {
@@ -130,6 +204,8 @@ export function buildExecutiveBriefing(input: ExecutiveInput): ExecutiveBriefing
   const recommendations = input.recommendations || [];
   const automationPlans = input.automationPlans || [];
   const conversationSummaries = input.conversationSummaries || [];
+  const executions = input.executions || [];
+  const executionSummary = summarizeExecutions(executions);
 
   const criticalItems = insights.filter((item) => item.severity === "critical").map((item) => item.summary).slice(0, 5);
   const operationalRisks = insights.filter((item) => item.severity === "critical" || item.severity === "warning").map((item) => `${item.domain}: ${item.reason}`).slice(0, 6);
@@ -169,7 +245,7 @@ export function buildExecutiveBriefing(input: ExecutiveInput): ExecutiveBriefing
       awaitingApproval ? `${awaitingApproval} automation plan(s) await approval.` : "No automation approvals are currently blocking progress.",
       unresolvedIssues.length ? `${unresolvedIssues.length} unresolved issue(s) remain in active queues.` : "No major unresolved issue backlog is visible from current runtime evidence.",
     ].join(" "),
-    supportingEvidence: evidenceFrom(signals, awareness, insights, recommendations, automationPlans),
+    supportingEvidence: evidenceFrom(signals, awareness, insights, recommendations, automationPlans, executions),
     confidence: confidence([
       ...insights.map((item) => item.confidence),
       ...recommendations.map((item) => item.confidence),
@@ -182,5 +258,14 @@ export function buildExecutiveBriefing(input: ExecutiveInput): ExecutiveBriefing
         ? "Portfolio impact appears contained, but current risks should remain under executive visibility."
         : "No material portfolio-level disruption is indicated by current runtime evidence.",
     nextActions: [...execRecommendations.slice(0, 3), ...(criticalItems.length ? ["Review critical items in the next executive operating window."] : [])].slice(0, 5),
+    executionStatistics: executionSummary.stats,
+    mostActiveOperators: executionSummary.operators,
+    providerReliability: executionSummary.providers,
+    mostActiveEstates: executionSummary.estates,
+    accountabilitySummary: [
+      `Manual vs physical actions: ${executionSummary.stats.manualActions} manual, ${executionSummary.stats.physicalActions} physical.`,
+      `Automation executions: ${executionSummary.stats.automationActions}. Failed executions: ${executionSummary.stats.failedExecutions}.`,
+      `Approvals granted: ${executionSummary.stats.approvalsGranted}/${executionSummary.stats.approvalRequired}. Rollbacks executed: ${executionSummary.stats.rollbacksExecuted}.`,
+    ],
   };
 }

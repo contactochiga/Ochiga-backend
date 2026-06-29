@@ -54,6 +54,8 @@ export type OperationalAwareness = {
   verification: string;
   supporting_evidence: SignalEvidence[];
   related_signals: string[];
+  related_executions: string[];
+  executionReference: string | null;
   confidence: number;
   generated_at: string;
   context: OperationalContext;
@@ -230,6 +232,8 @@ export function buildAwarenessFromSignal(input: Partial<NormalizedSignal> & Reco
           },
         ],
     related_signals: [signal.id],
+    related_executions: [text(signal.metadata.execution_id || signal.metadata.executionId || signal.runtimeId)].filter(Boolean),
+    executionReference: text(signal.metadata.execution_id || signal.metadata.executionId || signal.runtimeId) || null,
     confidence: signal.confidence,
     generated_at: generatedAt,
     context,

@@ -58,6 +58,8 @@ export type OperationalRecommendation = {
   relatedSignals: string[];
   relatedAwareness: string[];
   relatedInsights: string[];
+  relatedExecutions: string[];
+  executionReference: string | null;
   supportingEvidence: SignalEvidence[];
   generatedAt: string;
   expiresAt: string;
@@ -162,6 +164,8 @@ export function buildOperationalRecommendations(input: RecommendationInput): Ope
       relatedSignals: [...insight.relatedSignals],
       relatedAwareness: [...insight.relatedAwareness],
       relatedInsights: [insight.id],
+      relatedExecutions: [...insight.relatedExecutions],
+      executionReference: insight.executionReference,
       supportingEvidence: mergeEvidence(insight, awareness, signals),
       generatedAt,
       expiresAt: addHours(generatedAt, 12),

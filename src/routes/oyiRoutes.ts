@@ -3,6 +3,7 @@ import { requireAuth } from "../middleware/auth";
 import { resolveRequestContext } from "../middleware/contextResolver";
 import { getOyiConversationMessages, getOyiUnifiedAwareness, listOyiConversationThreads, runOyiUnifiedChat } from "../services/oyiUnifiedIntelligenceService";
 import { oyiCoreRuntime } from "../oyi-core/service";
+import { executionLedger } from "../oyi-core/runtime/executionLedger";
 
 const router = Router();
 
@@ -117,6 +118,119 @@ router.post("/runtime/executive", requireAuth, resolveRequestContext, async (req
     return res.json({ ok: true, briefing });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to build executive runtime briefing" });
+  }
+});
+
+router.get("/runtime/executions/stats/summary", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const scope = {
+      estateId: req.user?.role === "resident" ? undefined : req.oisContext?.estate_id || req.user?.estate_id || null,
+      homeId: req.user?.role === "resident" ? req.oisContext?.home_id || req.user?.home_id || null : null,
+      limit: req.query.limit ? Number(req.query.limit) : 200,
+    };
+    const executions = await executionLedger.listPersisted(scope);
+    return res.json({
+      ok: true,
+      statistics: executionLedger.summarize(executions),
+      operators: executionLedger.groupBy(executions, "operator"),
+      providers: executionLedger.groupBy(executions, "provider"),
+      estates: executionLedger.groupBy(executions, "estate"),
+      timeline: executionLedger.timeline(executions).slice(0, 50),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load execution statistics" });
+  }
+});
+
+router.get("/runtime/executions/timeline", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const executions = await executionLedger.listPersisted({
+      estateId: req.user?.role === "resident" ? undefined : req.oisContext?.estate_id || req.user?.estate_id || null,
+      homeId: req.user?.role === "resident" ? req.oisContext?.home_id || req.user?.home_id || null : null,
+      limit: req.query.limit ? Number(req.query.limit) : 100,
+    });
+    return res.json({ ok: true, timeline: executionLedger.timeline(executions) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load execution timeline" });
+  }
+});
+
+router.get("/runtime/executions/stats/operators", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const executions = await executionLedger.listPersisted({
+      estateId: req.user?.role === "resident" ? undefined : req.oisContext?.estate_id || req.user?.estate_id || null,
+      homeId: req.user?.role === "resident" ? req.oisContext?.home_id || req.user?.home_id || null : null,
+      limit: req.query.limit ? Number(req.query.limit) : 200,
+    });
+    return res.json({ ok: true, operators: executionLedger.groupBy(executions, "operator") });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load operator statistics" });
+  }
+});
+
+router.get("/runtime/executions/stats/providers", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const executions = await executionLedger.listPersisted({
+      estateId: req.user?.role === "resident" ? undefined : req.oisContext?.estate_id || req.user?.estate_id || null,
+      homeId: req.user?.role === "resident" ? req.oisContext?.home_id || req.user?.home_id || null : null,
+      limit: req.query.limit ? Number(req.query.limit) : 200,
+    });
+    return res.json({ ok: true, providers: executionLedger.groupBy(executions, "provider") });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load provider statistics" });
+  }
+});
+
+router.get("/runtime/executions/stats/automation", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const executions = await executionLedger.listPersisted({
+      estateId: req.user?.role === "resident" ? undefined : req.oisContext?.estate_id || req.user?.estate_id || null,
+      homeId: req.user?.role === "resident" ? req.oisContext?.home_id || req.user?.home_id || null : null,
+      limit: req.query.limit ? Number(req.query.limit) : 200,
+    });
+    const statistics = executionLedger.summarize(executions);
+    return res.json({
+      ok: true,
+      automation: {
+        total: statistics.automationActions,
+        successRate: statistics.successRate,
+        approvalsRequired: statistics.approvalRequired,
+        rollbacksExecuted: statistics.rollbacksExecuted,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load automation statistics" });
+  }
+});
+
+router.get("/runtime/executions/:executionId", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const id = String(req.params.executionId || "");
+    const local = executionLedger.get(id);
+    if (local) return res.json({ ok: true, execution: local });
+    const executions = await executionLedger.listPersisted({
+      estateId: req.user?.role === "resident" ? undefined : req.oisContext?.estate_id || req.user?.estate_id || null,
+      homeId: req.user?.role === "resident" ? req.oisContext?.home_id || req.user?.home_id || null : null,
+      limit: 200,
+    });
+    const found = executions.find((item) => item.executionId === id);
+    if (!found) return res.status(404).json({ ok: false, error: "Execution not found" });
+    return res.json({ ok: true, execution: found });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load execution details" });
+  }
+});
+
+router.get("/runtime/executions", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const executions = await executionLedger.listPersisted({
+      estateId: req.user?.role === "resident" ? undefined : req.oisContext?.estate_id || req.user?.estate_id || null,
+      homeId: req.user?.role === "resident" ? req.oisContext?.home_id || req.user?.home_id || null : null,
+      limit: req.query.limit ? Number(req.query.limit) : 100,
+    });
+    return res.json({ ok: true, executions });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load execution history" });
   }
 });
 

@@ -29,6 +29,8 @@ export type OperationalInsight = {
   evidence: SignalEvidence[];
   relatedSignals: string[];
   relatedAwareness: string[];
+  relatedExecutions: string[];
+  executionReference: string | null;
   generatedAt: string;
   owner: string;
   verification: string;
@@ -147,6 +149,8 @@ function candidateFor(
       evidence: mergeEvidence(signals, awareness),
       relatedSignals: signals.map((item) => item.id),
       relatedAwareness: awareness.map((item) => item.id),
+      relatedExecutions: [...new Set(signals.map((item) => text(item.metadata.execution_id || item.metadata.executionId || item.runtimeId)).filter(Boolean))],
+      executionReference: text(signals[0]?.metadata.execution_id || signals[0]?.metadata.executionId || signals[0]?.runtimeId) || null,
       generatedAt,
       owner: ownerFrom(signals, awareness),
       verification: "Confirm access logs, camera coverage, and operator assignment.",
@@ -164,6 +168,8 @@ function candidateFor(
       evidence: mergeEvidence(signals, awareness),
       relatedSignals: signals.map((item) => item.id),
       relatedAwareness: awareness.map((item) => item.id),
+      relatedExecutions: [...new Set(signals.map((item) => text(item.metadata.execution_id || item.metadata.executionId || item.runtimeId)).filter(Boolean))],
+      executionReference: text(signals[0]?.metadata.execution_id || signals[0]?.metadata.executionId || signals[0]?.runtimeId) || null,
       generatedAt,
       owner: ownerFrom(signals, awareness),
       verification: "Confirm last-seen time, command success rate, and adapter availability.",
@@ -181,6 +187,8 @@ function candidateFor(
       evidence: mergeEvidence(signals, awareness),
       relatedSignals: signals.map((item) => item.id),
       relatedAwareness: awareness.map((item) => item.id),
+      relatedExecutions: [...new Set(signals.map((item) => text(item.metadata.execution_id || item.metadata.executionId || item.runtimeId)).filter(Boolean))],
+      executionReference: text(signals[0]?.metadata.execution_id || signals[0]?.metadata.executionId || signals[0]?.runtimeId) || null,
       generatedAt,
       owner: ownerFrom(signals, awareness),
       verification: "Validate meter evidence, power state, and backup source posture.",
@@ -198,6 +206,8 @@ function candidateFor(
       evidence: mergeEvidence(signals, awareness),
       relatedSignals: signals.map((item) => item.id),
       relatedAwareness: awareness.map((item) => item.id),
+      relatedExecutions: [...new Set(signals.map((item) => text(item.metadata.execution_id || item.metadata.executionId || item.runtimeId)).filter(Boolean))],
+      executionReference: text(signals[0]?.metadata.execution_id || signals[0]?.metadata.executionId || signals[0]?.runtimeId) || null,
       generatedAt,
       owner: ownerFrom(signals, awareness),
       verification: "Review prior repairs, backlog state, and the most recent operational evidence.",
@@ -215,6 +225,8 @@ function candidateFor(
       evidence: mergeEvidence(signals, awareness),
       relatedSignals: signals.map((item) => item.id),
       relatedAwareness: awareness.map((item) => item.id),
+      relatedExecutions: [...new Set(signals.map((item) => text(item.metadata.execution_id || item.metadata.executionId || item.runtimeId)).filter(Boolean))],
+      executionReference: text(signals[0]?.metadata.execution_id || signals[0]?.metadata.executionId || signals[0]?.runtimeId) || null,
       generatedAt,
       owner: ownerFrom(signals, awareness),
       verification: "Confirm the access trail and the active approval lifecycle.",
@@ -232,6 +244,8 @@ function candidateFor(
       evidence: mergeEvidence(signals, awareness),
       relatedSignals: signals.map((item) => item.id),
       relatedAwareness: awareness.map((item) => item.id),
+      relatedExecutions: [...new Set(signals.map((item) => text(item.metadata.execution_id || item.metadata.executionId || item.runtimeId)).filter(Boolean))],
+      executionReference: text(signals[0]?.metadata.execution_id || signals[0]?.metadata.executionId || signals[0]?.runtimeId) || null,
       generatedAt,
       owner: ownerFrom(signals, awareness),
       verification: "Confirm sensor validity and current environmental conditions.",
@@ -249,6 +263,8 @@ function candidateFor(
       evidence: mergeEvidence(signals, awareness),
       relatedSignals: signals.map((item) => item.id),
       relatedAwareness: awareness.map((item) => item.id),
+      relatedExecutions: [...new Set(signals.map((item) => text(item.metadata.execution_id || item.metadata.executionId || item.runtimeId)).filter(Boolean))],
+      executionReference: text(signals[0]?.metadata.execution_id || signals[0]?.metadata.executionId || signals[0]?.runtimeId) || null,
       generatedAt,
       owner: ownerFrom(signals, awareness),
       verification: "Confirm the ledger evidence and the affected account state.",
@@ -266,6 +282,8 @@ function candidateFor(
       evidence: mergeEvidence(signals, awareness),
       relatedSignals: signals.map((item) => item.id),
       relatedAwareness: awareness.map((item) => item.id),
+      relatedExecutions: [...new Set(signals.map((item) => text(item.metadata.execution_id || item.metadata.executionId || item.runtimeId)).filter(Boolean))],
+      executionReference: text(signals[0]?.metadata.execution_id || signals[0]?.metadata.executionId || signals[0]?.runtimeId) || null,
       generatedAt,
       owner: ownerFrom(signals, awareness),
       verification: "Review complaints, linked operations, and recency of similar issues.",

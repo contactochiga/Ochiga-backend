@@ -45,6 +45,8 @@ export type AutomationPlan = {
   relatedAwareness: string[];
   relatedInsights: string[];
   relatedRecommendations: string[];
+  relatedExecutions: string[];
+  executionReference: string | null;
   status: AutomationPlanStatus;
   generatedAt: string;
   expiresAt: string;
@@ -159,6 +161,8 @@ export function buildAutomationPlans(input: AutomationInput): AutomationPlan[] {
       relatedAwareness: [...recommendation.relatedAwareness],
       relatedInsights: [...recommendation.relatedInsights],
       relatedRecommendations: [recommendation.id],
+      relatedExecutions: [...recommendation.relatedExecutions],
+      executionReference: recommendation.executionReference,
       status: mode === "request_approval" ? "awaiting_approval" : mode === "prepare_workflow" ? "prepared" : "planned",
       generatedAt,
       expiresAt: addHours(generatedAt, 24),

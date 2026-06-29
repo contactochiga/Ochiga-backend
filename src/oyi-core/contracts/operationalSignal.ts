@@ -16,6 +16,28 @@ export type SignalType =
 
 export type SignalSeverity = "info" | "attention" | "warning" | "critical";
 export type SignalPriority = "low" | "normal" | "high" | "urgent";
+export type SignalOrigin =
+  | "physical"
+  | "consumer_app"
+  | "facility_app"
+  | "office_app"
+  | "automation"
+  | "edge_agent"
+  | "voice_assistant"
+  | "api"
+  | "provider"
+  | "backend"
+  | "scheduler"
+  | "system";
+export type SignalInitiatorType =
+  | "resident"
+  | "operator"
+  | "admin"
+  | "executive"
+  | "automation"
+  | "device"
+  | "provider"
+  | "system";
 
 export type SignalSource =
   | "infrastructure_registry"
@@ -81,6 +103,22 @@ export type NormalizedSignal = {
   type: SignalType;
   source: SignalSource;
   domain: string;
+  origin: SignalOrigin;
+  initiatorType: SignalInitiatorType;
+  initiatorId: string | null;
+  estateId: string | null;
+  buildingId: string | null;
+  unitId: string | null;
+  provider: string | null;
+  providerEventId: string | null;
+  sessionId: string | null;
+  runtimeId: string | null;
+  correlationId: string | null;
+  triggerReason: string | null;
+  verified: boolean;
+  verificationMethod: string | null;
+  trustScore: number;
+  executionSource: string | null;
   entity: SignalEntity;
   estate: SignalScope;
   building: SignalScope;
@@ -99,6 +137,22 @@ export const SIGNAL_REQUIRED_FIELDS = [
   "type",
   "source",
   "domain",
+  "origin",
+  "initiatorType",
+  "initiatorId",
+  "estateId",
+  "buildingId",
+  "unitId",
+  "provider",
+  "providerEventId",
+  "sessionId",
+  "runtimeId",
+  "correlationId",
+  "triggerReason",
+  "verified",
+  "verificationMethod",
+  "trustScore",
+  "executionSource",
   "entity",
   "estate",
   "building",
@@ -120,6 +174,15 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function bool(value: unknown, fallback = false) {
+  if (typeof value === "boolean") return value;
+  const next = text(value).toLowerCase();
+  if (!next) return fallback;
+  if (["true", "1", "yes", "verified", "confirmed"].includes(next)) return true;
+  if (["false", "0", "no", "unverified", "pending"].includes(next)) return false;
+  return fallback;
+}
+
 function scopeFrom(value: unknown): SignalScope {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const next = value as Record<string, unknown>;
@@ -129,6 +192,42 @@ function scopeFrom(value: unknown): SignalScope {
     };
   }
   return { id: text(value) || null, name: null };
+}
+
+function originFrom(input: Partial<NormalizedSignal> & Record<string, unknown>, metadata: Record<string, unknown>, domain: string, source: string): SignalOrigin {
+  const explicit = text(input.origin || metadata.origin || input.executionSource || metadata.executionSource).toLowerCase();
+  if (explicit === "consumer_app" || explicit === "facility_app" || explicit === "office_app" || explicit === "automation" || explicit === "edge_agent" || explicit === "voice_assistant" || explicit === "api" || explicit === "provider" || explicit === "backend" || explicit === "scheduler" || explicit === "system" || explicit === "physical") {
+    return explicit;
+  }
+  const haystack = `${source} ${domain} ${text(input.type)} ${JSON.stringify(metadata)}`.toLowerCase();
+  if (/physical|switch|tap|press|device state|lock|sensor|meter|tuya|onvif|mqtt|ble|matter|camera/.test(haystack)) return "physical";
+  if (/consumer/.test(haystack)) return "consumer_app";
+  if (/facility/.test(haystack)) return "facility_app";
+  if (/office/.test(haystack)) return "office_app";
+  if (/automation|scene|rule/.test(haystack)) return "automation";
+  if (/edge/.test(haystack)) return "edge_agent";
+  if (/voice|assistant/.test(haystack)) return "voice_assistant";
+  if (/api|webhook|http/.test(haystack)) return "api";
+  if (/provider|tuya|onvif|mqtt|ble|matter/.test(haystack)) return "provider";
+  if (/backend|worker|queue/.test(haystack)) return "backend";
+  if (/schedule|cron/.test(haystack)) return "scheduler";
+  return "system";
+}
+
+function initiatorTypeFrom(input: Partial<NormalizedSignal> & Record<string, unknown>, metadata: Record<string, unknown>, source: string, origin: SignalOrigin): SignalInitiatorType {
+  const explicit = text(input.initiatorType || metadata.initiatorType || input.actor_type || input.actorType || metadata.actor_type).toLowerCase();
+  if (explicit === "resident" || explicit === "operator" || explicit === "admin" || explicit === "executive" || explicit === "automation" || explicit === "device" || explicit === "provider" || explicit === "system") {
+    return explicit;
+  }
+  const role = text(input.actor_role || input.actorRole || metadata.actor_role).toLowerCase();
+  if (/resident|tenant|occupant/.test(role)) return "resident";
+  if (/executive|director|leadership/.test(role)) return "executive";
+  if (/admin|super_admin|estate_admin|ochiga_admin/.test(role)) return "admin";
+  if (/operator|security|manager|facility/.test(role)) return "operator";
+  if (origin === "automation") return "automation";
+  if (origin === "provider") return "provider";
+  if (origin === "physical") return /device|sensor|lock|meter|camera/.test(`${source} ${text(input.type)}`.toLowerCase()) ? "device" : "provider";
+  return "system";
 }
 
 export function signalSeverity(value: unknown): SignalSeverity {
@@ -177,23 +276,59 @@ export function normalizeSignal(input: Partial<NormalizedSignal> & Record<string
   const type = input.type || signalTypeFromDomain(domain);
   const source = text(input.source || metadata.source || domain || "future_module");
   const entityId = text(entity.id || input.entity_id || input.deviceId || input.device_id || metadata.entity_id || input.id);
+  const estate = scopeFrom(input.estate || input.estate_id || input.estateId || metadata.estate_id);
+  const building = scopeFrom(input.building || input.building_id || input.buildingId || metadata.building_id);
+  const room = scopeFrom(input.room || input.room_id || input.roomId || metadata.room_id);
+  const origin = originFrom(input, metadata, domain, source);
+  const initiatorType = initiatorTypeFrom(input, metadata, source, origin);
+  const initiatorId =
+    text(input.initiatorId || metadata.initiatorId || actor.id || input.actor_id || input.actorId || metadata.actor_id || (input.requestedBy as Record<string, unknown> | undefined)?.userId) || null;
+  const estateId = text(input.estateId || input.estate_id || metadata.estate_id || estate.id) || null;
+  const buildingId = text(input.buildingId || input.building_id || metadata.building_id || building.id) || null;
+  const unitId = text(input.unitId || input.unit_id || metadata.unit_id || context.unitId || (context.unit as Record<string, unknown> | undefined)?.id) || null;
+  const provider = text(input.provider || metadata.provider || source) || null;
+  const providerEventId = text(input.providerEventId || metadata.providerEventId || metadata.provider_event_id || metadata.event_id) || null;
+  const sessionId = text(input.sessionId || metadata.sessionId || metadata.session_id) || null;
+  const runtimeId = text(input.runtimeId || metadata.runtimeId || metadata.runtime_id) || null;
+  const correlationId = text(input.correlationId || metadata.correlationId || metadata.correlation_id || sessionId || providerEventId || `${source}:${entityId || timestamp}`) || null;
+  const triggerReason = text(input.triggerReason || metadata.triggerReason || metadata.trigger_reason || metadata.reason || metadata.message) || null;
+  const verificationMethod = text(input.verificationMethod || metadata.verificationMethod || metadata.verification_method) || null;
+  const verified = bool(input.verified ?? metadata.verified ?? metadata.confirmed, false);
+  const trustScore = signalConfidence(input.trustScore ?? metadata.trustScore ?? metadata.trust_score ?? input.confidence ?? metadata.confidence);
+  const executionSource = text(input.executionSource || metadata.executionSource || metadata.execution_source || origin) || null;
 
   return {
     id: text(input.id || metadata.id || `${source}:${entityId || timestamp}`),
     type,
     source,
     domain,
+    origin,
+    initiatorType,
+    initiatorId,
+    estateId,
+    buildingId,
+    unitId,
+    provider,
+    providerEventId,
+    sessionId,
+    runtimeId,
+    correlationId,
+    triggerReason,
+    verified,
+    verificationMethod,
+    trustScore,
+    executionSource,
     entity: {
       id: entityId || null,
       type: text(entity.type || input.entity_type || metadata.entity_type || type) || null,
       name: text(entity.name || input.title || input.name || metadata.name || metadata.title) || null,
       status: text(entity.status || input.status || metadata.status || metadata.state) || null,
     },
-    estate: scopeFrom(input.estate || input.estate_id || input.estateId || metadata.estate_id),
-    building: scopeFrom(input.building || input.building_id || input.buildingId || metadata.building_id),
-    room: scopeFrom(input.room || input.room_id || input.roomId || metadata.room_id),
+    estate,
+    building,
+    room,
     actor: {
-      id: text(actor.id || input.actor_id || input.actorId || metadata.actor_id || (input.requestedBy as Record<string, unknown> | undefined)?.userId) || null,
+      id: initiatorId,
       type: text(actor.type || input.actor_type || input.actorType || metadata.actor_type || source || "system") || null,
       name: text(actor.name || input.actor_name || input.actorName || metadata.actor_name) || null,
       role: text(actor.role || input.actor_role || input.actorRole || metadata.actor_role || (input.requestedBy as Record<string, unknown> | undefined)?.role) || null,
@@ -202,7 +337,26 @@ export function normalizeSignal(input: Partial<NormalizedSignal> & Record<string
     confidence: signalConfidence(input.confidence ?? metadata.confidence),
     timestamp,
     context,
-    metadata: { ...metadata, ...input },
+    metadata: {
+      ...metadata,
+      ...input,
+      origin,
+      initiatorType,
+      initiatorId,
+      estateId,
+      buildingId,
+      unitId,
+      provider,
+      providerEventId,
+      sessionId,
+      runtimeId,
+      correlationId,
+      triggerReason,
+      verified,
+      verificationMethod,
+      trustScore,
+      executionSource,
+    },
     evidence: rawEvidence
       .map((item) => asRecord(item))
       .filter((item) => Object.keys(item).length > 0)
@@ -220,8 +374,22 @@ export function normalizeSignal(input: Partial<NormalizedSignal> & Record<string
 
 export function validateSignal(signal: NormalizedSignal) {
   const issues: string[] = [];
+  const nullableFields = new Set([
+    "initiatorId",
+    "estateId",
+    "buildingId",
+    "unitId",
+    "provider",
+    "providerEventId",
+    "sessionId",
+    "runtimeId",
+    "correlationId",
+    "triggerReason",
+    "verificationMethod",
+    "executionSource",
+  ]);
   for (const field of SIGNAL_REQUIRED_FIELDS) {
-    if (signal[field] === undefined || signal[field] === null) issues.push(`Missing field: ${field}`);
+    if (signal[field] === undefined || (signal[field] === null && !nullableFields.has(field))) issues.push(`Missing field: ${field}`);
   }
   if (!signal.domain) issues.push("Missing field: domain");
   if (!signal.id) issues.push("Missing field: id");
