@@ -20,7 +20,7 @@ on:
           - "false"
 
 jobs:
-  build:
+  quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -36,12 +36,50 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: TypeScript build
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
         run: npm run build
+
+      - name: Validate environment contract
+        run: npm run validate:env
+
+      - name: Validate security release gate
+        run: npm run validate:security
+
+      - name: Validate release docs and workflow gates
+        run: npm run validate:release
+
+  runtime-smoke:
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run production readiness smoke
+        run: npm run smoke:production-readiness
+
+      - name: Run provider health smoke
+        run: npm run smoke:provider-health
+
+      - name: Run Oyi runtime smoke
+        run: npm run smoke:oyi-runtime
 
   ecosystem-smoke:
     runs-on: ubuntu-latest
-    needs: build
+    needs: runtime-smoke
     timeout-minutes: 15
     if: |
       (github.event_name != 'workflow_dispatch' || inputs.run_smoke == 'true') &&

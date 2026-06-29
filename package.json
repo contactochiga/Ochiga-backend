@@ -32,7 +32,10 @@
     "smoke:oyi-core-compatibility": "npm run build && node scripts/oyi-core-compatibility-smoke.mjs",
     "smoke:production-readiness": "npm run build && node scripts/production-readiness-smoke.mjs",
     "smoke:provider-health": "npm run build && node scripts/provider-health-smoke.mjs",
-    "smoke:oyi-runtime": "npm run build && node scripts/oyi-runtime-smoke.mjs"
+    "smoke:oyi-runtime": "npm run build && node scripts/oyi-runtime-smoke.mjs",
+    "validate:env": "node scripts/validate-env.mjs",
+    "validate:security": "node scripts/validate-security.mjs",
+    "validate:release": "node scripts/validate-release.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
