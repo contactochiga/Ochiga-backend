@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { healthHandler, metricsHandler, requestContextMiddleware, requestLoggingMiddleware, runtimeHealthHandler } from "./observability/http";
+import { aiRateLimit, authRateLimit, runtimeRateLimit, signalIngressRateLimit } from "./middleware/rateLimit";
 
 // -------------------------------
 // ROUTES
@@ -197,10 +198,10 @@ app.get("/metrics", metricsHandler);
 // -------------------------------
 // ROUTE MOUNTING
 // -------------------------------
-app.use("/auth", authRoutes);
-app.use("/auth/onboard", onboardingRoutes);
-app.use("/auth/invites", inviteActivationRoutes);
-app.use("/auth/otp", otpRoutes);
+app.use("/auth", authRateLimit, authRoutes);
+app.use("/auth/onboard", authRateLimit, onboardingRoutes);
+app.use("/auth/invites", authRateLimit, inviteActivationRoutes);
+app.use("/auth/otp", authRateLimit, otpRoutes);
 
 app.use("/invites", invitesRoutes);
 
@@ -215,8 +216,8 @@ app.use("/estates", estatesRoutes);
 app.use("/residents", residentsRoutes);
 app.use("/devices", devicesRoutes);
 
-app.use("/ai", aiRoutes);
-app.use("/oyi", oyiRoutes);
+app.use("/ai", aiRateLimit, aiRoutes);
+app.use("/oyi", runtimeRateLimit, oyiRoutes);
 app.use("/intelligence", intelligenceRoutes);
 app.use("/watch", watchRoutes);
 app.use("/activity", activityRoutes);
@@ -256,7 +257,7 @@ app.use("/proximity", proximityRoutes);
 app.use("/api/proximity", proximityRoutes);
 
 app.use("/facility", facilityRoutes);
-app.use("/signals", signalRoutes);
+app.use("/signals", signalIngressRateLimit, signalRoutes);
 app.use("/office", officeExportRoutes);
 
 // ✅ EXTRA SAFE: force CORP on camera endpoints (m3u8 + ts)

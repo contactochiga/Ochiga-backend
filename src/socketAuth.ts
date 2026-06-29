@@ -3,6 +3,7 @@ import type { Socket } from "socket.io";
 import { supabaseAdmin } from "./supabase/supabaseClient";
 import { APP_JWT_SECRET } from "./config/env";
 import { emitAuditEvent, hasPermission, permissionsForRole, type PermissionKey } from "./core/foundation";
+import { socketAuthRateLimit } from "./middleware/rateLimit";
 
 export type SocketUser = {
   id: string;
@@ -32,6 +33,11 @@ function socketRequestMeta(socket: Socket) {
 
 export async function authenticateSocket(socket: Socket, next: (err?: Error) => void) {
   try {
+    const rateLimit = socketAuthRateLimit(String(socket.handshake.address || socket.id || "unknown"));
+    if (!rateLimit.allowed) {
+      return next(new Error(`rate_limited:${rateLimit.retryAfterSeconds}`));
+    }
+
     const token = tokenFromSocket(socket);
     if (!APP_JWT_SECRET || !token) {
       void emitAuditEvent({

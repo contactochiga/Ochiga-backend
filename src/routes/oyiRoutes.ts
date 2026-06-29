@@ -155,6 +155,19 @@ router.get("/runtime/executions/timeline", requireAuth, resolveRequestContext, a
   }
 });
 
+router.get("/runtime/executions/history", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const executions = await executionLedger.listPersisted({
+      estateId: req.user?.role === "resident" ? undefined : req.oisContext?.estate_id || req.user?.estate_id || null,
+      homeId: req.user?.role === "resident" ? req.oisContext?.home_id || req.user?.home_id || null : null,
+      limit: req.query.limit ? Number(req.query.limit) : 100,
+    });
+    return res.json({ ok: true, executions });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load execution history" });
+  }
+});
+
 router.get("/runtime/executions/stats/operators", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const executions = await executionLedger.listPersisted({

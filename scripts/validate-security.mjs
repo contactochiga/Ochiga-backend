@@ -39,6 +39,14 @@ const checks = [
     critical: true,
   },
   {
+    label: "Rate limiting configured for HTTP and socket auth",
+    pass:
+      /authRateLimit|aiRateLimit|runtimeRateLimit|signalIngressRateLimit/.test(read("src/app.ts")) &&
+      /socketAuthRateLimit/.test(read("src/socketAuth.ts")) &&
+      exists("src/middleware/rateLimit.ts"),
+    critical: true,
+  },
+  {
     label: "Audit logging path exists",
     pass: /audit_events/.test(read("src/core/foundation/audit.ts")),
     critical: true,
@@ -54,9 +62,6 @@ const checks = [
 ];
 
 const warnings = [];
-if (!("express-rate-limit" in (pkg.dependencies || {})) && !("rate-limiter-flexible" in (pkg.dependencies || {}))) {
-  warnings.push("Rate limiting middleware is not installed; release should stay behind upstream protection until added.");
-}
 if ((pkg.dependencies || {})["aws-sdk"]) {
   warnings.push("aws-sdk v2 is still present; migrate to v3 before long-term production hardening.");
 }
