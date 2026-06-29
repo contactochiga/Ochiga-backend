@@ -98,6 +98,18 @@ type ExecutionUpdate = Partial<
   >
 >;
 
+export type ExecutionLedgerScope = {
+  estateId?: string | null;
+  homeId?: string | null;
+  deviceId?: string | null;
+  provider?: string | null;
+  origin?: string | null;
+  action?: string | null;
+  initiatorId?: string | null;
+  status?: string | null;
+  limit?: number;
+};
+
 function text(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -322,18 +334,35 @@ class ExecutionLedgerService {
       .slice(0, limit);
   }
 
-  list(scope: { estateId?: string | null; homeId?: string | null; limit?: number } = {}) {
+  private matchesScope(record: ExecutionLedgerRecord, scope: ExecutionLedgerScope) {
     const estateId = text(scope.estateId);
+    const homeId = text(scope.homeId);
+    const deviceId = text(scope.deviceId);
+    const provider = lower(scope.provider);
+    const origin = lower(scope.origin);
+    const action = lower(scope.action);
+    const initiatorId = text(scope.initiatorId);
+    const status = lower(scope.status);
+
+    if (estateId && text(record.estate) !== estateId) return false;
+    if (homeId && text(record.unit) !== homeId) return false;
+    if (deviceId && text(record.device) !== deviceId) return false;
+    if (provider && lower(record.provider) !== provider) return false;
+    if (origin && lower(record.origin) !== origin) return false;
+    if (action && !lower(record.action).includes(action)) return false;
+    if (initiatorId && text(record.initiator.id) !== initiatorId) return false;
+    if (status && lower(record.status) !== status) return false;
+    return true;
+  }
+
+  list(scope: ExecutionLedgerScope = {}) {
     const records = [...this.records.values()]
-      .filter((record) => {
-        if (estateId && text(record.estate) !== estateId) return false;
-        return true;
-      })
+      .filter((record) => this.matchesScope(record, scope))
       .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
     return records.slice(0, Math.max(1, Math.min(scope.limit || 100, 200)));
   }
 
-  async listPersisted(scope: { estateId?: string | null; homeId?: string | null; limit?: number } = {}) {
+  async listPersisted(scope: ExecutionLedgerScope = {}) {
     try {
       let query = supabaseAdmin
         .from("ai_execution_ledger")
@@ -342,9 +371,16 @@ class ExecutionLedgerService {
         .limit(Math.max(1, Math.min(scope.limit || 100, 200)));
       if (scope.estateId) query = query.eq("estate_id", scope.estateId);
       if (scope.homeId) query = query.or(`unit_id.eq.${scope.homeId},home_id.eq.${scope.homeId}`);
+      if (scope.deviceId) query = query.eq("device_id", scope.deviceId);
+      if (scope.provider) query = query.eq("provider", scope.provider);
+      if (scope.origin) query = query.eq("origin", scope.origin);
+      if (scope.initiatorId) query = query.eq("initiator_id", scope.initiatorId);
+      if (scope.status) query = query.eq("execution_status", scope.status);
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []).map(toExecutionRecord);
+      return (data || [])
+        .map(toExecutionRecord)
+        .filter((record) => this.matchesScope(record, scope));
     } catch {
       return this.list(scope);
     }
