@@ -20,6 +20,9 @@ export type NotificationType =
   | "home"
   | "estate"
   | "community"
+  | "message"
+  | "security"
+  | "intelligence"
   | "wallet"
   | "system";
 
@@ -34,6 +37,18 @@ export interface NotificationPayload {
   payload?: Record<string, any>; // optional structured data
   entityId?: string;             // optional related entity
   routing?: Partial<OisNotificationRouting>;
+}
+
+function pushCategoryFor(notification: NotificationPayload) {
+  const type = String(notification.type || "system").toLowerCase();
+  const text = `${type} ${notification.title || ""} ${notification.message || ""} ${notification.routing?.source_type || ""}`.toLowerCase();
+  if (/visitor|access|gate/.test(text)) return "visitors";
+  if (/maintenance|repair|ticket|support/.test(text)) return "maintenance";
+  if (/message|thread|chat/.test(text)) return "messages";
+  if (/security|incident|emergency|lockdown|breach/.test(text)) return "security";
+  if (/wallet|payment|finance|billing/.test(text)) return "wallet";
+  if (/prediction|intelligence|awareness|insight|handover|workflow/.test(text)) return "intelligence";
+  return "system";
 }
 
 function publishNotificationEvent(row: any) {
@@ -201,6 +216,8 @@ export class NotificationService {
       delivery_channel: policy?.decision || "push",
       notification_category: policy?.category || null,
       notification_reason: policy?.reason || null,
+      push_ready: !policy || policy.decision === "push" || policy.decision === "critical_push",
+      push_category: pushCategoryFor(notification),
     };
     if (policy) {
       await recordNotificationDecision({
@@ -232,6 +249,7 @@ export class NotificationService {
           body: notification.message,
           sound: "default",
           badge: 1,
+          category: pushCategoryFor(notification),
           data: this.buildPushData(data),
         });
       }
@@ -254,13 +272,15 @@ export class NotificationService {
     for (const u of users) {
       const userId = String(u.id);
       const policy = await decideNotification(userId, notification).catch(() => null);
-      const nextPayload = {
-        ...(notification.payload || {}),
-        notification_key: policy?.key || (notification.payload as any)?.notification_key,
-        delivery_channel: policy?.decision || "push",
-        notification_category: policy?.category || null,
-        notification_reason: policy?.reason || null,
-      };
+        const nextPayload = {
+          ...(notification.payload || {}),
+          notification_key: policy?.key || (notification.payload as any)?.notification_key,
+          delivery_channel: policy?.decision || "push",
+          notification_category: policy?.category || null,
+          notification_reason: policy?.reason || null,
+          push_ready: !policy || policy.decision === "push" || policy.decision === "critical_push",
+          push_category: pushCategoryFor(notification),
+        };
       if (policy) {
         await recordNotificationDecision({ userId, estateId: (nextPayload as any).estate_id || null, homeId: (nextPayload as any).home_id || homeId || null, key: policy.key, category: policy.category, decision: policy.decision, title: notification.title, reason: policy.reason });
         if (policy.decision === "activity_only" || policy.decision === "suppressed") continue;
@@ -279,13 +299,14 @@ export class NotificationService {
 
     for (const row of data || []) {
       if (!pushRows.has(String((row as any).user_id))) continue;
-      await PushNotificationService.sendToUsers([String((row as any).user_id)], {
-        title: String((row as any).title || notification.title),
-        body: String((row as any).message || notification.message),
-        sound: "default",
-        badge: 1,
-        data: this.buildPushData(row),
-      });
+        await PushNotificationService.sendToUsers([String((row as any).user_id)], {
+          title: String((row as any).title || notification.title),
+          body: String((row as any).message || notification.message),
+          sound: "default",
+          badge: 1,
+          category: pushCategoryFor(notification),
+          data: this.buildPushData(row),
+        });
     }
 
     return { data, error: insertError };
@@ -305,14 +326,16 @@ export class NotificationService {
     for (const u of users) {
       const userId = String(u.id);
       const policy = await decideNotification(userId, notification).catch(() => null);
-      const nextPayload = {
-        ...(notification.payload || {}),
-        estate_id: (notification.payload as any)?.estate_id || estateId,
-        notification_key: policy?.key || (notification.payload as any)?.notification_key,
-        delivery_channel: policy?.decision || "push",
-        notification_category: policy?.category || null,
-        notification_reason: policy?.reason || null,
-      };
+        const nextPayload = {
+          ...(notification.payload || {}),
+          estate_id: (notification.payload as any)?.estate_id || estateId,
+          notification_key: policy?.key || (notification.payload as any)?.notification_key,
+          delivery_channel: policy?.decision || "push",
+          notification_category: policy?.category || null,
+          notification_reason: policy?.reason || null,
+          push_ready: !policy || policy.decision === "push" || policy.decision === "critical_push",
+          push_category: pushCategoryFor(notification),
+        };
       if (policy) {
         await recordNotificationDecision({ userId, estateId, homeId: (nextPayload as any).home_id || null, key: policy.key, category: policy.category, decision: policy.decision, title: notification.title, reason: policy.reason });
         if (policy.decision === "activity_only" || policy.decision === "suppressed") continue;
@@ -331,13 +354,14 @@ export class NotificationService {
 
     for (const row of data || []) {
       if (!pushRows.has(String((row as any).user_id))) continue;
-      await PushNotificationService.sendToUsers([String((row as any).user_id)], {
-        title: String((row as any).title || notification.title),
-        body: String((row as any).message || notification.message),
-        sound: "default",
-        badge: 1,
-        data: this.buildPushData(row),
-      });
+        await PushNotificationService.sendToUsers([String((row as any).user_id)], {
+          title: String((row as any).title || notification.title),
+          body: String((row as any).message || notification.message),
+          sound: "default",
+          badge: 1,
+          category: pushCategoryFor(notification),
+          data: this.buildPushData(row),
+        });
     }
 
     return { data, error: insertError };
@@ -357,13 +381,15 @@ export class NotificationService {
     for (const u of users) {
       const userId = String(u.id);
       const policy = await decideNotification(userId, notification).catch(() => null);
-      const nextPayload = {
-        ...(notification.payload || {}),
-        notification_key: policy?.key || (notification.payload as any)?.notification_key,
-        delivery_channel: policy?.decision || "push",
-        notification_category: policy?.category || null,
-        notification_reason: policy?.reason || null,
-      };
+        const nextPayload = {
+          ...(notification.payload || {}),
+          notification_key: policy?.key || (notification.payload as any)?.notification_key,
+          delivery_channel: policy?.decision || "push",
+          notification_category: policy?.category || null,
+          notification_reason: policy?.reason || null,
+          push_ready: !policy || policy.decision === "push" || policy.decision === "critical_push",
+          push_category: pushCategoryFor(notification),
+        };
       if (policy) {
         await recordNotificationDecision({ userId, estateId: (nextPayload as any).estate_id || null, homeId: (nextPayload as any).home_id || null, key: policy.key, category: policy.category, decision: policy.decision, title: notification.title, reason: policy.reason });
         if (policy.decision === "activity_only" || policy.decision === "suppressed") continue;
@@ -382,13 +408,14 @@ export class NotificationService {
 
     for (const row of data || []) {
       if (!pushRows.has(String((row as any).user_id))) continue;
-      await PushNotificationService.sendToUsers([String((row as any).user_id)], {
-        title: String((row as any).title || notification.title),
-        body: String((row as any).message || notification.message),
-        sound: "default",
-        badge: 1,
-        data: this.buildPushData(row),
-      });
+        await PushNotificationService.sendToUsers([String((row as any).user_id)], {
+          title: String((row as any).title || notification.title),
+          body: String((row as any).message || notification.message),
+          sound: "default",
+          badge: 1,
+          category: pushCategoryFor(notification),
+          data: this.buildPushData(row),
+        });
     }
 
     return { data, error: insertError };
@@ -407,14 +434,16 @@ export class NotificationService {
     const pushRows = new Set<string>();
     for (const userId of userIds) {
       const policy = await decideNotification(userId, notification).catch(() => null);
-      const nextPayload = {
-        ...(notification.payload || {}),
-        estate_id: (notification.payload as any)?.estate_id || estateId,
-        notification_key: policy?.key || (notification.payload as any)?.notification_key,
-        delivery_channel: policy?.decision || "push",
-        notification_category: policy?.category || null,
-        notification_reason: policy?.reason || null,
-      };
+        const nextPayload = {
+          ...(notification.payload || {}),
+          estate_id: (notification.payload as any)?.estate_id || estateId,
+          notification_key: policy?.key || (notification.payload as any)?.notification_key,
+          delivery_channel: policy?.decision || "push",
+          notification_category: policy?.category || null,
+          notification_reason: policy?.reason || null,
+          push_ready: !policy || policy.decision === "push" || policy.decision === "critical_push",
+          push_category: pushCategoryFor(notification),
+        };
       if (policy) {
         await recordNotificationDecision({ userId, estateId, homeId: (nextPayload as any).home_id || null, key: policy.key, category: policy.category, decision: policy.decision, title: notification.title, reason: policy.reason });
         if (policy.decision === "activity_only" || policy.decision === "suppressed") continue;
@@ -434,13 +463,14 @@ export class NotificationService {
 
     for (const row of data || []) {
       if (!pushRows.has(String((row as any).user_id))) continue;
-      await PushNotificationService.sendToUsers([String((row as any).user_id)], {
-        title: String((row as any).title || notification.title),
-        body: String((row as any).message || notification.message),
-        sound: "default",
-        badge: 1,
-        data: this.buildPushData(row),
-      });
+        await PushNotificationService.sendToUsers([String((row as any).user_id)], {
+          title: String((row as any).title || notification.title),
+          body: String((row as any).message || notification.message),
+          sound: "default",
+          badge: 1,
+          category: pushCategoryFor(notification),
+          data: this.buildPushData(row),
+        });
     }
 
     return { data, error: insertError };

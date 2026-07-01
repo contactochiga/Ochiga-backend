@@ -3,6 +3,26 @@ import { requireAuth, requirePermission } from "../middleware/auth";
 import { PushNotificationService } from "../services/PushNotificationService";
 
 const router = Router();
+const PUSH_CATEGORIES = ["maintenance", "visitors", "messages", "security", "wallet", "system", "intelligence"] as const;
+
+function pushConfigured() {
+  const apns = Boolean(process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_BUNDLE_ID && (process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64));
+  const fcm = Boolean(process.env.FCM_SERVER_KEY);
+  return { apns, fcm, any: apns || fcm };
+}
+
+router.get("/readiness", requireAuth, requirePermission("notifications.read"), async (_req, res) => {
+  const configured = pushConfigured();
+  return res.json({
+    ok: true,
+    configured,
+    categories: PUSH_CATEGORIES,
+    token_registration: {
+      register: "/push/register",
+      unregister: "/push/unregister",
+    },
+  });
+});
 
 router.post("/register", requireAuth, requirePermission("notifications.read"), async (req, res) => {
   const user = req.user as any;
