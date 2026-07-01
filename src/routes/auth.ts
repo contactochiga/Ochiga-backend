@@ -4,6 +4,10 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { permissionsForRole } from "../core/foundation";
+import { emitAuditEvent } from "../core/foundation/audit";
+import { canSendOtp, generateOtpCode, saveOtp, verifyOtp } from "../services/otpService";
+import { sendOtpEmail } from "../services/mailer/resendMailer";
+import { consumePasswordResetToken, signPasswordResetToken, storePasswordResetToken } from "../services/passwordResetService";
 
 const router = Router();
 
@@ -24,6 +28,32 @@ function signToken(payload: any) {
     APP_JWT_SECRET,
     { expiresIn: "30d" }
   );
+}
+
+function cleanEmail(value: unknown) {
+  return String(value || "").trim().toLowerCase();
+}
+
+async function auditAuthEvent(
+  action: string,
+  status: "success" | "failed",
+  metadata: Record<string, any>,
+  req: any,
+  actor?: { id?: string | null; email?: string | null; role?: string | null; estateId?: string | null; homeId?: string | null }
+) {
+  await emitAuditEvent({
+    actorId: actor?.id || undefined,
+    actorEmail: actor?.email || undefined,
+    actorRole: actor?.role || undefined,
+    estateId: actor?.estateId || undefined,
+    homeId: actor?.homeId || undefined,
+    action,
+    resourceType: "auth",
+    resourceId: actor?.email || metadata.email || metadata.request_email || "password_reset",
+    status,
+    metadata,
+    req,
+  });
 }
 
 function requireOtpGate(
@@ -223,6 +253,181 @@ router.post("/login", async (req, res) => {
   } catch (err) {
     console.error("login error:", err);
     return res.status(500).json({ error: "Unexpected server error" });
+  }
+});
+
+router.post("/password/forgot", async (req, res) => {
+  const email = cleanEmail(req.body?.email);
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ ok: false, error: "Valid email required" });
+  }
+
+  try {
+    const allowed = await canSendOtp(email, "password_reset");
+    if (!allowed) {
+      await auditAuthEvent("auth.password.reset.requested", "failed", { request_email: email, reason: "rate_limited" }, req);
+      return res.status(429).json({
+        ok: false,
+        error: "Too many password reset attempts. Please wait and try again.",
+      });
+    }
+
+    const { data: user } = await supabaseAdmin
+      .from("users")
+      .select("id, email, role, estate_id, home_id, account_status")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (user && String(user.account_status || "active") !== "suspended") {
+      const code = generateOtpCode(6);
+      await saveOtp(email, "password_reset", code);
+      await sendOtpEmail({ to: email, code, purpose: "password_reset" });
+      await auditAuthEvent(
+        "auth.password.reset.requested",
+        "success",
+        { email, delivery: "otp", account_found: true },
+        req,
+        { id: user.id, email: user.email, role: user.role, estateId: user.estate_id, homeId: user.home_id }
+      );
+    } else {
+      await auditAuthEvent("auth.password.reset.requested", "success", { email, delivery: "suppressed", account_found: false }, req);
+    }
+
+    return res.json({
+      ok: true,
+      message: "If an account exists for that email, password recovery instructions have been sent.",
+      mode: "otp",
+    });
+  } catch (error: any) {
+    console.error("password forgot error:", error);
+    await auditAuthEvent("auth.password.reset.requested", "failed", { request_email: email, reason: error?.message || "unexpected_error" }, req);
+    return res.status(500).json({ ok: false, error: "Unable to start password recovery" });
+  }
+});
+
+router.post("/password/verify-reset", async (req, res) => {
+  const email = cleanEmail(req.body?.email);
+  const otp = String(req.body?.otp || req.body?.code || "").trim();
+
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ ok: false, error: "Valid email required" });
+  }
+  if (!otp || otp.length < 4) {
+    return res.status(400).json({ ok: false, error: "Valid reset code required" });
+  }
+
+  try {
+    const { data: user } = await supabaseAdmin
+      .from("users")
+      .select("id, email, role, estate_id, home_id")
+      .eq("email", email)
+      .maybeSingle();
+
+    const result = await verifyOtp(email, "password_reset", otp);
+    if (!result.ok || !user) {
+      await auditAuthEvent("auth.password.reset.verified", "failed", { email, reason: result.ok ? "account_not_found" : result.reason }, req);
+      return res.status(401).json({ ok: false, error: "Reset code expired or invalid" });
+    }
+
+    const { token, jti } = signPasswordResetToken(email);
+    await storePasswordResetToken(email, jti);
+    await auditAuthEvent(
+      "auth.password.reset.verified",
+      "success",
+      { email, reset_session: "issued" },
+      req,
+      { id: user.id, email: user.email, role: user.role, estateId: user.estate_id, homeId: user.home_id }
+    );
+
+    return res.json({
+      ok: true,
+      message: "Reset code verified",
+      resetToken: token,
+      expiresInSeconds: 10 * 60,
+    });
+  } catch (error: any) {
+    console.error("password verify-reset error:", error);
+    await auditAuthEvent("auth.password.reset.verified", "failed", { email, reason: error?.message || "unexpected_error" }, req);
+    return res.status(500).json({ ok: false, error: "Unable to verify reset code" });
+  }
+});
+
+router.post("/password/reset", async (req, res) => {
+  const email = cleanEmail(req.body?.email);
+  const resetToken = String(req.body?.resetToken || "").trim();
+  const password = String(req.body?.password || "");
+
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ ok: false, error: "Valid email required" });
+  }
+  if (!resetToken) {
+    return res.status(400).json({ ok: false, error: "Reset token required" });
+  }
+  if (!password || password.length < 8) {
+    return res.status(400).json({ ok: false, error: "Password must be at least 8 characters" });
+  }
+
+  try {
+    const { data: user, error } = await supabaseAdmin
+      .from("users")
+      .select("id, email, role, estate_id, home_id, password_hash")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (error || !user) {
+      await auditAuthEvent("auth.password.reset.completed", "failed", { email, reason: error?.message || "account_not_found" }, req);
+      return res.status(400).json({ ok: false, error: "Unable to reset password" });
+    }
+
+    const consumed = await consumePasswordResetToken(email, resetToken);
+    if (!consumed.ok) {
+      await auditAuthEvent(
+        "auth.password.reset.completed",
+        "failed",
+        { email, reason: consumed.reason },
+        req,
+        { id: user.id, email: user.email, role: user.role, estateId: user.estate_id, homeId: user.home_id }
+      );
+      return res.status(401).json({ ok: false, error: "Reset session expired or invalid" });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    const { error: updateError } = await supabaseAdmin
+      .from("users")
+      .update({ password_hash: hash })
+      .eq("id", user.id);
+
+    if (updateError) {
+      await auditAuthEvent(
+        "auth.password.reset.completed",
+        "failed",
+        { email, reason: updateError.message, reset_session: consumed.jti },
+        req,
+        { id: user.id, email: user.email, role: user.role, estateId: user.estate_id, homeId: user.home_id }
+      );
+      return res.status(500).json({ ok: false, error: "Unable to reset password" });
+    }
+
+    await auditAuthEvent(
+      "auth.password.reset.completed",
+      "success",
+      {
+        email,
+        reset_session: consumed.jti,
+        session_invalidation: "not_supported_by_current_stateless_jwt_model",
+      },
+      req,
+      { id: user.id, email: user.email, role: user.role, estateId: user.estate_id, homeId: user.home_id }
+    );
+
+    return res.json({
+      ok: true,
+      message: "Password reset successful",
+    });
+  } catch (error: any) {
+    console.error("password reset error:", error);
+    await auditAuthEvent("auth.password.reset.completed", "failed", { email, reason: error?.message || "unexpected_error" }, req);
+    return res.status(500).json({ ok: false, error: "Unable to reset password" });
   }
 });
 

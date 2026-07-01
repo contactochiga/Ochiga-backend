@@ -13,7 +13,7 @@ import { sendOtpEmail } from "../services/mailer/resendMailer";
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
 if (!APP_JWT_SECRET) console.warn("⚠️ APP_JWT_SECRET is missing in .env");
 
-const PURPOSES = new Set<OtpPurpose>(["signup", "login"]);
+const PURPOSES = new Set<OtpPurpose>(["signup", "login", "password_reset"]);
 
 function normalizePurpose(p: any): OtpPurpose {
   const v = (p || "signup").toString().toLowerCase();

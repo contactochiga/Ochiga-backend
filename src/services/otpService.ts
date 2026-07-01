@@ -1,7 +1,7 @@
 // src/services/otpService.ts
 import { redis } from "../config/redis";
 
-export type OtpPurpose = "signup" | "login";
+export type OtpPurpose = "signup" | "login" | "password_reset";
 
 const OTP_TTL_SECONDS = 10 * 60; // 10 mins
 const RL_TTL_SECONDS = 60; // 60 secs rate limit

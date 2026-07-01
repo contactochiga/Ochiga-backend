@@ -39,11 +39,15 @@ export async function sendOtpEmail(args: {
   purpose: OtpPurpose;
 }) {
   const subject =
-    args.purpose === "signup" ? "Verify your Ochiga account" : "Your login code";
+    args.purpose === "signup"
+      ? "Verify your Ochiga account"
+      : args.purpose === "password_reset"
+        ? "Reset your Ochiga password"
+        : "Your login code";
 
   const html = `
     <div style="font-family: Inter, Arial, sans-serif; line-height:1.5; color:#111;">
-      <h2 style="margin:0 0 8px;">Your verification code</h2>
+      <h2 style="margin:0 0 8px;">${args.purpose === "password_reset" ? "Your password reset code" : "Your verification code"}</h2>
       <p style="margin:0 0 16px;">Use this code to continue:</p>
       <div style="font-size:28px; font-weight:700; letter-spacing:6px; padding:14px 16px; background:#f3f4f6; border-radius:12px; display:inline-block;">
         ${args.code}
@@ -58,6 +62,6 @@ export async function sendOtpEmail(args: {
     to: args.to,
     subject,
     html,
-    text: `Your code is ${args.code}`,
+    text: `${args.purpose === "password_reset" ? "Your password reset code" : "Your code"} is ${args.code}`,
   });
 }
