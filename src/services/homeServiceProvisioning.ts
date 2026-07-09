@@ -1,4 +1,7 @@
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { emitServiceRegistryEvent } from "./serviceRegistryEvents";
+import { emitInfrastructureServiceSignal } from "./infrastructureServiceSignals";
+import { getInfrastructureServiceProvider } from "./infrastructureServiceProviders";
 
 export type CanonicalServiceKey =
   | "utility_token"
@@ -342,6 +345,89 @@ export async function provisionHomeServices(input: ProvisioningInput) {
         provider,
       },
     );
+
+    await emitServiceRegistryEvent({
+      event: "service.account.provisioned",
+      estate_id: estateId,
+      home_id: homeId,
+      service_key: serviceKey,
+      user_id: residentId,
+      actor_id: actorId,
+      payload: { provider, account_ref: accountRef, meter_id: meterId, linked, status },
+    });
+    await emitInfrastructureServiceSignal({
+      type: "service.account.provisioned",
+      estateId,
+      homeId,
+      userId: residentId,
+      actorId,
+      serviceKey,
+      source: "system",
+      metadata: { provider, account_ref: accountRef, meter_id: meterId, linked, status },
+    });
+
+    await emitServiceRegistryEvent({
+      event: "service.assignment.created",
+      estate_id: estateId,
+      home_id: homeId,
+      service_key: serviceKey,
+      user_id: residentId,
+      actor_id: actorId,
+      payload: { enabled: linked, provider, tariff_profile: tariffProfile, billing_profile: billingProfile },
+    });
+    await emitInfrastructureServiceSignal({
+      type: "service.assignment.created",
+      estateId,
+      homeId,
+      userId: residentId,
+      actorId,
+      serviceKey,
+      source: "system",
+      metadata: { enabled: linked, provider, tariff_profile: tariffProfile, billing_profile: billingProfile },
+    });
+
+    await emitServiceRegistryEvent({
+      event: "service.status.changed",
+      estate_id: estateId,
+      home_id: homeId,
+      service_key: serviceKey,
+      user_id: residentId,
+      actor_id: actorId,
+      payload: { status, linked },
+    });
+    await emitInfrastructureServiceSignal({
+      type: "service.status.changed",
+      estateId,
+      homeId,
+      userId: residentId,
+      actorId,
+      serviceKey,
+      source: "system",
+      metadata: { status, linked },
+    });
+
+    const providerHealth = getInfrastructureServiceProvider(serviceKey).health({ provider, linked, status, metadata });
+    if (providerHealth.readiness === "ready") {
+      await emitServiceRegistryEvent({
+        event: "service.vending.ready",
+        estate_id: estateId,
+        home_id: homeId,
+        service_key: serviceKey,
+        user_id: residentId,
+        actor_id: actorId,
+        payload: { provider, readiness: providerHealth.readiness, reason: providerHealth.reason },
+      });
+      await emitInfrastructureServiceSignal({
+        type: "service.vending.ready",
+        estateId,
+        homeId,
+        userId: residentId,
+        actorId,
+        serviceKey,
+        source: "system",
+        metadata: { provider, readiness: providerHealth.readiness, reason: providerHealth.reason },
+      });
+    }
 
     provisionedKeys.push(serviceKey);
   }

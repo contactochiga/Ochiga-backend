@@ -6,7 +6,14 @@ export type ServiceRegistryEventName =
   | "service.config.updated"
   | "home.service_registry.updated"
   | "home.utility_account.updated"
-  | "wallet.service_payment.updated";
+  | "wallet.service_payment.updated"
+  | "service.account.provisioned"
+  | "service.assignment.created"
+  | "service.status.changed"
+  | "service.vending.ready"
+  | "service.transaction.initiated"
+  | "service.transaction.failed"
+  | "service.issue.reported";
 
 type ServiceRegistryEventInput = {
   event: ServiceRegistryEventName;
@@ -56,9 +63,9 @@ export async function emitServiceRegistryEvent(input: ServiceRegistryEventInput)
     entity_type: "service_registry",
     entity_id: event.service_key || event.home_id || event.estate_id,
     entity_label: event.service_key || "Service registry",
-    severity: "info",
+    severity: /failed|issue|critical/.test(input.event) ? "attention" : "info",
     title: `Service registry ${String(input.event).split(".").pop() || "updated"}`,
-    summary: `Service configuration changed for ${event.service_key || "the active scope"}.`,
+    summary: `Service activity changed for ${event.service_key || "the active scope"}.`,
     payload: event.payload || {},
     occurred_at: now,
   }, { source_table: "service_registry_events", source_event_id: `${input.event}:${event.home_id || event.estate_id || "global"}:${event.service_key || "all"}:${now}` });

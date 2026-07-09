@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { randomUUID } from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
@@ -6,6 +7,8 @@ import { NotificationService } from "../services/NotificationService";
 import { sendEmail } from "../services/emailService";
 import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
+import { emitInfrastructureServiceSignal } from "../services/infrastructureServiceSignals";
+import { getInfrastructureServiceProvider, providerTypeForService, type ProviderHealth, type ServiceKey as ProviderServiceKey } from "../services/infrastructureServiceProviders";
 
 type ServiceKey =
   | "utility_token"
@@ -214,6 +217,36 @@ type ServiceConfigRow = {
   metadata?: Record<string, any> | null;
   created_at?: string;
 };
+
+type ServiceTransactionStatus =
+  | "pending"
+  | "pending_provider"
+  | "manual_review"
+  | "unsupported"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+type ServiceSettlementStatus =
+  | "none"
+  | "pending"
+  | "queued"
+  | "in_progress"
+  | "settled"
+  | "failed"
+  | "unsupported";
+
+type ServiceTransactionType =
+  | "electricity_purchase"
+  | "water_payment"
+  | "internet_renewal"
+  | "gas_order"
+  | "generator_recovery"
+  | "solar_battery_support"
+  | "estate_fee"
+  | "facility_service"
+  | "issue_report"
+  | "support_request";
 
 function missingColumn(error: any, column: string) {
   const msg = String(error?.message || "");
@@ -687,6 +720,218 @@ function accountValue(accounts: Map<string, any>, serviceKey: ServiceKey, key: s
   return account?.[key] ?? fallback;
 }
 
+function serviceTitleFor(key: ServiceKey) {
+  return SERVICE_CONFIG_DEFAULTS[key]?.title || key.replace(/_/g, " ");
+}
+
+function serviceDomainFor(key: ServiceKey) {
+  if (key === "utility_token") return "electricity";
+  if (key === "water_service") return "water";
+  if (key === "gas_service") return "gas";
+  if (key === "internet_service" || key === "fiber_internet") return "internet";
+  if (key === "generator_recovery") return "generator";
+  if (key === "solar_battery_service") return "solar_battery";
+  if (key === "service_charge") return "estate_fees";
+  return "facility_services";
+}
+
+function identifierForAccount(row: any) {
+  return String(row?.meter_id || row?.account_ref || "").trim();
+}
+
+function transactionTypeForService(serviceKey: ServiceKey): ServiceTransactionType {
+  if (serviceKey === "utility_token") return "electricity_purchase";
+  if (serviceKey === "water_service") return "water_payment";
+  if (serviceKey === "gas_service") return "gas_order";
+  if (serviceKey === "internet_service" || serviceKey === "fiber_internet") return "internet_renewal";
+  if (serviceKey === "generator_recovery") return "generator_recovery";
+  if (serviceKey === "solar_battery_service") return "solar_battery_support";
+  if (serviceKey === "service_charge") return "estate_fee";
+  return "facility_service";
+}
+
+async function insertServiceTransactionRecord(input: {
+  estateId?: string | null;
+  homeId?: string | null;
+  residentId?: string | null;
+  serviceAccountId?: string | null;
+  serviceKey: ServiceKey;
+  provider?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  status: ServiceTransactionStatus;
+  transactionType: ServiceTransactionType;
+  settlementStatus?: ServiceSettlementStatus;
+  providerReference?: string | null;
+  metadata?: Record<string, any> | null;
+}) {
+  const row = {
+    estate_id: input.estateId || null,
+    home_id: input.homeId || null,
+    resident_id: input.residentId || null,
+    user_id: input.residentId || null,
+    service_account_id: input.serviceAccountId || null,
+    service_type: serviceDomainFor(input.serviceKey),
+    service_key: input.serviceKey,
+    provider: input.provider || null,
+    amount: Number(input.amount || 0),
+    currency: String(input.currency || "NGN"),
+    status: input.status,
+    transaction_type: input.transactionType,
+    settlement_status: input.settlementStatus || "none",
+    provider_reference: input.providerReference || null,
+    metadata: input.metadata || {},
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("service_transactions")
+    .insert([row])
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function readLatestServiceTransactionsByHomeIds(homeIds: string[]) {
+  if (!homeIds.length) return new Map<string, any>();
+  const { data, error } = await supabaseAdmin
+    .from("service_transactions")
+    .select("id, home_id, service_key, status, transaction_type, amount, currency, created_at, provider_reference, metadata")
+    .in("home_id", homeIds)
+    .order("created_at", { ascending: false })
+    .limit(400);
+  if (error) {
+    if (tableMissing(error)) return new Map<string, any>();
+    throw new Error(error.message);
+  }
+  const latest = new Map<string, any>();
+  for (const row of data || []) {
+    const key = `${row.home_id}:${row.service_key}`;
+    if (!latest.has(key)) latest.set(key, row);
+  }
+  return latest;
+}
+
+async function listServiceAccountsForScope(input: {
+  estateId: string;
+  homeId?: string | null;
+  residentId?: string | null;
+}) {
+  const query = supabaseAdmin
+    .from("home_service_accounts")
+    .select("id, estate_id, home_id, service_key, provider, account_ref, meter_id, plan, balance, outstanding, status, due_date, expires_at, linked, metadata, created_at, updated_at")
+    .eq("estate_id", input.estateId)
+    .order("updated_at", { ascending: false });
+
+  if (input.homeId) query.eq("home_id", input.homeId);
+  if (input.residentId) {
+    const { data: assignments, error: assignmentError } = await supabaseAdmin
+      .from("home_service_assignments")
+      .select("home_id")
+      .eq("estate_id", input.estateId)
+      .eq("user_id", input.residentId);
+    if (assignmentError) {
+      if (tableMissing(assignmentError)) return [];
+      throw new Error(assignmentError.message);
+    }
+    const homeIds = [...new Set((assignments || []).map((row: any) => String(row.home_id || "")).filter(Boolean))];
+    if (!homeIds.length) return [];
+    query.in("home_id", homeIds);
+  }
+
+  const { data: accounts, error } = await query;
+  if (error) {
+    if (tableMissing(error)) return [];
+    throw new Error(error.message);
+  }
+  if (!accounts?.length) return [];
+
+  const homeIds = [...new Set(accounts.map((row: any) => String(row.home_id || "")).filter(Boolean))];
+  const [{ data: homes }, { data: assignments }, latestTx] = await Promise.all([
+    supabaseAdmin.from("homes").select("id, name, block, unit, resident_id").in("id", homeIds),
+    supabaseAdmin.from("home_service_assignments").select("home_id, user_id, service_key, enabled, metadata, updated_at").in("home_id", homeIds),
+    readLatestServiceTransactionsByHomeIds(homeIds),
+  ]);
+
+  const homeMap = new Map((homes || []).map((row: any) => [String(row.id), row]));
+  const assignmentMap = new Map<string, any>();
+  const residentIds = new Set<string>();
+  for (const assignment of assignments || []) {
+    const key = `${assignment.home_id}:${assignment.service_key}`;
+    assignmentMap.set(key, assignment);
+    const id = String(assignment.user_id || "");
+    if (id) residentIds.add(id);
+  }
+  const homeResidentIds = [...new Set((homes || []).map((row: any) => String(row.resident_id || "")).filter(Boolean))];
+  homeResidentIds.forEach((id: string) => residentIds.add(id));
+  let residentRows: any[] = [];
+  if (residentIds.size) {
+    const { data } = await supabaseAdmin.from("users").select("id, full_name, email").in("id", [...residentIds]);
+    residentRows = data || [];
+  }
+  let walletRows: any[] = [];
+  if (residentIds.size) {
+    const { data } = await supabaseAdmin.from("wallets").select("id, user_id").in("user_id", [...residentIds]);
+    walletRows = data || [];
+  }
+  const userMap = new Map(residentRows.map((row: any) => [String(row.id), row]));
+  const walletMap = new Map(walletRows.map((row: any) => [String(row.user_id), row]));
+
+  return (accounts || []).map((row: any) => {
+    const home = homeMap.get(String(row.home_id || ""));
+    const assignment = assignmentMap.get(`${row.home_id}:${row.service_key}`);
+    const residentId = String(assignment?.user_id || home?.resident_id || "").trim() || null;
+    const resident = residentId ? userMap.get(residentId) : null;
+    const wallet = residentId ? walletMap.get(residentId) : null;
+    const metadata = row.metadata || {};
+    const providerHealth = getInfrastructureServiceProvider(row.service_key as ProviderServiceKey).health({
+      provider: row.provider,
+      linked: row.linked,
+      status: row.status,
+      metadata,
+    });
+    const latest = latestTx.get(`${row.home_id}:${row.service_key}`) || null;
+    return {
+      id: String(row.id),
+      estate_id: String(row.estate_id),
+      home_id: String(row.home_id),
+      service_key: String(row.service_key),
+      service_title: serviceTitleFor(row.service_key as ServiceKey),
+      service_group: serviceDomainFor(row.service_key as ServiceKey),
+      provider_type: providerTypeForService(row.service_key as ServiceKey),
+      provider: row.provider || metadata.provider || null,
+      identifier: identifierForAccount(row),
+      meter_number: row.meter_id || null,
+      account_number: row.account_ref || null,
+      tariff_profile: metadata.tariff_profile || null,
+      billing_profile: metadata.billing_profile || null,
+      kct: metadata.kct || null,
+      kctn: metadata.kctn || null,
+      status: row.status || "pending",
+      linked: Boolean(row.linked),
+      plan: row.plan || null,
+      balance: row.balance ?? null,
+      outstanding: row.outstanding ?? null,
+      wallet_id: wallet?.id || null,
+      wallet_linked: Boolean(wallet?.id),
+      resident_id: residentId,
+      resident_name: resident?.full_name || null,
+      resident_email: resident?.email || null,
+      home_label: home ? [home.name, [home.block, home.unit].filter(Boolean).join(" / ")].filter(Boolean).join(" • ") : "Home pending",
+      vending_readiness: providerHealth.readiness,
+      provider_health: providerHealth.status,
+      provider_supported: providerHealth.supported,
+      provider_health_reason: providerHealth.reason,
+      last_activity_at: latest?.created_at || row.updated_at || row.created_at || null,
+      last_transaction_status: latest?.status || null,
+      last_transaction_type: latest?.transaction_type || null,
+      latest_transaction: latest,
+      metadata,
+    };
+  });
+}
+
 async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string | null; estateId?: string | null; includeDebug?: boolean }) {
   const home = await resolveHomeForUser(user, requested);
   if (!home?.id) throw Object.assign(new Error("No home linked to this account"), { statusCode: 400 });
@@ -707,6 +952,13 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
   const lastPaid = (key: ServiceKey) => paymentsByKey.get(key)?.created_at || null;
   const linked = (key: ServiceKey, fallback: any) => Boolean(fallback || accountValue(accounts, key, "linked", fallback));
   const status = (key: ServiceKey, isLinked: boolean) => String(accountValue(accounts, key, "status", serviceStatusFrom(configEnabled(key), isLinked, key)) || "available");
+  const providerHealthFor = (key: ServiceKey, isLinked: boolean): ProviderHealth =>
+    getInfrastructureServiceProvider(key).health({
+      provider: accountValue(accounts, key, "provider", configByKey.get(key)?.metadata?.provider || null),
+      linked: isLinked,
+      status: status(key, isLinked),
+      metadata: accountValue(accounts, key, "metadata", {}) || {},
+    });
 
   const electricityLinked = linked("utility_token", Boolean(home.electricity_meter));
   const waterLinked = linked("water_service", Boolean(home.water_meter));
@@ -716,6 +968,12 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
   const solarLinked = linked("solar_battery_service", Boolean(accountValue(accounts, "solar_battery_service", "account_ref", null)));
   const serviceChargeEnabled = configEnabled("service_charge");
   const facilityEnabled = configEnabled("other_facility_fees");
+  const electricityHealth = providerHealthFor("utility_token", electricityLinked);
+  const waterHealth = providerHealthFor("water_service", waterLinked);
+  const gasHealth = providerHealthFor("gas_service", gasLinked);
+  const internetHealth = providerHealthFor("internet_service", internetLinked);
+  const generatorHealth = providerHealthFor("generator_recovery", generatorLinked);
+  const solarHealth = providerHealthFor("solar_battery_service", solarLinked);
 
   const response: any = {
     ok: true,
@@ -734,6 +992,8 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       status: status("utility_token", electricityLinked),
       balance: accountValue(accounts, "utility_token", "balance", null),
       last_payment_at: lastPaid("utility_token"),
+      vending_readiness: electricityHealth.readiness,
+      provider_health: electricityHealth.status,
       ...profileFrom(accounts, "utility_token"),
     },
     water: {
@@ -744,6 +1004,8 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       status: status("water_service", waterLinked),
       balance: accountValue(accounts, "water_service", "balance", null),
       last_payment_at: lastPaid("water_service"),
+      vending_readiness: waterHealth.readiness,
+      provider_health: waterHealth.status,
       ...profileFrom(accounts, "water_service"),
     },
     gas: {
@@ -755,6 +1017,8 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       status: status("gas_service", gasLinked),
       balance: accountValue(accounts, "gas_service", "balance", null),
       last_payment_at: lastPaid("gas_service"),
+      vending_readiness: gasHealth.readiness,
+      provider_health: gasHealth.status,
       ...profileFrom(accounts, "gas_service"),
     },
     internet: {
@@ -765,6 +1029,8 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       linked: internetLinked,
       status: status("internet_service", internetLinked),
       expires_at: accountValue(accounts, "internet_service", "expires_at", null),
+      vending_readiness: internetHealth.readiness,
+      provider_health: internetHealth.status,
       ...profileFrom(accounts, "internet_service"),
     },
     generator_recovery: {
@@ -774,6 +1040,8 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       linked: generatorLinked,
       status: status("generator_recovery", generatorLinked),
       last_payment_at: lastPaid("generator_recovery"),
+      vending_readiness: generatorHealth.readiness,
+      provider_health: generatorHealth.status,
       ...profileFrom(accounts, "generator_recovery"),
     },
     solar_battery: {
@@ -784,6 +1052,8 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       linked: solarLinked,
       status: status("solar_battery_service", solarLinked),
       last_payment_at: lastPaid("solar_battery_service"),
+      vending_readiness: solarHealth.readiness,
+      provider_health: solarHealth.status,
       ...profileFrom(accounts, "solar_battery_service"),
     },
     estate_fees: {
@@ -1152,6 +1422,196 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     ok: true,
     balance: nextBalance,
     receipt,
+  });
+}
+
+export async function listServiceAccounts(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const estateId = String(req.query.estate_id || user.estate_id || "").trim();
+  const homeId = String(req.query.home_id || "").trim() || null;
+  const residentId = String(req.query.resident_id || "").trim() || null;
+  if (!estateId) return res.status(400).json({ error: "estate_id is required" });
+
+  try {
+    const canRead = ["admin", "super_admin", "ochiga_admin"].includes(String(user.role || "")) || await assertCanReadEstate(user.id, estateId);
+    if (!canRead) return res.status(403).json({ error: "Insufficient permissions" });
+    const accounts = await listServiceAccountsForScope({ estateId, homeId, residentId });
+    return res.json({
+      ok: true,
+      estate_id: estateId,
+      accounts,
+      summary: {
+        total: accounts.length,
+        ready: accounts.filter((item: any) => item.vending_readiness === "ready").length,
+        pending: accounts.filter((item: any) => item.vending_readiness === "pending").length,
+        issues: accounts.filter((item: any) => item.vending_readiness === "issues" || /failed|warning|blocked|issue/.test(String(item.status || ""))).length,
+      },
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to load service accounts" });
+  }
+}
+
+export async function listMyServiceAccounts(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const estateId = String(req.query.estate_id || user.estate_id || "").trim();
+  const homeId = String(req.query.home_id || user.home_id || "").trim() || null;
+  if (!estateId) return res.status(400).json({ error: "No estate linked to this account" });
+
+  try {
+    const accounts = await listServiceAccountsForScope({ estateId, homeId, residentId: String(user.id) });
+    return res.json({ ok: true, estate_id: estateId, home_id: homeId, accounts });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to load resident service accounts" });
+  }
+}
+
+export async function createServiceTransaction(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const serviceKey = String(req.body?.service_key || "").trim() as ServiceKey;
+  if (!VALID_SERVICE_KEYS.has(serviceKey)) return res.status(400).json({ error: "Invalid service_key" });
+
+  const amount = req.body?.amount == null || req.body?.amount === "" ? 0 : Number(req.body.amount);
+  if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ error: "Amount must be zero or greater" });
+
+  const transactionType = String(req.body?.transaction_type || transactionTypeForService(serviceKey)).trim() as ServiceTransactionType;
+  const accountRef = String(req.body?.account_ref || "").trim();
+  const notes = String(req.body?.notes || "").trim() || null;
+
+  const home = await resolveHomeForUser(user, {
+    homeId: String(req.body?.home_id || "").trim() || null,
+    estateId: String(req.body?.estate_id || "").trim() || null,
+  });
+  if (!home?.id) return res.status(400).json({ error: "No home linked to this account" });
+
+  const estateId = String(home.estate_id || user.estate_id || "").trim();
+  if (!estateId) return res.status(400).json({ error: "No estate linked to this service account" });
+
+  const accounts = await listServiceAccountsForScope({ estateId, homeId: String(home.id), residentId: String(user.id) });
+  const account = accounts.find((item: any) => item.service_key === serviceKey);
+  if (!account) return res.status(404).json({ error: "Provisioned service account not found for this home" });
+  if (accountRef && account.identifier && accountRef !== account.identifier) {
+    return res.status(400).json({ error: "Account reference mismatch for this service" });
+  }
+
+  const provider = getInfrastructureServiceProvider(serviceKey as ProviderServiceKey);
+  const execution = await provider.execute({
+    provider: account.provider,
+    accountRef: account.identifier,
+    amount,
+    serviceKey,
+    transactionType,
+    metadata: { notes },
+  });
+
+  const status: ServiceTransactionStatus =
+    execution.status === "pending_provider"
+      ? "pending_provider"
+      : execution.status === "manual_review"
+      ? "manual_review"
+      : "unsupported";
+
+  const transaction = await insertServiceTransactionRecord({
+    estateId,
+    homeId: String(home.id),
+    residentId: String(user.id),
+    serviceAccountId: String(account.id),
+    serviceKey,
+    provider: account.provider,
+    amount,
+    currency: "NGN",
+    status,
+    transactionType,
+    settlementStatus: execution.settlementStatus,
+    providerReference: execution.providerReference,
+    metadata: {
+      account_ref: account.identifier,
+      notes,
+      requested_from: "consumer_services",
+      provider_reason: execution.reason,
+      service_title: account.service_title,
+    },
+  });
+
+  await emitServiceRegistryEvent({
+    event: "service.transaction.initiated",
+    estate_id: estateId,
+    home_id: String(home.id),
+    service_key: serviceKey,
+    user_id: String(user.id),
+    actor_id: String(user.id),
+    payload: { transaction_id: transaction.id, transaction_type: transactionType, status, amount, provider_reference: execution.providerReference },
+  });
+  await emitInfrastructureServiceSignal({
+    type: "service.transaction.initiated",
+    estateId,
+    homeId: String(home.id),
+    userId: String(user.id),
+    actorId: String(user.id),
+    serviceKey,
+    source: "user",
+    metadata: { transaction_id: transaction.id, transaction_type: transactionType, status, amount },
+  });
+
+  if (transactionType === "issue_report") {
+    await emitServiceRegistryEvent({
+      event: "service.issue.reported",
+      estate_id: estateId,
+      home_id: String(home.id),
+      service_key: serviceKey,
+      user_id: String(user.id),
+      actor_id: String(user.id),
+      payload: { transaction_id: transaction.id, notes, status },
+    });
+    await emitInfrastructureServiceSignal({
+      type: "service.issue.reported",
+      estateId,
+      homeId: String(home.id),
+      userId: String(user.id),
+      actorId: String(user.id),
+      serviceKey,
+      source: "user",
+      metadata: { transaction_id: transaction.id, notes, status },
+    });
+  }
+
+  if (status === "unsupported") {
+    await emitServiceRegistryEvent({
+      event: "service.transaction.failed",
+      estate_id: estateId,
+      home_id: String(home.id),
+      service_key: serviceKey,
+      user_id: String(user.id),
+      actor_id: String(user.id),
+      payload: { transaction_id: transaction.id, reason: execution.reason, status },
+    });
+    await emitInfrastructureServiceSignal({
+      type: "service.transaction.failed",
+      estateId,
+      homeId: String(home.id),
+      userId: String(user.id),
+      actorId: String(user.id),
+      serviceKey,
+      source: "user",
+      metadata: { transaction_id: transaction.id, reason: execution.reason, status },
+    });
+  }
+
+  return res.status(202).json({
+    ok: true,
+    transaction,
+    provider: {
+      type: provider.key,
+      label: provider.label,
+      execution,
+    },
+    message: execution.reason,
   });
 }
 
