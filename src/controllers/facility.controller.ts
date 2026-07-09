@@ -6,6 +6,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { hasPermission } from "../core/foundation";
 import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
+import { provisionHomeServices } from "../services/homeServiceProvisioning";
 
 // ---------------------------
 // Helpers
@@ -257,6 +258,7 @@ export async function createHome(req: any, res: Response) {
       gate_code,
       lat,
       lng,
+      service_bindings,
     } = req.body;
 
     if (!estate_id || !name) {
@@ -284,19 +286,26 @@ export async function createHome(req: any, res: Response) {
       lng: lng ?? null,
     });
 
-    // ✅ IMPORTANT: do NOT write estate_id into home_memberships (it doesn't exist)
-    if (resident_id) {
-      const { error: hmErr } = await supabaseAdmin.from("home_memberships").upsert(
-        {
-          home_id: home.id,
-          user_id: resident_id,
-          role: "owner",
-          status: "active",
+    let provisionedKeys: string[] = [];
+    try {
+      const provisioned = await provisionHomeServices({
+        estateId: String(estate_id),
+        homeId: String(home.id),
+        residentId: resident_id ? String(resident_id) : null,
+        actorId: String(req.user.id),
+        homeRecord: {
+          electricity_meter: electricity_meter || null,
+          water_meter: water_meter || null,
+          internet_id: internet_id || null,
         },
-        { onConflict: "home_id,user_id" }
-      );
-      if (hmErr) return res.status(500).json({ error: hmErr.message });
+        serviceBindings: service_bindings || null,
+      });
+      provisionedKeys = provisioned.provisionedKeys;
+    } catch (provisionError: any) {
+      return res.status(500).json({ error: provisionError?.message || "Failed to provision home services" });
+    }
 
+    if (resident_id) {
       try {
         const { data: estate } = await supabaseAdmin
           .from("estates")
@@ -332,9 +341,9 @@ export async function createHome(req: any, res: Response) {
       home_id: String(home.id),
       user_id: resident_id ? String(resident_id) : null,
       actor_id: String(req.user.id),
-      payload: { reason: "home_created" },
+      payload: { reason: "home_created", provisioned_keys: provisionedKeys },
     });
-    if (electricity_meter || water_meter || internet_id) {
+    if (electricity_meter || water_meter || internet_id || provisionedKeys.length) {
       await emitServiceRegistryEvent({
         event: "home.utility_account.updated",
         estate_id,
@@ -345,6 +354,7 @@ export async function createHome(req: any, res: Response) {
           electricity_meter: Boolean(electricity_meter),
           water_meter: Boolean(water_meter),
           internet_id: Boolean(internet_id),
+          provisioned_keys: provisionedKeys,
         },
       });
     }
@@ -374,13 +384,14 @@ export async function updateHome(req: any, res: Response) {
       lat,
       lng,
       resident_id,
+      service_bindings,
     } = req.body || {};
 
     if (!homeId) return res.status(400).json({ error: "homeId is required" });
 
     const { data: existing, error: existingErr } = await supabaseAdmin
       .from("homes")
-      .select("id, estate_id")
+      .select("id, estate_id, electricity_meter, water_meter, internet_id, resident_id")
       .eq("id", homeId)
       .maybeSingle();
 
@@ -410,14 +421,39 @@ export async function updateHome(req: any, res: Response) {
 
     const home = await updateWithSchemaFallback<any>("homes", { id: homeId }, patch);
 
-    const utilityChanged = electricity_meter !== undefined || water_meter !== undefined || internet_id !== undefined;
+    let provisionedKeys: string[] = [];
+    try {
+      const provisioned = await provisionHomeServices({
+        estateId: String(existing.estate_id),
+        homeId: String(homeId),
+        residentId:
+          resident_id === undefined
+            ? String(home?.resident_id || "") || null
+            : resident_id
+            ? String(resident_id)
+            : null,
+        actorId: String(req.user.id),
+        homeRecord: {
+          electricity_meter: home?.electricity_meter ?? existing?.electricity_meter ?? null,
+          water_meter: home?.water_meter ?? existing?.water_meter ?? null,
+          internet_id: home?.internet_id ?? existing?.internet_id ?? null,
+        },
+        serviceBindings: service_bindings || null,
+      });
+      provisionedKeys = provisioned.provisionedKeys;
+    } catch (provisionError: any) {
+      return res.status(500).json({ error: provisionError?.message || "Failed to provision home services" });
+    }
+
+    const utilityChanged =
+      electricity_meter !== undefined || water_meter !== undefined || internet_id !== undefined || service_bindings !== undefined;
     await emitServiceRegistryEvent({
       event: "home.service_registry.updated",
       estate_id: String(existing.estate_id),
       home_id: String(homeId),
       user_id: resident_id === undefined ? String(home?.resident_id || "") || null : resident_id ? String(resident_id) : null,
       actor_id: String(req.user.id),
-      payload: { reason: utilityChanged ? "utility_account_updated" : "home_updated" },
+      payload: { reason: utilityChanged ? "utility_account_updated" : "home_updated", provisioned_keys: provisionedKeys },
     });
     if (utilityChanged) {
       await emitServiceRegistryEvent({
@@ -430,6 +466,7 @@ export async function updateHome(req: any, res: Response) {
           electricity_meter: electricity_meter !== undefined,
           water_meter: water_meter !== undefined,
           internet_id: internet_id !== undefined,
+          provisioned_keys: provisionedKeys,
         },
       });
     }
@@ -478,7 +515,7 @@ async function loadEstateStructure(estateId: string, includeInviteRows = false) 
   const homes = homesResult.data || [];
   const homeIds = homes.map((home: any) => String(home.id)).filter(Boolean);
   const empty = { data: [] as any[], error: null as any };
-  const [memberships, rooms, devices, invites] = homeIds.length
+  const [memberships, rooms, devices, invites, serviceAccounts] = homeIds.length
     ? await Promise.all([
         supabaseAdmin.from("home_memberships").select("id, home_id, user_id, role, status, created_at, updated_at").in("home_id", homeIds),
         supabaseAdmin.from("rooms").select("id, home_id, name, type, floor, created_at").in("home_id", homeIds),
@@ -488,14 +525,19 @@ async function loadEstateStructure(estateId: string, includeInviteRows = false) 
           .select("id, home_id, invited_email, role, status, expires_at, delivery_status, last_sent_at, claimed_at, revoked_at, created_at")
           .eq("estate_id", estateId)
           .order("created_at", { ascending: false }),
+        supabaseAdmin
+          .from("home_service_accounts")
+          .select("home_id, service_key, provider, account_ref, meter_id, plan, status, linked, metadata")
+          .in("home_id", homeIds),
       ])
-    : [empty, empty, empty, empty];
+    : [empty, empty, empty, empty, empty];
 
   const rows = {
     memberships: memberships.error ? [] : memberships.data || [],
     rooms: rooms.error ? [] : rooms.data || [],
     devices: devices.error ? [] : devices.data || [],
     invites: invites.error ? [] : invites.data || [],
+    serviceAccounts: serviceAccounts.error ? [] : serviceAccounts.data || [],
   };
   const sources = {
     homes: "available",
@@ -503,6 +545,7 @@ async function loadEstateStructure(estateId: string, includeInviteRows = false) 
     rooms: rooms.error ? "pending_source" : "available",
     devices: devices.error ? "pending_source" : "available",
     invites: invites.error ? "pending_source" : "available",
+    service_accounts: serviceAccounts.error ? "pending_source" : "available",
   };
   const byHome = (items: any[], homeId: string) => items.filter((item) => String(item.home_id || "") === homeId);
   const enrichedHomes = homes.map((home: any) => {
@@ -511,9 +554,25 @@ async function loadEstateStructure(estateId: string, includeInviteRows = false) 
     const homeRooms = byHome(rows.rooms, id);
     const homeDevices = byHome(rows.devices, id);
     const homeInvites = byHome(rows.invites, id);
+    const homeServiceAccounts = byHome(rows.serviceAccounts, id);
     const activeMembers = homeMembers.filter((item) => String(item.status || "").toLowerCase() === "active");
     const invitedMembers = homeMembers.filter((item) => String(item.status || "").toLowerCase() === "invited");
     const suspendedMembers = homeMembers.filter((item) => ["disabled", "suspended"].includes(String(item.status || "").toLowerCase()));
+    const serviceBindings = homeServiceAccounts.reduce((acc: Record<string, any>, item: any) => {
+      acc[String(item.service_key || "")] = {
+        provider: item.provider || null,
+        account_ref: item.account_ref || null,
+        meter_id: item.meter_id || null,
+        plan: item.plan || null,
+        status: item.status || null,
+        linked: item.linked === true,
+        tariff_profile: item.metadata?.tariff_profile || null,
+        billing_profile: item.metadata?.billing_profile || null,
+        kct: item.metadata?.kct || null,
+        kctn: item.metadata?.kctn || null,
+      };
+      return acc;
+    }, {});
     return {
       ...home,
       room_count: homeRooms.length,
@@ -525,6 +584,7 @@ async function loadEstateStructure(estateId: string, includeInviteRows = false) 
       pending_invite_count: homeInvites.filter((item) => inviteLifecycleStatus(item) === "pending").length,
       expired_invite_count: homeInvites.filter((item) => inviteLifecycleStatus(item) === "expired").length,
       occupancy_status: activeMembers.length ? "occupied" : invitedMembers.length ? "pending_activation" : "vacant",
+      service_bindings: serviceBindings,
     };
   });
   const activeMemberships = rows.memberships.filter((item) => String(item.status || "").toLowerCase() === "active");

@@ -10,16 +10,22 @@ import { publishSourceIntelligenceEvent } from "../intelligence-core";
 type ServiceKey =
   | "utility_token"
   | "water_service"
+  | "gas_service"
   | "internet_service"
   | "fiber_internet"
+  | "generator_recovery"
+  | "solar_battery_service"
   | "service_charge"
   | "other_facility_fees";
 
 const VALID_SERVICE_KEYS = new Set<ServiceKey>([
   "utility_token",
   "water_service",
+  "gas_service",
   "internet_service",
   "fiber_internet",
+  "generator_recovery",
+  "solar_battery_service",
   "service_charge",
   "other_facility_fees",
 ]);
@@ -27,8 +33,11 @@ const VALID_SERVICE_KEYS = new Set<ServiceKey>([
 const SERVICE_TX_TYPE: Record<ServiceKey, string> = {
   utility_token: "power",
   water_service: "water",
+  gas_service: "gas",
   internet_service: "internet",
   fiber_internet: "internet",
+  generator_recovery: "power",
+  solar_battery_service: "power",
   service_charge: "service_charge",
   other_facility_fees: "service_charge",
 };
@@ -69,6 +78,17 @@ const SERVICE_CONFIG_DEFAULTS: Record<
     unit_name: "m3",
     billing_mode: "metered",
   },
+  gas_service: {
+    title: "Gas Service",
+    description: "Gas refill, piped gas recovery, and household gas settlements",
+    suggested_amount: 10000,
+    account_label: "Gas Account",
+    account_hint: "Linked from the assigned home gas service record",
+    active: true,
+    unit_cost: null,
+    unit_name: "kg",
+    billing_mode: "metered",
+  },
   internet_service: {
     title: "Fiber Internet Service",
     description: "Data bundles and monthly fiber internet renewals",
@@ -87,6 +107,28 @@ const SERVICE_CONFIG_DEFAULTS: Record<
     account_label: "Fiber Account",
     account_hint: "Uses the linked home internet ID",
     active: false,
+    unit_cost: null,
+    unit_name: "plan",
+    billing_mode: "fixed",
+  },
+  generator_recovery: {
+    title: "Generator Recovery",
+    description: "Backup generator recovery, diesel recovery, and outage continuity costs",
+    suggested_amount: 7500,
+    account_label: "Recovery Account",
+    account_hint: "Linked from the home recovery profile",
+    active: true,
+    unit_cost: null,
+    unit_name: "cycle",
+    billing_mode: "fixed",
+  },
+  solar_battery_service: {
+    title: "Solar / Battery Service",
+    description: "Solar, inverter, and battery continuity service profile",
+    suggested_amount: 12000,
+    account_label: "Energy Backup Profile",
+    account_hint: "Linked from the home solar or battery profile",
+    active: true,
     unit_cost: null,
     unit_name: "plan",
     billing_mode: "fixed",
@@ -198,6 +240,7 @@ function normalizeServiceConfig(
     unit_cost: row?.unit_cost == null ? fallback.unit_cost : Number(row.unit_cost),
     unit_name: row?.unit_name == null ? fallback.unit_name : String(row.unit_name || ""),
     billing_mode: (row?.billing_mode as any) || fallback.billing_mode,
+    metadata: row?.metadata && typeof row.metadata === "object" ? row.metadata : {},
     created_at: row?.created_at,
     updated_at: row?.updated_at,
   };
@@ -208,6 +251,7 @@ async function readServiceConfigsForEstate(estateId: string) {
     .from("estate_service_configs")
     .select(
       "estate_id, service_key, title, description, suggested_amount, currency, active, account_label, account_hint, payment_mode, unit_cost, unit_name, billing_mode, created_at, updated_at"
+      + ", metadata"
     )
     .eq("estate_id", estateId);
 
@@ -217,6 +261,7 @@ async function readServiceConfigsForEstate(estateId: string) {
         .from("estate_service_configs")
         .select(
           "estate_id, service_key, title, description, suggested_amount, currency, active, account_label, account_hint, payment_mode, created_at, updated_at"
+          + ", metadata"
         )
         .eq("estate_id", estateId);
       data = legacy.data as any;
@@ -588,8 +633,19 @@ function providerFulfillmentStatus(serviceKey: ServiceKey) {
 
 function serviceStatusFrom(enabled: boolean, linked: boolean, serviceKey: ServiceKey) {
   if (!enabled) return "unavailable";
-  if (!linked && ["utility_token", "water_service", "internet_service", "fiber_internet"].includes(serviceKey)) return "setup_needed";
+  if (!linked && ["utility_token", "water_service", "gas_service", "internet_service", "fiber_internet", "generator_recovery", "solar_battery_service"].includes(serviceKey)) return "setup_needed";
   return providerFulfillmentStatus(serviceKey) === "manual_review" && serviceKey !== "service_charge" ? "available" : "active";
+}
+
+function profileFrom(accounts: Map<string, any>, serviceKey: ServiceKey) {
+  const metadata = accountValue(accounts, serviceKey, "metadata", {}) || {};
+  return {
+    tariff_profile: metadata?.tariff_profile || null,
+    billing_profile: metadata?.billing_profile || null,
+    kct: metadata?.kct || null,
+    kctn: metadata?.kctn || null,
+    provider_integration_mode: metadata?.provider_integration_mode || null,
+  };
 }
 
 async function findLastServicePayments(walletId: string) {
@@ -654,7 +710,10 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
 
   const electricityLinked = linked("utility_token", Boolean(home.electricity_meter));
   const waterLinked = linked("water_service", Boolean(home.water_meter));
+  const gasLinked = linked("gas_service", Boolean(accountValue(accounts, "gas_service", "account_ref", null) || accountValue(accounts, "gas_service", "meter_id", null)));
   const internetLinked = linked("internet_service", Boolean(home.internet_id));
+  const generatorLinked = linked("generator_recovery", Boolean(accountValue(accounts, "generator_recovery", "account_ref", null)));
+  const solarLinked = linked("solar_battery_service", Boolean(accountValue(accounts, "solar_battery_service", "account_ref", null)));
   const serviceChargeEnabled = configEnabled("service_charge");
   const facilityEnabled = configEnabled("other_facility_fees");
 
@@ -675,14 +734,28 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       status: status("utility_token", electricityLinked),
       balance: accountValue(accounts, "utility_token", "balance", null),
       last_payment_at: lastPaid("utility_token"),
+      ...profileFrom(accounts, "utility_token"),
     },
     water: {
       enabled: configEnabled("water_service"),
       meter_id: String(accountValue(accounts, "water_service", "meter_id", home.water_meter || "") || ""),
+      provider: accountValue(accounts, "water_service", "provider", configByKey.get("water_service")?.metadata?.provider || null),
       linked: waterLinked,
       status: status("water_service", waterLinked),
       balance: accountValue(accounts, "water_service", "balance", null),
       last_payment_at: lastPaid("water_service"),
+      ...profileFrom(accounts, "water_service"),
+    },
+    gas: {
+      enabled: configEnabled("gas_service"),
+      meter_id: String(accountValue(accounts, "gas_service", "meter_id", "") || ""),
+      account_id: String(accountValue(accounts, "gas_service", "account_ref", "") || ""),
+      provider: accountValue(accounts, "gas_service", "provider", configByKey.get("gas_service")?.metadata?.provider || null),
+      linked: gasLinked,
+      status: status("gas_service", gasLinked),
+      balance: accountValue(accounts, "gas_service", "balance", null),
+      last_payment_at: lastPaid("gas_service"),
+      ...profileFrom(accounts, "gas_service"),
     },
     internet: {
       enabled: configEnabled("internet_service") || configEnabled("fiber_internet"),
@@ -692,6 +765,26 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       linked: internetLinked,
       status: status("internet_service", internetLinked),
       expires_at: accountValue(accounts, "internet_service", "expires_at", null),
+      ...profileFrom(accounts, "internet_service"),
+    },
+    generator_recovery: {
+      enabled: configEnabled("generator_recovery"),
+      provider: accountValue(accounts, "generator_recovery", "provider", configByKey.get("generator_recovery")?.metadata?.provider || null),
+      account_id: String(accountValue(accounts, "generator_recovery", "account_ref", "") || ""),
+      linked: generatorLinked,
+      status: status("generator_recovery", generatorLinked),
+      last_payment_at: lastPaid("generator_recovery"),
+      ...profileFrom(accounts, "generator_recovery"),
+    },
+    solar_battery: {
+      enabled: configEnabled("solar_battery_service"),
+      provider: accountValue(accounts, "solar_battery_service", "provider", configByKey.get("solar_battery_service")?.metadata?.provider || null),
+      plan: accountValue(accounts, "solar_battery_service", "plan", null),
+      account_id: String(accountValue(accounts, "solar_battery_service", "account_ref", "") || ""),
+      linked: solarLinked,
+      status: status("solar_battery_service", solarLinked),
+      last_payment_at: lastPaid("solar_battery_service"),
+      ...profileFrom(accounts, "solar_battery_service"),
     },
     estate_fees: {
       enabled: serviceChargeEnabled,
@@ -788,6 +881,7 @@ export async function upsertServiceConfig(req: Request, res: Response) {
     unit_cost: req.body?.unit_cost == null || req.body?.unit_cost === "" ? null : Number(req.body.unit_cost),
     unit_name: String(req.body?.unit_name || fallback.unit_name || "").trim() || null,
     billing_mode: String(req.body?.billing_mode || fallback.billing_mode).trim() as any,
+    metadata: req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : null,
     updated_at: new Date().toISOString(),
   };
 
@@ -802,7 +896,7 @@ export async function upsertServiceConfig(req: Request, res: Response) {
     .from("estate_service_configs")
     .upsert(payload, { onConflict: "estate_id,service_key" })
     .select(
-      "estate_id, service_key, title, description, suggested_amount, currency, active, account_label, account_hint, payment_mode, unit_cost, unit_name, billing_mode, created_at, updated_at"
+      "estate_id, service_key, title, description, suggested_amount, currency, active, account_label, account_hint, payment_mode, unit_cost, unit_name, billing_mode, metadata, created_at, updated_at"
     )
     .single();
 
@@ -854,7 +948,11 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   const home = await resolveHomeForUser(user);
   if (!home?.id) return res.status(400).json({ error: "No home linked to this account" });
 
-  const expectedRef = expectedAccountRef(serviceKey, home);
+  const accounts = await readHomeServiceAccounts(String(home.id)).catch(() => new Map<string, any>());
+  const expectedRef =
+    String(accountValue(accounts, serviceKey, "account_ref", "") || "") ||
+    String(accountValue(accounts, serviceKey, "meter_id", "") || "") ||
+    expectedAccountRef(serviceKey, home);
   if (!expectedRef) {
     return res.status(400).json({ error: "Service account is not linked for this home" });
   }
