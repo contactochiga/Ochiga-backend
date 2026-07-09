@@ -1087,7 +1087,7 @@ async function summarizeModuleTool(actor: AuthUser, prompt: string, args: Record
       ...configs.rows.map((row: any) => moduleEntity("service", row, "estate_service_configs", row.title || row.service_key || "Service", { service_key: row.service_key || null })),
       ...assignments.rows.map((row: any) => moduleEntity("service", row, "home_service_assignments", row.title || row.service_key || "Service", { service_key: row.service_key || null, assigned_by: row.assigned_by || null })),
     ];
-    label = module === "utilities" ? "utility services" : "services";
+    label = module === "utilities" ? "infrastructure services" : "services";
   } else if (module === "notifications") {
     result = await selectRows("notifications", (q) => q.select("*").eq("user_id", actor.id).order("created_at", { ascending: false }).limit(50));
     entities = result.rows.map((row: any) => moduleEntity("notification", row, "notifications", "Notification"));

@@ -143,7 +143,7 @@ const ROUTES: Record<string, Record<string, string>> = {
     security: "/security-access",
     camera: "/cameras",
     community: "/community",
-    utilities: "/utilities",
+    utilities: "/services",
     wallet: "/wallets",
     workflow: "/facility-intelligence",
     calm: "/overview",
@@ -876,7 +876,7 @@ function awarenessDomainCopy(surface: OyiSurface, domain: AwarenessDomain, count
       action: "Review the camera event and confirm stream health.",
     },
     utilities: {
-      headline: facility ? "Utility services need review." : "Service status needs review.",
+      headline: facility ? "Infrastructure services need review." : "Service status needs review.",
       summary: `${count} utility ${plural} may affect service continuity.`,
       action: "Review the affected utility service.",
     },
@@ -1201,7 +1201,7 @@ function buildSuggestedActions(surface: OyiSurface, message: string, awareness: 
   if (/visitor|access|gate/.test(lower)) add("Review visitor access.", domainRoute(surface, "visitors"), "read");
   if (/device|infrastructure|offline|health/.test(lower)) add("Check infrastructure health.", domainRoute(surface, surface === "facility" ? "infrastructure" : "devices"), "read");
   if (/camera|security|cctv/.test(lower)) add("Review security activity.", domainRoute(surface, "security"), "read");
-  if (/utility|service|wallet|payment|water|electric|internet/.test(lower)) add("Review utility or payment status.", domainRoute(surface, "utilities"), "read");
+  if (/utility|service|wallet|payment|water|electric|internet/.test(lower)) add("Review infrastructure services or payment status.", domainRoute(surface, "utilities"), "read");
   return Array.from(actions.values()).slice(0, 6);
 }
 
@@ -1285,7 +1285,7 @@ const DOMAIN_INTENTS: DomainIntent[] = [
   { key: "activity", surfaces: ["consumer", "facility"], phrases: /activity|timeline|recent activity|who did what/i, intent: "investigation", tool_id: "summarize_module", label: "activity", unavailable: "I don’t have activity records available in this context yet." },
   { key: "notifications", surfaces: ["consumer", "facility"], phrases: /notification|notifications|alert|alerts/i, intent: "notification_operation", tool_id: "summarize_module", label: "notifications", unavailable: "There are no notifications available in this context." },
   { key: "security", surfaces: ["consumer", "facility"], phrases: /security|incident|incidents|alarm|gate|door|access control/i, intent: "investigation", tool_id: "summarize_module", label: "security activity", unavailable: "I don’t have security records available in this chat context yet." },
-  { key: "utilities", surfaces: ["consumer", "facility"], phrases: /utility|utilities|water|electricity|electric|meter|power|generator/i, intent: "service_operation", tool_id: "summarize_module", label: "utility information", unavailable: "I don’t have utility records available in this chat context yet." },
+  { key: "utilities", surfaces: ["consumer", "facility"], phrases: /utility|utilities|water|electricity|electric|meter|power|generator/i, intent: "service_operation", tool_id: "summarize_module", label: "infrastructure services information", unavailable: "I don’t have infrastructure service records available in this chat context yet." },
   { key: "profile", surfaces: ["consumer"], phrases: /profile|home context|my home|household/i, intent: "general_help", tool_id: "summarize_module", label: "home context", unavailable: "I don’t have additional home profile records available in this chat context yet." },
   { key: "cameras", surfaces: ["facility"], phrases: /camera|cameras|cctv|camera event/i, intent: "device_status", tool_id: "summarize_module", label: "camera events", unavailable: "There are no camera events currently visible." },
   { key: "infrastructure", surfaces: ["facility"], phrases: /infrastructure|runtime|edge node|stream health/i, intent: "device_status", tool_id: "summarize_devices", label: "infrastructure records", unavailable: "I don’t have infrastructure records available in this chat context yet." },
@@ -1366,7 +1366,7 @@ function understoodText(surface: OyiSurface, intent: OyiIntentCategory) {
     visitor_operation: "I’ll review the relevant visitor activity.",
     maintenance_operation: "I’ll review the maintenance situation.",
     wallet_operation: "I’ll review the available wallet and payment information.",
-    service_operation: "I’ll review the available service and utility information.",
+    service_operation: "I’ll review the available infrastructure service information.",
     community_operation: "I’ll review the available community activity.",
     notification_operation: "I’ll review the relevant notifications.",
     report_generation: "I’ll prepare a summary from the available operational records.",
@@ -1404,7 +1404,7 @@ function operatingSuggestedActions(surface: OyiSurface, intent: OyiIntentCategor
   if (intent === "visitor_operation") rows.push(action("Review visitor access", routes.visitors));
   if (intent === "maintenance_operation") rows.push(action("Review maintenance queue", routes.maintenance));
   if (intent === "wallet_operation") rows.push(action("Review wallet", routes.wallet));
-  if (intent === "service_operation") rows.push(action(surface === "facility" ? "Review utilities" : "Review services", routes.utilities));
+  if (intent === "service_operation") rows.push(action(surface === "facility" ? "Review infrastructure services" : "Review services", routes.utilities));
   if (intent === "community_operation") rows.push(action("Review community", routes.community));
   if (intent === "report_generation") rows.push(action(surface === "facility" ? "Open reports" : "Open activity", surface === "facility" ? "/reports" : "/activity"));
   if (intent === "capability_query") {
@@ -1526,7 +1526,7 @@ function operationalConversationMessage(surface: OyiSurface, intent: OyiIntentCa
     if (topic === "device") return surface === "facility"
       ? "I could not find registered infrastructure devices for this facility context."
       : "I could not find registered devices for this home context.";
-    if (domainKey === "utilities") return "There are currently no utility issues to show.";
+    if (domainKey === "utilities") return "There are currently no infrastructure service issues to show.";
     if (topic === "camera") return "I could not find registered cameras for this facility context.";
     if (topic === "activity") return "There is currently no activity available in this context.";
     if (topic === "service") return "There are currently no service issues to show.";
@@ -1554,7 +1554,7 @@ function operationalConversationMessage(surface: OyiSurface, intent: OyiIntentCa
     if (topic === "visitor") return "There are currently no visitor requests awaiting approval.";
   }
   const label = domainKey === "utilities"
-    ? relevant.length === 1 ? "utility issue" : "utility issues"
+    ? relevant.length === 1 ? "infrastructure service issue" : "infrastructure service issues"
     : topic === "maintenance" && maintenanceMode === "history"
       ? relevant.length === 1 ? "completed maintenance record" : "completed maintenance records"
       : topicLabel(topic, relevant.length !== 1);

@@ -3,6 +3,8 @@ import { requireAuth, requirePermission } from "../middleware/auth";
 import {
   createServiceTransaction,
   getHomeServiceRegistry,
+  listEstateServiceTransactions,
+  listServiceRegistryEvents,
   listMyServiceAccounts,
   listServiceAccounts,
   listEstateServicePayments,
@@ -21,6 +23,8 @@ router.get("/config", requireAuth, requirePermission("services.read"), listServi
 router.patch("/config/:serviceKey", requireAuth, requirePermission("services.manage"), upsertServiceConfig);
 router.post("/pay", requireAuth, requirePermission("services.pay"), payServiceFromWallet);
 router.post("/transactions", requireAuth, requirePermission("services.pay"), createServiceTransaction);
+router.get("/estate/transactions", requireAuth, requirePermission("services.read"), listEstateServiceTransactions);
+router.get("/events", requireAuth, requirePermission("services.read"), listServiceRegistryEvents);
 router.get("/payments", requireAuth, requirePermission("wallets.read"), listServicePayments);
 router.get("/estate/payments", requireAuth, requirePermission("wallets.read"), listEstateServicePayments);
 

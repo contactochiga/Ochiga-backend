@@ -1634,6 +1634,77 @@ export async function listEstateServicePayments(req: Request, res: Response) {
   }
 }
 
+export async function listEstateServiceTransactions(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const estateId = String(req.query.estate_id || user.estate_id || "").trim();
+  const limit = Math.min(200, Math.max(1, Number(req.query.limit || 50)));
+  if (!estateId) return res.status(400).json({ error: "estate_id is required" });
+
+  try {
+    const canManage = user.role === "admin" ? true : await assertCanManageEstate(user.id, estateId);
+    if (!canManage) return res.status(403).json({ error: "Insufficient permissions" });
+
+    const { data, error } = await supabaseAdmin
+      .from("service_transactions")
+      .select("id, estate_id, home_id, resident_id, user_id, service_account_id, service_type, service_key, provider, amount, currency, status, transaction_type, settlement_status, provider_reference, metadata, created_at, updated_at")
+      .eq("estate_id", estateId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      if (tableMissing(error)) return res.json({ ok: true, transactions: [], summary: { pending: 0, completed: 0, failed: 0, manual_review: 0, unsupported: 0 } });
+      return res.status(500).json({ error: error.message });
+    }
+
+    const rows = data || [];
+    return res.json({
+      ok: true,
+      transactions: rows,
+      summary: {
+        pending: rows.filter((row: any) => ["pending", "pending_provider"].includes(String(row.status))).length,
+        completed: rows.filter((row: any) => String(row.status) === "completed").length,
+        failed: rows.filter((row: any) => String(row.status) === "failed").length,
+        manual_review: rows.filter((row: any) => String(row.status) === "manual_review").length,
+        unsupported: rows.filter((row: any) => String(row.status) === "unsupported").length,
+      },
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to load service transactions" });
+  }
+}
+
+export async function listServiceRegistryEvents(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+
+  const estateId = String(req.query.estate_id || user.estate_id || "").trim();
+  const limit = Math.min(200, Math.max(1, Number(req.query.limit || 50)));
+  if (!estateId) return res.status(400).json({ error: "estate_id is required" });
+
+  try {
+    const canRead = ["admin", "super_admin", "ochiga_admin"].includes(String(user.role || "")) || await assertCanReadEstate(user.id, estateId);
+    if (!canRead) return res.status(403).json({ error: "Insufficient permissions" });
+
+    const { data, error } = await supabaseAdmin
+      .from("service_registry_events")
+      .select("id, event_type, estate_id, home_id, service_key, user_id, actor_id, payload, created_at")
+      .eq("estate_id", estateId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      if (tableMissing(error)) return res.json({ ok: true, events: [] });
+      return res.status(500).json({ error: error.message });
+    }
+
+    return res.json({ ok: true, events: data || [] });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Failed to load service events" });
+  }
+}
+
 export async function listServicePayments(req: Request, res: Response) {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
