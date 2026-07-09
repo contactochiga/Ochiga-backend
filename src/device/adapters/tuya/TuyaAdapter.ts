@@ -7,6 +7,7 @@ import { Signal } from "../../../core/control-plane/contracts/signal.types";
 import type { DeviceCategory } from "../types";
 import { operationalMetrics } from "../../../observability/metrics";
 import { providerHealthRegistry } from "../../../observability/providerHealth";
+import { enrichDeviceProviderState } from "../../runtime/deviceStateEnrichment";
 
 // v1.0 users/{uid}/devices response item shape (common fields)
 type TuyaUserDevice = {
@@ -121,6 +122,7 @@ function parseJsonMaybe(v?: string) {
 type DeviceSchema = {
   fetchedAt: number;
   functionsByCode: Record<string, TuyaFunction>;
+  functions: TuyaFunction[];
   switchCodes: string[]; // e.g. ["switch_1","switch_2"] OR ["switch"] OR []
   primaryPowerCode: string | null; // "switch" or "power" or null
 };
@@ -182,6 +184,8 @@ export class TuyaAdapter implements DeviceAdapter {
           model: d.model,
           product_id: d.product_id,
           product_name: d.product_name,
+          device_family: cleanStr(d.category) || "device",
+          control_profile: cleanStr(d.category) || "generic",
           ip: d.ip,
           icon: d.icon,
           owner_id: d.owner_id,
@@ -247,6 +251,8 @@ export class TuyaAdapter implements DeviceAdapter {
         model: d.model,
         product_id: d.product_id,
         product_name: d.product_name,
+        device_family: cleanStr(d.category) || "device",
+        control_profile: cleanStr(d.category) || "generic",
         ip: d.ip,
         icon: d.icon,
         owner_id: d.owner_id,
@@ -318,19 +324,28 @@ export class TuyaAdapter implements DeviceAdapter {
       else state[s.code] = s.value;
     }
 
-    // Add derived helpers that your UI will love
-    // - online: if present as dp, use it; else compute presence
-    // Some Tuya devices include "online" in other endpoint, so keep as optional
     if (!("online" in state)) state.online = true;
-
-    // raw list (debug)
     state.__raw = list;
+    const enriched = enrichDeviceProviderState({
+      state,
+      functions: schema?.functions || [],
+      metadata: {
+        functions: schema?.functions || [],
+        manufacturer: "Tuya",
+      },
+      device: {
+        category: schema?.switchCodes.length ? "switch" : null,
+        type: schema?.primaryPowerCode ? "switch" : null,
+      },
+      provider: "tuya",
+      adapter: "tuya",
+    });
 
-    const packed = { fetchedAt: Date.now(), state };
+    const packed = { fetchedAt: Date.now(), state: enriched };
     this.statusCache.set(deviceId, packed);
     operationalMetrics.increment("oyi_provider_state_reads_total", { provider: "tuya" });
     providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "state_read", wired: true });
-    return state;
+    return enriched;
   }
 
   /* ------------------------------------------------
@@ -375,6 +390,7 @@ export class TuyaAdapter implements DeviceAdapter {
     const schema: DeviceSchema = {
       fetchedAt: Date.now(),
       functionsByCode,
+      functions,
       switchCodes,
       primaryPowerCode,
     };

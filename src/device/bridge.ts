@@ -12,51 +12,13 @@ import { logger } from "../observability/logger";
 import { operationalMetrics } from "../observability/metrics";
 import { providerHealthRegistry } from "../observability/providerHealth";
 import { emitOperationalDeviceSignal, isDuplicateDeviceTransition } from "../services/deviceOperationalSignalService";
+import { diffEnrichedDeviceState, enrichDeviceProviderState, summarizeDeviceFrontendContract } from "./runtime/deviceStateEnrichment";
 
 const MQTT_URL = process.env.MQTT_URL || "";
 const MQTT_USERNAME = process.env.MQTT_USERNAME || undefined;
 const MQTT_PASSWORD = process.env.MQTT_PASSWORD || undefined;
 
 let client: mqtt.MqttClient | null = null;
-
-function isTruthySwitch(status: any) {
-  if (!status || typeof status !== "object") return false;
-  for (const key of ["switch", "power", "on", "running", "enabled"]) {
-    if ((status as any)[key] === true) return true;
-  }
-  if (status.last_command && typeof status.last_command === "object") {
-    return isTruthySwitch(status.last_command);
-  }
-  return Object.entries(status).some(([key, value]) => /^switch(_\d+)?$/i.test(String(key)) && value === true);
-}
-
-function boolValue(value: any): boolean | null {
-  if (value === true || value === false) return value;
-  const text = String(value ?? "").toLowerCase();
-  if (["true", "on", "1", "yes", "active"].includes(text)) return true;
-  if (["false", "off", "0", "no", "inactive"].includes(text)) return false;
-  return null;
-}
-
-function switchSnapshot(status: any) {
-  const out: Record<string, boolean> = {};
-  if (!status || typeof status !== "object") return out;
-  const keys = ["switch", "power", "on", "running", "enabled"];
-  for (const key of keys) {
-    const value = boolValue(status[key]);
-    if (value !== null) out[key] = value;
-  }
-  for (const [key, value] of Object.entries(status)) {
-    if (/^switch(_\d+)?$/i.test(String(key))) {
-      const next = boolValue(value);
-      if (next !== null) out[String(key)] = next;
-    }
-  }
-  if (status.last_command && typeof status.last_command === "object") {
-    Object.assign(out, switchSnapshot(status.last_command));
-  }
-  return out;
-}
 
 type DeviceStateSource = "app" | "physical_switch" | "provider_reported" | "provider_app" | "watch" | "automation" | "scene" | "facility" | "system";
 
@@ -84,46 +46,6 @@ function sourceFromPayload(status: any, topic: string) {
     meta?.control_source ||
     topic
   );
-}
-
-function didMeaningfulStateChange(prev: any, next: any) {
-  const prevSwitches = switchSnapshot(prev);
-  const nextSwitches = switchSnapshot(next);
-  const switchKeys = Array.from(new Set([...Object.keys(prevSwitches), ...Object.keys(nextSwitches)]));
-  for (const key of switchKeys) {
-    if (prevSwitches[key] !== undefined && nextSwitches[key] !== undefined && prevSwitches[key] !== nextSwitches[key]) {
-      return {
-        changed: true,
-        title: nextSwitches[key] ? "Device turned on" : "Device turned off",
-        message: nextSwitches[key] ? "A connected device is now active." : "A connected device is no longer active.",
-        kind: nextSwitches[key] ? "device.state.on" : "device.state.off",
-      };
-    }
-  }
-
-  const prevOn = isTruthySwitch(prev);
-  const nextOn = isTruthySwitch(next);
-  if (prevOn !== nextOn) {
-    return {
-      changed: true,
-      title: nextOn ? "Device turned on" : "Device turned off",
-      message: nextOn ? "A connected device is now active." : "A connected device is no longer active.",
-      kind: nextOn ? "device.state.on" : "device.state.off",
-    };
-  }
-
-  const prevOnline = prev?.online;
-  const nextOnline = next?.online;
-  if (typeof prevOnline === "boolean" && typeof nextOnline === "boolean" && prevOnline !== nextOnline) {
-    return {
-      changed: true,
-      title: nextOnline ? "Device back online" : "Device offline",
-      message: nextOnline ? "A connected device is reporting again." : "A connected device has gone offline.",
-      kind: nextOnline ? "device.state.online" : "device.state.offline",
-    };
-  }
-
-  return { changed: false };
 }
 
 async function shouldPushDeviceStateNotification(args: {
@@ -216,16 +138,6 @@ function scopeValue(...values: any[]) {
     if (text) return text;
   }
   return null;
-}
-
-function flattenForSignalDiff(previousState: any, newState: any) {
-  const prev = previousState && typeof previousState === "object" ? previousState : {};
-  const next = newState && typeof newState === "object" ? newState : {};
-  const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)]));
-  return keys.reduce<Record<string, boolean>>((acc, key) => {
-    if (JSON.stringify((prev as any)[key]) !== JSON.stringify((next as any)[key])) acc[key] = true;
-    return acc;
-  }, {});
 }
 
 async function resolveDeviceForStateEvent(input: {
@@ -339,14 +251,6 @@ export async function initMqttBridge() {
         const status = safeJson(payload);
         const occurredAt = new Date().toISOString();
         const reportedAt = providerReportedAt(status);
-        const persistedStatus = {
-          ...(status && typeof status === "object" ? status : { raw: status }),
-          _oyi_timeline: {
-            received_at: occurredAt,
-            provider_reported_at: reportedAt,
-            source: sourceFromPayload(status, topic),
-          },
-        };
         const eventSource = sourceFromPayload(status, topic);
         const providerEventId = String(status?.provider_event_id || status?.event_id || status?.id || "");
         const device = await resolveDeviceForStateEvent({ ref: incomingDeviceId, estateId });
@@ -372,6 +276,30 @@ export async function initMqttBridge() {
           .eq("device_id", deviceId)
           .maybeSingle();
 
+        const previousStatus = previousState?.status || {};
+        const persistedStatus = enrichDeviceProviderState({
+          state: {
+            ...(status && typeof status === "object" ? status : { raw: status }),
+            _oyi_timeline: {
+              received_at: occurredAt,
+              provider_reported_at: reportedAt,
+              source: eventSource,
+            },
+          },
+          metadata: device?.metadata || {},
+          device: {
+            category: device?.category,
+            type: device?.type,
+            name: device?.name,
+            provider: device?.provider || device?.vendor || "tuya",
+            adapter: device?.adapter || "tuya",
+          },
+          provider: "tuya",
+          adapter: device?.adapter || "tuya",
+        });
+        const change = diffEnrichedDeviceState(previousStatus, persistedStatus);
+        const runtimeSummary = summarizeDeviceFrontendContract(device || {}, { status: persistedStatus, last_seen: occurredAt, updated_at: occurredAt });
+
         // ✅ Persist state
         await supabaseAdmin
           .from("device_states")
@@ -384,15 +312,13 @@ export async function initMqttBridge() {
             { onConflict: "device_id" }
           );
 
-        const previousStatus = previousState?.status || {};
-        const change = didMeaningfulStateChange(previousStatus, status);
         const normalizedEvent = {
           device_id: String(deviceId),
           home_id: String(device?.home_id || ""),
           room_id: String(device?.room_id || ""),
-          event_type: String((change as any).kind || "device.state.reported"),
+          event_type: String(change.event_type || "device.state.reported"),
           previous_state: previousStatus,
-          new_state: status,
+          new_state: persistedStatus,
           source: eventSource,
           actor_id: null,
           occurred_at: occurredAt,
@@ -405,26 +331,31 @@ export async function initMqttBridge() {
             estate_id: String(device?.estate_id || estateId || ""),
             device_name: String(device?.name || ""),
             category: String(device?.category || device?.type || ""),
+            control_profile: runtimeSummary.control_profile,
+            device_family: runtimeSummary.device_family,
+            health_status: runtimeSummary.health_status,
+            primary_state: runtimeSummary.primary_state,
+            telemetry_summary: runtimeSummary.telemetry_summary,
           },
         };
 
         const duplicateTransition = change.changed && device?.id
           ? await isDuplicateDeviceTransition({
               deviceId: String(device.id),
-              eventType: String((change as any).kind || "device.state.changed"),
+              eventType: String(change.event_type || "device.state.changed"),
               source: eventSource,
-              state: status,
+              state: persistedStatus,
               windowMs: 12_000,
             })
           : false;
 
         if (change.changed && device?.id && !duplicateTransition) {
-          const analyticsKind = String((change as any).kind || "device.state.reported");
+          const analyticsKind = String(change.event_type || "device.state.reported");
           const analyticsTitle = analyticsKind.includes("offline")
             ? `${String(device?.name || "Device")} went offline`
             : analyticsKind.includes("online")
               ? `${String(device?.name || "Device")} came back online`
-              : `${String(device?.name || "Device")} ${String((change as any).title || "updated").replace(/^Device /i, "").toLowerCase()}`;
+              : `${String(device?.name || "Device")} ${String(change.title || "updated").replace(/^Device /i, "").toLowerCase()}`;
           void recordDeviceEvent({
             deviceId: String(device.id),
             estateId: device?.estate_id || estateId || null,
@@ -434,16 +365,26 @@ export async function initMqttBridge() {
             actorId: null,
             eventType: analyticsKind,
             previousState: previousStatus,
-            newState: status,
+            newState: persistedStatus,
             source: eventSource,
             confidence: eventSource === "physical_switch" ? "confirmed" : eventSource === "system" ? "unknown" : "probable",
             providerEventId: providerEventId || null,
-            metadata: { topic, incoming_device_id: incomingDeviceId, external_device_id: externalDeviceId, device_name: String(device?.name || ""), category: String(device?.category || device?.type || "") },
+            metadata: {
+              topic,
+              incoming_device_id: incomingDeviceId,
+              external_device_id: externalDeviceId,
+              device_name: String(device?.name || ""),
+              category: String(device?.category || device?.type || ""),
+              control_profile: runtimeSummary.control_profile,
+              device_family: runtimeSummary.device_family,
+              primary_state: runtimeSummary.primary_state,
+              health_status: runtimeSummary.health_status,
+            },
             title: analyticsTitle,
-            summary: `${String(device?.name || "Device")} ${String((change as any).message || "updated.").replace(/^A connected device /i, "")}`,
+            summary: `${String(device?.name || "Device")} ${String(change.message || "updated.").replace(/^A connected device /i, "")}`,
           });
 
-          if (analyticsKind === "device.state.offline" && device?.home_id) {
+          if (analyticsKind === "device.offline" && device?.home_id) {
             const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
             const { data: recentOffline } = await supabaseAdmin
               .from("device_events")
@@ -478,21 +419,21 @@ export async function initMqttBridge() {
               userId,
               homeId: String(device.home_id),
               device,
-              kind: String((change as any).kind || "device.state.changed"),
+              kind: String(change.event_type || "device.state.changed"),
               source: eventSource,
             });
             if (!shouldPush) continue;
             await NotificationService.sendToUser(userId, {
-              title: String((change as any).title || "Device activity"),
-              message: `${String(device?.name || "A device")} ${String((change as any).message || "").toLowerCase()}`,
+              title: String(change.title || "Device activity"),
+              message: `${String(device?.name || "A device")} ${String(change.message || "").toLowerCase()}`,
               type: "device",
               payload: {
                 device_id: String(deviceId),
                 estate_id: String(device?.estate_id || estateId || ""),
                 home_id: String(device?.home_id || ""),
                 room_id: String(device?.room_id || ""),
-                kind: String((change as any).kind || "device.state.changed"),
-                state: status,
+                kind: String(change.event_type || "device.state.changed"),
+                state: persistedStatus,
                 previous_state: previousStatus,
                 source: eventSource,
                 control_source: eventSource,
@@ -506,7 +447,7 @@ export async function initMqttBridge() {
             actorId: null,
             actorEmail: "",
             actorRole: eventSource,
-            action: String((change as any).kind || "device.state.changed"),
+            action: String(change.event_type || "device.state.changed"),
             resourceType: "device",
             resourceId: String(deviceId),
             estateId: String(device?.estate_id || estateId || "") || undefined,
@@ -523,7 +464,7 @@ export async function initMqttBridge() {
           roomId: device?.room_id || null,
           deviceId,
           externalDeviceId,
-          state: status,
+          state: persistedStatus,
           topic,
           source: eventSource,
           providerEventId: providerEventId || null,
@@ -533,11 +474,7 @@ export async function initMqttBridge() {
 
         const signalEventType =
           change.changed
-            ? String((change as any).kind || "device.state.changed")
-                .replace("device.state.on", "device.power.on")
-                .replace("device.state.off", "device.power.off")
-                .replace("device.state.online", "device.online")
-                .replace("device.state.offline", "device.offline")
+            ? String(change.event_type || "device.state.changed")
             : providerEventId || eventSource === "provider_reported" || eventSource === "provider_app"
               ? "device.provider.sync"
               : "device.telemetry.received";
@@ -563,26 +500,22 @@ export async function initMqttBridge() {
             metadata: device?.metadata || {},
           },
           previousState: previousStatus,
-          newState: status,
+          newState: persistedStatus,
           occurredAt,
           telemetrySummary: {
-            changed_keys: Object.keys(flattenForSignalDiff(previousStatus, status)),
-            changed_count: Object.keys(flattenForSignalDiff(previousStatus, status)).length,
-            online: typeof status?.online === "boolean" ? status.online : null,
-            power_state:
-              typeof status?.switch === "boolean"
-                ? status.switch
-                : typeof status?.power === "boolean"
-                  ? status.power
-                  : typeof status?.on === "boolean"
-                    ? status.on
-                    : null,
+            ...(persistedStatus.telemetry_summary || {}),
+            changed_keys: change.changed_keys || [],
+            changed_count: Array.isArray(change.changed_keys) ? change.changed_keys.length : 0,
             provider_reported_at: reportedAt,
           },
           extraMetadata: {
             topic,
             normalized_event: normalizedEvent,
             duplicate_transition: duplicateTransition,
+            primary_state: persistedStatus.primary_state,
+            health_status: persistedStatus.health_status,
+            supported_controls: persistedStatus.supported_controls,
+            capability_codes: persistedStatus.capability_codes,
           },
         });
       } catch (err) {

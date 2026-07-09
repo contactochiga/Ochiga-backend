@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import { buildDeviceTimeline } from "../services/deviceRuntimeService";
+import { enrichDeviceProviderState, summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -66,11 +67,24 @@ export async function getDeviceState(req: any, res: Response) {
 
     if (st?.status) {
       const timeline = buildDeviceTimeline(dev, st);
+      const summary = summarizeDeviceFrontendContract(dev, st);
       return res.json({
         deviceId: st.device_id,
         external_id: dev.external_id,
         vendor: dev.vendor ?? dev.adapter ?? null,
         state: st.status,
+        normalized_state: summary.normalized_state,
+        capabilities: summary.capabilities,
+        supported_controls: summary.supported_controls,
+        control_profile: summary.control_profile,
+        health_status: summary.health_status,
+        provider_health: summary.provider_health,
+        primary_state: summary.primary_state,
+        telemetry_summary: summary.telemetry_summary,
+        device_family: summary.device_family,
+        device_type: summary.device_type,
+        last_signal: summary.last_signal,
+        activity_summary: summary.activity_summary,
         lastSeen: st.last_seen,
         timeline,
         source: "cache",
@@ -145,24 +159,59 @@ export async function getDeviceState(req: any, res: Response) {
     const now = new Date().toISOString();
 
     // 3) ✅ persist latest known state
+    const liveOccurredAt = new Date().toISOString();
+    const enrichedLive = enrichDeviceProviderState({
+      state: {
+        ...live,
+        _oyi_timeline: {
+          received_at: liveOccurredAt,
+          provider_reported_at: null,
+          source: "live_poll",
+        },
+      },
+      metadata: dev?.metadata || {},
+      device: {
+        type: dev?.status || dev?.metadata?.type,
+        category: dev?.metadata?.category,
+        name: dev?.metadata?.name,
+        provider: dev?.vendor || dev?.adapter || "tuya",
+        adapter: dev?.adapter || dev?.vendor || "tuya",
+      },
+      provider: String(dev?.vendor || dev?.adapter || "tuya"),
+      adapter: adapterName,
+    });
     await supabaseAdmin.from("device_states").upsert(
       {
         device_id: dev.id, // store by our internal device UUID
-        status: { ...live, _oyi_timeline: { received_at: now, provider_reported_at: null, source: "live_poll" } }, // jsonb
-        last_seen: now,
+        status: enrichedLive, // jsonb
+        last_seen: liveOccurredAt,
       },
       { onConflict: "device_id" }
     );
 
     // 4) ✅ return live state
+    const timeline = buildDeviceTimeline(dev, { status: enrichedLive, last_seen: liveOccurredAt, updated_at: liveOccurredAt });
+    const summary = summarizeDeviceFrontendContract(dev, { status: enrichedLive, last_seen: liveOccurredAt, updated_at: liveOccurredAt });
     return res.json({
       deviceId: dev.id,
       external_id: dev.external_id,
       vendor: dev.vendor ?? null,
       adapter: adapterName,
-      state: live,
-      lastSeen: now,
-      timeline: buildDeviceTimeline(dev, { status: live, last_seen: now, updated_at: now }),
+      state: enrichedLive,
+      normalized_state: summary.normalized_state,
+      capabilities: summary.capabilities,
+      supported_controls: summary.supported_controls,
+      control_profile: summary.control_profile,
+      health_status: summary.health_status,
+      provider_health: summary.provider_health,
+      primary_state: summary.primary_state,
+      telemetry_summary: summary.telemetry_summary,
+      device_family: summary.device_family,
+      device_type: summary.device_type,
+      last_signal: summary.last_signal,
+      activity_summary: summary.activity_summary,
+      lastSeen: liveOccurredAt,
+      timeline,
       source: "live",
     });
   } catch (err: any) {

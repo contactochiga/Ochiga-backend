@@ -13,6 +13,7 @@ import { type DeviceRuntimeScope, logDeviceCommandDiagnostic, normalizeDeviceOnl
 import { recordDeviceEvent } from "../services/deviceAnalyticsService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { emitOperationalDeviceSignal } from "../services/deviceOperationalSignalService";
+import { enrichDeviceProviderState, summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
 
 function textFromDevice(device: any) {
   return [
@@ -335,22 +336,40 @@ export async function executeDeviceCommandForActor(input: {
       .eq("device_id", deviceRow.id)
       .maybeSingle();
     const previousState = (previousStateRow.data as any)?.status || null;
-    const persistedState = {
-      ...(verifiedState || normalized || {}),
-      last_command: normalized,
-      _oyi_timeline: {
-        received_at: new Date().toISOString(),
-        provider_reported_at: null,
-        source: commandSource,
+    const commandOccurredAt = new Date().toISOString();
+    const persistedState = enrichDeviceProviderState({
+      state: {
+        ...(verifiedState || normalized || {}),
+        last_command: normalized,
+        _oyi_timeline: {
+          received_at: commandOccurredAt,
+          provider_reported_at: null,
+          source: commandSource,
+        },
       },
-    };
+      metadata: deviceRow?.metadata || {},
+      device: {
+        category: deviceRow?.category,
+        type: deviceRow?.type,
+        name: deviceRow?.name,
+        provider: deviceRow?.provider || deviceRow?.vendor || "tuya",
+        adapter: deviceRow?.adapter || deviceRow?.vendor || "tuya",
+      },
+      provider: String(deviceRow?.provider || deviceRow?.vendor || "tuya"),
+      adapter: String(deviceRow?.adapter || deviceRow?.vendor || "tuya"),
+    });
+    const runtimeSummary = summarizeDeviceFrontendContract(deviceRow || {}, {
+      status: persistedState,
+      last_seen: commandOccurredAt,
+      updated_at: commandOccurredAt,
+    });
     await supabaseAdmin
       .from("device_states")
       .upsert(
         {
           device_id: deviceRow.id,
           status: persistedState,
-          last_seen: new Date().toISOString(),
+          last_seen: commandOccurredAt,
         } as any,
         { onConflict: "device_id" } as any
       );
@@ -360,18 +379,21 @@ export async function executeDeviceCommandForActor(input: {
     await NotificationService.sendToUser(String(user.id), {
       title: activityCopy.title,
       message: activityCopy.message,
-      type: "device",
-      payload: {
-        device_id: String(deviceRow.id),
-        external_id: String(deviceRow.external_id || ""),
-        estate_id: String(deviceRow.estate_id || ""),
-        home_id: String(deviceRow.home_id || ""),
-        command: normalized,
-        kind: "device.command.executed",
-        source: commandSource,
-      },
-      entityId: String(deviceRow.id),
-    });
+        type: "device",
+        payload: {
+          device_id: String(deviceRow.id),
+          external_id: String(deviceRow.external_id || ""),
+          estate_id: String(deviceRow.estate_id || ""),
+          home_id: String(deviceRow.home_id || ""),
+          command: normalized,
+          kind: "device.command.executed",
+          source: commandSource,
+          state: persistedState,
+          health_status: runtimeSummary.health_status,
+          primary_state: runtimeSummary.primary_state,
+        },
+        entityId: String(deviceRow.id),
+      });
     void emitAuditEvent({
       actorId: user.id,
       actorEmail: user.email,
@@ -398,7 +420,15 @@ export async function executeDeviceCommandForActor(input: {
       source: commandSource,
       confidence: "confirmed",
       latencyMs: Date.now() - startedAt,
-      metadata: { command: normalized, vendor: deviceRow.vendor, external_id: deviceRow.external_id },
+      metadata: {
+        command: normalized,
+        vendor: deviceRow.vendor,
+        external_id: deviceRow.external_id,
+        control_profile: runtimeSummary.control_profile,
+        device_family: runtimeSummary.device_family,
+        primary_state: runtimeSummary.primary_state,
+        health_status: runtimeSummary.health_status,
+      },
       title: activityCopy.title,
       summary: activityCopy.message,
     });
@@ -431,10 +461,19 @@ export async function executeDeviceCommandForActor(input: {
         name: user.username || user.email || null,
         type: commandSource === "facility" ? "operator" : "resident",
       },
-      occurredAt: new Date().toISOString(),
+      occurredAt: commandOccurredAt,
+      telemetrySummary: {
+        ...(persistedState.telemetry_summary || {}),
+        changed_keys: Object.keys(normalized || {}),
+        changed_count: Object.keys(normalized || {}).length,
+      },
       extraMetadata: {
         request_path: input.req?.path || null,
         latency_ms: Date.now() - startedAt,
+        primary_state: runtimeSummary.primary_state,
+        health_status: runtimeSummary.health_status,
+        supported_controls: runtimeSummary.supported_controls,
+        capability_codes: runtimeSummary.capability_codes,
       },
     });
 
@@ -443,7 +482,7 @@ export async function executeDeviceCommandForActor(input: {
       status: "command_executed",
       device: { id: deviceRow.id, name: deviceRow.name, external_id: deviceRow.external_id, vendor: deviceRow.vendor },
       command: normalized,
-      state: verifiedState,
+      state: persistedState,
     };
   }
 

@@ -2,6 +2,7 @@ import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import { runtimeTraceFields } from "../observability/runtimeContext";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { enrichDeviceProviderState } from "../device/runtime/deviceStateEnrichment";
 
 type DeviceObservedSource =
   | "app"
@@ -216,6 +217,22 @@ function controlProfile(device: DeviceOperationalSignalInput["device"]) {
   return "generic";
 }
 
+function enrichedStateSummary(input: DeviceOperationalSignalInput) {
+  return enrichDeviceProviderState({
+    state: asRecord(input.newState),
+    metadata: asRecord(input.device.metadata),
+    device: {
+      category: input.device.category,
+      type: input.device.type,
+      name: input.device.name,
+      provider: input.device.provider || input.device.vendor || input.provider,
+      adapter: input.device.adapter || input.device.vendor || input.adapter,
+    },
+    provider: input.provider || input.device.provider || input.device.vendor,
+    adapter: input.adapter || input.device.adapter || input.device.vendor,
+  });
+}
+
 async function recentCommandContext(deviceId: string, windowMs = 45_000): Promise<RecentCommandContext> {
   const since = new Date(Date.now() - windowMs).toISOString();
   const { data, error } = await supabaseAdmin
@@ -306,7 +323,12 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
   const adapter = text(input.adapter || input.device.adapter || input.device.vendor || input.provider || "device_adapter");
   const provider = text(input.provider || input.device.provider || input.device.vendor || adapter);
   const externalId = text(input.device.external_id || input.device.metadata?.external_id);
-  const capabilities = deviceCapabilities(input.device);
+  const enrichedState = enrichedStateSummary(input);
+  const capabilities = Array.from(new Set([
+    ...deviceCapabilities(input.device),
+    ...(Array.isArray(enrichedState.capability_codes) ? enrichedState.capability_codes : []),
+  ]));
+  const resolvedControlProfile = text(enrichedState.control_profile) || controlProfile(input.device);
   const runtimeTrace = runtimeTraceFields();
   const signalPayload: any = {
     schemaVersion: SIGNAL_SCHEMA_VERSION,
@@ -363,9 +385,13 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
       changed_keys: telemetry.changed_keys || [],
       command_source: observedSource,
       recent_command: recent ? { event_type: recent.eventType, source: recent.source, occurred_at: recent.occurredAt } : null,
-      control_profile: controlProfile(input.device),
+      control_profile: resolvedControlProfile,
       supported_capabilities: capabilities,
       telemetry_summary: telemetry,
+      primary_state: enrichedState.primary_state,
+      health_status: enrichedState.health_status,
+      supported_controls: enrichedState.supported_controls,
+      device_family: enrichedState.device_family,
       device_runtime: {
         adapter,
         provider,
@@ -384,11 +410,16 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
       device_name: text(input.device.name),
       device_type: text(input.device.type),
       device_category: text(input.device.category),
+      device_family: text(enrichedState.device_family),
       raw_provider_payload: asRecord(input.newState),
       previous_state: asRecord(input.previousState),
       changed_keys: telemetry.changed_keys || [],
-      control_profile: controlProfile(input.device),
+      control_profile: resolvedControlProfile,
       supported_capabilities: capabilities,
+      supported_controls: enrichedState.supported_controls,
+      primary_state: enrichedState.primary_state,
+      health_status: enrichedState.health_status,
+      telemetry_summary: enrichedState.telemetry_summary,
       runtime_trace: runtimeTrace,
       ...asRecord(input.extraMetadata),
     },

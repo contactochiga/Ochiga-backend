@@ -33,6 +33,7 @@
     "smoke:production-readiness": "npm run build && node scripts/production-readiness-smoke.mjs",
     "smoke:provider-health": "npm run build && node scripts/provider-health-smoke.mjs",
     "smoke:oyi-runtime": "npm run build && node scripts/oyi-runtime-smoke.mjs",
+    "smoke:device-runtime": "npm run build && node scripts/device-runtime-adapter-smoke.mjs",
     "smoke:execution-ledger": "npm run build && node scripts/execution-ledger-smoke.mjs",
     "validate:env": "node scripts/validate-env.mjs",
     "validate:security": "node scripts/validate-security.mjs",

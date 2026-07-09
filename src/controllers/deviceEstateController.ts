@@ -1,6 +1,7 @@
 // src/controllers/deviceEstateController.ts
 import type { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
 
 function cleanText(value: any, fallback: string | null = null) {
   const text = String(value ?? "").trim();
@@ -223,7 +224,21 @@ export async function getEstateDevices(req: Request, res: Response) {
       return res.status(500).json({ error: "Failed to load device registry" });
     }
 
-    const devices = (data || [])
+    const rows = data || [];
+    const deviceIds = rows.map((device: any) => String(device?.id || "")).filter(Boolean);
+    const stateMap = new Map<string, any>();
+    if (deviceIds.length) {
+      const { data: stateRows } = await supabaseAdmin
+        .from("device_states")
+        .select("device_id,status,last_seen,updated_at")
+        .in("device_id", deviceIds);
+      for (const row of stateRows || []) {
+        const key = String((row as any)?.device_id || "");
+        if (key) stateMap.set(key, row);
+      }
+    }
+
+    const devices = rows
       .filter((device: any) => {
         if (isEstateWide) return includeUnassigned || Boolean(device?.home_id);
         const assignedToActiveHome = String(device?.home_id || "") === String(user.home_id || "");
@@ -236,6 +251,8 @@ export async function getEstateDevices(req: Request, res: Response) {
       .map((device: any) => {
         const room = Array.isArray(device?.rooms) ? device.rooms[0] || null : device?.rooms || null;
         const metadata = sanitizeMetadata(device?.metadata);
+        const stateRow = stateMap.get(String(device?.id || ""));
+        const summary = summarizeDeviceFrontendContract({ ...device, metadata }, stateRow);
         return {
           ...device,
           name: cleanText(device?.name, "Unnamed device"),
@@ -246,6 +263,20 @@ export async function getEstateDevices(req: Request, res: Response) {
           protocols: safeArray(device?.protocols),
           metadata,
           ui_capabilities: buildUiCapabilities(device, metadata),
+          state: stateRow?.status || null,
+          normalized_state: summary.normalized_state,
+          supported_controls: summary.supported_controls,
+          control_profile: summary.control_profile,
+          health_status: summary.health_status,
+          provider_health: summary.provider_health,
+          primary_state: summary.primary_state,
+          telemetry_summary: summary.telemetry_summary,
+          device_family: summary.device_family,
+          device_type: summary.device_type,
+          last_signal: summary.last_signal,
+          activity_summary: summary.activity_summary,
+          capability_codes: summary.capability_codes,
+          last_seen: stateRow?.last_seen || device?.last_seen_at || null,
           room: room?.id ? { id: room.id, name: cleanText(room.name, "Room") } : null,
           room_name: cleanText(room?.name),
           rooms: undefined,
