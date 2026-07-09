@@ -160,6 +160,71 @@ const SERVICE_CONFIG_DEFAULTS: Record<
   },
 };
 
+const SERVICE_DOMAIN_DEFAULTS: Record<
+  ServiceKey,
+  {
+    domain: string;
+    childLabel: string;
+    policyLabel: string;
+    providerLane: string;
+  }
+> = {
+  utility_token: {
+    domain: "Power & Energy",
+    childLabel: "Electricity",
+    policyLabel: "Electricity tariff",
+    providerLane: "electricity_vending",
+  },
+  water_service: {
+    domain: "Water",
+    childLabel: "Water Supply",
+    policyLabel: "Water tariff",
+    providerLane: "water_billing",
+  },
+  gas_service: {
+    domain: "Gas",
+    childLabel: "Gas",
+    policyLabel: "Gas tariff",
+    providerLane: "gas_provider",
+  },
+  internet_service: {
+    domain: "Internet",
+    childLabel: "Internet",
+    policyLabel: "Internet billing profile",
+    providerLane: "internet_provider",
+  },
+  fiber_internet: {
+    domain: "Internet",
+    childLabel: "Fiber / ISP",
+    policyLabel: "Internet billing profile",
+    providerLane: "internet_provider",
+  },
+  generator_recovery: {
+    domain: "Power & Energy",
+    childLabel: "Generator Recovery",
+    policyLabel: "Generator recovery tariff",
+    providerLane: "generator_recovery",
+  },
+  solar_battery_service: {
+    domain: "Power & Energy",
+    childLabel: "Solar / Battery",
+    policyLabel: "Solar and battery service profile",
+    providerLane: "solar_battery",
+  },
+  service_charge: {
+    domain: "Estate Fees",
+    childLabel: "Estate Fees",
+    policyLabel: "Estate service charge",
+    providerLane: "estate_fees",
+  },
+  other_facility_fees: {
+    domain: "Facility Services",
+    childLabel: "Facility Services",
+    policyLabel: "Facility service billing rules",
+    providerLane: "facility_services",
+  },
+};
+
 const MANAGE_ESTATE_ROLES = new Set(["owner", "admin", "manager", "security"]);
 const FACILITY_ALERT_ROLES = ["owner", "admin", "manager", "security", "operator"];
 const LOW_BALANCE_THRESHOLD = Number(process.env.LOW_WALLET_BALANCE_THRESHOLD || 5000);
@@ -259,6 +324,9 @@ function normalizeServiceConfig(
   row?: Partial<ServiceConfigRow> | null
 ): ServiceConfigRow {
   const fallback = SERVICE_CONFIG_DEFAULTS[serviceKey];
+  const domainFallback = SERVICE_DOMAIN_DEFAULTS[serviceKey];
+  const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  const policyMeta = metadata?.policy && typeof metadata.policy === "object" ? metadata.policy : {};
   return {
     estate_id: estateId,
     service_key: serviceKey,
@@ -273,7 +341,19 @@ function normalizeServiceConfig(
     unit_cost: row?.unit_cost == null ? fallback.unit_cost : Number(row.unit_cost),
     unit_name: row?.unit_name == null ? fallback.unit_name : String(row.unit_name || ""),
     billing_mode: (row?.billing_mode as any) || fallback.billing_mode,
-    metadata: row?.metadata && typeof row.metadata === "object" ? row.metadata : {},
+    metadata: {
+      ...metadata,
+      policy: {
+        service_key: serviceKey,
+        domain: String(policyMeta?.domain || domainFallback.domain),
+        child_label: String(policyMeta?.child_label || domainFallback.childLabel),
+        policy_label: String(policyMeta?.policy_label || domainFallback.policyLabel),
+        provider_lane: String(policyMeta?.provider_lane || domainFallback.providerLane),
+        version: String(policyMeta?.version || "v1"),
+        effective_from: policyMeta?.effective_from || row?.updated_at || row?.created_at || null,
+        versioning_ready: policyMeta?.versioning_ready === false ? false : true,
+      },
+    },
     created_at: row?.created_at,
     updated_at: row?.updated_at,
   };
@@ -400,6 +480,8 @@ function buildReceiptDetails(config: ServiceConfigRow | null, serviceKey: Servic
   const unitCost = config?.unit_cost == null ? null : Number(config.unit_cost);
   const computedUnits =
     unitCost && unitCost > 0 ? Number((amount / unitCost).toFixed(2)) : null;
+  const metadata = config?.metadata && typeof config.metadata === "object" ? config.metadata : {};
+  const policyMeta = metadata?.policy && typeof metadata.policy === "object" ? metadata.policy : {};
 
   return {
     title: config?.title || SERVICE_CONFIG_DEFAULTS[serviceKey].title,
@@ -412,6 +494,10 @@ function buildReceiptDetails(config: ServiceConfigRow | null, serviceKey: Servic
     period_label: extras?.period_label ? String(extras.period_label) : null,
     token_code: null,
     fulfillment_status: providerFulfillmentStatus(serviceKey),
+    policy_version: String(policyMeta?.version || "v1"),
+    policy_effective_from: policyMeta?.effective_from || config?.updated_at || null,
+    policy_domain: String(policyMeta?.domain || SERVICE_DOMAIN_DEFAULTS[serviceKey].domain),
+    policy_label: String(policyMeta?.policy_label || SERVICE_DOMAIN_DEFAULTS[serviceKey].policyLabel),
   };
 }
 
@@ -1137,6 +1223,9 @@ export async function upsertServiceConfig(req: Request, res: Response) {
   }
 
   const fallback = SERVICE_CONFIG_DEFAULTS[serviceKey];
+  const domainFallback = SERVICE_DOMAIN_DEFAULTS[serviceKey];
+  const incomingMetadata = req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {};
+  const incomingPolicy = incomingMetadata?.policy && typeof incomingMetadata.policy === "object" ? incomingMetadata.policy : {};
   const payload: ServiceConfigRow = {
     estate_id: estateId,
     service_key: serviceKey,
@@ -1151,7 +1240,19 @@ export async function upsertServiceConfig(req: Request, res: Response) {
     unit_cost: req.body?.unit_cost == null || req.body?.unit_cost === "" ? null : Number(req.body.unit_cost),
     unit_name: String(req.body?.unit_name || fallback.unit_name || "").trim() || null,
     billing_mode: String(req.body?.billing_mode || fallback.billing_mode).trim() as any,
-    metadata: req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : null,
+    metadata: {
+      ...incomingMetadata,
+      policy: {
+        service_key: serviceKey,
+        domain: String(incomingPolicy?.domain || domainFallback.domain),
+        child_label: String(incomingPolicy?.child_label || domainFallback.childLabel),
+        policy_label: String(incomingPolicy?.policy_label || domainFallback.policyLabel),
+        provider_lane: String(incomingPolicy?.provider_lane || domainFallback.providerLane),
+        version: String(incomingPolicy?.version || "v1"),
+        effective_from: incomingPolicy?.effective_from || new Date().toISOString(),
+        versioning_ready: incomingPolicy?.versioning_ready === false ? false : true,
+      },
+    },
     updated_at: new Date().toISOString(),
   };
 
