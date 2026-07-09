@@ -8,13 +8,10 @@ import { recordDeviceEvent, recordPossiblePowerEvent } from "../services/deviceA
 // ✅ Use IO registry (prevents circular imports)
 import { getIO } from "../realtime/io";
 
-// ✅ Convert incoming telemetry into control-plane signals
-import { handleSignal } from "../core/control-plane";
-import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
-import type { Signal } from "../core/control-plane/contracts/signal.types";
 import { logger } from "../observability/logger";
 import { operationalMetrics } from "../observability/metrics";
 import { providerHealthRegistry } from "../observability/providerHealth";
+import { emitOperationalDeviceSignal, isDuplicateDeviceTransition } from "../services/deviceOperationalSignalService";
 
 const MQTT_URL = process.env.MQTT_URL || "";
 const MQTT_USERNAME = process.env.MQTT_USERNAME || undefined;
@@ -221,13 +218,23 @@ function scopeValue(...values: any[]) {
   return null;
 }
 
+function flattenForSignalDiff(previousState: any, newState: any) {
+  const prev = previousState && typeof previousState === "object" ? previousState : {};
+  const next = newState && typeof newState === "object" ? newState : {};
+  const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)]));
+  return keys.reduce<Record<string, boolean>>((acc, key) => {
+    if (JSON.stringify((prev as any)[key]) !== JSON.stringify((next as any)[key])) acc[key] = true;
+    return acc;
+  }, {});
+}
+
 async function resolveDeviceForStateEvent(input: {
   ref: string;
   estateId?: string | null;
 }) {
   const ref = String(input.ref || "").trim();
   if (!ref) return null;
-  const select = "id,name,estate_id,home_id,room_id,category,type,external_id,metadata";
+  const select = "id,name,estate_id,home_id,room_id,category,type,external_id,provider,vendor,adapter,metadata";
 
   let byId = supabaseAdmin.from("devices").select(select).eq("id", ref);
   if (input.estateId) byId = byId.eq("estate_id", input.estateId);
@@ -279,33 +286,6 @@ function emitLegacyDeviceUpdate(args: {
   if (args.homeId) target = target.to(`home:${args.homeId}`);
   target.emit("device:update", payload);
   target.emit("device.status.updated", payload);
-}
-
-function buildDeviceStateSignal(args: {
-  estateId?: string | null;
-  deviceId: string;
-  state: any;
-  source?: string;
-  homeId?: string | null;
-  roomId?: string | null;
-  event?: Record<string, any>;
-}): Signal {
-  return {
-    schemaVersion: SIGNAL_SCHEMA_VERSION,
-    source: args.source ?? "mqtt",
-    type: "device.state.reported",
-    timestamp: new Date().toISOString(),
-
-    // payload (contract uses deviceId + state)
-    deviceId: args.deviceId,
-    state: args.state,
-    homeId: args.homeId ?? undefined,
-    roomId: args.roomId ?? undefined,
-    event: args.event,
-
-    // routing context (helps realtime subscriber target rooms)
-    estateId: args.estateId ?? undefined,
-  } as any;
 }
 
 export async function initMqttBridge() {
@@ -428,7 +408,17 @@ export async function initMqttBridge() {
           },
         };
 
-        if (change.changed && device?.id) {
+        const duplicateTransition = change.changed && device?.id
+          ? await isDuplicateDeviceTransition({
+              deviceId: String(device.id),
+              eventType: String((change as any).kind || "device.state.changed"),
+              source: eventSource,
+              state: status,
+              windowMs: 12_000,
+            })
+          : false;
+
+        if (change.changed && device?.id && !duplicateTransition) {
           const analyticsKind = String((change as any).kind || "device.state.reported");
           const analyticsTitle = analyticsKind.includes("offline")
             ? `${String(device?.name || "Device")} went offline`
@@ -473,7 +463,7 @@ export async function initMqttBridge() {
           }
         }
 
-        if (change.changed && device?.home_id) {
+        if (change.changed && device?.home_id && !duplicateTransition) {
           const { data: homeUsers } = await supabaseAdmin
             .from("users")
             .select("id")
@@ -541,19 +531,60 @@ export async function initMqttBridge() {
           event: normalizedEvent,
         });
 
-        // ✅ 2) Emit as Control-Plane signal (single truth)
-        // This will also trigger your realtimeSubscriber (signal stream)
-        await handleSignal(
-          buildDeviceStateSignal({
-            estateId,
-            deviceId,
-            state: status,
-            homeId: device?.home_id || null,
-            roomId: device?.room_id || null,
-            source: eventSource,
-            event: normalizedEvent,
-          })
-        );
+        const signalEventType =
+          change.changed
+            ? String((change as any).kind || "device.state.changed")
+                .replace("device.state.on", "device.power.on")
+                .replace("device.state.off", "device.power.off")
+                .replace("device.state.online", "device.online")
+                .replace("device.state.offline", "device.offline")
+            : providerEventId || eventSource === "provider_reported" || eventSource === "provider_app"
+              ? "device.provider.sync"
+              : "device.telemetry.received";
+
+        await emitOperationalDeviceSignal({
+          eventType: signalEventType as any,
+          source: eventSource,
+          provider: String(device?.provider || device?.vendor || "mqtt"),
+          adapter: String(device?.adapter || "mqtt"),
+          providerEventId: providerEventId || null,
+          estateId: device?.estate_id || estateId || null,
+          homeId: device?.home_id || null,
+          roomId: device?.room_id || null,
+          device: {
+            id: String(deviceId),
+            name: String(device?.name || "Device"),
+            type: String(device?.type || ""),
+            category: String(device?.category || ""),
+            external_id: externalDeviceId || null,
+            vendor: String(device?.vendor || ""),
+            adapter: String(device?.adapter || "mqtt"),
+            provider: String(device?.provider || device?.vendor || "mqtt"),
+            metadata: device?.metadata || {},
+          },
+          previousState: previousStatus,
+          newState: status,
+          occurredAt,
+          telemetrySummary: {
+            changed_keys: Object.keys(flattenForSignalDiff(previousStatus, status)),
+            changed_count: Object.keys(flattenForSignalDiff(previousStatus, status)).length,
+            online: typeof status?.online === "boolean" ? status.online : null,
+            power_state:
+              typeof status?.switch === "boolean"
+                ? status.switch
+                : typeof status?.power === "boolean"
+                  ? status.power
+                  : typeof status?.on === "boolean"
+                    ? status.on
+                    : null,
+            provider_reported_at: reportedAt,
+          },
+          extraMetadata: {
+            topic,
+            normalized_event: normalizedEvent,
+            duplicate_transition: duplicateTransition,
+          },
+        });
       } catch (err) {
         operationalMetrics.increment("oyi_provider_failures_total", { provider: "mqtt", action: "message" });
         providerHealthRegistry.failure("mqtt", err);

@@ -21,6 +21,13 @@ import { getSecurityAuditReport, getSecurityObservability } from "../security/se
 
 const router = Router();
 
+// Freeze ownership note:
+// - /intelligence/* remains the legacy/organizational supervision layer for
+//   event bus history, predictions, workflows, and executive observability.
+// - It should not become a second operational runtime. Canonical runtime
+//   evaluation, conversation, automation, and execution ledger access live in
+//   /oyi/runtime/* and src/oyi-core/*.
+
 function parseLimit(raw: unknown, fallback = 50) {
   const n = Number.parseInt(String(raw ?? ""), 10);
   if (!Number.isFinite(n)) return fallback;

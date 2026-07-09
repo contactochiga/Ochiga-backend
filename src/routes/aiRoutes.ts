@@ -9,6 +9,12 @@ import { answerDeviceHistoryQuestion, getLatestMaintenanceContext, recordIntelli
 
 const router = Router();
 
+// Freeze ownership note:
+// - /ai/* remains a consumer-facing assistant and tool-routing surface.
+// - It may orchestrate UI-safe actions, but it is not the canonical Oyi Core runtime.
+// - Operational awareness, reasoning, recommendations, automation, conversation,
+//   and execution history remain backend-owned under /oyi/runtime/*.
+
 const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey) {
   console.warn("OPENAI_API_KEY not set — /ai/chat will run in deterministic safe mode.");

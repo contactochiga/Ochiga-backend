@@ -12,6 +12,7 @@ import type { AuthUser } from "../middleware/auth";
 import { type DeviceRuntimeScope, logDeviceCommandDiagnostic, normalizeDeviceOnlineState, resolveVisibleDevice } from "../services/deviceRuntimeService";
 import { recordDeviceEvent } from "../services/deviceAnalyticsService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
+import { emitOperationalDeviceSignal } from "../services/deviceOperationalSignalService";
 
 function textFromDevice(device: any) {
   return [
@@ -247,6 +248,15 @@ export async function executeDeviceCommandForActor(input: {
       resolved_device_uuid: deviceRow?.id || null,
       source: commandSource,
       command_source: commandSource,
+      estate_id: deviceRow?.estate_id || user.estate_id || null,
+      home_id: deviceRow?.home_id || user.home_id || null,
+      room_id: deviceRow?.room_id || null,
+      external_id: deviceRow?.external_id || null,
+      device_name: deviceRow?.name || null,
+      device_type: deviceRow?.type || null,
+      device_category: deviceRow?.category || null,
+      adapter: deviceRow?.adapter || deviceRow?.vendor || "device_adapter",
+      provider: deviceRow?.provider || deviceRow?.vendor || null,
     },
   });
   void publishSourceIntelligenceEvent({
@@ -393,6 +403,41 @@ export async function executeDeviceCommandForActor(input: {
       summary: activityCopy.message,
     });
 
+    await emitOperationalDeviceSignal({
+      eventType: "device.command.executed",
+      source: commandSource,
+      provider: String(deviceRow?.provider || deviceRow?.vendor || "tuya"),
+      adapter: String(deviceRow?.adapter || deviceRow?.vendor || "tuya"),
+      estateId: deviceRow?.estate_id || user.estate_id || null,
+      homeId: deviceRow?.home_id || user.home_id || null,
+      roomId: deviceRow?.room_id || null,
+      device: {
+        id: String(deviceRow.id),
+        name: String(deviceRow.name || "Device"),
+        type: String(deviceRow.type || ""),
+        category: String(deviceRow.category || ""),
+        external_id: String(deviceRow.external_id || ""),
+        vendor: String(deviceRow.vendor || ""),
+        adapter: String(deviceRow.adapter || deviceRow.vendor || "tuya"),
+        provider: String(deviceRow.provider || deviceRow.vendor || "tuya"),
+        metadata: deviceRow.metadata || {},
+      },
+      previousState,
+      newState: persistedState,
+      command: normalized,
+      actor: {
+        id: user.id,
+        role: user.role,
+        name: user.username || user.email || null,
+        type: commandSource === "facility" ? "operator" : "resident",
+      },
+      occurredAt: new Date().toISOString(),
+      extraMetadata: {
+        request_path: input.req?.path || null,
+        latency_ms: Date.now() - startedAt,
+      },
+    });
+
     return {
       ok: true,
       status: "command_executed",
@@ -451,6 +496,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     console.error("requestDeviceCommand error:", e?.message || e);
     const user = (req as any).user;
     const rawId = String(req.params.deviceId || "").trim();
+    const device = user?.id ? await resolveVisibleDevice(user, rawId).catch(() => null) : null;
     if (user?.id) {
       try {
         await NotificationService.sendToUser(String(user.id), {
@@ -466,6 +512,42 @@ export async function requestDeviceCommand(req: Request, res: Response) {
           entityId: rawId || undefined,
         });
       } catch {}
+      if (device?.id) {
+        await emitOperationalDeviceSignal({
+          eventType: "device.command.failed",
+          source: commandSourceFor(req.body?.source || req.body?.command_source, user),
+          provider: String(device?.provider || device?.vendor || "device_adapter"),
+          adapter: String(device?.adapter || device?.vendor || "device_adapter"),
+          estateId: device?.estate_id || user.estate_id || null,
+          homeId: device?.home_id || user.home_id || null,
+          roomId: device?.room_id || null,
+          device: {
+            id: String(device.id),
+            name: String(device.name || "Device"),
+            type: String(device.type || ""),
+            category: String(device.category || ""),
+            external_id: String(device.external_id || ""),
+            vendor: String(device.vendor || ""),
+            adapter: String(device.adapter || device.vendor || "device_adapter"),
+            provider: String(device.provider || device.vendor || "device_adapter"),
+            metadata: device.metadata || {},
+          },
+          previousState: null,
+          newState: null,
+          command: req.body?.command || null,
+          actor: {
+            id: user.id,
+            role: user.role,
+            name: user.username || user.email || null,
+            type: /facility|operator|admin|security|maintenance/.test(String(user.role || "").toLowerCase()) ? "operator" : "resident",
+          },
+          occurredAt: new Date().toISOString(),
+          extraMetadata: {
+            error: e?.message || String(e),
+            request_path: req.path,
+          },
+        });
+      }
     }
     return res.status(e?.statusCode || 500).json({
       error: "Command failed",
