@@ -163,14 +163,17 @@ function sanitizeMetadata(value: any, depth = 0): any {
 }
 
 export async function getEstateDevices(req: Request, res: Response) {
+  const user: any = (req as any).user;
+  const context: any = (req as any).oisContext || null;
+  const activeHomeId = String(context?.home_id || user?.home_id || "").trim();
   try {
-    const user: any = (req as any).user;
     const estateIdParam = String(req.params.estateId || "").trim();
+    const activeEstateId = String(context?.estate_id || user?.estate_id || "").trim();
 
-    if (!user?.estate_id) return res.status(400).json({ error: "User has no estate" });
+    if (!activeEstateId) return res.status(400).json({ error: "Active estate context is required" });
 
     // ✅ enforce: only your estate
-    if (user.estate_id !== estateIdParam) {
+    if (activeEstateId !== estateIdParam) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -204,21 +207,23 @@ export async function getEstateDevices(req: Request, res: Response) {
         rooms:rooms ( id, name )
       `
       )
-      .eq("estate_id", user.estate_id);
+      .eq("estate_id", activeEstateId);
 
     // Residents/members should only see devices assigned to their active home.
     // Registry enrollment may additionally expose eligible, estate-scoped unassigned devices.
     const role = String(user.role || "").toLowerCase();
     const isEstateWide = role === "admin" || role === "manager" || role === "estate_admin";
     const includeUnassigned = String(req.query.include_unassigned || "").toLowerCase() === "true";
-    if (!isEstateWide && !user.home_id) return res.json({ devices: [] });
+    if (!isEstateWide && !activeHomeId) {
+      return res.status(400).json({ error: "Active home context is required" });
+    }
 
     const { data, error } = await query.order("updated_at", { ascending: false });
 
     if (error) {
       console.error("[devices.estate.list] query_failed", {
         estate_id: user.estate_id,
-        home_id: user.home_id || null,
+        home_id: activeHomeId || null,
         include_unassigned: includeUnassigned,
         role,
         error: error.message,
@@ -243,7 +248,7 @@ export async function getEstateDevices(req: Request, res: Response) {
     const devices = rows
       .filter((device: any) => {
         if (isEstateWide) return includeUnassigned || Boolean(device?.home_id);
-        const assignedToActiveHome = String(device?.home_id || "") === String(user.home_id || "");
+        const assignedToActiveHome = String(device?.home_id || "") === activeHomeId;
         if (assignedToActiveHome) return true;
         if (!includeUnassigned || device?.home_id) return false;
         const syncState = String(device?.sync_state || "").toLowerCase();
@@ -289,7 +294,7 @@ export async function getEstateDevices(req: Request, res: Response) {
   } catch (e: any) {
     console.error("[devices.estate.list] normalization_failed", {
       estate_id: (req as any)?.user?.estate_id || null,
-      home_id: (req as any)?.user?.home_id || null,
+      home_id: activeHomeId || null,
       include_unassigned: String(req.query.include_unassigned || "").toLowerCase() === "true",
       error: e?.message || "Unknown registry normalization error",
     });

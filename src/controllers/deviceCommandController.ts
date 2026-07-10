@@ -563,6 +563,10 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       deviceId: rawId,
       command,
       source: commandSourceFor(req.body?.source || req.body?.command_source, user),
+      scope: {
+        estateId: (req as any).oisContext?.estate_id || user.estate_id || null,
+        homeId: (req as any).oisContext?.home_id || user.home_id || null,
+      },
       req,
     });
 
@@ -571,7 +575,12 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     console.error("requestDeviceCommand error:", e?.message || e);
     const user = (req as any).user;
     const rawId = String(req.params.deviceId || "").trim();
-    const device = user?.id ? await resolveVisibleDevice(user, rawId).catch(() => null) : null;
+    const device = user?.id
+      ? await resolveVisibleDevice(user, rawId, {
+          estateId: (req as any).oisContext?.estate_id || user.estate_id || null,
+          homeId: (req as any).oisContext?.home_id || user.home_id || null,
+        }).catch(() => null)
+      : null;
     if (user?.id) {
       try {
         await NotificationService.sendToUser(String(user.id), {

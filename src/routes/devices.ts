@@ -1,6 +1,7 @@
 // src/routes/devices.ts
 import { Router } from "express";
 import { requireAuth, requirePermission } from "../middleware/auth";
+import { resolveRequestContext } from "../middleware/contextResolver";
 import { discoverDevices } from "../controllers/deviceDiscoveryController";
 import { getDeviceState } from "../controllers/deviceStateController";
 import { assignDevices } from "../controllers/deviceAssignController";
@@ -17,11 +18,13 @@ router.get("/discover", requireAuth, requirePermission("devices.read"), discover
 router.post("/assign", requireAuth, requirePermission("devices.control"), assignDevices);
 
 // ✅ THIS WAS MISSING (your frontend calls it)
-router.get("/estate/:estateId", requireAuth, requirePermission("devices.read"), getEstateDevices);
+router.get("/estate/:estateId", requireAuth, resolveRequestContext, requirePermission("devices.read"), getEstateDevices);
 
-router.patch("/:deviceId/preferences", requireAuth, requirePermission("devices.control"), auditOnSuccess("device.preferences.updated", "device", "deviceId"), async (req, res) => {
+router.patch("/:deviceId/preferences", requireAuth, resolveRequestContext, requirePermission("devices.control"), auditOnSuccess("device.preferences.updated", "device", "deviceId"), async (req, res) => {
   const user = req.user;
-  if (!user?.estate_id || !user?.home_id) return res.status(400).json({ error: "Active home context required" });
+  const estateId = (req as any).oisContext?.estate_id || user?.estate_id || null;
+  const homeId = (req as any).oisContext?.home_id || user?.home_id || null;
+  if (!estateId || !homeId) return res.status(400).json({ error: "Active home context required" });
   const deviceId = String(req.params.deviceId || "").trim();
   const favorite = req.body?.favorite;
   if (!deviceId) return res.status(400).json({ error: "deviceId is required" });
@@ -31,8 +34,8 @@ router.patch("/:deviceId/preferences", requireAuth, requirePermission("devices.c
     .from("devices")
     .select("id,estate_id,home_id,metadata")
     .eq("id", deviceId)
-    .eq("estate_id", user.estate_id)
-    .eq("home_id", user.home_id)
+    .eq("estate_id", estateId)
+    .eq("home_id", homeId)
     .maybeSingle();
   if (findError) return res.status(500).json({ error: findError.message });
   if (!device?.id) return res.status(404).json({ error: "Assigned device not found in this home" });
@@ -48,9 +51,10 @@ router.patch("/:deviceId/preferences", requireAuth, requirePermission("devices.c
   return res.json({ ok: true, device: data });
 });
 
-router.get("/:deviceId/runtime", requireAuth, requirePermission("devices.read"), async (req, res) => {
+router.get("/:deviceId/runtime", requireAuth, resolveRequestContext, requirePermission("devices.read"), async (req, res) => {
   try {
     const user = req.user;
+    const context = (req as any).oisContext || null;
     const deviceId = String(req.params.deviceId || "").trim();
     if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
     const { data: device, error } = await supabaseAdmin
@@ -60,8 +64,8 @@ router.get("/:deviceId/runtime", requireAuth, requirePermission("devices.read"),
       .maybeSingle();
     if (error) return res.status(500).json({ error: error.message });
     if (!device?.id) return res.status(404).json({ error: "Device not found" });
-    if (user.home_id && String((device as any).home_id || "") !== String(user.home_id)) return res.status(403).json({ error: "Device is outside active home" });
-    if (user.estate_id && String((device as any).estate_id || "") !== String(user.estate_id)) return res.status(403).json({ error: "Device is outside active estate" });
+    if (context?.home_id && String((device as any).home_id || "") !== String(context.home_id)) return res.status(403).json({ error: "Device is outside active home" });
+    if (context?.estate_id && String((device as any).estate_id || "") !== String(context.estate_id)) return res.status(403).json({ error: "Device is outside active estate" });
     const runtime = await summarizeDeviceRuntime({ deviceId, range: String(req.query.range || "today") });
     return res.json(runtime);
   } catch (error: any) {
@@ -69,12 +73,12 @@ router.get("/:deviceId/runtime", requireAuth, requirePermission("devices.read"),
   }
 });
 
-router.get("/home/:homeId/runtime", requireAuth, requirePermission("devices.read"), async (req, res) => {
+router.get("/home/:homeId/runtime", requireAuth, resolveRequestContext, requirePermission("devices.read"), async (req, res) => {
   try {
-    const user = req.user;
+    const context = (req as any).oisContext || null;
     const homeId = String(req.params.homeId || "").trim();
-    if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
-    if (user.home_id && String(user.home_id) !== homeId) return res.status(403).json({ error: "Home is outside active context" });
+    if (!(req.user as any)?.id) return res.status(401).json({ error: "Not authenticated" });
+    if (context?.home_id && String(context.home_id) !== homeId) return res.status(403).json({ error: "Home is outside active context" });
     const runtime = await summarizeDeviceRuntime({ homeId, range: String(req.query.range || "today") });
     return res.json(runtime);
   } catch (error: any) {
@@ -82,9 +86,9 @@ router.get("/home/:homeId/runtime", requireAuth, requirePermission("devices.read
   }
 });
 
-router.get("/:deviceId/ir/profiles", requireAuth, requirePermission("devices.read"), listIrProfiles);
-router.post("/:deviceId/ir/appliances", requireAuth, requirePermission("devices.control"), createIrAppliance);
-router.post("/:deviceId/command", requireAuth, requirePermission("devices.control"), requestDeviceCommand);
-router.get("/:deviceId/state", requireAuth, requirePermission("devices.read"), getDeviceState);
+router.get("/:deviceId/ir/profiles", requireAuth, resolveRequestContext, requirePermission("devices.read"), listIrProfiles);
+router.post("/:deviceId/ir/appliances", requireAuth, resolveRequestContext, requirePermission("devices.control"), createIrAppliance);
+router.post("/:deviceId/command", requireAuth, resolveRequestContext, requirePermission("devices.control"), requestDeviceCommand);
+router.get("/:deviceId/state", requireAuth, resolveRequestContext, requirePermission("devices.read"), getDeviceState);
 
 export default router;

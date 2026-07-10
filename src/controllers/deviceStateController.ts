@@ -27,7 +27,8 @@ export async function getDeviceState(req: any, res: Response) {
   res.removeHeader("Last-Modified");
 
   try {
-    const estateId = req.user?.estate_id;
+    const estateId = req.oisContext?.estate_id || req.user?.estate_id;
+    const homeId = req.oisContext?.home_id || req.user?.home_id || null;
     if (!estateId) return res.status(400).json({ error: "User has no estate" });
 
     const rawId = String(req.params.deviceId || "").trim();
@@ -39,7 +40,7 @@ export async function getDeviceState(req: any, res: Response) {
     if (isUuid(rawId)) {
       const { data } = await supabaseAdmin
         .from("devices")
-        .select("id, estate_id, external_id, vendor, adapter, online, status, metadata, last_seen_at, last_event_at, updated_at")
+        .select("id, estate_id, home_id, external_id, vendor, adapter, online, status, metadata, last_seen_at, last_event_at, updated_at")
         .eq("id", rawId)
         .eq("estate_id", estateId)
         .maybeSingle();
@@ -47,7 +48,7 @@ export async function getDeviceState(req: any, res: Response) {
     } else {
       const { data } = await supabaseAdmin
         .from("devices")
-        .select("id, estate_id, external_id, vendor, adapter, online, status, metadata, last_seen_at, last_event_at, updated_at")
+        .select("id, estate_id, home_id, external_id, vendor, adapter, online, status, metadata, last_seen_at, last_event_at, updated_at")
         .eq("external_id", rawId)
         .eq("estate_id", estateId)
         .maybeSingle();
@@ -56,6 +57,9 @@ export async function getDeviceState(req: any, res: Response) {
 
     if (!dev?.id) {
       return res.status(404).json({ error: "Device not found", deviceId: rawId });
+    }
+    if (homeId && String(dev?.home_id || "") !== String(homeId)) {
+      return res.status(403).json({ error: "This device is not assigned to your current home." });
     }
 
     // 1) ✅ try cached/latest known state
