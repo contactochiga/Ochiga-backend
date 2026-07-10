@@ -10,6 +10,7 @@ const requiredFiles = [
   "docs/monitoring-checklist.md",
   "docs/release-gates.md",
   "docs/security-hardening-phase3-audit.md",
+  "docs/device-intelligence-layer-audit.md",
 ];
 
 let failures = 0;

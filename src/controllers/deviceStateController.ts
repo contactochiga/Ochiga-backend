@@ -3,6 +3,7 @@ import { Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
+import { loadDeviceIntelligenceContext } from "../services/deviceIntelligenceService";
 import { buildDeviceTimeline } from "../services/deviceRuntimeService";
 import { enrichDeviceProviderState, summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
 
@@ -72,6 +73,7 @@ export async function getDeviceState(req: any, res: Response) {
     if (st?.status) {
       const timeline = buildDeviceTimeline(dev, st);
       const summary = summarizeDeviceFrontendContract(dev, st);
+      const intelligence = await loadDeviceIntelligenceContext({ device: dev, stateRow: st }).catch(() => null);
       return res.json({
         deviceId: st.device_id,
         external_id: dev.external_id,
@@ -89,8 +91,16 @@ export async function getDeviceState(req: any, res: Response) {
         device_type: summary.device_type,
         last_signal: summary.last_signal,
         activity_summary: summary.activity_summary,
+        channel_definitions: (summary as any).channel_definitions ?? [],
         lastSeen: st.last_seen,
         timeline,
+        memory_summary: intelligence?.memory_summary || null,
+        relationships: intelligence?.relationships || null,
+        predictive_findings: intelligence?.predictive_findings || [],
+        recent_executions: intelligence?.recent_executions || [],
+        active_scenes: intelligence?.active_scenes || [],
+        active_automations: intelligence?.active_automations || [],
+        conversation_context: intelligence?.conversation_context || null,
         source: "cache",
       });
     }
@@ -196,6 +206,7 @@ export async function getDeviceState(req: any, res: Response) {
     // 4) ✅ return live state
     const timeline = buildDeviceTimeline(dev, { status: enrichedLive, last_seen: liveOccurredAt, updated_at: liveOccurredAt });
     const summary = summarizeDeviceFrontendContract(dev, { status: enrichedLive, last_seen: liveOccurredAt, updated_at: liveOccurredAt });
+    const intelligence = await loadDeviceIntelligenceContext({ device: dev, stateRow: { status: enrichedLive, last_seen: liveOccurredAt, updated_at: liveOccurredAt } }).catch(() => null);
     return res.json({
       deviceId: dev.id,
       external_id: dev.external_id,
@@ -214,8 +225,16 @@ export async function getDeviceState(req: any, res: Response) {
       device_type: summary.device_type,
       last_signal: summary.last_signal,
       activity_summary: summary.activity_summary,
+      channel_definitions: (summary as any).channel_definitions ?? [],
       lastSeen: liveOccurredAt,
       timeline,
+      memory_summary: intelligence?.memory_summary || null,
+      relationships: intelligence?.relationships || null,
+      predictive_findings: intelligence?.predictive_findings || [],
+      recent_executions: intelligence?.recent_executions || [],
+      active_scenes: intelligence?.active_scenes || [],
+      active_automations: intelligence?.active_automations || [],
+      conversation_context: intelligence?.conversation_context || null,
       source: "live",
     });
   } catch (err: any) {

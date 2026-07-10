@@ -25,6 +25,14 @@ export type EnrichedDeviceState = AnyRecord & {
   telemetry_summary: AnyRecord;
   supported_controls: string[];
   capability_codes: string[];
+  channel_definitions: Array<{
+    index: number;
+    code: string;
+    name: string;
+    state: boolean | null;
+    controllable: boolean;
+    last_update: string | null;
+  }>;
   control_profile: string;
   device_type: string;
   device_family: string;
@@ -177,6 +185,36 @@ function inferSupportedControls(deviceFamily: string, codes: string[]) {
   return Array.from(controls);
 }
 
+function deriveChannelDefinitions(args: {
+  codes: string[];
+  normalized: NormalizedDeviceState;
+  rawState: AnyRecord;
+  metadata: AnyRecord;
+}) {
+  const explicitNames = asRecord(args.metadata.channel_names);
+  const channelCodes = args.codes
+    .filter((code) => /^switch(_\d+)?$/i.test(code) || code === "switch")
+    .sort((left, right) => {
+      const leftIndex = Number(String(left).match(/(\d+)/)?.[1] || "0");
+      const rightIndex = Number(String(right).match(/(\d+)/)?.[1] || "0");
+      return leftIndex - rightIndex;
+    });
+  const uniqueCodes = Array.from(new Set(channelCodes));
+  const numberedChannels = uniqueCodes.filter((code) => /^switch_\d+$/i.test(code));
+  const resolvedCodes = numberedChannels.length ? numberedChannels : uniqueCodes;
+  return resolvedCodes.map((code, index) => {
+    const channelIndex = Number(String(code).match(/(\d+)/)?.[1] || index + 1);
+    return {
+      index: channelIndex,
+      code,
+      name: text(explicitNames[code], explicitNames[String(channelIndex)], code === "switch" ? "Main switch" : `Channel ${channelIndex}`),
+      state: boolValue(args.normalized.switches[code] ?? args.rawState[code]),
+      controllable: true,
+      last_update: text(args.rawState?._oyi_timeline?.received_at) || null,
+    };
+  });
+}
+
 function normalizeStateFields(state: AnyRecord) {
   const switches = Object.entries(state).reduce<Record<string, boolean>>((acc, [key, value]) => {
     if (key === "switch" || key === "power" || key === "on" || /^switch_\d+$/i.test(key)) {
@@ -282,6 +320,7 @@ export function enrichDeviceProviderState(input: {
   const deviceFamily = inferDeviceFamily(device, metadata, codes);
   const controlProfile = inferControlProfile(deviceFamily, codes);
   const supportedControls = inferSupportedControls(deviceFamily, codes);
+  const channelDefinitions = deriveChannelDefinitions({ codes, normalized, rawState, metadata });
   const primaryState = inferPrimaryState(normalized, deviceFamily);
   const healthStatus = inferHealthStatus(normalized);
   const telemetrySummary = {
@@ -305,6 +344,7 @@ export function enrichDeviceProviderState(input: {
     telemetry_summary: telemetrySummary,
     supported_controls: supportedControls,
     capability_codes: codes,
+    channel_definitions: channelDefinitions,
     control_profile: controlProfile,
     device_type: text(device.type, device.category, metadata.product_name, deviceFamily) || "device",
     device_family: deviceFamily,
@@ -403,6 +443,7 @@ export function summarizeDeviceFrontendContract(device: AnyRecord, stateRow?: An
     capabilities: Array.from(new Set([...(Array.isArray(device?.capabilities) ? device.capabilities : []), ...enriched.capability_codes])),
     supported_controls: enriched.supported_controls,
     control_profile: enriched.control_profile,
+    channel_definitions: enriched.channel_definitions,
     health_status: enriched.health_status,
     provider_health: enriched.provider_health,
     primary_state: enriched.primary_state,

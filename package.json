@@ -34,11 +34,17 @@
     "smoke:provider-health": "npm run build && node scripts/provider-health-smoke.mjs",
     "smoke:oyi-runtime": "npm run build && node scripts/oyi-runtime-smoke.mjs",
     "smoke:device-runtime": "npm run build && node scripts/device-runtime-adapter-smoke.mjs",
+    "smoke:device-control-matrix": "npm run build && node scripts/device-control-matrix-smoke.mjs",
+    "smoke:device-intelligence": "npm run build && node scripts/device-intelligence-smoke.mjs",
+    "smoke:device-ir-sync": "npm run build && node scripts/device-ir-sync-smoke.mjs",
+    "smoke:device-memory": "npm run build && node scripts/device-memory-smoke.mjs",
+    "smoke:device-relationships": "npm run build && node scripts/device-relationships-smoke.mjs",
+    "smoke:device-conversation": "npm run build && node scripts/device-conversation-smoke.mjs",
     "smoke:device-schema": "node scripts/device-schema-release-smoke.mjs",
     "smoke:execution-ledger": "npm run build && node scripts/execution-ledger-smoke.mjs",
     "validate:env": "node scripts/validate-env.mjs",
     "validate:security": "node scripts/validate-security.mjs",
-    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-schema"
+    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-schema && npm run smoke:device-control-matrix && npm run smoke:device-intelligence"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
