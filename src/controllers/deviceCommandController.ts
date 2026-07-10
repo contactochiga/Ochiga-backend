@@ -41,11 +41,14 @@ function textFromDevice(device: any) {
 
 function deviceCommandFamily(device: any) {
   const text = textFromDevice(device);
-  if (/\b(camera|cctv|ipc|ipcamera|nvr|dvr|onvif|rtsp)\b/.test(text)) return "camera";
-  if (/\b(ac|a\/c|air conditioner|air_conditioner|aircon|hvac|climate|thermostat|kt)\b/.test(text)) return "ac";
-  if (/\b(tv|television|smart tv|android tv|google tv|samsung tv|lg tv|hisense tv|tcl|set top|set_top_box|decoder|stb)\b/.test(text)) return "tv";
-  if (/\b(ir|infrared|remote|remote control|remote_control|universal remote|universal_remote|wnykq)\b/.test(text)) return "ir";
-  if (/\b(light|switch|plug|socket|outlet|relay|heater)\b/.test(text)) return "switch";
+  const summary = summarizeDeviceFrontendContract(device || {});
+  const profile = String(summary.control_profile || "").toLowerCase();
+  const controls = Array.isArray(summary.supported_controls) ? summary.supported_controls.map((item) => String(item).toLowerCase()) : [];
+  if (profile === "camera" || /\b(camera|cctv|ipc|ipcamera|nvr|dvr|onvif|rtsp)\b/.test(text)) return "camera";
+  if (profile === "switch" || profile === "plug" || controls.includes("power")) return "switch";
+  if (profile === "climate" || controls.includes("temperature") || /\b(ac|a\/c|air conditioner|air_conditioner|aircon|hvac|climate|thermostat|kt)\b/.test(text)) return "ac";
+  if (profile === "tv" || /\b(tv|television|smart tv|android tv|google tv|samsung tv|lg tv|hisense tv|tcl|set top|set_top_box|decoder|stb)\b/.test(text)) return "tv";
+  if (profile === "ir_remote" || controls.includes("remote") || /\b(ir|infrared|remote|remote control|remote_control|universal remote|universal_remote|wnykq)\b/.test(text)) return "ir";
   return "unknown";
 }
 
@@ -230,7 +233,36 @@ export async function executeDeviceCommandForActor(input: {
   });
 
   if (!deviceRow) {
-    throw new Error("device_not_found_or_out_of_scope");
+    const error: any = new Error("This device is not assigned to your current home.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  let commandDevice = deviceRow;
+  if (deviceRow?.is_virtual && deviceRow?.parent_device_id) {
+    const { data: parentDevice, error: parentError } = await supabaseAdmin
+      .from("devices")
+      .select("*")
+      .eq("id", String(deviceRow.parent_device_id))
+      .maybeSingle();
+    if (parentError) throw new Error(parentError.message);
+    if (!parentDevice?.id) {
+      const error: any = new Error("Add or sync an appliance profile before using this remote.");
+      error.statusCode = 400;
+      throw error;
+    }
+    commandDevice = {
+      ...parentDevice,
+      name: deviceRow.name,
+      type: deviceRow.type,
+      category: deviceRow.category,
+      room_id: deviceRow.room_id || parentDevice.room_id,
+      home_id: deviceRow.home_id || parentDevice.home_id,
+      metadata: {
+        ...(parentDevice.metadata || {}),
+        ...(deviceRow.metadata || {}),
+      },
+    };
   }
 
   await handleSignal({
@@ -290,16 +322,20 @@ export async function executeDeviceCommandForActor(input: {
     req: input.req,
   } as any);
 
-  if (deviceRow?.vendor === "tuya" && deviceRow?.external_id) {
+  if (commandDevice?.vendor === "tuya" && commandDevice?.external_id) {
     initAdaptersOnce();
     const adapter = adapterRegistry.get("tuya");
-    if (!adapter) throw new Error("Tuya adapter not registered");
+    if (!adapter) {
+      const error: any = new Error("The connected device provider is temporarily unavailable.");
+      error.statusCode = 503;
+      throw error;
+    }
 
-    assertDeviceCommandSupported(deviceRow, command);
-    const normalized = normalizeCommand(command, deviceRow);
-    await adapter.executeCommand(deviceRow.external_id, normalized, {
-      estateId: deviceRow.estate_id,
-      homeId: deviceRow.home_id,
+    assertDeviceCommandSupported(commandDevice, command);
+    const normalized = normalizeCommand(command, commandDevice);
+    await adapter.executeCommand(commandDevice.external_id, normalized, {
+      estateId: commandDevice.estate_id,
+      homeId: commandDevice.home_id,
       userId: user.id,
       credentials: {},
     } as any);
@@ -318,7 +354,7 @@ export async function executeDeviceCommandForActor(input: {
     if (typeof (adapter as any).getLiveState === "function") {
       await delay(900);
       try {
-        verifiedState = await (adapter as any).getLiveState(deviceRow.external_id);
+        verifiedState = await (adapter as any).getLiveState(commandDevice.external_id);
       } catch {}
       if (expected && verifiedState && expected.key in verifiedState) {
         const actual = Boolean((verifiedState as any)[expected.key]);
@@ -347,16 +383,16 @@ export async function executeDeviceCommandForActor(input: {
           source: commandSource,
         },
       },
-      metadata: deviceRow?.metadata || {},
+      metadata: commandDevice?.metadata || {},
       device: {
-        category: deviceRow?.category,
-        type: deviceRow?.type,
-        name: deviceRow?.name,
-        provider: deviceRow?.provider || deviceRow?.vendor || "tuya",
-        adapter: deviceRow?.adapter || deviceRow?.vendor || "tuya",
+        category: commandDevice?.category,
+        type: commandDevice?.type,
+        name: commandDevice?.name,
+        provider: commandDevice?.provider || commandDevice?.vendor || "tuya",
+        adapter: commandDevice?.adapter || commandDevice?.vendor || "tuya",
       },
-      provider: String(deviceRow?.provider || deviceRow?.vendor || "tuya"),
-      adapter: String(deviceRow?.adapter || deviceRow?.vendor || "tuya"),
+      provider: String(commandDevice?.provider || commandDevice?.vendor || "tuya"),
+      adapter: String(commandDevice?.adapter || commandDevice?.vendor || "tuya"),
     });
     const runtimeSummary = summarizeDeviceFrontendContract(deviceRow || {}, {
       status: persistedState,
@@ -450,7 +486,7 @@ export async function executeDeviceCommandForActor(input: {
         vendor: String(deviceRow.vendor || ""),
         adapter: String(deviceRow.adapter || deviceRow.vendor || "tuya"),
         provider: String(deviceRow.provider || deviceRow.vendor || "tuya"),
-        metadata: deviceRow.metadata || {},
+        metadata: commandDevice.metadata || {},
       },
       previousState,
       newState: persistedState,
@@ -480,7 +516,7 @@ export async function executeDeviceCommandForActor(input: {
     return {
       ok: true,
       status: "command_executed",
-      device: { id: deviceRow.id, name: deviceRow.name, external_id: deviceRow.external_id, vendor: deviceRow.vendor },
+      device: { id: deviceRow.id, name: deviceRow.name, external_id: commandDevice.external_id, vendor: commandDevice.vendor },
       command: normalized,
       state: persistedState,
     };
@@ -588,9 +624,23 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         });
       }
     }
-    return res.status(e?.statusCode || 500).json({
-      error: "Command failed",
-      details: e?.message || String(e),
-    });
+    const message = String(e?.message || e || "");
+    const statusCode = Number(e?.statusCode || 500);
+    let error = "Command failed";
+    let details = message || "The device command could not complete.";
+    if (/not assigned to your current home/i.test(message)) {
+      error = "This device is not assigned to your current home.";
+      details = error;
+    } else if (/does not support switch control|does not expose/i.test(message)) {
+      error = "This device does not expose that control.";
+      details = error;
+    } else if (/appliance profile/i.test(message)) {
+      error = "Add or sync an appliance profile before using this remote.";
+      details = error;
+    } else if (/adapter not registered|temporarily unavailable/i.test(message)) {
+      error = "The connected device provider is temporarily unavailable.";
+      details = error;
+    }
+    return res.status(statusCode).json({ error, details });
   }
 }

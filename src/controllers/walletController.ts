@@ -8,6 +8,7 @@ import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions"
 import { emitAuditEvent } from "../core/foundation";
 import { recordProviderWebhookEvent } from "../services/providerWebhookEvents";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
+import { NotificationService } from "../services/NotificationService";
 
 /**
  * Wallet funding is enabled by default.
@@ -29,7 +30,8 @@ function requirePaystack(res: Response) {
   const secret = getPaystackSecret();
   if (!secret) {
     return res.status(500).json({
-      error: "PAYSTACK_SECRET_KEY is missing on the backend",
+      error: "Wallet funding is temporarily unavailable right now.",
+      code: "PAYMENT_PROVIDER_UNAVAILABLE",
     });
   }
   return null;
@@ -153,6 +155,23 @@ async function applyFundingCredit(params: {
     payload: { wallet_id: wallet.id, amount: Number(amount), balance: nextBalance, method, reference },
   }, { source_table: "wallet_transactions", source_event_id: reference });
 
+  try {
+    await NotificationService.sendToUser(String(userId), {
+      title: "Wallet funded",
+      message: `NGN ${Number(amount).toLocaleString("en-NG")} has been added to your wallet.`,
+      type: "wallet",
+      entityId: String(wallet.id),
+      payload: {
+        wallet_id: wallet.id,
+        amount: Number(amount),
+        balance: nextBalance,
+        method,
+        reference,
+        kind: "wallet.funded",
+      },
+    });
+  } catch {}
+
   return { applied: true, walletId: wallet.id, balance: nextBalance };
 }
 
@@ -216,6 +235,7 @@ export async function initPayment(req: Request, res: Response) {
     const response = await paystack.post("/transaction/initialize", {
       email,
       amount: amountKobo,
+      callback_url: req.body?.callback_url || undefined,
       metadata: { userId: user.id },
     });
     void emitAuditEvent({
@@ -248,7 +268,8 @@ export async function initPayment(req: Request, res: Response) {
     });
 
     return res.status(status).json({
-      error: "Paystack init failed",
+      error: status >= 500 ? "The payment provider is temporarily unavailable." : "Unable to start wallet funding.",
+      code: status >= 500 ? "PAYMENT_PROVIDER_UNAVAILABLE" : "PAYMENT_INITIALIZATION_FAILED",
       status,
       paystack: data,
       message: err?.message,

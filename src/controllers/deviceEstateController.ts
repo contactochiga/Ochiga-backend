@@ -179,6 +179,8 @@ export async function getEstateDevices(req: Request, res: Response) {
       .select(
         `
         id,
+        parent_device_id,
+        is_virtual,
         estate_id,
         home_id,
         room_id,

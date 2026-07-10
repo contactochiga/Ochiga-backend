@@ -122,14 +122,18 @@ function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string
     ...codes,
   ].map((item) => String(item || "").toLowerCase()).join(" ");
 
+  const hasPower = codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code));
+  const hasClimate = codes.some((code) => /temp|temperature|fan|windspeed|mode|swing/.test(code));
+  const hasRemote = codes.some((code) => /ir_|remote|key_code|command_key|control/.test(code));
+
   if (/camera|ipc|rtsp|onvif|dvr|nvr/.test(haystack)) return "camera";
   if (/lock|doorlock/.test(haystack)) return "lock";
   if (/curtain|blind|shade/.test(haystack)) return "curtain";
-  if (/sensor|humidity|temperature|pir|smoke|gas_sensor/.test(haystack)) return "sensor";
-  if (/ir|infrared|remote|tv_remote|set_top|stb/.test(haystack)) return "ir_remote";
-  if (/ac|air_conditioner|climate|thermostat|hvac|kt/.test(haystack)) return "climate";
+  if (/sensor|humidity|temperature|pir|smoke|gas_sensor/.test(haystack) && !hasPower) return "sensor";
+  if (hasRemote || /ir|infrared|remote|tv_remote|set_top|stb/.test(haystack)) return "ir_remote";
+  if (hasClimate || (/ac|air_conditioner|climate|thermostat|hvac|kt/.test(haystack) && !hasPower)) return "climate";
   if (/plug|socket|outlet/.test(haystack)) return "plug";
-  if (/light|switch|relay/.test(haystack)) return "switch";
+  if (hasPower || /light|switch|relay/.test(haystack)) return "switch";
   return String(device?.category || device?.type || metadata?.device_family || "device").toLowerCase();
 }
 
@@ -139,7 +143,7 @@ function inferControlProfile(deviceFamily: string, codes: string[]) {
   if (deviceFamily === "ir_remote") return "ir_remote";
   if (deviceFamily === "curtain") return "curtain";
   if (deviceFamily === "lock") return "lock";
-  if (codes.some((code) => /^switch(_\d+)?$/.test(code) || ["power", "on"].includes(code))) return "switch";
+  if (codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code))) return deviceFamily === "plug" ? "plug" : "switch";
   return "generic";
 }
 
@@ -395,4 +399,3 @@ export function summarizeDeviceFrontendContract(device: AnyRecord, stateRow?: An
     capability_codes: enriched.capability_codes,
   };
 }
-

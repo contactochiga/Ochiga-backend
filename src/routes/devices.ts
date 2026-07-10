@@ -6,6 +6,7 @@ import { getDeviceState } from "../controllers/deviceStateController";
 import { assignDevices } from "../controllers/deviceAssignController";
 import { requestDeviceCommand } from "../controllers/deviceCommandController";
 import { getEstateDevices } from "../controllers/deviceEstateController"; // ✅ add
+import { createIrAppliance, listIrProfiles } from "../controllers/deviceIrController";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { auditOnSuccess } from "../middleware/audit";
 import { summarizeDeviceRuntime } from "../services/deviceRuntimeSessionsService";
@@ -81,6 +82,8 @@ router.get("/home/:homeId/runtime", requireAuth, requirePermission("devices.read
   }
 });
 
+router.get("/:deviceId/ir/profiles", requireAuth, requirePermission("devices.read"), listIrProfiles);
+router.post("/:deviceId/ir/appliances", requireAuth, requirePermission("devices.control"), createIrAppliance);
 router.post("/:deviceId/command", requireAuth, requirePermission("devices.control"), requestDeviceCommand);
 router.get("/:deviceId/state", requireAuth, requirePermission("devices.read"), getDeviceState);
 
