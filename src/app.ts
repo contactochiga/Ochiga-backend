@@ -5,6 +5,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { healthHandler, metricsHandler, requestContextMiddleware, requestLoggingMiddleware, runtimeHealthHandler } from "./observability/http";
 import { aiRateLimit, authRateLimit, runtimeRateLimit, signalIngressRateLimit } from "./middleware/rateLimit";
+import { httpCorsOptions } from "./config/originPolicy";
 
 // -------------------------------
 // ROUTES
@@ -88,67 +89,7 @@ app.use(
 // -------------------------------
 // ⭐ CORS
 // -------------------------------
-const allowList = new Set([
-  // Web dev
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:8100",
-  "http://localhost",
-
-  // Capacitor / Ionic (iOS/Android WebView origins)
-  "capacitor://localhost",
-  "ionic://localhost",
-
-  // ✅ PRODUCTION: GETOYI
-  "https://getoyi.com",
-  "https://www.getoyi.com",
-  "https://facility.getoyi.com",
-  "https://app.getoyi.com",
-  // Older domains
-  "https://oyi.com",
-  "https://www.oyi.com",
-  "https://facility.oyi.com",
-
-  // Render backend
-  "https://oyi-os.onrender.com",
-]);
-
-function isAllowedOrigin(origin: string) {
-  if (!origin) return true;
-
-  if (allowList.has(origin)) return true;
-
-  if (origin.startsWith("capacitor://")) return true;
-  if (origin.startsWith("ionic://")) return true;
-
-  if (origin.endsWith(".vercel.app")) return true;
-  if (origin.endsWith(".github.dev")) return true;
-
-  return false;
-}
-
-const corsMiddleware = cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-
-    if (isAllowedOrigin(origin)) return callback(null, true);
-
-    console.error("❌ CORS blocked:", origin);
-    return callback(new Error("CORS blocked"));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "x-api-key",
-    "x-otp-token",
-    "X-Requested-With",
-    "X-Ochiga-Surface",
-    "X-Oyi-Contract-Version",
-  ],
-  optionsSuccessStatus: 204,
-});
+const corsMiddleware = cors(httpCorsOptions);
 
 app.use(corsMiddleware);
 app.options("*", corsMiddleware);

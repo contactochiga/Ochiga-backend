@@ -43,9 +43,14 @@
     "smoke:device-schema": "node scripts/device-schema-release-smoke.mjs",
     "smoke:infrastructure-intelligence": "npm run build && node scripts/infrastructure-event-intelligence-smoke.mjs",
     "smoke:execution-ledger": "npm run build && node scripts/execution-ledger-smoke.mjs",
+    "smoke:wallet-funding": "node scripts/wallet-funding-smoke.mjs",
+    "smoke:wallet-webhook-idempotency": "node scripts/wallet-webhook-idempotency-smoke.mjs",
+    "smoke:wallet-receipt": "node scripts/wallet-receipt-smoke.mjs",
+    "smoke:wallet-notification": "node scripts/wallet-notification-smoke.mjs",
+    "smoke:wallet-return-flow": "node scripts/wallet-return-flow-smoke.mjs",
     "validate:env": "node scripts/validate-env.mjs",
     "validate:security": "node scripts/validate-security.mjs",
-    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-schema && npm run smoke:device-control-matrix && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence"
+    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-schema && npm run smoke:device-control-matrix && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence && npm run smoke:wallet-funding && npm run smoke:wallet-webhook-idempotency && npm run smoke:wallet-receipt && npm run smoke:wallet-notification && npm run smoke:wallet-return-flow"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

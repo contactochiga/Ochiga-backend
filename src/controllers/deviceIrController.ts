@@ -2,6 +2,9 @@ import type { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
 import { resolveVisibleDevice } from "../services/deviceRuntimeService";
+import { logger } from "../observability/logger";
+import { sendPublicApiError } from "../services/publicApi";
+import { buildIrExternalId, keepDeviceOverrides, upsertCanonicalDeviceIdentity } from "../services/deviceIdentityService";
 
 const PROFILE_LIBRARY = {
   tv: { appliance_type: "tv", label: "TV", control_profile: "tv", device_family: "ir_remote", supported_controls: ["remote", "power"] },
@@ -14,6 +17,10 @@ const PROFILE_LIBRARY = {
 
 function clean(value: unknown) {
   return String(value || "").trim();
+}
+
+function cleanLower(value: unknown) {
+  return clean(value).toLowerCase();
 }
 
 function isIrHub(device: any) {
@@ -89,21 +96,31 @@ export async function syncIrChildAppliancesForHub(hub: any) {
 
   const { data: rows, error: existingError } = await supabaseAdmin
     .from("devices")
-    .select("id,metadata")
+    .select("id,name,home_id,room_id,bind_state,metadata,external_id")
     .eq("parent_device_id", hub.id)
     .eq("is_virtual", true);
   if (existingError) throw new Error(existingError.message);
 
   const existingByProfile = new Map<string, any>();
+  const existingByExternalId = new Map<string, any>();
   for (const row of rows || []) {
     const key = String((row as any)?.metadata?.ir_appliance?.profile || "").toLowerCase();
     if (key) existingByProfile.set(key, row);
+    const ext = clean((row as any)?.external_id);
+    if (ext) existingByExternalId.set(ext, row);
   }
 
   let changed = false;
   const upsertedIds: string[] = [];
   for (const profileKey of profiles) {
     const template = PROFILE_LIBRARY[profileKey as keyof typeof PROFILE_LIBRARY];
+    const providerProfileId =
+      clean(hub?.metadata?.ir_profiles?.[profileKey]?.id) ||
+      clean(hub?.metadata?.provider_profiles?.[profileKey]?.id) ||
+      clean(hub?.metadata?.raw?.ir_profiles?.[profileKey]?.id) ||
+      clean(hub?.metadata?.raw?.provider_profiles?.[profileKey]?.id) ||
+      null;
+    const externalId = buildIrExternalId(hub, profileKey, providerProfileId);
     const metadata = {
       ...(hub.metadata || {}),
       virtual_device: true,
@@ -112,10 +129,12 @@ export async function syncIrChildAppliancesForHub(hub: any) {
       supported_controls: template.supported_controls,
       ir_appliance: {
         profile: profileKey,
+        profile_id: providerProfileId,
         appliance_type: template.appliance_type,
         brand: clean(hub?.metadata?.brand) || clean(hub?.metadata?.raw?.brand) || null,
         model: clean(hub?.metadata?.model) || clean(hub?.metadata?.raw?.model) || null,
         provider_profiles: profiles,
+        parent_hub_external_id: clean(hub?.external_id) || null,
       },
     };
     const payload = {
@@ -130,18 +149,16 @@ export async function syncIrChildAppliancesForHub(hub: any) {
       adapter: hub.adapter,
       vendor: hub.vendor,
       provider: hub.provider,
-      external_id: hub.external_id,
+      external_id: externalId,
       bind_state: hub.bind_state || (hub.room_id ? "room_bound" : hub.home_id ? "home_bound" : "estate_bound"),
       status: hub.status || "ready",
       metadata,
     };
 
-    const existing = existingByProfile.get(profileKey);
-    const result = existing?.id
-      ? await supabaseAdmin.from("devices").update(payload as any).eq("id", existing.id).select("id").single()
-      : await supabaseAdmin.from("devices").insert([payload] as any).select("id").single();
-    if (result.error) throw new Error(result.error.message);
-    changed = changed || !existing?.id;
+    const existing = existingByProfile.get(profileKey) || existingByExternalId.get(externalId) || null;
+    const finalPayload = existing?.id ? keepDeviceOverrides(existing, payload) : payload;
+    const result = await upsertCanonicalDeviceIdentity(finalPayload);
+    changed = changed || !existing?.id || clean(existing?.external_id) !== externalId;
     if (result.data?.id) upsertedIds.push(String(result.data.id));
   }
 
@@ -174,7 +191,12 @@ export async function listIrProfiles(req: Request, res: Response) {
     const appliances = await loadChildAppliances(String(hub.id));
     return res.json({ hub_id: hub.id, available_profiles, appliances });
   } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "Failed to load IR profiles" });
+    return sendPublicApiError(
+      res,
+      error,
+      { statusCode: 503, code: "device_sync_failed", message: "Connected-device synchronization is temporarily unavailable." },
+      { operation: "device_ir.list_profiles", device_id: req.params.deviceId || null, actor_id: req.user?.id || null },
+    );
   }
 }
 
@@ -195,6 +217,8 @@ export async function createIrAppliance(req: Request, res: Response) {
     const label = clean(req.body?.label) || `${clean(hub.name) || "Remote"} ${template.label}`;
     const brand = clean(req.body?.brand);
     const model = clean(req.body?.model);
+    const providerProfileId = clean(req.body?.profile_id || req.body?.provider_profile_id || req.body?.remote_profile_id) || null;
+    const externalId = buildIrExternalId(hub, profileKey, providerProfileId);
     const metadata = {
       ...(hub.metadata || {}),
       virtual_device: true,
@@ -203,20 +227,25 @@ export async function createIrAppliance(req: Request, res: Response) {
       supported_controls: template.supported_controls,
       ir_appliance: {
         profile: profileKey,
+        profile_id: providerProfileId,
         appliance_type: template.appliance_type,
         brand: brand || null,
         model: model || null,
         provider_profiles: providerProfiles(hub),
+        parent_hub_external_id: clean(hub?.external_id) || null,
       },
     };
 
     const { data: rows, error: existingError } = await supabaseAdmin
       .from("devices")
-      .select("id,metadata")
+      .select("id,name,home_id,room_id,bind_state,metadata,external_id")
       .eq("parent_device_id", hub.id)
       .eq("is_virtual", true);
     if (existingError) throw new Error(existingError.message);
-    const existing = (rows || []).find((row: any) => String(row?.metadata?.ir_appliance?.profile || "") === profileKey);
+    const existing = (rows || []).find((row: any) =>
+      String(row?.metadata?.ir_appliance?.profile || "") === profileKey ||
+      clean(row?.external_id) === externalId,
+    );
 
     const payload = {
       estate_id: hub.estate_id,
@@ -230,16 +259,13 @@ export async function createIrAppliance(req: Request, res: Response) {
       adapter: hub.adapter,
       vendor: hub.vendor,
       provider: hub.provider,
-      external_id: hub.external_id,
+      external_id: externalId,
       bind_state: hub.bind_state || (hub.room_id ? "room_bound" : hub.home_id ? "home_bound" : "estate_bound"),
       status: hub.status || "ready",
       metadata,
     };
 
-    const result = existing?.id
-      ? await supabaseAdmin.from("devices").update(payload as any).eq("id", existing.id).select("*").single()
-      : await supabaseAdmin.from("devices").insert([payload] as any).select("*").single();
-    if (result.error) throw new Error(result.error.message);
+    const result = await upsertCanonicalDeviceIdentity(existing?.id ? keepDeviceOverrides(existing, payload) : payload);
     const appliance = result.data;
     const summary = summarizeDeviceFrontendContract(appliance || {});
     return res.json({
@@ -255,6 +281,11 @@ export async function createIrAppliance(req: Request, res: Response) {
       },
     });
   } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "Failed to save appliance profile" });
+    return sendPublicApiError(
+      res,
+      error,
+      { statusCode: 503, code: "device_sync_failed", message: "Connected-device synchronization is temporarily unavailable." },
+      { operation: "device_ir.create_appliance", device_id: req.params.deviceId || null, actor_id: req.user?.id || null },
+    );
   }
 }

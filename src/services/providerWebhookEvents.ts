@@ -1,6 +1,7 @@
 import { Request } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent } from "../core/foundation";
+import { logger } from "../observability/logger";
 
 type ProviderWebhookEventInput = {
   provider: string;
@@ -37,7 +38,11 @@ export async function recordProviderWebhookEvent(input: ProviderWebhookEventInpu
 
   const { error } = await supabaseAdmin.from("provider_webhook_events").insert(row as any);
   if (error) {
-    console.warn("[provider-webhook-events] write failed:", error.message);
+    logger.warn("provider_webhook_event_write_failed", {
+      provider: input.provider,
+      event_type: input.eventType,
+      error: error.message,
+    });
   }
 
   void emitAuditEvent({

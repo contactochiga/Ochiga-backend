@@ -35,6 +35,7 @@ import { supabaseAdmin } from "./supabase/supabaseClient";
 import { logger } from "./observability/logger";
 import { operationalMetrics } from "./observability/metrics";
 import { runtimeHealthRegistry } from "./observability/runtimeHealth";
+import { socketCorsOptions } from "./config/originPolicy";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -42,10 +43,7 @@ import { runtimeHealthRegistry } from "./observability/runtimeHealth";
 const httpServer = http.createServer(app);
 
 export const io = new IOServer(httpServer, {
-  cors: {
-    origin: true,
-    credentials: true,
-  },
+  cors: socketCorsOptions,
 });
 setIO(io);
 

@@ -32,6 +32,8 @@ const supabase = createClient(url, key, { auth: { persistSession: false } });
 const cliVerified = new Set();
 const cliColumnSets = {
   devices: ["parent_device_id", "is_virtual", "external_id"],
+  wallet_transactions: ["reference", "status", "metadata"],
+  notifications: ["delivery_channel"],
 };
 
 function cliColumnCheck(table, column) {
@@ -50,7 +52,15 @@ function cliColumnCheck(table, column) {
 }
 
 async function ensureColumn(table, column) {
-  const { error } = await supabase.from(table).select(column).limit(1);
+  let error = null;
+  try {
+    ({ error } = await Promise.race([
+      supabase.from(table).select(column).limit(1),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("schema_check_timeout")), 5000)),
+    ]));
+  } catch (nextError) {
+    error = nextError;
+  }
   if (error) {
     const message = String(error.message || "");
     if (/invalid api key/i.test(message) || /jwt/i.test(message) || /not authenticated/i.test(message)) {
@@ -73,3 +83,7 @@ async function ensureColumn(table, column) {
 await ensureColumn("devices", "parent_device_id");
 await ensureColumn("devices", "is_virtual");
 await ensureColumn("devices", "external_id");
+await ensureColumn("wallet_transactions", "reference");
+await ensureColumn("wallet_transactions", "status");
+await ensureColumn("wallet_transactions", "metadata");
+await ensureColumn("notifications", "delivery_channel");

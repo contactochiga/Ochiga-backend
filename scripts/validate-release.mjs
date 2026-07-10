@@ -11,6 +11,7 @@ const requiredFiles = [
   "docs/release-gates.md",
   "docs/security-hardening-phase3-audit.md",
   "docs/device-intelligence-layer-audit.md",
+  "docs/backend-v1-completion-audit.md",
 ];
 
 let failures = 0;

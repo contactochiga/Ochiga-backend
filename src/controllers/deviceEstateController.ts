@@ -2,7 +2,8 @@
 import type { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
-import { syncIrChildAppliancesForHub } from "./deviceIrController";
+import { logger } from "../observability/logger";
+import { sendPublicApiError } from "../services/publicApi";
 
 function cleanText(value: any, fallback: string | null = null) {
   const text = String(value ?? "").trim();
@@ -235,7 +236,7 @@ export async function getEstateDevices(req: Request, res: Response) {
 
     if (error) {
       if (isDeviceSchemaMismatch(error)) {
-        console.error("[devices.estate.list] schema_mismatch", {
+        logger.error("devices_estate_list_schema_mismatch", {
           severity: "high",
           estate_id: activeEstateId,
           home_id: activeHomeId || null,
@@ -250,7 +251,7 @@ export async function getEstateDevices(req: Request, res: Response) {
           required_columns: ["devices.parent_device_id", "devices.is_virtual"],
         });
       }
-      console.error("[devices.estate.list] query_failed", {
+      logger.error("devices_estate_list_query_failed", {
         estate_id: user.estate_id,
         home_id: activeHomeId || null,
         include_unassigned: includeUnassigned,
@@ -261,62 +262,6 @@ export async function getEstateDevices(req: Request, res: Response) {
     }
 
     let rows = data || [];
-    const irHubs = rows.filter((device: any) => {
-      const summary = summarizeDeviceFrontendContract(device);
-      const haystack = [device?.category, device?.type, device?.name, device?.metadata?.remote_type, device?.metadata?.ir_profile]
-        .map((item) => String(item || "").toLowerCase())
-        .join(" ");
-      return summary.control_profile === "ir_remote" || /ir|infrared|remote|universal_remote|tv_remote|set_top|stb/.test(haystack);
-    });
-    if (irHubs.length) {
-      let changed = false;
-      for (const hub of irHubs) {
-        try {
-          const synced = await syncIrChildAppliancesForHub(hub);
-          changed = changed || Boolean(synced.changed);
-        } catch (syncError: any) {
-          console.warn("[devices.estate.list] ir_sync_failed", {
-            device_id: hub?.id || null,
-            error: syncError?.message || "IR sync failed",
-          });
-        }
-      }
-      if (changed) {
-        const reload = await supabaseAdmin
-          .from("devices")
-          .select(
-            `
-            id,
-            parent_device_id,
-            is_virtual,
-            estate_id,
-            home_id,
-            room_id,
-            name,
-            type,
-            category,
-            external_id,
-            status,
-            online,
-            vendor,
-            provider,
-            adapter,
-            sync_state,
-            bind_state,
-            is_managed_disabled,
-            last_seen_at,
-            icon,
-            capabilities,
-            protocols,
-            metadata,
-            rooms:rooms ( id, name )
-          `
-          )
-          .eq("estate_id", activeEstateId)
-          .order("updated_at", { ascending: false });
-        if (!reload.error) rows = reload.data || rows;
-      }
-    }
     const deviceIds = rows.map((device: any) => String(device?.id || "")).filter(Boolean);
     const stateMap = new Map<string, any>();
     if (deviceIds.length) {
@@ -377,12 +322,16 @@ export async function getEstateDevices(req: Request, res: Response) {
 
     return res.json({ devices });
   } catch (e: any) {
-    console.error("[devices.estate.list] normalization_failed", {
-      estate_id: (req as any)?.user?.estate_id || null,
-      home_id: activeHomeId || null,
-      include_unassigned: String(req.query.include_unassigned || "").toLowerCase() === "true",
-      error: e?.message || "Unknown registry normalization error",
-    });
-    return res.status(500).json({ error: e?.message || "Failed to fetch estate devices" });
+    return sendPublicApiError(
+      res,
+      e,
+      { statusCode: 500, code: "device_registry_unavailable", message: "Connected devices are temporarily unavailable." },
+      {
+        operation: "devices.estate.list",
+        estate_id: (req as any)?.user?.estate_id || null,
+        home_id: activeHomeId || null,
+        include_unassigned: String(req.query.include_unassigned || "").toLowerCase() === "true",
+      },
+    );
   }
 }

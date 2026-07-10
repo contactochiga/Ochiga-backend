@@ -5,6 +5,9 @@ import type { AdapterContext } from "../device/adapters/types";
 import { emitAuditEvent } from "../core/foundation";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { syncIrChildAppliancesForHub } from "../controllers/deviceIrController";
+import { logger } from "../observability/logger";
+import { keepDeviceOverrides, upsertCanonicalDeviceIdentity } from "./deviceIdentityService";
 
 type TuyaSyncActor = {
   id: string;
@@ -208,7 +211,14 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
       };
 
       if (!existing) {
-        const { data, error } = await supabaseAdmin.from("devices").insert(row as any).select("*").single();
+        let data: any = null;
+        let error: any = null;
+        try {
+          const result = await upsertCanonicalDeviceIdentity(keepDeviceOverrides(null, row));
+          data = result.data;
+        } catch (nextError: any) {
+          error = nextError;
+        }
         if (error) {
           errors.push(`${providerName}: ${error.message}`);
           continue;
@@ -224,7 +234,14 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
       } else {
         updated += 1;
       }
-      const { data, error } = await supabaseAdmin.from("devices").update(row as any).eq("id", existing.id).select("*").single();
+      let data: any = null;
+      let error: any = null;
+      try {
+        const result = await upsertCanonicalDeviceIdentity(keepDeviceOverrides(existing, { ...existing, ...row }));
+        data = result.data;
+      } catch (nextError: any) {
+        error = nextError;
+      }
       if (error) {
         errors.push(`${providerName}: ${error.message}`);
         continue;
@@ -260,6 +277,33 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
       unavailable += 1;
       await audit(actor, "integration.tuya.device.unavailable", "success", { external_id: externalId }, req, data.id);
       emitRegistrySignals(actor, data, "unavailable");
+    }
+
+    const currentRows = await supabaseAdmin
+      .from("devices")
+      .select("*")
+      .eq("estate_id", actor.estate_id)
+      .or("vendor.eq.tuya,adapter.eq.tuya,provider.eq.tuya");
+    if (!currentRows.error) {
+      const hubs = (currentRows.data || []).filter((device: any) => {
+        const haystack = [device?.category, device?.type, device?.name, device?.metadata?.remote_type, device?.metadata?.ir_profile]
+          .map((item) => String(item || "").toLowerCase())
+          .join(" ");
+        return /ir|infrared|remote|universal_remote|tv_remote|set_top|stb/.test(haystack);
+      });
+      for (const hub of hubs) {
+        try {
+          await syncIrChildAppliancesForHub(hub);
+        } catch (error: any) {
+          logger.warn("tuya_registry_ir_sync_failed", {
+            estate_id: actor.estate_id,
+            hub_id: hub?.id || null,
+            external_id: hub?.external_id || null,
+            error: error?.message || "ir_sync_failed",
+          });
+          errors.push(`${cleanStr(hub?.name) || "IR hub"}: IR sync unavailable`);
+        }
+      }
     }
 
     const result: TuyaSyncSummary = {

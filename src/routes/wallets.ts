@@ -18,6 +18,11 @@ router.get("/", requireAuth, requirePermission("wallets.read"), WalletCtrl.getWa
 // Initialize Paystack payment
 router.post("/init", requireAuth, requirePermission("wallets.read"), auditOnSuccess("wallet.funding.initialized", "wallet", "wallet_id"), WalletCtrl.initPayment);
 
+// Funding status / receipt / transaction detail
+router.get("/payment-status/:reference", requireAuth, requirePermission("wallets.read"), WalletCtrl.getFundingStatus);
+router.get("/transactions/:reference", requireAuth, requirePermission("wallets.read"), WalletCtrl.getFundingTransaction);
+router.get("/receipts/:reference", requireAuth, requirePermission("wallets.read"), WalletCtrl.getFundingReceipt);
+
 // Verify a Paystack transaction reference (fallback when webhook is delayed)
 router.get("/verify/:reference", requireAuth, requirePermission("wallets.read"), auditOnSuccess("wallet.funded", "wallet_transaction", "reference"), WalletCtrl.verifyPayment);
 router.post("/verify", requireAuth, requirePermission("wallets.read"), auditOnSuccess("wallet.funded", "wallet_transaction", "reference"), WalletCtrl.verifyPayment);
