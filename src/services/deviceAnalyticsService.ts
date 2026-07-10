@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent } from "../core/foundation";
 import { updateDeviceRuntimeSession } from "./deviceRuntimeSessionsService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
+import { evaluateInfrastructureEventForDeviceEvent } from "./infrastructureEventIntelligenceService";
 
 type DeviceEventSource =
   | "app"
@@ -240,6 +241,17 @@ export async function recordDeviceEvent(input: RecordDeviceEventInput) {
     occurredAt,
   }).catch((error) => console.warn("[device_runtime_sessions] update failed", error?.message || String(error)));
 
+  await evaluateInfrastructureEventForDeviceEvent({
+    deviceId,
+    estateId: input.estateId || null,
+    homeId: input.homeId || null,
+    roomId: input.roomId || null,
+    eventType: input.eventType,
+    source,
+    occurredAt,
+    metadata: input.metadata || {},
+  }).catch((error) => console.warn("[infrastructure_event_intelligence] evaluate failed", error?.message || String(error)));
+
   // The operational write above is authoritative; intelligence publishing is best effort.
   void publishSourceIntelligenceEvent({
     source: "edge",
@@ -272,6 +284,7 @@ export async function recordPossiblePowerEvent(input: {
   occurredAt?: string;
   metadata?: Record<string, any>;
 }) {
+  console.warn("[device_analytics] recordPossiblePowerEvent is deprecated; infrastructure event intelligence should emit canonical parent events instead.");
   const ids = Array.from(new Set([...(input.deviceIds || []), ...(input.affectedDeviceIds || [])].map(String).filter(Boolean)));
   if (ids.length < 3) return { ok: false, skipped: true };
   const occurredAt = input.occurredAt || new Date().toISOString();

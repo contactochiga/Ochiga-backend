@@ -3,7 +3,7 @@ import mqtt from "mqtt";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { emitAuditEvent } from "../core/foundation";
-import { recordDeviceEvent, recordPossiblePowerEvent } from "../services/deviceAnalyticsService";
+import { recordDeviceEvent } from "../services/deviceAnalyticsService";
 
 // ✅ Use IO registry (prevents circular imports)
 import { getIO } from "../realtime/io";
@@ -89,6 +89,31 @@ async function recentDeviceActivityExists(userId: string, deviceId: string, kind
   return (data || []).some((row: any) => {
     const payload = row?.payload || {};
     return String(payload?.device_id || "") === String(deviceId) && String(payload?.kind || "") === kind;
+  });
+}
+
+async function suppressedByInfrastructureEvent(args: {
+  estateId?: string | null;
+  homeId?: string | null;
+  deviceId: string;
+  occurredAt: string;
+}) {
+  const since = new Date(new Date(args.occurredAt).getTime() - 90_000).toISOString();
+  let query = supabaseAdmin
+    .from("home_timeline")
+    .select("metadata,event_type,occurred_at")
+    .in("event_type", ["infrastructure_event.detected", "infrastructure_event.recovered"])
+    .gte("occurred_at", since)
+    .order("occurred_at", { ascending: false })
+    .limit(5);
+  if (args.homeId) query = query.eq("home_id", args.homeId);
+  else if (args.estateId) query = query.eq("estate_id", args.estateId);
+  const { data, error } = await query;
+  if (error) return false;
+  return (data || []).some((row: any) => {
+    const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata : {};
+    const ids = Array.isArray(metadata.affected_device_ids) ? metadata.affected_device_ids.map(String) : [];
+    return ids.includes(String(args.deviceId || ""));
   });
 }
 
@@ -384,27 +409,18 @@ export async function initMqttBridge() {
             summary: `${String(device?.name || "Device")} ${String(change.message || "updated.").replace(/^A connected device /i, "")}`,
           });
 
-          if (analyticsKind === "device.offline" && device?.home_id) {
-            const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-            const { data: recentOffline } = await supabaseAdmin
-              .from("device_events")
-              .select("device_id")
-              .eq("home_id", device.home_id)
-              .eq("event_type", "device.state.offline")
-              .gte("occurred_at", since)
-              .limit(20);
-            const affected = Array.from(new Set((recentOffline || []).map((row: any) => String(row?.device_id || "")).filter(Boolean)));
-            await recordPossiblePowerEvent({
-              estateId: device?.estate_id || estateId || null,
-              homeId: device?.home_id || null,
-              affectedDeviceIds: affected,
-              occurredAt,
-              metadata: { source: "provider_reported", window_minutes: 5 },
-            });
-          }
         }
 
         if (change.changed && device?.home_id && !duplicateTransition) {
+          const infrastructureSuppressed =
+            /device\.offline|device\.online|device\.health\.degraded/.test(String(change.event_type || ""))
+              ? await suppressedByInfrastructureEvent({
+                  estateId: device?.estate_id || estateId || null,
+                  homeId: device?.home_id || null,
+                  deviceId: String(deviceId),
+                  occurredAt,
+                })
+              : false;
           const { data: homeUsers } = await supabaseAdmin
             .from("users")
             .select("id")
@@ -415,6 +431,7 @@ export async function initMqttBridge() {
             if (!userId) continue;
             const alreadySent = await recentDeviceActivityExists(userId, deviceId, String((change as any).kind || ""));
             if (alreadySent) continue;
+            if (infrastructureSuppressed) continue;
             const shouldPush = await shouldPushDeviceStateNotification({
               userId,
               homeId: String(device.home_id),

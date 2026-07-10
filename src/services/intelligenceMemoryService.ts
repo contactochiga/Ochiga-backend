@@ -259,11 +259,17 @@ function deviceNameFromEvent(row: any) {
   return String(row?.metadata?.device_name || row?.devices?.name || "Device").trim() || "Device";
 }
 
+function infrastructureLabel(kind: string) {
+  return String(kind || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (chunk) => chunk.toUpperCase());
+}
+
 export async function answerDeviceHistoryQuestion(actor: AuthUser, prompt: string) {
   const text = String(prompt || "").toLowerCase();
   const wantsHistory =
     /device|light|switch|offline|online|power|used|usage|active|unstable|bedroom|living room|socket|plug|ac|tv/.test(text)
-    || /did power|power.*(off|out|fail)|which .*active recently|which .*used/.test(text);
+    || /did power|power.*(off|out|fail)|which .*active recently|which .*used|wifi|internet|hub|zigbee|bluetooth|gateway|which devices never recovered|how long was the outage|when did electricity return/.test(text);
   if (!wantsHistory) return null;
   const since = /week/.test(text) ? startOfWeekIso() : startOfTodayIso();
   let eventsQuery = supabaseAdmin
@@ -288,6 +294,68 @@ export async function answerDeviceHistoryQuestion(actor: AuthUser, prompt: strin
   const rows = Array.isArray(events) ? events : [];
   const counterRows = Array.isArray(counters) ? counters : [];
   if (!rows.length && !counterRows.length) return "I don't have enough device history yet.";
+
+  const wantsInfrastructure =
+    /did power|power.*(off|out|fail)|when did electricity return|wifi|internet|hub|zigbee|bluetooth|gateway|which devices never recovered|how long was the outage|how many devices were affected|was it wi-?fi or electricity/.test(text);
+  if (wantsInfrastructure) {
+    let infraQuery = supabaseAdmin
+      .from("home_timeline")
+      .select("title,summary,occurred_at,event_type,metadata")
+      .in("event_type", ["infrastructure_event.detected", "infrastructure_event.recovered", "power_event_possible"])
+      .gte("occurred_at", since)
+      .order("occurred_at", { ascending: false })
+      .limit(10);
+    if (actor.home_id) infraQuery = infraQuery.eq("home_id", actor.home_id);
+    else if (actor.estate_id) infraQuery = infraQuery.eq("estate_id", actor.estate_id);
+    const { data: infrastructureRows } = await infraQuery;
+    const infraRows = Array.isArray(infrastructureRows) ? infrastructureRows : [];
+
+    const typedRows = infraRows.filter((row: any) => row?.metadata?.infrastructure_event_kind);
+    if (!typedRows.length && /power.*(off|out|fail)|did power/.test(text)) {
+      const fallback = infraRows.find((row: any) => row?.event_type === "power_event_possible");
+      if (!fallback) return "I do not see a confirmed infrastructure outage in the current history.";
+      return `A possible shared outage was detected.
+Context: ${fallback.summary || fallback.title || "Several devices went offline together."}
+Suggested action: Open Activity to review the affected devices.`;
+    }
+
+    if (typedRows.length) {
+      const latest = typedRows[0] as any;
+      const metadata = latest.metadata || {};
+      const kind = String(metadata.infrastructure_event_kind || "");
+      const affectedCount = Number(metadata.affected_device_count || 0);
+      const recoveredCount = Number(metadata.recovered_count || 0);
+      const stillAffectedCount = Number(metadata.still_affected_count || 0);
+      const durationMinutes = Number(metadata.duration_minutes || 0);
+      const affectedIds = Array.isArray(metadata.affected_device_ids) ? metadata.affected_device_ids.map(String).filter(Boolean) : [];
+
+      if (/which devices never recovered/.test(text)) {
+        if (!stillAffectedCount) return "All affected devices appear to have recovered from the latest infrastructure event.";
+        return `${stillAffectedCount} device${stillAffectedCount === 1 ? "" : "s"} still need attention after the latest ${infrastructureLabel(kind).toLowerCase()} event.
+Suggested action: Open Devices or Activity to review the remaining unavailable devices.`;
+      }
+
+      if (/how long was the outage|when did electricity return/.test(text)) {
+        if (!durationMinutes) return `The latest ${infrastructureLabel(kind).toLowerCase()} event is visible, but Oyi does not yet have a confirmed recovery duration for it.`;
+        return `The latest recovery took about ${durationMinutes} minute${durationMinutes === 1 ? "" : "s"}.
+Context: ${latest.summary || latest.title || infrastructureLabel(kind)}.`;
+      }
+
+      if (/how many devices were affected/.test(text)) {
+        return `${affectedCount || affectedIds.length || "Several"} device${affectedCount === 1 ? "" : "s"} were affected by the latest ${infrastructureLabel(kind).toLowerCase()} event.`;
+      }
+
+      if (/was it wi-?fi or electricity/.test(text)) {
+        if (/internet|provider|wifi/.test(kind)) return "The latest shared outage pattern looks network-related rather than power-related.";
+        if (/power|generator|inverter|solar/.test(kind)) return "The latest shared outage pattern looks power-related rather than Wi-Fi-related.";
+        if (/hub|zigbee|bluetooth|mesh/.test(kind)) return "The latest shared outage pattern points to a hub or gateway issue.";
+      }
+
+      return `${latest.title || infrastructureLabel(kind)}.
+Context: ${latest.summary || "A shared infrastructure event was detected."}
+${stillAffectedCount ? `${stillAffectedCount} device${stillAffectedCount === 1 ? "" : "s"} still need attention.` : "No remaining device is currently flagged as still affected."}`;
+    }
+  }
 
   if (/power.*(off|out|failure)|did power/.test(text)) {
     let timelineQuery = supabaseAdmin

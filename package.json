@@ -41,10 +41,11 @@
     "smoke:device-relationships": "npm run build && node scripts/device-relationships-smoke.mjs",
     "smoke:device-conversation": "npm run build && node scripts/device-conversation-smoke.mjs",
     "smoke:device-schema": "node scripts/device-schema-release-smoke.mjs",
+    "smoke:infrastructure-intelligence": "npm run build && node scripts/infrastructure-event-intelligence-smoke.mjs",
     "smoke:execution-ledger": "npm run build && node scripts/execution-ledger-smoke.mjs",
     "validate:env": "node scripts/validate-env.mjs",
     "validate:security": "node scripts/validate-security.mjs",
-    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-schema && npm run smoke:device-control-matrix && npm run smoke:device-intelligence"
+    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-schema && npm run smoke:device-control-matrix && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

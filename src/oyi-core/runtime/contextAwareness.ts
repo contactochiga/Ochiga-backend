@@ -117,6 +117,61 @@ function entityLabel(signal: NormalizedSignal) {
   return text(signal.entity.name || signal.entity.id || signal.domain, "Operational item");
 }
 
+function infrastructureEventKind(signal: NormalizedSignal) {
+  return text(signal.metadata.infrastructure_event_kind || signal.metadata.infrastructureEventKind);
+}
+
+function isInfrastructureRecovery(kind: string) {
+  return /restored|recovered|stopped/.test(kind);
+}
+
+function infrastructureTitle(kind: string) {
+  switch (kind) {
+    case "power_outage":
+      return "Power appears to have been lost";
+    case "power_restored":
+      return "Grid power appears to be restored";
+    case "internet_outage":
+      return "Internet connectivity appears interrupted";
+    case "internet_restored":
+      return "Internet connection has recovered";
+    case "provider_unavailable":
+      return "The provider cloud is currently unreachable";
+    case "provider_recovered":
+      return "The device provider is reachable again";
+    case "hub_disconnected":
+      return "Your smart hub appears offline";
+    case "hub_reconnected":
+      return "Your smart hub is back online";
+    case "zigbee_coordinator_offline":
+      return "The Zigbee hub appears offline";
+    case "zigbee_coordinator_recovered":
+      return "The Zigbee hub is reporting again";
+    case "bluetooth_gateway_unavailable":
+      return "The Bluetooth gateway appears unavailable";
+    case "bluetooth_gateway_recovered":
+      return "The Bluetooth gateway is back online";
+    case "mesh_node_offline":
+      return "A mesh node appears to be offline";
+    case "mesh_node_recovered":
+      return "The mesh node is back online";
+    case "mass_device_offline":
+      return "Several connected devices went offline together";
+    case "mass_device_recovery":
+      return "Several connected devices recovered together";
+    case "generator_started":
+      return "Generator backup started";
+    case "generator_stopped":
+      return "Generator backup stopped";
+    case "inverter_takeover":
+      return "Inverter backup appears active";
+    case "solar_takeover":
+      return "Solar or battery power appears active";
+    default:
+      return "";
+  }
+}
+
 function locationLabel(signal: NormalizedSignal, context: OperationalContext) {
   return text(signal.room.name || context.room?.name || context.unit?.name || context.building?.name || signal.building.name || signal.estate.name);
 }
@@ -137,6 +192,14 @@ function titleFor(kind: AwarenessKind) {
 }
 
 function recommendedAction(kind: AwarenessKind, signal: NormalizedSignal) {
+  const infrastructureKind = infrastructureEventKind(signal);
+  if (kind === "infrastructure" && infrastructureKind) {
+    if (/power_outage/.test(infrastructureKind)) return "Check estate or home power, generator state, and network equipment.";
+    if (/internet_outage/.test(infrastructureKind)) return "Check the router, ISP link, and Wi-Fi power.";
+    if (/provider_unavailable/.test(infrastructureKind)) return "Wait for provider recovery or retry once provider health improves.";
+    if (/hub|mesh|zigbee|bluetooth/.test(infrastructureKind)) return "Check the affected hub or gateway power and uplink.";
+    if (/restored|recovered/.test(infrastructureKind)) return "Review any device that did not recover automatically.";
+  }
   const status = lower(signal.entity.status || signal.metadata.status || signal.metadata.state);
   if (/offline|unreachable|disconnected/.test(status)) return "Verify power or network connectivity.";
   if (/failed|error/.test(status)) return "Review evidence and confirm the safest recovery path.";
@@ -149,6 +212,13 @@ function recommendedAction(kind: AwarenessKind, signal: NormalizedSignal) {
 }
 
 function impactFor(kind: AwarenessKind, signal: NormalizedSignal) {
+  const infrastructureKind = infrastructureEventKind(signal);
+  if (kind === "infrastructure" && infrastructureKind) {
+    if (/power_outage/.test(infrastructureKind)) return "Power-dependent devices, automations, and connectivity may remain unavailable until supply is restored.";
+    if (/internet_outage|provider_unavailable/.test(infrastructureKind)) return "Cloud-controlled devices and provider acknowledgements may be delayed until connectivity returns.";
+    if (/hub|mesh|zigbee|bluetooth/.test(infrastructureKind)) return "Dependent sensors, remotes, and child devices may stop reporting until the gateway reconnects.";
+    if (isInfrastructureRecovery(infrastructureKind)) return "Most affected services appear to be recovering, but any remaining unavailable device still needs review.";
+  }
   const status = lower(signal.entity.status || signal.metadata.status || signal.metadata.state);
   if (/offline|unreachable|disconnected/.test(status) && kind === "infrastructure") {
     return "Automations, monitoring, or resident-facing operations depending on this asset may not execute.";
@@ -162,6 +232,51 @@ function impactFor(kind: AwarenessKind, signal: NormalizedSignal) {
 }
 
 function summaryFor(kind: AwarenessKind, signal: NormalizedSignal, context: OperationalContext) {
+  const infrastructureKind = infrastructureEventKind(signal);
+  if (kind === "infrastructure" && infrastructureKind) {
+    const affectedCount = Number(signal.metadata.affected_device_count || 0);
+    const recoveredCount = Number(signal.metadata.recovered_count || affectedCount || 0);
+    const stillAffectedCount = Number(signal.metadata.still_affected_count || 0);
+    const provider = text(signal.metadata.provider);
+    const durationMinutes = Number(signal.metadata.duration_minutes || 0);
+    const duration = Number.isFinite(durationMinutes) && durationMinutes > 0
+      ? ` after about ${durationMinutes} minute${durationMinutes === 1 ? "" : "s"}`
+      : "";
+    if (infrastructureKind === "power_outage") {
+      return `It looks like power was lost. ${affectedCount || "Several"} connected device${affectedCount === 1 ? "" : "s"} became unavailable at the same time.`;
+    }
+    if (infrastructureKind === "power_restored") {
+      return `Grid power appears to be back. ${recoveredCount || "Several"} device${recoveredCount === 1 ? "" : "s"} recovered${duration}${stillAffectedCount ? `, while ${stillAffectedCount} still need attention` : ""}.`;
+    }
+    if (infrastructureKind === "internet_outage") {
+      return `It appears your home Wi-Fi or internet is offline. ${affectedCount || "Several"} cloud-controlled device${affectedCount === 1 ? "" : "s"} cannot currently be reached.`;
+    }
+    if (infrastructureKind === "internet_restored") {
+      return `Internet connectivity appears restored. ${recoveredCount || "Several"} device${recoveredCount === 1 ? "" : "s"} resumed reporting${duration}${stillAffectedCount ? `, with ${stillAffectedCount} still unavailable` : ""}.`;
+    }
+    if (infrastructureKind === "provider_unavailable") {
+      return `The connected device provider${provider ? ` (${provider})` : ""} appears unreachable. ${affectedCount || "Several"} device${affectedCount === 1 ? "" : "s"} stopped responding together.`;
+    }
+    if (infrastructureKind === "provider_recovered") {
+      return `The device provider is reachable again. ${recoveredCount || "Several"} device${recoveredCount === 1 ? "" : "s"} resumed reporting${duration}.`;
+    }
+    if (/hub_disconnected|zigbee_coordinator_offline|bluetooth_gateway_unavailable|mesh_node_offline/.test(infrastructureKind)) {
+      return `${infrastructureTitle(infrastructureKind)}. ${affectedCount || "Several"} dependent device${affectedCount === 1 ? "" : "s"} may temporarily stop reporting.`;
+    }
+    if (/hub_reconnected|zigbee_coordinator_recovered|bluetooth_gateway_recovered|mesh_node_recovered/.test(infrastructureKind)) {
+      return `${infrastructureTitle(infrastructureKind)}. ${recoveredCount || "Several"} dependent device${recoveredCount === 1 ? "" : "s"} resumed reporting${duration}${stillAffectedCount ? `, while ${stillAffectedCount} still need attention` : ""}.`;
+    }
+    if (infrastructureKind === "mass_device_offline") {
+      return `${affectedCount || "Several"} connected devices went offline together. Oyi is treating this as one shared infrastructure event instead of separate failures.`;
+    }
+    if (infrastructureKind === "mass_device_recovery") {
+      return `${recoveredCount || "Several"} connected devices recovered together${duration}${stillAffectedCount ? `, while ${stillAffectedCount} still need review` : ""}.`;
+    }
+    if (infrastructureKind === "generator_started") return "Backup generation appears to have taken over.";
+    if (infrastructureKind === "generator_stopped") return "Backup generation is no longer active.";
+    if (infrastructureKind === "inverter_takeover") return "Battery or inverter power appears to have taken over connected loads.";
+    if (infrastructureKind === "solar_takeover") return "A solar or battery source appears to be supporting connected loads.";
+  }
   const entity = entityLabel(signal);
   const location = locationLabel(signal, context);
   const status = lower(signal.entity.status || signal.metadata.status || signal.metadata.state);
@@ -208,10 +323,11 @@ export function buildAwarenessFromSignal(input: Partial<NormalizedSignal> & Reco
   const kind = awarenessKind(signal);
   const urgency = urgencyFrom(signal.severity, signal.confidence);
   const generatedAt = new Date().toISOString();
+  const specificInfrastructureTitle = kind === "infrastructure" ? infrastructureTitle(infrastructureEventKind(signal)) : "";
   return {
     id: `awareness:${signal.id}`,
     kind,
-    title: titleFor(kind),
+    title: specificInfrastructureTitle || titleFor(kind),
     summary: summaryFor(kind, signal, context),
     reason: text(signal.metadata.reason || signal.metadata.message || signal.metadata.description || signal.entity.status, "A normalized signal requires operational review."),
     impact: impactFor(kind, signal),
