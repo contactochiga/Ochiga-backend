@@ -6,6 +6,7 @@
 - `npm run validate:env`
 - `npm run validate:security`
 - `npm run validate:release`
+- `npm run smoke:device-schema`
 - all backend smoke tests
 
 ## Must Pass Before Production
@@ -13,6 +14,7 @@
 - Staging validation complete
 - production environment variables verified
 - database migrations applied
+- required runtime columns verified, including `devices.parent_device_id` and `devices.is_virtual`
 - runtime health endpoints verified
 - provider health verified for enabled integrations
 

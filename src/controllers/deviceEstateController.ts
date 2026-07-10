@@ -162,6 +162,14 @@ function sanitizeMetadata(value: any, depth = 0): any {
   );
 }
 
+function isDeviceSchemaMismatch(error: any) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("column devices.parent_device_id does not exist") ||
+    message.includes("column devices.is_virtual does not exist")
+  );
+}
+
 export async function getEstateDevices(req: Request, res: Response) {
   const user: any = (req as any).user;
   const context: any = (req as any).oisContext || null;
@@ -221,6 +229,22 @@ export async function getEstateDevices(req: Request, res: Response) {
     const { data, error } = await query.order("updated_at", { ascending: false });
 
     if (error) {
+      if (isDeviceSchemaMismatch(error)) {
+        console.error("[devices.estate.list] schema_mismatch", {
+          severity: "high",
+          estate_id: activeEstateId,
+          home_id: activeHomeId || null,
+          include_unassigned: includeUnassigned,
+          role,
+          error: error.message,
+          required_columns: ["devices.parent_device_id", "devices.is_virtual"],
+        });
+        return res.status(503).json({
+          error: "Device registry schema is temporarily unavailable.",
+          code: "device_registry_schema_mismatch",
+          required_columns: ["devices.parent_device_id", "devices.is_virtual"],
+        });
+      }
       console.error("[devices.estate.list] query_failed", {
         estate_id: user.estate_id,
         home_id: activeHomeId || null,
