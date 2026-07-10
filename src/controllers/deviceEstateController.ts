@@ -2,6 +2,7 @@
 import type { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
+import { syncIrChildAppliancesForHub } from "./deviceIrController";
 
 function cleanText(value: any, fallback: string | null = null) {
   const text = String(value ?? "").trim();
@@ -44,6 +45,7 @@ function includesAny(values: string[], patterns: RegExp[]) {
 }
 
 function buildUiCapabilities(device: any, metadata: any) {
+  const summary = summarizeDeviceFrontendContract({ ...device, metadata });
   const values = flattenCapabilityCodes([
     device?.capabilities,
     metadata?.capabilities,
@@ -78,17 +80,20 @@ function buildUiCapabilities(device: any, metadata: any) {
     metadata?.raw?.model,
   ].map((item) => String(item || "").toLowerCase()).join(" ");
   const isCamera = /(^| )(camera|cctv|ipc|ipcamera|nvr|dvr|onvif|rtsp)( |$)/.test(`${category} ${identityText}`);
-  const isAc = /(^| )(ac|a\/c|air_conditioner|aircon|hvac|climate|thermostat|kt)( |$)/.test(`${category} ${identityText}`);
-  const isTv = /(^| )(tv|television|smart_tv|android_tv|google_tv|samsung_tv|lg_tv|hisense_tv|tcl|set_top|set_top_box|decoder|stb)( |$)/.test(`${category} ${identityText}`);
-  const isIrRemote = /(^| )(ir|infrared|remote|remote_control|universal_remote|wnykq)( |$)/.test(`${category} ${identityText}`);
+  const isCapabilitySwitch = Array.isArray(summary.supported_controls) && summary.supported_controls.includes("power");
+  const isExplicitSwitch = summary.control_profile === "switch" || summary.device_family === "switch" || summary.device_family === "plug";
   const isSimplePower = /(^| )(light|switch|plug|socket|outlet|relay)( |$)/.test(`${category} ${identityText}`);
+  const hasSwitchIdentity = isCapabilitySwitch || isExplicitSwitch || isSimplePower;
+  const isAc = !hasSwitchIdentity && (summary.control_profile === "climate" || summary.device_family === "climate" || /(^| )(ac|a\/c|air_conditioner|aircon|hvac|climate|thermostat|kt)( |$)/.test(`${category} ${identityText}`));
+  const isTv = summary.control_profile === "tv" || (!hasSwitchIdentity && /(^| )(tv|television|smart_tv|android_tv|google_tv|samsung_tv|lg_tv|hisense_tv|tcl|set_top|set_top_box|decoder|stb)( |$)/.test(`${category} ${identityText}`));
+  const isIrRemote = summary.control_profile === "ir_remote" || (!hasSwitchIdentity && /(^| )(ir|infrared|remote|remote_control|universal_remote|wnykq)( |$)/.test(`${category} ${identityText}`));
 
   const switchable =
     !isCamera &&
     !isTv &&
     !isIrRemote &&
-    !isAc &&
     (includesAny(values, [/^switch(_\d+)?$/, /^switch_led$/, /^power$/, /^on$/, /^on_off$/, /^relay/]) ||
+      isCapabilitySwitch ||
       isSimplePower);
   const timer = includesAny(values, [/timer/, /countdown/, /count_down/]);
   const schedule = includesAny(values, [/schedule/, /timer_schedule/]);
@@ -136,7 +141,7 @@ function buildUiCapabilities(device: any, metadata: any) {
   ].filter(Boolean) as string[];
 
   return {
-    kind: isCamera ? "camera" : tvRemote ? "tv_remote" : acRemote ? "ac_remote" : isIrRemote ? "ir_remote" : category || "device",
+    kind: isCamera ? "camera" : switchable ? "switch" : tvRemote ? "tv_remote" : acRemote ? "ac_remote" : isIrRemote ? "ir_remote" : category || "device",
     can_switch: switchable,
     timer,
     schedule,
@@ -255,7 +260,63 @@ export async function getEstateDevices(req: Request, res: Response) {
       return res.status(500).json({ error: "Failed to load device registry" });
     }
 
-    const rows = data || [];
+    let rows = data || [];
+    const irHubs = rows.filter((device: any) => {
+      const summary = summarizeDeviceFrontendContract(device);
+      const haystack = [device?.category, device?.type, device?.name, device?.metadata?.remote_type, device?.metadata?.ir_profile]
+        .map((item) => String(item || "").toLowerCase())
+        .join(" ");
+      return summary.control_profile === "ir_remote" || /ir|infrared|remote|universal_remote|tv_remote|set_top|stb/.test(haystack);
+    });
+    if (irHubs.length) {
+      let changed = false;
+      for (const hub of irHubs) {
+        try {
+          const synced = await syncIrChildAppliancesForHub(hub);
+          changed = changed || Boolean(synced.changed);
+        } catch (syncError: any) {
+          console.warn("[devices.estate.list] ir_sync_failed", {
+            device_id: hub?.id || null,
+            error: syncError?.message || "IR sync failed",
+          });
+        }
+      }
+      if (changed) {
+        const reload = await supabaseAdmin
+          .from("devices")
+          .select(
+            `
+            id,
+            parent_device_id,
+            is_virtual,
+            estate_id,
+            home_id,
+            room_id,
+            name,
+            type,
+            category,
+            external_id,
+            status,
+            online,
+            vendor,
+            provider,
+            adapter,
+            sync_state,
+            bind_state,
+            is_managed_disabled,
+            last_seen_at,
+            icon,
+            capabilities,
+            protocols,
+            metadata,
+            rooms:rooms ( id, name )
+          `
+          )
+          .eq("estate_id", activeEstateId)
+          .order("updated_at", { ascending: false });
+        if (!reload.error) rows = reload.data || rows;
+      }
+    }
     const deviceIds = rows.map((device: any) => String(device?.id || "")).filter(Boolean);
     const stateMap = new Map<string, any>();
     if (deviceIds.length) {

@@ -73,6 +73,86 @@ async function loadChildAppliances(parentDeviceId: string) {
   });
 }
 
+export async function syncIrChildAppliancesForHub(hub: any) {
+  if (!hub || !isIrHub(hub)) {
+    return { profiles: [] as string[], appliances: [] as any[], changed: false };
+  }
+
+  const profiles = providerProfiles(hub).filter((key) => key in PROFILE_LIBRARY);
+  if (!profiles.length) {
+    return {
+      profiles: [],
+      appliances: await loadChildAppliances(String(hub.id)),
+      changed: false,
+    };
+  }
+
+  const { data: rows, error: existingError } = await supabaseAdmin
+    .from("devices")
+    .select("id,metadata")
+    .eq("parent_device_id", hub.id)
+    .eq("is_virtual", true);
+  if (existingError) throw new Error(existingError.message);
+
+  const existingByProfile = new Map<string, any>();
+  for (const row of rows || []) {
+    const key = String((row as any)?.metadata?.ir_appliance?.profile || "").toLowerCase();
+    if (key) existingByProfile.set(key, row);
+  }
+
+  let changed = false;
+  const upsertedIds: string[] = [];
+  for (const profileKey of profiles) {
+    const template = PROFILE_LIBRARY[profileKey as keyof typeof PROFILE_LIBRARY];
+    const metadata = {
+      ...(hub.metadata || {}),
+      virtual_device: true,
+      control_profile: template.control_profile,
+      device_family: template.device_family,
+      supported_controls: template.supported_controls,
+      ir_appliance: {
+        profile: profileKey,
+        appliance_type: template.appliance_type,
+        brand: clean(hub?.metadata?.brand) || clean(hub?.metadata?.raw?.brand) || null,
+        model: clean(hub?.metadata?.model) || clean(hub?.metadata?.raw?.model) || null,
+        provider_profiles: profiles,
+      },
+    };
+    const payload = {
+      estate_id: hub.estate_id,
+      home_id: hub.home_id,
+      room_id: hub.room_id,
+      parent_device_id: hub.id,
+      is_virtual: true,
+      name: `${clean(hub.name) || "Remote"} ${template.label}`,
+      type: template.appliance_type,
+      category: template.appliance_type,
+      adapter: hub.adapter,
+      vendor: hub.vendor,
+      provider: hub.provider,
+      external_id: hub.external_id,
+      bind_state: hub.bind_state || (hub.room_id ? "room_bound" : hub.home_id ? "home_bound" : "estate_bound"),
+      status: hub.status || "ready",
+      metadata,
+    };
+
+    const existing = existingByProfile.get(profileKey);
+    const result = existing?.id
+      ? await supabaseAdmin.from("devices").update(payload as any).eq("id", existing.id).select("id").single()
+      : await supabaseAdmin.from("devices").insert([payload] as any).select("id").single();
+    if (result.error) throw new Error(result.error.message);
+    changed = changed || !existing?.id;
+    if (result.data?.id) upsertedIds.push(String(result.data.id));
+  }
+
+  return {
+    profiles,
+    appliances: await loadChildAppliances(String(hub.id)),
+    changed,
+    upsertedIds,
+  };
+}
+
 export async function listIrProfiles(req: Request, res: Response) {
   try {
     const user = req.user;
@@ -85,6 +165,7 @@ export async function listIrProfiles(req: Request, res: Response) {
     if (!isIrHub(hub)) return res.status(400).json({ error: "Add or sync an appliance profile before using this remote." });
 
     const providerAvailable = providerProfiles(hub);
+    await syncIrChildAppliancesForHub(hub);
     const available_profiles = Array.from(new Set([...providerAvailable, "tv", "ac", "fan", "decoder", "projector", "custom"])).map((key) => ({
       key,
       ...PROFILE_LIBRARY[key as keyof typeof PROFILE_LIBRARY],

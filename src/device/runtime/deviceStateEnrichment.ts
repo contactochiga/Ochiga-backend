@@ -111,6 +111,12 @@ function capabilityCodes(input: { state?: AnyRecord | null; functions?: Array<{ 
 }
 
 function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string[]) {
+  const explicitFamily = text(
+    metadata?.device_family,
+    metadata?.virtual_device ? metadata?.ir_appliance?.appliance_type : "",
+    device?.device_family,
+  ).toLowerCase();
+  const explicitProfile = text(metadata?.control_profile, device?.control_profile).toLowerCase();
   const haystack = [
     device?.category,
     device?.type,
@@ -125,6 +131,15 @@ function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string
   const hasPower = codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code));
   const hasClimate = codes.some((code) => /temp|temperature|fan|windspeed|mode|swing/.test(code));
   const hasRemote = codes.some((code) => /ir_|remote|key_code|command_key|control/.test(code));
+
+  if (explicitFamily === "switch" || explicitProfile === "switch") return "switch";
+  if (explicitFamily === "plug" || explicitProfile === "plug") return "plug";
+  if (explicitFamily === "climate" || explicitProfile === "climate") return "climate";
+  if (explicitFamily === "ir_remote" || explicitProfile === "ir_remote" || explicitProfile === "tv") return "ir_remote";
+  if (explicitFamily === "camera" || explicitProfile === "camera") return "camera";
+  if (explicitFamily === "lock" || explicitProfile === "lock") return "lock";
+  if (explicitFamily === "curtain" || explicitProfile === "curtain") return "curtain";
+  if (explicitFamily === "sensor" || explicitProfile === "sensor") return "sensor";
 
   if (/camera|ipc|rtsp|onvif|dvr|nvr/.test(haystack)) return "camera";
   if (/lock|doorlock/.test(haystack)) return "lock";
