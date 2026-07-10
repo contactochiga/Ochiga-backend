@@ -34,6 +34,22 @@ export type OyiChatInput = {
   message: string;
   thread_id?: string | null;
   context?: OisContext | null;
+  device_id?: string | null;
+  device_name?: string | null;
+  room_id?: string | null;
+  room_name?: string | null;
+  control_profile?: string | null;
+  primary_state?: string | null;
+  health_status?: string | null;
+  supported_controls?: string[] | null;
+  channel_definitions?: Array<Record<string, unknown>> | null;
+  memory_summary?: Record<string, unknown> | null;
+  relationships?: Record<string, unknown> | null;
+  predictive_findings?: Array<Record<string, unknown>> | null;
+  recent_executions?: Array<Record<string, unknown>> | null;
+  active_scenes?: Array<Record<string, unknown>> | null;
+  active_automations?: Array<Record<string, unknown>> | null;
+  conversation_context?: Record<string, unknown> | null;
 };
 
 type ConversationEntity = {
@@ -376,6 +392,98 @@ function emptyConversationState(): ConversationState {
   return { version: 1, entities: [], active_list: [], last_displayed_records: [], conversation_state: "idle" };
 }
 
+function arrayOfObjects(value: unknown) {
+  return Array.isArray(value) ? value.filter((item) => item && typeof item === "object") as Array<Record<string, unknown>> : [];
+}
+
+function recordOf(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function explicitDeviceEntity(input: OyiChatInput): ConversationEntity | null {
+  const deviceId = String(input.device_id || "").trim();
+  if (!deviceId) return null;
+  const recentExecutions = arrayOfObjects(input.recent_executions);
+  const activeScenes = arrayOfObjects(input.active_scenes);
+  const activeAutomations = arrayOfObjects(input.active_automations);
+  return {
+    type: "device",
+    id: deviceId,
+    title: String(input.device_name || "Selected device").trim() || "Selected device",
+    status: String(input.primary_state || input.health_status || "available").trim() || null,
+    details: {
+      room_id: input.room_id || null,
+      room_name: input.room_name || null,
+      control_profile: input.control_profile || null,
+      primary_state: input.primary_state || null,
+      health_status: input.health_status || null,
+      supported_controls: Array.isArray(input.supported_controls) ? input.supported_controls : [],
+      channel_definitions: Array.isArray(input.channel_definitions) ? input.channel_definitions : [],
+      memory_summary: recordOf(input.memory_summary),
+      relationships: recordOf(input.relationships),
+      predictive_findings: arrayOfObjects(input.predictive_findings),
+      recent_executions: recentExecutions,
+      active_scenes: activeScenes,
+      active_automations: activeAutomations,
+      conversation_context: recordOf(input.conversation_context),
+      activity_summary:
+        String(
+          recordOf(input.memory_summary).summary ||
+          recentExecutions[0]?.summary ||
+          input.primary_state ||
+          "",
+        ).trim() || null,
+    },
+  };
+}
+
+function primeConversationStateWithInput(previous: ConversationState, input: OyiChatInput): ConversationState {
+  const entity = explicitDeviceEntity(input);
+  if (!entity) return previous;
+  const previousActiveId = String(previous.active_entity_id || previous.active_entity?.id || "").trim();
+  if (previousActiveId && previousActiveId === String(entity.id || "")) {
+    return {
+      ...previous,
+      active_entity: entity,
+      active_entity_id: String(entity.id || ""),
+      active_entity_label: entity.title,
+      active_entity_type: "device",
+      active_topic: "device",
+      active_domain: previous.active_domain || "devices",
+      entities: previous.entities.length ? previous.entities : [entity],
+      active_list: previous.active_list?.length ? previous.active_list : [entity],
+      last_displayed_records: previous.last_displayed_records?.length ? previous.last_displayed_records : [entity],
+      active_result_state: previous.active_result_state || "entity",
+      conversation_state: previous.conversation_state === "idle" ? "inspecting" : previous.conversation_state,
+    };
+  }
+  return {
+    version: 1,
+    last_intent: previous.last_intent,
+    last_user_message: previous.last_user_message,
+    entities: [entity],
+    active_domain: "devices",
+    active_entity_type: "device",
+    active_entity: entity,
+    active_entity_id: String(entity.id || ""),
+    active_entity_label: entity.title,
+    active_list_position: 0,
+    active_entity_position: 0,
+    active_list_count: 1,
+    active_action: previous.active_action || null,
+    active_workflow: null,
+    last_response_type: previous.last_response_type || "conversation",
+    active_list: [entity],
+    last_displayed_records: [entity],
+    conversation_state: "inspecting",
+    active_topic: "device",
+    active_result_state: "entity",
+    list_offset: 0,
+    pending_confirmation_id: null,
+    pending_action_summary: null,
+  };
+}
+
 function entityTypeFromCard(card: any): ConversationEntity["type"] | null {
   const value = `${card?.type || ""} ${card?.title || ""}`.toLowerCase();
   if (/visitor|guest|access/.test(value)) return "visitor";
@@ -560,6 +668,75 @@ function activeEntityFromState(state: ConversationState) {
   if (!state.active_entity_id && !state.active_entity_label && state.entities.length === 1) return state.entities[0];
   if (!state.active_entity_id && !state.active_entity_label) return state.active_entity || null;
   return state.entities.find((entity) => (state.active_entity_id && entity.id === state.active_entity_id) || (state.active_entity_label && entity.title === state.active_entity_label)) || state.active_entity || null;
+}
+
+function naturalExecutionSource(value: unknown) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return null;
+  if (/scene/.test(raw)) return "from a scene";
+  if (/automation/.test(raw)) return "from an automation";
+  if (/physical|manual/.test(raw)) return "from a manual switch action";
+  if (/facility/.test(raw)) return "from facility";
+  if (/provider/.test(raw)) return "from a provider sync";
+  if (/watch/.test(raw)) return "from your watch";
+  if (/phone|app|consumer/.test(raw)) return "from your phone";
+  return `from ${raw.replace(/_/g, " ")}`;
+}
+
+function summarizeDeviceExecutions(entity: ConversationEntity) {
+  const details = entity.details || {};
+  const rows = Array.isArray(details.recent_executions) ? details.recent_executions as Array<Record<string, unknown>> : [];
+  const title = entity.title;
+  if (!rows.length) {
+    const memory = recordOf(details.memory_summary);
+    const summary = String(memory.summary || details.activity_summary || "").trim();
+    return summary
+      ? `${summary} I do not have a longer execution history attached to this device context yet.`
+      : `I do not have recent activity attached for ${title} yet.`;
+  }
+  const latest = rows[0] || {};
+  const time = latest.occurred_at ? new Date(String(latest.occurred_at)).toLocaleString() : null;
+  const count = rows.length;
+  const source = naturalExecutionSource(latest.source);
+  const recentSummary = String(latest.summary || latest.title || "Recent device activity").trim();
+  const countLine = `${title} was involved in ${count} recent ${count === 1 ? "action" : "actions"} I can see.`;
+  const latestLine = `The most recent action was${time ? ` at ${time}` : " recently"}${source ? ` ${source}` : ""}.`;
+  return `${countLine} ${latestLine} ${recentSummary}`.trim();
+}
+
+function summarizeDeviceRelationships(entity: ConversationEntity) {
+  const details = entity.details || {};
+  const relationships = recordOf(details.relationships);
+  const room = String(details.room_name || relationships.room_name || "").trim();
+  const parent = recordOf(relationships.parent_device);
+  const children = Array.isArray(relationships.child_devices) ? relationships.child_devices as Array<Record<string, unknown>> : [];
+  const scenes = Array.isArray(details.active_scenes) ? details.active_scenes as Array<Record<string, unknown>> : [];
+  const automations = Array.isArray(details.active_automations) ? details.active_automations as Array<Record<string, unknown>> : [];
+  const parts: string[] = [];
+  if (room) parts.push(`${entity.title} is assigned to ${room}.`);
+  if (parent.name) parts.push(`It depends on ${String(parent.name)} as its parent device.`);
+  if (children.length) parts.push(`${children.length} child ${children.length === 1 ? "device is" : "devices are"} linked to it.`);
+  if (scenes.length) parts.push(`${scenes.length} active ${scenes.length === 1 ? "scene affects" : "scenes affect"} it.`);
+  if (automations.length) parts.push(`${automations.length} active ${automations.length === 1 ? "automation can control" : "automations can control"} it.`);
+  if (!parts.length) return `I do not have linked scene, automation, parent, or child relationships attached for ${entity.title} yet.`;
+  return parts.join(" ");
+}
+
+function summarizeDeviceDiagnosis(entity: ConversationEntity) {
+  const details = entity.details || {};
+  const conversationContext = recordOf(details.conversation_context);
+  const findings = Array.isArray(details.predictive_findings) ? details.predictive_findings as Array<Record<string, unknown>> : [];
+  const health = String(details.health_status || conversationContext.health || "unknown").replace(/_/g, " ").trim();
+  const provider = String(conversationContext.provider_availability || "").replace(/_/g, " ").trim();
+  const primaryState = String(details.primary_state || conversationContext.current_state || "").replace(/_/g, " ").trim();
+  const leadFinding = findings[0] ? String(findings[0].summary || findings[0].headline || findings[0].title || "").trim() : "";
+  const parts = [
+    `${entity.title} is currently ${primaryState || "awaiting confirmation"}.`,
+    health ? `Health is ${health}.` : "",
+    provider ? `Provider availability is ${provider}.` : "",
+    leadFinding || "",
+  ].filter(Boolean);
+  return parts.join(" ");
 }
 
 function referencedEntity(message: string, state: ConversationState) {
@@ -1943,6 +2120,45 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
     });
   }
 
+  if (entity?.type === "device" && activeEntity && /show (?:full )?(?:activity|history)|recent activity|what happened|how many times|full history|show failures|manual switch|physical actions|scene activity|automation activity/i.test(message)) {
+    return preserveConversation({
+      intent: "investigation",
+      understood: `I checked the recent activity for ${entity.title}.`,
+      message: summarizeDeviceExecutions(entity),
+      cards: [],
+      sources: userFacingSources(surface, "operation"),
+      suggested_actions: [],
+      execution: { status: "read_only", provider: "device_activity" },
+      conversation_active_entity: activeEntity,
+    });
+  }
+
+  if (entity?.type === "device" && activeEntity && /relationship|dependencies|depend on|what scenes|what automations|what controls you|view relationships/i.test(message)) {
+    return preserveConversation({
+      intent: "investigation",
+      understood: `I checked the current relationships for ${entity.title}.`,
+      message: summarizeDeviceRelationships(entity),
+      cards: [],
+      sources: userFacingSources(surface, "operation"),
+      suggested_actions: [],
+      execution: { status: "read_only", provider: "device_relationships" },
+      conversation_active_entity: activeEntity,
+    });
+  }
+
+  if (entity?.type === "device" && activeEntity && /diagnose|check connection|why is .*offline|why is it offline|explain failure|check device/i.test(message)) {
+    return preserveConversation({
+      intent: "investigation",
+      understood: `I checked the latest health context for ${entity.title}.`,
+      message: summarizeDeviceDiagnosis(entity),
+      cards: [],
+      sources: userFacingSources(surface, "operation"),
+      suggested_actions: [],
+      execution: { status: "read_only", provider: "device_health" },
+      conversation_active_entity: activeEntity,
+    });
+  }
+
   if (/show (me )?(the )?(first|second|third|last|latest|most recent) one|^(?:number\s+)?(?:one|two|three|1|2|3)$|\b(?:1st|2nd|3rd)\b|^(why|when|who|how)\??$|when was|who created|who reported|who owns|why did|what happened|what should i do next|what next|next action|status|evidence|verify|show (?:activity|history)|^(?:show|open|inspect|select|view|tell me about)\b/i.test(message) && entity && activeEntity) {
     if (entity.type === "workflow" && /who owns|who is responsible|owner|assignee|assigned/i.test(message)) {
       const owner = humanLabel(details.owner) || humanLabel(details.assignee);
@@ -2302,6 +2518,20 @@ export function buildOyiAwarenessScenarioForTest(input: {
 async function persistThread(actor: AuthUser | null, input: OyiChatInput, response: any, userMessage: string, conversationState: ConversationState) {
   const now = new Date().toISOString();
   const threadId = validUuid(input.thread_id) ? String(input.thread_id) : randomUUID();
+  const activeEntity = response?.conversation_active_entity || conversationState.active_entity || explicitDeviceEntity(input);
+  const entityDetails = recordOf(activeEntity?.details);
+  const sourceMetadata = {
+    source_surface: safeSurface(input.surface),
+    source_module: input.module || null,
+    object_type: activeEntity?.type || null,
+    object_id: activeEntity?.id || null,
+    object_name: activeEntity?.title || null,
+    estate_id: input.estate_id || actor?.estate_id || null,
+    home_id: input.home_id || actor?.home_id || null,
+    room_id: entityDetails.room_id || input.room_id || null,
+    room_name: entityDetails.room_name || input.room_name || null,
+    task_state: conversationState.conversation_state || null,
+  };
   try {
     await supabaseAdmin.from("oyi_conversation_threads").upsert({
       id: threadId,
@@ -2315,6 +2545,7 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
       metadata: {
         role_policy: getIntelligencePermissionPolicy(actor),
         conversation_state: conversationState,
+        ...sourceMetadata,
         resolved_context_snapshot: input.context || {
           surface: safeSurface(input.surface),
           estate_id: input.estate_id || actor?.estate_id || null,
@@ -2329,7 +2560,7 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
         user_id: actor?.id || null,
         role: "user",
         content: userMessage,
-        metadata: { surface: input.surface, module: input.module },
+        metadata: { surface: input.surface, module: input.module, ...sourceMetadata },
         created_at: now,
       },
       {
@@ -2350,6 +2581,7 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
           recommended_action: response.recommended_action || null,
           awareness_score: response.awareness_score || null,
           intent_routing: response.internal_intent || null,
+          ...sourceMetadata,
         },
         created_at: new Date(Date.now() + 1).toISOString(),
       },
@@ -2465,7 +2697,11 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
   return observeAgentAction(
     { agent_id: surface === "facility" ? "facility" : "oyi", action: "oyi.chat", tool: "oyi:chat", surface, actor },
     async () => {
-      const conversation = await loadConversationContext(actor, input);
+      const loadedConversation = await loadConversationContext(actor, input);
+      const conversation = {
+        ...loadedConversation,
+        state: primeConversationStateWithInput(loadedConversation.state, input),
+      };
       const explicitDomain = detectDomainIntent(normalizeOyiMessage(message), surface);
       const effectiveInput: OyiChatInput = {
         ...input,

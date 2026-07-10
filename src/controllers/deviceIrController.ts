@@ -40,21 +40,24 @@ function isIrHub(device: any) {
 function providerProfiles(device: any) {
   const metadata = device?.metadata && typeof device.metadata === "object" ? device.metadata : {};
   const raw = metadata?.raw && typeof metadata.raw === "object" ? metadata.raw : {};
-  const hints = [
-    metadata?.remote_type,
-    metadata?.ir_profile,
-    metadata?.profile,
-    raw?.remote_type,
-    raw?.ir_profile,
-    raw?.category,
-    raw?.product_name,
-    raw?.model,
-  ].map((item) => String(item || "").toLowerCase());
+  const explicitProfiles = [
+    ...(Array.isArray(metadata?.provider_profiles) ? metadata.provider_profiles : []),
+    ...(Array.isArray(metadata?.ir_profiles) ? metadata.ir_profiles : []),
+    ...(Array.isArray(raw?.provider_profiles) ? raw.provider_profiles : []),
+    ...(Array.isArray(raw?.ir_profiles) ? raw.ir_profiles : []),
+    ...Object.entries(metadata?.provider_profiles && typeof metadata.provider_profiles === "object" && !Array.isArray(metadata.provider_profiles) ? metadata.provider_profiles : {}).map(([key, value]) => ({ key, ...(value as any) })),
+    ...Object.entries(metadata?.ir_profiles && typeof metadata.ir_profiles === "object" && !Array.isArray(metadata.ir_profiles) ? metadata.ir_profiles : {}).map(([key, value]) => ({ key, ...(value as any) })),
+    ...Object.entries(raw?.provider_profiles && typeof raw.provider_profiles === "object" && !Array.isArray(raw.provider_profiles) ? raw.provider_profiles : {}).map(([key, value]) => ({ key, ...(value as any) })),
+    ...Object.entries(raw?.ir_profiles && typeof raw.ir_profiles === "object" && !Array.isArray(raw.ir_profiles) ? raw.ir_profiles : {}).map(([key, value]) => ({ key, ...(value as any) })),
+  ];
   const available = new Set<string>();
-  if (hints.some((item) => /tv|television|decoder|set_top|stb/.test(item))) available.add("tv");
-  if (hints.some((item) => /ac|air|climate|hvac|thermostat/.test(item))) available.add("ac");
-  if (hints.some((item) => /fan/.test(item))) available.add("fan");
-  if (hints.some((item) => /projector/.test(item))) available.add("projector");
+  for (const profile of explicitProfiles) {
+    const key = cleanLower((profile as any)?.key || (profile as any)?.profile || (profile as any)?.appliance_type || (profile as any)?.type || (profile as any)?.category || (profile as any)?.remote_type);
+    if (key && key in PROFILE_LIBRARY) available.add(key);
+  }
+  if (available.size) return Array.from(available);
+  const direct = cleanLower(metadata?.ir_profile || metadata?.profile || raw?.ir_profile || raw?.profile);
+  if (direct && direct in PROFILE_LIBRARY) available.add(direct);
   return Array.from(available);
 }
 
@@ -183,13 +186,21 @@ export async function listIrProfiles(req: Request, res: Response) {
 
     const providerAvailable = providerProfiles(hub);
     await syncIrChildAppliancesForHub(hub);
-    const available_profiles = Array.from(new Set([...providerAvailable, "tv", "ac", "fan", "decoder", "projector", "custom"])).map((key) => ({
+    const available_profiles = providerAvailable.map((key) => ({
       key,
       ...PROFILE_LIBRARY[key as keyof typeof PROFILE_LIBRARY],
-      source: providerAvailable.includes(key) ? "provider" : "manual_profile",
+      source: "provider",
     }));
     const appliances = await loadChildAppliances(String(hub.id));
-    return res.json({ hub_id: hub.id, available_profiles, appliances });
+    return res.json({
+      hub_id: hub.id,
+      available_profiles,
+      appliances,
+      sync_required: available_profiles.length === 0,
+      message: available_profiles.length
+        ? "Remote profiles synced from the connected provider."
+        : "The connected provider did not expose any configured remote profiles for this hub yet.",
+    });
   } catch (error: any) {
     return sendPublicApiError(
       res,
@@ -212,6 +223,10 @@ export async function createIrAppliance(req: Request, res: Response) {
     const hub = await resolveVisibleDevice(user, deviceId);
     if (!hub) return res.status(404).json({ error: "This device is not assigned to your current home." });
     if (!isIrHub(hub)) return res.status(400).json({ error: "Add or sync an appliance profile before using this remote." });
+    const providerAvailable = providerProfiles(hub);
+    if (!providerAvailable.includes(profileKey)) {
+      return res.status(400).json({ error: "Add or sync an appliance profile before using this remote." });
+    }
 
     const template = PROFILE_LIBRARY[profileKey as keyof typeof PROFILE_LIBRARY];
     const label = clean(req.body?.label) || `${clean(hub.name) || "Remote"} ${template.label}`;
