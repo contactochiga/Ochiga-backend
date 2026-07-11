@@ -287,7 +287,8 @@ function objectTypeFromTarget(target: OyiTarget | null | undefined): Operational
 }
 
 function explicitObjectCandidate(input: CanonicalConversationRequest): ObjectCandidate | null {
-  const explicit = recordOf(input.operational_object || recordOf(input.context).operational_object);
+  const contextRecord = recordOf(input.context);
+  const explicit = recordOf(input.operational_object || contextRecord.operational_object);
   const explicitType = objectTypeFromEntityType(explicit.object_type || explicit.type);
   const explicitId = text(explicit.canonical_id || explicit.target_id || explicit.id);
   if (explicitType && explicitId) {
@@ -314,6 +315,129 @@ function explicitObjectCandidate(input: CanonicalConversationRequest): ObjectCan
       source_module: input.module || "devices",
       metadata: {},
       source: "explicit_request",
+    };
+  }
+  const routeContextCandidates: Array<{
+    object_type: OperationalObjectType;
+    id: string;
+    label?: string | null;
+    room_id?: string | null;
+    source_module?: string | null;
+    metadata?: Record<string, unknown>;
+  }> = [
+    {
+      object_type: "device",
+      id: text(contextRecord.device_id || contextRecord.deviceId),
+      label: text(contextRecord.device_name || contextRecord.deviceName) || null,
+      room_id: text(contextRecord.room_id || contextRecord.roomId) || null,
+      source_module: text(contextRecord.module) || "devices",
+      metadata: {},
+    },
+    {
+      object_type: "room",
+      id: text(contextRecord.room_id || contextRecord.roomId),
+      label: text(contextRecord.room_name || contextRecord.roomName) || null,
+      room_id: text(contextRecord.room_id || contextRecord.roomId) || null,
+      source_module: text(contextRecord.module) || "rooms",
+      metadata: {},
+    },
+    {
+      object_type: "visitor",
+      id: text(contextRecord.visitor_id || contextRecord.visitorId),
+      label: text(contextRecord.visitor_name || contextRecord.visitorName) || null,
+      source_module: text(contextRecord.module) || "visitors",
+      metadata: {},
+    },
+    {
+      object_type: "maintenance_request",
+      id: text(contextRecord.maintenance_id || contextRecord.request_id || contextRecord.ticket_id || contextRecord.ticketId),
+      label: text(contextRecord.maintenance_title || contextRecord.ticket_title) || null,
+      source_module: text(contextRecord.module) || "maintenance",
+      metadata: {},
+    },
+    {
+      object_type: "transaction",
+      id: text(contextRecord.transaction_id || contextRecord.transactionId || contextRecord.wallet_reference),
+      label: text(contextRecord.transaction_reference || contextRecord.wallet_reference) || null,
+      source_module: text(contextRecord.module) || "wallet",
+      metadata: {},
+    },
+    {
+      object_type: "wallet",
+      id: text(contextRecord.wallet_id || contextRecord.walletId),
+      label: text(contextRecord.wallet_label || contextRecord.wallet_name) || null,
+      source_module: text(contextRecord.module) || "wallet",
+      metadata: {},
+    },
+    {
+      object_type: "service_account",
+      id: text(contextRecord.service_id || contextRecord.serviceId || contextRecord.service_account_id || contextRecord.serviceAccountId),
+      label: text(contextRecord.service_label || contextRecord.service_name) || null,
+      source_module: text(contextRecord.module) || "services",
+      metadata: {},
+    },
+    {
+      object_type: "notification",
+      id: text(contextRecord.notification_id || contextRecord.notificationId),
+      label: text(contextRecord.notification_title) || null,
+      source_module: text(contextRecord.module) || "notifications",
+      metadata: {},
+    },
+    {
+      object_type: "message_thread",
+      id: text(contextRecord.conversation_id || contextRecord.thread_id || contextRecord.threadId || contextRecord.message_thread_id),
+      label: text(contextRecord.thread_title || contextRecord.conversation_title) || null,
+      source_module: text(contextRecord.module) || "messages",
+      metadata: {},
+    },
+    {
+      object_type: "community_post",
+      id: text(contextRecord.post_id || contextRecord.postId || contextRecord.community_post_id),
+      label: text(contextRecord.post_title) || null,
+      source_module: text(contextRecord.module) || "community",
+      metadata: {},
+    },
+    {
+      object_type: "camera",
+      id: text(contextRecord.camera_id || contextRecord.cameraId),
+      label: text(contextRecord.camera_name || contextRecord.cameraName) || null,
+      source_module: text(contextRecord.module) || "cameras",
+      metadata: {},
+    },
+    {
+      object_type: "operational_incident",
+      id: text(contextRecord.incident_id || contextRecord.incidentId),
+      label: text(contextRecord.incident_title || contextRecord.incident_name) || null,
+      source_module: text(contextRecord.module) || "incidents",
+      metadata: {},
+    },
+    {
+      object_type: "home",
+      id: text(contextRecord.selected_home_id || contextRecord.home_id || contextRecord.homeId),
+      label: text(contextRecord.home_name || contextRecord.homeName) || null,
+      source_module: text(contextRecord.module) || "homes",
+      metadata: {},
+    },
+    {
+      object_type: "estate",
+      id: text(contextRecord.selected_estate_id || contextRecord.estate_id || contextRecord.estateId),
+      label: text(contextRecord.estate_name || contextRecord.estateName) || null,
+      source_module: text(contextRecord.module) || "estate",
+      metadata: {},
+    },
+  ];
+  const routeCandidate = routeContextCandidates.find((candidate) => candidate.id);
+  if (routeCandidate) {
+    return {
+      object_type: routeCandidate.object_type,
+      canonical_id: routeCandidate.id,
+      label: routeCandidate.label || null,
+      estate_id: text(contextRecord.estate_id || contextRecord.estateId) || input.estate_id || null,
+      home_id: text(contextRecord.home_id || contextRecord.homeId) || input.home_id || null,
+      room_id: routeCandidate.room_id || null,
+      source_module: routeCandidate.source_module || input.module || null,
+      metadata: routeCandidate.metadata || {},
+      source: "page_selection",
     };
   }
   const channel = recordOf(explicit.channel || explicit.device_channel);
@@ -439,6 +563,10 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
 
   async function maybeSingle(table: string, select: string, id: string) {
     return supabaseAdmin.from(table).select(select).eq("id", id).maybeSingle();
+  }
+
+  async function maybeSingleWhere(table: string, select: string, column: string, value: string) {
+    return supabaseAdmin.from(table).select(select).eq(column, value).maybeSingle();
   }
 
   let object: OperationalObject | null = null;
@@ -759,7 +887,11 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
       break;
     }
     case "transaction": {
-      const { data } = await maybeSingle("wallet_transactions", "id,wallet_id,status,reference,created_at", candidate.canonical_id);
+      let { data } = await maybeSingle("wallet_transactions", "id,wallet_id,status,reference,created_at", candidate.canonical_id);
+      if (!(data as any)?.id && candidate.canonical_id) {
+        const byReference = await maybeSingleWhere("wallet_transactions", "id,wallet_id,status,reference,created_at", "reference", candidate.canonical_id);
+        data = byReference.data as any;
+      }
       const row = data as any;
       if (!row?.id) break;
       object = {
