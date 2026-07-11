@@ -55,9 +55,10 @@ assert.doesNotMatch(successShape.message, /could not|failed|unable/i);
 const partialShape = runtime.canonicalObjectConversationForTest({
   message: "Turn it on",
   object,
-  response: { message: "Failed.", execution: { status: "partial_confirmation" } },
+  response: { message: "Provider acknowledgement missing.", execution: { status: "partial_confirmation" } },
 });
-assert.match(partialShape.message, /confirmation is still pending/i);
+assert.match(partialShape.message, /waiting for confirmation from the controller/i);
+assert.doesNotMatch(partialShape.message, /provider|acknowledgement|runtime|backend|telemetry/i);
 
 const confirmationShape = runtime.canonicalObjectConversationForTest({
   message: "Proceed",
@@ -65,7 +66,16 @@ const confirmationShape = runtime.canonicalObjectConversationForTest({
   response: { message: "Proceed?", requiresConfirmation: true, execution: { status: "pending_confirmation" }, confirmations: [{ summary: "Turning this on will energize Bedroom Light." }] },
 });
 assert.match(confirmationShape.message, /Bedroom Light/i);
-assert.match(confirmationShape.message, /Continue|energize/i);
+assert.match(confirmationShape.message, /Would you like me to continue/i);
+assert.doesNotMatch(confirmationShape.message, /^Proceed\??$/i);
+
+const unsupportedShape = runtime.canonicalObjectConversationForTest({
+  message: "Dim it",
+  object,
+  response: { message: "Unsupported capability.", execution: { status: "unsupported", reason: "unsupported capability" } },
+});
+assert.match(unsupportedShape.message, /doesn.t support that feature/i);
+assert.doesNotMatch(unsupportedShape.message, /unsupported capability|runtime|provider|backend|api/i);
 
 const wallet = {
   ...object,
@@ -83,6 +93,7 @@ const walletShape = runtime.canonicalObjectConversationForTest({
   response: { message: "I can help with devices.", execution: { status: "read_only" } },
 });
 assert.match(walletShape.message, /balance|funding|charges|receipts|payment/i);
+assert.doesNotMatch(walletShape.message, /device/i);
 assert.ok(walletShape.suggested_actions.some((action) => action.label === "Receipt"));
 
 const visitor = {
@@ -103,5 +114,13 @@ const visitorShape = runtime.canonicalObjectConversationForTest({
 assert.match(visitorShape.message, /David Musa/i);
 assert.doesNotMatch(visitorShape.message, /12 visitors/i);
 assert.ok(visitorShape.suggested_actions.some((action) => action.label === "Approve"));
+
+const evidenceShape = runtime.canonicalObjectConversationForTest({
+  message: "How do you know?",
+  object,
+  response: { message: "Runtime unavailable.", execution: { status: "read_only" }, sources: [{ id: "activity-1" }] },
+});
+assert.match(evidenceShape.message, /checked 1 relevant record/i);
+assert.doesNotMatch(evidenceShape.message, /runtime|backend|api|telemetry|provider/i);
 
 console.log("canonical truth smoke ok");

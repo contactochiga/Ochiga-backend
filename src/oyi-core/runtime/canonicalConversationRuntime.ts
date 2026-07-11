@@ -1172,6 +1172,30 @@ function sentence(value: unknown) {
   return raw.endsWith(".") || raw.endsWith("?") || raw.endsWith("!") ? raw : `${raw}.`;
 }
 
+function naturalizeUserCopy(value: unknown) {
+  let next = sentence(value);
+  const replacements: Array<[RegExp, string]> = [
+    [/\bruntime\b/gi, "system"],
+    [/\bprovider acknowledgement\b/gi, "controller confirmation"],
+    [/\bprovider\b/gi, "controller"],
+    [/\btelemetry\b/gi, "device updates"],
+    [/\bbackend\b/gi, "Oyi"],
+    [/\bapi\b/gi, "connection"],
+    [/\bexecution pipeline\b/gi, "control path"],
+    [/\bsignal normalization\b/gi, "event processing"],
+    [/\binternal enum(?:s)?\b/gi, "status"],
+    [/\bunsupported capability\b/gi, "feature this object does not support"],
+    [/\bcapability unsupported\b/gi, "feature not supported"],
+    [/\bpermission restricted\b/gi, "not allowed right now"],
+    [/\bpending_confirmation\b/gi, "waiting for confirmation"],
+    [/\bstate_confirmed\b/gi, "confirmed"],
+    [/\bpartial_confirmation\b/gi, "partially confirmed"],
+    [/\bvalidation_required\b/gi, "needs checking first"],
+  ];
+  for (const [pattern, replacement] of replacements) next = next.replace(pattern, replacement);
+  return next.replace(/\s+/g, " ").trim();
+}
+
 function listNames(value: unknown, fallbackPrefix: string) {
   const rows = Array.isArray(value) ? value : [];
   return rows
@@ -1324,6 +1348,45 @@ function objectPersonality(object: OperationalObject) {
   };
 }
 
+function objectVoice(object: OperationalObject) {
+  const type = object.object_type;
+  if (type === "device" || type === "device_channel") return {
+    healthy: "Everything responded normally.",
+    unavailable: "I can’t verify it right now.",
+    next: "Would you like to check health, view history, or create an automation?",
+  };
+  if (type === "wallet" || type === "transaction") return {
+    healthy: "The financial record looks consistent.",
+    unavailable: "I can’t verify the payment record right now.",
+    next: "Would you like recent transactions or a receipt?",
+  };
+  if (type === "visitor" || type === "access_pass") return {
+    healthy: "No unusual access activity is visible.",
+    unavailable: "I can’t verify the access record right now.",
+    next: "Would you like access history or the current pass status?",
+  };
+  if (type === "maintenance_request") return {
+    healthy: "The request is still trackable.",
+    unavailable: "I can’t verify the maintenance record right now.",
+    next: "Would you like the assignee, history, or escalation options?",
+  };
+  if (type === "service_account" || type === "meter") return {
+    healthy: "The service record is available.",
+    unavailable: "I can’t verify this service right now.",
+    next: "Would you like tariff, billing, or recent transactions?",
+  };
+  if (type === "camera") return {
+    healthy: "The camera record is available.",
+    unavailable: "I can’t verify the camera right now.",
+    next: "Would you like recent events or a connection check?",
+  };
+  return {
+    healthy: "Everything I can verify looks normal.",
+    unavailable: "I can’t verify that right now.",
+    next: "Would you like activity, relationships, or evidence?",
+  };
+}
+
 function naturalState(value: unknown) {
   const raw = human(value).toLowerCase();
   if (!raw) return "";
@@ -1370,7 +1433,7 @@ function relationshipLine(object: OperationalObject, input: CanonicalConversatio
   const affectedHomes = Array.isArray(relationships.affected_homes) ? relationships.affected_homes : [];
   const transactions = Array.isArray(relationships.transactions) ? relationships.transactions : [];
   const assignee = text(relationships.assignee_name || relationships.assignee || relationships.technician);
-  const provider = text(relationships.provider || recordOf(object.metadata).provider);
+  const controller = text(relationships.controller || relationships.provider || recordOf(object.metadata).controller || recordOf(object.metadata).provider);
   const sceneNames = listNames(scenes, "scene");
   const automationNames = listNames(automations, "automation");
   if (room) parts.push(`${object.label} belongs to ${room}.`);
@@ -1383,7 +1446,7 @@ function relationshipLine(object: OperationalObject, input: CanonicalConversatio
   if (affectedHomes.length) parts.push(`${affectedHomes.length} ${affectedHomes.length === 1 ? "home is" : "homes are"} affected.`);
   if (transactions.length) parts.push(`${transactions.length} recent ${transactions.length === 1 ? "transaction is" : "transactions are"} linked.`);
   if (assignee) parts.push(`Current assignee is ${assignee}.`);
-  if (provider) parts.push(`It is connected through ${provider}.`);
+  if (controller) parts.push(`It is connected through ${controller}.`);
   return parts.join(" ");
 }
 
@@ -1406,21 +1469,21 @@ function memoryLine(object: OperationalObject, input: CanonicalConversationReque
 function evidenceLine(object: OperationalObject, response: Record<string, unknown>) {
   const sourceCount = Array.isArray(response.sources) ? response.sources.length : 0;
   const freshness = object.freshness ? ` Last updated ${new Date(object.freshness).toLocaleString()}.` : "";
-  if (sourceCount) return `I am using ${sourceCount} available ${sourceCount === 1 ? "source" : "sources"} for this answer.${freshness}`;
-  return `I am using the verified ${objectTypeLabel(object)} record for ${object.label}.${freshness || " Freshness is not available yet."}`;
+  if (sourceCount) return `I checked ${sourceCount} relevant ${sourceCount === 1 ? "record" : "records"} for ${object.label}.${freshness}`;
+  return `I checked the current ${objectTypeLabel(object)} record for ${object.label}.${freshness || " I don’t have a freshness time for it yet."}`;
 }
 
 function truthLanguage(state: TruthState, object: OperationalObject) {
   const label = object.label;
   const map: Record<TruthState, string> = {
-    confirmed: `This is confirmed for ${label}.`,
-    observed: `I observed this from the available operational records for ${label}.`,
-    inferred: `This is my best reading from ${label}'s current context.`,
-    predicted: `This is a prediction based on ${label}'s patterns and evidence.`,
-    pending_confirmation: `${label} is still waiting for confirmation.`,
-    unavailable: `I do not have enough available data for ${label} yet.`,
-    unsupported: `${label} does not support that action.`,
-    permission_restricted: `You do not currently have permission to do that on ${label}.`,
+    confirmed: `I've confirmed that for ${label}.`,
+    observed: `I can see that in ${label}'s recent records.`,
+    inferred: `Everything suggests that for ${label}.`,
+    predicted: `Based on recent activity, I expect that for ${label}.`,
+    pending_confirmation: `${label} responded, but I’m still waiting for final confirmation.`,
+    unavailable: `I can’t verify ${label} right now.`,
+    unsupported: `${label} doesn’t support that feature.`,
+    permission_restricted: `You’re not allowed to do that on ${label} right now.`,
   };
   return map[state];
 }
@@ -1449,26 +1512,26 @@ function executionRealityReply(object: OperationalObject, response: Record<strin
   if (/state_confirmed|executed|success|successful|completed|processed/.test(status)) {
     const state = naturalState(recordOf(results[0]).new_state || recordOf(results[0]).state || object.current_state);
     return state
-      ? `Done. ${object.label} is now ${state}. Everything I can verify looks healthy.`
-      : `Done. ${object.label} completed the request successfully.`;
+      ? `Done. ${object.label} is now ${state}. ${objectVoice(object).healthy}`
+      : `Done. ${object.label} completed the request successfully. ${objectVoice(object).healthy}`;
   }
   if (/provider accepted|accepted|partial|partial_confirmation/.test(status)) {
-    return `${object.label} accepted the request, but final confirmation is still pending. I will treat the result as partial until the next state update confirms it.`;
+    return `${object.label} responded to the request. I’m still waiting for confirmation from the controller, so I’ll keep monitoring it.`;
   }
   if (/pending_confirmation|confirmation_required/.test(status) || response.requiresConfirmation || response.approvalRequired) {
     return contextualConfirmationReply(object, response);
   }
   if (/timeout|timed_out/.test(status)) {
-    return `${object.label} did not confirm in time. I have not marked it as successful yet, and the next state update should clarify what happened.`;
+    return `I couldn't complete that action. ${object.label} did not respond before the timeout, so I have not marked anything as changed.`;
   }
   if (/unsupported|validation_required/.test(status)) {
-    return `${object.label} does not expose that control. ${reason ? sentence(reason) : "I can still show supported actions for this object."}`;
+    return `${object.label} doesn’t support that feature. ${reason ? naturalizeUserCopy(reason) : "I can still show its status, health, and activity history."}`;
   }
   if (/permission|denied/.test(status)) {
-    return `I cannot do that on ${object.label} with the current permissions.`;
+    return `I can’t do that on ${object.label} from your current access level.`;
   }
   if (/failed|error/.test(status)) {
-    return reason ? `${object.label} could not complete that request. ${sentence(reason)}` : `${object.label} could not complete that request.`;
+    return reason ? `I couldn't complete that action for ${object.label}. ${naturalizeUserCopy(reason)}` : `I couldn't complete that action for ${object.label}. Nothing has been confirmed as changed.`;
   }
   return "";
 }
@@ -1482,34 +1545,34 @@ function contextualConfirmationReply(object: OperationalObject, response: Record
   if (object.object_type === "device" || object.object_type === "device_channel") {
     if (capabilities.some((item) => /switch|power|relay|lock|curtain|scene|automation/.test(item))) {
       return summary
-        ? `${summary} Continue?`
-        : `I can do that for ${object.label}. Continue?`;
+        ? `${naturalizeUserCopy(summary)} Would you like me to continue?`
+        : `I found the correct ${objectTypeLabel(object)}. Should I do that now?`;
     }
-    return `${object.label} may not expose a direct control for that. Should I continue with the supported path?`;
+    return `${object.label} may not support that exact control. Should I continue with the nearest safe option?`;
   }
   if (object.object_type === "wallet" || object.object_type === "transaction") {
     return summary
-      ? `${summary} Confirm before I continue.`
-      : `This affects wallet or payment records for ${object.label}. Confirm before I continue.`;
+      ? `${naturalizeUserCopy(summary)} Should I continue with this payment step?`
+      : `This affects the financial record for ${object.label}. Should I continue?`;
   }
   if (object.object_type === "visitor" || object.object_type === "access_pass") {
     return summary
-      ? `${summary} Should I apply that access change?`
+      ? `${naturalizeUserCopy(summary)} Should I apply that access change?`
       : `This changes access for ${object.label}. Should I continue?`;
   }
   if (object.object_type === "maintenance_request") {
     return summary
-      ? `${summary} Should I update this request?`
+      ? `${naturalizeUserCopy(summary)} Should I update this request?`
       : `This will update ${object.label}. Should I continue?`;
   }
-  return summary ? `${summary} Continue?` : `I can do that for ${object.label}. Continue?`;
+  return summary ? `${naturalizeUserCopy(summary)} Would you like me to continue?` : `I can do that for ${object.label}. Should I continue?`;
 }
 
 function objectCapabilityLine(object: OperationalObject) {
   const profile = objectPersonality(object);
   const actions = profile.actions.slice(0, 4).join(", ");
   const diagnostics = profile.diagnostics.slice(0, 4).join(", ");
-  return `${profile.role} I can help with ${actions}. I can also explain ${diagnostics}.`;
+  return `${profile.role} I can help with ${actions}, and explain ${diagnostics}.`;
 }
 
 function objectDefaultReply(object: OperationalObject, input: CanonicalConversationRequest) {
@@ -1518,7 +1581,7 @@ function objectDefaultReply(object: OperationalObject, input: CanonicalConversat
   const relationships = relationshipLine(object, input);
   if (memory) lines.push(memory);
   if (relationships) lines.push(relationships);
-  if (!memory && !relationships) lines.push(objectCapabilityLine(object));
+  lines.push(memory || relationships ? objectVoice(object).next : objectCapabilityLine(object));
   return lines.join(" ");
 }
 
@@ -1529,10 +1592,10 @@ function objectQuestionReply(input: CanonicalConversationRequest, response: Reco
     const memory = memoryLine(object, input);
     return memory
       ? `${memory} ${relationshipLine(object, input) || ""}`.trim()
-      : `${object.label} does not have detailed recent activity attached to this conversation yet.`;
+      : `I don’t have detailed recent activity for ${object.label} yet. I can still check its current status and relationships.`;
   }
   if (/\b(relationship|relationships|what controls|depends|affected|scene|automation|where is|belongs|parent|children)\b/i.test(message)) {
-    return relationshipLine(object, input) || `${object.label} does not have linked relationships attached yet.`;
+    return relationshipLine(object, input) || `I don’t see linked relationships for ${object.label} yet.`;
   }
   if (/\b(working|health|healthy|offline|online|fault|diagnose|why.*fail|why.*not|connection|status)\b/i.test(message)) {
     return base;
@@ -1541,7 +1604,7 @@ function objectQuestionReply(input: CanonicalConversationRequest, response: Reco
     return evidenceLine(object, response);
   }
   if (/\b(what can|who are you|what are you|help)\b/i.test(message)) {
-    return `${object.label} is the active ${objectTypeLabel(object)}. ${objectCapabilityLine(object)}`;
+    return `You're talking to ${object.label}. ${objectCapabilityLine(object)}`;
   }
   return "";
 }
@@ -1628,6 +1691,8 @@ function shapeObjectConversation(input: CanonicalConversationRequest, response: 
   next.suggested_actions = contextualObjectActions(object, input).length
     ? contextualObjectActions(object, input)
     : existingActions;
+  if (next.message) next.message = naturalizeUserCopy(next.message);
+  if (next.reply) next.reply = naturalizeUserCopy(next.reply);
   return next;
 }
 
