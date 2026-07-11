@@ -3,9 +3,11 @@ import { Router } from "express";
 import OpenAI from "openai";
 import { emitAuditEvent } from "../core/foundation";
 import { requireAuth } from "../middleware/auth";
+import { resolveRequestContext } from "../middleware/contextResolver";
 import { routeAiCommand, listAiLedger, listAiConfirmations, updateAiConfirmation, type ProposedAiTool } from "../ai/commandRouter";
 import { AI_TOOL_REGISTRY } from "../ai/toolRegistry";
 import { answerDeviceHistoryQuestion, getLatestMaintenanceContext, recordIntelligenceMemory } from "../services/intelligenceMemoryService";
+import { adaptCanonicalToAiChat, runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
 
 const router = Router();
 
@@ -539,7 +541,7 @@ function uniqueBy<T>(rows: T[], keyOf: (row: T) => string) {
   });
 }
 
-router.post("/chat", requireAuth, async (req, res) => {
+router.post("/chat", requireAuth, resolveRequestContext, async (req, res) => {
   const message: string = (req.body?.message || req.body?.prompt || "").trim();
   const context = req.body?.context || {};
 
@@ -566,57 +568,26 @@ router.post("/chat", requireAuth, async (req, res) => {
     });
   }
 
-  const deterministic = deterministicTools(message);
-  const proposedTools = shouldForceDeterministicTools(message)
-    ? deterministic
-    : (await suggestToolsWithModel(message, context)) || deterministic;
-  const routed = await routeAiCommand(req, {
-    actor: req.user,
-    prompt: message,
-    surface: String(context.surface || req.headers["x-ochiga-surface"] || "consumer"),
-    scope: String(context.scope || (req.user.role === "resident" ? "home" : req.user.estate_id ? "estate" : "user")),
-    estateId: context.estateId || context.estate_id || req.user.estate_id || null,
-    homeId: context.homeId || context.home_id || req.user.home_id || null,
-    proposedTools,
+  const runtime = await runCanonicalConversation(req.user, req.oisContext || null, {
+    ...(req.body || {}),
+    message,
+    surface: (req.oisContext?.surface as any) || String(context.surface || req.headers["x-ochiga-surface"] || "consumer"),
+    estate_id: req.oisContext?.estate_id || context.estateId || context.estate_id || req.user.estate_id || null,
+    home_id: req.oisContext?.home_id || context.homeId || context.home_id || req.user.home_id || null,
+    module: req.oisContext?.module || context.module || null,
+    thread_id: req.body?.thread_id || context.thread_id || context.threadId || null,
+    context: { ...(context || {}), ...(req.oisContext || {}) },
+    target: req.oisContext?.target || null,
   });
 
-  const routedResults = routed.results as any[];
-  const panel = routedResults.find((item) => item.data?.panel)?.data?.panel || openPanelFromPrompt(message);
-  const confirmations = routedResults.filter((item) => item.status === "pending_confirmation");
-  const cards = routedResults.flatMap((item) => Array.isArray(item.data?.cards) ? item.data.cards : []);
-  const sources = uniqueBy(routedResults.flatMap((item) => Array.isArray(item.data?.sources) ? item.data.sources : []), (item: any) => `${item.label || ""}:${item.timestamp || ""}`).slice(0, 12);
-  const suggestedActions = uniqueBy(routedResults.flatMap((item) => Array.isArray(item.data?.suggested_actions) ? item.data.suggested_actions : []), (item: any) => `${item.label || ""}:${item.route || ""}`).slice(0, 8);
-  const responseMode = responseModeFor(message, proposedTools, routedResults);
-  const baseReply = buildReply(message, routedResults, cards);
-  const continuationReply = isStatusContinuationPrompt(message) ? await statusContinuationReply(req.user) : null;
-  const reply = continuationReply || (responseMode === "action" ? actionResultReply(routedResults, baseReply) : baseReply);
-  const compressedCards = compressCardsForMode(responseMode, message, routedResults, cards, reply);
-  const compressedActions = suggestedActionsForMode(responseMode, suggestedActions);
-  const awareness = buildAwarenessObject(cards);
   void recordIntelligenceMemory(req.user, {
     prompt: message,
-    responseMode,
-    reply,
-    results: routedResults,
+    responseMode: runtime.display_mode,
+    reply: runtime.reply,
+    results: [{ status: runtime.requiresConfirmation ? "pending_confirmation" : "processed", data: { cards: runtime.cards, sources: runtime.sources, suggested_actions: runtime.suggested_actions } }],
   });
-  const response: AiChatResponse = {
-    message: reply,
-    reply,
-    panel: typeof panel === "string" && (PANELS as readonly string[]).includes(panel) ? panel : null,
-    deviceId: null,
-    actions: [],
-    tools: routedResults,
-    confirmations,
-    cards: compressedCards,
-    sources: responseMode === "action" ? [] : sources.slice(0, responseMode === "dashboard" ? 12 : 4),
-    suggested_actions: compressedActions,
-    response_mode: responseMode,
-    awareness,
-    safe_mode: true,
-    requiresConfirmation: confirmations.length > 0,
-  };
 
-  return res.json(response);
+  return res.json(adaptCanonicalToAiChat(runtime));
 });
 
 router.get("/tools", requireAuth, async (_req, res) => {

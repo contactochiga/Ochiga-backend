@@ -1932,7 +1932,7 @@ function operationalQueueResult(context: Awaited<ReturnType<typeof loadUnifiedCo
   };
 }
 
-async function loadConversationContext(actor: AuthUser | null, input: OyiChatInput): Promise<ConversationContext> {
+export async function loadOyiConversationContext(actor: AuthUser | null, input: OyiChatInput): Promise<ConversationContext> {
   if (!actor?.id || !validUuid(input.thread_id)) return { state: emptyConversationState() };
   try {
     const { data, error } = await supabaseAdmin
@@ -2697,7 +2697,7 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
   return observeAgentAction(
     { agent_id: surface === "facility" ? "facility" : "oyi", action: "oyi.chat", tool: "oyi:chat", surface, actor },
     async () => {
-      const loadedConversation = await loadConversationContext(actor, input);
+      const loadedConversation = await loadOyiConversationContext(actor, input);
       const conversation = {
         ...loadedConversation,
         state: primeConversationStateWithInput(loadedConversation.state, input),

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { resolveRequestContext } from "../middleware/contextResolver";
-import { getOyiConversationMessages, getOyiUnifiedAwareness, listOyiConversationThreads, runOyiUnifiedChat } from "../services/oyiUnifiedIntelligenceService";
+import { getOyiConversationMessages, getOyiUnifiedAwareness, listOyiConversationThreads } from "../services/oyiUnifiedIntelligenceService";
 import { oyiCoreRuntime } from "../oyi-core/service";
 import { executionLedger, type ExecutionLedgerScope } from "../oyi-core/runtime/executionLedger";
+import { adaptCanonicalToCompatibilityChat, runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
 
 const router = Router();
 
@@ -42,17 +43,19 @@ router.get("/awareness", requireAuth, resolveRequestContext, async (req, res) =>
 
 router.post("/chat", requireAuth, resolveRequestContext, async (req, res) => {
   try {
-    const body = await runOyiUnifiedChat(req.user || null, {
+    const runtime = await runCanonicalConversation(req.user || null, req.oisContext || null, {
       ...(req.body || {}),
+      message: String(req.body?.message || req.body?.prompt || "").trim(),
       surface: req.oisContext?.surface as any,
       estate_id: req.oisContext?.estate_id || null,
       home_id: req.oisContext?.home_id || null,
       module: req.oisContext?.module || (req.body || {}).module || null,
-      context: req.oisContext,
+      context: { ...(req.body?.context || {}), ...(req.oisContext || {}) },
+      target: req.oisContext?.target || null,
     });
-    return res.status((body as any).ok === false ? 400 : 200).json(body);
-  } catch (err: any) {
-    return res.status(500).json({ ok: false, error: err?.message || "Unable to run Oyi chat" });
+    return res.json(adaptCanonicalToCompatibilityChat(runtime));
+  } catch {
+    return res.status(500).json({ ok: false, error: "Unable to run canonical Oyi conversation" });
   }
 });
 
@@ -94,31 +97,20 @@ router.post("/runtime/evaluate", requireAuth, resolveRequestContext, async (req,
 
 router.post("/runtime/conversation", requireAuth, resolveRequestContext, async (req, res) => {
   try {
-    const response = oyiCoreRuntime.conversation(
-      {
-        id: String(req.body?.request?.id || `conversation:${Date.now()}`),
-        query: String(req.body?.request?.query || ""),
-        estateId: req.oisContext?.estate_id || null,
-        buildingId: req.body?.request?.buildingId || null,
-        unitId: req.body?.request?.unitId || null,
-        actor: {
-          id: req.user?.id || null,
-          name: req.user?.username || null,
-          role: req.user?.role || null,
-          permissions: Array.isArray(req.user?.permissions) ? req.user.permissions : [],
-        },
-        context: req.body?.request?.context || req.oisContext || undefined,
-        requestedDomain: req.body?.request?.requestedDomain || null,
-      },
-      {
-        signals: Array.isArray(req.body?.signals) ? req.body.signals : [],
-        context: req.body?.context || req.oisContext || undefined,
-        permissions: Array.isArray(req.user?.permissions) ? req.user.permissions : [],
-      }
-    );
-    return res.json({ ok: true, response });
-  } catch (err: any) {
-    return res.status(500).json({ ok: false, error: err?.message || "Unable to run Oyi runtime conversation" });
+    const runtime = await runCanonicalConversation(req.user || null, req.oisContext || null, {
+      ...(req.body || {}),
+      message: String(req.body?.request?.query || req.body?.message || req.body?.prompt || "").trim(),
+      surface: req.oisContext?.surface as any,
+      estate_id: req.oisContext?.estate_id || null,
+      home_id: req.oisContext?.home_id || null,
+      module: req.oisContext?.module || (req.body || {}).module || null,
+      thread_id: req.body?.thread_id || req.body?.request?.thread_id || null,
+      context: { ...(req.body?.request?.context || {}), ...(req.body?.context || {}), ...(req.oisContext || {}) },
+      target: req.oisContext?.target || null,
+    });
+    return res.json({ ok: true, response: runtime });
+  } catch {
+    return res.status(500).json({ ok: false, error: "Unable to run canonical Oyi runtime conversation" });
   }
 });
 
