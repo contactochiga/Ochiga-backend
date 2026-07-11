@@ -123,4 +123,43 @@ const evidenceShape = runtime.canonicalObjectConversationForTest({
 assert.match(evidenceShape.message, /checked 1 relevant record/i);
 assert.doesNotMatch(evidenceShape.message, /runtime|backend|api|telemetry|provider/i);
 
+const alreadyOnShape = runtime.canonicalObjectConversationForTest({
+  message: "Turn it on",
+  object: { ...object, current_state: "on" },
+  response: { message: "Command completed.", execution: { status: "read_only" } },
+});
+assert.match(alreadyOnShape.message, /already ON/i);
+assert.match(alreadyOnShape.message, /Nothing needed to change/i);
+
+const occupiedRoomShape = runtime.canonicalObjectConversationForTest({
+  message: "Turn everything off",
+  object: { ...object, object_type: "room", canonical_id: "room-1", label: "Living Room", current_state: "active" },
+  response: { message: "Command completed.", execution: { status: "read_only" } },
+  request: { relationships: { occupied_rooms: [{ id: "room-1", name: "Living Room" }] } },
+});
+assert.match(occupiedRoomShape.message, /still occupied/i);
+assert.match(occupiedRoomShape.message, /unoccupied areas/i);
+
+const reasonShape = runtime.canonicalObjectConversationForTest({
+  message: "Why did it turn on?",
+  object: { ...object, current_state: "on" },
+  response: { message: "Recommendation generated.", execution: { status: "read_only" } },
+  request: {
+    active_automations: [{ id: "auto-1", name: "Evening Arrival" }],
+    relationships: { sensors: [{ id: "sensor-1", name: "Bedroom Motion Sensor" }] },
+    memory_summary: { summary: "Motion was detected less than two minutes ago." },
+  },
+});
+assert.match(reasonShape.message, /Evening Arrival|Bedroom Motion Sensor|Motion was detected/i);
+assert.doesNotMatch(reasonShape.message, /Recommendation generated/i);
+
+const predictionShape = runtime.canonicalObjectConversationForTest({
+  message: "What is happening?",
+  object: { ...object, current_state: "on" },
+  response: { message: "I can help.", execution: { status: "read_only" } },
+  request: { predictive_findings: [{ summary: "energy usage has increased for the last four evenings" }] },
+});
+assert.match(predictionShape.message, /Based on recent activity/i);
+assert.match(predictionShape.message, /energy usage has increased/i);
+
 console.log("canonical truth smoke ok");

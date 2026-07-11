@@ -1496,6 +1496,102 @@ function looksLikeBroadFallback(message: string) {
   return /\bthere (?:are|is) \d+|connected devices|current home|current estate|i can help|what can you do|available devices|records available/i.test(message);
 }
 
+function requestedPowerState(message: string) {
+  const lower = message.toLowerCase();
+  if (/\b(turn|switch|put|power)\b.*\b(on|up)\b|\bput it on\b|\bon this\b/i.test(lower)) return "on";
+  if (/\b(turn|switch|put|power)\b.*\b(off|down)\b|\boff this\b|\bturn everything off\b/i.test(lower)) return "off";
+  return "";
+}
+
+function isControlRequest(message: string) {
+  return /\b(turn|switch|put|power|lock|unlock|open|close|dim|set|run|approve|extend|escalate|assign|pay|buy|fund)\b/i.test(message);
+}
+
+function isExplanationRequest(message: string) {
+  return /\b(why|explain|reason|what caused|because)\b/i.test(message);
+}
+
+function relationshipEvidence(object: OperationalObject, input: CanonicalConversationRequest) {
+  const relationships = { ...recordOf(object.relationships), ...recordOf(input.relationships) };
+  const scenes = listNames(input.active_scenes || relationships.scenes, "scene");
+  const automations = listNames(input.active_automations || relationships.automations, "automation");
+  const sensors = listNames(relationships.sensors, "sensor");
+  const occupiedRooms = Array.isArray(relationships.occupied_rooms) ? relationships.occupied_rooms : [];
+  const affectedHomes = Array.isArray(relationships.affected_homes) ? relationships.affected_homes : [];
+  const evidence: string[] = [];
+  if (scenes.length) evidence.push(`${scenes.slice(0, 2).join(" and ")} can affect it`);
+  if (automations.length) evidence.push(`${automations.slice(0, 2).join(" and ")} can control it`);
+  if (sensors.length) evidence.push(`${sensors.slice(0, 2).join(" and ")} ${sensors.length === 1 ? "informs" : "inform"} it`);
+  if (occupiedRooms.length) evidence.push(`${occupiedRooms.length} ${occupiedRooms.length === 1 ? "room is" : "rooms are"} still occupied`);
+  if (affectedHomes.length) evidence.push(`${affectedHomes.length} ${affectedHomes.length === 1 ? "home is" : "homes are"} affected`);
+  return evidence;
+}
+
+function predictionEvidence(input: CanonicalConversationRequest) {
+  const predictions = Array.isArray(input.predictive_findings) ? input.predictive_findings.map(recordOf) : [];
+  return predictions
+    .map((item) => text(item.summary || item.title || item.finding || item.recommended_action))
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
+function recommendationFor(object: OperationalObject, input: CanonicalConversationRequest) {
+  const lower = input.message.toLowerCase();
+  const state = `${object.current_state || ""} ${input.primary_state || ""}`.toLowerCase();
+  if ((object.object_type === "device" || object.object_type === "device_channel") && /\b(on|active)\b/.test(state)) {
+    if (/\benergy|usage|power\b/.test(lower)) return "I recommend reviewing energy usage next.";
+    return "Would you like to view history, check energy usage, or create an automation?";
+  }
+  if ((object.object_type === "device" || object.object_type === "device_channel") && /\b(off|inactive)\b/.test(state)) {
+    return "Would you like to check health, view history, or create a schedule?";
+  }
+  if (object.object_type === "maintenance_request") return "I recommend checking the assignee and escalation path next.";
+  if (object.object_type === "wallet" || object.object_type === "transaction") return "I recommend checking the receipt or recent transactions next.";
+  if (object.object_type === "service_account" || object.object_type === "meter") return "I recommend checking tariff, billing, and vending readiness next.";
+  if (object.object_type === "visitor" || object.object_type === "access_pass") return "I recommend reviewing access history before making changes.";
+  if (object.object_type === "room" || object.object_type === "zone") return "I recommend checking active devices before changing the whole room.";
+  return objectVoice(object).next;
+}
+
+function operationalReasoningReply(input: CanonicalConversationRequest, response: Record<string, unknown>, object: OperationalObject) {
+  const requested = requestedPowerState(input.message);
+  const state = `${object.current_state || ""} ${input.primary_state || ""}`.toLowerCase();
+  const relationshipFacts = relationshipEvidence(object, input);
+  const predictionFacts = predictionEvidence(input);
+  const memory = memoryLine(object, input);
+  const recommendation = recommendationFor(object, input);
+
+  if (isExplanationRequest(input.message)) {
+    const evidence = [...relationshipFacts, memory, ...predictionFacts].filter(Boolean);
+    if (evidence.length) {
+      return `${evidence.slice(0, 2).map(sentence).join(" ")} ${recommendation}`;
+    }
+    return `I don’t have enough evidence to explain that confidently yet. ${recommendation}`;
+  }
+
+  if (requested && (object.object_type === "device" || object.object_type === "device_channel")) {
+    const isAlreadyOn = requested === "on" && /\b(on|active)\b/.test(state);
+    const isAlreadyOff = requested === "off" && /\b(off|inactive)\b/.test(state);
+    if (isAlreadyOn || isAlreadyOff) {
+      return `${object.label} is already ${requested.toUpperCase()}. Nothing needed to change. ${recommendation}`;
+    }
+  }
+
+  if (/\bturn everything off\b/i.test(input.message) && relationshipFacts.some((fact) => /occupied/.test(fact))) {
+    return `${relationshipFacts.find((fact) => /occupied/.test(fact))}. I recommend switching off only the unoccupied areas first.`;
+  }
+
+  if (predictionFacts.length && !isControlRequest(input.message)) {
+    return `${objectStateLine(object)} ${predictionFacts.map((item) => `Based on recent activity, ${item.charAt(0).toLowerCase()}${item.slice(1)}`).join(" ")} ${recommendation}`;
+  }
+
+  if (isControlRequest(input.message) && relationshipFacts.length && !executionStatus(response)) {
+    return `${relationshipFacts.slice(0, 2).map(sentence).join(" ")} ${recommendation}`;
+  }
+
+  return "";
+}
+
 function executionStatus(response: Record<string, unknown>) {
   const execution = recordOf(response.execution);
   const direct = text(execution.status).toLowerCase();
@@ -1674,7 +1770,8 @@ function shapeObjectConversation(input: CanonicalConversationRequest, response: 
   const status = executionStatus(response);
   const existing = cleanLabel(response.reply || response.message, "");
   const executionReply = executionRealityReply(object, response);
-  let objectReply = executionReply || objectQuestionReply(input, response, object);
+  const reasoningReply = !executionReply ? operationalReasoningReply(input, response, object) : "";
+  let objectReply = executionReply || reasoningReply || objectQuestionReply(input, response, object);
   if (!objectReply && !broadSummaryRequested(input.message) && looksLikeBroadFallback(existing)) objectReply = objectDefaultReply(object, input);
   if (!objectReply && !broadSummaryRequested(input.message) && /^(yes|yep|yeah|proceed|confirm|go ahead|do it|continue|execute)$/i.test(input.message.trim())) {
     objectReply = contextualConfirmationReply(object, response);
