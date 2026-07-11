@@ -437,8 +437,56 @@ function explicitDeviceEntity(input: OyiChatInput): ConversationEntity | null {
   };
 }
 
+function entityTypeFromOperationalObject(value: unknown): ConversationEntity["type"] | null {
+  const raw = String(value || "").toLowerCase();
+  if (raw === "device" || raw === "device_channel") return "device";
+  if (raw === "room" || raw === "home") return "room";
+  if (raw === "visitor" || raw === "access_pass") return "visitor";
+  if (raw === "maintenance_request") return "maintenance";
+  if (raw === "wallet" || raw === "transaction") return "wallet";
+  if (raw === "service_account" || raw === "meter") return "service";
+  if (raw === "community_post") return "community";
+  if (raw === "message_thread") return "community";
+  if (raw === "notification") return "notification";
+  if (raw === "camera") return "camera";
+  if (raw === "infrastructure_asset" || raw === "provider") return "infrastructure";
+  if (raw === "scene") return "scene";
+  if (raw === "automation") return "automation";
+  if (raw === "operational_incident" || raw === "operational_event") return "security";
+  if (raw === "estate" || raw === "building" || raw === "floor" || raw === "zone" || raw === "twin_node") return "estate";
+  return null;
+}
+
+function explicitOperationalObjectEntity(input: OyiChatInput): ConversationEntity | null {
+  const object = recordOf(recordOf(input.conversation_context).canonical_operational_object);
+  const type = entityTypeFromOperationalObject(object.object_type);
+  const id = String(object.canonical_id || "").trim();
+  if (!type || !id) return explicitDeviceEntity(input);
+  const label = String(object.label || "Selected object").trim() || "Selected object";
+  return {
+    type,
+    id,
+    title: label,
+    status: String(object.current_state || object.health || "available").trim() || null,
+    details: {
+      ...(recordOf(object.metadata)),
+      object_type: object.object_type || null,
+      estate_id: object.estate_id || input.estate_id || null,
+      home_id: object.home_id || input.home_id || null,
+      room_id: object.room_id || input.room_id || null,
+      parent_id: object.parent_id || null,
+      source_module: object.source_module || input.module || null,
+      current_state: object.current_state || null,
+      health_status: object.health || null,
+      capabilities: Array.isArray(object.capabilities) ? object.capabilities : [],
+      relationships: recordOf(object.relationships),
+      freshness: object.freshness || null,
+    },
+  };
+}
+
 function primeConversationStateWithInput(previous: ConversationState, input: OyiChatInput): ConversationState {
-  const entity = explicitDeviceEntity(input);
+  const entity = explicitOperationalObjectEntity(input);
   if (!entity) return previous;
   const previousActiveId = String(previous.active_entity_id || previous.active_entity?.id || "").trim();
   if (previousActiveId && previousActiveId === String(entity.id || "")) {
@@ -447,9 +495,9 @@ function primeConversationStateWithInput(previous: ConversationState, input: Oyi
       active_entity: entity,
       active_entity_id: String(entity.id || ""),
       active_entity_label: entity.title,
-      active_entity_type: "device",
-      active_topic: "device",
-      active_domain: previous.active_domain || "devices",
+      active_entity_type: entity.type,
+      active_topic: entity.type,
+      active_domain: previous.active_domain || String(entity.details?.source_module || entity.type),
       entities: previous.entities.length ? previous.entities : [entity],
       active_list: previous.active_list?.length ? previous.active_list : [entity],
       last_displayed_records: previous.last_displayed_records?.length ? previous.last_displayed_records : [entity],
@@ -462,8 +510,8 @@ function primeConversationStateWithInput(previous: ConversationState, input: Oyi
     last_intent: previous.last_intent,
     last_user_message: previous.last_user_message,
     entities: [entity],
-    active_domain: "devices",
-    active_entity_type: "device",
+    active_domain: String(entity.details?.source_module || entity.type),
+    active_entity_type: entity.type,
     active_entity: entity,
     active_entity_id: String(entity.id || ""),
     active_entity_label: entity.title,
@@ -476,7 +524,7 @@ function primeConversationStateWithInput(previous: ConversationState, input: Oyi
     active_list: [entity],
     last_displayed_records: [entity],
     conversation_state: "inspecting",
-    active_topic: "device",
+    active_topic: entity.type,
     active_result_state: "entity",
     list_offset: 0,
     pending_confirmation_id: null,
@@ -2518,7 +2566,7 @@ export function buildOyiAwarenessScenarioForTest(input: {
 async function persistThread(actor: AuthUser | null, input: OyiChatInput, response: any, userMessage: string, conversationState: ConversationState) {
   const now = new Date().toISOString();
   const threadId = validUuid(input.thread_id) ? String(input.thread_id) : randomUUID();
-  const activeEntity = response?.conversation_active_entity || conversationState.active_entity || explicitDeviceEntity(input);
+  const activeEntity = response?.conversation_active_entity || conversationState.active_entity || explicitOperationalObjectEntity(input);
   const entityDetails = recordOf(activeEntity?.details);
   const sourceMetadata = {
     source_surface: safeSurface(input.surface),

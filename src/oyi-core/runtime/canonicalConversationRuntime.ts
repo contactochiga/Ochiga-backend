@@ -1162,6 +1162,216 @@ function canonicalTruthFor(response: Record<string, unknown>, operationalObject:
   };
 }
 
+function human(value: unknown) {
+  return text(value).replace(/_/g, " ");
+}
+
+function objectTypeLabel(object: OperationalObject) {
+  const labels: Record<string, string> = {
+    device: "device",
+    device_channel: "channel",
+    room: "room",
+    visitor: "visitor",
+    access_pass: "access pass",
+    maintenance_request: "maintenance request",
+    wallet: "wallet",
+    transaction: "transaction",
+    service_account: "service",
+    camera: "camera",
+    meter: "meter",
+    scene: "scene",
+    automation: "automation",
+    message_thread: "message thread",
+    community_post: "community post",
+    notification: "notification",
+    operational_incident: "incident",
+    operational_event: "event",
+    infrastructure_asset: "asset",
+    provider: "provider",
+    estate: "estate",
+    building: "building",
+    home: "home",
+    floor: "floor",
+    zone: "zone",
+    twin_node: "twin object",
+  };
+  return labels[object.object_type] || "object";
+}
+
+function objectStateLine(object: OperationalObject) {
+  const state = human(object.current_state);
+  const health = human(object.health);
+  if (state && health && state.toLowerCase() !== health.toLowerCase()) return `${object.label} is ${state}. Health is ${health}.`;
+  if (state) return `${object.label} is ${state}.`;
+  if (health) return `${object.label} health is ${health}.`;
+  return `${object.label} is selected.`;
+}
+
+function relationshipLine(object: OperationalObject, input: CanonicalConversationRequest) {
+  const relationships = { ...recordOf(object.relationships), ...recordOf(input.relationships) };
+  const parts: string[] = [];
+  const room = text(input.room_name || relationships.room_name || relationships.room || object.room_id);
+  const parent = recordOf(relationships.parent_device || relationships.parent || {});
+  const children = Array.isArray(relationships.child_devices) ? relationships.child_devices : Array.isArray(relationships.children) ? relationships.children : [];
+  const scenes = Array.isArray(input.active_scenes) ? input.active_scenes : Array.isArray(relationships.scenes) ? relationships.scenes : [];
+  const automations = Array.isArray(input.active_automations) ? input.active_automations : Array.isArray(relationships.automations) ? relationships.automations : [];
+  const provider = text(relationships.provider || recordOf(object.metadata).provider);
+  if (room) parts.push(`It belongs to ${room}.`);
+  if (parent.name || parent.id) parts.push(`It depends on ${text(parent.name || parent.id)}.`);
+  if (children.length) parts.push(`${children.length} linked child ${children.length === 1 ? "object" : "objects"} depend on it.`);
+  if (scenes.length) parts.push(`${scenes.length} ${scenes.length === 1 ? "scene" : "scenes"} can affect it.`);
+  if (automations.length) parts.push(`${automations.length} ${automations.length === 1 ? "automation" : "automations"} can control it.`);
+  if (provider) parts.push(`Provider is ${provider}.`);
+  return parts.join(" ");
+}
+
+function memoryLine(object: OperationalObject, input: CanonicalConversationRequest) {
+  const memory = recordOf(input.memory_summary);
+  const executions = Array.isArray(input.recent_executions) ? input.recent_executions : [];
+  const activity = text(recordOf(input.conversation_context).activity_summary || recordOf(object.metadata).activity_summary);
+  const summary = text(memory.summary || memory.headline || activity);
+  if (summary) return summary;
+  if (executions.length) {
+    const latest = recordOf(executions[0]);
+    const latestSummary = text(latest.summary || latest.title || latest.status);
+    return latestSummary ? `Last activity: ${latestSummary}.` : `${object.label} has ${executions.length} recent recorded ${executions.length === 1 ? "action" : "actions"}.`;
+  }
+  return "";
+}
+
+function evidenceLine(object: OperationalObject, response: Record<string, unknown>) {
+  const sourceCount = Array.isArray(response.sources) ? response.sources.length : 0;
+  const freshness = object.freshness ? ` Last updated ${new Date(object.freshness).toLocaleString()}.` : "";
+  if (sourceCount) return `I am using ${sourceCount} available ${sourceCount === 1 ? "source" : "sources"} for this answer.${freshness}`;
+  return `I am using the verified ${objectTypeLabel(object)} record for ${object.label}.${freshness || " Freshness is not available yet."}`;
+}
+
+function broadSummaryRequested(message: string) {
+  return /\b(how many|all devices|all visitors|whole house|whole home|entire estate|whole estate|everything|estate summary|home summary|list all|show all)\b/i.test(message);
+}
+
+function looksLikeBroadFallback(message: string) {
+  return /\bthere (?:are|is) \d+|connected devices|current home|current estate|i can help|what can you do|available devices|records available/i.test(message);
+}
+
+function executionStatus(response: Record<string, unknown>) {
+  const execution = recordOf(response.execution);
+  const direct = text(execution.status).toLowerCase();
+  const results = Array.isArray(execution.results) ? execution.results : [];
+  const first = recordOf(results[0]);
+  return text(first.status || direct).toLowerCase();
+}
+
+function objectDefaultReply(object: OperationalObject, input: CanonicalConversationRequest) {
+  const lines = [objectStateLine(object)];
+  const memory = memoryLine(object, input);
+  const relationships = relationshipLine(object, input);
+  if (memory) lines.push(memory);
+  if (relationships) lines.push(relationships);
+  if (!memory && !relationships) lines.push(`I can check status, history, relationships, evidence, and safe actions for this ${objectTypeLabel(object)}.`);
+  return lines.join(" ");
+}
+
+function objectQuestionReply(input: CanonicalConversationRequest, response: Record<string, unknown>, object: OperationalObject) {
+  const message = input.message.toLowerCase();
+  const base = objectDefaultReply(object, input);
+  if (/\b(activity|history|what happened|last time|last command|last execution|how long|how many times|who turned|who controlled)\b/i.test(message)) {
+    const memory = memoryLine(object, input);
+    return memory || `${object.label} does not have detailed recent activity attached to this conversation yet.`;
+  }
+  if (/\b(relationship|relationships|what controls|depends|affected|scene|automation|where is|belongs|parent|children)\b/i.test(message)) {
+    return relationshipLine(object, input) || `${object.label} does not have linked relationships attached yet.`;
+  }
+  if (/\b(working|health|healthy|offline|online|fault|diagnose|why.*fail|why.*not|connection|status)\b/i.test(message)) {
+    return base;
+  }
+  if (/\b(evidence|how do you know|are you sure|provider confirm|confirmed|last updated|prediction|fact)\b/i.test(message)) {
+    return evidenceLine(object, response);
+  }
+  if (/\b(what can|who are you|what are you|help)\b/i.test(message)) {
+    return `${object.label} is the active ${objectTypeLabel(object)}. I can answer its status, health, activity, relationships, evidence, and supported actions.`;
+  }
+  return "";
+}
+
+function contextualObjectActions(object: OperationalObject, input: CanonicalConversationRequest) {
+  const actions: Array<Record<string, unknown>> = [];
+  const state = `${object.current_state || ""} ${input.primary_state || ""}`.toLowerCase();
+  const capabilities = new Set([...(object.capabilities || []), ...(input.supported_controls || [])].map((item) => item.toLowerCase()));
+  const add = (label: string, prompt: string, risk = "read") => actions.push({ label, prompt, risk, operational_object: { object_type: object.object_type, canonical_id: object.canonical_id } });
+  if (object.object_type === "device" || object.object_type === "device_channel") {
+    if (capabilities.has("switch") || capabilities.has("power") || capabilities.has("switch_1") || /switch|light|plug|relay/.test([...capabilities].join(" "))) {
+      add(/on|active/.test(state) ? "Turn Off" : "Turn On", /on|active/.test(state) ? "Turn it off" : "Turn it on", "control");
+    }
+    add("Show Activity", "Show activity");
+    add("Health", "Is it working?");
+    add("Automation", "Create automation");
+    add("Relationships", "What controls you?");
+  } else if (object.object_type === "visitor" || object.object_type === "access_pass") {
+    add("Status", "Who is this?");
+    add("Approve", "Approve this visitor", "approval");
+    add("Extend", "Extend access by 30 minutes", "approval");
+    add("History", "Has this visitor been here before?");
+  } else if (object.object_type === "maintenance_request") {
+    add("Status", "Why is this delayed?");
+    add("Assignee", "Who is handling it?");
+    add("Escalate", "Escalate it", "approval");
+    add("History", "Show history");
+  } else if (object.object_type === "wallet" || object.object_type === "transaction") {
+    add("Status", object.object_type === "transaction" ? "Did this payment enter?" : "Show balance");
+    add("Receipt", "Show receipt");
+    add("History", "Show transactions");
+  } else if (object.object_type === "service_account" || object.object_type === "meter") {
+    add("Tariff", "What is my tariff?");
+    add("Vending", "Can I buy electricity?");
+    add("Transactions", "Show the last transaction");
+  } else if (object.object_type === "camera") {
+    add("Live State", "Is this camera working?");
+    add("Events", "Show recent events");
+    add("Diagnose", "Check connection");
+  } else {
+    add("Status", "What is happening?");
+    add("Activity", "Show activity");
+    add("Relationships", "What depends on this?");
+    add("Evidence", "Show evidence");
+  }
+  return actions.slice(0, 5);
+}
+
+function shapeObjectConversation(input: CanonicalConversationRequest, response: Record<string, unknown>, object: OperationalObject | null) {
+  if (!object) return response;
+  const next = { ...response };
+  const status = executionStatus(response);
+  const existing = cleanLabel(response.reply || response.message, "");
+  let objectReply = objectQuestionReply(input, response, object);
+  if (!objectReply && !broadSummaryRequested(input.message) && looksLikeBroadFallback(existing)) objectReply = objectDefaultReply(object, input);
+  if (/executed|success|completed|processed|state_confirmed|provider accepted/.test(status) && /could not|failed|unable|did not/i.test(existing)) {
+    objectReply = `Done. ${object.label} has been updated.`;
+  }
+  if (/partial|pending/.test(status) && /failed|could not|unable/i.test(existing)) {
+    objectReply = `${object.label} accepted the request, but confirmation is still pending.`;
+  }
+  if (objectReply) {
+    next.message = objectReply;
+    next.reply = objectReply;
+    next.understood = text(next.understood) || `I am answering for ${object.label}.`;
+  }
+  const existingActions = Array.isArray(next.suggested_actions) ? next.suggested_actions : [];
+  next.suggested_actions = contextualObjectActions(object, input).length
+    ? contextualObjectActions(object, input)
+    : existingActions;
+  return next;
+}
+
+export function canonicalObjectConversationForTest(input: { message: string; object: OperationalObject; response?: Record<string, unknown>; request?: Partial<CanonicalConversationRequest> }) {
+  const request = {
+    message: input.message,
+    surface: "consumer" as const,
+    ...input.request,
+  } as CanonicalConversationRequest;
+  return shapeObjectConversation(request, input.response || { message: "There are 27 devices connected.", execution: { status: "read_only" } }, input.object);
+}
+
 function compatibilityInputFromCanonical(input: CanonicalConversationRequest, operationalObject: OperationalObject | null): OyiChatInput {
   return {
     surface: input.surface,
@@ -1195,6 +1405,37 @@ function compatibilityInputFromCanonical(input: CanonicalConversationRequest, op
   };
 }
 
+async function persistCanonicalShapedAssistantMessage(threadId: string, response: Record<string, unknown>, truth: CanonicalTruth, operationalObject: OperationalObject | null) {
+  if (!threadId) return;
+  try {
+    const { data } = await supabaseAdmin
+      .from("oyi_conversation_messages")
+      .select("id,metadata")
+      .eq("thread_id", threadId)
+      .eq("role", "assistant")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data?.id) return;
+    const metadata = recordOf((data as any).metadata);
+    await supabaseAdmin
+      .from("oyi_conversation_messages")
+      .update({
+        content: cleanLabel(response.message || response.reply, "Oyi reviewed the current operational context."),
+        suggested_actions: Array.isArray(response.suggested_actions) ? response.suggested_actions : [],
+        metadata: {
+          ...metadata,
+          truth,
+          operational_object: operationalObject,
+          canonical_response_shaped: true,
+        },
+      } as any)
+      .eq("id", data.id);
+  } catch {
+    // Conversation persistence is best effort; the live canonical response remains authoritative.
+  }
+}
+
 export async function runCanonicalConversation(actor: AuthUser | null, oisContext: OisContext | null | undefined, input: CanonicalConversationRequest): Promise<CanonicalConversationResponse> {
   const threadContext = await loadOyiConversationContext(actor, {
     surface: input.surface,
@@ -1209,17 +1450,20 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   const resolved = await resolveCandidate(actor, oisContext, preferredCandidate);
   const compatibilityInput = compatibilityInputFromCanonical(input, resolved.object);
   const compatibility = await runOyiUnifiedChat(actor, compatibilityInput) as Record<string, unknown>;
-  const truth = canonicalTruthFor(compatibility, resolved.object);
+  const shapedCompatibility = shapeObjectConversation(input, compatibility, resolved.object);
+  const truth = canonicalTruthFor(shapedCompatibility, resolved.object);
+  const threadId = text(shapedCompatibility.thread_id) || text(input.thread_id) || randomUUID();
+  await persistCanonicalShapedAssistantMessage(threadId, shapedCompatibility, truth, resolved.object);
   return {
-    id: text(compatibility.id) || `oyi-runtime:${randomUUID()}`,
-    thread_id: text(compatibility.thread_id) || text(input.thread_id) || randomUUID(),
-    intent: cleanLabel(compatibility.intent, "information"),
-    understood: text(compatibility.understood) || null,
-    summary: cleanLabel(compatibility.understood || compatibility.message, "Oyi reviewed the current operational context."),
-    answer: cleanLabel(compatibility.reply || compatibility.message, "Oyi reviewed the current operational context."),
-    reply: cleanLabel(compatibility.reply || compatibility.message, "Oyi reviewed the current operational context."),
-    message: cleanLabel(compatibility.message || compatibility.reply, "Oyi reviewed the current operational context."),
-    display_mode: (text(compatibility.display_mode) as CanonicalConversationResponse["display_mode"]) || "conversation",
+    id: text(shapedCompatibility.id) || `oyi-runtime:${randomUUID()}`,
+    thread_id: threadId,
+    intent: cleanLabel(shapedCompatibility.intent, "information"),
+    understood: text(shapedCompatibility.understood) || null,
+    summary: cleanLabel(shapedCompatibility.understood || shapedCompatibility.message, "Oyi reviewed the current operational context."),
+    answer: cleanLabel(shapedCompatibility.reply || shapedCompatibility.message, "Oyi reviewed the current operational context."),
+    reply: cleanLabel(shapedCompatibility.reply || shapedCompatibility.message, "Oyi reviewed the current operational context."),
+    message: cleanLabel(shapedCompatibility.message || shapedCompatibility.reply, "Oyi reviewed the current operational context."),
+    display_mode: (text(shapedCompatibility.display_mode) as CanonicalConversationResponse["display_mode"]) || "conversation",
     truth,
     operational_object: resolved.object,
     context: {
@@ -1230,17 +1474,17 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       context_source: resolved.source,
       warnings: [...resolved.warnings, ...(threadContext.warning ? [threadContext.warning] : [])],
     },
-    execution: recordOf(compatibility.execution),
-    cards: Array.isArray(compatibility.cards) ? compatibility.cards as Array<Record<string, unknown>> : [],
-    sources: Array.isArray(compatibility.sources) ? compatibility.sources as Array<Record<string, unknown>> : [],
-    suggested_actions: Array.isArray(compatibility.suggested_actions) ? compatibility.suggested_actions as Array<Record<string, unknown>> : [],
-    awareness: compatibility.awareness ? recordOf(compatibility.awareness) : undefined,
-    confirmations: Array.isArray(compatibility.confirmations) ? compatibility.confirmations as Array<Record<string, unknown>> : [],
+    execution: recordOf(shapedCompatibility.execution),
+    cards: Array.isArray(shapedCompatibility.cards) ? shapedCompatibility.cards as Array<Record<string, unknown>> : [],
+    sources: Array.isArray(shapedCompatibility.sources) ? shapedCompatibility.sources as Array<Record<string, unknown>> : [],
+    suggested_actions: Array.isArray(shapedCompatibility.suggested_actions) ? shapedCompatibility.suggested_actions as Array<Record<string, unknown>> : [],
+    awareness: shapedCompatibility.awareness ? recordOf(shapedCompatibility.awareness) : undefined,
+    confirmations: Array.isArray(shapedCompatibility.confirmations) ? shapedCompatibility.confirmations as Array<Record<string, unknown>> : [],
     warnings: [...resolved.warnings, ...(threadContext.warning ? [threadContext.warning] : [])],
     source: "oyi_canonical_runtime",
     safe_mode: true,
-    approvalRequired: Boolean(compatibility.approvalRequired || compatibility.requiresConfirmation || recordOf(compatibility.execution).status === "pending_confirmation"),
-    requiresConfirmation: Boolean(compatibility.requiresConfirmation || compatibility.approvalRequired || recordOf(compatibility.execution).status === "pending_confirmation"),
+    approvalRequired: Boolean(shapedCompatibility.approvalRequired || shapedCompatibility.requiresConfirmation || recordOf(shapedCompatibility.execution).status === "pending_confirmation"),
+    requiresConfirmation: Boolean(shapedCompatibility.requiresConfirmation || shapedCompatibility.approvalRequired || recordOf(shapedCompatibility.execution).status === "pending_confirmation"),
   };
 }
 

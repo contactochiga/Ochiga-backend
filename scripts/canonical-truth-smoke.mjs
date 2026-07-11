@@ -13,4 +13,33 @@ assert.equal(runtime.canonicalTruthStateForTest({ hasAwareness: true, severity: 
 assert.equal(runtime.canonicalTruthStateForTest({ hasSources: true }), "observed");
 assert.equal(runtime.canonicalTruthStateForTest({}), "inferred");
 
+const object = {
+  object_type: "device",
+  canonical_id: "device-1",
+  label: "Bedroom Light",
+  estate_id: "estate-1",
+  building_id: null,
+  home_id: "home-1",
+  room_id: "room-1",
+  parent_id: null,
+  source_module: "devices",
+  capabilities: ["switch"],
+  current_state: "off",
+  health: "healthy",
+  permissions: [],
+  relationships: { room_name: "Bedroom" },
+  evidence_references: [],
+  metadata: {},
+  freshness: "2026-07-11T10:00:00.000Z",
+};
+const shaped = runtime.canonicalObjectConversationForTest({
+  message: "Is it working?",
+  object,
+  response: { message: "There are 27 devices connected.", execution: { status: "read_only" } },
+  request: { primary_state: "off", memory_summary: { summary: "It was turned off 12 minutes ago." } },
+});
+assert.match(shaped.message, /Bedroom Light is off/i);
+assert.doesNotMatch(shaped.message, /27 devices/i);
+assert.ok(shaped.suggested_actions.some((action) => action.label === "Turn On"));
+
 console.log("canonical truth smoke ok");
