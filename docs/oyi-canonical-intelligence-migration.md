@@ -155,14 +155,25 @@ Backend:
   - `smoke:operational-object-context`
   - `smoke:canonical-truth`
   - `smoke:compatibility-delegation`
+- expanded operational-object verification for:
+  - `device_channel`
+  - `access_pass`
+  - `camera`
+  - `notification`
+  - `operational_incident`
+- added compatibility-route metrics:
+  - `oyi_compatibility_route_calls_total`
+- removed the remaining route-level `/ai/chat` reasoning bypass so compatibility answers no longer short-circuit the canonical runtime
 
 Consumer:
 - canonical runtime endpoint adopted for Oyi chat
 - device drawer now sends explicit operational-object context
+- awareness and activity now prefer canonical backend truth when available before applying local interpretation
 
 Facility:
 - canonical runtime endpoint adopted for Oyi chat
 - local fallbacks now marked as local continuity behavior
+- facility callers can now forward explicit operational objects into the canonical runtime when needed
 
 ## Recommended Removal Timeline
 

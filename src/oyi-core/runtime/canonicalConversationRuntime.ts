@@ -17,6 +17,7 @@ export type OperationalObjectType =
   | "room"
   | "zone"
   | "device"
+  | "device_channel"
   | "visitor"
   | "access_pass"
   | "maintenance_request"
@@ -32,6 +33,7 @@ export type OperationalObjectType =
   | "message_thread"
   | "community_post"
   | "notification"
+  | "operational_incident"
   | "operational_event"
   | "twin_node";
 
@@ -228,6 +230,7 @@ function objectTypeFromEntityType(value: unknown): OperationalObjectType | null 
     device: "device",
     visitor: "visitor",
     access_pass: "access_pass",
+    visitor_access: "access_pass",
     maintenance: "maintenance_request",
     maintenance_request: "maintenance_request",
     wallet: "wallet",
@@ -246,6 +249,7 @@ function objectTypeFromEntityType(value: unknown): OperationalObjectType | null 
     community: "community_post",
     community_post: "community_post",
     notification: "notification",
+    operational_incident: "operational_incident",
     incident: "operational_event",
     workflow: "operational_event",
     report: "operational_event",
@@ -254,6 +258,7 @@ function objectTypeFromEntityType(value: unknown): OperationalObjectType | null 
     activity: "operational_event",
     security: "operational_event",
     twin_node: "twin_node",
+    device_channel: "device_channel",
   };
   return map[raw] || null;
 }
@@ -263,13 +268,17 @@ function objectTypeFromTarget(target: OyiTarget | null | undefined): Operational
   const map: Record<string, OperationalObjectType> = {
     maintenance: "maintenance_request",
     visitor: "visitor",
+    access_pass: "access_pass",
     device: "device",
+    device_channel: "device_channel",
     camera: "camera",
     infrastructure: "infrastructure_asset",
     wallet: "wallet",
     service: "service_account",
+    transaction: "transaction",
     community: "community_post",
     message: "message_thread",
+    notification: "notification",
     workflow: "operational_event",
     prediction: "operational_event",
     incident: "operational_event",
@@ -304,6 +313,29 @@ function explicitObjectCandidate(input: CanonicalConversationRequest): ObjectCan
       room_id: input.room_id || null,
       source_module: input.module || "devices",
       metadata: {},
+      source: "explicit_request",
+    };
+  }
+  const channel = recordOf(explicit.channel || explicit.device_channel);
+  const channelIndex = text(channel.index || channel.channel_index || explicit.channel_index);
+  const channelCode = text(channel.code || channel.channel_code || explicit.channel_code);
+  const channelDeviceId = text(channel.device_id || explicit.device_id || input.device_id);
+  if (channelDeviceId && (channelIndex || channelCode)) {
+    const channelId = channelCode ? `${channelDeviceId}:${channelCode}` : `${channelDeviceId}:channel:${channelIndex}`;
+    return {
+      object_type: "device_channel",
+      canonical_id: channelId,
+      label: text(channel.label || explicit.label || explicit.title) || null,
+      estate_id: input.estate_id || null,
+      home_id: input.home_id || null,
+      room_id: input.room_id || null,
+      source_module: input.module || "devices",
+      metadata: {
+        ...explicit,
+        device_id: channelDeviceId,
+        channel_index: channelIndex || null,
+        channel_code: channelCode || null,
+      },
       source: "explicit_request",
     };
   }
@@ -526,6 +558,61 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
       };
       break;
     }
+    case "device_channel": {
+      const deviceId = text(metadata.device_id || candidate.canonical_id.split(":")[0]);
+      const channelCode = text(metadata.channel_code || candidate.canonical_id.split(":")[1]);
+      const channelIndex = text(metadata.channel_index);
+      if (!deviceId) {
+        warnings.push("This device channel could not be resolved without a parent device.");
+        break;
+      }
+      const { data } = await maybeSingle("devices", "id,name,estate_id,home_id,room_id,parent_device_id,control_profile,status,health_status,updated_at,metadata", deviceId);
+      const row = data as any;
+      if (!row?.id) break;
+      if (homeScoped && String(row.home_id || "") !== String(homeScoped)) {
+        warnings.push("This device channel is outside the active home scope.");
+        break;
+      }
+      const deviceMetadata = recordOf(row.metadata);
+      const rawChannels = Array.isArray(deviceMetadata.channel_definitions) ? deviceMetadata.channel_definitions : [];
+      const matchedChannel =
+        rawChannels.find((entry: any) => text(entry.code || entry.channel_code) === channelCode)
+        || rawChannels.find((entry: any) => text(entry.index || entry.channel_index) === channelIndex);
+      object = {
+        object_type: "device_channel",
+        canonical_id: candidate.canonical_id,
+        label: cleanLabel(
+          matchedChannel?.name || matchedChannel?.label || candidate.label,
+          `${cleanLabel(row.name, "Device")} ${channelCode || channelIndex || "channel"}`
+        ),
+        estate_id: String(row.estate_id || estateScoped || ""),
+        building_id: null,
+        home_id: String(row.home_id || homeScoped || ""),
+        room_id: String(row.room_id || candidate.room_id || "") || null,
+        parent_id: String(row.id),
+        source_module: candidate.source_module || "devices",
+        capabilities: arrayOfStrings([
+          channelCode || null,
+          channelIndex ? `channel_${channelIndex}` : null,
+          row.control_profile,
+        ]),
+        current_state: text(matchedChannel?.state ?? matchedChannel?.current_state ?? row.status) || null,
+        health: text(row.health_status) || null,
+        permissions: basePermissions,
+        relationships: {
+          device_id: row.id,
+          channel_code: channelCode || null,
+          channel_index: channelIndex || null,
+        },
+        evidence_references: [],
+        metadata: {
+          ...deviceMetadata,
+          channel: matchedChannel || null,
+        },
+        freshness: row.updated_at || null,
+      };
+      break;
+    }
     case "visitor": {
       const { data } = await maybeSingle("visitors", "id,name,estate_id,home_id,status,updated_at", candidate.canonical_id);
       const row = data as any;
@@ -549,6 +636,35 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
         health: null,
         permissions: basePermissions,
         relationships: {},
+        evidence_references: [],
+        metadata: {},
+        freshness: row.updated_at || null,
+      };
+      break;
+    }
+    case "access_pass": {
+      const { data } = await maybeSingle("visitor_access", "id,visitor_name,estate_id,home_id,status,updated_at,purpose,expires_at", candidate.canonical_id);
+      const row = data as any;
+      if (!row?.id) break;
+      if (homeScoped && String(row.home_id || "") !== String(homeScoped)) {
+        warnings.push("This access pass is outside the active home scope.");
+        break;
+      }
+      object = {
+        object_type: "access_pass",
+        canonical_id: String(row.id),
+        label: cleanLabel(row.visitor_name || candidate.label, "Access pass"),
+        estate_id: String(row.estate_id || estateScoped || ""),
+        building_id: null,
+        home_id: String(row.home_id || homeScoped || "") || null,
+        room_id: null,
+        parent_id: String(row.home_id || homeScoped || "") || null,
+        source_module: candidate.source_module || "visitors",
+        capabilities: ["inspect", "approve", "deny", "extend"],
+        current_state: text(row.status) || null,
+        health: null,
+        permissions: basePermissions,
+        relationships: { purpose: row.purpose || null, expires_at: row.expires_at || null },
         evidence_references: [],
         metadata: {},
         freshness: row.updated_at || null,
@@ -686,6 +802,90 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
         health: null,
         permissions: basePermissions,
         relationships: {},
+        evidence_references: [],
+        metadata: {},
+        freshness: row.updated_at || null,
+      };
+      break;
+    }
+    case "camera": {
+      const { data } = await maybeSingle("facility_cameras", "id,name,estate_id,room_id,status,health_status,updated_at,dvr_id", candidate.canonical_id);
+      const row = data as any;
+      if (!row?.id) break;
+      if (estateScoped && String(row.estate_id || "") !== String(estateScoped)) {
+        warnings.push("This camera is outside the active estate scope.");
+        break;
+      }
+      object = {
+        object_type: "camera",
+        canonical_id: String(row.id),
+        label: cleanLabel(row.name || candidate.label, "Camera"),
+        estate_id: String(row.estate_id || estateScoped || ""),
+        building_id: null,
+        home_id: homeScoped,
+        room_id: String(row.room_id || candidate.room_id || "") || null,
+        parent_id: String(row.dvr_id || "") || null,
+        source_module: candidate.source_module || "cameras",
+        capabilities: ["inspect", "stream", "events"],
+        current_state: text(row.status) || null,
+        health: text(row.health_status) || null,
+        permissions: basePermissions,
+        relationships: { dvr_id: row.dvr_id || null },
+        evidence_references: [],
+        metadata: {},
+        freshness: row.updated_at || null,
+      };
+      break;
+    }
+    case "notification": {
+      const { data } = await maybeSingle("notifications", "id,title,body,user_id,estate_id,home_id,read,created_at,metadata", candidate.canonical_id);
+      const row = data as any;
+      if (!row?.id) break;
+      object = {
+        object_type: "notification",
+        canonical_id: String(row.id),
+        label: cleanLabel(row.title || candidate.label, "Notification"),
+        estate_id: String(row.estate_id || estateScoped || "") || null,
+        building_id: null,
+        home_id: String(row.home_id || homeScoped || "") || null,
+        room_id: null,
+        parent_id: String(row.user_id || "") || null,
+        source_module: candidate.source_module || "notifications",
+        capabilities: ["inspect", "acknowledge"],
+        current_state: row.read ? "read" : "unread",
+        health: null,
+        permissions: basePermissions,
+        relationships: { user_id: row.user_id || null },
+        evidence_references: [],
+        metadata: recordOf(row.metadata),
+        freshness: row.created_at || null,
+      };
+      break;
+    }
+    case "operational_incident":
+    case "operational_event": {
+      const { data } = await maybeSingle("facility_incidents", "id,title,estate_id,status,severity,updated_at,assigned_to", candidate.canonical_id);
+      const row = data as any;
+      if (!row?.id) break;
+      if (estateScoped && String(row.estate_id || "") !== String(estateScoped)) {
+        warnings.push("This operational incident is outside the active estate scope.");
+        break;
+      }
+      object = {
+        object_type: candidate.object_type,
+        canonical_id: String(row.id),
+        label: cleanLabel(row.title || candidate.label, "Operational incident"),
+        estate_id: String(row.estate_id || estateScoped || ""),
+        building_id: null,
+        home_id: homeScoped,
+        room_id: null,
+        parent_id: null,
+        source_module: candidate.source_module || "incidents",
+        capabilities: ["inspect", "acknowledge", "resolve"],
+        current_state: text(row.status) || null,
+        health: text(row.severity) || null,
+        permissions: basePermissions,
+        relationships: { assigned_to: row.assigned_to || null },
         evidence_references: [],
         metadata: {},
         freshness: row.updated_at || null,

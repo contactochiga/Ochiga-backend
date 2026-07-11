@@ -6,8 +6,9 @@ import { requireAuth } from "../middleware/auth";
 import { resolveRequestContext } from "../middleware/contextResolver";
 import { routeAiCommand, listAiLedger, listAiConfirmations, updateAiConfirmation, type ProposedAiTool } from "../ai/commandRouter";
 import { AI_TOOL_REGISTRY } from "../ai/toolRegistry";
-import { answerDeviceHistoryQuestion, getLatestMaintenanceContext, recordIntelligenceMemory } from "../services/intelligenceMemoryService";
+import { getLatestMaintenanceContext, recordIntelligenceMemory } from "../services/intelligenceMemoryService";
 import { adaptCanonicalToAiChat, runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
+import { operationalMetrics } from "../observability/metrics";
 
 const router = Router();
 
@@ -547,26 +548,10 @@ router.post("/chat", requireAuth, resolveRequestContext, async (req, res) => {
 
   if (!message) return res.status(400).json({ error: "message is required" });
   if (!req.user) return res.status(401).json({ error: "Not authenticated" });
-
-  const deviceHistoryReply = await answerDeviceHistoryQuestion(req.user, message).catch(() => null);
-  if (deviceHistoryReply) {
-    return res.json({
-      message: deviceHistoryReply,
-      reply: deviceHistoryReply,
-      panel: null,
-      deviceId: null,
-      actions: [],
-      tools: [],
-      confirmations: [],
-      cards: [],
-      sources: [],
-      suggested_actions: [],
-      response_mode: /what happened|what changed|today|week/i.test(message) ? "insight" : "answer",
-      awareness: null,
-      safe_mode: true,
-      requiresConfirmation: false,
-    });
-  }
+  operationalMetrics.increment("oyi_compatibility_route_calls_total", {
+    route: "/ai/chat",
+    surface: String(req.oisContext?.surface || context.surface || req.headers["x-ochiga-surface"] || "consumer"),
+  });
 
   const runtime = await runCanonicalConversation(req.user, req.oisContext || null, {
     ...(req.body || {}),

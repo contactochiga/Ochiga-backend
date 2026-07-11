@@ -5,8 +5,16 @@ import { getOyiConversationMessages, getOyiUnifiedAwareness, listOyiConversation
 import { oyiCoreRuntime } from "../oyi-core/service";
 import { executionLedger, type ExecutionLedgerScope } from "../oyi-core/runtime/executionLedger";
 import { adaptCanonicalToCompatibilityChat, runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
+import { operationalMetrics } from "../observability/metrics";
 
 const router = Router();
+
+function observeCompatibilityRoute(route: string, surface: string | null | undefined) {
+  operationalMetrics.increment("oyi_compatibility_route_calls_total", {
+    route,
+    surface: String(surface || "unknown"),
+  });
+}
 
 function runtimeExecutionScope(req: any, defaultLimit: number): ExecutionLedgerScope {
   return {
@@ -29,6 +37,7 @@ function runtimeExecutionScope(req: any, defaultLimit: number): ExecutionLedgerS
 //   responses while preserving legacy payload shapes for older clients.
 router.get("/awareness", requireAuth, resolveRequestContext, async (req, res) => {
   try {
+    observeCompatibilityRoute("/oyi/awareness", req.oisContext?.surface);
     const body = await getOyiUnifiedAwareness(req.user || null, {
       surface: req.oisContext?.surface as any,
       estate_id: req.oisContext?.estate_id || null,
@@ -43,6 +52,7 @@ router.get("/awareness", requireAuth, resolveRequestContext, async (req, res) =>
 
 router.post("/chat", requireAuth, resolveRequestContext, async (req, res) => {
   try {
+    observeCompatibilityRoute("/oyi/chat", req.oisContext?.surface);
     const runtime = await runCanonicalConversation(req.user || null, req.oisContext || null, {
       ...(req.body || {}),
       message: String(req.body?.message || req.body?.prompt || "").trim(),
@@ -61,6 +71,7 @@ router.post("/chat", requireAuth, resolveRequestContext, async (req, res) => {
 
 router.get("/threads", requireAuth, resolveRequestContext, async (req, res) => {
   try {
+    observeCompatibilityRoute("/oyi/threads", req.oisContext?.surface);
     const body = await listOyiConversationThreads(req.user || null, {
       surface: req.oisContext?.surface as any,
       estate_id: req.oisContext?.estate_id || null,
