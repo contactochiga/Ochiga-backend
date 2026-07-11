@@ -35,6 +35,19 @@ function envOrigins() {
 
 export const allowList = new Set([...staticAllowedOrigins, ...envOrigins()]);
 
+export const allowedHeaders = [
+  "Content-Type",
+  "Authorization",
+  "x-api-key",
+  "x-otp-token",
+  "X-Requested-With",
+  "X-Ochiga-Surface",
+  "X-Oyi-Contract-Version",
+  "X-Oyi-Runtime",
+  "Accept",
+  "Origin",
+];
+
 export function isAllowedOrigin(origin: string) {
   if (!origin) return true;
   if (allowList.has(origin)) return true;
@@ -52,19 +65,15 @@ export const httpCorsOptions: CorsOptions = {
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "x-api-key",
-    "x-otp-token",
-    "X-Requested-With",
-    "X-Ochiga-Surface",
-    "X-Oyi-Contract-Version",
-  ],
+  allowedHeaders,
+  maxAge: 86400,
   optionsSuccessStatus: 204,
 };
 
 export const socketCorsOptions = {
-  origin: Array.from(allowList),
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin || isAllowedOrigin(origin)) return callback(null, true);
+    return callback(new Error("CORS blocked"));
+  },
   credentials: true,
 };

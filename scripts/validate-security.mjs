@@ -30,7 +30,15 @@ const checks = [
   },
   {
     label: "CORS allowlist configured",
-    pass: /allowList/.test(read("src/app.ts")) && /cors\(/.test(read("src/app.ts")),
+    pass:
+      /httpCorsOptions/.test(read("src/app.ts")) &&
+      /cors\(/.test(read("src/app.ts")) &&
+      /allowList/.test(read("src/config/originPolicy.ts")),
+    critical: true,
+  },
+  {
+    label: "Consumer runtime headers allowed by CORS",
+    pass: /X-Oyi-Runtime/.test(read("src/config/originPolicy.ts")) && /X-Ochiga-Surface/.test(read("src/config/originPolicy.ts")),
     critical: true,
   },
   {
