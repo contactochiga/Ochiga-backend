@@ -1166,6 +1166,22 @@ function human(value: unknown) {
   return text(value).replace(/_/g, " ");
 }
 
+function sentence(value: unknown) {
+  const raw = human(value).replace(/\s+/g, " ").trim();
+  if (!raw) return "";
+  return raw.endsWith(".") || raw.endsWith("?") || raw.endsWith("!") ? raw : `${raw}.`;
+}
+
+function listNames(value: unknown, fallbackPrefix: string) {
+  const rows = Array.isArray(value) ? value : [];
+  return rows
+    .map((row, index) => {
+      const record = recordOf(row);
+      return text(record.name || record.label || record.title || record.id) || `${fallbackPrefix} ${index + 1}`;
+    })
+    .filter(Boolean);
+}
+
 function objectTypeLabel(object: OperationalObject) {
   const labels: Record<string, string> = {
     device: "device",
@@ -1198,9 +1214,143 @@ function objectTypeLabel(object: OperationalObject) {
   return labels[object.object_type] || "object";
 }
 
+function objectPersonality(object: OperationalObject) {
+  const profiles: Partial<Record<OperationalObjectType, { role: string; diagnostics: string[]; actions: string[] }>> = {
+    device: {
+      role: "I operate from this device's live state, controls, health, activity, and relationships.",
+      diagnostics: ["state", "health", "last control", "automation", "connection"],
+      actions: ["control", "timer", "schedule", "rename", "diagnose"],
+    },
+    device_channel: {
+      role: "I operate this device channel independently while keeping the parent device context.",
+      diagnostics: ["channel state", "last update", "parent device", "automation"],
+      actions: ["control", "timer", "schedule", "rename channel"],
+    },
+    room: {
+      role: "I read the room as a living operational space: devices, occupancy, activity, scenes, and comfort.",
+      diagnostics: ["active devices", "occupancy", "room activity", "scenes"],
+      actions: ["turn devices off", "run scene", "check occupancy", "summarize activity"],
+    },
+    visitor: {
+      role: "I track this visitor's identity, access state, arrival history, and safe approval path.",
+      diagnostics: ["identity", "access status", "arrival history", "approval state"],
+      actions: ["approve", "extend", "deny", "review history"],
+    },
+    access_pass: {
+      role: "I track this access pass, its holder, validity, usage, and security state.",
+      diagnostics: ["validity", "usage", "holder", "security"],
+      actions: ["extend", "cancel", "review usage"],
+    },
+    maintenance_request: {
+      role: "I track this maintenance request through issue, assignee, delay, escalation, and closure.",
+      diagnostics: ["status", "assignee", "delay", "related incidents"],
+      actions: ["assign", "escalate", "review history", "close"],
+    },
+    wallet: {
+      role: "I track this wallet's balance, funding, charges, receipts, and payment safety.",
+      diagnostics: ["balance", "last payment", "receipts", "outstanding charges"],
+      actions: ["verify payment", "show receipt", "show transactions"],
+    },
+    transaction: {
+      role: "I track this transaction's amount, confirmation state, receipt, and ledger evidence.",
+      diagnostics: ["payment status", "receipt", "ledger", "confirmation"],
+      actions: ["verify", "show receipt", "explain status"],
+    },
+    service_account: {
+      role: "I track this service account's provider, tariff, billing, vending readiness, and transactions.",
+      diagnostics: ["tariff", "billing", "provider readiness", "transactions"],
+      actions: ["check vending", "show tariff", "show transactions", "report issue"],
+    },
+    infrastructure_asset: {
+      role: "I track this asset's health, dependencies, incidents, services, and operational impact.",
+      diagnostics: ["health", "dependencies", "incidents", "affected homes"],
+      actions: ["diagnose", "show dependencies", "review incidents"],
+    },
+    camera: {
+      role: "I monitor this camera's live state, events, connectivity, and security context.",
+      diagnostics: ["live state", "motion events", "connection", "coverage"],
+      actions: ["show events", "check connection", "review incident"],
+    },
+    meter: {
+      role: "I track this meter's service binding, readings, tariff context, and settlement evidence.",
+      diagnostics: ["readings", "service", "tariff", "last update"],
+      actions: ["show readings", "check service", "review transactions"],
+    },
+    scene: {
+      role: "I coordinate the devices and conditions attached to this scene.",
+      diagnostics: ["included devices", "last run", "failures", "schedule"],
+      actions: ["run", "edit", "show devices"],
+    },
+    automation: {
+      role: "I track this automation's trigger, conditions, actions, and last execution.",
+      diagnostics: ["trigger", "conditions", "last run", "affected objects"],
+      actions: ["enable", "disable", "edit", "show history"],
+    },
+    message_thread: {
+      role: "I track this conversation thread, participants, messages, and operational follow-up.",
+      diagnostics: ["participants", "latest message", "status", "linked records"],
+      actions: ["reply", "resolve", "open record"],
+    },
+    community_post: {
+      role: "I track this community item, audience, responses, and follow-up state.",
+      diagnostics: ["audience", "responses", "status"],
+      actions: ["summarize", "reply", "review activity"],
+    },
+    notification: {
+      role: "I track this notification's event, read state, deep link, and evidence.",
+      diagnostics: ["event", "delivery", "read state"],
+      actions: ["open event", "mark read", "show evidence"],
+    },
+    operational_incident: {
+      role: "I track this incident's cause, affected objects, recovery, and recommended action.",
+      diagnostics: ["cause", "duration", "affected objects", "recovery"],
+      actions: ["show evidence", "show affected", "review recovery"],
+    },
+    operational_event: {
+      role: "I track this operational event, evidence, impact, and follow-up.",
+      diagnostics: ["evidence", "impact", "status"],
+      actions: ["show evidence", "review follow-up"],
+    },
+    twin_node: {
+      role: "I represent the selected spatial object and its live operational relationships.",
+      diagnostics: ["position", "relationships", "state", "activity"],
+      actions: ["show relationships", "show activity", "diagnose"],
+    },
+  };
+  return profiles[object.object_type] || {
+    role: `I answer from this ${objectTypeLabel(object)} and its operational evidence.`,
+    diagnostics: ["status", "health", "activity", "relationships"],
+    actions: ["status", "activity", "relationships", "evidence"],
+  };
+}
+
+function naturalState(value: unknown) {
+  const raw = human(value).toLowerCase();
+  if (!raw) return "";
+  const map: Record<string, string> = {
+    on: "ON",
+    off: "OFF",
+    online: "online",
+    offline: "offline",
+    healthy: "healthy",
+    normal: "normal",
+    degraded: "degraded",
+    unavailable: "unavailable",
+    pending: "pending",
+    "pending confirmation": "waiting for confirmation",
+    active: "active",
+    inactive: "inactive",
+    open: "open",
+    closed: "closed",
+    resolved: "resolved",
+    failed: "not completed",
+  };
+  return map[raw] || human(value);
+}
+
 function objectStateLine(object: OperationalObject) {
-  const state = human(object.current_state);
-  const health = human(object.health);
+  const state = naturalState(object.current_state);
+  const health = naturalState(object.health);
   if (state && health && state.toLowerCase() !== health.toLowerCase()) return `${object.label} is ${state}. Health is ${health}.`;
   if (state) return `${object.label} is ${state}.`;
   if (health) return `${object.label} health is ${health}.`;
@@ -1215,13 +1365,25 @@ function relationshipLine(object: OperationalObject, input: CanonicalConversatio
   const children = Array.isArray(relationships.child_devices) ? relationships.child_devices : Array.isArray(relationships.children) ? relationships.children : [];
   const scenes = Array.isArray(input.active_scenes) ? input.active_scenes : Array.isArray(relationships.scenes) ? relationships.scenes : [];
   const automations = Array.isArray(input.active_automations) ? input.active_automations : Array.isArray(relationships.automations) ? relationships.automations : [];
+  const schedules = Array.isArray(relationships.schedules) ? relationships.schedules : [];
+  const sensors = Array.isArray(relationships.sensors) ? relationships.sensors : [];
+  const affectedHomes = Array.isArray(relationships.affected_homes) ? relationships.affected_homes : [];
+  const transactions = Array.isArray(relationships.transactions) ? relationships.transactions : [];
+  const assignee = text(relationships.assignee_name || relationships.assignee || relationships.technician);
   const provider = text(relationships.provider || recordOf(object.metadata).provider);
-  if (room) parts.push(`It belongs to ${room}.`);
+  const sceneNames = listNames(scenes, "scene");
+  const automationNames = listNames(automations, "automation");
+  if (room) parts.push(`${object.label} belongs to ${room}.`);
   if (parent.name || parent.id) parts.push(`It depends on ${text(parent.name || parent.id)}.`);
-  if (children.length) parts.push(`${children.length} linked child ${children.length === 1 ? "object" : "objects"} depend on it.`);
-  if (scenes.length) parts.push(`${scenes.length} ${scenes.length === 1 ? "scene" : "scenes"} can affect it.`);
-  if (automations.length) parts.push(`${automations.length} ${automations.length === 1 ? "automation" : "automations"} can control it.`);
-  if (provider) parts.push(`Provider is ${provider}.`);
+  if (children.length) parts.push(`${children.length} linked child ${children.length === 1 ? "object depends" : "objects depend"} on it.`);
+  if (sceneNames.length) parts.push(`${sceneNames.slice(0, 2).join(" and ")} ${sceneNames.length === 1 ? "can affect it" : "can affect it"}.`);
+  if (automationNames.length) parts.push(`${automationNames.slice(0, 2).join(" and ")} ${automationNames.length === 1 ? "can control it" : "can control it"}.`);
+  if (schedules.length) parts.push(`${schedules.length} ${schedules.length === 1 ? "schedule is" : "schedules are"} linked.`);
+  if (sensors.length) parts.push(`${sensors.length} ${sensors.length === 1 ? "sensor informs" : "sensors inform"} it.`);
+  if (affectedHomes.length) parts.push(`${affectedHomes.length} ${affectedHomes.length === 1 ? "home is" : "homes are"} affected.`);
+  if (transactions.length) parts.push(`${transactions.length} recent ${transactions.length === 1 ? "transaction is" : "transactions are"} linked.`);
+  if (assignee) parts.push(`Current assignee is ${assignee}.`);
+  if (provider) parts.push(`It is connected through ${provider}.`);
   return parts.join(" ");
 }
 
@@ -1229,8 +1391,10 @@ function memoryLine(object: OperationalObject, input: CanonicalConversationReque
   const memory = recordOf(input.memory_summary);
   const executions = Array.isArray(input.recent_executions) ? input.recent_executions : [];
   const activity = text(recordOf(input.conversation_context).activity_summary || recordOf(object.metadata).activity_summary);
-  const summary = text(memory.summary || memory.headline || activity);
+  const summary = text(memory.summary || memory.headline || memory.last_event || memory.last_activity || activity);
   if (summary) return summary;
+  const usually = text(memory.usual_time || memory.normal_time || memory.pattern);
+  if (usually) return `${object.label} usually follows this pattern: ${usually}.`;
   if (executions.length) {
     const latest = recordOf(executions[0]);
     const latestSummary = text(latest.summary || latest.title || latest.status);
@@ -1244,6 +1408,21 @@ function evidenceLine(object: OperationalObject, response: Record<string, unknow
   const freshness = object.freshness ? ` Last updated ${new Date(object.freshness).toLocaleString()}.` : "";
   if (sourceCount) return `I am using ${sourceCount} available ${sourceCount === 1 ? "source" : "sources"} for this answer.${freshness}`;
   return `I am using the verified ${objectTypeLabel(object)} record for ${object.label}.${freshness || " Freshness is not available yet."}`;
+}
+
+function truthLanguage(state: TruthState, object: OperationalObject) {
+  const label = object.label;
+  const map: Record<TruthState, string> = {
+    confirmed: `This is confirmed for ${label}.`,
+    observed: `I observed this from the available operational records for ${label}.`,
+    inferred: `This is my best reading from ${label}'s current context.`,
+    predicted: `This is a prediction based on ${label}'s patterns and evidence.`,
+    pending_confirmation: `${label} is still waiting for confirmation.`,
+    unavailable: `I do not have enough available data for ${label} yet.`,
+    unsupported: `${label} does not support that action.`,
+    permission_restricted: `You do not currently have permission to do that on ${label}.`,
+  };
+  return map[state];
 }
 
 function broadSummaryRequested(message: string) {
@@ -1262,13 +1441,84 @@ function executionStatus(response: Record<string, unknown>) {
   return text(first.status || direct).toLowerCase();
 }
 
+function executionRealityReply(object: OperationalObject, response: Record<string, unknown>) {
+  const execution = recordOf(response.execution);
+  const status = executionStatus(response);
+  const results = Array.isArray(execution.results) ? execution.results.map(recordOf) : [];
+  const reason = text(execution.reason || execution.error || recordOf(results[0]).reason || recordOf(results[0]).message);
+  if (/state_confirmed|executed|success|successful|completed|processed/.test(status)) {
+    const state = naturalState(recordOf(results[0]).new_state || recordOf(results[0]).state || object.current_state);
+    return state
+      ? `Done. ${object.label} is now ${state}. Everything I can verify looks healthy.`
+      : `Done. ${object.label} completed the request successfully.`;
+  }
+  if (/provider accepted|accepted|partial|partial_confirmation/.test(status)) {
+    return `${object.label} accepted the request, but final confirmation is still pending. I will treat the result as partial until the next state update confirms it.`;
+  }
+  if (/pending_confirmation|confirmation_required/.test(status) || response.requiresConfirmation || response.approvalRequired) {
+    return contextualConfirmationReply(object, response);
+  }
+  if (/timeout|timed_out/.test(status)) {
+    return `${object.label} did not confirm in time. I have not marked it as successful yet, and the next state update should clarify what happened.`;
+  }
+  if (/unsupported|validation_required/.test(status)) {
+    return `${object.label} does not expose that control. ${reason ? sentence(reason) : "I can still show supported actions for this object."}`;
+  }
+  if (/permission|denied/.test(status)) {
+    return `I cannot do that on ${object.label} with the current permissions.`;
+  }
+  if (/failed|error/.test(status)) {
+    return reason ? `${object.label} could not complete that request. ${sentence(reason)}` : `${object.label} could not complete that request.`;
+  }
+  return "";
+}
+
+function contextualConfirmationReply(object: OperationalObject, response: Record<string, unknown>) {
+  const execution = recordOf(response.execution);
+  const confirmations = Array.isArray(response.confirmations) ? response.confirmations.map(recordOf) : [];
+  const pending = confirmations[0] || recordOf((Array.isArray(execution.results) ? execution.results : []).map(recordOf).find((row) => row.status === "pending_confirmation"));
+  const summary = text(pending.summary || pending.title || execution.summary || response.understood);
+  const capabilities = object.capabilities.map((item) => item.toLowerCase());
+  if (object.object_type === "device" || object.object_type === "device_channel") {
+    if (capabilities.some((item) => /switch|power|relay|lock|curtain|scene|automation/.test(item))) {
+      return summary
+        ? `${summary} Continue?`
+        : `I can do that for ${object.label}. Continue?`;
+    }
+    return `${object.label} may not expose a direct control for that. Should I continue with the supported path?`;
+  }
+  if (object.object_type === "wallet" || object.object_type === "transaction") {
+    return summary
+      ? `${summary} Confirm before I continue.`
+      : `This affects wallet or payment records for ${object.label}. Confirm before I continue.`;
+  }
+  if (object.object_type === "visitor" || object.object_type === "access_pass") {
+    return summary
+      ? `${summary} Should I apply that access change?`
+      : `This changes access for ${object.label}. Should I continue?`;
+  }
+  if (object.object_type === "maintenance_request") {
+    return summary
+      ? `${summary} Should I update this request?`
+      : `This will update ${object.label}. Should I continue?`;
+  }
+  return summary ? `${summary} Continue?` : `I can do that for ${object.label}. Continue?`;
+}
+
+function objectCapabilityLine(object: OperationalObject) {
+  const profile = objectPersonality(object);
+  const actions = profile.actions.slice(0, 4).join(", ");
+  const diagnostics = profile.diagnostics.slice(0, 4).join(", ");
+  return `${profile.role} I can help with ${actions}. I can also explain ${diagnostics}.`;
+}
+
 function objectDefaultReply(object: OperationalObject, input: CanonicalConversationRequest) {
   const lines = [objectStateLine(object)];
   const memory = memoryLine(object, input);
   const relationships = relationshipLine(object, input);
   if (memory) lines.push(memory);
   if (relationships) lines.push(relationships);
-  if (!memory && !relationships) lines.push(`I can check status, history, relationships, evidence, and safe actions for this ${objectTypeLabel(object)}.`);
+  if (!memory && !relationships) lines.push(objectCapabilityLine(object));
   return lines.join(" ");
 }
 
@@ -1277,7 +1527,9 @@ function objectQuestionReply(input: CanonicalConversationRequest, response: Reco
   const base = objectDefaultReply(object, input);
   if (/\b(activity|history|what happened|last time|last command|last execution|how long|how many times|who turned|who controlled)\b/i.test(message)) {
     const memory = memoryLine(object, input);
-    return memory || `${object.label} does not have detailed recent activity attached to this conversation yet.`;
+    return memory
+      ? `${memory} ${relationshipLine(object, input) || ""}`.trim()
+      : `${object.label} does not have detailed recent activity attached to this conversation yet.`;
   }
   if (/\b(relationship|relationships|what controls|depends|affected|scene|automation|where is|belongs|parent|children)\b/i.test(message)) {
     return relationshipLine(object, input) || `${object.label} does not have linked relationships attached yet.`;
@@ -1289,7 +1541,7 @@ function objectQuestionReply(input: CanonicalConversationRequest, response: Reco
     return evidenceLine(object, response);
   }
   if (/\b(what can|who are you|what are you|help)\b/i.test(message)) {
-    return `${object.label} is the active ${objectTypeLabel(object)}. I can answer its status, health, activity, relationships, evidence, and supported actions.`;
+    return `${object.label} is the active ${objectTypeLabel(object)}. ${objectCapabilityLine(object)}`;
   }
   return "";
 }
@@ -1305,8 +1557,15 @@ function contextualObjectActions(object: OperationalObject, input: CanonicalConv
     }
     add("Show Activity", "Show activity");
     add("Health", "Is it working?");
+    if (/off|inactive|closed/.test(state)) add("Create Schedule", "Create schedule");
+    else add("Energy", "Show energy usage");
     add("Automation", "Create automation");
     add("Relationships", "What controls you?");
+  } else if (object.object_type === "room" || object.object_type === "zone") {
+    add("Active Devices", "What is on?");
+    add("Turn Off Room", "Turn everything off", "control");
+    add("Occupancy", "Is it occupied?");
+    add("Activity", "What happened here today?");
   } else if (object.object_type === "visitor" || object.object_type === "access_pass") {
     add("Status", "Who is this?");
     add("Approve", "Approve this visitor", "approval");
@@ -1329,13 +1588,21 @@ function contextualObjectActions(object: OperationalObject, input: CanonicalConv
     add("Live State", "Is this camera working?");
     add("Events", "Show recent events");
     add("Diagnose", "Check connection");
+  } else if (object.object_type === "scene") {
+    add("Run Scene", "Run this scene", "control");
+    add("Devices", "What devices do you control?");
+    add("History", "When did this last run?");
+  } else if (object.object_type === "automation") {
+    add("Status", "Is this automation active?");
+    add("History", "Show recent runs");
+    add("Edit", "Change this automation", "approval");
   } else {
     add("Status", "What is happening?");
     add("Activity", "Show activity");
     add("Relationships", "What depends on this?");
     add("Evidence", "Show evidence");
   }
-  return actions.slice(0, 5);
+  return actions.slice(0, 6);
 }
 
 function shapeObjectConversation(input: CanonicalConversationRequest, response: Record<string, unknown>, object: OperationalObject | null) {
@@ -1343,18 +1610,19 @@ function shapeObjectConversation(input: CanonicalConversationRequest, response: 
   const next = { ...response };
   const status = executionStatus(response);
   const existing = cleanLabel(response.reply || response.message, "");
-  let objectReply = objectQuestionReply(input, response, object);
+  const executionReply = executionRealityReply(object, response);
+  let objectReply = executionReply || objectQuestionReply(input, response, object);
   if (!objectReply && !broadSummaryRequested(input.message) && looksLikeBroadFallback(existing)) objectReply = objectDefaultReply(object, input);
-  if (/executed|success|completed|processed|state_confirmed|provider accepted/.test(status) && /could not|failed|unable|did not/i.test(existing)) {
-    objectReply = `Done. ${object.label} has been updated.`;
-  }
-  if (/partial|pending/.test(status) && /failed|could not|unable/i.test(existing)) {
-    objectReply = `${object.label} accepted the request, but confirmation is still pending.`;
+  if (!objectReply && !broadSummaryRequested(input.message) && /^(yes|yep|yeah|proceed|confirm|go ahead|do it|continue|execute)$/i.test(input.message.trim())) {
+    objectReply = contextualConfirmationReply(object, response);
   }
   if (objectReply) {
     next.message = objectReply;
     next.reply = objectReply;
     next.understood = text(next.understood) || `I am answering for ${object.label}.`;
+  }
+  if (objectReply && /\b(evidence|how do you know|are you sure|provider confirm|confirmed|last updated|prediction|fact)\b/i.test(input.message)) {
+    next.truth_note = truthLanguage(truthStateFromCompatibility(next), object);
   }
   const existingActions = Array.isArray(next.suggested_actions) ? next.suggested_actions : [];
   next.suggested_actions = contextualObjectActions(object, input).length
