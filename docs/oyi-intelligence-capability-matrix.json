@@ -1,0 +1,286 @@
+{
+  "generated_at": "2026-07-11",
+  "mode": "static_audit",
+  "repositories": {
+    "backend": "/Users/ochigaidoko/Documents/Ochiga-backend",
+    "consumer": "/Users/ochigaidoko/Documents/New project/Oyi-os-frontend",
+    "facility": "/Users/ochigaidoko/Documents/facility-oyi"
+  },
+  "canonical_owners": {
+    "signal_runtime": {
+      "owner": "backend",
+      "status": "canonical",
+      "evidence": [
+        "src/oyi-core/service.ts",
+        "src/oyi-core/contracts/operationalSignal.ts",
+        "src/oyi-core/runtime/universalSignalRuntime.ts"
+      ]
+    },
+    "awareness": {
+      "owner": "backend",
+      "status": "canonical",
+      "evidence": [
+        "src/oyi-core/runtime/contextAwareness.ts"
+      ]
+    },
+    "reasoning": {
+      "owner": "backend",
+      "status": "canonical",
+      "evidence": [
+        "src/oyi-core/runtime/operationalReasoning.ts"
+      ]
+    },
+    "recommendations": {
+      "owner": "backend",
+      "status": "canonical",
+      "evidence": [
+        "src/oyi-core/runtime/operationalRecommendations.ts"
+      ]
+    },
+    "automation_planning": {
+      "owner": "backend",
+      "status": "canonical",
+      "evidence": [
+        "src/oyi-core/runtime/safeAutomation.ts"
+      ]
+    },
+    "context_resolution": {
+      "owner": "backend",
+      "status": "canonical",
+      "evidence": [
+        "src/services/context/contextResolutionService.ts",
+        "src/middleware/contextResolver.ts"
+      ]
+    },
+    "compatibility_chat": {
+      "owner": "backend",
+      "status": "compatibility_wrapper",
+      "evidence": [
+        "src/services/oyiUnifiedIntelligenceService.ts",
+        "src/routes/oyiRoutes.ts"
+      ]
+    },
+    "runtime_conversation": {
+      "owner": "backend",
+      "status": "canonical_but_incomplete",
+      "evidence": [
+        "src/oyi-core/runtime/conversation.ts",
+        "src/routes/oyiRoutes.ts"
+      ]
+    }
+  },
+  "capabilities": [
+    {
+      "name": "estate_home_context_resolution",
+      "status": "pass",
+      "severity": "none",
+      "current_behavior": "Backend resolves estate and home through authenticated memberships and validates requested scope.",
+      "expected_behavior": "Authenticated surface context is resolved and trusted.",
+      "evidence": [
+        "src/services/context/contextResolutionService.ts"
+      ]
+    },
+    {
+      "name": "narrow_object_context_generalization",
+      "status": "fail",
+      "severity": "P1",
+      "current_behavior": "Only some surfaces manually pass selected object context, especially the Consumer device drawer.",
+      "expected_behavior": "The narrowest valid object context wins across all modules unless the user explicitly widens scope.",
+      "evidence": [
+        "src/services/context/contextResolutionService.ts",
+        "src/app/devices/DevicesClient.tsx",
+        "src/services/aiService.ts"
+      ]
+    },
+    {
+      "name": "single_canonical_chat_path",
+      "status": "fail",
+      "severity": "P1",
+      "current_behavior": "Consumer can receive answers from /oyi/chat, /ai/chat, or /oyi/runtime/conversation.",
+      "expected_behavior": "One canonical Oyi answer path remains primary; compatibility wrappers only adapt payload shape.",
+      "evidence": [
+        "src/services/aiService.ts",
+        "src/routes/aiRoutes.ts",
+        "src/routes/oyiRoutes.ts"
+      ]
+    },
+    {
+      "name": "thread_persistence",
+      "status": "pass",
+      "severity": "none",
+      "current_behavior": "Compatibility conversation threads and messages persist and can be restored.",
+      "expected_behavior": "Conversation continuity is retained across turns.",
+      "evidence": [
+        "src/services/oyiUnifiedIntelligenceService.ts",
+        "store/useFacilityConversationStore.ts",
+        "src/app/devices/DevicesClient.tsx"
+      ]
+    },
+    {
+      "name": "device_scoped_conversation",
+      "status": "partial",
+      "severity": "P1",
+      "current_behavior": "Consumer device drawer carries rich explicit device context and recent thread restoration.",
+      "expected_behavior": "Every object-bound surface should have the same scoped conversation contract.",
+      "evidence": [
+        "src/app/devices/DevicesClient.tsx",
+        "src/services/aiService.ts",
+        "src/services/oyiUnifiedIntelligenceService.ts"
+      ]
+    },
+    {
+      "name": "natural_language_generalization",
+      "status": "partial",
+      "severity": "P1",
+      "current_behavior": "Intent routing is mainly regex-based with some stateful follow-up handling in compatibility chat.",
+      "expected_behavior": "Natural language should handle pronouns, corrections, shorthand, and informal phrasing consistently across modules.",
+      "evidence": [
+        "src/intelligence-core/intentRouter.ts",
+        "src/oyi-core/runtime/conversation.ts",
+        "src/services/oyiUnifiedIntelligenceService.ts"
+      ]
+    },
+    {
+      "name": "execution_confirmation_safety",
+      "status": "partial",
+      "severity": "P1",
+      "current_behavior": "Pending confirmations and execution ledger exist, but confirmation ownership is split across /ai and compatibility /oyi chat.",
+      "expected_behavior": "One canonical action proposal and confirmation path gates all sensitive operations.",
+      "evidence": [
+        "src/ai/commandRouter.ts",
+        "src/services/oyiUnifiedIntelligenceService.ts",
+        "src/oyi-core/runtime/executionLedger.ts"
+      ]
+    },
+    {
+      "name": "awareness_consistency",
+      "status": "partial",
+      "severity": "P1",
+      "current_behavior": "Backend authors awareness, but Consumer and Facility both locally reinterpret or rebuild some awareness.",
+      "expected_behavior": "All surfaces should describe the same event from the same canonical truth model.",
+      "evidence": [
+        "src/lib/consumerAwareness.ts",
+        "services/facilityRealtime.ts",
+        "services/signalAwarenessService.ts",
+        "src/oyi-core/runtime/contextAwareness.ts"
+      ]
+    },
+    {
+      "name": "infrastructure_event_correlation",
+      "status": "pass",
+      "severity": "none",
+      "current_behavior": "Grouped outages and recoveries are inferred and emitted as parent incidents.",
+      "expected_behavior": "Shared infrastructure incidents should suppress notification storms and expose one coherent operational event.",
+      "evidence": [
+        "src/services/infrastructureEventIntelligenceService.ts"
+      ]
+    },
+    {
+      "name": "notification_policy_centralization",
+      "status": "pass",
+      "severity": "none",
+      "current_behavior": "Notification routing, category normalization, and decision policy are centralized.",
+      "expected_behavior": "Modules should not bypass the canonical notification policy.",
+      "evidence": [
+        "src/services/notifications/notificationRoutingService.ts",
+        "src/services/notificationPolicyService.ts"
+      ]
+    },
+    {
+      "name": "memory_unification",
+      "status": "partial",
+      "severity": "P2",
+      "current_behavior": "Memory exists across resident_memory, home_timeline, execution ledger, device counters, and conversation threads.",
+      "expected_behavior": "Memory should be explainable and queryable as one coherent operational layer.",
+      "evidence": [
+        "src/services/intelligenceMemoryService.ts",
+        "src/services/oyiUnifiedIntelligenceService.ts",
+        "src/oyi-core/runtime/executionLedger.ts"
+      ]
+    },
+    {
+      "name": "digital_twin_object_readiness",
+      "status": "partial",
+      "severity": "P2",
+      "current_behavior": "Signals and targets already carry reusable estate/building/room/device relationships, but object-scoped conversation is not generalized beyond some surfaces.",
+      "expected_behavior": "Twin objects should reuse the same identity, awareness, activity, relationship, and conversation contract.",
+      "evidence": [
+        "src/types/oisContext.ts",
+        "src/services/oyi/oyiTargetService.ts",
+        "src/services/context/contextResolutionService.ts"
+      ]
+    }
+  ],
+  "modules": {
+    "devices": {
+      "status": "partial",
+      "strengths": [
+        "canonical device runtime",
+        "explicit drawer context",
+        "execution history",
+        "infrastructure correlation"
+      ],
+      "gaps": [
+        "generalized object contract not shared outside devices",
+        "full canonical conversation ownership not settled"
+      ]
+    },
+    "rooms_spaces": {
+      "status": "incomplete",
+      "strengths": [
+        "room pages and room identifiers exist"
+      ],
+      "gaps": [
+        "no shared room-scoped conversation contract",
+        "not yet twin-grade object intelligence"
+      ]
+    },
+    "visitors": {
+      "status": "partial",
+      "strengths": [
+        "operations exist in compatibility conversation layer",
+        "notification and target routing exist"
+      ],
+      "gaps": [
+        "not clearly lifted into canonical runtime conversation"
+      ]
+    },
+    "maintenance": {
+      "status": "partial",
+      "strengths": [
+        "workflow awareness and assignment operations exist"
+      ],
+      "gaps": [
+        "shared object contract and delay/explanation flow need alignment"
+      ]
+    },
+    "wallet_services": {
+      "status": "partial",
+      "strengths": [
+        "wallet runtime and service registry exist",
+        "payment and notification flows exist"
+      ],
+      "gaps": [
+        "object-bound conversational continuity is weaker than devices"
+      ]
+    },
+    "facility_infrastructure": {
+      "status": "strong_but_split",
+      "strengths": [
+        "operational awareness",
+        "local runtime subscriptions",
+        "execution statistics"
+      ],
+      "gaps": [
+        "local fallback intelligence builders remain active"
+      ]
+    }
+  },
+  "recommended_phases": [
+    "canonicalize conversation ownership",
+    "generalize operational-object context",
+    "align frontend consumers to one truth model",
+    "standardize truth-state language",
+    "expand memory and twin-ready object reasoning"
+  ]
+}
