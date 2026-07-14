@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { emitAuditEvent } from "../core/foundation";
 import { recordDeviceEvent } from "../services/deviceAnalyticsService";
+import { resolveMqttTlsOptions } from "../config/mqttTls";
 
 // ✅ Use IO registry (prevents circular imports)
 import { getIO } from "../realtime/io";
@@ -237,6 +238,8 @@ export async function initMqttBridge() {
       username: MQTT_USERNAME,
       password: MQTT_PASSWORD,
       reconnectPeriod: 3000,
+      // Security: enforce MQTT broker TLS certificate verification in production.
+      ...resolveMqttTlsOptions(),
     });
 
     client.on("connect", () => {

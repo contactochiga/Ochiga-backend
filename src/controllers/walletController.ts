@@ -403,12 +403,49 @@ async function reconcileWalletFunding(input: {
     return { applied: false, status: "pending" as const, wallet, transaction: latest || existing, receipt: null };
   }
 
-  const currentBalance = safeNumber(wallet.balance);
-  const nextBalance = currentBalance + paidAmount;
-  const { error: walletUpdateError } = await supabaseAdmin
-    .from("wallets")
-    .update({ balance: nextBalance })
-    .eq("id", wallet.id);
+  // Security: atomic credit via Postgres RPC so concurrent funding
+  // reconciliations never overwrite each other (race-free double-credit
+  // prevention). Falls back to the legacy in-place increment only when the
+  // RPC migration is not yet deployed, preserving backward compatibility.
+  const creditReference = `funding_${input.reference}`;
+  let nextBalance = safeNumber(wallet.balance) + paidAmount;
+  let walletUpdateError: any = null;
+  try {
+    const { data: creditResult, error: creditErr } = await supabaseAdmin.rpc("oyi_credit_wallet", {
+      p_user_id: input.userId,
+      p_amount: paidAmount,
+      p_reason: "funding",
+      p_currency: currency,
+      p_reference: creditReference,
+      p_type: "funding",
+    });
+    if (creditErr && /could not find the function/i.test(String(creditErr.message || ""))) {
+      // RPC not deployed — fall through to legacy in-place increment.
+      const fallback = await supabaseAdmin
+        .from("wallets")
+        .update({ balance: nextBalance })
+        .eq("id", wallet.id)
+        .select("balance")
+        .maybeSingle();
+      if (fallback.error || !fallback.data) {
+        walletUpdateError = fallback.error || new Error("wallet_credit_failed");
+      } else {
+        nextBalance = safeNumber(fallback.data.balance);
+      }
+    } else if (creditErr) {
+      walletUpdateError = creditErr;
+    } else {
+      const result = (creditResult || {}) as any;
+      if (!result.ok) {
+        walletUpdateError = new Error(String(result.code || "wallet_credit_failed"));
+      } else {
+        nextBalance = safeNumber(result.balance);
+      }
+    }
+  } catch (e: any) {
+    walletUpdateError = e;
+  }
+
   if (walletUpdateError) {
     await updateWalletTransactionWithFallback(
       input.reference,
@@ -964,6 +1001,69 @@ export async function verifyPayment(req: Request, res: Response) {
   }
 }
 
+/**
+ * Security: atomic wallet debit via Postgres RPC.
+ *
+ * Uses the `oyi_debit_wallet` SECURITY DEFINER function which performs the
+ * balance mutation in a single conditional UPDATE ... RETURNING statement,
+ * eliminating the read-modify-write race condition that previously allowed
+ * double-spending via concurrent requests.
+ *
+ * Returns { ok, balance, reference } on success, or throws a PublicApiError.
+ * Falls back to the legacy non-atomic path ONLY if the RPC is not deployed
+ * (function not found), preserving backward compatibility during rollout.
+ */
+async function atomicDebitWallet(input: {
+  userId: string;
+  amount: number;
+  reason: string;
+  currency: string;
+}): Promise<{ balance: number; reference: string }> {
+  const reference = `debit_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+
+  const { data, error } = await supabaseAdmin.rpc("oyi_debit_wallet", {
+    p_user_id: input.userId,
+    p_amount: input.amount,
+    p_reason: input.reason,
+    p_currency: input.currency,
+    p_reference: reference,
+    p_type: "service_charge",
+  });
+
+  if (error) {
+    // If the RPC is not deployed yet, signal the caller to use the fallback.
+    if (String(error.message || "").toLowerCase().includes("could not find the function")) {
+      const fallbackError: any = new Error("RPC_NOT_DEPLOYED");
+      fallbackError.rpcMissing = true;
+      throw fallbackError;
+    }
+    throw createPublicApiError(500, "wallet_debit_failed", "Wallet debit could not be completed.");
+  }
+
+  const result = (data || {}) as any;
+  if (!result.ok) {
+    const code = String(result.code || "debit_failed");
+    if (code === "insufficient_funds") {
+      throw createPublicApiError(400, "wallet_insufficient_funds", "Insufficient funds.");
+    }
+    if (code === "frozen") {
+      throw createPublicApiError(403, "wallet_frozen", "This wallet is currently unavailable.");
+    }
+    if (code === "wallet_not_found") {
+      throw createPublicApiError(404, "wallet_not_found", "Wallet could not be found.");
+    }
+    if (code === "invalid_amount") {
+      throw createPublicApiError(400, "wallet_amount_invalid", "Enter a valid amount to continue.");
+    }
+    throw createPublicApiError(500, "wallet_debit_failed", "Wallet debit could not be completed.");
+  }
+
+  return {
+    balance: safeNumber(result.balance),
+    reference: String(result.reference || reference),
+  };
+}
+
 export async function debitWallet(req: Request, res: Response) {
   const user = req.user!;
   try {
@@ -973,42 +1073,53 @@ export async function debitWallet(req: Request, res: Response) {
       throw createPublicApiError(400, "wallet_amount_invalid", "Enter a valid amount to continue.");
     }
 
-    const wallet = await getOrCreateWallet(user.id);
-    if (safeNumber(wallet.balance) < amountNumber) {
-      throw createPublicApiError(400, "wallet_insufficient_funds", "Insufficient funds.");
-    }
-    if (Boolean(wallet?.is_frozen)) {
-      throw createPublicApiError(403, "wallet_frozen", "This wallet is currently unavailable.");
-    }
+    const currency = safeCurrency((await getOrCreateWallet(user.id)).currency || "NGN");
 
-    const balance = safeNumber(wallet.balance) - amountNumber;
-    const { error: updateErr } = await supabaseAdmin
-      .from("wallets")
-      .update({ balance })
-      .eq("id", wallet.id);
-    if (updateErr) throw updateErr;
-
-    const txReference = `debit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await insertWalletTransactionWithFallback({
-      wallet_id: wallet.id,
-      user_id: user.id,
-      direction: "debit",
-      type: "service_charge",
-      amount: amountNumber,
-      reference: txReference,
-      status: "completed",
-      metadata: { reason, direction: "debit", currency: safeCurrency(wallet.currency || "NGN") },
-      updated_at: new Date().toISOString(),
-    });
+    // Security: atomic debit. Throws PublicApiError on insufficient funds / frozen.
+    let balance: number;
+    let txReference: string;
+    try {
+      const result = await atomicDebitWallet({ userId: user.id, amount: amountNumber, reason, currency });
+      balance = result.balance;
+      txReference = result.reference;
+    } catch (err: any) {
+      // Backward-compat fallback: only when the RPC migration is not yet applied.
+      if (!err?.rpcMissing) throw err;
+      const wallet = await getOrCreateWallet(user.id);
+      if (safeNumber(wallet.balance) < amountNumber) {
+        throw createPublicApiError(400, "wallet_insufficient_funds", "Insufficient funds.");
+      }
+      if (Boolean(wallet?.is_frozen)) {
+        throw createPublicApiError(403, "wallet_frozen", "This wallet is currently unavailable.");
+      }
+      balance = safeNumber(wallet.balance) - amountNumber;
+      const { error: updateErr } = await supabaseAdmin
+        .from("wallets")
+        .update({ balance })
+        .eq("id", wallet.id);
+      if (updateErr) throw updateErr;
+      txReference = `debit_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+      await insertWalletTransactionWithFallback({
+        wallet_id: wallet.id,
+        user_id: user.id,
+        direction: "debit",
+        type: "service_charge",
+        amount: amountNumber,
+        reference: txReference,
+        status: "completed",
+        metadata: { reason, direction: "debit", currency },
+        updated_at: new Date().toISOString(),
+      });
+    }
 
     await handleSignal({
       type: "wallet.debited",
       schemaVersion: SIGNAL_SCHEMA_VERSION,
       source: "user",
-      walletId: wallet.id,
+      walletId: user.id,
       userId: user.id,
       amount: amountNumber,
-      currency: safeCurrency(wallet.currency || "NGN"),
+      currency,
       reason,
       timestamp: new Date().toISOString(),
     } as any);
@@ -1026,8 +1137,8 @@ export async function debitWallet(req: Request, res: Response) {
       entity_label: "Wallet debit",
       severity: "info",
       title: "Wallet debit recorded",
-      summary: `${formatAmount(amountNumber, safeCurrency(wallet.currency || "NGN"))} was debited from the wallet.`,
-      payload: { wallet_id: wallet.id, amount: amountNumber, balance, reason },
+      summary: `${formatAmount(amountNumber, currency)} was debited from the wallet.`,
+      payload: { amount: amountNumber, balance, reason },
     }, { source_table: "wallet_transactions", source_event_id: txReference });
 
     void emitAuditEvent({
@@ -1035,11 +1146,11 @@ export async function debitWallet(req: Request, res: Response) {
       actorRole: user.role,
       action: "wallet.debited",
       resourceType: "wallet",
-      resourceId: wallet.id,
+      resourceId: user.id,
       estateId: user.estate_id,
       homeId: user.home_id,
       status: "success",
-      metadata: { amount: amountNumber, reason, reference: txReference },
+      metadata: { amount: amountNumber, reason, reference: txReference, atomic: true },
       req,
     });
 

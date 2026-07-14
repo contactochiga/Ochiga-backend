@@ -34,6 +34,12 @@ const MQTT_CLIENT_ID =
  * ------------------------------------- */
 const MQTT_URL = `mqtts://${MQTT_HOST}:${MQTT_PORT}`;
 
+// Security: TLS certificate verification behavior lives in src/config/mqttTls.ts
+// so other modules (e.g. device/bridge.ts) can import it without triggering the
+// env-validating side effects of this module.
+export { resolveMqttTlsOptions } from "./config/mqttTls";
+import { resolveMqttTlsOptions } from "./config/mqttTls";
+
 /* ---------------------------------------
  * CLIENT (NO AUTO RECONNECT IN DEV)
  * ------------------------------------- */
@@ -48,8 +54,8 @@ export const mqttClient: MqttClient = mqtt.connect(MQTT_URL, {
   // Fail fast
   connectTimeout: 15_000,
 
-  // TLS for HiveMQ Cloud
-  protocol: "mqtts",
+  // TLS for HiveMQ Cloud (certificate verification enforced in production)
+  ...resolveMqttTlsOptions(),
 });
 
 /* ---------------------------------------

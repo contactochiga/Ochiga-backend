@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
 type LiveStatus = "starting" | "live" | "ended";
@@ -331,7 +332,7 @@ export class CommunityLiveService {
     if (!postId || !text) return null;
     const entry = runtimeSession(postId);
     const message: LiveChatMessage = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `${Date.now()}-${randomBytes(4).toString("hex")}`,
       postId,
       userId: String(input.userId || ""),
       userName: String(input.userName || "Resident"),

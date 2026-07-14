@@ -67,3 +67,19 @@ export function sendPublicApiError(
     code: next.code,
   });
 }
+
+/**
+ * Lightweight inline sanitizer for catch blocks.
+ * Use in place of `res.status(500).json({ error: err.message })` to prevent
+ * leaking Postgres internals, stack traces, or other internal detail to
+ * API consumers.
+ */
+export function safeErrorResult(error: any): { statusCode: number; body: { error: string; code: string } } {
+  const message = error instanceof PublicApiError
+    ? error.message
+    : "An unexpected error occurred. Please try again.";
+  return {
+    statusCode: error?.statusCode || 500,
+    body: { error: message, code: error?.code || "internal_error" },
+  };
+}

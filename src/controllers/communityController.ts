@@ -1,5 +1,6 @@
 // src/controllers/communityController.ts
 import { Request, Response } from "express";
+import { randomBytes } from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { UserRole } from "../types/user";
 import { uploadToS3 } from "../services/s3Service";
@@ -1477,9 +1478,7 @@ export async function uploadMedia(req: Request, res: Response) {
   const uid = sanitizePart(String(user?.id || "anon"));
   const kind = mediaType === "video" || isVideo ? "videos" : "images";
   const ext = extFromMime(String(mime), String(filename || "").split(".").pop() || "bin");
-  const key = `community/${estate}/${uid}/${kind}/${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}.${ext}`;
+  const key = `community/${estate}/${uid}/${kind}/${Date.now()}-${randomBytes(4).toString("hex")}.${ext}`;
 
   try {
     const url = await uploadToS3(key, buffer, String(mime));

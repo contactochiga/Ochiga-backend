@@ -2,6 +2,7 @@
 process.env.SUPABASE_URL ||= "http://localhost:54321";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "local-smoke-service-role-key";
 process.env.REDIS_URL ||= "redis://127.0.0.1:6379";
+process.env.OYI_OPS_TOKEN ||= "smoke-ops-token";
 
 const appModule = await import("../dist/app.js");
 const app = appModule.default?.default || appModule.default || appModule;
@@ -43,7 +44,10 @@ const envelope = await oyiCoreRuntime.receiveSignal({
 const server = app.listen(0);
 const port = await new Promise((resolve) => server.once("listening", () => resolve(server.address().port)));
 const healthRes = await fetch(`http://127.0.0.1:${port}/health`);
-const metricsRes = await fetch(`http://127.0.0.1:${port}/metrics`);
+// /metrics is now guarded (Fix 6) — authenticate with the ops token.
+const metricsRes = await fetch(`http://127.0.0.1:${port}/metrics`, {
+  headers: { Authorization: `Bearer ${process.env.OYI_OPS_TOKEN}` },
+});
 const health = await healthRes.json();
 const metricsText = await metricsRes.text();
 server.close();

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import type { AuthUser } from "../middleware/auth";
 import type { IntelligenceAgentId } from "./types";
@@ -95,7 +96,7 @@ export async function createWorkflow(input: {
   metadata?: Record<string, unknown>;
 }) {
   const priority = normalizePriority(input.priority);
-  const workflowId = `wf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const workflowId = `wf_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   const row = {
     workflow_id: workflowId,
     workflow_type: input.workflow_type,

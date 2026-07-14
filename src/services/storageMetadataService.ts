@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
 export const PLATFORM_FILE_PURPOSES = [
@@ -33,7 +34,7 @@ export type PlatformFileInput = {
 
 export async function recordPlatformFile(input: PlatformFileInput) {
   const row = {
-    file_id: input.fileId || `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    file_id: input.fileId || `${Date.now()}_${randomBytes(5).toString("hex")}`,
     owner_type: input.ownerType,
     owner_id: input.ownerId || null,
     estate_id: input.estateId || null,

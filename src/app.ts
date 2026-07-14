@@ -6,6 +6,8 @@ import cookieParser from "cookie-parser";
 import { healthHandler, metricsHandler, requestContextMiddleware, requestLoggingMiddleware, runtimeHealthHandler } from "./observability/http";
 import { aiRateLimit, authRateLimit, runtimeRateLimit, signalIngressRateLimit } from "./middleware/rateLimit";
 import { httpCorsOptions } from "./config/originPolicy";
+import { attachUser } from "./middleware/auth";
+import { requireInternalAccess } from "./middleware/internalGuard";
 
 // -------------------------------
 // ROUTES
@@ -123,6 +125,29 @@ app.use(cookieParser());
 app.use(requestLoggingMiddleware);
 
 // -------------------------------
+// SECURITY: response sanitizer
+// Scrubs internal error detail (Postgres messages, relation names, stack
+// traces) from JSON error responses so legacy controllers that still do
+// `res.status(500).json({ error: error.message })` do not leak internals.
+// -------------------------------
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const originalJson = res.json.bind(res);
+  (res as any).json = function sanitizeJson(body: any) {
+    if (body && typeof body === "object" && Number(res.statusCode) >= 500) {
+      const errText = String(body?.error || body?.message || "");
+      const looksInternal = /relation "|column "|schema cache|could not find|does not exist|syntax error at|failed to fetch|ECONNREFUSED|invalid input syntax|duplicate key|violates foreign key|violates not-null|JWT|secret|stack|at \/|node:internal/i.test(errText);
+      if (looksInternal) {
+        const sanitized = { ...body, error: "An unexpected error occurred. Please try again.", code: body?.code || "internal_error" };
+        if ("message" in sanitized) sanitized.message = sanitized.error;
+        return originalJson(sanitized);
+      }
+    }
+    return originalJson(body);
+  } as any;
+  next();
+});
+
+// -------------------------------
 // ROOT & HEALTH
 // -------------------------------
 app.get("/", (_req, res) => {
@@ -133,8 +158,8 @@ app.get("/health", (_req, res) => {
   return healthHandler(_req, res);
 });
 
-app.get("/health/runtime", runtimeHealthHandler);
-app.get("/metrics", metricsHandler);
+app.get("/health/runtime", attachUser, requireInternalAccess, runtimeHealthHandler);
+app.get("/metrics", attachUser, requireInternalAccess, metricsHandler);
 
 // -------------------------------
 // ROUTE MOUNTING
@@ -222,6 +247,17 @@ app.use((req, res) => {
     message: "Route not found",
     path: req.originalUrl,
   });
+});
+
+// -------------------------------
+// SECURITY: centralized error handler
+// Catches thrown/unhandled async errors so they never surface as a default
+// Express HTML page or a raw stack trace. The response sanitizer above will
+// scrub the body before it is sent.
+// -------------------------------
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = Number(err?.statusCode || err?.status) || 500;
+  res.status(status).json({ error: err?.message || "An unexpected error occurred.", code: err?.code || "internal_error" });
 });
 
 export default app;

@@ -342,6 +342,29 @@ function explicitObjectCandidate(input: CanonicalConversationRequest): ObjectCan
       metadata: {},
     },
     {
+      object_type: "building",
+      id: text(contextRecord.building_id || contextRecord.buildingId),
+      label: text(contextRecord.building_name || contextRecord.buildingName) || null,
+      source_module: text(contextRecord.module) || "estate",
+      metadata: {},
+    },
+    {
+      object_type: "floor",
+      id: text(contextRecord.floor_id || contextRecord.floorId || contextRecord.floor),
+      label: text(contextRecord.floor_name || contextRecord.floorName || contextRecord.floor) || null,
+      source_module: text(contextRecord.module) || "estate",
+      metadata: {
+        building_id: text(contextRecord.building_id || contextRecord.buildingId) || null,
+      },
+    },
+    {
+      object_type: "zone",
+      id: text(contextRecord.zone_id || contextRecord.zoneId),
+      label: text(contextRecord.zone_name || contextRecord.zoneName) || null,
+      source_module: text(contextRecord.module) || "estate",
+      metadata: {},
+    },
+    {
       object_type: "visitor",
       id: text(contextRecord.visitor_id || contextRecord.visitorId),
       label: text(contextRecord.visitor_name || contextRecord.visitorName) || null,
@@ -402,6 +425,13 @@ function explicitObjectCandidate(input: CanonicalConversationRequest): ObjectCan
       id: text(contextRecord.camera_id || contextRecord.cameraId),
       label: text(contextRecord.camera_name || contextRecord.cameraName) || null,
       source_module: text(contextRecord.module) || "cameras",
+      metadata: {},
+    },
+    {
+      object_type: "infrastructure_asset",
+      id: text(contextRecord.infrastructure_id || contextRecord.infrastructureId || contextRecord.asset_id || contextRecord.assetId),
+      label: text(contextRecord.infrastructure_name || contextRecord.asset_name || contextRecord.assetName) || null,
+      source_module: text(contextRecord.module) || "infrastructure",
       metadata: {},
     },
     {
@@ -621,6 +651,109 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
         relationships: {},
         evidence_references: [],
         metadata: {},
+        freshness: row.updated_at || null,
+      };
+      break;
+    }
+    case "building": {
+      const { data } = await maybeSingle("estate_buildings", "id,name,estate_id,building_ref,block,floors,unit_count,building_type,status,metadata,updated_at", candidate.canonical_id);
+      const row = data as any;
+      if (!row?.id) break;
+      if (estateScoped && String(row.estate_id || "") !== String(estateScoped)) {
+        warnings.push("The selected building is outside the active estate scope.");
+        break;
+      }
+      object = {
+        object_type: "building",
+        canonical_id: String(row.id),
+        label: cleanLabel(row.name || candidate.label, "Building"),
+        estate_id: String(row.estate_id || estateScoped || ""),
+        building_id: String(row.id),
+        home_id: null,
+        room_id: null,
+        parent_id: String(row.estate_id || estateScoped || "") || null,
+        source_module: candidate.source_module || "estate",
+        capabilities: ["conversation", "spatial_reasoning", "operational_health", "registry"],
+        current_state: text(row.status) || null,
+        health: text(recordOf(row.metadata).health_status || row.status) || null,
+        permissions: basePermissions,
+        relationships: {
+          estate_id: row.estate_id || null,
+          building_ref: row.building_ref || null,
+          block: row.block || null,
+          floors: row.floors || null,
+          unit_count: row.unit_count || null,
+          building_type: row.building_type || null,
+          child_objects: [
+            row.floors ? `${row.floors} floors` : null,
+            row.unit_count ? `${row.unit_count} units` : null,
+          ].filter(Boolean),
+        },
+        evidence_references: [],
+        metadata: recordOf(row.metadata),
+        freshness: row.updated_at || null,
+      };
+      break;
+    }
+    case "floor": {
+      const floorMetadata = recordOf(candidate.metadata);
+      object = {
+        object_type: "floor",
+        canonical_id: candidate.canonical_id,
+        label: cleanLabel(candidate.label || floorMetadata.floor_name || floorMetadata.floor, "Floor"),
+        estate_id: candidate.estate_id || estateScoped,
+        building_id: text(floorMetadata.building_id) || null,
+        home_id: null,
+        room_id: null,
+        parent_id: text(floorMetadata.building_id) || candidate.estate_id || estateScoped,
+        source_module: candidate.source_module || "estate",
+        capabilities: ["conversation", "spatial_reasoning", "registry"],
+        current_state: text(floorMetadata.status) || null,
+        health: text(floorMetadata.health || floorMetadata.health_status) || null,
+        permissions: basePermissions,
+        relationships: {
+          building_id: text(floorMetadata.building_id) || null,
+          floor: text(floorMetadata.floor || candidate.label || candidate.canonical_id) || null,
+          child_objects: Array.isArray(floorMetadata.child_objects) ? floorMetadata.child_objects : [],
+        },
+        evidence_references: [],
+        metadata: floorMetadata,
+        freshness: text(floorMetadata.updated_at) || null,
+      };
+      break;
+    }
+    case "zone": {
+      const { data } = await maybeSingle("estate_zones", "id,name,estate_id,zone_ref,zone_type,parent_zone_ref,description,metadata,updated_at", candidate.canonical_id);
+      const row = data as any;
+      if (!row?.id) break;
+      if (estateScoped && String(row.estate_id || "") !== String(estateScoped)) {
+        warnings.push("The selected zone is outside the active estate scope.");
+        break;
+      }
+      object = {
+        object_type: "zone",
+        canonical_id: String(row.id),
+        label: cleanLabel(row.name || candidate.label, "Zone"),
+        estate_id: String(row.estate_id || estateScoped || ""),
+        building_id: text(recordOf(row.metadata).building_id) || null,
+        home_id: null,
+        room_id: null,
+        parent_id: text(row.parent_zone_ref || recordOf(row.metadata).building_id || row.estate_id || estateScoped) || null,
+        source_module: candidate.source_module || "estate",
+        capabilities: ["conversation", "spatial_reasoning", "registry"],
+        current_state: text(recordOf(row.metadata).status) || null,
+        health: text(recordOf(row.metadata).health || recordOf(row.metadata).health_status) || null,
+        permissions: basePermissions,
+        relationships: {
+          estate_id: row.estate_id || null,
+          zone_ref: row.zone_ref || null,
+          zone_type: row.zone_type || null,
+          parent_zone_ref: row.parent_zone_ref || null,
+          description: row.description || null,
+          child_objects: Array.isArray(recordOf(row.metadata).child_objects) ? recordOf(row.metadata).child_objects : [],
+        },
+        evidence_references: [],
+        metadata: recordOf(row.metadata),
         freshness: row.updated_at || null,
       };
       break;

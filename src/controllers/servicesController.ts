@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { randomUUID } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts/versions";
@@ -1358,7 +1358,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   if (Boolean(wallet?.is_frozen)) return res.status(403).json({ error: "Wallet is frozen" });
 
   const nextBalance = current - amount;
-  const reference = `svc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const reference = `svc_${Date.now()}_${randomBytes(4).toString("hex")}`;
   const now = new Date().toISOString();
 
   const { error: updateErr } = await supabaseAdmin
