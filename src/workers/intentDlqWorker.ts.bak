@@ -1,7 +1,6 @@
 // src/workers/intentDlqWorker.ts
 
 import { Worker, Queue, Job } from "bullmq";
-import IORedis from "ioredis";
 import { Intent } from "../core/control-plane/contracts/intent.types";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
@@ -11,12 +10,9 @@ import { publishSourceIntelligenceEvent } from "../intelligence-core";
  * REDIS CONNECTION (BullMQ compatible)
  * ============================================
  */
-const connection = new IORedis(
-  process.env.REDIS_URL || "redis://localhost:6379",
-  {
-    maxRetriesPerRequest: null,
-  }
-);
+const connection = {
+  url: process.env.REDIS_URL || "redis://localhost:6379",
+};
 
 /**
  * ============================================

@@ -1,6 +1,5 @@
 // src/workers/intentWorker.ts
 import { Worker, Queue, Job } from "bullmq";
-import IORedis from "ioredis";
 import {
   Intent,
   NotifyIntent,
@@ -14,12 +13,9 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
-const connection = new IORedis(
-  process.env.REDIS_URL || "redis://localhost:6379",
-  {
-    maxRetriesPerRequest: null,
-  }
-);
+const connection = {
+  url: process.env.REDIS_URL || "redis://localhost:6379",
+};
 
 // -----------------------------
 // Intent Queue

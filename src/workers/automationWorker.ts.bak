@@ -1,7 +1,6 @@
 // src/workers/automationWorker.ts
 
 import { Worker, Queue, Job } from "bullmq";
-import IORedis from "ioredis";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishDeviceAction } from "../device/bridge";
 import { NotificationService } from "../services/NotificationService";
@@ -12,12 +11,9 @@ import { recordDeviceEvent } from "../services/deviceAnalyticsService";
  * REDIS CONNECTION (BullMQ expects plain config)
  * ============================================
  */
-const connection = new IORedis(
-  process.env.REDIS_URL || "redis://localhost:6379",
-  {
-    maxRetriesPerRequest: null,
-  }
-);
+const connection = {
+  url: process.env.REDIS_URL || "redis://localhost:6379",
+};
 
 /**
  * ============================================
