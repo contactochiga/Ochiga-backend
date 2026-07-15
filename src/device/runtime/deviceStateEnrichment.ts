@@ -155,8 +155,24 @@ function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string
   if (/sensor|humidity|temperature|pir|smoke|gas_sensor/.test(haystack) && !hasPower) return "sensor";
   if (hasRemote || /ir|infrared|remote|tv_remote|set_top|stb/.test(haystack)) return "ir_remote";
   if (hasClimate || (/ac|air_conditioner|climate|thermostat|hvac|kt/.test(haystack) && !hasPower)) return "climate";
-  if (/plug|socket|outlet/.test(haystack)) return "plug";
-  if (hasPower || /light|switch|relay/.test(haystack)) return "switch";
+  // Tuya wall switches
+if (
+  device?.category === "kg" ||
+  metadata?.raw?.category === "kg" ||
+  metadata?.category === "kg"
+) {
+  return "switch";
+}
+
+if (/plug|socket|outlet/.test(haystack)) return "plug";
+
+if (
+  hasPower ||
+  /light|switch|relay/.test(haystack)
+) {
+  return "switch";
+}
+  
   return String(device?.category || device?.type || metadata?.device_family || "device").toLowerCase();
 }
 
