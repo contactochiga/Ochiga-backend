@@ -43,9 +43,22 @@ function deviceCommandFamily(device: any) {
   const text = textFromDevice(device);
   const summary = summarizeDeviceFrontendContract(device || {});
   const profile = String(summary.control_profile || "").toLowerCase();
+const deviceFamily = String(summary.device_family || "").toLowerCase();
+const capabilityCodes = Array.isArray(summary.capability_codes)
+  ? summary.capability_codes.map((x: any) => String(x).toLowerCase())
+  : [];
   const controls = Array.isArray(summary.supported_controls) ? summary.supported_controls.map((item) => String(item).toLowerCase()) : [];
   if (profile === "camera" || /\b(camera|cctv|ipc|ipcamera|nvr|dvr|onvif|rtsp)\b/.test(text)) return "camera";
-  if (profile === "switch" || profile === "plug" || controls.includes("power")) return "switch";
+  if (
+  deviceFamily === "switch" ||
+  profile === "switch" ||
+  profile === "plug" ||
+  controls.includes("power") ||
+  capabilityCodes.some(code => code.includes("switch")) ||
+  /\b(switch|gang|relay|socket|plug)\b/.test(text)
+) {
+  return "switch";
+}
   if (profile === "climate" || controls.includes("temperature") || /\b(ac|a\/c|air conditioner|air_conditioner|aircon|hvac|climate|thermostat|kt)\b/.test(text)) return "ac";
   if (profile === "tv" || /\b(tv|television|smart tv|android tv|google tv|samsung tv|lg tv|hisense tv|tcl|set top|set_top_box|decoder|stb)\b/.test(text)) return "tv";
   if (profile === "ir_remote" || controls.includes("remote") || /\b(ir|infrared|remote|remote control|remote_control|universal remote|universal_remote|wnykq)\b/.test(text)) return "ir";
