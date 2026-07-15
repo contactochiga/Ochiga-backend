@@ -78,6 +78,15 @@ function assertDeviceCommandSupported(device: any, command: Record<string, any>)
   const family = deviceCommandFamily(device);
   const switchPayload = isSwitchPayload(command);
 
+  console.log("DEVICE COMMAND DEBUG", {
+    family,
+    switchPayload,
+    type: device?.type,
+    category: device?.category,
+    summary: summarizeDeviceFrontendContract(device),
+    command,
+  });
+
   if (family === "switch") return;
   if (family === "tv" || family === "ir") {
     if (!isTvPayload(command) || switchPayload) {
