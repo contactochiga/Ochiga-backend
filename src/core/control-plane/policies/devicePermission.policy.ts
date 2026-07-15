@@ -6,6 +6,12 @@ export function devicePermissionPolicy(signal: Signal): Intent[] {
 
   const { requestedBy, deviceScope } = signal as any;
 
+  console.log("Permission check", {
+    role: requestedBy?.role,
+    deviceScope,
+    signalType: signal.type,
+  });
+
   if (requestedBy.role === "resident" && deviceScope !== "home") {
     throw new Error("Resident not allowed to control this device");
   }
