@@ -124,8 +124,21 @@ function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string
     metadata?.virtual_device ? metadata?.ir_appliance?.appliance_type : "",
     device?.device_family,
   ).toLowerCase();
-  const explicitProfile = text(metadata?.control_profile, device?.control_profile).toLowerCase();
+
+  const explicitProfile = text(
+    metadata?.control_profile,
+    device?.control_profile,
+  ).toLowerCase();
+
+  const category = String(
+    metadata?.raw?.category ??
+      metadata?.category ??
+      device?.category ??
+      "",
+  ).toLowerCase();
+
   const haystack = [
+    category,
     device?.category,
     device?.type,
     metadata?.product_name,
@@ -134,46 +147,125 @@ function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string
     metadata?.ir_profile,
     metadata?.model,
     ...codes,
-  ].map((item) => String(item || "").toLowerCase()).join(" ");
+  ]
+    .map((item) => String(item || "").toLowerCase())
+    .join(" ");
 
-  const hasPower = codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code));
-  const hasClimate = codes.some((code) => /temp|temperature|fan|windspeed|mode|swing/.test(code));
-  const hasRemote = codes.some((code) => /ir_|remote|key_code|command_key|control/.test(code));
+  const hasSwitch = codes.some((code) => /^switch(_\d+)?$/i.test(code));
 
-  if (explicitFamily === "switch" || explicitProfile === "switch") return "switch";
-  if (explicitFamily === "plug" || explicitProfile === "plug") return "plug";
-  if (explicitFamily === "climate" || explicitProfile === "climate") return "climate";
-  if (explicitFamily === "ir_remote" || explicitProfile === "ir_remote" || explicitProfile === "tv") return "ir_remote";
-  if (explicitFamily === "camera" || explicitProfile === "camera") return "camera";
-  if (explicitFamily === "lock" || explicitProfile === "lock") return "lock";
-  if (explicitFamily === "curtain" || explicitProfile === "curtain") return "curtain";
-  if (explicitFamily === "sensor" || explicitProfile === "sensor") return "sensor";
+  const hasPower =
+    hasSwitch ||
+    codes.includes("switch") ||
+    codes.includes("power") ||
+    codes.includes("on");
 
+  const hasClimate = codes.some((code) =>
+    /temp|temperature|fan|windspeed|mode|swing/i.test(code),
+  );
+
+  const hasRemote = codes.some((code) =>
+    /ir_|remote|key_code|command_key|control/i.test(code),
+  );
+
+  // Explicit metadata wins.
+  switch (explicitFamily || explicitProfile) {
+    case "switch":
+      return "switch";
+
+    case "plug":
+    case "socket":
+      return "plug";
+
+    case "camera":
+      return "camera";
+
+    case "climate":
+    case "ac":
+    case "air_conditioner":
+      return "climate";
+
+    case "tv":
+    case "ir_remote":
+      return "ir_remote";
+
+    case "curtain":
+      return "curtain";
+
+    case "lock":
+      return "lock";
+
+    case "sensor":
+      return "sensor";
+  }
+
+  // Known Tuya categories.
+  switch (category) {
+    case "kg":
+      return "switch";
+
+    case "cz":
+      return "plug";
+
+    case "wk":
+      return "camera";
+
+    case "kt":
+      return "climate";
+
+    case "cl":
+      return "curtain";
+
+    case "ms":
+      return "lock";
+  }
+
+  // Heuristics.
   if (/camera|ipc|rtsp|onvif|dvr|nvr/.test(haystack)) return "camera";
+
   if (/lock|doorlock/.test(haystack)) return "lock";
+
   if (/curtain|blind|shade/.test(haystack)) return "curtain";
-  if (/sensor|humidity|temperature|pir|smoke|gas_sensor/.test(haystack) && !hasPower) return "sensor";
-  if (hasRemote || /ir|infrared|remote|tv_remote|set_top|stb/.test(haystack)) return "ir_remote";
-  if (hasClimate || (/ac|air_conditioner|climate|thermostat|hvac|kt/.test(haystack) && !hasPower)) return "climate";
-  // Tuya wall switches
-if (
-  device?.category === "kg" ||
-  metadata?.raw?.category === "kg" ||
-  metadata?.category === "kg"
-) {
-  return "switch";
-}
 
-if (/plug|socket|outlet/.test(haystack)) return "plug";
+  if (
+    /sensor|humidity|temperature|pir|smoke|gas_sensor/.test(haystack) &&
+    !hasPower
+  ) {
+    return "sensor";
+  }
 
-if (
-  hasPower ||
-  /light|switch|relay/.test(haystack)
-) {
-  return "switch";
-}
-  
-  return String(device?.category || device?.type || metadata?.device_family || "device").toLowerCase();
+  if (
+    hasRemote ||
+    /ir|infrared|remote|tv_remote|set_top|stb/.test(haystack)
+  ) {
+    return "ir_remote";
+  }
+
+  if (
+    hasClimate ||
+    (/ac|air_conditioner|climate|thermostat|hvac|kt/.test(haystack) &&
+      !hasPower)
+  ) {
+    return "climate";
+  }
+
+  if (/plug|socket|outlet/.test(haystack)) return "plug";
+
+  if (
+    hasSwitch ||
+    /\b(light|light switch|wall switch|switch|relay)\b/.test(haystack)
+  ) {
+    return "switch";
+  }
+
+  return (
+    text(
+      metadata?.device_family,
+      metadata?.category,
+      device?.category,
+      metadata?.product_name,
+      device?.type,
+    ) || "generic"
+  ).toLowerCase();
 }
 
 function inferControlProfile(deviceFamily: string, codes: string[]) {
