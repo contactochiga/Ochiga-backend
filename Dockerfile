@@ -1,5 +1,5 @@
 # Use Node 20 (Debian-based so apt-get works)
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 # Install ffmpeg (needed for RTSP -> HLS)
 RUN apt-get update \
