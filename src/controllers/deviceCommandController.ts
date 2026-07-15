@@ -108,11 +108,8 @@ function assertDeviceCommandSupported(device: any, command: Record<string, any>)
 }
 
 function normalizeCommand(input: any, device?: any): Record<string, any> {
-  // ✅ allow command to be:
-  // { switch: true } OR { commands: [{code,value}] } OR { on: true }
   const c = input ?? {};
 
-  // If they mistakenly send { commands: [...] } from frontend
   if (Array.isArray(c.commands)) {
     const out: Record<string, any> = {};
     for (const item of c.commands) {
@@ -121,10 +118,25 @@ function normalizeCommand(input: any, device?: any): Record<string, any> {
     return out;
   }
 
-  // Common aliases → Tuya DP codes (best-effort)
-  const family = device ? deviceCommandFamily(device) : "switch";
-  if (family === "switch" && typeof c.on === "boolean" && c.switch === undefined) return { switch: c.on };
-  if (family === "switch" && typeof c.power === "boolean" && c.switch === undefined) return { switch: c.power };
+  const summary = device ? summarizeDeviceFrontendContract(device) : null;
+  const controls = Array.isArray(summary?.supported_controls)
+    ? summary.supported_controls.map((x: any) => String(x))
+    : [];
+
+  const firstGang =
+    controls.find((name: string) => /^switch_\d+$/.test(name)) || "switch_1";
+
+  if (typeof c.on === "boolean") {
+    return { [firstGang]: c.on };
+  }
+
+  if (typeof c.power === "boolean") {
+    return { [firstGang]: c.power };
+  }
+
+  if (typeof c.switch === "boolean") {
+    return { [firstGang]: c.switch };
+  }
 
   return c;
 }
