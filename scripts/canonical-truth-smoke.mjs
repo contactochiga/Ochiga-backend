@@ -162,4 +162,85 @@ const predictionShape = runtime.canonicalObjectConversationForTest({
 assert.match(predictionShape.message, /Based on recent activity/i);
 assert.match(predictionShape.message, /energy usage has increased/i);
 
+const building = {
+  ...object,
+  object_type: "building",
+  canonical_id: "building-a",
+  label: "Building A",
+  building_id: "building-a",
+  home_id: null,
+  room_id: null,
+  source_module: "estate",
+  capabilities: ["spatial_reasoning"],
+  current_state: "active",
+  health: "attention",
+  relationships: {
+    estate_name: "Ochiga Estate",
+    floors: [{ id: "floor-1", name: "First Floor" }, { id: "floor-2", name: "Second Floor" }],
+    rooms: [{ id: "room-1", name: "Bedroom", occupancy: "occupied" }],
+    devices: [
+      { id: "dev-1", name: "Bedroom Light", type: "light", state: "on", room_name: "Bedroom" },
+      { id: "dev-2", name: "Corridor Camera", type: "camera", health: "offline" },
+    ],
+  },
+};
+const buildingShape = runtime.canonicalObjectConversationForTest({
+  message: "Show me Building A",
+  object: building,
+  response: { message: "There are 27 devices connected.", execution: { status: "read_only" } },
+});
+assert.match(buildingShape.message, /Building A contains 2 floors, 1 room, 2 devices/i);
+assert.doesNotMatch(buildingShape.message, /27 devices/i);
+
+const lightsOnShape = runtime.canonicalObjectConversationForTest({
+  message: "Which rooms still have lights on?",
+  object: building,
+  response: { message: "I can help.", execution: { status: "read_only" } },
+});
+assert.match(lightsOnShape.message, /Bedroom still has lights on/i);
+
+const offlineAreaShape = runtime.canonicalObjectConversationForTest({
+  message: "Which areas are offline?",
+  object: building,
+  response: { message: "I can help.", execution: { status: "read_only" } },
+});
+assert.match(offlineAreaShape.message, /offline or degraded/i);
+assert.match(offlineAreaShape.message, /Corridor Camera/i);
+
+const transformer = {
+  ...object,
+  object_type: "infrastructure_asset",
+  canonical_id: "asset-transformer-a",
+  label: "Transformer A",
+  building_id: "building-a",
+  home_id: null,
+  room_id: null,
+  source_module: "infrastructure",
+  capabilities: ["spatial_reasoning", "dependency_reasoning"],
+  current_state: "offline",
+  health: "critical",
+  relationships: {
+    estate_name: "Ochiga Estate",
+    building_name: "Building A",
+    dependencies: [{ id: "grid", name: "Grid Supply" }],
+    dependent_devices: [{ id: "db-a", name: "Distribution Board A" }, { id: "pump-a", name: "Water Pump A" }],
+    affected_areas: [{ id: "floor-1", name: "First Floor" }, { id: "room-1", name: "Bedroom" }],
+  },
+};
+const transformerShape = runtime.canonicalObjectConversationForTest({
+  message: "What is affected if this fails?",
+  object: transformer,
+  response: { message: "Recommendation generated.", execution: { status: "read_only" } },
+});
+assert.match(transformerShape.message, /Distribution Board A|Water Pump A/i);
+assert.match(transformerShape.message, /First Floor|Bedroom/i);
+assert.doesNotMatch(transformerShape.message, /Recommendation generated/i);
+
+const cameraLocationShape = runtime.canonicalObjectConversationForTest({
+  message: "Which entrance is this camera protecting?",
+  object: { ...object, object_type: "camera", canonical_id: "camera-1", label: "North Gate Camera", source_module: "security", relationships: { estate_name: "Ochiga Estate", building_name: "Gate House", room_name: "North Entrance" } },
+  response: { message: "I can help.", execution: { status: "read_only" } },
+});
+assert.match(cameraLocationShape.message, /North Gate Camera sits in Ochiga Estate → Gate House → North Entrance/i);
+
 console.log("canonical truth smoke ok");

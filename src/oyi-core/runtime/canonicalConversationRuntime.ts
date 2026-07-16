@@ -12,9 +12,13 @@ import {
 export type OperationalObjectType =
   | "estate"
   | "building"
+  | "tower"
+  | "block"
   | "floor"
+  | "wing"
   | "home"
   | "room"
+  | "corridor"
   | "zone"
   | "device"
   | "device_channel"
@@ -25,6 +29,8 @@ export type OperationalObjectType =
   | "transaction"
   | "service_account"
   | "infrastructure_asset"
+  | "access_point"
+  | "emergency_asset"
   | "provider"
   | "camera"
   | "meter"
@@ -223,9 +229,13 @@ function objectTypeFromEntityType(value: unknown): OperationalObjectType | null 
   const map: Record<string, OperationalObjectType> = {
     estate: "estate",
     building: "building",
+    tower: "tower",
+    block: "block",
     floor: "floor",
+    wing: "wing",
     home: "home",
     room: "room",
+    corridor: "corridor",
     zone: "zone",
     device: "device",
     visitor: "visitor",
@@ -239,6 +249,12 @@ function objectTypeFromEntityType(value: unknown): OperationalObjectType | null 
     service_account: "service_account",
     infrastructure: "infrastructure_asset",
     infrastructure_asset: "infrastructure_asset",
+    asset: "infrastructure_asset",
+    access_point: "access_point",
+    entrance: "access_point",
+    gate: "access_point",
+    emergency_asset: "emergency_asset",
+    emergency: "emergency_asset",
     provider: "provider",
     camera: "camera",
     meter: "meter",
@@ -271,6 +287,12 @@ function objectTypeFromTarget(target: OyiTarget | null | undefined): Operational
     access_pass: "access_pass",
     device: "device",
     device_channel: "device_channel",
+    building: "building",
+    floor: "floor",
+    zone: "zone",
+    room: "room",
+    corridor: "corridor",
+    access_point: "access_point",
     camera: "camera",
     infrastructure: "infrastructure_asset",
     wallet: "wallet",
@@ -363,6 +385,46 @@ function explicitObjectCandidate(input: CanonicalConversationRequest): ObjectCan
       label: text(contextRecord.zone_name || contextRecord.zoneName) || null,
       source_module: text(contextRecord.module) || "estate",
       metadata: {},
+    },
+    {
+      object_type: "corridor",
+      id: text(contextRecord.corridor_id || contextRecord.corridorId),
+      label: text(contextRecord.corridor_name || contextRecord.corridorName) || null,
+      source_module: text(contextRecord.module) || "spatial",
+      metadata: {
+        building_id: text(contextRecord.building_id || contextRecord.buildingId) || null,
+        floor: text(contextRecord.floor || contextRecord.floor_name || contextRecord.floorName) || null,
+      },
+    },
+    {
+      object_type: "access_point",
+      id: text(contextRecord.access_point_id || contextRecord.accessPointId || contextRecord.gate_id || contextRecord.gateId || contextRecord.entrance_id),
+      label: text(contextRecord.access_point_name || contextRecord.accessPointName || contextRecord.gate_name || contextRecord.entrance_name) || null,
+      source_module: text(contextRecord.module) || "access",
+      metadata: {
+        building_id: text(contextRecord.building_id || contextRecord.buildingId) || null,
+        room_id: text(contextRecord.room_id || contextRecord.roomId) || null,
+      },
+    },
+    {
+      object_type: "infrastructure_asset",
+      id: text(contextRecord.asset_id || contextRecord.assetId || contextRecord.infrastructure_asset_id || contextRecord.infrastructureAssetId),
+      label: text(contextRecord.asset_name || contextRecord.assetName || contextRecord.infrastructure_asset_name) || null,
+      source_module: text(contextRecord.module) || "infrastructure",
+      metadata: {
+        building_id: text(contextRecord.building_id || contextRecord.buildingId) || null,
+        room_id: text(contextRecord.room_id || contextRecord.roomId) || null,
+      },
+    },
+    {
+      object_type: "emergency_asset",
+      id: text(contextRecord.emergency_asset_id || contextRecord.emergencyAssetId),
+      label: text(contextRecord.emergency_asset_name || contextRecord.emergencyAssetName) || null,
+      source_module: text(contextRecord.module) || "safety",
+      metadata: {
+        building_id: text(contextRecord.building_id || contextRecord.buildingId) || null,
+        floor: text(contextRecord.floor || contextRecord.floor_name || contextRecord.floorName) || null,
+      },
     },
     {
       object_type: "visitor",
@@ -755,6 +817,45 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
         evidence_references: [],
         metadata: recordOf(row.metadata),
         freshness: row.updated_at || null,
+      };
+      break;
+    }
+    case "tower":
+    case "block":
+    case "wing":
+    case "corridor":
+    case "access_point":
+    case "emergency_asset": {
+      const spatialMetadata = recordOf(candidate.metadata);
+      const buildingId = text(spatialMetadata.building_id || spatialMetadata.buildingId);
+      object = {
+        object_type: candidate.object_type,
+        canonical_id: candidate.canonical_id,
+        label: cleanLabel(candidate.label || spatialMetadata.name || spatialMetadata.label, objectTypeLabel({ object_type: candidate.object_type } as OperationalObject)),
+        estate_id: candidate.estate_id || estateScoped,
+        building_id: buildingId || null,
+        home_id: text(spatialMetadata.home_id || spatialMetadata.homeId) || null,
+        room_id: text(spatialMetadata.room_id || spatialMetadata.roomId) || null,
+        parent_id: text(spatialMetadata.parent_id || spatialMetadata.parentId || spatialMetadata.floor_id || spatialMetadata.floorId || buildingId || candidate.estate_id || estateScoped) || null,
+        source_module: candidate.source_module || "spatial",
+        capabilities: ["conversation", "spatial_reasoning", "registry"],
+        current_state: text(spatialMetadata.status || spatialMetadata.current_state) || null,
+        health: text(spatialMetadata.health || spatialMetadata.health_status) || null,
+        permissions: basePermissions,
+        relationships: {
+          estate_id: candidate.estate_id || estateScoped,
+          building_id: buildingId || null,
+          floor: text(spatialMetadata.floor || spatialMetadata.floor_name || spatialMetadata.floorName) || null,
+          zone: text(spatialMetadata.zone || spatialMetadata.zone_name || spatialMetadata.zoneName) || null,
+          room: text(spatialMetadata.room || spatialMetadata.room_name || spatialMetadata.roomName) || null,
+          child_objects: Array.isArray(spatialMetadata.child_objects) ? spatialMetadata.child_objects : [],
+          contained_objects: Array.isArray(spatialMetadata.contained_objects) ? spatialMetadata.contained_objects : [],
+          dependencies: Array.isArray(spatialMetadata.dependencies) ? spatialMetadata.dependencies : [],
+          affected_areas: Array.isArray(spatialMetadata.affected_areas) ? spatialMetadata.affected_areas : [],
+        },
+        evidence_references: arrayOfStrings(spatialMetadata.evidence_references),
+        metadata: spatialMetadata,
+        freshness: text(spatialMetadata.updated_at || spatialMetadata.freshness) || null,
       };
       break;
     }
@@ -1343,7 +1444,11 @@ function objectTypeLabel(object: OperationalObject) {
   const labels: Record<string, string> = {
     device: "device",
     device_channel: "channel",
+    tower: "tower",
+    block: "block",
     room: "room",
+    corridor: "corridor",
+    wing: "wing",
     visitor: "visitor",
     access_pass: "access pass",
     maintenance_request: "maintenance request",
@@ -1360,6 +1465,8 @@ function objectTypeLabel(object: OperationalObject) {
     operational_incident: "incident",
     operational_event: "event",
     infrastructure_asset: "asset",
+    access_point: "access point",
+    emergency_asset: "emergency asset",
     provider: "provider",
     estate: "estate",
     building: "building",
@@ -1387,6 +1494,31 @@ function objectPersonality(object: OperationalObject) {
       role: "I read the room as a living operational space: devices, occupancy, activity, scenes, and comfort.",
       diagnostics: ["active devices", "occupancy", "room activity", "scenes"],
       actions: ["turn devices off", "run scene", "check occupancy", "summarize activity"],
+    },
+    building: {
+      role: "I read this building as a connected operational system: floors, zones, rooms, infrastructure, devices, people, and service impact.",
+      diagnostics: ["operational health", "occupancy", "infrastructure", "maintenance"],
+      actions: ["show affected areas", "check infrastructure", "review maintenance", "show evidence"],
+    },
+    floor: {
+      role: "I read this floor through its zones, rooms, devices, occupancy, incidents, and infrastructure dependencies.",
+      diagnostics: ["rooms", "active devices", "incidents", "service impact"],
+      actions: ["show rooms", "check offline areas", "review maintenance", "show evidence"],
+    },
+    zone: {
+      role: "I read this zone as a spatial operating area with contained rooms, assets, devices, and incidents.",
+      diagnostics: ["contained objects", "health", "dependencies", "activity"],
+      actions: ["show contained objects", "check health", "show affected areas"],
+    },
+    corridor: {
+      role: "I read this corridor through access, lighting, cameras, sensors, and movement-related events.",
+      diagnostics: ["lighting", "cameras", "access points", "activity"],
+      actions: ["check lighting", "show cameras", "review access activity"],
+    },
+    wing: {
+      role: "I read this wing across its rooms, corridors, infrastructure, occupants, and operational risks.",
+      diagnostics: ["rooms", "maintenance", "security", "infrastructure"],
+      actions: ["show affected rooms", "check maintenance", "review security"],
     },
     visitor: {
       role: "I track this visitor's identity, access state, arrival history, and safe approval path.",
@@ -1422,6 +1554,16 @@ function objectPersonality(object: OperationalObject) {
       role: "I track this asset's health, dependencies, incidents, services, and operational impact.",
       diagnostics: ["health", "dependencies", "incidents", "affected homes"],
       actions: ["diagnose", "show dependencies", "review incidents"],
+    },
+    access_point: {
+      role: "I track this access point's location, protected area, activity, cameras, and security state.",
+      diagnostics: ["access state", "protected area", "recent activity", "linked cameras"],
+      actions: ["show access history", "check camera", "review security"],
+    },
+    emergency_asset: {
+      role: "I track this emergency asset's location, readiness, inspection state, and affected area.",
+      diagnostics: ["readiness", "location", "inspection", "coverage"],
+      actions: ["show location", "review inspection", "check coverage"],
     },
     camera: {
       role: "I monitor this camera's live state, events, connectivity, and security context.",
@@ -1660,6 +1802,141 @@ function relationshipEvidence(object: OperationalObject, input: CanonicalConvers
   return evidence;
 }
 
+function spatialRelationships(object: OperationalObject, input: CanonicalConversationRequest) {
+  return { ...recordOf(object.metadata), ...recordOf(object.relationships), ...recordOf(input.relationships) };
+}
+
+function isSpatialObject(object: OperationalObject) {
+  return new Set<OperationalObjectType>([
+    "estate",
+    "building",
+    "tower",
+    "block",
+    "floor",
+    "wing",
+    "zone",
+    "corridor",
+    "room",
+    "home",
+    "infrastructure_asset",
+    "access_point",
+    "emergency_asset",
+    "twin_node",
+  ]).has(object.object_type);
+}
+
+function isSpatialRequest(message: string) {
+  return /\b(upstairs|downstairs|floor|building|tower|block|wing|corridor|zone|room|area|areas|where|located|contains|contain|inside|affected|offline|occupied|lights on|dark|consumes|power|water pressure|entrance|protecting|owns this|belongs)\b/i.test(message);
+}
+
+function namesFromRelationship(value: unknown, fallback: string) {
+  return listNames(value, fallback).slice(0, 6);
+}
+
+function spatialHierarchyLine(object: OperationalObject, input: CanonicalConversationRequest) {
+  const relationships = spatialRelationships(object, input);
+  const parts = [
+    text(relationships.estate_name || relationships.estate || object.estate_id),
+    text(relationships.building_name || relationships.building || object.building_id),
+    text(relationships.floor_name || relationships.floor),
+    text(relationships.wing_name || relationships.wing),
+    text(relationships.zone_name || relationships.zone),
+    text(input.room_name || relationships.room_name || relationships.room || object.room_id),
+  ].filter(Boolean);
+  if (!parts.length) return "";
+  return `${object.label} sits in ${parts.join(" → ")}.`;
+}
+
+function spatialContainmentLine(object: OperationalObject, input: CanonicalConversationRequest) {
+  const relationships = spatialRelationships(object, input);
+  const rooms = namesFromRelationship(relationships.rooms, "room");
+  const floors = namesFromRelationship(relationships.floors, "floor");
+  const zones = namesFromRelationship(relationships.zones, "zone");
+  const devices = namesFromRelationship(relationships.devices, "device");
+  const cameras = namesFromRelationship(relationships.cameras, "camera");
+  const assets = namesFromRelationship(relationships.infrastructure_assets || relationships.assets, "asset");
+  const people = namesFromRelationship(relationships.people || relationships.occupants || relationships.residents, "person");
+  const parts: string[] = [];
+  if (floors.length) parts.push(`${floors.length} ${floors.length === 1 ? "floor" : "floors"}`);
+  if (zones.length) parts.push(`${zones.length} ${zones.length === 1 ? "zone" : "zones"}`);
+  if (rooms.length) parts.push(`${rooms.length} ${rooms.length === 1 ? "room" : "rooms"}`);
+  if (devices.length) parts.push(`${devices.length} ${devices.length === 1 ? "device" : "devices"}`);
+  if (cameras.length) parts.push(`${cameras.length} ${cameras.length === 1 ? "camera" : "cameras"}`);
+  if (assets.length) parts.push(`${assets.length} infrastructure ${assets.length === 1 ? "asset" : "assets"}`);
+  if (people.length) parts.push(`${people.length} ${people.length === 1 ? "person" : "people"}`);
+  if (!parts.length) return "";
+  return `${object.label} contains ${parts.join(", ")}.`;
+}
+
+function spatialAreaAggregation(input: CanonicalConversationRequest, object: OperationalObject) {
+  const relationships = spatialRelationships(object, input);
+  const message = input.message.toLowerCase();
+  const rooms = Array.isArray(relationships.rooms) ? relationships.rooms.map(recordOf) : [];
+  const devices = Array.isArray(relationships.devices) ? relationships.devices.map(recordOf) : [];
+  const cameras = Array.isArray(relationships.cameras) ? relationships.cameras.map(recordOf) : [];
+  const maintenanceSource = Array.isArray(relationships.maintenance_requests)
+    ? relationships.maintenance_requests
+    : Array.isArray(relationships.maintenance)
+      ? relationships.maintenance
+      : [];
+  const maintenance = maintenanceSource.map(recordOf);
+
+  if (/occupied/.test(message)) {
+    const occupied = rooms.filter((room) => /occupied|active|present/i.test(text(room.occupancy || room.status || room.state)));
+    if (occupied.length) return `${occupied.map((room) => text(room.name || room.label || room.id)).filter(Boolean).join(", ")} ${occupied.length === 1 ? "is" : "are"} occupied.`;
+    return `I don’t see confirmed occupied rooms for ${object.label} right now.`;
+  }
+  if (/lights on|rooms.*on|still.*on/.test(message)) {
+    const onDevices = devices.filter((device) => /light|switch|relay/i.test(text(device.type || device.family || device.name || device.label)) && /on|active/i.test(text(device.state || device.status || device.primary_state)));
+    if (onDevices.length) return `${onDevices.map((device) => text(device.room_name || device.room || device.name || device.label)).filter(Boolean).join(", ")} still ${onDevices.length === 1 ? "has" : "have"} lights on.`;
+    return `I don’t see any confirmed lights still on in ${object.label}.`;
+  }
+  if (/offline|unavailable|down/.test(message)) {
+    const offlineDevices = [...devices, ...cameras].filter((item) => /offline|unavailable|down|degraded/i.test(text(item.health || item.status || item.state)));
+    if (offlineDevices.length) return `${offlineDevices.length} ${offlineDevices.length === 1 ? "object is" : "objects are"} offline or degraded in ${object.label}: ${offlineDevices.map((item) => text(item.name || item.label || item.id)).filter(Boolean).slice(0, 5).join(", ")}.`;
+    return `I don’t see confirmed offline areas in ${object.label}.`;
+  }
+  if (/maintenance|unresolved|fault|issue/.test(message)) {
+    const unresolved = maintenance.filter((item) => !/closed|resolved|completed/i.test(text(item.status)));
+    if (unresolved.length) return `${unresolved.length} unresolved ${unresolved.length === 1 ? "maintenance item is" : "maintenance items are"} linked to ${object.label}.`;
+    return `I don’t see unresolved maintenance linked to ${object.label}.`;
+  }
+  return "";
+}
+
+function spatialDependencyLine(object: OperationalObject, input: CanonicalConversationRequest) {
+  const relationships = spatialRelationships(object, input);
+  const dependencies = namesFromRelationship(relationships.dependencies || relationships.upstream_assets, "dependency");
+  const affectedAreas = namesFromRelationship(relationships.affected_areas || relationships.affected_rooms || relationships.affected_homes, "area");
+  const dependentObjects = namesFromRelationship(relationships.dependent_devices || relationships.dependent_objects || relationships.downstream_objects, "object");
+  const parts: string[] = [];
+  if (dependencies.length) parts.push(`It depends on ${dependencies.slice(0, 3).join(", ")}.`);
+  if (dependentObjects.length) parts.push(`${dependentObjects.length} downstream ${dependentObjects.length === 1 ? "object depends" : "objects depend"} on it: ${dependentObjects.slice(0, 4).join(", ")}.`);
+  if (affectedAreas.length) parts.push(`Affected areas include ${affectedAreas.slice(0, 4).join(", ")}.`);
+  return parts.join(" ");
+}
+
+function spatialReasoningReply(input: CanonicalConversationRequest, object: OperationalObject) {
+  if (!isSpatialRequest(input.message)) return "";
+  const message = input.message.toLowerCase();
+  const hierarchy = spatialHierarchyLine(object, input);
+  const containment = spatialContainmentLine(object, input);
+  const dependencies = spatialDependencyLine(object, input);
+  const aggregate = spatialAreaAggregation(input, object);
+  if (/\b(where|located|which room|which floor|which building|entrance|protecting|owns this|belongs)\b/i.test(message)) {
+    return hierarchy || dependencies || `I don’t have a confirmed spatial location for ${object.label} yet.`;
+  }
+  if (/\b(contains|contain|inside|what is in|show me)\b/i.test(message) || /\b(upstairs|downstairs|second floor|floor|building|wing|block|tower)\b/i.test(message)) {
+    return [hierarchy, containment, dependencies].filter(Boolean).join(" ") || `I don’t have contained-object evidence for ${object.label} yet.`;
+  }
+  if (aggregate) return `${aggregate} ${dependencies || recommendationFor(object, input)}`;
+  if (/\b(why|dark|wrong|affected|failure|impact|depends|dependency)\b/i.test(message)) {
+    return [objectStateLine(object), dependencies || containment, recommendationFor(object, input)].filter(Boolean).join(" ");
+  }
+  if (hierarchy || containment || dependencies) return [hierarchy, containment, dependencies, recommendationFor(object, input)].filter(Boolean).join(" ");
+  return "";
+}
+
 function predictionEvidence(input: CanonicalConversationRequest) {
   const predictions = Array.isArray(input.predictive_findings) ? input.predictive_findings.map(recordOf) : [];
   return predictions
@@ -1693,6 +1970,8 @@ function operationalReasoningReply(input: CanonicalConversationRequest, response
   const predictionFacts = predictionEvidence(input);
   const memory = memoryLine(object, input);
   const recommendation = recommendationFor(object, input);
+  const spatialReply = spatialReasoningReply(input, object);
+  if (spatialReply) return spatialReply;
 
   if (isExplanationRequest(input.message)) {
     const evidence = [...relationshipFacts, memory, ...predictionFacts].filter(Boolean);
