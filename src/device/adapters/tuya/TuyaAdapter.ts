@@ -84,18 +84,70 @@ type TuyaStatusResp = {
 function toDeviceCategory(raw?: string): DeviceCategory {
   const c = String(raw || "").toLowerCase().trim();
 
-  if (["light", "lighting", "ceiling_light", "lamp"].includes(c)) return "light" as DeviceCategory;
-  if (["switch", "switch_1", "switch_2", "switch_3", "switch_4"].includes(c)) return "switch" as DeviceCategory;
-  if (["socket", "plug", "smart_plug", "outlet"].includes(c)) return "plug" as DeviceCategory;
-  if (["camera", "ipc", "ipcamera"].includes(c)) return "camera" as DeviceCategory;
+  if (["dj", "light", "lighting", "ceiling_light", "lamp"].includes(c)) return "light" as DeviceCategory;
+  if (["kg", "switch", "switch_1", "switch_2", "switch_3", "switch_4"].includes(c)) return "switch" as DeviceCategory;
+  if (["cz", "socket", "plug", "smart_plug", "outlet"].includes(c)) return "socket" as DeviceCategory;
+  if (["wk", "camera", "ipc", "ipcamera"].includes(c)) return "camera" as DeviceCategory;
   if (["wnykq", "infrared_remote", "ir_remote", "remote_control", "universal_remote", "tv_remote", "set_top_box", "stb"].includes(c)) return "unknown" as DeviceCategory;
   if (["kt", "air_conditioner", "ac", "climate"].includes(c)) return "thermostat" as DeviceCategory;
-  if (["doorlock", "lock"].includes(c)) return "lock" as DeviceCategory;
+  if (["ms", "doorlock", "lock"].includes(c)) return "lock" as DeviceCategory;
   if (["sensor", "pir", "motion", "smoke_sensor", "gas_sensor"].includes(c)) return "sensor" as DeviceCategory;
-  if (["curtain", "blind", "shade"].includes(c)) return "curtain" as DeviceCategory;
+  if (["cl", "curtain", "blind", "shade"].includes(c)) return "unknown" as DeviceCategory;
   if (["thermostat", "temp_humidity_sensor"].includes(c)) return "thermostat" as DeviceCategory;
 
   return "unknown" as DeviceCategory;
+}
+
+function tuyaCategoryFamily(raw?: string) {
+  const c = String(raw || "").toLowerCase().trim();
+  const map: Record<string, string> = {
+    kg: "switch",
+    cz: "plug",
+    wk: "camera",
+    kt: "climate",
+    wnykq: "ir_remote",
+    cl: "curtain",
+    ms: "lock",
+    dj: "light",
+    switch: "switch",
+    socket: "plug",
+    plug: "plug",
+    smart_plug: "plug",
+    camera: "camera",
+    ipc: "camera",
+    ipcamera: "camera",
+    air_conditioner: "climate",
+    ac: "climate",
+    climate: "climate",
+    infrared_remote: "ir_remote",
+    ir_remote: "ir_remote",
+    remote_control: "ir_remote",
+    universal_remote: "ir_remote",
+    tv_remote: "ir_remote",
+    curtain: "curtain",
+    blind: "curtain",
+    shade: "curtain",
+    doorlock: "lock",
+    lock: "lock",
+    light: "light",
+    lighting: "light",
+    ceiling_light: "light",
+    lamp: "light",
+  };
+  return map[c] || c || "generic";
+}
+
+function tuyaCategoryProfile(raw?: string) {
+  const family = tuyaCategoryFamily(raw);
+  if (family === "switch") return "switch";
+  if (family === "plug") return "plug";
+  if (family === "camera") return "camera";
+  if (family === "climate") return "climate";
+  if (family === "ir_remote") return "ir_remote";
+  if (family === "curtain") return "curtain";
+  if (family === "lock") return "lock";
+  if (family === "light") return "light";
+  return "generic";
 }
 
 function cleanStr(v: any) {
@@ -136,6 +188,7 @@ export class TuyaAdapter implements DeviceAdapter {
 
   // Cache device schema so we don't call Tuya every command
   private schemaCache = new Map<string, DeviceSchema>();
+  private deviceMetadataCache = new Map<string, Record<string, any>>();
 
   // Cache device status briefly (so UI spam doesn’t hammer Tuya)
   private statusCache = new Map<string, { fetchedAt: number; state: Record<string, any> }>();
@@ -171,24 +224,18 @@ export class TuyaAdapter implements DeviceAdapter {
           ? result.list
           : [];
 
-      const discovered: DiscoveredDevice[] = list.map((d) => ({
-        externalId: d.id,
-        adapter: this.name,
-        name: d.name || "Unknown device",
-        category: toDeviceCategory(d.category),
-        online: Boolean(d.online),
-        capabilities: [],
-        protocols: ["cloud", "wifi"],
-        metadata: {
+      const discovered: DiscoveredDevice[] = list.map((d) => {
+        const metadata = {
           manufacturer: "Tuya",
           model: d.model,
           product_id: d.product_id,
           product_name: d.product_name,
-          device_family: cleanStr(d.category) || "device",
-          control_profile: cleanStr(d.category) || "generic",
+          device_family: tuyaCategoryFamily(d.category),
+          control_profile: tuyaCategoryProfile(d.category),
           ip: d.ip,
           icon: d.icon,
           owner_id: d.owner_id,
+          category: d.category,
           raw: d,
           context: {
             estateId: context?.estateId,
@@ -196,8 +243,27 @@ export class TuyaAdapter implements DeviceAdapter {
             userId: context?.userId,
             tuyaUid,
           },
-        },
-      }));
+        };
+        this.deviceMetadataCache.set(d.id, metadata);
+        console.log("[TuyaAdapter.discover] device classification", {
+          deviceId: d.id,
+          real_category: d.category,
+          device_family: metadata.device_family,
+          control_profile: metadata.control_profile,
+          product_name: d.product_name,
+          model: d.model,
+        });
+        return {
+          externalId: d.id,
+          adapter: this.name,
+          name: d.name || "Unknown device",
+          category: toDeviceCategory(d.category),
+          online: Boolean(d.online),
+          capabilities: [],
+          protocols: ["cloud", "wifi"],
+          metadata,
+        };
+      });
 
       operationalMetrics.increment("oyi_provider_discoveries_total", { provider: "tuya", mode: "uid" }, discovered.length);
       providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: `discovered:${discovered.length}`, wired: true });
@@ -238,33 +304,46 @@ export class TuyaAdapter implements DeviceAdapter {
       lastRowKey = page.last_row_key;
     }
 
-    const discovered: DiscoveredDevice[] = all.map((d) => ({
-      externalId: d.id,
-      adapter: this.name,
-      name: d.name || "Unknown device",
-      category: toDeviceCategory(d.category),
-      online: Boolean(d.online),
-      capabilities: [],
-      protocols: ["cloud", "wifi"],
-      metadata: {
+    const discovered: DiscoveredDevice[] = all.map((d) => {
+      const metadata = {
         manufacturer: "Tuya",
         model: d.model,
         product_id: d.product_id,
         product_name: d.product_name,
-        device_family: cleanStr(d.category) || "device",
-        control_profile: cleanStr(d.category) || "generic",
+        device_family: tuyaCategoryFamily(d.category),
+        control_profile: tuyaCategoryProfile(d.category),
         ip: d.ip,
         icon: d.icon,
         owner_id: d.owner_id,
         asset_id: d.asset_id,
+        category: d.category,
         raw: d,
         context: {
           estateId: context?.estateId,
           homeId: context?.homeId,
           userId: context?.userId,
         },
-      },
-    }));
+      };
+      this.deviceMetadataCache.set(d.id, metadata);
+      console.log("[TuyaAdapter.discover] device classification", {
+        deviceId: d.id,
+        real_category: d.category,
+        device_family: metadata.device_family,
+        control_profile: metadata.control_profile,
+        product_name: d.product_name,
+        model: d.model,
+      });
+      return {
+        externalId: d.id,
+        adapter: this.name,
+        name: d.name || "Unknown device",
+        category: toDeviceCategory(d.category),
+        online: Boolean(d.online),
+        capabilities: [],
+        protocols: ["cloud", "wifi"],
+        metadata,
+      };
+    });
 
     operationalMetrics.increment("oyi_provider_discoveries_total", { provider: "tuya", mode: "project" }, discovered.length);
     providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: `discovered:${discovered.length}`, wired: true });
@@ -326,19 +405,34 @@ export class TuyaAdapter implements DeviceAdapter {
 
     if (!("online" in state)) state.online = true;
     state.__raw = list;
+    const existingMetadata = await this.getCachedDeviceMetadata(deviceId);
+    const existingRawMetadata = existingMetadata.raw || {};
+    const originalCategory = cleanStr(existingRawMetadata.category || existingMetadata.category);
+    const liveMetadata = {
+      ...existingMetadata,
+      raw: existingRawMetadata,
+      functions: schema?.functions || [],
+      manufacturer: "Tuya",
+    };
     const enriched = enrichDeviceProviderState({
       state,
       functions: schema?.functions || [],
-      metadata: {
-        functions: schema?.functions || [],
-        manufacturer: "Tuya",
-      },
+      metadata: liveMetadata,
       device: {
-        category: schema?.switchCodes.length ? "switch" : null,
-        type: schema?.primaryPowerCode ? "switch" : null,
+        category: originalCategory || existingMetadata.device_family || null,
+        type: originalCategory || existingMetadata.device_family || null,
+        metadata: liveMetadata,
       },
       provider: "tuya",
       adapter: "tuya",
+    });
+    console.log("[TuyaAdapter.getLiveState] classification", {
+      deviceId,
+      real_category: originalCategory || null,
+      device_family: enriched.device_family,
+      control_profile: enriched.control_profile,
+      supported_controls: enriched.supported_controls,
+      capability_codes: enriched.capability_codes,
     });
 
     const packed = { fetchedAt: Date.now(), state: enriched };
@@ -428,6 +522,45 @@ export class TuyaAdapter implements DeviceAdapter {
     }
 
     return value;
+  }
+
+  private async getCachedDeviceMetadata(deviceId: string): Promise<Record<string, any>> {
+    const cached = this.deviceMetadataCache.get(deviceId);
+    if (cached) return cached;
+    try {
+      const details = await this.client.request<any>("GET", `/v1.0/iot-03/devices/${encodeURIComponent(deviceId)}`);
+      const d = details?.result || details || {};
+      const metadata = {
+        manufacturer: "Tuya",
+        model: d.model,
+        product_id: d.product_id,
+        product_name: d.product_name,
+        device_family: tuyaCategoryFamily(d.category),
+        control_profile: tuyaCategoryProfile(d.category),
+        ip: d.ip,
+        icon: d.icon,
+        owner_id: d.owner_id,
+        asset_id: d.asset_id,
+        category: d.category,
+        raw: d,
+      };
+      this.deviceMetadataCache.set(deviceId, metadata);
+      console.log("[TuyaAdapter.getCachedDeviceMetadata] device classification", {
+        deviceId,
+        real_category: d.category,
+        device_family: metadata.device_family,
+        control_profile: metadata.control_profile,
+        product_name: d.product_name,
+        model: d.model,
+      });
+      return metadata;
+    } catch (error) {
+      console.warn("[TuyaAdapter.getCachedDeviceMetadata] device metadata unavailable", {
+        deviceId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return {};
+    }
   }
 
   private buildTuyaCommands(schema: DeviceSchema, command: Record<string, any>) {
@@ -520,6 +653,13 @@ export class TuyaAdapter implements DeviceAdapter {
     const schema = await this.getDeviceSchema(deviceId);
 
     const commands = this.buildTuyaCommands(schema, command);
+    console.log("[TuyaAdapter.executeCommand] classification", {
+      deviceId,
+      capability_codes: Object.keys(schema.functionsByCode),
+      switch_codes: schema.switchCodes,
+      primary_power_code: schema.primaryPowerCode,
+      command,
+    });
 
     if (!commands.length) {
       console.warn("[TuyaAdapter.executeCommand] No supported commands for device:", deviceId, {

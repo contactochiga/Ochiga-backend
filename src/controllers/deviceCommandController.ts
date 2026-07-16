@@ -40,28 +40,22 @@ function textFromDevice(device: any) {
 }
 
 function deviceCommandFamily(device: any) {
-  const text = textFromDevice(device);
   const summary = summarizeDeviceFrontendContract(device || {});
   const profile = String(summary.control_profile || "").toLowerCase();
-const deviceFamily = String(summary.device_family || "").toLowerCase();
-const capabilityCodes = Array.isArray(summary.capability_codes)
-  ? summary.capability_codes.map((x: any) => String(x).toLowerCase())
-  : [];
+  const deviceFamily = String(summary.device_family || "").toLowerCase();
+  const capabilityCodes = Array.isArray(summary.capability_codes)
+    ? summary.capability_codes.map((x: any) => String(x).toLowerCase())
+    : [];
   const controls = Array.isArray(summary.supported_controls) ? summary.supported_controls.map((item) => String(item).toLowerCase()) : [];
-  if (profile === "camera" || /\b(camera|cctv|ipc|ipcamera|nvr|dvr|onvif|rtsp)\b/.test(text)) return "camera";
-  if (
-  deviceFamily === "switch" ||
-  profile === "switch" ||
-  profile === "plug" ||
-  controls.includes("power") ||
-  capabilityCodes.some(code => code.includes("switch")) ||
-  /\b(switch|gang|relay|socket|plug)\b/.test(text)
-) {
-  return "switch";
-}
-  if (profile === "climate" || controls.includes("temperature") || /\b(ac|a\/c|air conditioner|air_conditioner|aircon|hvac|climate|thermostat|kt)\b/.test(text)) return "ac";
-  if (profile === "tv" || /\b(tv|television|smart tv|android tv|google tv|samsung tv|lg tv|hisense tv|tcl|set top|set_top_box|decoder|stb)\b/.test(text)) return "tv";
-  if (profile === "ir_remote" || controls.includes("remote") || /\b(ir|infrared|remote|remote control|remote_control|universal remote|universal_remote|wnykq)\b/.test(text)) return "ir";
+  const identity = textFromDevice(device);
+  if (deviceFamily === "camera" || profile === "camera") return "camera";
+  if (deviceFamily === "climate" || profile === "climate") return "ac";
+  if (profile === "tv" || /\b(tv|television|smart tv|android tv|google tv|samsung tv|lg tv|hisense tv|tcl|set top|set_top_box|decoder|stb)\b/.test(identity)) return "tv";
+  if (deviceFamily === "ir_remote" || profile === "ir_remote" || controls.includes("remote")) return "ir";
+  if (deviceFamily === "curtain" || profile === "curtain") return "curtain";
+  if (deviceFamily === "lock" || profile === "lock") return "lock";
+  if (deviceFamily === "switch" || deviceFamily === "plug" || deviceFamily === "light" || profile === "switch" || profile === "plug") return "switch";
+  if (capabilityCodes.some((code) => /^switch(_\d+)?$/.test(code)) && !controls.includes("remote")) return "switch";
   return "unknown";
 }
 
@@ -70,7 +64,13 @@ function commandKeys(command: any) {
   return Object.keys(command || {}).map((key) => key.toLowerCase());
 }
 
+function isTypedRemotePayload(command: Record<string, any>) {
+  const type = String((command as any)?.type || "").toLowerCase();
+  return ["tv_remote", "ac_remote", "ir_remote", "climate"].includes(type);
+}
+
 function isSwitchPayload(command: Record<string, any>) {
+  if (isTypedRemotePayload(command)) return false;
   const keys = commandKeys(command);
   return keys.some((key: string) => key === "switch" || key === "on" || key === "state" || key === "power" || /^switch_\d+$/i.test(key));
 }
@@ -78,29 +78,41 @@ function isSwitchPayload(command: Record<string, any>) {
 function isTvPayload(command: Record<string, any>) {
   const type = String((command as any)?.type || "").toLowerCase();
   const keys = commandKeys(command);
-  return type === "tv_remote" || keys.some((key: string) => /^(ir_code|remote_key|key_code|control|command_key|key)$/.test(key));
+  return type === "tv_remote" || type === "ir_remote" || keys.some((key: string) => /^(ir_code|remote_key|key_code|control|command_key|key|remote)$/.test(key));
 }
 
 function isAcPayload(command: Record<string, any>) {
   const type = String((command as any)?.type || "").toLowerCase();
   const keys = commandKeys(command);
-  return type === "ac_remote" || keys.some((key: string) => /temp|temperature|mode|fan|swing|wind|power/.test(key));
+  return type === "ac_remote" || type === "climate" || keys.some((key: string) => /temp|temperature|mode|fan|swing|wind/.test(key)) || isTvPayload(command);
 }
 
 function assertDeviceCommandSupported(device: any, command: Record<string, any>) {
   const family = deviceCommandFamily(device);
   const switchPayload = isSwitchPayload(command);
+  const summary = summarizeDeviceFrontendContract(device);
 
   console.log("DEVICE COMMAND DEBUG", {
+    real_category: device?.metadata?.raw?.category || device?.metadata?.category || device?.category,
+    device_family: summary.device_family,
+    control_profile: summary.control_profile,
+    supported_controls: summary.supported_controls,
+    capability_codes: summary.capability_codes,
     family,
     switchPayload,
     type: device?.type,
     category: device?.category,
-    summary: summarizeDeviceFrontendContract(device),
     command,
   });
 
-  if (family === "switch") return;
+  if (family === "switch") {
+    if (isTypedRemotePayload(command) || isTvPayload(command) || isAcPayload(command)) {
+      const error: any = new Error("This switch does not support remote control.");
+      error.statusCode = 400;
+      throw error;
+    }
+    return;
+  }
   if (family === "tv" || family === "ir") {
     if (!isTvPayload(command) || switchPayload) {
       const error: any = new Error("This device does not support switch control.");
@@ -117,6 +129,7 @@ function assertDeviceCommandSupported(device: any, command: Record<string, any>)
     }
     return;
   }
+  if (family === "curtain" || family === "lock") return;
   if (family === "camera") {
     const error: any = new Error("This device does not support switch control.");
     error.statusCode = 400;

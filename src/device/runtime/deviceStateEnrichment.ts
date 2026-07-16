@@ -100,6 +100,61 @@ function uniqueLower(values: Array<any>) {
   return Array.from(new Set(values.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean)));
 }
 
+function tuyaCategoryFamily(value: unknown) {
+  const raw = String(value || "").toLowerCase().trim();
+  const map: Record<string, string> = {
+    kg: "switch",
+    cz: "plug",
+    wk: "camera",
+    kt: "climate",
+    wnykq: "ir_remote",
+    cl: "curtain",
+    ms: "lock",
+    dj: "light",
+    switch: "switch",
+    socket: "plug",
+    plug: "plug",
+    smart_plug: "plug",
+    outlet: "plug",
+    camera: "camera",
+    ipc: "camera",
+    ipcamera: "camera",
+    air_conditioner: "climate",
+    ac: "climate",
+    climate: "climate",
+    thermostat: "climate",
+    infrared_remote: "ir_remote",
+    ir_remote: "ir_remote",
+    remote_control: "ir_remote",
+    universal_remote: "ir_remote",
+    tv_remote: "ir_remote",
+    set_top_box: "ir_remote",
+    stb: "ir_remote",
+    curtain: "curtain",
+    blind: "curtain",
+    shade: "curtain",
+    doorlock: "lock",
+    lock: "lock",
+    sensor: "sensor",
+    pir: "sensor",
+    motion: "sensor",
+    smoke_sensor: "sensor",
+    gas_sensor: "sensor",
+    light: "light",
+    lighting: "light",
+    ceiling_light: "light",
+    lamp: "light",
+  };
+  return map[raw] || raw;
+}
+
+function knownFamily(value: unknown) {
+  const mapped = tuyaCategoryFamily(value);
+  return ["switch", "plug", "camera", "climate", "ir_remote", "curtain", "lock", "sensor", "light"].includes(mapped)
+    ? mapped
+    : "";
+}
+
 function capabilityCodes(input: { state?: AnyRecord | null; functions?: Array<{ code?: string | null }> | null; metadata?: AnyRecord | null; device?: AnyRecord | null }) {
   const statusCodes = Object.keys(asRecord(input.state));
   const functionCodes = Array.isArray(input.functions) ? input.functions.map((item) => String(item?.code || "")) : [];
@@ -119,40 +174,45 @@ function capabilityCodes(input: { state?: AnyRecord | null; functions?: Array<{ 
 }
 
 function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string[]) {
-  const explicitFamily = text(
-    metadata?.device_family,
-    metadata?.virtual_device ? metadata?.ir_appliance?.appliance_type : "",
-    device?.device_family,
-  ).toLowerCase();
+  const metadataFamily = knownFamily(metadata?.device_family);
+  if (metadataFamily) return metadataFamily;
 
-  const explicitProfile = text(
-    metadata?.control_profile,
-    device?.control_profile,
-  ).toLowerCase();
+  const virtualFamily = knownFamily(metadata?.virtual_device ? metadata?.ir_appliance?.appliance_type : "");
+  if (virtualFamily) return virtualFamily;
 
-  const category = String(
-    metadata?.raw?.category ??
-      metadata?.category ??
-      device?.category ??
-      "",
-  ).toLowerCase();
+  const deviceFamily = knownFamily(device?.device_family);
+  if (deviceFamily) return deviceFamily;
+
+  const rawCategoryFamily = knownFamily(metadata?.raw?.category);
+  if (rawCategoryFamily) return rawCategoryFamily;
+
+  const metadataCategoryFamily = knownFamily(metadata?.category);
+  if (metadataCategoryFamily) return metadataCategoryFamily;
+
+  const deviceCategoryFamily = knownFamily(device?.category);
+  if (deviceCategoryFamily) return deviceCategoryFamily;
+
+  const productFamily = knownFamily(metadata?.product_name || metadata?.productName);
+  if (productFamily) return productFamily;
+
+  const modelFamily = knownFamily(metadata?.model);
+  if (modelFamily) return modelFamily;
+
+  const explicitProfile = knownFamily(metadata?.control_profile || device?.control_profile);
+  if (explicitProfile) return explicitProfile;
 
   const haystack = [
-    category,
-    device?.category,
-    device?.type,
     metadata?.product_name,
     metadata?.productName,
     metadata?.remote_type,
     metadata?.ir_profile,
     metadata?.model,
-    ...codes,
+    device?.type,
   ]
     .map((item) => String(item || "").toLowerCase())
     .join(" ");
 
   const hasSwitch = codes.some((code) => /^switch(_\d+)?$/i.test(code));
-
   const hasPower =
     hasSwitch ||
     codes.includes("switch") ||
@@ -167,59 +227,6 @@ function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string
     /ir_|remote|key_code|command_key|control/i.test(code),
   );
 
-  // Explicit metadata wins.
-  switch (explicitFamily || explicitProfile) {
-    case "switch":
-      return "switch";
-
-    case "plug":
-    case "socket":
-      return "plug";
-
-    case "camera":
-      return "camera";
-
-    case "climate":
-    case "ac":
-    case "air_conditioner":
-      return "climate";
-
-    case "tv":
-    case "ir_remote":
-      return "ir_remote";
-
-    case "curtain":
-      return "curtain";
-
-    case "lock":
-      return "lock";
-
-    case "sensor":
-      return "sensor";
-  }
-
-  // Known Tuya categories.
-  switch (category) {
-    case "kg":
-      return "switch";
-
-    case "cz":
-      return "plug";
-
-    case "wk":
-      return "camera";
-
-    case "kt":
-      return "climate";
-
-    case "cl":
-      return "curtain";
-
-    case "ms":
-      return "lock";
-  }
-
-  // Heuristics.
   if (/camera|ipc|rtsp|onvif|dvr|nvr/.test(haystack)) return "camera";
 
   if (/lock|doorlock/.test(haystack)) return "lock";
@@ -274,13 +281,17 @@ function inferControlProfile(deviceFamily: string, codes: string[]) {
   if (deviceFamily === "ir_remote") return "ir_remote";
   if (deviceFamily === "curtain") return "curtain";
   if (deviceFamily === "lock") return "lock";
+  if (deviceFamily === "sensor") return "sensor";
+  if (deviceFamily === "plug") return "plug";
+  if (deviceFamily === "switch") return "switch";
+  if (deviceFamily === "light") return "switch";
   if (codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code))) return deviceFamily === "plug" ? "plug" : "switch";
   return "generic";
 }
 
 function inferSupportedControls(deviceFamily: string, codes: string[]) {
   const controls = new Set<string>();
-  if (codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code))) controls.add("power");
+  if (["switch", "plug", "light", "climate", "ir_remote"].includes(deviceFamily) && codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code))) controls.add("power");
   if (codes.some((code) => code.includes("bright"))) controls.add("brightness");
   if (codes.some((code) => code.includes("colour") || code.includes("color"))) controls.add("color");
   if (codes.some((code) => code.includes("temp"))) controls.add(deviceFamily === "climate" ? "temperature" : "sensor_temperature");
@@ -288,8 +299,21 @@ function inferSupportedControls(deviceFamily: string, codes: string[]) {
   if (codes.some((code) => code.includes("countdown") || code.includes("timer"))) controls.add("timer");
   if (codes.some((code) => code.includes("schedule"))) controls.add("schedule");
   if (codes.some((code) => code.includes("percent") || code.includes("position"))) controls.add("position");
+  if (deviceFamily === "camera") {
+    controls.add("stream");
+    controls.add("snapshot");
+  }
   if (deviceFamily === "lock") controls.add("lock");
-  if (deviceFamily === "ir_remote") controls.add("remote");
+  if (deviceFamily === "curtain") controls.add("position");
+  if (deviceFamily === "ir_remote") {
+    controls.add("remote");
+    if (codes.includes("power") || codes.includes("switch") || codes.includes("on")) controls.add("power");
+  }
+  if (deviceFamily === "climate") {
+    if (codes.some((code) => /mode/.test(code))) controls.add("mode");
+    if (codes.some((code) => /fan|wind/.test(code))) controls.add("fan");
+    if (codes.some((code) => /swing/.test(code))) controls.add("swing");
+  }
   return Array.from(controls);
 }
 
@@ -298,7 +322,9 @@ function deriveChannelDefinitions(args: {
   normalized: NormalizedDeviceState;
   rawState: AnyRecord;
   metadata: AnyRecord;
+  deviceFamily?: string;
 }) {
+  if (!["switch", "plug", "light"].includes(String(args.deviceFamily || "").toLowerCase())) return [];
   const explicitNames = asRecord(args.metadata.channel_names);
   const channelCodes = args.codes
     .filter((code) => /^switch(_\d+)?$/i.test(code) || code === "switch")
@@ -428,7 +454,7 @@ export function enrichDeviceProviderState(input: {
   const deviceFamily = inferDeviceFamily(device, metadata, codes);
   const controlProfile = inferControlProfile(deviceFamily, codes);
   const supportedControls = inferSupportedControls(deviceFamily, codes);
-  const channelDefinitions = deriveChannelDefinitions({ codes, normalized, rawState, metadata });
+  const channelDefinitions = deriveChannelDefinitions({ codes, normalized, rawState, metadata, deviceFamily });
   const primaryState = inferPrimaryState(normalized, deviceFamily);
   const healthStatus = inferHealthStatus(normalized);
   const telemetrySummary = {
@@ -454,7 +480,7 @@ export function enrichDeviceProviderState(input: {
     capability_codes: codes,
     channel_definitions: channelDefinitions,
     control_profile: controlProfile,
-    device_type: text(device.type, device.category, metadata.product_name, deviceFamily) || "device",
+    device_type: text(metadata.device_type, metadata.raw?.category, device.type, device.category, metadata.product_name, deviceFamily) || "device",
     device_family: deviceFamily,
     provider_health: normalized.online === false ? "offline" : "healthy",
     activity_summary: activitySummary({
