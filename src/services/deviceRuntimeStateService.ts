@@ -9,6 +9,11 @@ import { getIO } from "../realtime/io";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { logger } from "../observability/logger";
 import { operationalMetrics } from "../observability/metrics";
+import {
+  classifyProviderError,
+  type CanonicalProviderError,
+  type ProviderAuthorizationState,
+} from "../device/runtime/providerErrors";
 
 export type DeviceRuntimeFreshness = "fresh" | "stale" | "expired";
 export type DeviceRuntimeRefreshPriority = "normal" | "high";
@@ -27,6 +32,11 @@ export type DeviceRuntimeSnapshot = {
   provider_latency_ms: number | null;
   dirty: boolean;
   source: "runtime" | "persistent_snapshot";
+  provider_error: CanonicalProviderError | null;
+  authorization_state: ProviderAuthorizationState;
+  provider_warning: string | null;
+  retry_after: string | null;
+  last_successful_refresh: string | null;
 };
 
 type RuntimeEntry = Omit<DeviceRuntimeSnapshot, "stale" | "freshness" | "age_ms"> & {
@@ -89,6 +99,8 @@ const FRESH_TTL_MS = 10_000;
 const EXPIRED_AFTER_MS = 60_000;
 const ACTIVE_WINDOW_MS = 60_000;
 const MAX_CACHE_ENTRIES = 50_000;
+const AUTHORIZATION_BACKOFF_INITIAL_MS = 5 * 60_000;
+const AUTHORIZATION_BACKOFF_MAX_MS = 60 * 60_000;
 const DEFAULT_DEVICE_SELECT = "id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,category,type,external_id,provider,vendor,adapter,online,status,capabilities,metadata,last_seen_at,updated_at";
 
 function validTimestamp(value: unknown) {
@@ -113,6 +125,30 @@ function runtimeTimestampFromRow(row: Record<string, any>) {
     row?.updated_at ||
     row?.last_seen,
   );
+}
+
+function runtimeMetadata(state: Record<string, any> | null | undefined) {
+  return state?._oyi_runtime && typeof state._oyi_runtime === "object" ? state._oyi_runtime as Record<string, any> : {};
+}
+
+function providerErrorFromState(state: Record<string, any> | null | undefined): CanonicalProviderError | null {
+  const error = runtimeMetadata(state).provider_error;
+  return error && typeof error === "object" ? error as CanonicalProviderError : null;
+}
+
+function authorizationStateFromState(state: Record<string, any> | null | undefined): ProviderAuthorizationState {
+  const value = String(runtimeMetadata(state).authorization_state || "unknown");
+  return ["authorized", "authorization_required", "device_not_linked", "unknown"].includes(value)
+    ? value as ProviderAuthorizationState
+    : "unknown";
+}
+
+function integrationOwner(device: Record<string, any>) {
+  return String(device?.metadata?.oyi?.integration_owner_user_id || device?.metadata?.context?.userId || "").trim() || null;
+}
+
+function integrationUid(device: Record<string, any>) {
+  return String(device?.metadata?.context?.tuyaUid || device?.metadata?.raw?.uid || "").trim() || null;
 }
 
 function adapterName(device: Record<string, any>) {
@@ -283,6 +319,7 @@ export class DeviceRuntimeStateService {
         provider_reported_at: input.providerTimestamp ?? providerTimestamp(enriched),
       },
       _oyi_runtime: {
+        ...(enriched?._oyi_runtime || {}),
         provider_timestamp: input.providerTimestamp ?? providerTimestamp(enriched),
         runtime_timestamp: runtimeTimestamp,
         last_refresh: lastRefresh,
@@ -306,6 +343,11 @@ export class DeviceRuntimeStateService {
       provider_latency_ms: input.providerLatencyMs ?? null,
       dirty: Boolean(input.dirty),
       source: input.source || "runtime",
+      provider_error: providerErrorFromState(stateWithRuntime),
+      authorization_state: authorizationStateFromState(stateWithRuntime),
+      provider_warning: String(stateWithRuntime?._oyi_runtime?.provider_warning || "").trim() || null,
+      retry_after: validTimestamp(stateWithRuntime?._oyi_runtime?.next_retry_at),
+      last_successful_refresh: validTimestamp(stateWithRuntime?._oyi_runtime?.provider_last_success_at),
       accessed_at_ms: this.now(),
     };
     this.cache.set(entry.device_id, entry);
@@ -376,6 +418,7 @@ export class DeviceRuntimeStateService {
       };
     }
     const previousState = currentEntry?.state || null;
+    const previousProviderError = providerErrorFromState(previousState);
     const pendingCommand = previousState?._oyi_pending_command && typeof previousState._oyi_pending_command === "object"
       ? previousState._oyi_pending_command
       : null;
@@ -386,6 +429,27 @@ export class DeviceRuntimeStateService {
       source: "runtime",
     });
     const entry = this.cache.get(String(device.id))!;
+    entry.state._oyi_runtime = {
+      ...runtimeMetadata(entry.state),
+      provider_error: null,
+      authorization_state: "authorized",
+      provider_warning: null,
+      next_retry_at: null,
+      provider_last_success_at: entry.runtime_timestamp,
+      provider_attention_key: null,
+      provider_attention_emitted_at: null,
+    };
+    entry.state.provider_health = entry.state?.normalized_state?.online === false ? "offline" : "healthy";
+    entry.provider_error = null;
+    entry.authorization_state = "authorized";
+    entry.provider_warning = null;
+    entry.retry_after = null;
+    entry.last_successful_refresh = entry.runtime_timestamp;
+    entry.summary = summarizeDeviceFrontendContract(device, {
+      status: entry.state,
+      last_seen: entry.last_refresh,
+      updated_at: entry.runtime_timestamp,
+    });
     const confirmation = commandConfirmation(entry.state, pendingCommand);
     const confirmationAttempts = Number(pendingCommand?.confirmation_attempts || 0) + 1;
     if (pendingCommand && confirmation.confirmed) {
@@ -427,9 +491,10 @@ export class DeviceRuntimeStateService {
       this.scheduleRefresh(entry.device, { priority: "high", reason: "command_confirmation", delayMs: 1_500 });
     }
 
-    if (input.emitSignal !== false && (change.changed || confirmation.confirmed)) {
+    const authorizationRecovered = Boolean(previousProviderError && ["permission_denied", "device_not_linked", "integration_expired", "authentication_failed"].includes(previousProviderError.classification));
+    if (input.emitSignal !== false && (change.changed || confirmation.confirmed || authorizationRecovered)) {
       void this.emitSignal({
-        eventType: (confirmation.confirmed ? "device.command.executed" : change.event_type) as any,
+        eventType: (confirmation.confirmed ? "device.command.executed" : authorizationRecovered ? "device.provider.sync" : change.event_type) as any,
         source: "provider_reported",
         provider: String(device?.provider || device?.vendor || adapterName(device)),
         adapter: adapterName(device),
@@ -462,6 +527,8 @@ export class DeviceRuntimeStateService {
           command_confirmation: confirmation.confirmed ? "confirmed" : pendingCommand ? "pending" : null,
           primary_state: entry.summary.primary_state,
           health_status: entry.summary.health_status,
+          provider_authorization_recovered: authorizationRecovered,
+          previous_provider_error: previousProviderError?.classification || null,
         },
       }).catch((error) => logger.error("device_runtime_signal_failed", { error, device_id: entry.device_id }));
     }
@@ -473,9 +540,22 @@ export class DeviceRuntimeStateService {
     if (entry) entry.dirty = true;
   }
 
+  isRefreshSuppressed(deviceId: string) {
+    const entry = this.cache.get(String(deviceId));
+    if (!entry?.retry_after) return false;
+    return new Date(entry.retry_after).getTime() > this.now();
+  }
+
   refresh(deviceOrId: Record<string, any> | string, priority: DeviceRuntimeRefreshPriority = "normal", reason = "requested") {
     const deviceId = typeof deviceOrId === "string" ? deviceOrId : String(deviceOrId?.id || "");
     if (!deviceId) return Promise.resolve(null);
+    if (this.isRefreshSuppressed(deviceId)) {
+      operationalMetrics.increment("oyi_device_runtime_refresh_suppressed_total", {
+        adapter: adapterName(typeof deviceOrId === "string" ? this.cache.get(deviceId)?.device || {} : deviceOrId),
+        reason: providerErrorFromState(this.cache.get(deviceId)?.state)?.classification || "authorization_backoff",
+      });
+      return Promise.resolve(this.get(deviceId));
+    }
     const existing = this.refreshes.get(deviceId);
     if (existing) return existing;
     const queued = this.queue.enqueue(async () => {
@@ -499,11 +579,7 @@ export class DeviceRuntimeStateService {
         });
         return accepted.snapshot;
       } catch (error) {
-        const entry = this.cache.get(deviceId);
-        if (entry) entry.dirty = true;
-        operationalMetrics.increment("oyi_device_runtime_refresh_failures_total", { adapter: adapterName(device) });
-        logger.warn("device_runtime_refresh_failed", { error, device_id: deviceId, adapter: adapterName(device), reason });
-        return entry ? this.snapshot(entry) : null;
+        return this.handleProviderFailure(device, error, reason, this.now() - startedAt);
       }
     }, priority).finally(() => {
       this.refreshes.delete(deviceId);
@@ -542,7 +618,48 @@ export class DeviceRuntimeStateService {
       in_flight_refreshes: this.refreshes.size,
       in_flight_hydrations: this.hydrations.size,
       refresh_queue: this.queue.stats(),
+      authorization_suppressed: Array.from(this.cache.values()).filter((entry) => this.isRefreshSuppressed(entry.device_id)).length,
     };
+  }
+
+  async clearAuthorizationSuppressionForDevices(devices: Array<Record<string, any>>) {
+    await this.hydrateMany(devices);
+    let cleared = 0;
+    for (const device of devices) {
+      const entry = this.cache.get(String(device?.id || ""));
+      const providerError = providerErrorFromState(entry?.state);
+      if (!entry || !providerError || !["permission_denied", "device_not_linked", "integration_expired", "authentication_failed"].includes(providerError.classification)) continue;
+      entry.state._oyi_runtime = {
+        ...runtimeMetadata(entry.state),
+        next_retry_at: null,
+        provider_error: { ...providerError, failure_count: 0, next_retry_at: null },
+      };
+      entry.retry_after = null;
+      entry.provider_error = { ...providerError, failure_count: 0, next_retry_at: null };
+      entry.dirty = true;
+      try {
+        await this.persist(entry);
+      } catch (error) {
+        logger.error("device_runtime_authorization_reset_persist_failed", { error, device_id: entry.device_id });
+      }
+      cleared += 1;
+    }
+    return cleared;
+  }
+
+  async clearAuthorizationSuppressionForIntegration(ownerUserId: string, tuyaUid?: string | null) {
+    const { data, error } = await supabaseAdmin
+      .from("devices")
+      .select(DEFAULT_DEVICE_SELECT)
+      .or("vendor.eq.tuya,adapter.eq.tuya,provider.eq.tuya")
+      .limit(5_000);
+    if (error) throw error;
+    const devices = (data || []).filter((device: any) => {
+      const ownerMatches = integrationOwner(device) === String(ownerUserId || "").trim();
+      const uidMatches = tuyaUid ? integrationUid(device) === String(tuyaUid).trim() : false;
+      return ownerMatches || uidMatches;
+    });
+    return this.clearAuthorizationSuppressionForDevices(devices);
   }
 
   private snapshot(entry: RuntimeEntry): DeviceRuntimeSnapshot {
@@ -566,6 +683,11 @@ export class DeviceRuntimeStateService {
       provider_latency_ms: entry.provider_latency_ms,
       dirty: entry.dirty,
       source: entry.source,
+      provider_error: entry.provider_error,
+      authorization_state: entry.authorization_state,
+      provider_warning: entry.provider_warning,
+      retry_after: entry.retry_after,
+      last_successful_refresh: entry.last_successful_refresh,
     };
   }
 
@@ -587,6 +709,10 @@ export class DeviceRuntimeStateService {
       primary_state: entry.summary.primary_state,
       health_status: entry.summary.health_status,
       provider_health: entry.summary.provider_health,
+      provider_error: snapshot.provider_error,
+      authorization_state: snapshot.authorization_state,
+      provider_warning: snapshot.provider_warning,
+      retry_after: snapshot.retry_after,
       provider_timestamp: snapshot.provider_timestamp,
       runtime_timestamp: snapshot.runtime_timestamp,
       last_refresh: snapshot.last_refresh,
@@ -602,7 +728,7 @@ export class DeviceRuntimeStateService {
   private refreshActiveEntries() {
     const now = this.now();
     const candidates = Array.from(this.cache.values())
-      .filter((entry) => entry.dirty || (now - entry.accessed_at_ms <= ACTIVE_WINDOW_MS && this.snapshot(entry).stale))
+      .filter((entry) => !this.isRefreshSuppressed(entry.device_id) && (entry.dirty || (now - entry.accessed_at_ms <= ACTIVE_WINDOW_MS && this.snapshot(entry).stale)))
       .sort((a, b) => Number(b.dirty) - Number(a.dirty) || a.accessed_at_ms - b.accessed_at_ms)
       .slice(0, 25);
     for (const entry of candidates) {
@@ -617,6 +743,162 @@ export class DeviceRuntimeStateService {
       if (!oldest) break;
       this.cache.delete(oldest);
     }
+  }
+
+  private async handleProviderFailure(device: Record<string, any>, error: unknown, reason: string, providerLatencyMs: number) {
+    const deviceId = String(device.id);
+    const nowIso = new Date(this.now()).toISOString();
+    const previousEntry = this.cache.get(deviceId) || null;
+    const previousState = previousEntry?.state
+      ? { ...previousEntry.state, _oyi_runtime: { ...runtimeMetadata(previousEntry.state) } }
+      : null;
+    const previousError = providerErrorFromState(previousEntry?.state);
+    const classified = classifyProviderError(error, {
+      provider: String(device?.provider || device?.vendor || adapterName(device)),
+      operation: reason,
+      device,
+      occurredAt: nowIso,
+    });
+    const authorizationFailure = ["permission_denied", "device_not_linked", "integration_expired", "authentication_failed"].includes(classified.classification);
+    const failureCount = Number(previousError?.failure_count || 0) + 1;
+    const backoffMs = authorizationFailure
+      ? Math.min(AUTHORIZATION_BACKOFF_MAX_MS, AUTHORIZATION_BACKOFF_INITIAL_MS * (2 ** Math.max(0, failureCount - 1)))
+      : 0;
+    const nextRetryAt = backoffMs ? new Date(this.now() + backoffMs).toISOString() : null;
+    const providerError: CanonicalProviderError = {
+      ...classified,
+      failure_count: failureCount,
+      next_retry_at: nextRetryAt,
+    };
+
+    if (!previousEntry) {
+      const baseline = enrichDeviceProviderState({
+        state: { online: null },
+        metadata: device?.metadata || {},
+        device,
+        provider: classified.provider,
+        adapter: adapterName(device),
+      });
+      this.set(device, {
+        ...baseline,
+        provider_health: authorizationFailure ? "authorization_required" : "degraded",
+        activity_summary: classified.safe_message,
+      }, {
+        runtimeTimestamp: nowIso,
+        lastRefresh: nowIso,
+        providerLatencyMs,
+        dirty: !authorizationFailure,
+      });
+    }
+
+    const entry = this.cache.get(deviceId)!;
+    const previousRuntime = runtimeMetadata(entry.state);
+    const attentionKey = `${classified.provider}:${classified.classification}:${integrationOwner(device) || integrationUid(device) || deviceId}`;
+    const shouldEmitAttention = authorizationFailure && previousRuntime.provider_attention_key !== attentionKey;
+    entry.state = {
+      ...entry.state,
+      provider_health: authorizationFailure ? "authorization_required" : "degraded",
+      activity_summary: classified.safe_message,
+      _oyi_runtime: {
+        ...previousRuntime,
+        runtime_timestamp: nowIso,
+        provider_latency_ms: providerLatencyMs,
+        provider_error: providerError,
+        authorization_state: classified.authorization_state,
+        provider_warning: classified.safe_message,
+        next_retry_at: nextRetryAt,
+        provider_last_attempt_at: nowIso,
+      },
+    };
+    entry.runtime_timestamp = nowIso;
+    entry.provider_latency_ms = providerLatencyMs;
+    entry.provider_error = providerError;
+    entry.authorization_state = classified.authorization_state;
+    entry.provider_warning = classified.safe_message;
+    entry.retry_after = nextRetryAt;
+    entry.dirty = !authorizationFailure;
+    entry.summary = summarizeDeviceFrontendContract(device, {
+      status: entry.state,
+      last_seen: entry.last_refresh,
+      updated_at: entry.runtime_timestamp,
+    });
+
+    try {
+      await this.persist(entry);
+    } catch (persistError) {
+      operationalMetrics.increment("oyi_device_runtime_persistence_failures_total");
+      logger.error("device_runtime_provider_error_persist_failed", { error: persistError, device_id: deviceId });
+    }
+    this.broadcast(entry, this.websocketPayload(entry, "provider_error"));
+    operationalMetrics.increment("oyi_device_runtime_refresh_failures_total", {
+      adapter: adapterName(device),
+      classification: classified.classification,
+    });
+    logger.warn("device_runtime_provider_refresh_failed", {
+      device_id: deviceId,
+      external_id: device?.external_id || null,
+      adapter: adapterName(device),
+      reason,
+      provider_error: classified.classification,
+      provider_code: classified.provider_code,
+      authorization_state: classified.authorization_state,
+      next_retry_at: nextRetryAt,
+    });
+
+    if (shouldEmitAttention) {
+      try {
+        await this.emitSignal({
+          eventType: "device.provider.authorization_required",
+          source: "provider_reported",
+          provider: classified.provider,
+          adapter: adapterName(device),
+          providerEventId: attentionKey,
+          estateId: device?.estate_id || null,
+          homeId: device?.home_id || null,
+          roomId: device?.room_id || null,
+          device: {
+            id: deviceId,
+            name: String(device?.name || "Device"),
+            type: String(device?.type || ""),
+            category: String(device?.category || ""),
+            external_id: device?.external_id || null,
+            vendor: String(device?.vendor || ""),
+            adapter: adapterName(device),
+            provider: classified.provider,
+            metadata: device?.metadata || {},
+          },
+          previousState,
+          newState: entry.state,
+          occurredAt: nowIso,
+          telemetrySummary: {
+            changed_keys: [],
+            changed_count: 0,
+            online: entry.state?.normalized_state?.online ?? null,
+            power_state: entry.state?.normalized_state?.power ?? null,
+          },
+          extraMetadata: {
+            runtime_v2: true,
+            provider_error: classified.classification,
+            provider_code: classified.provider_code,
+            authorization_state: classified.authorization_state,
+            safe_message: classified.safe_message,
+            suggested_remediation: classified.suggested_remediation,
+            integration_owner_user_id: integrationOwner(device),
+            integration_uid: integrationUid(device),
+            deduplicated_attention: true,
+          },
+        });
+        entry.state._oyi_runtime = {
+          ...runtimeMetadata(entry.state),
+          provider_attention_key: attentionKey,
+          provider_attention_emitted_at: nowIso,
+        };
+        await this.persist(entry).catch((persistError) => logger.error("device_runtime_attention_dedupe_persist_failed", { error: persistError, device_id: deviceId }));
+      } catch (signalError) {
+        logger.error("device_runtime_authorization_attention_failed", { error: signalError, device_id: deviceId });
+      }
+    }
+    return this.snapshot(entry);
   }
 }
 

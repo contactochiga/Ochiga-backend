@@ -8,6 +8,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { syncIrChildAppliancesForHub } from "../controllers/deviceIrController";
 import { logger } from "../observability/logger";
 import { keepDeviceOverrides, upsertCanonicalDeviceIdentity } from "./deviceIdentityService";
+import { deviceRuntimeStateService } from "./deviceRuntimeStateService";
 
 type TuyaSyncActor = {
   id: string;
@@ -304,6 +305,8 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
           errors.push(`${cleanStr(hub?.name) || "IR hub"}: IR sync unavailable`);
         }
       }
+      const currentlyAuthorized = (currentRows.data || []).filter((device: any) => providerIds.has(cleanStr(device?.external_id)));
+      await deviceRuntimeStateService.clearAuthorizationSuppressionForDevices(currentlyAuthorized);
     }
 
     const result: TuyaSyncSummary = {

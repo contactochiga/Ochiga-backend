@@ -12,6 +12,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { auditOnSuccess } from "../middleware/audit";
 import { summarizeDeviceRuntime } from "../services/deviceRuntimeSessionsService";
 import { getDeviceRuntimeDashboard } from "../controllers/deviceRuntimeStateController";
+import { getTuyaAuthorizationDiagnostics } from "../controllers/tuyaAuthorizationDiagnosticsController";
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.post("/assign", requireAuth, requirePermission("devices.control"), assign
 // ✅ THIS WAS MISSING (your frontend calls it)
 router.get("/estate/:estateId", requireAuth, resolveRequestContext, requirePermission("devices.read"), getEstateDevices);
 router.get("/runtime", requireAuth, resolveRequestContext, requirePermission("devices.read"), getDeviceRuntimeDashboard);
+router.get("/runtime/diagnostics/tuya", requireAuth, resolveRequestContext, requirePermission("devices.read"), getTuyaAuthorizationDiagnostics);
 
 router.patch("/:deviceId/preferences", requireAuth, resolveRequestContext, requirePermission("devices.control"), auditOnSuccess("device.preferences.updated", "device", "deviceId"), async (req, res) => {
   const user = req.user;

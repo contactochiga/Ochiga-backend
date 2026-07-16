@@ -4,6 +4,8 @@ import { auditOnSuccess } from "../middleware/audit";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { syncTuyaRegistryForActor } from "../services/tuyaRegistrySyncService";
 import { resolveRequestContext } from "../middleware/contextResolver";
+import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
+import { logger } from "../observability/logger";
 
 const router = express.Router();
 const SUPPORTED_INTEGRATIONS = new Set(["tuya", "alexa", "google_assistant"]);
@@ -553,6 +555,10 @@ router.patch("/integrations/tuya", requireAuth, requirePermission("devices.contr
   const result = await setTuyaUidForUser(user.id, tuya_uid);
   if (!result.ok) return res.status(500).json({ error: result.error || "Failed to save Tuya UID" });
 
+  await deviceRuntimeStateService.clearAuthorizationSuppressionForIntegration(user.id, tuya_uid).catch((error) => {
+    logger.warn("tuya_relink_runtime_backoff_reset_failed", { error, actor_id: user.id });
+  });
+
   return res.json({ ok: true, provider: "tuya", connected: true, tuya_uid });
 });
 
@@ -611,6 +617,12 @@ router.patch("/integrations/:provider", requireAuth, requirePermission("devices.
 
   const result = await setStoredIntegration(user.id, provider, externalUserId);
   if (!result.ok) return res.status(400).json({ error: result.error });
+
+  if (provider === "tuya") {
+    await deviceRuntimeStateService.clearAuthorizationSuppressionForIntegration(user.id, externalUserId).catch((error) => {
+      logger.warn("tuya_relink_runtime_backoff_reset_failed", { error, actor_id: user.id });
+    });
+  }
 
   return res.json({
     ok: true,

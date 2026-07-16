@@ -498,7 +498,7 @@ export function diffEnrichedDeviceState(previousState: AnyRecord | null | undefi
   const prevFlat = flatten(prev.normalized_state ? prev : enrichDeviceProviderState({ state: prev }));
   const nextFlat = flatten(next.normalized_state ? next : enrichDeviceProviderState({ state: next }));
   const changedKeys = Array.from(new Set([...Object.keys(prevFlat), ...Object.keys(nextFlat)])).filter((key) => JSON.stringify(prevFlat[key]) !== JSON.stringify(nextFlat[key]));
-  const meaningful = changedKeys.filter((key) => !key.startsWith("_oyi_timeline") && key !== "__raw");
+  const meaningful = changedKeys.filter((key) => !key.startsWith("_oyi_") && !key.startsWith("__raw"));
   const prevNormalized = asRecord(prev.normalized_state);
   const nextNormalized = asRecord(next.normalized_state);
   const prevOnline = boolValue(prevNormalized.online ?? prev.online);

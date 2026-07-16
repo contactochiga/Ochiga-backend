@@ -4,6 +4,7 @@ import crypto from "crypto";
 import axios, { AxiosInstance } from "axios";
 import { operationalMetrics } from "../../../observability/metrics";
 import { providerHealthRegistry } from "../../../observability/providerHealth";
+import { classifyProviderError, ProviderRequestError } from "../../runtime/providerErrors";
 
 /* ------------------------------------------------
  * ENV (LAZY + TYPE-SAFE)
@@ -41,6 +42,35 @@ type TuyaResponse<T> = {
   code?: number;
   msg?: string;
 };
+
+function tuyaRequestError(input: {
+  code?: string | number | null;
+  message?: string | null;
+  httpStatus?: number | null;
+  operation: string;
+  cause?: unknown;
+}) {
+  return new ProviderRequestError({
+    provider: "tuya",
+    providerCode: input.code,
+    providerMessage: input.message || "Unknown Tuya error",
+    httpStatus: input.httpStatus,
+    operation: input.operation,
+    cause: input.cause,
+  });
+}
+
+function recordTuyaFailure(error: unknown, action: string) {
+  const classified = classifyProviderError(error, { provider: "tuya", operation: action });
+  operationalMetrics.increment("oyi_provider_failures_total", {
+    provider: "tuya",
+    action,
+    classification: classified.classification,
+  });
+  if (["provider_unavailable", "authentication_failed", "integration_expired"].includes(classified.classification)) {
+    providerHealthRegistry.failure("tuya", error);
+  }
+}
 
 export class TuyaClient {
   private client: AxiosInstance;
@@ -110,18 +140,29 @@ export class TuyaClient {
         },
       });
     } catch (error) {
-      operationalMetrics.increment("oyi_provider_failures_total", { provider: "tuya", action: "token" });
-      providerHealthRegistry.failure("tuya", error);
-      throw error;
+      const response = (error as any)?.response;
+      const typed = tuyaRequestError({
+        code: response?.data?.code,
+        message: response?.data?.msg || response?.data?.message || (error as Error)?.message,
+        httpStatus: response?.status,
+        operation: "token",
+        cause: error,
+      });
+      recordTuyaFailure(typed, "token");
+      throw typed;
     }
 
     const token = res.data?.result?.access_token;
     const expire = res.data?.result?.expire_time;
 
     if (!token || !expire) {
-      operationalMetrics.increment("oyi_provider_failures_total", { provider: "tuya", action: "token_payload" });
-      providerHealthRegistry.failure("tuya", "missing_access_token");
-      throw new Error(`❌ Failed to obtain Tuya access token: ${JSON.stringify(res.data)}`);
+      const error = tuyaRequestError({
+        code: res.data?.code,
+        message: res.data?.msg || "Tuya did not return an access token",
+        operation: "token_payload",
+      });
+      recordTuyaFailure(error, "token_payload");
+      throw error;
     }
 
     this.accessToken = token;
@@ -158,17 +199,25 @@ export class TuyaClient {
         },
       });
     } catch (error) {
-      operationalMetrics.increment("oyi_provider_failures_total", { provider: "tuya", action: method.toLowerCase() });
-      providerHealthRegistry.failure("tuya", error);
-      throw error;
+      if (error instanceof ProviderRequestError) throw error;
+      const response = (error as any)?.response;
+      const typed = tuyaRequestError({
+        code: response?.data?.code,
+        message: response?.data?.msg || response?.data?.message || (error as Error)?.message,
+        httpStatus: response?.status,
+        operation: pathWithQuery,
+        cause: error,
+      });
+      recordTuyaFailure(typed, method.toLowerCase());
+      throw typed;
     }
 
     if (!res.data?.success) {
       const code = res.data?.code;
       const msg = res.data?.msg || "Unknown Tuya error";
-      operationalMetrics.increment("oyi_provider_failures_total", { provider: "tuya", action: "api_response" });
-      providerHealthRegistry.failure("tuya", `Tuya API error (${code ?? "?"}): ${msg}`);
-      throw new Error(`❌ Tuya API error (${code ?? "?"}): ${msg}`);
+      const error = tuyaRequestError({ code, message: msg, operation: pathWithQuery });
+      recordTuyaFailure(error, "api_response");
+      throw error;
     }
 
     operationalMetrics.increment("oyi_provider_requests_total", { provider: "tuya", method });

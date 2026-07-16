@@ -8,6 +8,7 @@ import type { DeviceCategory } from "../types";
 import { operationalMetrics } from "../../../observability/metrics";
 import { providerHealthRegistry } from "../../../observability/providerHealth";
 import { enrichDeviceProviderState } from "../../runtime/deviceStateEnrichment";
+import { isProviderAuthorizationError } from "../../runtime/providerErrors";
 
 // v1.0 users/{uid}/devices response item shape (common fields)
 type TuyaUserDevice = {
@@ -367,7 +368,8 @@ export class TuyaAdapter implements DeviceAdapter {
     let schema: DeviceSchema | null = null;
     try {
       schema = await this.getDeviceSchema(deviceId);
-    } catch {
+    } catch (error) {
+      if (isProviderAuthorizationError(error, { provider: "tuya", operation: "device_schema" })) throw error;
       schema = null; // don’t fail state if schema fails
     }
 

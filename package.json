@@ -35,6 +35,7 @@
     "smoke:oyi-runtime": "npm run build && node scripts/oyi-runtime-smoke.mjs",
     "smoke:device-runtime": "npm run build && node scripts/device-runtime-adapter-smoke.mjs",
     "smoke:device-runtime-v2": "npm run build && node scripts/device-runtime-v2-smoke.mjs",
+    "smoke:tuya-authorization": "npm run build && node scripts/tuya-authorization-runtime-smoke.mjs",
     "smoke:device-control-matrix": "npm run build && node scripts/device-control-matrix-smoke.mjs",
     "smoke:device-intelligence": "npm run build && node scripts/device-intelligence-smoke.mjs",
     "smoke:device-ir-sync": "npm run build && node scripts/device-ir-sync-smoke.mjs",
@@ -59,7 +60,7 @@
     "smoke:wallet-return-flow": "node scripts/wallet-return-flow-smoke.mjs",
     "validate:env": "node scripts/validate-env.mjs",
     "validate:security": "node scripts/validate-security.mjs",
-    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-schema && npm run smoke:device-runtime-v2 && npm run smoke:device-control-matrix && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence && npm run smoke:operational-object-context && npm run smoke:canonical-truth && npm run smoke:compatibility-delegation && npm run smoke:wallet-funding && npm run smoke:wallet-webhook-idempotency && npm run smoke:wallet-receipt && npm run smoke:wallet-notification && npm run smoke:wallet-return-flow"
+    "validate:release": "node scripts/validate-release.mjs && npm run smoke:device-schema && npm run smoke:device-runtime-v2 && npm run smoke:tuya-authorization && npm run smoke:device-control-matrix && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence && npm run smoke:operational-object-context && npm run smoke:canonical-truth && npm run smoke:compatibility-delegation && npm run smoke:wallet-funding && npm run smoke:wallet-webhook-idempotency && npm run smoke:wallet-receipt && npm run smoke:wallet-notification && npm run smoke:wallet-return-flow"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

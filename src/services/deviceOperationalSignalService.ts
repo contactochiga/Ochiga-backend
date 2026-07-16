@@ -60,6 +60,7 @@ export type DeviceOperationalSignalInput = {
     | "device.online"
     | "device.health.degraded"
     | "device.provider.sync"
+    | "device.provider.authorization_required"
     | "device.telemetry.received";
   source: DeviceObservedSource | string;
   provider?: string | null;
@@ -133,7 +134,7 @@ function commandOrigin(source: DeviceObservedSource): OperationalOrigin {
 }
 
 function eventSeverity(eventType: string) {
-  if (/failed|offline|degraded/.test(eventType)) return "warning";
+  if (/failed|offline|degraded|authorization_required/.test(eventType)) return "warning";
   if (/physical_switch|state.changed|provider.sync|telemetry.received/.test(eventType)) return "info";
   if (/command.requested/.test(eventType)) return "attention";
   return "info";
