@@ -121,6 +121,9 @@ const INTERNAL_CAPABILITY_CODES = new Set([
   "kg",
   "wnykq",
   "infrared_tv",
+  "device",
+  "generic",
+  "unknown",
 ]);
 
 export function sanitizePublicCapabilityCodes(values: Array<unknown>) {

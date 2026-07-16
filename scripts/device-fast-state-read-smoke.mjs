@@ -232,7 +232,7 @@ const publicCodes = new Set(enriched.capability_codes);
 for (const code of ["switch_1", "switch_2", "countdown_1", "relay_status", "volume+", "power", "temperature", "fan", "swing"]) {
   check(publicCodes.has(code), `public capabilities preserve provider function code ${code}`);
 }
-for (const code of ["online", "__raw", "normalized_state", "provider_health", "health_status", "primary_state", "switch", "kg", "wnykq", "infrared_tv", "ac bedroom relay", "model-x"]) {
+for (const code of ["online", "__raw", "normalized_state", "provider_health", "health_status", "primary_state", "switch", "kg", "wnykq", "infrared_tv", "device", "generic", "unknown", "ac bedroom relay", "model-x"]) {
   check(!publicCodes.has(code), `public capabilities exclude internal or identity value ${code}`);
 }
 
