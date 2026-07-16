@@ -57,6 +57,7 @@ export function standardRealtimeEvent(type?: string | null) {
   if (value === "audit.recorded") return "audit.recorded";
   if (value === "twin.state.updated") return "twin.state.updated";
   if (value === "utility.telemetry.updated") return "utility.telemetry.updated";
+  if (value.startsWith("infrastructure.onboarding.")) return "infrastructure.onboarding.updated";
   return "";
 }
 

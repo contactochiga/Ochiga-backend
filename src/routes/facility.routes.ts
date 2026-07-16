@@ -7,6 +7,8 @@ import { getFacilityOverview } from "../controllers/facilityOverview.controller"
 import {
   createEstate,
   listMyEstates,
+  createBuilding,
+  listEstateBuildings,
   createHome,
   updateHome,
   listEstateHomes,
@@ -22,6 +24,7 @@ import {
 // ✅ FACILITY DEVICE ROUTES (discover, command, geo)
 import facilityDevicesRoutes from "./facilityDevices.routes";
 import platformGapRoutes from "./platformGap.routes";
+import infrastructureOnboardingRoutes from "./infrastructureOnboarding.routes";
 
 // ✅ HOME USERS ROUTES
 import homeUsersRoutes from "./homeUsers.routes";
@@ -49,6 +52,12 @@ router.get("/overview", requireAuth, requirePermission("estates.read"), getFacil
  */
 router.post("/estates", requireAuth, requirePermission("estates.write"), auditOnSuccess("estate.created", "estate", "estate_id"), createEstate);
 router.get("/estates", requireAuth, requirePermission("estates.read"), listMyEstates);
+
+/**
+ * Buildings remain part of the estate registry, not a deployment workspace.
+ */
+router.post("/buildings", requireAuth, requirePermission("homes.write"), auditOnSuccess("building.created", "building", "building_id"), createBuilding);
+router.get("/estates/:estateId/buildings", requireAuth, requirePermission("homes.read"), listEstateBuildings);
 
 /**
  * Homes
@@ -84,6 +93,7 @@ router.post("/rooms/assign", requireAuth, requirePermission("homes.write"), audi
  * ---------------------------
  */
 router.use("/devices", facilityDevicesRoutes);
+router.use("/infrastructure/onboarding", infrastructureOnboardingRoutes);
 router.use("/platform", platformGapRoutes);
 
 /**

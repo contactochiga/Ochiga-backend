@@ -239,6 +239,81 @@ export async function listMyEstates(req: any, res: Response) {
   }
 }
 
+function buildingReference(value: unknown) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+async function resolveEstateBuilding(estateId: string, buildingId: unknown) {
+  const id = String(buildingId || "").trim();
+  if (!id) return null;
+  const { data, error } = await supabaseAdmin
+    .from("estate_buildings")
+    .select("id,name,block,building_ref")
+    .eq("id", id)
+    .eq("estate_id", estateId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.id) throw new Error("The selected building is not part of this property.");
+  return data;
+}
+
+/** POST /facility/buildings */
+export async function createBuilding(req: any, res: Response) {
+  try {
+    const estateId = String(req.body?.estate_id || "").trim();
+    const name = String(req.body?.name || "").trim();
+    if (!estateId || !name) return res.status(400).json({ error: "Property and building name are required." });
+    const canManage = await assertCanManageEstate(req.user.id, estateId);
+    if (!canManage && req.user.role !== "admin") return res.status(403).json({ error: "You cannot manage buildings in this property." });
+
+    const reference = buildingReference(req.body?.building_ref || req.body?.block || name);
+    if (!reference) return res.status(400).json({ error: "Enter a valid building name or reference." });
+    const { data, error } = await supabaseAdmin.from("estate_buildings").upsert({
+      estate_id: estateId,
+      building_ref: reference,
+      name,
+      block: String(req.body?.block || "").trim() || null,
+      floors: req.body?.floors === "" || req.body?.floors == null ? null : Number(req.body.floors),
+      unit_count: req.body?.unit_count === "" || req.body?.unit_count == null ? 0 : Number(req.body.unit_count),
+      building_type: String(req.body?.building_type || "residential_block").trim(),
+      status: "active",
+      metadata: { created_from: "facility_property_onboarding" },
+      updated_at: new Date().toISOString(),
+    } as any, { onConflict: "estate_id,building_ref" }).select("*").single();
+    if (error) throw error;
+    return res.json({ message: "Building ready", building: data });
+  } catch (error: any) {
+    console.error("createBuilding error:", error);
+    return res.status(400).json({ error: error?.message === "The selected building is not part of this property." ? error.message : "Unable to create this building." });
+  }
+}
+
+/** GET /facility/estates/:estateId/buildings */
+export async function listEstateBuildings(req: any, res: Response) {
+  try {
+    const estateId = String(req.params?.estateId || "").trim();
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from("estate_memberships")
+      .select("id,status")
+      .eq("estate_id", estateId)
+      .eq("user_id", req.user.id)
+      .maybeSingle();
+    if (membershipError) throw membershipError;
+    if (!membership || membership.status !== "active") return res.status(403).json({ error: "You do not have access to this property." });
+    const { data, error } = await supabaseAdmin.from("estate_buildings").select("*").eq("estate_id", estateId).order("name");
+    if (error) throw error;
+    return res.json({ buildings: data || [] });
+  } catch (error) {
+    console.error("listEstateBuildings error:", error);
+    return res.status(500).json({ error: "Unable to load buildings right now." });
+  }
+}
+
 /**
  * POST /facility/homes
  */
@@ -246,6 +321,7 @@ export async function createHome(req: any, res: Response) {
   try {
     const {
       estate_id,
+      building_id,
       name,
       unit,
       block,
@@ -270,11 +346,13 @@ export async function createHome(req: any, res: Response) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
+    const building = await resolveEstateBuilding(String(estate_id), building_id);
     const home = await insertWithSchemaFallback<any>("homes", {
       estate_id,
+      building_id: building?.id || null,
       name,
       unit: unit || null,
-      block: block || null,
+      block: block || building?.block || building?.name || null,
       description: description || null,
       type: type || "home",
       resident_id: resident_id || null,
@@ -385,6 +463,7 @@ export async function updateHome(req: any, res: Response) {
       lng,
       resident_id,
       service_bindings,
+      building_id,
     } = req.body || {};
 
     if (!homeId) return res.status(400).json({ error: "homeId is required" });
@@ -403,10 +482,12 @@ export async function updateHome(req: any, res: Response) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
+    const building = building_id === undefined ? undefined : await resolveEstateBuilding(String(existing.estate_id), building_id);
     const patch = compact({
+      building_id: building_id === undefined ? undefined : building?.id || null,
       name: name === undefined ? undefined : String(name || "").trim() || null,
       unit: unit === undefined ? undefined : String(unit || "").trim() || null,
-      block: block === undefined ? undefined : String(block || "").trim() || null,
+      block: block === undefined ? (building ? building.block || building.name : undefined) : String(block || "").trim() || null,
       description: description === undefined ? undefined : String(description || "").trim() || null,
       electricity_meter:
         electricity_meter === undefined ? undefined : String(electricity_meter || "").trim() || null,
@@ -505,12 +586,14 @@ export async function listEstateHomes(req: any, res: Response) {
 }
 
 async function loadEstateStructure(estateId: string, includeInviteRows = false) {
-  const [{ data: estate, error: estateError }, homesResult] = await Promise.all([
+  const [{ data: estate, error: estateError }, homesResult, buildingsResult] = await Promise.all([
     supabaseAdmin.from("estates").select("id, name").eq("id", estateId).maybeSingle(),
     supabaseAdmin.from("homes").select("*").eq("estate_id", estateId).order("created_at", { ascending: false }),
+    supabaseAdmin.from("estate_buildings").select("*").eq("estate_id", estateId).order("name"),
   ]);
   if (estateError) throw new Error(estateError.message);
   if (homesResult.error) throw new Error(homesResult.error.message);
+  if (buildingsResult.error) throw new Error(buildingsResult.error.message);
 
   const homes = homesResult.data || [];
   const homeIds = homes.map((home: any) => String(home.id)).filter(Boolean);
@@ -596,12 +679,14 @@ async function loadEstateStructure(estateId: string, includeInviteRows = false) 
 
   return {
     estate: estate || { id: estateId, name: "Estate" },
+    buildings: buildingsResult.data || [],
     homes: enrichedHomes,
     invitations: includeInviteRows
       ? rows.invites.map((invite) => ({ ...invite, lifecycle_status: inviteLifecycleStatus(invite) }))
       : [],
     summary: {
       homes: enrichedHomes.length,
+      buildings: (buildingsResult.data || []).length,
       occupied_homes: enrichedHomes.filter((home) => home.occupancy_status === "occupied").length,
       vacant_homes: enrichedHomes.filter((home) => home.occupancy_status === "vacant").length,
       pending_activation_homes: enrichedHomes.filter((home) => home.occupancy_status === "pending_activation").length,
