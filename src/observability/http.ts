@@ -7,6 +7,7 @@ import { runtimeHealthRegistry } from "./runtimeHealth";
 import { providerHealthRegistry } from "./providerHealth";
 import { redis } from "../config/redis";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { startRequestStageTiming } from "./requestStageTiming";
 
 declare global {
   namespace Express {
@@ -24,6 +25,7 @@ function value(input: unknown) {
 }
 
 export function requestContextMiddleware(req: Request, res: Response, next: NextFunction) {
+  startRequestStageTiming(req);
   const requestId = value(req.headers["x-request-id"]) || randomUUID();
   const correlationId = value(req.headers["x-correlation-id"]) || requestId;
   const runtimeId = value(req.headers["x-runtime-id"]) || randomUUID();

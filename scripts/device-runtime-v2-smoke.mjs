@@ -14,6 +14,7 @@ let now = Date.parse("2026-07-16T10:00:00.000Z");
 let providerReads = 0;
 let activeReads = 0;
 let peakReads = 0;
+let snapshotLoads = 0;
 const persisted = [];
 const broadcasts = [];
 const snapshotRows = new Map();
@@ -42,7 +43,10 @@ snapshotRows.set("device-1", {
 const runtime = new DeviceRuntimeStateService({
   now: () => now,
   resolveDevice: async (deviceId) => devices.find((device) => device.id === deviceId) || null,
-  loadSnapshots: async (deviceIds) => deviceIds.map((id) => snapshotRows.get(id)).filter(Boolean),
+  loadSnapshots: async (deviceIds) => {
+    snapshotLoads += 1;
+    return deviceIds.map((id) => snapshotRows.get(id)).filter(Boolean);
+  },
   readProviderState: async (device) => {
     providerReads += 1;
     activeReads += 1;
@@ -72,6 +76,7 @@ const runtime = new DeviceRuntimeStateService({
 const hydrated = await runtime.getOrHydrate(devices[0]);
 check(hydrated?.freshness === "fresh", "persistent snapshot hydrates into fresh runtime cache");
 check(providerReads === 0, "cache hydration performs no provider request");
+check(snapshotLoads === 1, "cold runtime hydration uses one batched snapshot query");
 
 now += 11_000;
 const stale = runtime.get("device-1");
@@ -95,12 +100,14 @@ check(peakReads <= 5, "provider refresh queue enforces concurrency five");
 check(runtime.stats().refresh_queue.peak === 5, "refresh queue reaches but does not exceed configured concurrency");
 
 const dashboardStarted = performance.now();
+const snapshotLoadsBeforeDashboard = snapshotLoads;
 await runtime.hydrateMany(devices);
 const dashboard = devices.map((device) => runtime.get(device.id));
 const dashboardLatency = performance.now() - dashboardStarted;
 check(dashboard.every(Boolean), "dashboard runtime returns cached summaries for all devices");
 check(dashboardLatency < 300, "cached dashboard assembly completes under 300ms");
 check(providerReads === beforeBatchReads + 11, "dashboard runtime performs no provider requests");
+check(snapshotLoads - snapshotLoadsBeforeDashboard <= 1, "dashboard runtime avoids N+1 snapshot queries");
 
 runtime.markDirty("device-1");
 const dirty = runtime.get("device-1");

@@ -100,6 +100,37 @@ function uniqueLower(values: Array<any>) {
   return Array.from(new Set(values.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean)));
 }
 
+const INTERNAL_CAPABILITY_CODES = new Set([
+  "online",
+  "is_online",
+  "connected",
+  "__raw",
+  "normalized_state",
+  "provider_health",
+  "health_status",
+  "primary_state",
+  "telemetry_summary",
+  "activity_summary",
+  "supported_controls",
+  "control_profile",
+  "device_family",
+  "device_type",
+  "capability_codes",
+  "channel_definitions",
+  "switch",
+  "kg",
+  "wnykq",
+  "infrared_tv",
+]);
+
+export function sanitizePublicCapabilityCodes(values: Array<unknown>) {
+  return uniqueLower(values)
+    .filter((code) => !INTERNAL_CAPABILITY_CODES.has(code))
+    .filter((code) => !code.startsWith("_oyi_") && !code.startsWith("__"))
+    .filter((code) => !/^(provider|runtime|health|normalized|primary|activity|telemetry)[_.-]/.test(code))
+    .filter((code) => /^[a-z0-9_+./:-]+$/.test(code));
+}
+
 function tuyaCategoryFamily(value: unknown) {
   const raw = String(value || "").toLowerCase().trim();
   const map: Record<string, string> = {
@@ -162,13 +193,6 @@ function capabilityCodes(input: { state?: AnyRecord | null; functions?: Array<{ 
   const extra = [
     ...(Array.isArray(metadata.capabilities) ? metadata.capabilities : []),
     ...(Array.isArray(metadata.supported_controls) ? metadata.supported_controls : []),
-    metadata.control_profile,
-    metadata.device_family,
-    metadata.device_type,
-    metadata.product_name,
-    metadata.model,
-    input.device?.category,
-    input.device?.type,
   ];
   return uniqueLower([...statusCodes, ...functionCodes, ...extra]);
 }
@@ -454,6 +478,7 @@ export function enrichDeviceProviderState(input: {
   const deviceFamily = inferDeviceFamily(device, metadata, codes);
   const controlProfile = inferControlProfile(deviceFamily, codes);
   const supportedControls = inferSupportedControls(deviceFamily, codes);
+  const publicCapabilityCodes = sanitizePublicCapabilityCodes(codes);
   const channelDefinitions = deriveChannelDefinitions({ codes, normalized, rawState, metadata, deviceFamily });
   const primaryState = inferPrimaryState(normalized, deviceFamily);
   const healthStatus = inferHealthStatus(normalized);
@@ -477,7 +502,7 @@ export function enrichDeviceProviderState(input: {
     health_status: healthStatus,
     telemetry_summary: telemetrySummary,
     supported_controls: supportedControls,
-    capability_codes: codes,
+    capability_codes: publicCapabilityCodes,
     channel_definitions: channelDefinitions,
     control_profile: controlProfile,
     device_type: text(metadata.device_type, metadata.raw?.category, device.type, device.category, metadata.product_name, deviceFamily) || "device",
@@ -571,10 +596,11 @@ export function summarizeDeviceFrontendContract(device: AnyRecord, stateRow?: An
     provider: device?.provider || device?.vendor,
     adapter: device?.adapter || device?.vendor,
   });
+  const publicCapabilityCodes = sanitizePublicCapabilityCodes(enriched.capability_codes || []);
   return {
     state,
     normalized_state: enriched.normalized_state,
-    capabilities: Array.from(new Set([...(Array.isArray(device?.capabilities) ? device.capabilities : []), ...enriched.capability_codes])),
+    capabilities: Array.from(new Set([...(Array.isArray(device?.capabilities) ? device.capabilities : []), ...publicCapabilityCodes])),
     supported_controls: enriched.supported_controls,
     control_profile: enriched.control_profile,
     channel_definitions: enriched.channel_definitions,
@@ -586,6 +612,6 @@ export function summarizeDeviceFrontendContract(device: AnyRecord, stateRow?: An
     device_type: enriched.device_type,
     last_signal: enriched.activity_summary,
     activity_summary: enriched.activity_summary,
-    capability_codes: enriched.capability_codes,
+    capability_codes: publicCapabilityCodes,
   };
 }

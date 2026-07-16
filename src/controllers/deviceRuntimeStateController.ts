@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
 import { logger } from "../observability/logger";
 import { sendPublicApiError } from "../services/publicApi";
+import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeRequestStageSync } from "../observability/requestStageTiming";
 
 const ESTATE_WIDE_ROLES = new Set(["admin", "manager", "estate_admin", "facility_admin", "facility_manager", "operator"]);
 
@@ -31,14 +32,15 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
     if (!estateWide) query = query.eq("home_id", activeHomeId);
     else if (requestedHomeId) query = query.eq("home_id", requestedHomeId);
 
-    const { data, error } = await query;
+    const { data, error } = await timeRequestStage(req, "runtime_registry", async () => await query);
     if (error) throw error;
     const devices = data || [];
-    await deviceRuntimeStateService.hydrateMany(devices);
+    const cacheMisses = devices.filter((device: any) => !deviceRuntimeStateService.has(String(device.id))).length;
+    await timeRequestStage(req, "runtime_snapshot_batch", () => deviceRuntimeStateService.hydrateMany(devices));
 
     const expired: any[] = [];
     const stale: any[] = [];
-    const runtimeDevices = devices.map((device: any) => {
+    const runtimeDevices = timeRequestStageSync(req, "runtime_frontend_contracts", () => devices.map((device: any) => {
       const runtime = deviceRuntimeStateService.get(String(device.id));
       if (!runtime || runtime.freshness === "expired" || runtime.dirty) expired.push(device);
       else if (runtime.stale) stale.push(device);
@@ -62,6 +64,8 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
         retry_after: runtime?.retry_after || null,
         last_successful_refresh: runtime?.last_successful_refresh || null,
         supported_controls: summary?.supported_controls || [],
+        capabilities: summary?.capabilities || device.capabilities || [],
+        channel_definitions: summary?.channel_definitions || [],
         control_profile: summary?.control_profile || device.metadata?.control_profile || "generic",
         device_family: summary?.device_family || device.metadata?.device_family || "unknown",
         telemetry_summary: summary?.telemetry_summary || {},
@@ -75,19 +79,40 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
         freshness: runtime?.freshness || "expired",
         synchronizing: !runtime,
       };
-    });
+    }));
 
-    if (expired.length) void deviceRuntimeStateService.refreshMany(expired, "high", "runtime_dashboard_expired");
-    if (stale.length) void deviceRuntimeStateService.refreshMany(stale, "normal", "runtime_dashboard_stale");
+    if (expired.length || stale.length) {
+      setImmediate(() => {
+        if (expired.length) void deviceRuntimeStateService.refreshMany(expired, "high", "runtime_dashboard_expired");
+        if (stale.length) void deviceRuntimeStateService.refreshMany(stale, "normal", "runtime_dashboard_stale");
+      });
+    }
 
-    return res.json({
+    const body = {
       devices: runtimeDevices,
       count: runtimeDevices.length,
       generated_at: new Date().toISOString(),
       source: "oyi_device_runtime_v2",
       provider_requests: 0,
       runtime: deviceRuntimeStateService.stats(),
+    };
+    const serialized = timeRequestStageSync(req, "serialization", () => JSON.stringify(body));
+    exposeServerTiming(req, res);
+    const timing = requestStageTimingSnapshot(req);
+    logger.info("device_runtime_dashboard_timing", {
+      estate_id: estateId,
+      home_id: requestedHomeId || activeHomeId || null,
+      device_count: devices.length,
+      memory_hits: devices.length - cacheMisses,
+      snapshot_cache_misses: cacheMisses,
+      database_round_trips: 1 + (cacheMisses ? 1 : 0),
+      provider_requests: 0,
+      response_bytes: Buffer.byteLength(serialized),
+      total_ms: timing.total_ms,
+      stages: timing.stages,
     });
+    res.type("application/json");
+    return res.send(serialized);
   } catch (error) {
     logger.error("device_runtime_dashboard_failed", {
       error,

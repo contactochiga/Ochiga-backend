@@ -1,21 +1,69 @@
-import { Response } from "express";
+import type { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { loadDeviceIntelligenceContext } from "../services/deviceIntelligenceService";
 import { buildDeviceTimeline } from "../services/deviceRuntimeService";
 import { deviceRuntimeStateService, type DeviceRuntimeSnapshot } from "../services/deviceRuntimeStateService";
 import { logger } from "../observability/logger";
+import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeRequestStageSync } from "../observability/requestStageTiming";
 import { sendPublicApiError } from "../services/publicApi";
+
+const DEVICE_SELECT = "id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,external_id,vendor,provider,adapter,online,status,type,category,capabilities,metadata,last_seen_at,last_event_at,updated_at";
+const SNAPSHOT_SELECT = "device_states(device_id,status,last_seen,updated_at)";
+
+type StateIncludes = {
+  intelligence: boolean;
+  timeline: boolean;
+};
+
+type DeviceStateControllerDependencies = {
+  runtime: Pick<typeof deviceRuntimeStateService, "has" | "get" | "hydrateSnapshot" | "shouldRefresh" | "scheduleRefresh">;
+  findDevice: (input: { rawId: string; estateId: string; includeSnapshot: boolean }) => Promise<{
+    device: Record<string, any> | null;
+    snapshot: Record<string, any> | null;
+  }>;
+  loadIntelligence: typeof loadDeviceIntelligenceContext;
+  buildTimeline: typeof buildDeviceTimeline;
+  defer: (operation: () => void) => void;
+};
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function stateResponse(device: any, runtime: DeviceRuntimeSnapshot | null, intelligence: any) {
+export function parseDeviceStateIncludes(value: unknown): StateIncludes {
+  const values = new Set(String(value || "").split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean));
+  const all = values.has("all");
+  return {
+    intelligence: all || values.has("intelligence"),
+    timeline: all || values.has("timeline"),
+  };
+}
+
+function relatedSnapshot(value: unknown) {
+  if (Array.isArray(value)) return value[0] || null;
+  return value && typeof value === "object" ? value as Record<string, any> : null;
+}
+
+async function findDevice(input: { rawId: string; estateId: string; includeSnapshot: boolean }) {
+  const selection = input.includeSnapshot ? `${DEVICE_SELECT},${SNAPSHOT_SELECT}` : DEVICE_SELECT;
+  let query = supabaseAdmin.from("devices").select(selection).eq("estate_id", input.estateId);
+  query = isUuid(input.rawId) ? query.eq("id", input.rawId) : query.eq("external_id", input.rawId);
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  if (!data) return { device: null, snapshot: null };
+  const { device_states: stateRelation, ...device } = data as Record<string, any>;
+  return { device, snapshot: relatedSnapshot(stateRelation) };
+}
+
+export function buildDeviceStateResponse(input: {
+  device: Record<string, any>;
+  runtime: DeviceRuntimeSnapshot | null;
+  intelligence?: any;
+  timeline?: any;
+}) {
+  const { device, runtime, intelligence, timeline } = input;
   const summary = runtime?.summary || null;
   const state = runtime?.state || {};
-  const stateRow = runtime
-    ? { status: state, last_seen: runtime.last_refresh, updated_at: runtime.runtime_timestamp }
-    : null;
   return {
     deviceId: device.id,
     device_id: device.id,
@@ -51,74 +99,128 @@ function stateResponse(device: any, runtime: DeviceRuntimeSnapshot | null, intel
     freshness: runtime?.freshness || "expired",
     provider_latency_ms: runtime?.provider_latency_ms || null,
     dirty: runtime?.dirty ?? true,
-    timeline: buildDeviceTimeline(device, stateRow),
-    memory_summary: intelligence?.memory_summary || null,
-    relationships: intelligence?.relationships || null,
-    predictive_findings: intelligence?.predictive_findings || [],
-    recent_executions: intelligence?.recent_executions || [],
-    active_scenes: intelligence?.active_scenes || [],
-    active_automations: intelligence?.active_automations || [],
-    conversation_context: intelligence?.conversation_context || null,
+    ...(timeline !== undefined ? { timeline } : {}),
+    ...(intelligence !== undefined ? {
+      memory_summary: intelligence?.memory_summary || null,
+      relationships: intelligence?.relationships || null,
+      predictive_findings: intelligence?.predictive_findings || [],
+      recent_executions: intelligence?.recent_executions || [],
+      active_scenes: intelligence?.active_scenes || [],
+      active_automations: intelligence?.active_automations || [],
+      conversation_context: intelligence?.conversation_context || null,
+    } : {}),
     source: runtime?.source || "runtime_pending",
     synchronizing: !runtime,
   };
 }
 
-export async function getDeviceState(req: any, res: Response) {
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
-  res.setHeader("Surrogate-Control", "no-store");
-  res.removeHeader("ETag");
-  res.removeHeader("Last-Modified");
+const defaultDependencies: DeviceStateControllerDependencies = {
+  runtime: deviceRuntimeStateService,
+  findDevice,
+  loadIntelligence: loadDeviceIntelligenceContext,
+  buildTimeline: buildDeviceTimeline,
+  defer: (operation) => setImmediate(operation),
+};
 
-  const rawId = String(req.params.deviceId || "").trim();
-  const estateId = req.oisContext?.estate_id || req.user?.estate_id || null;
-  const homeId = req.oisContext?.home_id || req.user?.home_id || null;
-  try {
-    if (!estateId) return res.status(400).json({ error: "User has no estate" });
-    if (!rawId) return res.status(400).json({ error: "Missing deviceId" });
+export function createGetDeviceState(overrides: Partial<DeviceStateControllerDependencies> = {}) {
+  const dependencies = { ...defaultDependencies, ...overrides };
+  return async function getDeviceStateHandler(req: Request, res: Response) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+    res.removeHeader("ETag");
+    res.removeHeader("Last-Modified");
 
-    let query = supabaseAdmin
-      .from("devices")
-      .select("id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,external_id,vendor,provider,adapter,online,status,type,category,capabilities,metadata,last_seen_at,last_event_at,updated_at")
-      .eq("estate_id", estateId);
-    query = isUuid(rawId) ? query.eq("id", rawId) : query.eq("external_id", rawId);
-    const { data: device, error } = await query.maybeSingle();
-    if (error) throw error;
-    if (!device?.id) return res.status(404).json({ error: "Device not found" });
-    if (homeId && String(device.home_id || "") !== String(homeId)) {
-      return res.status(403).json({ error: "This device is not assigned to your current home." });
-    }
+    const rawId = String(req.params.deviceId || "").trim();
+    const estateId = req.oisContext?.estate_id || req.user?.estate_id || null;
+    const homeId = req.oisContext?.home_id || req.user?.home_id || null;
+    const includes = parseDeviceStateIncludes(req.query.include);
+    let stateDbRoundTrips = 0;
+    let snapshotIncluded = false;
+    let cacheSource = "miss";
 
-    const runtime = await deviceRuntimeStateService.getOrHydrate(device);
-    if (deviceRuntimeStateService.shouldRefresh(runtime)) {
-      deviceRuntimeStateService.scheduleRefresh(device, {
-        priority: !runtime || runtime.freshness === "expired" ? "high" : "normal",
-        reason: "device_opened",
+    try {
+      if (!estateId) return res.status(400).json({ error: "User has no estate" });
+      if (!rawId) return res.status(400).json({ error: "Missing deviceId" });
+
+      const warmCandidate = isUuid(rawId) && dependencies.runtime.has(rawId);
+      snapshotIncluded = !warmCandidate;
+      const resolved = await timeRequestStage(req, "device_resolution", async () => {
+        stateDbRoundTrips += 1;
+        return dependencies.findDevice({ rawId, estateId, includeSnapshot: snapshotIncluded });
       });
+      const device = resolved.device;
+      if (!device?.id) return res.status(404).json({ error: "Device not found" });
+      if (homeId && String(device.home_id || "") !== String(homeId)) {
+        return res.status(403).json({ error: "This device is not assigned to your current home." });
+      }
+
+      let runtime = timeRequestStageSync(req, "runtime_memory", () => dependencies.runtime.get(String(device.id)));
+      if (runtime) {
+        cacheSource = "memory";
+      } else if (resolved.snapshot) {
+        runtime = timeRequestStageSync(req, "snapshot_hydration", () => dependencies.runtime.hydrateSnapshot(device, resolved.snapshot));
+        cacheSource = runtime ? "persistent_snapshot" : "miss";
+      }
+
+      let intelligence: any = undefined;
+      if (includes.intelligence && runtime) {
+        const stateRow = { status: runtime.state, last_seen: runtime.last_refresh, updated_at: runtime.runtime_timestamp };
+        intelligence = await timeRequestStage(req, "intelligence", () => dependencies.loadIntelligence({ device, stateRow }).catch(() => null));
+        stateDbRoundTrips += device.parent_device_id ? 6 : 5;
+      }
+
+      const timeline = includes.timeline
+        ? timeRequestStageSync(req, "timeline", () => dependencies.buildTimeline(device, runtime
+          ? { status: runtime.state, last_seen: runtime.last_refresh, updated_at: runtime.runtime_timestamp }
+          : null))
+        : undefined;
+
+      const body = timeRequestStageSync(req, "frontend_contract", () => buildDeviceStateResponse({ device, runtime, intelligence, timeline }));
+      const serialized = timeRequestStageSync(req, "serialization", () => JSON.stringify(body));
+
+      if (dependencies.runtime.shouldRefresh(runtime)) {
+        dependencies.defer(() => dependencies.runtime.scheduleRefresh(device, {
+          priority: !runtime || runtime.freshness === "expired" ? "high" : "normal",
+          reason: "device_opened",
+        }));
+      }
+
+      exposeServerTiming(req, res);
+      const timing = requestStageTimingSnapshot(req);
+      logger.info("device_runtime_state_read_timing", {
+        device_id: String(device.id),
+        estate_id: estateId,
+        home_id: homeId,
+        cache_source: cacheSource,
+        snapshot_joined: snapshotIncluded,
+        include_intelligence: includes.intelligence,
+        include_timeline: includes.timeline,
+        state_path_db_round_trips: stateDbRoundTrips,
+        response_bytes: Buffer.byteLength(serialized),
+        refresh_deferred: dependencies.runtime.shouldRefresh(runtime),
+        total_ms: timing.total_ms,
+        stages: timing.stages,
+      });
+      res.type("application/json");
+      return res.send(serialized);
+    } catch (error) {
+      logger.error("device_runtime_state_request_failed", {
+        error,
+        device_ref: rawId || null,
+        estate_id: estateId,
+        home_id: homeId,
+        stages: requestStageTimingSnapshot(req).stages,
+      });
+      return sendPublicApiError(
+        res,
+        error,
+        { statusCode: 503, code: "device_runtime_unavailable", message: "Device state is temporarily unavailable." },
+        { operation: "devices.state.runtime", device_ref: rawId, estate_id: estateId, home_id: homeId },
+      );
     }
-
-    const intelligence = runtime
-      ? await loadDeviceIntelligenceContext({
-          device,
-          stateRow: { status: runtime.state, last_seen: runtime.last_refresh, updated_at: runtime.runtime_timestamp },
-        }).catch(() => null)
-      : null;
-
-    return res.json(stateResponse(device, runtime, intelligence));
-  } catch (error) {
-    logger.error("device_runtime_state_request_failed", {
-      error,
-      device_ref: rawId || null,
-      estate_id: estateId,
-      home_id: homeId,
-    });
-    return sendPublicApiError(
-      res,
-      error,
-      { statusCode: 503, code: "device_runtime_unavailable", message: "Device state is temporarily unavailable." },
-      { operation: "devices.state.runtime", device_ref: rawId, estate_id: estateId, home_id: homeId },
-    );
-  }
+  };
 }
+
+export const getDeviceState = createGetDeviceState();

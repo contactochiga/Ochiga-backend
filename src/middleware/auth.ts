@@ -5,6 +5,7 @@ import { UserRole } from "../types/user";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent, hasPermission, permissionsForRole, type PermissionKey } from "../core/foundation";
 import type { OisContext } from "../types/oisContext";
+import { timeRequestStage } from "../observability/requestStageTiming";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 if (!APP_JWT_SECRET) {
@@ -166,7 +167,7 @@ async function verifyToken(req: Request, res: Response): Promise<AuthUser | null
  * REQUIRE AUTH
  * --------------------------------------------------------- */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const user = await verifyToken(req, res);
+  const user = await timeRequestStage(req, "auth", () => verifyToken(req, res));
   if (!user) return;
   next();
 }

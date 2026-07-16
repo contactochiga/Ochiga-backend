@@ -1,7 +1,7 @@
 // src/routes/devices.ts
 import { Router } from "express";
 import { requireAuth, requirePermission } from "../middleware/auth";
-import { resolveRequestContext } from "../middleware/contextResolver";
+import { resolveDeviceRuntimeContext, resolveRequestContext } from "../middleware/contextResolver";
 import { discoverDevices } from "../controllers/deviceDiscoveryController";
 import { getDeviceState } from "../controllers/deviceStateController";
 import { assignDevices } from "../controllers/deviceAssignController";
@@ -21,7 +21,7 @@ router.post("/assign", requireAuth, requirePermission("devices.control"), assign
 
 // ✅ THIS WAS MISSING (your frontend calls it)
 router.get("/estate/:estateId", requireAuth, resolveRequestContext, requirePermission("devices.read"), getEstateDevices);
-router.get("/runtime", requireAuth, resolveRequestContext, requirePermission("devices.read"), getDeviceRuntimeDashboard);
+router.get("/runtime", requireAuth, resolveDeviceRuntimeContext, requirePermission("devices.read"), getDeviceRuntimeDashboard);
 router.get("/runtime/diagnostics/tuya", requireAuth, resolveRequestContext, requirePermission("devices.read"), getTuyaAuthorizationDiagnostics);
 
 router.patch("/:deviceId/preferences", requireAuth, resolveRequestContext, requirePermission("devices.control"), auditOnSuccess("device.preferences.updated", "device", "deviceId"), async (req, res) => {
@@ -93,6 +93,6 @@ router.get("/home/:homeId/runtime", requireAuth, resolveRequestContext, requireP
 router.get("/:deviceId/ir/profiles", requireAuth, resolveRequestContext, requirePermission("devices.read"), listIrProfiles);
 router.post("/:deviceId/ir/appliances", requireAuth, resolveRequestContext, requirePermission("devices.control"), createIrAppliance);
 router.post("/:deviceId/command", requireAuth, resolveRequestContext, requirePermission("devices.control"), requestDeviceCommand);
-router.get("/:deviceId/state", requireAuth, resolveRequestContext, requirePermission("devices.read"), getDeviceState);
+router.get("/:deviceId/state", requireAuth, resolveDeviceRuntimeContext, requirePermission("devices.read"), getDeviceState);
 
 export default router;

@@ -3,6 +3,7 @@ import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import {
   diffEnrichedDeviceState,
   enrichDeviceProviderState,
+  sanitizePublicCapabilityCodes,
   summarizeDeviceFrontendContract,
 } from "../device/runtime/deviceStateEnrichment";
 import { getIO } from "../realtime/io";
@@ -280,6 +281,10 @@ export class DeviceRuntimeStateService {
     this.scheduler = null;
   }
 
+  has(deviceId: string) {
+    return this.cache.has(String(deviceId));
+  }
+
   get(deviceId: string) {
     const entry = this.cache.get(String(deviceId));
     if (!entry) return null;
@@ -313,6 +318,7 @@ export class DeviceRuntimeStateService {
     });
     const stateWithRuntime = {
       ...enriched,
+      capability_codes: sanitizePublicCapabilityCodes(Array.isArray(enriched.capability_codes) ? enriched.capability_codes : []),
       _oyi_timeline: {
         ...(enriched?._oyi_timeline || {}),
         received_at: enriched?._oyi_timeline?.received_at || runtimeTimestamp,
@@ -376,16 +382,20 @@ export class DeviceRuntimeStateService {
     const deviceMap = new Map(missing.map((device) => [String(device.id), device]));
     for (const row of rows) {
       const device = deviceMap.get(String(row?.device_id || ""));
-      const timestamp = runtimeTimestampFromRow(row);
-      if (!device || !timestamp || !row?.status || typeof row.status !== "object") continue;
-      this.set(device, row.status, {
-        providerTimestamp: providerTimestamp(row.status),
-        runtimeTimestamp: timestamp,
-        lastRefresh: validTimestamp(row?.status?._oyi_runtime?.last_refresh) || timestamp,
-        providerLatencyMs: Number(row?.status?._oyi_runtime?.provider_latency_ms) || null,
-        source: "persistent_snapshot",
-      });
+      if (device) this.hydrateSnapshot(device, row);
     }
+  }
+
+  hydrateSnapshot(device: Record<string, any>, row: Record<string, any> | null | undefined) {
+    const timestamp = runtimeTimestampFromRow(row || {});
+    if (!device?.id || !timestamp || !row?.status || typeof row.status !== "object") return null;
+    return this.set(device, row.status, {
+      providerTimestamp: providerTimestamp(row.status),
+      runtimeTimestamp: timestamp,
+      lastRefresh: validTimestamp(row?.status?._oyi_runtime?.last_refresh) || timestamp,
+      providerLatencyMs: Number(row?.status?._oyi_runtime?.provider_latency_ms) || null,
+      source: "persistent_snapshot",
+    });
   }
 
   async acceptProviderState(device: Record<string, any>, state: Record<string, any>, input: {
