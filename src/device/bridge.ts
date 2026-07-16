@@ -6,14 +6,12 @@ import { emitAuditEvent } from "../core/foundation";
 import { recordDeviceEvent } from "../services/deviceAnalyticsService";
 import { resolveMqttTlsOptions } from "../config/mqttTls";
 
-// ✅ Use IO registry (prevents circular imports)
-import { getIO } from "../realtime/io";
-
 import { logger } from "../observability/logger";
 import { operationalMetrics } from "../observability/metrics";
 import { providerHealthRegistry } from "../observability/providerHealth";
 import { emitOperationalDeviceSignal, isDuplicateDeviceTransition } from "../services/deviceOperationalSignalService";
 import { diffEnrichedDeviceState, enrichDeviceProviderState, summarizeDeviceFrontendContract } from "./runtime/deviceStateEnrichment";
+import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
 
 const MQTT_URL = process.env.MQTT_URL || "";
 const MQTT_USERNAME = process.env.MQTT_USERNAME || undefined;
@@ -185,47 +183,6 @@ async function resolveDeviceForStateEvent(input: {
   return externalMatch || null;
 }
 
-function emitLegacyDeviceUpdate(args: {
-  estateId: string | null;
-  homeId?: string | null;
-  roomId?: string | null;
-  deviceId: string;
-  externalDeviceId?: string | null;
-  state: any;
-  topic: string;
-  source: DeviceStateSource;
-  providerEventId?: string | null;
-  occurredAt?: string;
-  event?: Record<string, any>;
-}) {
-  // ✅ Keep backward compatibility for any existing dashboards listening to device:update
-  const io = getIO();
-  if (!io) return;
-  const payload = {
-    deviceId: args.deviceId,
-    device_id: args.deviceId,
-    external_device_id: args.externalDeviceId || null,
-    estate_id: args.estateId || null,
-    estateId: args.estateId || null,
-    home_id: args.homeId || null,
-    homeId: args.homeId || null,
-    room_id: args.roomId || null,
-    roomId: args.roomId || null,
-    state: args.state,
-    topic: args.topic,
-    source: args.source,
-    provider_event_id: args.providerEventId || null,
-    occurred_at: args.occurredAt || new Date().toISOString(),
-    event: args.event || null,
-  };
-
-  let target = io.to(`device:${args.deviceId}`);
-  if (args.estateId) target = target.to(`estate:${args.estateId}`);
-  if (args.homeId) target = target.to(`home:${args.homeId}`);
-  target.emit("device:update", payload);
-  target.emit("device.status.updated", payload);
-}
-
 export async function initMqttBridge() {
   return new Promise<void>((resolve) => {
     if (!MQTT_URL) {
@@ -298,13 +255,14 @@ export async function initMqttBridge() {
           latency_ms: Date.now() - startedAt,
         });
 
-        const { data: previousState } = await supabaseAdmin
+        const cachedPrevious = deviceRuntimeStateService.get(deviceId);
+        const { data: previousState } = cachedPrevious ? { data: null } : await supabaseAdmin
           .from("device_states")
           .select("status")
           .eq("device_id", deviceId)
           .maybeSingle();
 
-        const previousStatus = previousState?.status || {};
+        const previousStatus = cachedPrevious?.state || previousState?.status || {};
         const persistedStatus = enrichDeviceProviderState({
           state: {
             ...(status && typeof status === "object" ? status : { raw: status }),
@@ -327,18 +285,6 @@ export async function initMqttBridge() {
         });
         const change = diffEnrichedDeviceState(previousStatus, persistedStatus);
         const runtimeSummary = summarizeDeviceFrontendContract(device || {}, { status: persistedStatus, last_seen: occurredAt, updated_at: occurredAt });
-
-        // ✅ Persist state
-        await supabaseAdmin
-          .from("device_states")
-          .upsert(
-            {
-              device_id: deviceId,
-              status: persistedStatus,
-              last_seen: occurredAt,
-            },
-            { onConflict: "device_id" }
-          );
 
         const normalizedEvent = {
           device_id: String(deviceId),
@@ -366,6 +312,25 @@ export async function initMqttBridge() {
             telemetry_summary: runtimeSummary.telemetry_summary,
           },
         };
+
+        await deviceRuntimeStateService.acceptProviderState(
+          device || {
+            id: deviceId,
+            external_id: externalDeviceId,
+            estate_id: estateId,
+            provider: "mqtt",
+            adapter: "mqtt",
+          },
+          persistedStatus,
+          {
+            providerTimestamp: reportedAt,
+            providerLatencyMs: Date.now() - startedAt,
+            source: eventSource,
+            providerEventId: providerEventId || null,
+            event: normalizedEvent,
+            emitSignal: false,
+          },
+        );
 
         const duplicateTransition = change.changed && device?.id
           ? await isDuplicateDeviceTransition({
@@ -476,21 +441,6 @@ export async function initMqttBridge() {
             metadata: normalizedEvent,
           } as any);
         }
-
-        // ✅ 1) Emit legacy websocket event (backwards compatible)
-        emitLegacyDeviceUpdate({
-          estateId,
-          homeId: device?.home_id || null,
-          roomId: device?.room_id || null,
-          deviceId,
-          externalDeviceId,
-          state: persistedStatus,
-          topic,
-          source: eventSource,
-          providerEventId: providerEventId || null,
-          occurredAt,
-          event: normalizedEvent,
-        });
 
         const signalEventType =
           change.changed

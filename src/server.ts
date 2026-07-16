@@ -36,6 +36,7 @@ import { logger } from "./observability/logger";
 import { operationalMetrics } from "./observability/metrics";
 import { runtimeHealthRegistry } from "./observability/runtimeHealth";
 import { socketCorsOptions } from "./config/originPolicy";
+import { deviceRuntimeStateService } from "./services/deviceRuntimeStateService";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -134,6 +135,23 @@ io.on("connection", (socket) => {
       return denySocket(socket, "homes.read", "home", String(homeId || ""));
     }
     socket.join(`home:${homeId}`);
+  });
+
+  socket.on("subscribe:device", async (deviceId: string) => {
+    if (!canUseSocket(socket, "devices.read")) return denySocket(socket, "devices.read", "device", String(deviceId || ""));
+    const { data: device } = await supabaseAdmin
+      .from("devices")
+      .select("id,estate_id,home_id")
+      .eq("id", String(deviceId || ""))
+      .maybeSingle();
+    if (!device?.id) return denySocket(socket, "devices.read", "device", String(deviceId || ""));
+    const user = socket.data.user;
+    const estateAllowed = String(user?.estate_id || "") === String(device.estate_id || "") || canUseSocket(socket, "office.read");
+    const homeAllowed = device.home_id
+      ? await canAccessHomeSocketResource(user, String(device.home_id))
+      : canUseSocket(socket, "devices.control");
+    if (!estateAllowed || !homeAllowed) return denySocket(socket, "devices.read", "device", String(deviceId || ""));
+    socket.join(`device:${device.id}`);
   });
 
   socket.on("subscribe:thread", async (threadId: string) => {
@@ -510,6 +528,7 @@ httpServer.listen(PORT, async () => {
   logger.info("server_listening", { port: PORT });
 
   try {
+    deviceRuntimeStateService.start();
     await CommunityLiveService.init();
     logger.info("community_live_initialized");
 

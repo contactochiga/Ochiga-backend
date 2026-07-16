@@ -190,10 +190,6 @@ export class TuyaAdapter implements DeviceAdapter {
   private schemaCache = new Map<string, DeviceSchema>();
   private deviceMetadataCache = new Map<string, Record<string, any>>();
 
-  // Cache device status briefly (so UI spam doesn’t hammer Tuya)
-  private statusCache = new Map<string, { fetchedAt: number; state: Record<string, any> }>();
-  private readonly STATUS_TTL_MS = 6_000; // 6 seconds is enough for UI refreshes
-
   // refresh schema every 30 minutes (safe)
   private readonly SCHEMA_TTL_MS = 30 * 60 * 1000;
 
@@ -366,11 +362,6 @@ export class TuyaAdapter implements DeviceAdapter {
    */
   async getLiveState(deviceId: string): Promise<Record<string, any>> {
     const startedAt = Date.now();
-    const cached = this.statusCache.get(deviceId);
-    if (cached && Date.now() - cached.fetchedAt < this.STATUS_TTL_MS) {
-      providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "state_cache_hit", wired: true });
-      return cached.state;
-    }
 
     // Optional: schema helps us coerce booleans nicely for switch codes
     let schema: DeviceSchema | null = null;
@@ -435,8 +426,6 @@ export class TuyaAdapter implements DeviceAdapter {
       capability_codes: enriched.capability_codes,
     });
 
-    const packed = { fetchedAt: Date.now(), state: enriched };
-    this.statusCache.set(deviceId, packed);
     operationalMetrics.increment("oyi_provider_state_reads_total", { provider: "tuya" });
     providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "state_read", wired: true });
     return enriched;
@@ -671,8 +660,6 @@ export class TuyaAdapter implements DeviceAdapter {
 
     await this.client.request("POST", `/v1.0/iot-03/devices/${deviceId}/commands`, { commands });
 
-    // Force fresh state on the next read after command execution.
-    this.statusCache.delete(deviceId);
     operationalMetrics.increment("oyi_provider_commands_total", { provider: "tuya" });
     providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "command_executed", wired: true });
   }

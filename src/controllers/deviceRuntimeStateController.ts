@@ -1,0 +1,100 @@
+import type { Request, Response } from "express";
+import { supabaseAdmin } from "../supabase/supabaseClient";
+import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
+import { logger } from "../observability/logger";
+import { sendPublicApiError } from "../services/publicApi";
+
+const ESTATE_WIDE_ROLES = new Set(["admin", "manager", "estate_admin", "facility_admin", "facility_manager", "operator"]);
+
+export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
+  const user: any = req.user;
+  const context: any = (req as any).oisContext || null;
+  const estateId = String(context?.estate_id || user?.estate_id || "").trim();
+  const activeHomeId = String(context?.home_id || user?.home_id || "").trim();
+  try {
+    if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+    if (!estateId) return res.status(400).json({ error: "Active estate context is required" });
+
+    const estateWide = ESTATE_WIDE_ROLES.has(String(user.role || "").toLowerCase());
+    if (!estateWide && !activeHomeId) {
+      return res.status(400).json({ error: "Active home context is required" });
+    }
+
+    let query = supabaseAdmin
+      .from("devices")
+      .select("id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,external_id,vendor,provider,adapter,online,status,type,category,capabilities,metadata,last_seen_at,updated_at")
+      .eq("estate_id", estateId)
+      .order("updated_at", { ascending: false })
+      .limit(2_000);
+
+    const requestedHomeId = String(req.query.home_id || "").trim();
+    if (!estateWide) query = query.eq("home_id", activeHomeId);
+    else if (requestedHomeId) query = query.eq("home_id", requestedHomeId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const devices = data || [];
+    await deviceRuntimeStateService.hydrateMany(devices);
+
+    const expired: any[] = [];
+    const stale: any[] = [];
+    const runtimeDevices = devices.map((device: any) => {
+      const runtime = deviceRuntimeStateService.get(String(device.id));
+      if (!runtime || runtime.freshness === "expired" || runtime.dirty) expired.push(device);
+      else if (runtime.stale) stale.push(device);
+      const summary = runtime?.summary || null;
+      return {
+        device_id: String(device.id),
+        name: String(device.name || "Device"),
+        estate_id: device.estate_id || null,
+        home_id: device.home_id || null,
+        room_id: device.room_id || null,
+        parent_device_id: device.parent_device_id || null,
+        is_virtual: Boolean(device.is_virtual),
+        state: runtime?.state || {},
+        normalized_state: summary?.normalized_state || {},
+        primary_state: summary?.primary_state || "unknown",
+        health_status: summary?.health_status || "unknown",
+        provider_health: summary?.provider_health || "unknown",
+        supported_controls: summary?.supported_controls || [],
+        control_profile: summary?.control_profile || device.metadata?.control_profile || "generic",
+        device_family: summary?.device_family || device.metadata?.device_family || "unknown",
+        telemetry_summary: summary?.telemetry_summary || {},
+        activity_summary: summary?.activity_summary || null,
+        capability_codes: summary?.capability_codes || [],
+        provider_timestamp: runtime?.provider_timestamp || null,
+        runtime_timestamp: runtime?.runtime_timestamp || null,
+        last_refresh: runtime?.last_refresh || null,
+        ttl: runtime?.ttl || 10_000,
+        stale: runtime?.stale ?? true,
+        freshness: runtime?.freshness || "expired",
+        synchronizing: !runtime,
+      };
+    });
+
+    if (expired.length) void deviceRuntimeStateService.refreshMany(expired, "high", "runtime_dashboard_expired");
+    if (stale.length) void deviceRuntimeStateService.refreshMany(stale, "normal", "runtime_dashboard_stale");
+
+    return res.json({
+      devices: runtimeDevices,
+      count: runtimeDevices.length,
+      generated_at: new Date().toISOString(),
+      source: "oyi_device_runtime_v2",
+      provider_requests: 0,
+      runtime: deviceRuntimeStateService.stats(),
+    });
+  } catch (error) {
+    logger.error("device_runtime_dashboard_failed", {
+      error,
+      estate_id: estateId || null,
+      home_id: activeHomeId || null,
+      actor_id: user?.id || null,
+    });
+    return sendPublicApiError(
+      res,
+      error,
+      { statusCode: 503, code: "device_runtime_unavailable", message: "Device runtime is temporarily unavailable." },
+      { operation: "devices.runtime.dashboard", estate_id: estateId, home_id: activeHomeId },
+    );
+  }
+}

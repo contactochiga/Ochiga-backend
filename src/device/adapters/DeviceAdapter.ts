@@ -37,6 +37,9 @@ export interface DeviceAdapter {
     context: AdapterContext
   ): Promise<void>;
 
+  /** Read provider state for synchronization into the canonical Oyi runtime. */
+  getLiveState?(deviceId: string): Promise<Record<string, any>>;
+
   /**
    * Start listening to device events / state changes
    * Adapter MUST emit Signals into Control Plane

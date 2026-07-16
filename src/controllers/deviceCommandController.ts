@@ -7,13 +7,13 @@ import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import { NotificationService } from "../services/NotificationService";
 import { emitAuditEvent } from "../core/foundation";
-import { getIO } from "../realtime/io";
 import type { AuthUser } from "../middleware/auth";
 import { type DeviceRuntimeScope, logDeviceCommandDiagnostic, normalizeDeviceOnlineState, resolveVisibleDevice } from "../services/deviceRuntimeService";
 import { recordDeviceEvent } from "../services/deviceAnalyticsService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { emitOperationalDeviceSignal } from "../services/deviceOperationalSignalService";
 import { enrichDeviceProviderState, summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
+import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
 
 function textFromDevice(device: any) {
   return [
@@ -176,13 +176,6 @@ function normalizeCommand(input: any, device?: any): Record<string, any> {
   return c;
 }
 
-function pickExpectedState(command: Record<string, any>) {
-  if (typeof command?.switch === "boolean") return { key: "switch", value: command.switch };
-  if (typeof command?.power === "boolean") return { key: "power", value: command.power };
-  if (typeof command?.on === "boolean") return { key: "on", value: command.on };
-  return null;
-}
-
 type CommandSource = "app" | "watch" | "scene" | "automation" | "facility";
 
 function commandSourceFor(inputSource: unknown, user: AuthUser): CommandSource {
@@ -194,34 +187,6 @@ function commandSourceFor(inputSource: unknown, user: AuthUser): CommandSource {
   const role = String(user?.role || "").toLowerCase();
   if (/facility|operator|admin|security|maintenance/.test(role)) return "facility";
   return "app";
-}
-
-function emitDeviceStateUpdate(args: {
-  device: any;
-  state: Record<string, any>;
-  source: CommandSource;
-}) {
-  const io = getIO();
-  if (!io || !args.device?.id) return;
-  const payload = {
-    deviceId: String(args.device.id),
-    device_id: String(args.device.id),
-    external_device_id: args.device.external_id || null,
-    estate_id: args.device.estate_id || null,
-    estateId: args.device.estate_id || null,
-    home_id: args.device.home_id || null,
-    homeId: args.device.home_id || null,
-    room_id: args.device.room_id || null,
-    roomId: args.device.room_id || null,
-    state: args.state,
-    source: args.source,
-    occurred_at: new Date().toISOString(),
-  };
-  let target = io.to(`device:${args.device.id}`);
-  if (args.device.estate_id) target = target.to(`estate:${args.device.estate_id}`);
-  if (args.device.home_id) target = target.to(`home:${args.device.home_id}`);
-  target.emit("device:update", payload);
-  target.emit("device.status.updated", payload);
 }
 
 function describeDeviceCommand(deviceName: any, command: Record<string, any>) {
@@ -259,10 +224,6 @@ function pendingConfirmationCopy(name: string) {
     title: `${name} confirmation pending`,
     message: "The provider accepted the command, but Oyi is still waiting for the device to confirm its new state.",
   };
-}
-
-async function delay(ms: number) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function executeDeviceCommandForActor(input: {
@@ -418,82 +379,53 @@ metadata: {
       provider_result: "accepted",
     });
 
-    let verifiedState: Record<string, any> | null = null;
-    const expected = pickExpectedState(normalized);
-    let commandStatus: "executed" | "partial_confirmation" = "executed";
-    let commandSummary = describeDeviceCommand(deviceRow.name, normalized);
-    if (typeof (adapter as any).getLiveState === "function") {
-      await delay(900);
-      try {
-        verifiedState = await (adapter as any).getLiveState(commandDevice.external_id);
-        lifecycle.push(lifecycleStep("state_confirmed", "State confirmation received"));
-      } catch {
-        commandStatus = "partial_confirmation";
-        lifecycle.push(lifecycleStep("partial_confirmation", "Awaiting state confirmation", "The provider accepted the command, but state confirmation is still pending."));
-      }
-      if (expected && verifiedState && expected.key in verifiedState) {
-        const actual = Boolean((verifiedState as any)[expected.key]);
-        if (actual !== Boolean(expected.value)) {
-          commandStatus = "partial_confirmation";
-          lifecycle.push(lifecycleStep("partial_confirmation", "State confirmation pending", "The provider accepted the command, but Oyi could not verify the requested state change yet."));
-        }
-      } else if (!verifiedState) {
-        commandStatus = "partial_confirmation";
-      }
-    } else {
-      commandStatus = "partial_confirmation";
-      lifecycle.push(lifecycleStep("partial_confirmation", "State confirmation pending", "This provider does not support immediate state verification."));
-    }
-
-    const previousStateRow = await supabaseAdmin
-      .from("device_states")
-      .select("status")
-      .eq("device_id", deviceRow.id)
-      .maybeSingle();
-    const previousState = (previousStateRow.data as any)?.status || null;
+    const previousRuntime = await deviceRuntimeStateService.getOrHydrate(deviceRow);
+    const previousState = previousRuntime?.state || null;
     const commandOccurredAt = new Date().toISOString();
-    const persistedState = enrichDeviceProviderState({
-      state: {
-        ...(verifiedState || normalized || {}),
-        last_command: normalized,
-        _oyi_timeline: {
-          received_at: commandOccurredAt,
-          provider_reported_at: null,
-          source: commandSource,
-        },
+    const pendingState: Record<string, any> = {
+      ...(previousState || enrichDeviceProviderState({
+        state: {},
+        metadata: deviceRow?.metadata || {},
+        device: deviceRow,
+        provider: String(commandDevice?.provider || commandDevice?.vendor || "tuya"),
+        adapter: String(commandDevice?.adapter || commandDevice?.vendor || "tuya"),
+      })),
+      last_command: normalized,
+      _oyi_pending_command: {
+        command: normalized,
+        source: commandSource,
+        provider_accepted_at: commandOccurredAt,
+        confirmation: "pending",
       },
-      metadata: commandDevice?.metadata || {},
-      device: {
-        category: commandDevice?.category,
-        type: commandDevice?.type,
-        name: commandDevice?.name,
-        provider: commandDevice?.provider || commandDevice?.vendor || "tuya",
-        adapter: commandDevice?.adapter || commandDevice?.vendor || "tuya",
+      _oyi_timeline: {
+        ...((previousState as any)?._oyi_timeline || {}),
+        received_at: commandOccurredAt,
+        provider_reported_at: previousRuntime?.provider_timestamp || null,
+        source: commandSource,
       },
-      provider: String(commandDevice?.provider || commandDevice?.vendor || "tuya"),
-      adapter: String(commandDevice?.adapter || commandDevice?.vendor || "tuya"),
+    };
+    const persistedState = pendingState;
+    const pendingRuntime = deviceRuntimeStateService.set(deviceRow, persistedState, {
+      providerTimestamp: previousRuntime?.provider_timestamp || null,
+      runtimeTimestamp: commandOccurredAt,
+      lastRefresh: previousRuntime?.last_refresh || commandOccurredAt,
+      providerLatencyMs: previousRuntime?.provider_latency_ms || null,
+      dirty: true,
     });
-    const runtimeSummary = summarizeDeviceFrontendContract(deviceRow || {}, {
-      status: persistedState,
-      last_seen: commandOccurredAt,
-      updated_at: commandOccurredAt,
+    const runtimeSummary = pendingRuntime.summary;
+    const commandStatus = "partial_confirmation" as const;
+    const commandSummary = pendingConfirmationCopy(String(deviceRow.name || "Device"));
+    lifecycle.push(lifecycleStep("partial_confirmation", "State confirmation pending", "The provider accepted the command. Oyi will confirm the device state in the background."));
+    deviceRuntimeStateService.scheduleRefresh({
+      ...commandDevice,
+      id: deviceRow.id,
+      parent_device_id: deviceRow.parent_device_id || null,
+      is_virtual: Boolean(deviceRow.is_virtual),
+    }, {
+      priority: "high",
+      reason: `command_${commandSource}`,
+      delayMs: 900,
     });
-    if (commandStatus === "executed") {
-      lifecycle.push(lifecycleStep("executed", "Execution complete"));
-    } else {
-      commandSummary = pendingConfirmationCopy(String(deviceRow.name || "Device"));
-    }
-    await supabaseAdmin
-      .from("device_states")
-      .upsert(
-        {
-          device_id: deviceRow.id,
-          status: persistedState,
-          last_seen: commandOccurredAt,
-        } as any,
-        { onConflict: "device_id" } as any
-      );
-    emitDeviceStateUpdate({ device: deviceRow, state: persistedState, source: commandSource });
 
     await NotificationService.sendToUser(String(user.id), {
       title: commandSummary.title,
@@ -505,7 +437,7 @@ metadata: {
           estate_id: String(deviceRow.estate_id || ""),
           home_id: String(deviceRow.home_id || ""),
           command: normalized,
-          kind: "device.command.executed",
+          kind: "device.command.requested",
           source: commandSource,
           state: persistedState,
           health_status: runtimeSummary.health_status,
@@ -519,7 +451,7 @@ metadata: {
       actorId: user.id,
       actorEmail: user.email,
       actorRole: user.role,
-      action: "device.command.executed",
+      action: "device.command.provider_accepted",
       resourceType: "device",
       resourceId: deviceRow.id,
       estateId: deviceRow.estate_id,
@@ -535,7 +467,7 @@ metadata: {
       roomId: deviceRow.room_id || null,
       userId: user.id,
       actorId: user.id,
-      eventType: "device.command.executed",
+      eventType: "device.command.requested",
       previousState,
       newState: persistedState,
       source: commandSource,
@@ -557,7 +489,7 @@ metadata: {
     });
 
     await emitOperationalDeviceSignal({
-      eventType: commandStatus === "executed" ? "device.command.executed" : "device.command.requested",
+      eventType: "device.command.requested",
       source: commandSource,
       provider: String(deviceRow?.provider || deviceRow?.vendor || "tuya"),
       adapter: String(deviceRow?.adapter || deviceRow?.vendor || "tuya"),
@@ -604,7 +536,7 @@ metadata: {
 
     return {
       ok: true,
-      status: commandStatus === "executed" ? "command_executed" : "command_partial_confirmation",
+      status: "command_partial_confirmation",
       execution_status: commandStatus,
       device: { id: deviceRow.id, name: deviceRow.name, external_id: commandDevice.external_id, vendor: commandDevice.vendor },
       command: normalized,
