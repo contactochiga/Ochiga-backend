@@ -18,10 +18,13 @@ export interface DeviceCommandRequestedSignal extends BaseSignal {
   type: "device.command.requested";
   deviceId: string;
   command: Record<string, any>;
+
   requestedBy: {
     userId: string;
     role: UserRole;
   };
+
+  deviceScope?: "home" | "room" | "building" | "estate" | "region";
 }
 
 export type DeviceSignal =

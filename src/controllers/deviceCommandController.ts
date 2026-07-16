@@ -323,10 +323,10 @@ export async function executeDeviceCommandForActor(input: {
     deviceId: deviceRef,
     command,
     requestedBy: {
-      userId: user.id,
-      role: user.role,
-    },
-    metadata: {
+  userId: user.id,
+  role: user.role,
+},
+metadata: {
       raw_device_ref: rawId,
       resolved_device_uuid: deviceRow?.id || null,
       source: commandSource,
