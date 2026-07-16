@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
 import { logger } from "../observability/logger";
 import { sendPublicApiError } from "../services/publicApi";
+import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 
 function cleanText(value: any, fallback: string | null = null) {
   const text = String(value ?? "").trim();
@@ -262,6 +263,7 @@ export async function getEstateDevices(req: Request, res: Response) {
     }
 
     let rows = data || [];
+    deviceReadScopeCache.setMany(rows);
     const deviceIds = rows.map((device: any) => String(device?.id || "")).filter(Boolean);
     const stateMap = new Map<string, any>();
     if (deviceIds.length) {

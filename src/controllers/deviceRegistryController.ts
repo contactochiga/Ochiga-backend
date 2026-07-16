@@ -4,6 +4,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent } from "../core/foundation";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
+import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 
 /**
  * Expected "canonical" discovered device shape (from your adapters/types.ts)
@@ -102,6 +103,7 @@ export async function registerDevice(req: any, res: Response) {
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
+    deviceReadScopeCache.invalidate(String(data?.id || ""));
     void emitAuditEvent({
       actorId: req.user?.id,
       actorRole: req.user?.role,
@@ -198,6 +200,7 @@ export async function assignDevice(req: any, res: Response) {
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
+    deviceReadScopeCache.invalidate(String(data?.id || deviceId));
     void emitAuditEvent({
       actorId: req.user?.id,
       actorRole: req.user?.role,

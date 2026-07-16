@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { performance } from "node:perf_hooks";
+import { readFile } from "node:fs/promises";
 
 process.env.SUPABASE_URL ||= "http://127.0.0.1:54321";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "device-fast-state-smoke-service-role-key";
 
 const { createGetDeviceState } = await import("../dist/controllers/deviceStateController.js");
 const { enrichDeviceProviderState } = await import("../dist/device/runtime/deviceStateEnrichment.js");
+const { deviceReadScopeCache } = await import("../dist/services/deviceReadScopeCache.js");
+const deviceRoutesSource = await readFile(new URL("../src/routes/devices.ts", import.meta.url), "utf8");
 
 const checks = [];
 const check = (passed, label) => checks.push([Boolean(passed), label]);
@@ -25,6 +28,15 @@ const device = {
   capabilities: ["switch_1", "countdown_1"],
   metadata: { device_family: "switch", control_profile: "switch" },
 };
+
+deviceReadScopeCache.set(device);
+check(deviceReadScopeCache.get(device.id, device.estate_id)?.id === device.id, "scope cache returns a recently verified device");
+check(deviceReadScopeCache.get(device.id, "another-estate") === null, "scope cache rejects cross-estate reads");
+deviceReadScopeCache.invalidate(device.id);
+check(deviceReadScopeCache.get(device.id, device.estate_id) === null, "assignment invalidation removes cached device scope");
+check(deviceRoutesSource.includes('router.get("/runtime", requireDeviceRuntimeReadAuth'), "runtime dashboard uses the bounded read-auth cache");
+check(deviceRoutesSource.includes('router.get("/:deviceId/state", requireDeviceRuntimeReadAuth'), "state reads use the bounded read-auth cache");
+check(deviceRoutesSource.includes('router.post("/:deviceId/command", requireAuth'), "device commands keep uncached canonical authentication");
 
 const snapshot = {
   device_id: device.id,

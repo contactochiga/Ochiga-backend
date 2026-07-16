@@ -72,7 +72,16 @@ function extractToken(req: Request): string | null {
 /* ---------------------------------------------------------
  * VERIFY TOKEN
  * --------------------------------------------------------- */
-async function hydrateUserContext(decoded: AuthUser): Promise<AuthUser> {
+const RUNTIME_READ_AUTH_CACHE_TTL_MS = 30_000;
+const runtimeReadAuthCache = new Map<string, { user: AuthUser; expires_at: number }>();
+const runtimeReadAuthHydrations = new Map<string, Promise<AuthUser>>();
+
+function runtimeAuthCacheKey(decoded: AuthUser) {
+  const claims = decoded as AuthUser & { iat?: number; session_id?: string };
+  return [claims.id, claims.role, claims.estate_id || "", claims.home_id || "", claims.iat || "", claims.session_id || ""].join(":");
+}
+
+async function loadUserContext(decoded: AuthUser): Promise<AuthUser> {
   if (!decoded?.id) return decoded;
 
   const { data } = await supabaseAdmin
@@ -100,7 +109,30 @@ async function hydrateUserContext(decoded: AuthUser): Promise<AuthUser> {
   };
 }
 
-async function verifyToken(req: Request, res: Response): Promise<AuthUser | null> {
+async function hydrateUserContext(decoded: AuthUser, allowRuntimeReadCache = false): Promise<AuthUser> {
+  if (!allowRuntimeReadCache || !decoded?.id) return loadUserContext(decoded);
+  const key = runtimeAuthCacheKey(decoded);
+  const cached = runtimeReadAuthCache.get(key);
+  if (cached && cached.expires_at > Date.now()) return cached.user;
+  if (cached) runtimeReadAuthCache.delete(key);
+
+  const pending = runtimeReadAuthHydrations.get(key);
+  if (pending) return pending;
+  const hydration = loadUserContext(decoded)
+    .then((user) => {
+      runtimeReadAuthCache.set(key, { user, expires_at: Date.now() + RUNTIME_READ_AUTH_CACHE_TTL_MS });
+      if (runtimeReadAuthCache.size > 10_000) {
+        const oldest = runtimeReadAuthCache.keys().next().value;
+        if (oldest) runtimeReadAuthCache.delete(oldest);
+      }
+      return user;
+    })
+    .finally(() => runtimeReadAuthHydrations.delete(key));
+  runtimeReadAuthHydrations.set(key, hydration);
+  return hydration;
+}
+
+async function verifyToken(req: Request, res: Response, allowRuntimeReadCache = false): Promise<AuthUser | null> {
   try {
     if (!APP_JWT_SECRET) {
       res
@@ -143,7 +175,7 @@ async function verifyToken(req: Request, res: Response): Promise<AuthUser | null
       return null;
     }
 
-    const hydrated = await hydrateUserContext(decoded);
+    const hydrated = await hydrateUserContext(decoded, allowRuntimeReadCache);
     req.user = hydrated;
     return hydrated;
   } catch (err) {
@@ -168,6 +200,14 @@ async function verifyToken(req: Request, res: Response): Promise<AuthUser | null
  * --------------------------------------------------------- */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const user = await timeRequestStage(req, "auth", () => verifyToken(req, res));
+  if (!user) return;
+  next();
+}
+
+// Runtime state and dashboard reads may reuse a recently database-verified actor.
+// Commands and every write route continue through uncached requireAuth.
+export async function requireDeviceRuntimeReadAuth(req: Request, res: Response, next: NextFunction) {
+  const user = await timeRequestStage(req, "auth", () => verifyToken(req, res, true));
   if (!user) return;
   next();
 }

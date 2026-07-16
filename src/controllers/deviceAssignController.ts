@@ -1,6 +1,7 @@
 // src/controllers/deviceAssignController.ts
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 
 function cleanStr(v: any) {
   const s = String(v ?? "").trim();
@@ -245,6 +246,7 @@ export async function assignDevices(req: Request, res: Response) {
       }
       const { data, error } = await supabaseAdmin.from("devices").update(next).eq("id", existing.id).select("*").single();
       if (error) return res.status(500).json({ error: error.message });
+      deviceReadScopeCache.invalidate(String(existing.id));
       assigned.push(data);
     }
     if (pendingInsert.length) {
@@ -255,6 +257,7 @@ export async function assignDevices(req: Request, res: Response) {
       }
       assigned.push(...(data || []));
     }
+    assigned.forEach((device) => deviceReadScopeCache.invalidate(String(device?.id || "")));
 
     return res.json({
       ok: true,

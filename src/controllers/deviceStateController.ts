@@ -6,6 +6,7 @@ import { deviceRuntimeStateService, type DeviceRuntimeSnapshot } from "../servic
 import { logger } from "../observability/logger";
 import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeRequestStageSync } from "../observability/requestStageTiming";
 import { sendPublicApiError } from "../services/publicApi";
+import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 
 const DEVICE_SELECT = "id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,external_id,vendor,provider,adapter,online,status,type,category,capabilities,metadata,last_seen_at,last_event_at,updated_at";
 const SNAPSHOT_SELECT = "device_states(device_id,status,last_seen,updated_at)";
@@ -20,6 +21,8 @@ type DeviceStateControllerDependencies = {
   findDevice: (input: { rawId: string; estateId: string; includeSnapshot: boolean }) => Promise<{
     device: Record<string, any> | null;
     snapshot: Record<string, any> | null;
+    databaseRoundTrips?: number;
+    resolutionSource?: "scope_cache" | "database";
   }>;
   loadIntelligence: typeof loadDeviceIntelligenceContext;
   buildTimeline: typeof buildDeviceTimeline;
@@ -45,14 +48,19 @@ function relatedSnapshot(value: unknown) {
 }
 
 async function findDevice(input: { rawId: string; estateId: string; includeSnapshot: boolean }) {
+  if (!input.includeSnapshot && isUuid(input.rawId)) {
+    const cached = deviceReadScopeCache.get(input.rawId, input.estateId);
+    if (cached) return { device: cached, snapshot: null, databaseRoundTrips: 0, resolutionSource: "scope_cache" as const };
+  }
   const selection = input.includeSnapshot ? `${DEVICE_SELECT},${SNAPSHOT_SELECT}` : DEVICE_SELECT;
   let query = supabaseAdmin.from("devices").select(selection).eq("estate_id", input.estateId);
   query = isUuid(input.rawId) ? query.eq("id", input.rawId) : query.eq("external_id", input.rawId);
   const { data, error } = await query.maybeSingle();
   if (error) throw error;
-  if (!data) return { device: null, snapshot: null };
+  if (!data) return { device: null, snapshot: null, databaseRoundTrips: 1, resolutionSource: "database" as const };
   const { device_states: stateRelation, ...device } = data as Record<string, any>;
-  return { device, snapshot: relatedSnapshot(stateRelation) };
+  deviceReadScopeCache.set(device);
+  return { device, snapshot: relatedSnapshot(stateRelation), databaseRoundTrips: 1, resolutionSource: "database" as const };
 }
 
 export function buildDeviceStateResponse(input: {
@@ -139,6 +147,7 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
     let stateDbRoundTrips = 0;
     let snapshotIncluded = false;
     let cacheSource = "miss";
+    let resolutionSource = "database";
 
     try {
       if (!estateId) return res.status(400).json({ error: "User has no estate" });
@@ -147,9 +156,10 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
       const warmCandidate = isUuid(rawId) && dependencies.runtime.has(rawId);
       snapshotIncluded = !warmCandidate;
       const resolved = await timeRequestStage(req, "device_resolution", async () => {
-        stateDbRoundTrips += 1;
         return dependencies.findDevice({ rawId, estateId, includeSnapshot: snapshotIncluded });
       });
+      stateDbRoundTrips += resolved.databaseRoundTrips ?? 1;
+      resolutionSource = resolved.resolutionSource || "database";
       const device = resolved.device;
       if (!device?.id) return res.status(404).json({ error: "Device not found" });
       if (homeId && String(device.home_id || "") !== String(homeId)) {
@@ -194,6 +204,7 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
         estate_id: estateId,
         home_id: homeId,
         cache_source: cacheSource,
+        resolution_source: resolutionSource,
         snapshot_joined: snapshotIncluded,
         include_intelligence: includes.intelligence,
         include_timeline: includes.timeline,
