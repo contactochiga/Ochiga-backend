@@ -326,6 +326,7 @@ export async function executeDeviceCommandForActor(input: {
   userId: user.id,
   role: user.role,
 },
+deviceScope: deviceRow?.scope || "home",
 metadata: {
       raw_device_ref: rawId,
       resolved_device_uuid: deviceRow?.id || null,
