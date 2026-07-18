@@ -285,6 +285,25 @@ async function readExistingHomeServiceAccounts(homeId: string) {
   return existing;
 }
 
+async function readHomeProvisioningRecord(estateId: string, homeId: string): Promise<ProvisioningInput["homeRecord"]> {
+  const { data, error } = await supabaseAdmin
+    .from("homes")
+    .select("id, estate_id, electricity_meter, water_meter, internet_id")
+    .eq("id", homeId)
+    .eq("estate_id", estateId)
+    .maybeSingle();
+  if (error) {
+    if (tableMissing(error)) return null;
+    throw new Error(error.message);
+  }
+  if (!data?.id) return null;
+  return {
+    electricity_meter: text((data as any).electricity_meter),
+    water_meter: text((data as any).water_meter),
+    internet_id: text((data as any).internet_id),
+  };
+}
+
 export async function provisionHomeServices(input: ProvisioningInput) {
   const estateId = text(input.estateId);
   const homeId = text(input.homeId);
@@ -292,7 +311,8 @@ export async function provisionHomeServices(input: ProvisioningInput) {
 
   const residentId = text(input.residentId);
   const actorId = text(input.actorId);
-  const bindings = normalizeServiceBindings(input.serviceBindings, input.homeRecord);
+  const homeRecord = input.homeRecord || await readHomeProvisioningRecord(estateId, homeId);
+  const bindings = normalizeServiceBindings(input.serviceBindings, homeRecord);
   const existingAccounts = await readExistingHomeServiceAccounts(homeId);
   for (const [serviceKey, existing] of existingAccounts.entries()) {
     if (!bindings[serviceKey]) bindings[serviceKey] = existing;

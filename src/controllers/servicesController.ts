@@ -9,6 +9,7 @@ import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { emitInfrastructureServiceSignal } from "../services/infrastructureServiceSignals";
 import { getInfrastructureServiceProvider, providerTypeForService, type ProviderHealth, type ServiceKey as ProviderServiceKey } from "../services/infrastructureServiceProviders";
+import { logger } from "../observability/logger";
 
 type ServiceKey =
   | "utility_token"
@@ -262,6 +263,32 @@ function tableMissing(error: any) {
     message.includes("relation") && message.includes("does not exist") ||
     message.includes("schema cache")
   );
+}
+
+function servicePublicError(error: any, fallback: string) {
+  const status = Number(error?.statusCode || error?.status || 500);
+  const message = String(error?.message || "");
+  if (status === 401) return { status: 401, code: "service_auth_required", message: "Please sign in again to view your services." };
+  if (status === 403) return { status: 403, code: "service_scope_denied", message: "This account does not have access to these home services." };
+  if (status === 400 && /home/i.test(message)) return { status: 400, code: "home_context_unavailable", message: "Your home context could not be loaded." };
+  if (tableMissing(error)) return { status: 503, code: "service_schema_unavailable", message: "Infrastructure services are temporarily unavailable." };
+  if (/column|constraint|schema cache/i.test(message)) return { status: 503, code: "service_schema_mismatch", message: "Infrastructure services are temporarily unavailable." };
+  return { status: status >= 400 && status < 500 ? status : 500, code: "service_accounts_unavailable", message: fallback };
+}
+
+function serviceErrorResponse(res: Response, error: any, fallback: string, context: Record<string, unknown> = {}) {
+  const publicError = servicePublicError(error, fallback);
+  logger.error("infrastructure_services_request_failed", {
+    ...context,
+    status: publicError.status,
+    code: publicError.code,
+    error,
+  });
+  return res.status(publicError.status).json({
+    ok: false,
+    error: publicError.message,
+    code: publicError.code,
+  });
 }
 
 type ServiceConfigRow = {
@@ -792,6 +819,19 @@ async function readHomeServiceAccounts(homeId: string) {
   return new Map((data || []).map((row: any) => [String(row.service_key || ""), row]));
 }
 
+async function readHomeServiceAccountsSafe(homeId: string, context: Record<string, unknown>) {
+  try {
+    return { accounts: await readHomeServiceAccounts(homeId), error: null as any };
+  } catch (error: any) {
+    logger.error("home_service_accounts_read_failed", {
+      ...context,
+      code: servicePublicError(error, "Infrastructure services are temporarily unavailable.").code,
+      error,
+    });
+    return { accounts: new Map<string, any>(), error };
+  }
+}
+
 async function readEstateServiceCount(estateId: string) {
   const { count, error } = await supabaseAdmin
     .from("estate_services")
@@ -904,13 +944,19 @@ async function listServiceAccountsForScope(input: {
   homeId?: string | null;
   residentId?: string | null;
 }) {
-  const query = supabaseAdmin
+  const fullSelect = "id, estate_id, home_id, service_key, provider, account_ref, meter_id, plan, balance, outstanding, status, due_date, expires_at, linked, metadata, created_at, updated_at";
+  const legacySelect = "id, estate_id, home_id, service_key, provider, account_ref, meter_id, plan, status, linked, metadata, created_at, updated_at";
+  const buildQuery = (select: string) => {
+    const query = supabaseAdmin
     .from("home_service_accounts")
-    .select("id, estate_id, home_id, service_key, provider, account_ref, meter_id, plan, balance, outstanding, status, due_date, expires_at, linked, metadata, created_at, updated_at")
+      .select(select)
     .eq("estate_id", input.estateId)
     .order("updated_at", { ascending: false });
 
-  if (input.homeId) query.eq("home_id", input.homeId);
+    if (input.homeId) query.eq("home_id", input.homeId);
+    return query;
+  };
+  let query = buildQuery(fullSelect);
   if (input.residentId) {
     const { data: assignments, error: assignmentError } = await supabaseAdmin
       .from("home_service_assignments")
@@ -926,7 +972,32 @@ async function listServiceAccountsForScope(input: {
     query.in("home_id", homeIds);
   }
 
-  const { data: accounts, error } = await query;
+  let { data: accounts, error } = await query;
+  if (error && ["balance", "outstanding", "due_date", "expires_at"].some((column) => missingColumn(error, column))) {
+    logger.warn("home_service_accounts_optional_columns_missing", {
+      estate_id: input.estateId,
+      home_id: input.homeId || null,
+      error,
+    });
+    query = buildQuery(legacySelect);
+    if (input.residentId) {
+      const { data: assignments, error: assignmentError } = await supabaseAdmin
+        .from("home_service_assignments")
+        .select("home_id")
+        .eq("estate_id", input.estateId)
+        .eq("user_id", input.residentId);
+      if (assignmentError) {
+        if (tableMissing(assignmentError)) return [];
+        throw new Error(assignmentError.message);
+      }
+      const homeIds = [...new Set((assignments || []).map((row: any) => String(row.home_id || "")).filter(Boolean))];
+      if (!homeIds.length) return [];
+      query.in("home_id", homeIds);
+    }
+    const legacy = await query;
+    accounts = legacy.data as any;
+    error = legacy.error as any;
+  }
   if (error) {
     if (tableMissing(error)) return [];
     throw new Error(error.message);
@@ -1025,14 +1096,53 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
   const estateId = String(home.estate_id || user.estate_id || "").trim();
   if (!estateId) throw Object.assign(new Error("No estate linked to this home"), { statusCode: 400 });
 
-  const [{ configs, usingFallback }, wallet, accounts, facilityCount] = await Promise.all([
-    readServiceConfigsForEstate(estateId),
-    getOrCreateWallet(user.id),
-    readHomeServiceAccounts(String(home.id)),
-    readEstateServiceCount(estateId),
-  ]);
+  const diagnostics: Record<string, any> = {};
+  let configsResult: Awaited<ReturnType<typeof readServiceConfigsForEstate>>;
+  try {
+    configsResult = await readServiceConfigsForEstate(estateId);
+  } catch (error: any) {
+    diagnostics.configs = servicePublicError(error, "Service configuration is temporarily unavailable.").code;
+    logger.error("home_service_registry_config_failed", { estate_id: estateId, home_id: String(home.id), actor_id: String(user.id), error });
+    configsResult = {
+      configs: (Object.keys(SERVICE_CONFIG_DEFAULTS) as ServiceKey[]).map((serviceKey) => normalizeServiceConfig(estateId, serviceKey)),
+      usingFallback: true,
+    };
+  }
+
+  let wallet: any = null;
+  try {
+    wallet = await getOrCreateWallet(user.id);
+  } catch (error: any) {
+    diagnostics.wallet = servicePublicError(error, "Wallet details are temporarily unavailable.").code;
+    logger.error("home_service_registry_wallet_failed", { estate_id: estateId, home_id: String(home.id), actor_id: String(user.id), error });
+  }
+
+  const accountRead = await readHomeServiceAccountsSafe(String(home.id), {
+    estate_id: estateId,
+    home_id: String(home.id),
+    actor_id: String(user.id),
+  });
+  if (accountRead.error) diagnostics.accounts = servicePublicError(accountRead.error, "Service accounts are temporarily unavailable.").code;
+
+  let facilityCount = 0;
+  try {
+    facilityCount = await readEstateServiceCount(estateId);
+  } catch (error: any) {
+    diagnostics.facility_count = servicePublicError(error, "Facility service details are temporarily unavailable.").code;
+  }
+
+  const { configs, usingFallback } = configsResult;
+  const accounts = accountRead.accounts;
   const configByKey = new Map(configs.map((cfg) => [cfg.service_key, cfg]));
-  const paymentsByKey = await findLastServicePayments(String(wallet.id));
+  let paymentsByKey = new Map<string, any>();
+  if (wallet?.id) {
+    try {
+      paymentsByKey = await findLastServicePayments(String(wallet.id));
+    } catch (error: any) {
+      diagnostics.payments = servicePublicError(error, "Service payment history is temporarily unavailable.").code;
+      logger.error("home_service_registry_payments_failed", { estate_id: estateId, home_id: String(home.id), actor_id: String(user.id), error });
+    }
+  }
 
   const configEnabled = (key: ServiceKey) => Boolean(configByKey.get(key)?.active ?? true);
   const lastPaid = (key: ServiceKey) => paymentsByKey.get(key)?.created_at || null;
@@ -1069,6 +1179,7 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
     wallet: {
       balance: Number(wallet?.balance || 0),
       currency: String(wallet?.currency || "NGN"),
+      available: Boolean(wallet?.id),
     },
     electricity: {
       enabled: configEnabled("utility_token"),
@@ -1166,8 +1277,24 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       electricity_meter_present: Boolean(String(home.electricity_meter || "").trim()),
       water_meter_present: Boolean(String(home.water_meter || "").trim()),
       internet_id_present: Boolean(String(home.internet_id || "").trim()),
+      service_account_count: accounts.size,
+      diagnostics,
     };
   }
+
+  logger.info("consumer_services_scope_resolution", {
+    user_id: String(user.id),
+    requested_estate_id: requested?.estateId || null,
+    requested_home_id: requested?.homeId || null,
+    resolved_estate_id: estateId,
+    resolved_home_id: String(home.id),
+    membership_found: true,
+    service_account_count: accounts.size,
+    meter_count: ["utility_token", "water_service", "internet_service", "gas_service"].filter((key) =>
+      Boolean(accountValue(accounts, key as ServiceKey, "meter_id", null) || accountValue(accounts, key as ServiceKey, "account_ref", null))
+    ).length,
+    degraded_sources: Object.keys(diagnostics),
+  });
 
   return response;
 }
@@ -1184,7 +1311,12 @@ export async function getHomeServiceRegistry(req: Request, res: Response) {
     });
     return res.json(registry);
   } catch (e: any) {
-    return res.status(Number(e?.statusCode || 500)).json({ error: e?.message || "Failed to load home service registry" });
+    return serviceErrorResponse(res, e, "Infrastructure services are temporarily unavailable.", {
+      endpoint: "GET /services/home-registry",
+      actor_id: user.id,
+      requested_estate_id: String(req.query.estate_id || "").trim() || null,
+      requested_home_id: String(req.query.home_id || "").trim() || null,
+    });
   }
 }
 
@@ -1539,6 +1671,13 @@ export async function listServiceAccounts(req: Request, res: Response) {
     const canRead = ["admin", "super_admin", "ochiga_admin"].includes(String(user.role || "")) || await assertCanReadEstate(user.id, estateId);
     if (!canRead) return res.status(403).json({ error: "Insufficient permissions" });
     const accounts = await listServiceAccountsForScope({ estateId, homeId, residentId });
+    logger.info("facility_service_accounts_scope_resolution", {
+      user_id: String(user.id),
+      requested_estate_id: estateId,
+      requested_home_id: homeId,
+      requested_resident_id: residentId,
+      service_account_count: accounts.length,
+    });
     return res.json({
       ok: true,
       estate_id: estateId,
@@ -1551,7 +1690,13 @@ export async function listServiceAccounts(req: Request, res: Response) {
       },
     });
   } catch (e: any) {
-    return res.status(500).json({ error: e?.message || "Failed to load service accounts" });
+    return serviceErrorResponse(res, e, "Service accounts are temporarily unavailable.", {
+      endpoint: "GET /services/accounts",
+      actor_id: user.id,
+      requested_estate_id: estateId,
+      requested_home_id: homeId,
+      requested_resident_id: residentId,
+    });
   }
 }
 
@@ -1568,10 +1713,24 @@ export async function listMyServiceAccounts(req: Request, res: Response) {
     const estateId = String(home.estate_id || user.estate_id || "").trim();
     if (!estateId) return res.status(400).json({ error: "No estate linked to this account" });
     const accounts = await listServiceAccountsForScope({ estateId, homeId: String(home.id) });
+    logger.info("consumer_services_scope_resolution", {
+      user_id: String(user.id),
+      requested_estate_id: String(req.query.estate_id || "").trim() || null,
+      requested_home_id: String(req.query.home_id || "").trim() || null,
+      resolved_estate_id: estateId,
+      resolved_home_id: String(home.id),
+      membership_found: true,
+      service_account_count: accounts.length,
+      meter_count: accounts.filter((item: any) => Boolean(item.meter_number || item.account_number || item.identifier)).length,
+    });
     return res.json({ ok: true, estate_id: estateId, home_id: String(home.id), accounts });
   } catch (e: any) {
-    const statusCode = Number(e?.statusCode || 500);
-    return res.status(statusCode).json({ error: statusCode === 403 ? "No access to selected home" : e?.message || "Failed to load resident service accounts" });
+    return serviceErrorResponse(res, e, "Resident service accounts are temporarily unavailable.", {
+      endpoint: "GET /services/accounts/me",
+      actor_id: user.id,
+      requested_estate_id: String(req.query.estate_id || "").trim() || null,
+      requested_home_id: String(req.query.home_id || "").trim() || null,
+    });
   }
 }
 

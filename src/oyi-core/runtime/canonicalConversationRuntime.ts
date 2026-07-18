@@ -1092,9 +1092,10 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
       break;
     }
     case "service_account": {
-      const { data } = await maybeSingle("home_service_accounts", "id,estate_id,home_id,service_type,provider,status,identifier,updated_at", candidate.canonical_id);
+      const { data } = await maybeSingle("home_service_accounts", "id,estate_id,home_id,service_key,provider,status,account_ref,meter_id,updated_at", candidate.canonical_id);
       const row = data as any;
       if (!row?.id) break;
+      const identifier = text(row.meter_id || row.account_ref);
       if (homeScoped && String(row.home_id || "") !== String(homeScoped)) {
         warnings.push("This service account is outside the active home scope.");
         break;
@@ -1102,7 +1103,7 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
       object = {
         object_type: "service_account",
         canonical_id: String(row.id),
-        label: cleanLabel(candidate.label || `${row.service_type || "Service"} account`, "Service account"),
+        label: cleanLabel(candidate.label || `${String(row.service_key || "Service").replace(/_/g, " ")} account`, "Service account"),
         estate_id: String(row.estate_id || estateScoped || ""),
         building_id: null,
         home_id: String(row.home_id || homeScoped || ""),
@@ -1113,7 +1114,7 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
         current_state: text(row.status) || null,
         health: null,
         permissions: basePermissions,
-        relationships: { provider: row.provider || null, identifier: row.identifier || null },
+        relationships: { provider: row.provider || null, identifier },
         evidence_references: [],
         metadata: {},
         freshness: row.updated_at || null,
