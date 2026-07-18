@@ -1,7 +1,6 @@
 // src/controllers/deviceCommandController.ts
 import { Request, Response } from "express";
-import { handleSignal } from "../core/control-plane";
-import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
+import crypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
@@ -10,10 +9,10 @@ import { emitAuditEvent } from "../core/foundation";
 import type { AuthUser } from "../middleware/auth";
 import { type DeviceRuntimeScope, logDeviceCommandDiagnostic, normalizeDeviceOnlineState, resolveVisibleDevice } from "../services/deviceRuntimeService";
 import { recordDeviceEvent } from "../services/deviceAnalyticsService";
-import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { emitOperationalDeviceSignal } from "../services/deviceOperationalSignalService";
 import { enrichDeviceProviderState, summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
 import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
+import { logger } from "../observability/logger";
 
 function textFromDevice(device: any) {
   return [
@@ -92,7 +91,7 @@ function assertDeviceCommandSupported(device: any, command: Record<string, any>)
   const switchPayload = isSwitchPayload(command);
   const summary = summarizeDeviceFrontendContract(device);
 
-  console.log("DEVICE COMMAND DEBUG", {
+  logger.debug("device_command_classification", {
     real_category: device?.metadata?.raw?.category || device?.metadata?.category || device?.category,
     device_family: summary.device_family,
     control_profile: summary.control_profile,
@@ -226,36 +225,35 @@ function pendingConfirmationCopy(name: string) {
   };
 }
 
-export async function executeDeviceCommandForActor(input: {
-  actor: AuthUser;
-  deviceId: string;
+const commandAcceptances = new Map<string, { expiresAt: number; response: Record<string, any> }>();
+const COMMAND_ACCEPTANCE_TTL_MS = 2 * 60_000;
+
+function pruneCommandAcceptances() {
+  const now = Date.now();
+  for (const [key, value] of commandAcceptances.entries()) {
+    if (value.expiresAt <= now) commandAcceptances.delete(key);
+  }
+}
+
+function commandFingerprint(command: Record<string, any>) {
+  return crypto.createHash("sha256").update(JSON.stringify(command || {})).digest("hex").slice(0, 16);
+}
+
+function commandIdempotencyKey(req: Request, user: AuthUser, rawId: string, command: Record<string, any>, source: CommandSource) {
+  const explicit =
+    String(req.headers["idempotency-key"] || req.headers["x-idempotency-key"] || req.body?.idempotency_key || req.body?.command_id || "").trim();
+  if (explicit) return `explicit:${user.id}:${rawId}:${source}:${explicit}`;
+  const shortReplayWindow = Math.floor(Date.now() / 5_000);
+  return `request:${user.id}:${rawId}:${source}:${commandFingerprint(command)}:${shortReplayWindow}`;
+}
+
+async function resolveCommandTarget(input: {
+  user: AuthUser;
+  rawId: string;
   command: Record<string, any>;
-  source?: CommandSource;
   scope?: DeviceRuntimeScope;
-  req?: Request;
 }) {
-  const startedAt = Date.now();
-  const rawId = String(input.deviceId || "").trim();
-  const command = input.command;
-  const user = input.actor;
-  const commandSource = commandSourceFor(input.source, user);
-
-  if (!rawId) throw new Error("deviceId is required");
-  if (!command) throw new Error("command is required");
-  if (!user?.id) throw new Error("Not authenticated");
-
-  const deviceRow: any = await resolveVisibleDevice(user, rawId, input.scope);
-
-  const deviceRef = deviceRow?.id || rawId;
-  logDeviceCommandDiagnostic("device.command.requested", {
-    device_id: rawId,
-    matched_device_id: deviceRow?.id,
-    home_id: user.home_id,
-    estate_id: user.estate_id,
-    normalized_online_state: deviceRow ? normalizeDeviceOnlineState(deviceRow).state : "not_found",
-    command,
-  });
-
+  const deviceRow: any = await resolveVisibleDevice(input.user, input.rawId, input.scope);
   if (!deviceRow) {
     const error: any = new Error("This device is not assigned to your current home.");
     error.statusCode = 403;
@@ -289,50 +287,58 @@ export async function executeDeviceCommandForActor(input: {
     };
   }
 
-  await handleSignal({
-    schemaVersion: SIGNAL_SCHEMA_VERSION,
-    source: "user",
-    type: "device.command.requested",
-    timestamp: new Date().toISOString(),
-    deviceId: deviceRef,
+  if (commandDevice?.vendor === "tuya" || commandDevice?.provider === "tuya" || commandDevice?.adapter === "tuya") {
+    initAdaptersOnce();
+    const adapter = adapterRegistry.get("tuya");
+    if (!adapter) {
+      const error: any = new Error("The connected device provider is temporarily unavailable.");
+      error.statusCode = 503;
+      throw error;
+    }
+  }
+
+  assertDeviceCommandSupported(commandDevice, input.command);
+  return {
+    deviceRow,
+    commandDevice,
+    normalizedCommand: normalizeCommand(input.command, commandDevice),
+  };
+}
+
+export async function executeDeviceCommandForActor(input: {
+  actor: AuthUser;
+  deviceId: string;
+  command: Record<string, any>;
+  source?: CommandSource;
+  scope?: DeviceRuntimeScope;
+  req?: Request;
+}) {
+  const startedAt = Date.now();
+  const rawId = String(input.deviceId || "").trim();
+  const command = input.command;
+  const user = input.actor;
+  const commandSource = commandSourceFor(input.source, user);
+
+  if (!rawId) throw new Error("deviceId is required");
+  if (!command) throw new Error("command is required");
+  if (!user?.id) throw new Error("Not authenticated");
+
+  const { deviceRow, commandDevice, normalizedCommand } = await resolveCommandTarget({
+    user,
+    rawId,
     command,
-    requestedBy: {
-  userId: user.id,
-  role: user.role,
-},
-deviceScope: deviceRow?.scope || "home",
-metadata: {
-      raw_device_ref: rawId,
-      resolved_device_uuid: deviceRow?.id || null,
-      source: commandSource,
-      command_source: commandSource,
-      estate_id: deviceRow?.estate_id || user.estate_id || null,
-      home_id: deviceRow?.home_id || user.home_id || null,
-      room_id: deviceRow?.room_id || null,
-      external_id: deviceRow?.external_id || null,
-      device_name: deviceRow?.name || null,
-      device_type: deviceRow?.type || null,
-      device_category: deviceRow?.category || null,
-      adapter: deviceRow?.adapter || deviceRow?.vendor || "device_adapter",
-      provider: deviceRow?.provider || deviceRow?.vendor || null,
-    },
+    scope: input.scope,
   });
-  void publishSourceIntelligenceEvent({
-    source: commandSource === "facility" ? "facility" : "consumer",
-    surface: commandSource === "facility" ? "facility" : "consumer",
-    event_type: "device.command.requested",
-    category: "device",
-    estate_id: deviceRow?.estate_id || user.estate_id || null,
-    home_id: deviceRow?.home_id || user.home_id || null,
-    actor_id: user.id,
-    entity_type: "device",
-    entity_id: String(deviceRef),
-    entity_label: String(deviceRow?.name || "Device"),
-    severity: "info",
-    title: `${String(deviceRow?.name || "Device")} command requested`,
-    summary: "A confirmed device command is ready for execution.",
-    payload: { command, source: commandSource },
-  }, { source_table: "device_command_requests", source_event_id: `${deviceRef}:${Date.now()}` });
+
+  const deviceRef = deviceRow?.id || rawId;
+  logDeviceCommandDiagnostic("device.command.requested", {
+    device_id: rawId,
+    matched_device_id: deviceRow?.id,
+    home_id: user.home_id,
+    estate_id: user.estate_id,
+    normalized_online_state: deviceRow ? normalizeDeviceOnlineState(deviceRow).state : "not_found",
+    command,
+  });
   void emitAuditEvent({
     actorId: user.id,
     actorEmail: user.email,
@@ -343,7 +349,7 @@ metadata: {
     estateId: deviceRow?.estate_id || user.estate_id,
     homeId: deviceRow?.home_id || user.home_id,
     status: "success",
-    metadata: { command, raw_device_ref: rawId, resolved_device_uuid: deviceRow?.id || null, source: commandSource },
+    metadata: { command: normalizedCommand, raw_device_ref: rawId, resolved_device_uuid: deviceRow?.id || null, source: commandSource },
     req: input.req,
   } as any);
 
@@ -356,8 +362,7 @@ metadata: {
       throw error;
     }
 
-    assertDeviceCommandSupported(commandDevice, command);
-    const normalized = normalizeCommand(command, commandDevice);
+    const normalized = normalizedCommand;
     const lifecycle = [
       lifecycleStep("pending", "Command received"),
       lifecycleStep("dispatched", "Dispatching to provider"),
@@ -367,6 +372,8 @@ metadata: {
       homeId: commandDevice.home_id,
       userId: user.id,
       credentials: {},
+      device: commandDevice,
+      canonicalDevice: deviceRow,
     } as any);
     lifecycle.push(lifecycleStep("provider_accepted", "Provider accepted"));
     logDeviceCommandDiagnostic("device.command.provider", {
@@ -571,6 +578,72 @@ metadata: {
   };
 }
 
+async function emitDeviceCommandFailure(input: {
+  req: Request;
+  user: AuthUser;
+  rawId: string;
+  command: Record<string, any> | null;
+  source: CommandSource;
+  error: any;
+}) {
+  try {
+    await NotificationService.sendToUser(String(input.user.id), {
+      title: "Device command failed",
+      message: "We could not complete your device command.",
+      type: "device",
+      payload: {
+        device_ref: input.rawId || null,
+        command: input.command || null,
+        error: input.error?.message || String(input.error),
+        kind: "device.command.failed",
+      },
+      entityId: input.rawId || undefined,
+    });
+  } catch {}
+
+  const device = await resolveVisibleDevice(input.user, input.rawId, {
+    estateId: (input.req as any).oisContext?.estate_id || input.user.estate_id || null,
+    homeId: (input.req as any).oisContext?.home_id || input.user.home_id || null,
+  }).catch(() => null);
+
+  if (!device?.id) return;
+
+  await emitOperationalDeviceSignal({
+    eventType: "device.command.failed",
+    source: input.source,
+    provider: String(device?.provider || device?.vendor || "device_adapter"),
+    adapter: String(device?.adapter || device?.vendor || "device_adapter"),
+    estateId: device?.estate_id || input.user.estate_id || null,
+    homeId: device?.home_id || input.user.home_id || null,
+    roomId: device?.room_id || null,
+    device: {
+      id: String(device.id),
+      name: String(device.name || "Device"),
+      type: String(device.type || ""),
+      category: String(device.category || ""),
+      external_id: String(device.external_id || ""),
+      vendor: String(device.vendor || ""),
+      adapter: String(device.adapter || device.vendor || "device_adapter"),
+      provider: String(device.provider || device.vendor || "device_adapter"),
+      metadata: device.metadata || {},
+    },
+    previousState: null,
+    newState: null,
+    command: input.command || null,
+    actor: {
+      id: input.user.id,
+      role: input.user.role,
+      name: input.user.username || input.user.email || null,
+      type: /facility|operator|admin|security|maintenance/.test(String(input.user.role || "").toLowerCase()) ? "operator" : "resident",
+    },
+    occurredAt: new Date().toISOString(),
+    extraMetadata: {
+      error: input.error?.message || String(input.error),
+      request_path: input.req.path,
+    },
+  });
+}
+
 export async function requestDeviceCommand(req: Request, res: Response) {
   try {
     const rawId = String(req.params.deviceId || "").trim();
@@ -582,80 +655,78 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     const user = (req as any).user as AuthUser | undefined;
     if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-    const result = await executeDeviceCommandForActor({
-      actor: user,
-      deviceId: rawId,
+    const source = commandSourceFor(req.body?.source || req.body?.command_source, user);
+    const scope = {
+      estateId: (req as any).oisContext?.estate_id || user.estate_id || null,
+      homeId: (req as any).oisContext?.home_id || user.home_id || null,
+    };
+    const key = commandIdempotencyKey(req, user, rawId, command, source);
+    pruneCommandAcceptances();
+    const existing = commandAcceptances.get(key);
+    if (existing && existing.expiresAt > Date.now()) {
+      return res.status(202).json({ ...existing.response, duplicate: true });
+    }
+
+    const target = await resolveCommandTarget({
+      user,
+      rawId,
       command,
-      source: commandSourceFor(req.body?.source || req.body?.command_source, user),
-      scope: {
-        estateId: (req as any).oisContext?.estate_id || user.estate_id || null,
-        homeId: (req as any).oisContext?.home_id || user.home_id || null,
-      },
-      req,
+      scope,
     });
 
-    return res.status(result.status === "command_queued" || result.status === "command_partial_confirmation" ? 202 : 200).json(result);
+    const response = {
+      ok: true,
+      status: "command_accepted",
+      execution_status: "pending",
+      idempotency_key: key,
+      device: {
+        id: target.deviceRow.id,
+        name: target.deviceRow.name,
+        external_id: target.commandDevice.external_id,
+        vendor: target.commandDevice.vendor,
+      },
+      command: target.normalizedCommand,
+      message: `${String(target.deviceRow.name || "Device")} command accepted. Oyi will confirm the device state in the background.`,
+    };
+    commandAcceptances.set(key, { expiresAt: Date.now() + COMMAND_ACCEPTANCE_TTL_MS, response });
+
+    void executeDeviceCommandForActor({
+      actor: user,
+      deviceId: rawId,
+      command: target.normalizedCommand,
+      source,
+      scope,
+      req,
+    }).catch((error) => {
+      logger.error("device_command_background_execution_failed", {
+        error,
+        device_id: rawId,
+        actor_id: user.id,
+        estate_id: scope.estateId,
+        home_id: scope.homeId,
+        idempotency_key: key,
+      });
+      void emitDeviceCommandFailure({ req, user, rawId, command: target.normalizedCommand, source, error }).catch((signalError) => {
+        logger.error("device_command_background_failure_signal_failed", { error: signalError, device_id: rawId, actor_id: user.id });
+      });
+    });
+
+    return res.status(202).json(response);
   } catch (e: any) {
-    console.error("requestDeviceCommand error:", e?.message || e);
+    logger.warn("request_device_command_rejected", { error: e, device_id: req.params.deviceId || null, actor_id: (req as any).user?.id || null });
     const user = (req as any).user;
     const rawId = String(req.params.deviceId || "").trim();
-    const device = user?.id
-      ? await resolveVisibleDevice(user, rawId, {
-          estateId: (req as any).oisContext?.estate_id || user.estate_id || null,
-          homeId: (req as any).oisContext?.home_id || user.home_id || null,
-        }).catch(() => null)
-      : null;
     if (user?.id) {
       try {
-        await NotificationService.sendToUser(String(user.id), {
-          title: "Device command failed",
-          message: "We could not execute your device command.",
-          type: "device",
-          payload: {
-            device_ref: rawId || null,
-            command: req.body?.command || null,
-            error: e?.message || String(e),
-            kind: "device.command.failed",
-          },
-          entityId: rawId || undefined,
+        await emitDeviceCommandFailure({
+          req,
+          user,
+          rawId,
+          command: req.body?.command || null,
+          source: commandSourceFor(req.body?.source || req.body?.command_source, user),
+          error: e,
         });
       } catch {}
-      if (device?.id) {
-        await emitOperationalDeviceSignal({
-          eventType: "device.command.failed",
-          source: commandSourceFor(req.body?.source || req.body?.command_source, user),
-          provider: String(device?.provider || device?.vendor || "device_adapter"),
-          adapter: String(device?.adapter || device?.vendor || "device_adapter"),
-          estateId: device?.estate_id || user.estate_id || null,
-          homeId: device?.home_id || user.home_id || null,
-          roomId: device?.room_id || null,
-          device: {
-            id: String(device.id),
-            name: String(device.name || "Device"),
-            type: String(device.type || ""),
-            category: String(device.category || ""),
-            external_id: String(device.external_id || ""),
-            vendor: String(device.vendor || ""),
-            adapter: String(device.adapter || device.vendor || "device_adapter"),
-            provider: String(device.provider || device.vendor || "device_adapter"),
-            metadata: device.metadata || {},
-          },
-          previousState: null,
-          newState: null,
-          command: req.body?.command || null,
-          actor: {
-            id: user.id,
-            role: user.role,
-            name: user.username || user.email || null,
-            type: /facility|operator|admin|security|maintenance/.test(String(user.role || "").toLowerCase()) ? "operator" : "resident",
-          },
-          occurredAt: new Date().toISOString(),
-          extraMetadata: {
-            error: e?.message || String(e),
-            request_path: req.path,
-          },
-        });
-      }
     }
     const message = String(e?.message || e || "");
     const statusCode = Number(e?.statusCode || 500);
