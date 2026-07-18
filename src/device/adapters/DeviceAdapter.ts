@@ -40,6 +40,20 @@ export interface DeviceAdapter {
   /** Read provider state for synchronization into the canonical Oyi runtime. */
   getLiveState?(deviceId: string): Promise<Record<string, any>>;
 
+  /** Optional IR transport discovery for providers that expose bound virtual remotes. */
+  listIrRemotes?(infraredId: string, context?: AdapterContext): Promise<any[]>;
+
+  /** Optional IR remote key/schema lookup for a bound virtual remote. */
+  listIrRemoteKeys?(infraredId: string, remoteId: string, context?: AdapterContext): Promise<any[]>;
+
+  /** Optional IR command dispatch through a physical hub and provider remote binding. */
+  executeIrRemoteCommand?(
+    infraredId: string,
+    remoteId: string,
+    command: Record<string, any>,
+    context: AdapterContext
+  ): Promise<void>;
+
   /**
    * Start listening to device events / state changes
    * Adapter MUST emit Signals into Control Plane

@@ -8,7 +8,8 @@ import type { DeviceCategory } from "../types";
 import { operationalMetrics } from "../../../observability/metrics";
 import { providerHealthRegistry } from "../../../observability/providerHealth";
 import { enrichDeviceProviderState } from "../../runtime/deviceStateEnrichment";
-import { isProviderAuthorizationError } from "../../runtime/providerErrors";
+import { classifyProviderError, isProviderAuthorizationError } from "../../runtime/providerErrors";
+import { logger } from "../../../observability/logger";
 
 // v1.0 users/{uid}/devices response item shape (common fields)
 type TuyaUserDevice = {
@@ -78,6 +79,30 @@ type TuyaStatusItem = {
 type TuyaStatusResp = {
   // Tuya returns an array called "result" => [{code,value}, ...]
   // Our TuyaClient.request returns result already, so we treat it as TuyaStatusItem[]
+  [k: string]: any;
+};
+
+type TuyaIrRemote = {
+  remote_id?: string;
+  id?: string;
+  remote_index?: string | number;
+  category_id?: string | number;
+  category_name?: string;
+  remote_name?: string;
+  name?: string;
+  brand_id?: string | number;
+  brand_name?: string;
+  brand?: string;
+  [k: string]: any;
+};
+
+type TuyaIrKey = {
+  key?: string;
+  key_code?: string;
+  code?: string;
+  value?: string;
+  name?: string;
+  key_name?: string;
   [k: string]: any;
 };
 
@@ -172,6 +197,22 @@ function parseJsonMaybe(v?: string) {
   }
 }
 
+function arrayPayload(input: any, candidates: string[] = ["list", "keys", "remotes", "result"]) {
+  if (Array.isArray(input)) return input;
+  for (const key of candidates) {
+    if (Array.isArray(input?.[key])) return input[key];
+  }
+  return [];
+}
+
+function tuyaResultAccepted(result: any) {
+  return result === true || result?.result === true || result?.success === true || result?.accepted === true;
+}
+
+function compactStringArray(values: any[]) {
+  return Array.from(new Set(values.map((value) => cleanStr(value)).filter(Boolean)));
+}
+
 type DeviceSchema = {
   fetchedAt: number;
   functionsByCode: Record<string, TuyaFunction>;
@@ -198,20 +239,65 @@ export class TuyaAdapter implements DeviceAdapter {
     this.client = client ?? new TuyaClient();
   }
 
+  private irApiVersions() {
+    const configured = cleanStr(process.env.TUYA_IR_API_VERSIONS || process.env.TUYA_IR_API_VERSION);
+    const versions = configured
+      ? configured.split(",").map((version) => version.trim().replace(/^\/+/, "")).filter(Boolean)
+      : ["v2.0", "v1.0"];
+    return Array.from(new Set(versions));
+  }
+
+  private async requestIr<T>(
+    method: "GET" | "POST",
+    pathFactory: (version: string) => string,
+    body?: any,
+  ): Promise<T> {
+    let lastError: unknown = null;
+    for (const version of this.irApiVersions()) {
+      const path = pathFactory(version);
+      try {
+        return await this.client.request<T>(method, path, body);
+      } catch (error) {
+        lastError = error;
+        const classified = classifyProviderError(error, { provider: "tuya", operation: path });
+        if (["permission_denied", "device_not_linked", "integration_expired", "authentication_failed", "rate_limited"].includes(classified.classification)) {
+          throw error;
+        }
+        logger.warn("tuya_ir_endpoint_attempt_failed", {
+          version,
+          operation: path,
+          classification: classified.classification,
+          provider_code: classified.provider_code,
+          safe_message: classified.safe_message,
+        });
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("The connected provider could not complete this IR request.");
+  }
+
   /* ------------------------------------------------
    * DISCOVERY
    * ------------------------------------------------ */
   async discover(context: AdapterContext): Promise<DiscoveredDevice[]> {
     const startedAt = Date.now();
     providerHealthRegistry.markConfigured("tuya", { note: "discovery_started" });
-    console.log("[TuyaAdapter.discover] starting…");
+    logger.debug("tuya_discovery_started", {
+      estate_id: context?.estateId,
+      home_id: context?.homeId,
+      actor_id: context?.userId,
+    });
 
     // ✅ UID-based discovery (Smart Life / App Account)
     const tuyaUid = cleanStr((context as any)?.credentials?.tuyaUid);
 
     if (tuyaUid) {
       const path = `/v1.0/users/${encodeURIComponent(tuyaUid)}/devices`;
-      console.log("[TuyaAdapter.discover] requesting linked Smart Life device list");
+      logger.debug("tuya_discovery_uid_device_list_requested", {
+        estate_id: context?.estateId,
+        home_id: context?.homeId,
+        actor_id: context?.userId,
+        tuya_uid: tuyaUid,
+      });
 
       const result = await this.client.request<any>("GET", path);
 
@@ -242,8 +328,8 @@ export class TuyaAdapter implements DeviceAdapter {
           },
         };
         this.deviceMetadataCache.set(d.id, metadata);
-        console.log("[TuyaAdapter.discover] device classification", {
-          deviceId: d.id,
+        logger.debug("tuya_discovery_device_classification", {
+          device_id: d.id,
           real_category: d.category,
           device_family: metadata.device_family,
           control_profile: metadata.control_profile,
@@ -264,12 +350,20 @@ export class TuyaAdapter implements DeviceAdapter {
 
       operationalMetrics.increment("oyi_provider_discoveries_total", { provider: "tuya", mode: "uid" }, discovered.length);
       providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: `discovered:${discovered.length}`, wired: true });
-      console.log("[TuyaAdapter.discover] done (uid). devices=", discovered.length);
+      logger.debug("tuya_discovery_completed", {
+        mode: "uid",
+        count: discovered.length,
+        latency_ms: Date.now() - startedAt,
+      });
       return discovered;
     }
 
     // Fallback: old project-level listing
-    console.log("[TuyaAdapter.discover] tuyaUid missing — falling back to project device list");
+    logger.debug("tuya_discovery_project_fallback_started", {
+      estate_id: context?.estateId,
+      home_id: context?.homeId,
+      actor_id: context?.userId,
+    });
 
     const sourceType = (process.env.TUYA_SOURCE_TYPE || "").trim() || undefined;
     const sourceId = (process.env.TUYA_SOURCE_ID || "").trim() || undefined;
@@ -288,7 +382,7 @@ export class TuyaAdapter implements DeviceAdapter {
       if (sourceType && sourceId) qs.set("source_id", sourceId);
 
       const path = `/v1.3/iot-03/devices?${qs.toString()}`;
-      console.log("[TuyaAdapter.discover] requesting (project devices):", path);
+      logger.debug("tuya_discovery_project_page_requested", { path });
 
       const page = await this.client.request<TuyaDeviceListPage>("GET", path);
 
@@ -322,8 +416,8 @@ export class TuyaAdapter implements DeviceAdapter {
         },
       };
       this.deviceMetadataCache.set(d.id, metadata);
-      console.log("[TuyaAdapter.discover] device classification", {
-        deviceId: d.id,
+      logger.debug("tuya_discovery_device_classification", {
+        device_id: d.id,
         real_category: d.category,
         device_family: metadata.device_family,
         control_profile: metadata.control_profile,
@@ -344,7 +438,11 @@ export class TuyaAdapter implements DeviceAdapter {
 
     operationalMetrics.increment("oyi_provider_discoveries_total", { provider: "tuya", mode: "project" }, discovered.length);
     providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: `discovered:${discovered.length}`, wired: true });
-    console.log("[TuyaAdapter.discover] done (fallback). devices=", discovered.length);
+    logger.debug("tuya_discovery_completed", {
+      mode: "project",
+      count: discovered.length,
+      latency_ms: Date.now() - startedAt,
+    });
     return discovered;
   }
 
@@ -419,8 +517,8 @@ export class TuyaAdapter implements DeviceAdapter {
       provider: "tuya",
       adapter: "tuya",
     });
-    console.log("[TuyaAdapter.getLiveState] classification", {
-      deviceId,
+    logger.debug("tuya_live_state_classification", {
+      device_id: deviceId,
       real_category: originalCategory || null,
       device_family: enriched.device_family,
       control_profile: enriched.control_profile,
@@ -536,8 +634,8 @@ export class TuyaAdapter implements DeviceAdapter {
         raw: d,
       };
       this.deviceMetadataCache.set(deviceId, metadata);
-      console.log("[TuyaAdapter.getCachedDeviceMetadata] device classification", {
-        deviceId,
+      logger.debug("tuya_cached_metadata_classification", {
+        device_id: deviceId,
         real_category: d.category,
         device_family: metadata.device_family,
         control_profile: metadata.control_profile,
@@ -546,12 +644,125 @@ export class TuyaAdapter implements DeviceAdapter {
       });
       return metadata;
     } catch (error) {
-      console.warn("[TuyaAdapter.getCachedDeviceMetadata] device metadata unavailable", {
-        deviceId,
+      logger.warn("tuya_cached_metadata_unavailable", {
+        device_id: deviceId,
         message: error instanceof Error ? error.message : String(error),
       });
       return {};
     }
+  }
+
+  async listIrRemotes(infraredId: string): Promise<any[]> {
+    const result = await this.requestIr<any>("GET", (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes`);
+    const remotes = arrayPayload(result, ["list", "remotes", "result"]);
+    logger.debug("tuya_ir_remotes_discovered", {
+      infrared_id: infraredId,
+      count: remotes.length,
+    });
+    return remotes;
+  }
+
+  async listIrRemoteKeys(infraredId: string, remoteId: string): Promise<any[]> {
+    const result = await this.requestIr<any>(
+      "GET",
+      (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/keys`,
+    );
+    const keys = arrayPayload(result, ["keys", "list", "result"]);
+    logger.debug("tuya_ir_remote_keys_discovered", {
+      infrared_id: infraredId,
+      remote_id: remoteId,
+      count: keys.length,
+    });
+    return keys;
+  }
+
+  private remoteCommandKey(command: Record<string, any>) {
+    const direct = cleanStr(
+      (command as any).key ||
+      (command as any).key_code ||
+      (command as any).remote_key ||
+      (command as any).command_key ||
+      (command as any).code ||
+      (command as any).button ||
+      (command as any).control ||
+      (command as any).remote,
+    );
+    if (direct) return direct;
+    if (typeof (command as any).power === "boolean" || typeof (command as any).on === "boolean") return "power";
+    if ((command as any).temperature != null || (command as any).temp != null) return "temperature";
+    if ((command as any).mode != null) return "mode";
+    if ((command as any).fan != null || (command as any).wind != null) return "fan";
+    if ((command as any).swing != null) return "swing";
+    return "";
+  }
+
+  private acPayload(command: Record<string, any>, remoteId: string) {
+    const power = typeof (command as any).power === "boolean"
+      ? ((command as any).power ? "1" : "0")
+      : typeof (command as any).on === "boolean"
+        ? ((command as any).on ? "1" : "0")
+        : cleanStr((command as any).power_state || (command as any).power);
+    const mode = cleanStr((command as any).mode);
+    const temp = cleanStr((command as any).temperature ?? (command as any).temp);
+    const wind = cleanStr((command as any).fan ?? (command as any).wind);
+    const payload: Record<string, any> = { remote_id: remoteId };
+    if (power) payload.power = power;
+    if (mode) payload.mode = mode;
+    if (temp) payload.temp = temp;
+    if (wind) payload.wind = wind;
+    return payload;
+  }
+
+  async executeIrRemoteCommand(
+    infraredId: string,
+    remoteId: string,
+    command: Record<string, any>,
+    context: AdapterContext,
+  ): Promise<void> {
+    if (!remoteId) throw new Error("Add or sync an appliance profile before using this remote.");
+    const startedAt = Date.now();
+    const appliance = ((context as any)?.device?.metadata?.ir_appliance || {}) as Record<string, any>;
+    const family = cleanStr(appliance.appliance_type || (context as any)?.device?.metadata?.device_family || (context as any)?.device?.type).toLowerCase();
+    const rawKey = cleanStr((command as any).raw_key || (command as any).rawKey);
+    const key = this.remoteCommandKey(command);
+    const shouldUseAcEndpoint = /^(ac|air_conditioner|climate)$/.test(family) && (
+      (command as any).temperature != null ||
+      (command as any).temp != null ||
+      (command as any).mode != null ||
+      (command as any).fan != null ||
+      (command as any).wind != null
+    );
+
+    let result: any;
+    if (shouldUseAcEndpoint) {
+      const payload = this.acPayload(command, remoteId);
+      if (Object.keys(payload).length <= 1) throw new Error("This AC remote does not expose that control.");
+      result = await this.requestIr<any>(
+        "POST",
+        (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/ac/command`,
+        payload,
+      );
+    } else if (rawKey) {
+      result = await this.requestIr<any>(
+        "POST",
+        (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/raw/command`,
+        { raw_key: rawKey },
+      );
+    } else {
+      if (!key) throw new Error("This remote does not expose that control.");
+      result = await this.requestIr<any>(
+        "POST",
+        (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/command`,
+        { key },
+      );
+    }
+
+    if (!tuyaResultAccepted(result)) {
+      throw new Error("The connected provider did not confirm this remote command.");
+    }
+
+    operationalMetrics.increment("oyi_provider_ir_commands_total", { provider: "tuya" });
+    providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "ir_command_executed", wired: true });
   }
 
   private buildTuyaCommands(schema: DeviceSchema, command: Record<string, any>) {
@@ -641,11 +852,23 @@ export class TuyaAdapter implements DeviceAdapter {
     _context: AdapterContext
   ): Promise<void> {
     const startedAt = Date.now();
+    const remoteId = cleanStr(
+      (_context as any)?.device?.metadata?.ir_appliance?.remote_id ||
+      (_context as any)?.device?.metadata?.ir_appliance?.profile_id ||
+      (_context as any)?.device?.metadata?.remote_id,
+    );
+    if (remoteId) {
+      await this.executeIrRemoteCommand(deviceId, remoteId, command, _context);
+      return;
+    }
+    if (/^(tv_remote|ac_remote|ir_remote|climate)$/i.test(String((command as any)?.type || ""))) {
+      throw new Error("Add or sync an appliance profile before using this remote.");
+    }
     const schema = await this.getDeviceSchema(deviceId);
 
     const commands = this.buildTuyaCommands(schema, command);
-    console.log("[TuyaAdapter.executeCommand] classification", {
-      deviceId,
+    logger.debug("tuya_command_classification", {
+      device_id: deviceId,
       capability_codes: Object.keys(schema.functionsByCode),
       switch_codes: schema.switchCodes,
       primary_power_code: schema.primaryPowerCode,
@@ -653,7 +876,8 @@ export class TuyaAdapter implements DeviceAdapter {
     });
 
     if (!commands.length) {
-      console.warn("[TuyaAdapter.executeCommand] No supported commands for device:", deviceId, {
+      logger.warn("tuya_command_no_supported_mapping", {
+        device_id: deviceId,
         incoming: command,
         supported: Object.keys(schema.functionsByCode).slice(0, 30),
       });

@@ -5,15 +5,39 @@ import { resolveVisibleDevice } from "../services/deviceRuntimeService";
 import { logger } from "../observability/logger";
 import { sendPublicApiError } from "../services/publicApi";
 import { buildIrExternalId, keepDeviceOverrides, upsertCanonicalDeviceIdentity } from "../services/deviceIdentityService";
+import { adapterRegistry } from "../device/adapters/registry";
+import { initAdaptersOnce } from "../device/adapters/initAdapters";
 
 const PROFILE_LIBRARY = {
   tv: { appliance_type: "tv", label: "TV", control_profile: "tv", device_family: "ir_remote", supported_controls: ["remote", "power"] },
   ac: { appliance_type: "ac", label: "Air Conditioner", control_profile: "climate", device_family: "climate", supported_controls: ["power", "temperature", "fan"] },
   fan: { appliance_type: "fan", label: "Fan", control_profile: "ir_remote", device_family: "ir_remote", supported_controls: ["remote", "power"] },
   decoder: { appliance_type: "decoder", label: "Decoder", control_profile: "tv", device_family: "ir_remote", supported_controls: ["remote", "power"] },
+  set_top_box: { appliance_type: "set_top_box", label: "Set-top Box", control_profile: "tv", device_family: "ir_remote", supported_controls: ["remote", "power"] },
   projector: { appliance_type: "projector", label: "Projector", control_profile: "tv", device_family: "ir_remote", supported_controls: ["remote", "power"] },
+  speaker: { appliance_type: "speaker", label: "Speaker", control_profile: "ir_remote", device_family: "ir_remote", supported_controls: ["remote", "power"] },
   custom: { appliance_type: "custom", label: "Custom Remote", control_profile: "ir_remote", device_family: "ir_remote", supported_controls: ["remote"] },
+  unknown_ir_appliance: { appliance_type: "unknown_ir_appliance", label: "IR Appliance", control_profile: "ir_remote", device_family: "ir_remote", supported_controls: ["remote"] },
 } as const;
+
+type ProviderIrProfile = {
+  key: string;
+  appliance_type: string;
+  label: string;
+  control_profile: string;
+  device_family: string;
+  supported_controls: string[];
+  capability_codes: string[];
+  remote_id: string | null;
+  remote_index: string | null;
+  category_id: string | null;
+  brand_id: string | null;
+  brand: string | null;
+  model: string | null;
+  source: "provider" | "metadata";
+  raw?: Record<string, any>;
+  keys?: any[];
+};
 
 function clean(value: unknown) {
   return String(value || "").trim();
@@ -61,6 +85,157 @@ function providerProfiles(device: any) {
   return Array.from(available);
 }
 
+function keyCode(input: any) {
+  return clean(input?.key || input?.key_code || input?.code || input?.value || input?.name || input?.key_name);
+}
+
+function compactUnique(values: unknown[]) {
+  return Array.from(new Set(values.map(clean).filter(Boolean)));
+}
+
+function irProfileKeyFromRemote(remote: any) {
+  const haystack = [
+    remote?.category,
+    remote?.category_id,
+    remote?.category_name,
+    remote?.remote_name,
+    remote?.name,
+    remote?.appliance_type,
+    remote?.type,
+  ].map((item) => String(item || "").toLowerCase()).join(" ");
+  if (/\b(tv|television)\b/.test(haystack)) return "tv";
+  if (/\b(ac|air\s*conditioner|air_conditioner|conditioner|climate)\b/.test(haystack)) return "ac";
+  if (/\bfan\b/.test(haystack)) return "fan";
+  if (/\b(projector|projection)\b/.test(haystack)) return "projector";
+  if (/\b(decoder|set\s*top|set_top|stb|box)\b/.test(haystack)) return "set_top_box";
+  if (/\b(speaker|audio|sound|amplifier)\b/.test(haystack)) return "speaker";
+  return "unknown_ir_appliance";
+}
+
+function supportedControlsFromKeys(profileKey: string, keys: any[]) {
+  const codes = compactUnique(keys.map(keyCode)).map((code) => code.toLowerCase());
+  const controls = new Set<string>();
+  controls.add("remote");
+  if (codes.some((code) => /power|on|off/.test(code))) controls.add("power");
+  if (profileKey === "ac") {
+    if (codes.some((code) => /temp|temperature/.test(code))) controls.add("temperature");
+    if (codes.some((code) => /mode|cool|heat|dry|auto/.test(code))) controls.add("mode");
+    if (codes.some((code) => /fan|wind/.test(code))) controls.add("fan");
+    if (codes.some((code) => /swing|oscillat/.test(code))) controls.add("swing");
+  }
+  if (profileKey === "tv" || profileKey === "decoder" || profileKey === "set_top_box" || profileKey === "projector") {
+    if (codes.some((code) => /volume|vol[\+\-]/.test(code))) controls.add("volume");
+    if (codes.some((code) => /channel|ch[\+\-]/.test(code))) controls.add("channel");
+    if (codes.some((code) => /source|input/.test(code))) controls.add("source");
+    if (codes.some((code) => /mute/.test(code))) controls.add("mute");
+  }
+  return Array.from(controls);
+}
+
+function providerProfileFromMetadata(hub: any, profileKey: string): ProviderIrProfile | null {
+  if (!(profileKey in PROFILE_LIBRARY)) return null;
+  const template = PROFILE_LIBRARY[profileKey as keyof typeof PROFILE_LIBRARY];
+  const metadata = hub?.metadata || {};
+  const raw = metadata?.raw || {};
+  const source =
+    metadata?.ir_profiles?.[profileKey] ||
+    metadata?.provider_profiles?.[profileKey] ||
+    raw?.ir_profiles?.[profileKey] ||
+    raw?.provider_profiles?.[profileKey] ||
+    {};
+  const remoteId = clean(source?.remote_id || source?.id || source?.profile_id || source?.provider_profile_id) || null;
+  const keys = Array.isArray(source?.keys) ? source.keys : Array.isArray(source?.supported_keys) ? source.supported_keys : [];
+  const capabilityCodes = compactUnique(keys.map(keyCode));
+  return {
+    key: profileKey,
+    appliance_type: template.appliance_type,
+    label: clean(source?.name || source?.remote_name || template.label) || template.label,
+    control_profile: template.control_profile,
+    device_family: template.device_family,
+    supported_controls: Array.from(new Set([...(template.supported_controls || []), ...supportedControlsFromKeys(profileKey, keys)])),
+    capability_codes: capabilityCodes,
+    remote_id: remoteId,
+    remote_index: clean(source?.remote_index) || null,
+    category_id: clean(source?.category_id) || null,
+    brand_id: clean(source?.brand_id) || null,
+    brand: clean(source?.brand || source?.brand_name) || null,
+    model: clean(source?.model) || null,
+    source: "metadata",
+    raw: source,
+    keys,
+  };
+}
+
+function providerProfileFromTuyaRemote(remote: any, keys: any[]): ProviderIrProfile | null {
+  const remoteId = clean(remote?.remote_id || remote?.id);
+  if (!remoteId) return null;
+  const profileKey = irProfileKeyFromRemote(remote);
+  const template = PROFILE_LIBRARY[profileKey as keyof typeof PROFILE_LIBRARY] || PROFILE_LIBRARY.unknown_ir_appliance;
+  const capabilityCodes = compactUnique(keys.map(keyCode));
+  return {
+    key: profileKey,
+    appliance_type: template.appliance_type,
+    label: clean(remote?.remote_name || remote?.name || template.label) || template.label,
+    control_profile: template.control_profile,
+    device_family: template.device_family,
+    supported_controls: Array.from(new Set([...(template.supported_controls || []), ...supportedControlsFromKeys(profileKey, keys)])),
+    capability_codes: capabilityCodes,
+    remote_id: remoteId,
+    remote_index: clean(remote?.remote_index) || null,
+    category_id: clean(remote?.category_id || remote?.category) || null,
+    brand_id: clean(remote?.brand_id) || null,
+    brand: clean(remote?.brand_name || remote?.brand) || null,
+    model: clean(remote?.model) || null,
+    source: "provider",
+    raw: remote && typeof remote === "object" ? remote : {},
+    keys,
+  };
+}
+
+async function loadProviderRemoteProfiles(hub: any): Promise<ProviderIrProfile[]> {
+  const provider = cleanLower(hub?.provider || hub?.vendor || hub?.adapter);
+  if (provider === "tuya" && clean(hub?.external_id)) {
+    initAdaptersOnce();
+    const adapter = adapterRegistry.get("tuya");
+    if (adapter?.listIrRemotes) {
+      const remotes = await adapter.listIrRemotes(clean(hub.external_id), {
+        estateId: hub.estate_id,
+        homeId: hub.home_id,
+        device: hub,
+      } as any);
+      const profiles: ProviderIrProfile[] = [];
+      for (const remote of remotes || []) {
+        const remoteId = clean(remote?.remote_id || remote?.id);
+        if (!remoteId) continue;
+        let keys: any[] = [];
+        if (adapter.listIrRemoteKeys) {
+          try {
+            keys = await adapter.listIrRemoteKeys(clean(hub.external_id), remoteId, {
+              estateId: hub.estate_id,
+              homeId: hub.home_id,
+              device: hub,
+            } as any);
+          } catch (error: any) {
+            logger.warn("tuya_ir_remote_keys_unavailable", {
+              hub_id: hub.id,
+              infrared_id: hub.external_id,
+              remote_id: remoteId,
+              message: error?.message || String(error),
+            });
+          }
+        }
+        const profile = providerProfileFromTuyaRemote(remote, keys);
+        if (profile) profiles.push(profile);
+      }
+      if (profiles.length) return profiles;
+    }
+  }
+
+  return providerProfiles(hub)
+    .map((profileKey) => providerProfileFromMetadata(hub, profileKey))
+    .filter(Boolean) as ProviderIrProfile[];
+}
+
 async function loadChildAppliances(parentDeviceId: string) {
   const { data, error } = await supabaseAdmin
     .from("devices")
@@ -85,13 +260,14 @@ async function loadChildAppliances(parentDeviceId: string) {
 
 export async function syncIrChildAppliancesForHub(hub: any) {
   if (!hub || !isIrHub(hub)) {
-    return { profiles: [] as string[], appliances: [] as any[], changed: false };
+    return { profiles: [] as string[], available_profiles: [] as ProviderIrProfile[], appliances: [] as any[], changed: false };
   }
 
-  const profiles = providerProfiles(hub).filter((key) => key in PROFILE_LIBRARY);
+  const profiles = await loadProviderRemoteProfiles(hub);
   if (!profiles.length) {
     return {
       profiles: [],
+      available_profiles: [],
       appliances: await loadChildAppliances(String(hub.id)),
       changed: false,
     };
@@ -105,39 +281,44 @@ export async function syncIrChildAppliancesForHub(hub: any) {
   if (existingError) throw new Error(existingError.message);
 
   const existingByProfile = new Map<string, any>();
+  const existingByRemoteId = new Map<string, any>();
   const existingByExternalId = new Map<string, any>();
   for (const row of rows || []) {
     const key = String((row as any)?.metadata?.ir_appliance?.profile || "").toLowerCase();
     if (key) existingByProfile.set(key, row);
+    const remoteId = clean((row as any)?.metadata?.ir_appliance?.remote_id);
+    if (remoteId) existingByRemoteId.set(remoteId, row);
     const ext = clean((row as any)?.external_id);
     if (ext) existingByExternalId.set(ext, row);
   }
 
   let changed = false;
   const upsertedIds: string[] = [];
-  for (const profileKey of profiles) {
-    const template = PROFILE_LIBRARY[profileKey as keyof typeof PROFILE_LIBRARY];
-    const providerProfileId =
-      clean(hub?.metadata?.ir_profiles?.[profileKey]?.id) ||
-      clean(hub?.metadata?.provider_profiles?.[profileKey]?.id) ||
-      clean(hub?.metadata?.raw?.ir_profiles?.[profileKey]?.id) ||
-      clean(hub?.metadata?.raw?.provider_profiles?.[profileKey]?.id) ||
-      null;
+  for (const profile of profiles) {
+    const profileKey = cleanLower(profile.key || profile.appliance_type || "unknown_ir_appliance") || "unknown_ir_appliance";
+    const providerProfileId = profile.remote_id || profile.remote_index || null;
     const externalId = buildIrExternalId(hub, profileKey, providerProfileId);
     const metadata = {
       ...(hub.metadata || {}),
       virtual_device: true,
-      control_profile: template.control_profile,
-      device_family: template.device_family,
-      supported_controls: template.supported_controls,
+      control_profile: profile.control_profile,
+      device_family: profile.device_family,
+      supported_controls: profile.supported_controls,
+      capability_codes: profile.capability_codes,
       ir_appliance: {
         profile: profileKey,
         profile_id: providerProfileId,
-        appliance_type: template.appliance_type,
-        brand: clean(hub?.metadata?.brand) || clean(hub?.metadata?.raw?.brand) || null,
-        model: clean(hub?.metadata?.model) || clean(hub?.metadata?.raw?.model) || null,
-        provider_profiles: profiles,
+        remote_id: profile.remote_id,
+        remote_index: profile.remote_index,
+        category_id: profile.category_id,
+        brand_id: profile.brand_id,
+        appliance_type: profile.appliance_type,
+        brand: profile.brand || clean(hub?.metadata?.brand) || clean(hub?.metadata?.raw?.brand) || null,
+        model: profile.model || clean(hub?.metadata?.model) || clean(hub?.metadata?.raw?.model) || null,
+        provider_profiles: profiles.map((item) => item.key),
+        supported_keys: profile.keys || [],
         parent_hub_external_id: clean(hub?.external_id) || null,
+        provider_remote: profile.raw || {},
       },
     };
     const payload = {
@@ -146,9 +327,9 @@ export async function syncIrChildAppliancesForHub(hub: any) {
       room_id: hub.room_id,
       parent_device_id: hub.id,
       is_virtual: true,
-      name: `${clean(hub.name) || "Remote"} ${template.label}`,
-      type: template.appliance_type,
-      category: template.appliance_type,
+      name: profile.label,
+      type: profile.appliance_type,
+      category: profile.appliance_type,
       adapter: hub.adapter,
       vendor: hub.vendor,
       provider: hub.provider,
@@ -158,7 +339,7 @@ export async function syncIrChildAppliancesForHub(hub: any) {
       metadata,
     };
 
-    const existing = existingByProfile.get(profileKey) || existingByExternalId.get(externalId) || null;
+    const existing = (profile.remote_id ? existingByRemoteId.get(profile.remote_id) : null) || existingByExternalId.get(externalId) || existingByProfile.get(profileKey) || null;
     const finalPayload = existing?.id ? keepDeviceOverrides(existing, payload) : payload;
     const result = await upsertCanonicalDeviceIdentity(finalPayload);
     changed = changed || !existing?.id || clean(existing?.external_id) !== externalId;
@@ -166,7 +347,8 @@ export async function syncIrChildAppliancesForHub(hub: any) {
   }
 
   return {
-    profiles,
+    profiles: profiles.map((profile) => profile.key),
+    available_profiles: profiles,
     appliances: await loadChildAppliances(String(hub.id)),
     changed,
     upsertedIds,
@@ -184,12 +366,21 @@ export async function listIrProfiles(req: Request, res: Response) {
     if (!hub) return res.status(404).json({ error: "This device is not assigned to your current home." });
     if (!isIrHub(hub)) return res.status(400).json({ error: "Add or sync an appliance profile before using this remote." });
 
-    const providerAvailable = providerProfiles(hub);
-    await syncIrChildAppliancesForHub(hub);
-    const available_profiles = providerAvailable.map((key) => ({
-      key,
-      ...PROFILE_LIBRARY[key as keyof typeof PROFILE_LIBRARY],
-      source: "provider",
+    const synced = await syncIrChildAppliancesForHub(hub);
+    const available_profiles = (synced.available_profiles || []).map((profile) => ({
+      key: profile.key,
+      appliance_type: profile.appliance_type,
+      label: profile.label,
+      control_profile: profile.control_profile,
+      device_family: profile.device_family,
+      supported_controls: profile.supported_controls,
+      capability_codes: profile.capability_codes,
+      remote_id: profile.remote_id,
+      remote_index: profile.remote_index,
+      category_id: profile.category_id,
+      brand_id: profile.brand_id,
+      brand: profile.brand,
+      source: profile.source,
     }));
     const appliances = await loadChildAppliances(String(hub.id));
     return res.json({
@@ -218,36 +409,47 @@ export async function createIrAppliance(req: Request, res: Response) {
     const profileKey = clean(req.body?.profile || req.body?.appliance_type).toLowerCase();
     if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
     if (!deviceId) return res.status(400).json({ error: "deviceId is required" });
-    if (!profileKey || !(profileKey in PROFILE_LIBRARY)) return res.status(400).json({ error: "Add or sync an appliance profile before using this remote." });
+    if (!profileKey) return res.status(400).json({ error: "Add or sync an appliance profile before using this remote." });
 
     const hub = await resolveVisibleDevice(user, deviceId);
     if (!hub) return res.status(404).json({ error: "This device is not assigned to your current home." });
     if (!isIrHub(hub)) return res.status(400).json({ error: "Add or sync an appliance profile before using this remote." });
-    const providerAvailable = providerProfiles(hub);
-    if (!providerAvailable.includes(profileKey)) {
+    const providerAvailable = await loadProviderRemoteProfiles(hub);
+    const providerProfile = providerAvailable.find((profile) =>
+      cleanLower(profile.key) === profileKey ||
+      cleanLower(profile.appliance_type) === profileKey ||
+      cleanLower(profile.remote_id) === profileKey
+    );
+    if (!providerProfile) {
       return res.status(400).json({ error: "Add or sync an appliance profile before using this remote." });
     }
 
-    const template = PROFILE_LIBRARY[profileKey as keyof typeof PROFILE_LIBRARY];
-    const label = clean(req.body?.label) || `${clean(hub.name) || "Remote"} ${template.label}`;
-    const brand = clean(req.body?.brand);
-    const model = clean(req.body?.model);
-    const providerProfileId = clean(req.body?.profile_id || req.body?.provider_profile_id || req.body?.remote_profile_id) || null;
-    const externalId = buildIrExternalId(hub, profileKey, providerProfileId);
+    const label = clean(req.body?.label) || providerProfile.label;
+    const brand = clean(req.body?.brand) || providerProfile.brand || "";
+    const model = clean(req.body?.model) || providerProfile.model || "";
+    const providerProfileId = providerProfile.remote_id || clean(req.body?.profile_id || req.body?.provider_profile_id || req.body?.remote_profile_id) || null;
+    const externalId = buildIrExternalId(hub, providerProfile.key, providerProfileId);
     const metadata = {
       ...(hub.metadata || {}),
       virtual_device: true,
-      control_profile: template.control_profile,
-      device_family: template.device_family,
-      supported_controls: template.supported_controls,
+      control_profile: providerProfile.control_profile,
+      device_family: providerProfile.device_family,
+      supported_controls: providerProfile.supported_controls,
+      capability_codes: providerProfile.capability_codes,
       ir_appliance: {
-        profile: profileKey,
+        profile: providerProfile.key,
         profile_id: providerProfileId,
-        appliance_type: template.appliance_type,
+        remote_id: providerProfile.remote_id,
+        remote_index: providerProfile.remote_index,
+        category_id: providerProfile.category_id,
+        brand_id: providerProfile.brand_id,
+        appliance_type: providerProfile.appliance_type,
         brand: brand || null,
         model: model || null,
-        provider_profiles: providerProfiles(hub),
+        provider_profiles: providerAvailable.map((profile) => profile.key),
+        supported_keys: providerProfile.keys || [],
         parent_hub_external_id: clean(hub?.external_id) || null,
+        provider_remote: providerProfile.raw || {},
       },
     };
 
@@ -258,7 +460,8 @@ export async function createIrAppliance(req: Request, res: Response) {
       .eq("is_virtual", true);
     if (existingError) throw new Error(existingError.message);
     const existing = (rows || []).find((row: any) =>
-      String(row?.metadata?.ir_appliance?.profile || "") === profileKey ||
+      String(row?.metadata?.ir_appliance?.profile || "") === providerProfile.key ||
+      clean(row?.metadata?.ir_appliance?.remote_id) === providerProfile.remote_id ||
       clean(row?.external_id) === externalId,
     );
 
@@ -269,8 +472,8 @@ export async function createIrAppliance(req: Request, res: Response) {
       parent_device_id: hub.id,
       is_virtual: true,
       name: label,
-      type: template.appliance_type,
-      category: template.appliance_type,
+      type: providerProfile.appliance_type,
+      category: providerProfile.appliance_type,
       adapter: hub.adapter,
       vendor: hub.vendor,
       provider: hub.provider,
