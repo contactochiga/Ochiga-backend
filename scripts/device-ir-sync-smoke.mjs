@@ -14,10 +14,10 @@ const child = summarizeDeviceFrontendContract(
     category: "remote",
     metadata: {
       virtual_device: true,
-      control_profile: "climate",
+      control_profile: "air_conditioner",
       device_family: "climate",
-      supported_controls: ["power", "temperature", "fan"],
-      ir_appliance: { appliance_type: "ac", profile: "ac" },
+      supported_controls: ["power", "temperature", "mode", "fan_speed"],
+      ir_appliance: { appliance_type: "air_conditioner", profile: "ac" },
     },
   },
   {
@@ -29,6 +29,7 @@ const child = summarizeDeviceFrontendContract(
   },
 );
 
-assert(child.control_profile === "climate", "IR AC child preserves climate profile");
+assert(child.control_profile === "air_conditioner", "IR AC child preserves air-conditioner profile");
 assert(child.device_family === "climate", "IR AC child preserves climate family");
 assert(Array.isArray(child.supported_controls) && child.supported_controls.includes("temperature"), "IR AC child preserves supported commands");
+assert(child.supported_controls.includes("fan_speed"), "IR AC child exposes canonical fan-speed control");

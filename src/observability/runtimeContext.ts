@@ -23,6 +23,7 @@ export type RuntimeContextState = {
   consumer?: string | null;
   estateId?: string | null;
   buildingId?: string | null;
+  homeId?: string | null;
   roomId?: string | null;
   deviceId?: string | null;
   actorId?: string | null;
@@ -50,6 +51,7 @@ export function createRuntimeContext(seed: Partial<RuntimeContextState> = {}): R
     consumer: value(seed.consumer),
     estateId: value(seed.estateId),
     buildingId: value(seed.buildingId),
+    homeId: value(seed.homeId),
     roomId: value(seed.roomId),
     deviceId: value(seed.deviceId),
     actorId: value(seed.actorId),
@@ -108,6 +110,7 @@ export function runtimeTraceFields() {
     runtime_latencies_ms: current.latenciesMs,
     estate_id: current.estateId || null,
     building_id: current.buildingId || null,
+    home_id: current.homeId || null,
     room_id: current.roomId || null,
     device_id: current.deviceId || null,
     actor_id: current.actorId || null,

@@ -254,6 +254,37 @@ async function upsertServiceAssignment(
   if (error && !tableMissing(error)) throw new Error(error.message);
 }
 
+async function readExistingHomeServiceAccounts(homeId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("home_service_accounts")
+    .select("service_key, provider, account_ref, meter_id, plan, status, linked, metadata")
+    .eq("home_id", homeId);
+  if (error) {
+    if (tableMissing(error)) return new Map<CanonicalServiceKey, ServiceBindingInput>();
+    throw new Error(error.message);
+  }
+  const existing = new Map<CanonicalServiceKey, ServiceBindingInput>();
+  for (const row of data || []) {
+    const serviceKey = SERVICE_KEY_ALIASES[lower((row as any).service_key)];
+    if (!serviceKey) continue;
+    const metadata = (row as any).metadata && typeof (row as any).metadata === "object" ? (row as any).metadata : {};
+    existing.set(serviceKey, {
+      account_ref: text((row as any).account_ref),
+      meter_id: text((row as any).meter_id),
+      provider: text((row as any).provider),
+      plan: text((row as any).plan),
+      status: text((row as any).status),
+      linked: (row as any).linked == null ? null : Boolean((row as any).linked),
+      tariff_profile: text(metadata.tariff_profile),
+      billing_profile: text(metadata.billing_profile),
+      kct: text(metadata.kct),
+      kctn: text(metadata.kctn),
+      metadata,
+    });
+  }
+  return existing;
+}
+
 export async function provisionHomeServices(input: ProvisioningInput) {
   const estateId = text(input.estateId);
   const homeId = text(input.homeId);
@@ -262,6 +293,10 @@ export async function provisionHomeServices(input: ProvisioningInput) {
   const residentId = text(input.residentId);
   const actorId = text(input.actorId);
   const bindings = normalizeServiceBindings(input.serviceBindings, input.homeRecord);
+  const existingAccounts = await readExistingHomeServiceAccounts(homeId);
+  for (const [serviceKey, existing] of existingAccounts.entries()) {
+    if (!bindings[serviceKey]) bindings[serviceKey] = existing;
+  }
   const provisionedKeys: CanonicalServiceKey[] = [];
 
   if (residentId) {

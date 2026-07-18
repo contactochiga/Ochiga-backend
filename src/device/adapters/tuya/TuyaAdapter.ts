@@ -250,13 +250,27 @@ export class TuyaAdapter implements DeviceAdapter {
   private async requestIr<T>(
     method: "GET" | "POST",
     pathFactory: (version: string) => string,
-    body?: any,
+    body?: any | ((version: string) => any),
   ): Promise<T> {
     let lastError: unknown = null;
     for (const version of this.irApiVersions()) {
       const path = pathFactory(version);
+      const resolvedBody = typeof body === "function" ? body(version) : body;
       try {
-        return await this.client.request<T>(method, path, body);
+        logger.debug("tuya_ir_provider_request", {
+          method,
+          version,
+          endpoint: path,
+          payload: resolvedBody || null,
+        });
+        const response = await this.client.request<T>(method, path, resolvedBody);
+        logger.debug("tuya_ir_provider_response", {
+          method,
+          version,
+          endpoint: path,
+          response,
+        });
+        return response;
       } catch (error) {
         lastError = error;
         const classified = classifyProviderError(error, { provider: "tuya", operation: path });
@@ -667,16 +681,53 @@ export class TuyaAdapter implements DeviceAdapter {
       "GET",
       (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/keys`,
     );
-    const keys = arrayPayload(result, ["keys", "list", "result"]);
+    const payload = result && typeof result === "object" && !Array.isArray(result) ? result : {};
+    const keys = arrayPayload(result, ["key_list", "keys", "list", "result"]).map((item) => ({
+      ...(item || {}),
+      category_id: item?.category_id ?? payload?.category_id ?? null,
+      brand_id: item?.brand_id ?? payload?.brand_id ?? null,
+      remote_index: item?.remote_index ?? payload?.remote_index ?? null,
+      key_range: item?.key_range ?? payload?.key_range ?? null,
+    }));
     logger.debug("tuya_ir_remote_keys_discovered", {
       infrared_id: infraredId,
       remote_id: remoteId,
       count: keys.length,
+      key_range_count: Array.isArray(payload?.key_range) ? payload.key_range.length : 0,
     });
     return keys;
   }
 
-  private remoteCommandKey(command: Record<string, any>) {
+  private commandValue(command: Record<string, any>, ...keys: string[]) {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(command || {}, key)) return (command as any)[key];
+    }
+    return undefined;
+  }
+
+  private normalizeRemoteKey(value: unknown) {
+    return cleanStr(value).toLowerCase().replace(/[\s.-]+/g, "_");
+  }
+
+  private supportedIrKeys(context: AdapterContext) {
+    const keys = (context as any)?.device?.metadata?.ir_appliance?.supported_keys;
+    return Array.isArray(keys) ? keys : [];
+  }
+
+  private supportedKeyCode(definition: any) {
+    return cleanStr(definition?.key || definition?.key_code || definition?.code || definition?.value || definition?.name || definition?.key_name || definition?.key_id);
+  }
+
+  private findSupportedIrKey(context: AdapterContext, candidates: string[]) {
+    const normalized = candidates.map((candidate) => this.normalizeRemoteKey(candidate)).filter(Boolean);
+    for (const definition of this.supportedIrKeys(context)) {
+      const code = this.normalizeRemoteKey(this.supportedKeyCode(definition));
+      if (code && normalized.includes(code)) return definition;
+    }
+    return null;
+  }
+
+  private keyCandidates(command: Record<string, any>) {
     const direct = cleanStr(
       (command as any).key ||
       (command as any).key_code ||
@@ -687,30 +738,84 @@ export class TuyaAdapter implements DeviceAdapter {
       (command as any).control ||
       (command as any).remote,
     );
+    const normalized = this.normalizeRemoteKey(direct);
+    if (normalized === "power_toggle") return ["power", "power_toggle", "poweron", "poweroff", "on", "off"];
+    if (normalized === "nav_up") return ["up", "nav_up", "direction_up"];
+    if (normalized === "nav_down") return ["down", "nav_down", "direction_down"];
+    if (normalized === "nav_left") return ["left", "nav_left", "direction_left"];
+    if (normalized === "nav_right") return ["right", "nav_right", "direction_right"];
+    if (normalized === "volume_up") return ["volume_up", "vol_up", "vol+", "volume+"];
+    if (normalized === "volume_down") return ["volume_down", "vol_down", "vol-", "volume-"];
+    if (normalized === "channel_up") return ["channel_up", "ch_up", "ch+", "channel+"];
+    if (normalized === "channel_down") return ["channel_down", "ch_down", "ch-", "channel-"];
+    if (normalized === "input") return ["input", "source"];
+    if (normalized === "return") return ["back", "return"];
+    if (normalized) return [normalized, direct];
+
+    if (typeof (command as any).power === "boolean" || typeof (command as any).on === "boolean") {
+      const desired = typeof (command as any).power === "boolean" ? (command as any).power : (command as any).on;
+      return desired
+        ? ["poweron", "power_on", "on", "power"]
+        : ["poweroff", "power_off", "off", "power"];
+    }
+    return [];
+  }
+
+  private remoteCommandKey(command: Record<string, any>) {
+    const direct = this.keyCandidates(command)[0];
     if (direct) return direct;
     if (typeof (command as any).power === "boolean" || typeof (command as any).on === "boolean") return "power";
     if ((command as any).temperature != null || (command as any).temp != null) return "temperature";
     if ((command as any).mode != null) return "mode";
-    if ((command as any).fan != null || (command as any).wind != null) return "fan";
+    if ((command as any).fan_speed != null || (command as any).fan != null || (command as any).wind != null) return "fan_speed";
     if ((command as any).swing != null) return "swing";
     return "";
   }
 
-  private acPayload(command: Record<string, any>, remoteId: string) {
-    const power = typeof (command as any).power === "boolean"
-      ? ((command as any).power ? "1" : "0")
-      : typeof (command as any).on === "boolean"
-        ? ((command as any).on ? "1" : "0")
-        : cleanStr((command as any).power_state || (command as any).power);
-    const mode = cleanStr((command as any).mode);
-    const temp = cleanStr((command as any).temperature ?? (command as any).temp);
-    const wind = cleanStr((command as any).fan ?? (command as any).wind);
-    const payload: Record<string, any> = { remote_id: remoteId };
-    if (power) payload.power = power;
-    if (mode) payload.mode = mode;
-    if (temp) payload.temp = temp;
-    if (wind) payload.wind = wind;
+  private acEnum(value: any, map: Record<string, number>) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const key = cleanStr(value).toLowerCase().replace(/[\s-]+/g, "_");
+    return map[key] ?? value;
+  }
+
+  private acCommandFields(command: Record<string, any>) {
+    const fields: Array<{ code: string; value: any }> = [];
+    const power = this.commandValue(command, "power", "on");
+    if (typeof power === "boolean" || ["0", "1", "true", "false", "on", "off"].includes(cleanStr(power).toLowerCase())) {
+      fields.push({ code: "power", value: toBool(power) ? 1 : 0 });
+    }
+    const temp = this.commandValue(command, "temperature", "temp", "temp_set");
+    if (temp != null && cleanStr(temp)) fields.push({ code: "temp", value: Number(temp) });
+    const mode = this.commandValue(command, "mode");
+    if (mode != null && cleanStr(mode)) fields.push({ code: "mode", value: this.acEnum(mode, { auto: 0, cool: 1, heat: 2, dry: 3, fan: 4 }) });
+    const wind = this.commandValue(command, "fan_speed", "fanSpeed", "fan", "wind", "wind_speed");
+    if (wind != null && cleanStr(wind)) fields.push({ code: "wind", value: this.acEnum(wind, { auto: 0, low: 1, medium: 2, med: 2, high: 3 }) });
+    return fields;
+  }
+
+  private acScenesPayload(command: Record<string, any>) {
+    const payload: Record<string, any> = {};
+    for (const field of this.acCommandFields(command)) {
+      if (field.code === "power") payload.power = field.value;
+      if (field.code === "mode") payload.mode = field.value;
+      if (field.code === "temp") payload.temp = field.value;
+      if (field.code === "wind") payload.wind = field.value;
+    }
     return payload;
+  }
+
+  private rawCommandPayload(version: string, rawKey: string, appliance: Record<string, any>, context: AdapterContext) {
+    const def = this.findSupportedIrKey(context, [rawKey]) || {};
+    if (version.startsWith("v2")) {
+      return {
+        category_id: cleanStr(def.category_id || appliance.category_id),
+        key_id: cleanStr(def.key_id || def.id || def.key || def.code || rawKey),
+        key: cleanStr(def.key || def.raw_key || def.code || rawKey),
+      };
+    }
+    return {
+      raw_key: cleanStr(def.raw_key || def.key_id || def.key || def.code || rawKey),
+    };
   }
 
   async executeIrRemoteCommand(
@@ -724,30 +829,56 @@ export class TuyaAdapter implements DeviceAdapter {
     const appliance = ((context as any)?.device?.metadata?.ir_appliance || {}) as Record<string, any>;
     const family = cleanStr(appliance.appliance_type || (context as any)?.device?.metadata?.device_family || (context as any)?.device?.type).toLowerCase();
     const rawKey = cleanStr((command as any).raw_key || (command as any).rawKey);
-    const key = this.remoteCommandKey(command);
+    const supportedDefinition = this.findSupportedIrKey(context, this.keyCandidates(command));
+    const key = cleanStr(this.supportedKeyCode(supportedDefinition) || this.remoteCommandKey(command));
     const shouldUseAcEndpoint = /^(ac|air_conditioner|climate)$/.test(family) && (
+      typeof (command as any).power === "boolean" ||
+      typeof (command as any).on === "boolean" ||
       (command as any).temperature != null ||
       (command as any).temp != null ||
       (command as any).mode != null ||
+      (command as any).fan_speed != null ||
       (command as any).fan != null ||
       (command as any).wind != null
     );
 
     let result: any;
     if (shouldUseAcEndpoint) {
-      const payload = this.acPayload(command, remoteId);
-      if (Object.keys(payload).length <= 1) throw new Error("This AC remote does not expose that control.");
+      const fields = this.acCommandFields(command);
+      if (!fields.length) throw new Error("This AC remote does not expose that control.");
+      const payload = fields.length > 1 ? this.acScenesPayload(command) : fields[0];
+      const endpointKind = fields.length > 1 ? "ac_scenes_command" : "ac_command";
       result = await this.requestIr<any>(
         "POST",
-        (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/ac/command`,
+        (version) => fields.length > 1
+          ? `/${version}/infrareds/${encodeURIComponent(infraredId)}/air-conditioners/${encodeURIComponent(remoteId)}/scenes/command`
+          : `/${version}/infrareds/${encodeURIComponent(infraredId)}/air-conditioners/${encodeURIComponent(remoteId)}/command`,
         payload,
       );
+      logger.info("tuya_ir_command_dispatched", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+        infrared_id: infraredId,
+        remote_id: remoteId,
+        endpoint_kind: endpointKind,
+        payload,
+        response: result,
+        latency_ms: Date.now() - startedAt,
+      });
     } else if (rawKey) {
       result = await this.requestIr<any>(
         "POST",
         (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/raw/command`,
-        { raw_key: rawKey },
+        (version: string) => this.rawCommandPayload(version, rawKey, appliance, context),
       );
+      logger.info("tuya_ir_command_dispatched", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+        infrared_id: infraredId,
+        remote_id: remoteId,
+        endpoint_kind: "raw_remote_command",
+        payload: { raw_key: rawKey },
+        response: result,
+        latency_ms: Date.now() - startedAt,
+      });
     } else {
       if (!key) throw new Error("This remote does not expose that control.");
       result = await this.requestIr<any>(
@@ -755,6 +886,15 @@ export class TuyaAdapter implements DeviceAdapter {
         (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/command`,
         { key },
       );
+      logger.info("tuya_ir_command_dispatched", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+        infrared_id: infraredId,
+        remote_id: remoteId,
+        endpoint_kind: "remote_command",
+        payload: { key },
+        response: result,
+        latency_ms: Date.now() - startedAt,
+      });
     }
 
     if (!tuyaResultAccepted(result)) {

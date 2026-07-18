@@ -1559,15 +1559,19 @@ export async function listMyServiceAccounts(req: Request, res: Response) {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-  const estateId = String(req.query.estate_id || user.estate_id || "").trim();
-  const homeId = String(req.query.home_id || user.home_id || "").trim() || null;
-  if (!estateId) return res.status(400).json({ error: "No estate linked to this account" });
-
   try {
-    const accounts = await listServiceAccountsForScope({ estateId, homeId, residentId: String(user.id) });
-    return res.json({ ok: true, estate_id: estateId, home_id: homeId, accounts });
+    const home = await resolveHomeForUser(user, {
+      homeId: String(req.query.home_id || "").trim() || null,
+      estateId: String(req.query.estate_id || "").trim() || null,
+    });
+    if (!home?.id) return res.status(400).json({ error: "No home linked to this account" });
+    const estateId = String(home.estate_id || user.estate_id || "").trim();
+    if (!estateId) return res.status(400).json({ error: "No estate linked to this account" });
+    const accounts = await listServiceAccountsForScope({ estateId, homeId: String(home.id) });
+    return res.json({ ok: true, estate_id: estateId, home_id: String(home.id), accounts });
   } catch (e: any) {
-    return res.status(500).json({ error: e?.message || "Failed to load resident service accounts" });
+    const statusCode = Number(e?.statusCode || 500);
+    return res.status(statusCode).json({ error: statusCode === 403 ? "No access to selected home" : e?.message || "Failed to load resident service accounts" });
   }
 }
 
@@ -1594,7 +1598,7 @@ export async function createServiceTransaction(req: Request, res: Response) {
   const estateId = String(home.estate_id || user.estate_id || "").trim();
   if (!estateId) return res.status(400).json({ error: "No estate linked to this service account" });
 
-  const accounts = await listServiceAccountsForScope({ estateId, homeId: String(home.id), residentId: String(user.id) });
+  const accounts = await listServiceAccountsForScope({ estateId, homeId: String(home.id) });
   const account = accounts.find((item: any) => item.service_key === serviceKey);
   if (!account) return res.status(404).json({ error: "Provisioned service account not found for this home" });
   if (accountRef && account.identifier && accountRef !== account.identifier) {

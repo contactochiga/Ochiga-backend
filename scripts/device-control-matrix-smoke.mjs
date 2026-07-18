@@ -57,12 +57,15 @@ const tvRemote = summarizeDeviceFrontendContract(
   {
     name: "Living Room TV",
     category: "unknown",
+    is_virtual: true,
     metadata: {
       raw: { category: "wnykq", product_name: "Universal IR Remote", model: "IR-01" },
-      device_family: "ir_remote",
-      control_profile: "ir_remote",
-      product_name: "Universal IR Remote",
+      device_family: "television",
+      control_profile: "television",
+      product_name: "Bedroom TV Remote",
       model: "IR-01",
+      supported_controls: ["remote", "power"],
+      ir_appliance: { appliance_type: "television", remote_id: "remote-tv-1" },
     },
   },
   {
@@ -71,10 +74,12 @@ const tvRemote = summarizeDeviceFrontendContract(
       functions: [{ code: "power" }, { code: "key_code" }],
       metadata: {
         raw: { category: "wnykq", product_name: "Universal IR Remote", model: "IR-01" },
-        device_family: "ir_remote",
-        control_profile: "ir_remote",
-        product_name: "Universal IR Remote",
+        device_family: "television",
+        control_profile: "television",
+        product_name: "Bedroom TV Remote",
         model: "IR-01",
+        supported_controls: ["remote", "power"],
+        ir_appliance: { appliance_type: "television", remote_id: "remote-tv-1" },
       },
       device: { name: "Living Room TV", category: "wnykq", type: "wnykq" },
       provider: "tuya",
@@ -90,7 +95,7 @@ const acRemote = summarizeDeviceFrontendContract(
     metadata: {
       raw: { category: "kt", product_name: "AC Remote", model: "AC-IR" },
       device_family: "climate",
-      control_profile: "climate",
+      control_profile: "air_conditioner",
       product_name: "AC Remote",
       model: "AC-IR",
     },
@@ -102,7 +107,7 @@ const acRemote = summarizeDeviceFrontendContract(
       metadata: {
         raw: { category: "kt", product_name: "AC Remote", model: "AC-IR" },
         device_family: "climate",
-        control_profile: "climate",
+        control_profile: "air_conditioner",
         product_name: "AC Remote",
         model: "AC-IR",
       },
@@ -140,13 +145,13 @@ assert(acSwitch.device_family === "switch", "AC-named switch keeps switch family
 assert(heaterRelay.control_profile === "switch", "water-heater relay remains a switch");
 assert(Array.isArray(multiGang.channel_definitions) && multiGang.channel_definitions.length === 3, "multi-gang switch exposes independent channels");
 assert(multiGang.channel_definitions?.[1]?.name === "Wall", "channel overrides are preserved");
-assert(tvRemote.device_family === "ir_remote", "Tuya IR TV remote preserves IR family");
-assert(tvRemote.control_profile === "ir_remote", "Tuya IR TV remote preserves IR profile");
+assert(tvRemote.device_family === "television", "Tuya IR TV child promotes to television family");
+assert(tvRemote.control_profile === "television", "Tuya IR TV child promotes to television profile");
 assert(tvRemote.supported_controls.includes("remote"), "Tuya IR TV remote supports remote control");
 assert(tvRemote.supported_controls.includes("power"), "Tuya IR TV remote can expose remote power without becoming a switch");
 assert(!["switch", "plug"].includes(tvRemote.control_profile), "Tuya IR TV remote is not rendered as switch or plug");
 assert(acRemote.device_family === "climate", "Tuya AC remote preserves climate family");
-assert(acRemote.control_profile === "climate", "Tuya AC remote preserves climate profile");
-assert(["power", "temperature", "mode", "fan", "swing"].every((control) => acRemote.supported_controls.includes(control)), "Tuya AC remote exposes climate controls");
+assert(acRemote.control_profile === "air_conditioner", "Tuya AC remote preserves air-conditioner profile");
+assert(["power", "temperature", "mode", "fan_speed", "swing"].every((control) => acRemote.supported_controls.includes(control)), "Tuya AC remote exposes canonical climate controls");
 assert(smartPlug.device_family === "plug", "Tuya smart plug preserves plug family");
 assert(smartPlug.control_profile === "plug", "Tuya smart plug preserves plug profile");

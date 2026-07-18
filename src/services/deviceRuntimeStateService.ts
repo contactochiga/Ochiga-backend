@@ -43,6 +43,7 @@ export type DeviceRuntimeSnapshot = {
 type RuntimeEntry = Omit<DeviceRuntimeSnapshot, "stale" | "freshness" | "age_ms"> & {
   device: Record<string, any>;
   accessed_at_ms: number;
+  last_refresh_attempt_ms?: number;
 };
 
 type DeviceRuntimeStateDependencies = {
@@ -99,6 +100,11 @@ export class DeviceRuntimeRefreshQueue {
 const FRESH_TTL_MS = 10_000;
 const EXPIRED_AFTER_MS = 60_000;
 const ACTIVE_WINDOW_MS = 60_000;
+const RECENT_WINDOW_MS = 10 * 60_000;
+const SCHEDULER_TICK_MS = 15_000;
+const ACTIVE_REFRESH_INTERVAL_MS = 30_000;
+const RECENT_REFRESH_INTERVAL_MS = 60_000;
+const INACTIVE_REFRESH_INTERVAL_MS = 3 * 60_000;
 const MAX_CACHE_ENTRIES = 50_000;
 const AUTHORIZATION_BACKOFF_INITIAL_MS = 5 * 60_000;
 const AUTHORIZATION_BACKOFF_MAX_MS = 60 * 60_000;
@@ -271,9 +277,15 @@ export class DeviceRuntimeStateService {
 
   start() {
     if (this.scheduler) return;
-    this.scheduler = setInterval(() => this.refreshActiveEntries(), 5_000);
+    this.scheduler = setInterval(() => this.refreshActiveEntries(), SCHEDULER_TICK_MS);
     this.scheduler.unref?.();
-    logger.info("device_runtime_v2_started", { refresh_concurrency: this.queue.stats().concurrency });
+    logger.info("device_runtime_v2_started", {
+      refresh_concurrency: this.queue.stats().concurrency,
+      scheduler_tick_ms: SCHEDULER_TICK_MS,
+      active_refresh_interval_ms: ACTIVE_REFRESH_INTERVAL_MS,
+      recent_refresh_interval_ms: RECENT_REFRESH_INTERVAL_MS,
+      inactive_refresh_interval_ms: INACTIVE_REFRESH_INTERVAL_MS,
+    });
   }
 
   stop() {
@@ -355,6 +367,7 @@ export class DeviceRuntimeStateService {
       retry_after: validTimestamp(stateWithRuntime?._oyi_runtime?.next_retry_at),
       last_successful_refresh: validTimestamp(stateWithRuntime?._oyi_runtime?.provider_last_success_at),
       accessed_at_ms: this.now(),
+      last_refresh_attempt_ms: undefined,
     };
     this.cache.set(entry.device_id, entry);
     this.trimCache();
@@ -567,11 +580,20 @@ export class DeviceRuntimeStateService {
       return Promise.resolve(this.get(deviceId));
     }
     const existing = this.refreshes.get(deviceId);
-    if (existing) return existing;
+    if (existing) {
+      operationalMetrics.increment("oyi_device_runtime_refresh_coalesced_total", {
+        adapter: adapterName(typeof deviceOrId === "string" ? this.cache.get(deviceId)?.device || {} : deviceOrId),
+        reason,
+      });
+      logger.debug("device_runtime_refresh_coalesced", { device_id: deviceId, reason, in_flight_refreshes: this.refreshes.size });
+      return existing;
+    }
     const queued = this.queue.enqueue(async () => {
       const device = typeof deviceOrId === "string" ? await this.resolveDeviceRecord(deviceId) : deviceOrId;
       if (!device?.id) return null;
       const startedAt = this.now();
+      const cached = this.cache.get(deviceId);
+      if (cached) cached.last_refresh_attempt_ms = startedAt;
       try {
         const state = await this.readProvider(device);
         const latency = this.now() - startedAt;
@@ -738,7 +760,19 @@ export class DeviceRuntimeStateService {
   private refreshActiveEntries() {
     const now = this.now();
     const candidates = Array.from(this.cache.values())
-      .filter((entry) => !this.isRefreshSuppressed(entry.device_id) && (entry.dirty || (now - entry.accessed_at_ms <= ACTIVE_WINDOW_MS && this.snapshot(entry).stale)))
+      .filter((entry) => {
+        if (this.isRefreshSuppressed(entry.device_id)) return false;
+        if (entry.dirty) return true;
+        const snapshot = this.snapshot(entry);
+        if (!snapshot.stale) return false;
+        const ageSinceAccess = now - entry.accessed_at_ms;
+        const ageSinceAttempt = now - (entry.last_refresh_attempt_ms || 0);
+        const offline = snapshot.summary.provider_health === "offline" || snapshot.summary.health_status === "offline";
+        if (offline) return ageSinceAttempt >= INACTIVE_REFRESH_INTERVAL_MS;
+        if (ageSinceAccess <= ACTIVE_WINDOW_MS) return ageSinceAttempt >= ACTIVE_REFRESH_INTERVAL_MS;
+        if (ageSinceAccess <= RECENT_WINDOW_MS) return ageSinceAttempt >= RECENT_REFRESH_INTERVAL_MS;
+        return snapshot.freshness === "expired" && ageSinceAttempt >= INACTIVE_REFRESH_INTERVAL_MS;
+      })
       .sort((a, b) => Number(b.dirty) - Number(a.dirty) || a.accessed_at_ms - b.accessed_at_ms)
       .slice(0, 25);
     for (const entry of candidates) {

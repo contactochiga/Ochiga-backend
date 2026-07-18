@@ -9,16 +9,23 @@ import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 
 const PROFILE_LIBRARY = {
-  tv: { appliance_type: "tv", label: "TV", control_profile: "tv", device_family: "ir_remote", supported_controls: ["remote", "power"] },
-  ac: { appliance_type: "ac", label: "Air Conditioner", control_profile: "climate", device_family: "climate", supported_controls: ["power", "temperature", "fan"] },
-  fan: { appliance_type: "fan", label: "Fan", control_profile: "ir_remote", device_family: "ir_remote", supported_controls: ["remote", "power"] },
-  decoder: { appliance_type: "decoder", label: "Decoder", control_profile: "tv", device_family: "ir_remote", supported_controls: ["remote", "power"] },
-  set_top_box: { appliance_type: "set_top_box", label: "Set-top Box", control_profile: "tv", device_family: "ir_remote", supported_controls: ["remote", "power"] },
-  projector: { appliance_type: "projector", label: "Projector", control_profile: "tv", device_family: "ir_remote", supported_controls: ["remote", "power"] },
-  speaker: { appliance_type: "speaker", label: "Speaker", control_profile: "ir_remote", device_family: "ir_remote", supported_controls: ["remote", "power"] },
+  tv: { appliance_type: "television", label: "TV", control_profile: "television", device_family: "television", supported_controls: ["remote", "power"] },
+  ac: { appliance_type: "air_conditioner", label: "Air Conditioner", control_profile: "air_conditioner", device_family: "climate", supported_controls: ["power", "temperature", "mode", "fan_speed"] },
+  fan: { appliance_type: "fan", label: "Fan", control_profile: "fan", device_family: "fan", supported_controls: ["remote", "power", "fan_speed"] },
+  decoder: { appliance_type: "set_top_box", label: "Decoder", control_profile: "set_top_box", device_family: "set_top_box", supported_controls: ["remote", "power"] },
+  set_top_box: { appliance_type: "set_top_box", label: "Set-top Box", control_profile: "set_top_box", device_family: "set_top_box", supported_controls: ["remote", "power"] },
+  projector: { appliance_type: "projector", label: "Projector", control_profile: "projector", device_family: "projector", supported_controls: ["remote", "power"] },
+  speaker: { appliance_type: "speaker", label: "Speaker", control_profile: "speaker", device_family: "speaker", supported_controls: ["remote", "power"] },
   custom: { appliance_type: "custom", label: "Custom Remote", control_profile: "ir_remote", device_family: "ir_remote", supported_controls: ["remote"] },
   unknown_ir_appliance: { appliance_type: "unknown_ir_appliance", label: "IR Appliance", control_profile: "ir_remote", device_family: "ir_remote", supported_controls: ["remote"] },
 } as const;
+
+const TUYA_IR_CATEGORY_PROFILE: Record<string, keyof typeof PROFILE_LIBRARY> = {
+  "1": "set_top_box",
+  "2": "tv",
+  "5": "ac",
+  "8": "fan",
+};
 
 type ProviderIrProfile = {
   key: string;
@@ -89,11 +96,17 @@ function keyCode(input: any) {
   return clean(input?.key || input?.key_code || input?.code || input?.value || input?.name || input?.key_name);
 }
 
+function normalizedKeyCode(input: any) {
+  return keyCode(input).toLowerCase().replace(/[\s.-]+/g, "_");
+}
+
 function compactUnique(values: unknown[]) {
   return Array.from(new Set(values.map(clean).filter(Boolean)));
 }
 
 function irProfileKeyFromRemote(remote: any) {
+  const categoryId = clean(remote?.category_id || remote?.category);
+  if (categoryId && TUYA_IR_CATEGORY_PROFILE[categoryId]) return TUYA_IR_CATEGORY_PROFILE[categoryId];
   const haystack = [
     remote?.category,
     remote?.category_id,
@@ -112,15 +125,49 @@ function irProfileKeyFromRemote(remote: any) {
   return "unknown_ir_appliance";
 }
 
+function canonicalIrCapability(profileKey: string, code: string) {
+  const normalized = String(code || "").toLowerCase().replace(/[\s.-]+/g, "_");
+  if (!normalized) return "";
+  if (profileKey === "ac") {
+    if (/^(power|power_on|poweron|power_off|poweroff|on|off)$/.test(normalized)) return "power";
+    if (/^(t|temp|temperature|temp_set|set_temp)$/.test(normalized)) return "temperature";
+    if (/^(m|mode|work_mode)$/.test(normalized)) return "mode";
+    if (/^(f|fan|fan_speed|wind|wind_speed|windspeed)$/.test(normalized)) return "fan_speed";
+    if (/swing|shake|oscillat/.test(normalized)) return "swing";
+  }
+  if (["tv", "decoder", "set_top_box", "projector", "speaker"].includes(profileKey)) {
+    if (/^(power|power_on|poweron|power_off|poweroff|power_toggle)$/.test(normalized)) return "power";
+    if (/^(volume_up|vol_up|vol\+|volume\+)$/.test(normalized)) return "volume_up";
+    if (/^(volume_down|vol_down|vol-|volume-)$/.test(normalized)) return "volume_down";
+    if (/^(channel_up|ch_up|ch\+|channel\+)$/.test(normalized)) return "channel_up";
+    if (/^(channel_down|ch_down|ch-|channel-)$/.test(normalized)) return "channel_down";
+    if (/mute/.test(normalized)) return "mute";
+    if (/source|input/.test(normalized)) return "source";
+    if (/^(ok|enter|select)$/.test(normalized)) return "ok";
+    if (/^(up|down|left|right|home|back|return|menu)$/.test(normalized)) return normalized === "return" ? "back" : normalized;
+    if (/play|pause/.test(normalized)) return "play_pause";
+  }
+  if (profileKey === "fan") {
+    if (/power|on|off/.test(normalized)) return "power";
+    if (/speed|fan|wind/.test(normalized)) return "fan_speed";
+    if (/swing|oscillat/.test(normalized)) return "swing";
+  }
+  return normalized.length <= 2 ? "" : normalized;
+}
+
+function canonicalCapabilityCodesFromKeys(profileKey: string, keys: any[]) {
+  return compactUnique(keys.map((item) => canonicalIrCapability(profileKey, normalizedKeyCode(item))));
+}
+
 function supportedControlsFromKeys(profileKey: string, keys: any[]) {
-  const codes = compactUnique(keys.map(keyCode)).map((code) => code.toLowerCase());
+  const codes = canonicalCapabilityCodesFromKeys(profileKey, keys).map((code) => code.toLowerCase());
   const controls = new Set<string>();
   controls.add("remote");
   if (codes.some((code) => /power|on|off/.test(code))) controls.add("power");
   if (profileKey === "ac") {
     if (codes.some((code) => /temp|temperature/.test(code))) controls.add("temperature");
     if (codes.some((code) => /mode|cool|heat|dry|auto/.test(code))) controls.add("mode");
-    if (codes.some((code) => /fan|wind/.test(code))) controls.add("fan");
+    if (codes.some((code) => /fan|wind/.test(code))) controls.add("fan_speed");
     if (codes.some((code) => /swing|oscillat/.test(code))) controls.add("swing");
   }
   if (profileKey === "tv" || profileKey === "decoder" || profileKey === "set_top_box" || profileKey === "projector") {
@@ -145,7 +192,7 @@ function providerProfileFromMetadata(hub: any, profileKey: string): ProviderIrPr
     {};
   const remoteId = clean(source?.remote_id || source?.id || source?.profile_id || source?.provider_profile_id) || null;
   const keys = Array.isArray(source?.keys) ? source.keys : Array.isArray(source?.supported_keys) ? source.supported_keys : [];
-  const capabilityCodes = compactUnique(keys.map(keyCode));
+  const capabilityCodes = canonicalCapabilityCodesFromKeys(profileKey, keys);
   return {
     key: profileKey,
     appliance_type: template.appliance_type,
@@ -171,7 +218,7 @@ function providerProfileFromTuyaRemote(remote: any, keys: any[]): ProviderIrProf
   if (!remoteId) return null;
   const profileKey = irProfileKeyFromRemote(remote);
   const template = PROFILE_LIBRARY[profileKey as keyof typeof PROFILE_LIBRARY] || PROFILE_LIBRARY.unknown_ir_appliance;
-  const capabilityCodes = compactUnique(keys.map(keyCode));
+  const capabilityCodes = canonicalCapabilityCodesFromKeys(profileKey, keys);
   return {
     key: profileKey,
     appliance_type: template.appliance_type,

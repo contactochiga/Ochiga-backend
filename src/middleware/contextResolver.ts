@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { ContextResolutionError, resolveOisContext } from "../services/context/contextResolutionService";
 import type { OisContext, OisSurface } from "../types/oisContext";
 import { timeRequestStage } from "../observability/requestStageTiming";
+import { patchRuntimeContext } from "../observability/runtimeContext";
 
 export function requestInput(req: Request) {
   const source = req.method === "GET" ? req.query : req.body || {};
@@ -19,6 +20,15 @@ export async function resolveRequestContext(req: Request, res: Response, next: N
   if (!req.user) return res.status(401).json({ error: "Not authenticated" });
   try {
     req.oisContext = await timeRequestStage(req, "context", () => resolveOisContext(req.user!, requestInput(req)));
+    const targetType = String(req.oisContext.target?.target_type || "");
+    const targetId = String(req.oisContext.target?.target_id || "").trim();
+    patchRuntimeContext({
+      actorId: req.oisContext.actor_id || req.user.id,
+      estateId: req.oisContext.estate_id || null,
+      homeId: req.oisContext.home_id || null,
+      deviceId: targetType === "device" ? targetId || null : undefined,
+      roomId: targetType === "room" ? targetId || null : undefined,
+    });
     return next();
   } catch (error: any) {
     const status = error instanceof ContextResolutionError ? error.statusCode : 500;
@@ -78,6 +88,15 @@ export async function resolveDeviceRuntimeContext(req: Request, res: Response, n
     req.oisContext = await timeRequestStage(req, "context", async () => {
       const fast = fastRuntimeContext(req);
       return fast || resolveOisContext(req.user!, requestInput(req));
+    });
+    const targetType = String(req.oisContext.target?.target_type || "");
+    const targetId = String(req.oisContext.target?.target_id || "").trim();
+    patchRuntimeContext({
+      actorId: req.oisContext.actor_id || req.user.id,
+      estateId: req.oisContext.estate_id || null,
+      homeId: req.oisContext.home_id || null,
+      deviceId: targetType === "device" ? targetId || null : undefined,
+      roomId: targetType === "room" ? targetId || null : undefined,
     });
     return next();
   } catch (error: any) {

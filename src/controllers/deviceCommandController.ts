@@ -48,8 +48,8 @@ function deviceCommandFamily(device: any) {
   const controls = Array.isArray(summary.supported_controls) ? summary.supported_controls.map((item) => String(item).toLowerCase()) : [];
   const identity = textFromDevice(device);
   if (deviceFamily === "camera" || profile === "camera") return "camera";
-  if (deviceFamily === "climate" || profile === "climate") return "ac";
-  if (profile === "tv" || /\b(tv|television|smart tv|android tv|google tv|samsung tv|lg tv|hisense tv|tcl|set top|set_top_box|decoder|stb)\b/.test(identity)) return "tv";
+  if (deviceFamily === "climate" || deviceFamily === "air_conditioner" || profile === "air_conditioner" || profile === "climate") return "ac";
+  if (deviceFamily === "television" || profile === "television" || profile === "tv" || /\b(tv|television|smart tv|android tv|google tv|samsung tv|lg tv|hisense tv|tcl|set top|set_top_box|decoder|stb)\b/.test(identity)) return "tv";
   if (deviceFamily === "ir_remote" || profile === "ir_remote" || controls.includes("remote")) return "ir";
   if (deviceFamily === "curtain" || profile === "curtain") return "curtain";
   if (deviceFamily === "lock" || profile === "lock") return "lock";
@@ -77,7 +77,7 @@ function isSwitchPayload(command: Record<string, any>) {
 function isTvPayload(command: Record<string, any>) {
   const type = String((command as any)?.type || "").toLowerCase();
   const keys = commandKeys(command);
-  return type === "tv_remote" || type === "ir_remote" || keys.some((key: string) => /^(ir_code|remote_key|key_code|control|command_key|key|remote)$/.test(key));
+  return type === "tv_remote" || type === "ir_remote" || keys.some((key: string) => /^(ir_code|remote_key|key_code|control|command_key|key|remote|power)$/.test(key));
 }
 
 function isAcPayload(command: Record<string, any>) {
@@ -150,6 +150,26 @@ function normalizeCommand(input: any, device?: any): Record<string, any> {
       if (item?.code) out[String(item.code)] = item.value;
     }
     return out;
+  }
+
+  const family = device ? deviceCommandFamily(device) : "unknown";
+  if (family === "tv" || family === "ir") {
+    const next: Record<string, any> = { ...c, type: c.type || "tv_remote" };
+    if (typeof c.on === "boolean" && typeof next.power !== "boolean") next.power = c.on;
+    if (typeof c.switch === "boolean" && typeof next.power !== "boolean") next.power = c.switch;
+    if (!next.key && c.command) next.key = c.command;
+    return next;
+  }
+
+  if (family === "ac") {
+    const next: Record<string, any> = { ...c, type: c.type || "ac_remote" };
+    if (typeof c.on === "boolean" && typeof next.power !== "boolean") next.power = c.on;
+    if (typeof c.switch === "boolean" && typeof next.power !== "boolean") next.power = c.switch;
+    if (next.fanSpeed != null && next.fan_speed == null) next.fan_speed = next.fanSpeed;
+    if (next.fan != null && next.fan_speed == null) next.fan_speed = next.fan;
+    if (next.wind != null && next.fan_speed == null) next.fan_speed = next.wind;
+    if (next.temp != null && next.temperature == null) next.temperature = next.temp;
+    return next;
   }
 
   const summary = device ? summarizeDeviceFrontendContract(device) : null;
@@ -297,11 +317,12 @@ async function resolveCommandTarget(input: {
     }
   }
 
-  assertDeviceCommandSupported(commandDevice, input.command);
+  const normalizedCommand = normalizeCommand(input.command, commandDevice);
+  assertDeviceCommandSupported(commandDevice, normalizedCommand);
   return {
     deviceRow,
     commandDevice,
-    normalizedCommand: normalizeCommand(input.command, commandDevice),
+    normalizedCommand,
   };
 }
 

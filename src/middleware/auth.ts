@@ -6,6 +6,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent, hasPermission, permissionsForRole, type PermissionKey } from "../core/foundation";
 import type { OisContext } from "../types/oisContext";
 import { timeRequestStage } from "../observability/requestStageTiming";
+import { patchRuntimeContext } from "../observability/runtimeContext";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 if (!APP_JWT_SECRET) {
@@ -177,6 +178,11 @@ async function verifyToken(req: Request, res: Response, allowRuntimeReadCache = 
 
     const hydrated = await hydrateUserContext(decoded, allowRuntimeReadCache);
     req.user = hydrated;
+    patchRuntimeContext({
+      actorId: hydrated.id,
+      estateId: hydrated.estate_id || null,
+      homeId: hydrated.home_id || null,
+    });
     return hydrated;
   } catch (err) {
     console.error("JWT Error:", err);

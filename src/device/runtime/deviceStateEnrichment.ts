@@ -121,6 +121,12 @@ const INTERNAL_CAPABILITY_CODES = new Set([
   "kg",
   "wnykq",
   "infrared_tv",
+  "infrared_ac",
+  "poweron",
+  "poweroff",
+  "f",
+  "m",
+  "t",
   "device",
   "generic",
   "unknown",
@@ -161,9 +167,17 @@ function tuyaCategoryFamily(value: unknown) {
     ir_remote: "ir_remote",
     remote_control: "ir_remote",
     universal_remote: "ir_remote",
-    tv_remote: "ir_remote",
-    set_top_box: "ir_remote",
-    stb: "ir_remote",
+    tv_remote: "television",
+    infrared_tv: "television",
+    television: "television",
+    tv: "television",
+    set_top_box: "set_top_box",
+    decoder: "set_top_box",
+    stb: "set_top_box",
+    infrared_ac: "climate",
+    air_conditioner_remote: "climate",
+    fan_remote: "fan",
+    projector_remote: "projector",
     curtain: "curtain",
     blind: "curtain",
     shade: "curtain",
@@ -178,15 +192,59 @@ function tuyaCategoryFamily(value: unknown) {
     lighting: "light",
     ceiling_light: "light",
     lamp: "light",
+    fan: "fan",
+    projector: "projector",
+    speaker: "speaker",
+    media: "speaker",
+    power_meter: "power_meter",
+    energy_meter: "energy_meter",
+    water_meter: "water_meter",
+    internet_service: "internet_service",
+    gas_service: "gas_service",
   };
   return map[raw] || raw;
 }
 
 function knownFamily(value: unknown) {
   const mapped = tuyaCategoryFamily(value);
-  return ["switch", "plug", "camera", "climate", "ir_remote", "curtain", "lock", "sensor", "light"].includes(mapped)
+  return ["switch", "plug", "camera", "climate", "ir_remote", "television", "curtain", "lock", "sensor", "light", "fan", "projector", "set_top_box", "speaker", "power_meter", "energy_meter", "water_meter", "internet_service", "gas_service"].includes(mapped)
     ? mapped
     : "";
+}
+
+function knownControlProfile(value: unknown) {
+  const raw = String(value || "").toLowerCase().trim();
+  const mapped: Record<string, string> = {
+    tv: "television",
+    television: "television",
+    infrared_tv: "television",
+    ac: "air_conditioner",
+    climate: "air_conditioner",
+    air_conditioner: "air_conditioner",
+    infrared_ac: "air_conditioner",
+    ir_remote: "ir_remote",
+    remote: "ir_remote",
+    switch: "switch",
+    plug: "plug",
+    socket: "plug",
+    camera: "camera",
+    curtain: "curtain",
+    lock: "lock",
+    sensor: "sensor",
+    light: "light",
+    fan: "fan",
+    projector: "projector",
+    set_top_box: "set_top_box",
+    decoder: "set_top_box",
+    speaker: "speaker",
+    power_meter: "power_meter",
+    energy_meter: "energy_meter",
+    water_meter: "water_meter",
+    internet_service: "internet_service",
+    gas_service: "gas_service",
+    generic: "generic",
+  };
+  return mapped[raw] || "";
 }
 
 function capabilityCodes(input: { state?: AnyRecord | null; functions?: Array<{ code?: string | null }> | null; metadata?: AnyRecord | null; device?: AnyRecord | null }) {
@@ -274,11 +332,7 @@ function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string
     return "ir_remote";
   }
 
-  if (
-    hasClimate ||
-    (/ac|air_conditioner|climate|thermostat|hvac|kt/.test(haystack) &&
-      !hasPower)
-  ) {
+  if (hasClimate || (/ac|air_conditioner|climate|thermostat|hvac|kt/.test(haystack) && !hasPower)) {
     return "climate";
   }
 
@@ -302,9 +356,17 @@ function inferDeviceFamily(device: AnyRecord, metadata: AnyRecord, codes: string
   ).toLowerCase();
 }
 
-function inferControlProfile(deviceFamily: string, codes: string[]) {
+function inferControlProfile(deviceFamily: string, codes: string[], metadata?: AnyRecord, device?: AnyRecord) {
+  const explicit = knownControlProfile(
+    metadata?.control_profile ||
+    metadata?.profile ||
+    metadata?.ir_appliance?.control_profile ||
+    device?.control_profile,
+  );
+  if (explicit) return explicit;
   if (deviceFamily === "camera") return "camera";
-  if (deviceFamily === "climate") return "climate";
+  if (deviceFamily === "climate") return "air_conditioner";
+  if (deviceFamily === "television") return "television";
   if (deviceFamily === "ir_remote") return "ir_remote";
   if (deviceFamily === "curtain") return "curtain";
   if (deviceFamily === "lock") return "lock";
@@ -312,13 +374,18 @@ function inferControlProfile(deviceFamily: string, codes: string[]) {
   if (deviceFamily === "plug") return "plug";
   if (deviceFamily === "switch") return "switch";
   if (deviceFamily === "light") return "switch";
+  if (deviceFamily === "fan") return "fan";
+  if (deviceFamily === "projector") return "projector";
+  if (deviceFamily === "set_top_box") return "set_top_box";
+  if (deviceFamily === "speaker") return "speaker";
+  if (["power_meter", "energy_meter", "water_meter", "internet_service", "gas_service"].includes(deviceFamily)) return deviceFamily;
   if (codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code))) return deviceFamily === "plug" ? "plug" : "switch";
   return "generic";
 }
 
 function inferSupportedControls(deviceFamily: string, codes: string[]) {
   const controls = new Set<string>();
-  if (["switch", "plug", "light", "climate", "ir_remote"].includes(deviceFamily) && codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code))) controls.add("power");
+  if (["switch", "plug", "light"].includes(deviceFamily) && codes.some((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code))) controls.add("power");
   if (codes.some((code) => code.includes("bright"))) controls.add("brightness");
   if (codes.some((code) => code.includes("colour") || code.includes("color"))) controls.add("color");
   if (codes.some((code) => code.includes("temp"))) controls.add(deviceFamily === "climate" ? "temperature" : "sensor_temperature");
@@ -336,10 +403,26 @@ function inferSupportedControls(deviceFamily: string, codes: string[]) {
     controls.add("remote");
     if (codes.includes("power") || codes.includes("switch") || codes.includes("on")) controls.add("power");
   }
+  if (["television", "projector", "set_top_box", "speaker"].includes(deviceFamily)) {
+    controls.add("remote");
+    if (codes.some((code) => /power|on|off/.test(code))) controls.add("power");
+    if (codes.some((code) => /volume|vol[_+.-]/.test(code))) controls.add("volume");
+    if (codes.some((code) => /channel|ch[_+.-]/.test(code))) controls.add("channel");
+    if (codes.some((code) => /mute/.test(code))) controls.add("mute");
+    if (codes.some((code) => /source|input/.test(code))) controls.add("source");
+  }
   if (deviceFamily === "climate") {
+    if (codes.some((code) => /power|on|off/.test(code))) controls.add("power");
+    if (codes.some((code) => /temp|temperature/.test(code))) controls.add("temperature");
     if (codes.some((code) => /mode/.test(code))) controls.add("mode");
-    if (codes.some((code) => /fan|wind/.test(code))) controls.add("fan");
+    if (codes.some((code) => /fan|wind/.test(code))) controls.add("fan_speed");
     if (codes.some((code) => /swing/.test(code))) controls.add("swing");
+  }
+  if (deviceFamily === "fan") {
+    controls.add("remote");
+    if (codes.some((code) => /power|on|off/.test(code))) controls.add("power");
+    if (codes.some((code) => /speed|fan|wind/.test(code))) controls.add("fan_speed");
+    if (codes.some((code) => /swing|oscillat/.test(code))) controls.add("swing");
   }
   return Array.from(controls);
 }
@@ -479,7 +562,7 @@ export function enrichDeviceProviderState(input: {
   const codes = capabilityCodes({ state: rawState, functions: input.functions, metadata, device });
   const normalized = normalizeStateFields(rawState);
   const deviceFamily = inferDeviceFamily(device, metadata, codes);
-  const controlProfile = inferControlProfile(deviceFamily, codes);
+  const controlProfile = inferControlProfile(deviceFamily, codes, metadata, device);
   const supportedControls = inferSupportedControls(deviceFamily, codes);
   const publicCapabilityCodes = sanitizePublicCapabilityCodes(codes);
   const channelDefinitions = deriveChannelDefinitions({ codes, normalized, rawState, metadata, deviceFamily });
