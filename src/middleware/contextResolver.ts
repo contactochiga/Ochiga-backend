@@ -9,8 +9,8 @@ export function requestInput(req: Request) {
   const context = (source as any)?.context || {};
   return {
     surface: context.surface || (source as any)?.surface || req.headers["x-ochiga-surface"],
-    estate_id: context.estate_id || (source as any)?.estate_id || null,
-    home_id: context.home_id || (source as any)?.home_id || null,
+    estate_id: context.estate_id || (source as any)?.estate_id || req.headers["x-oyi-estate-id"] || null,
+    home_id: context.home_id || (source as any)?.home_id || req.headers["x-oyi-home-id"] || null,
     module: context.module || (source as any)?.module || null,
     target: context.target || null,
   };
@@ -70,6 +70,7 @@ function fastRuntimeContext(req: Request): OisContext | null {
     deployment_id: null,
     estate_id: requestedEstateId || actorEstateId,
     home_id: requestedHomeId || actorHomeId || null,
+    membership_id: null,
     module: String(input.module || "").trim() || null,
     target: input.target || null,
     estate: null,

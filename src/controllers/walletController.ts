@@ -10,6 +10,7 @@ import { NotificationService } from "../services/NotificationService";
 import { recordProviderWebhookEvent } from "../services/providerWebhookEvents";
 import { logger } from "../observability/logger";
 import { createPublicApiError, sendPublicApiError } from "../services/publicApi";
+import { getOrCreateScopedWallet, resolveWalletScopeFromRequest, resolveWalletScopeForHome } from "../services/walletScopeService";
 
 const WALLET_FUNDING_ENABLED = (process.env.WALLET_FUNDING_ENABLED ?? "true").toLowerCase() !== "false";
 
@@ -146,7 +147,16 @@ function fundingMessage(status: FundingStatus) {
   };
 }
 
-async function getOrCreateWallet(userId: string) {
+async function getOrCreateWallet(userId: string, scope?: { estateId?: string | null; homeId?: string | null; membershipId?: string | null }) {
+  if (scope?.homeId) {
+    return getOrCreateScopedWallet({
+      userId,
+      estateId: scope.estateId || null,
+      homeId: scope.homeId || null,
+      membershipId: scope.membershipId || null,
+    });
+  }
+
   const { data: existing, error: fetchErr } = await supabaseAdmin
     .from("wallets")
     .select("*")
@@ -179,6 +189,15 @@ async function insertWalletTransactionWithFallback(row: Record<string, any>) {
       payload.metadata = mergeMetadata(payload.metadata, { resident_id: row.user_id || null });
       continue;
     }
+    let prunedScopedColumn = false;
+    for (const column of ["wallet_account_id", "estate_id", "home_id", "membership_id", "service_account_id"]) {
+      if (missingWalletColumn(error, column) && Object.prototype.hasOwnProperty.call(payload, column)) {
+        delete payload[column];
+        payload.metadata = mergeMetadata(payload.metadata, { [column]: row[column] || null });
+        prunedScopedColumn = true;
+      }
+    }
+    if (prunedScopedColumn) continue;
     if (missingWalletColumn(error, "updated_at") && Object.prototype.hasOwnProperty.call(payload, "updated_at")) {
       delete payload.updated_at;
       continue;
@@ -208,6 +227,15 @@ async function updateWalletTransactionWithFallback(reference: string, patch: Rec
       delete payload.updated_at;
       continue;
     }
+    let prunedScopedColumn = false;
+    for (const column of ["wallet_account_id", "estate_id", "home_id", "membership_id", "service_account_id"]) {
+      if (missingWalletColumn(error, column) && Object.prototype.hasOwnProperty.call(payload, column)) {
+        delete payload[column];
+        payload.metadata = mergeMetadata(payload.metadata, { [column]: patch[column] || null });
+        prunedScopedColumn = true;
+      }
+    }
+    if (prunedScopedColumn) continue;
     throw error;
   }
   throw new Error("wallet_transaction_update_failed");
@@ -233,6 +261,7 @@ async function ensureFundingTransaction(params: {
   reference: string;
   estateId?: string | null;
   homeId?: string | null;
+  membershipId?: string | null;
   callbackUrl?: string | null;
 }) {
   const existing = await findWalletTransaction(params.reference);
@@ -240,7 +269,11 @@ async function ensureFundingTransaction(params: {
 
   return insertWalletTransactionWithFallback({
     wallet_id: params.walletId,
+    wallet_account_id: params.walletId,
     user_id: params.userId,
+    estate_id: params.estateId || null,
+    home_id: params.homeId || null,
+    membership_id: params.membershipId || null,
     direction: "credit",
     type: "funding",
     amount: params.amount,
@@ -251,6 +284,8 @@ async function ensureFundingTransaction(params: {
       currency: params.currency,
       estate_id: params.estateId || null,
       home_id: params.homeId || null,
+      membership_id: params.membershipId || null,
+      wallet_account_id: params.walletId,
       callback_url: params.callbackUrl || null,
       confirmation_source: "initialization",
     },
@@ -328,15 +363,34 @@ async function reconcileWalletFunding(input: {
   confirmationSource: "paystack_webhook" | "payment_verify" | "payment_status";
   req?: Request;
 }) {
-  const wallet = await getOrCreateWallet(input.userId);
   const amount = safeNumber(input.providerPayload.amount);
-  const currency = safeCurrency(input.providerPayload.currency || wallet.currency || "NGN");
-  const paidAmount = amount > 1000 ? amount / 100 : amount;
   const metadata = input.providerPayload.metadata && typeof input.providerPayload.metadata === "object" ? input.providerPayload.metadata : {};
   const ownerUserId = String(metadata.userId || input.userId || "").trim();
   if (!ownerUserId || ownerUserId !== input.userId) {
     throw createPublicApiError(403, "wallet_ownership_mismatch", "This payment does not belong to the current wallet.");
   }
+
+  let wallet: any = null;
+  const metadataWalletId = String(metadata.wallet_id || metadata.wallet_account_id || "").trim();
+  if (metadataWalletId) {
+    const { data, error } = await supabaseAdmin
+      .from("wallets")
+      .select("*")
+      .eq("id", metadataWalletId)
+      .eq("user_id", input.userId)
+      .maybeSingle();
+    if (error) throw error;
+    wallet = data || null;
+  }
+  if (!wallet) {
+    wallet = await getOrCreateWallet(input.userId, {
+      estateId: metadata.estate_id || null,
+      homeId: metadata.home_id || null,
+      membershipId: metadata.membership_id || null,
+    });
+  }
+  const currency = safeCurrency(input.providerPayload.currency || wallet.currency || "NGN");
+  const paidAmount = amount > 1000 ? amount / 100 : amount;
 
   const existing = await ensureFundingTransaction({
     walletId: String(wallet.id),
@@ -346,6 +400,7 @@ async function reconcileWalletFunding(input: {
     reference: input.reference,
     estateId: metadata.estate_id || null,
     homeId: metadata.home_id || null,
+    membershipId: metadata.membership_id || wallet.membership_id || null,
     callbackUrl: metadata.callback_url || null,
   });
 
@@ -382,6 +437,10 @@ async function reconcileWalletFunding(input: {
         channel: input.providerPayload.channel || "card",
         currency,
         confirmation_source: input.confirmationSource,
+        wallet_account_id: wallet.id || null,
+        estate_id: metadata.estate_id || wallet.estate_id || null,
+        home_id: metadata.home_id || wallet.home_id || null,
+        membership_id: metadata.membership_id || wallet.membership_id || null,
       }),
       updated_at: new Date().toISOString(),
     },
@@ -411,14 +470,33 @@ async function reconcileWalletFunding(input: {
   let nextBalance = safeNumber(wallet.balance) + paidAmount;
   let walletUpdateError: any = null;
   try {
-    const { data: creditResult, error: creditErr } = await supabaseAdmin.rpc("oyi_credit_wallet", {
-      p_user_id: input.userId,
-      p_amount: paidAmount,
-      p_reason: "funding",
-      p_currency: currency,
-      p_reference: creditReference,
-      p_type: "funding",
-    });
+    let creditResult: any = null;
+    let creditErr: any = null;
+    if (wallet?.id) {
+      const scopedCredit = await supabaseAdmin.rpc("oyi_credit_home_wallet", {
+        p_wallet_id: wallet.id,
+        p_user_id: input.userId,
+        p_amount: paidAmount,
+        p_reason: "funding",
+        p_currency: currency,
+        p_reference: creditReference,
+        p_type: "funding",
+      });
+      creditResult = scopedCredit.data;
+      creditErr = scopedCredit.error;
+    }
+    if (creditErr && /could not find the function/i.test(String(creditErr.message || ""))) {
+      const legacyCredit = await supabaseAdmin.rpc("oyi_credit_wallet", {
+        p_user_id: input.userId,
+        p_amount: paidAmount,
+        p_reason: "funding",
+        p_currency: currency,
+        p_reference: creditReference,
+        p_type: "funding",
+      });
+      creditResult = legacyCredit.data;
+      creditErr = legacyCredit.error;
+    }
     if (creditErr && /could not find the function/i.test(String(creditErr.message || ""))) {
       // RPC not deployed — fall through to legacy in-place increment.
       const fallback = await supabaseAdmin
@@ -488,6 +566,10 @@ async function reconcileWalletFunding(input: {
     {
       status: "completed",
       amount: paidAmount,
+      wallet_account_id: wallet.id || existing.wallet_account_id || existing.wallet_id || null,
+      estate_id: metadata.estate_id || wallet.estate_id || null,
+      home_id: metadata.home_id || wallet.home_id || null,
+      membership_id: metadata.membership_id || wallet.membership_id || null,
       metadata: mergeMetadata(existing.metadata, {
         provider: "paystack",
         provider_reference: input.reference,
@@ -496,6 +578,10 @@ async function reconcileWalletFunding(input: {
         paid_at: receipt.paid_at,
         payment_method: receipt.payment_method,
         confirmation_source: input.confirmationSource,
+        wallet_account_id: wallet.id || null,
+        estate_id: metadata.estate_id || wallet.estate_id || null,
+        home_id: metadata.home_id || wallet.home_id || null,
+        membership_id: metadata.membership_id || wallet.membership_id || null,
         receipt,
       }),
       updated_at: new Date().toISOString(),
@@ -583,7 +669,7 @@ async function providerVerification(reference: string) {
   return response?.data?.data || null;
 }
 
-async function walletFundingView(reference: string, userId?: string) {
+async function walletFundingView(reference: string, userId?: string, scope?: { homeId?: string | null }) {
   const transaction = await findWalletTransaction(reference);
   if (!transaction) return null;
   const wallet = transaction.wallet_id
@@ -592,6 +678,10 @@ async function walletFundingView(reference: string, userId?: string) {
   const ownerId = String(transaction.user_id || wallet?.user_id || transaction?.metadata?.resident_id || "").trim();
   if (userId && ownerId && ownerId !== userId) {
     throw createPublicApiError(403, "wallet_ownership_mismatch", "This payment does not belong to the current wallet.");
+  }
+  const transactionHomeId = String(transaction.home_id || transaction?.metadata?.home_id || wallet?.home_id || "").trim();
+  if (scope?.homeId && transactionHomeId && transactionHomeId !== String(scope.homeId)) {
+    throw createPublicApiError(403, "wallet_home_scope_mismatch", "This payment belongs to another home.");
   }
   const receipt = transaction?.metadata?.receipt || (wallet ? buildFundingReceipt({
     transaction,
@@ -612,14 +702,15 @@ export async function getWallet(req: Request, res: Response) {
   const user = req.user;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const wallet = await getOrCreateWallet(user.id);
+    const scope = await resolveWalletScopeFromRequest(req);
+    const wallet = await getOrCreateWallet(user.id, scope);
     return res.json(wallet);
   } catch (error: any) {
     return sendPublicApiError(
       res,
       error,
       { statusCode: 500, code: "wallet_unavailable", message: "Wallet details are temporarily unavailable." },
-      { operation: "wallet.get", actor_id: user.id, estate_id: user.estate_id || null, home_id: user.home_id || null },
+      { operation: "wallet.get", actor_id: user.id, estate_id: req.oisContext?.estate_id || user.estate_id || null, home_id: req.oisContext?.home_id || user.home_id || null },
     );
   }
 }
@@ -650,7 +741,8 @@ export async function initPayment(req: Request, res: Response) {
       throw createPublicApiError(400, "wallet_amount_invalid", "Enter a valid amount to continue.");
     }
 
-    const wallet = await getOrCreateWallet(user.id);
+    const scope = await resolveWalletScopeFromRequest(req);
+    const wallet = await getOrCreateWallet(user.id, scope);
     const amountKobo = Math.round(amountNumber * 100);
     const callbackUrl = String(req.body?.callback_url || paymentReturnUrl(req)).trim();
     const paystack = paystackClient(secret);
@@ -660,8 +752,11 @@ export async function initPayment(req: Request, res: Response) {
       callback_url: callbackUrl,
       metadata: {
         userId: user.id,
-        estate_id: user.estate_id || null,
-        home_id: user.home_id || null,
+        wallet_id: wallet.id,
+        wallet_account_id: wallet.id,
+        estate_id: scope.estateId || null,
+        home_id: scope.homeId || null,
+        membership_id: scope.membershipId || null,
         callback_url: callbackUrl,
       },
     });
@@ -677,8 +772,9 @@ export async function initPayment(req: Request, res: Response) {
       amount: amountNumber,
       currency: safeCurrency(wallet.currency || "NGN"),
       reference: providerReference,
-      estateId: user.estate_id || null,
-      homeId: user.home_id || null,
+      estateId: scope.estateId || null,
+      homeId: scope.homeId || null,
+      membershipId: scope.membershipId || null,
       callbackUrl,
     });
 
@@ -688,10 +784,10 @@ export async function initPayment(req: Request, res: Response) {
       action: "wallet.funding.initialized",
       resourceType: "wallet",
       resourceId: String(wallet.id),
-      estateId: user.estate_id,
-      homeId: user.home_id,
+      estateId: scope.estateId || user.estate_id,
+      homeId: scope.homeId || user.home_id,
       status: "success",
-      metadata: { amount: amountNumber, email, reference: providerReference, callback_url: callbackUrl },
+      metadata: { amount: amountNumber, email, reference: providerReference, callback_url: callbackUrl, wallet_id: wallet.id, membership_id: scope.membershipId || null },
       req,
     });
 
@@ -708,8 +804,8 @@ export async function initPayment(req: Request, res: Response) {
       {
         operation: "wallet.init_payment",
         actor_id: user.id,
-        estate_id: user.estate_id || null,
-        home_id: user.home_id || null,
+        estate_id: req.oisContext?.estate_id || user.estate_id || null,
+        home_id: req.oisContext?.home_id || user.home_id || null,
       },
     );
   }
@@ -832,7 +928,8 @@ export async function getFundingStatus(req: Request, res: Response) {
       throw createPublicApiError(400, "payment_reference_required", "Payment reference is required.");
     }
 
-    let current = await walletFundingView(reference, user.id);
+    const scope = await resolveWalletScopeFromRequest(req);
+    let current = await walletFundingView(reference, user.id, { homeId: scope.homeId });
     const localStatus = normalizeFundingStatus(current?.transaction?.status);
     const shouldReconcile = String(req.query.reconcile || "false").toLowerCase() === "true";
 
@@ -846,7 +943,7 @@ export async function getFundingStatus(req: Request, res: Response) {
           confirmationSource: "payment_status",
           req,
         });
-        current = await walletFundingView(reference, user.id);
+        current = await walletFundingView(reference, user.id, { homeId: scope.homeId });
       }
     }
 
@@ -893,7 +990,8 @@ export async function getFundingReceipt(req: Request, res: Response) {
     if (!reference) {
       throw createPublicApiError(400, "payment_reference_required", "Payment reference is required.");
     }
-    const current = await walletFundingView(reference, user.id);
+    const scope = await resolveWalletScopeFromRequest(req);
+    const current = await walletFundingView(reference, user.id, { homeId: scope.homeId });
     if (!current?.transaction) {
       throw createPublicApiError(404, "receipt_not_found", "Payment receipt could not be found.");
     }
@@ -922,7 +1020,8 @@ export async function getFundingTransaction(req: Request, res: Response) {
     if (!reference) {
       throw createPublicApiError(400, "payment_reference_required", "Payment reference is required.");
     }
-    const current = await walletFundingView(reference, user.id);
+    const scope = await resolveWalletScopeFromRequest(req);
+    const current = await walletFundingView(reference, user.id, { homeId: scope.homeId });
     if (!current?.transaction) {
       throw createPublicApiError(404, "payment_not_found", "Payment record could not be found.");
     }
@@ -973,6 +1072,11 @@ export async function verifyPayment(req: Request, res: Response) {
     if (ownerUserId !== user.id) {
       throw createPublicApiError(403, "wallet_ownership_mismatch", "This payment does not belong to the current wallet.");
     }
+    const scope = await resolveWalletScopeFromRequest(req);
+    const payloadHomeId = String(payload?.metadata?.home_id || "").trim();
+    if (payloadHomeId && scope.homeId && payloadHomeId !== String(scope.homeId)) {
+      throw createPublicApiError(403, "wallet_home_scope_mismatch", "This payment belongs to another home.");
+    }
 
     const reconciled = await reconcileWalletFunding({
       reference,
@@ -1015,20 +1119,41 @@ export async function verifyPayment(req: Request, res: Response) {
  */
 async function atomicDebitWallet(input: {
   userId: string;
+  walletId?: string | null;
   amount: number;
   reason: string;
   currency: string;
 }): Promise<{ balance: number; reference: string }> {
   const reference = `debit_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
-  const { data, error } = await supabaseAdmin.rpc("oyi_debit_wallet", {
-    p_user_id: input.userId,
-    p_amount: input.amount,
-    p_reason: input.reason,
-    p_currency: input.currency,
-    p_reference: reference,
-    p_type: "service_charge",
-  });
+  let data: any = null;
+  let error: any = null;
+  if (input.walletId) {
+    const scoped = await supabaseAdmin.rpc("oyi_debit_home_wallet", {
+      p_wallet_id: input.walletId,
+      p_user_id: input.userId,
+      p_amount: input.amount,
+      p_reason: input.reason,
+      p_currency: input.currency,
+      p_reference: reference,
+      p_type: "service_charge",
+    });
+    data = scoped.data;
+    error = scoped.error;
+  }
+
+  if (error && String(error.message || "").toLowerCase().includes("could not find the function")) {
+    const legacy = await supabaseAdmin.rpc("oyi_debit_wallet", {
+      p_user_id: input.userId,
+      p_amount: input.amount,
+      p_reason: input.reason,
+      p_currency: input.currency,
+      p_reference: reference,
+      p_type: "service_charge",
+    });
+    data = legacy.data;
+    error = legacy.error;
+  }
 
   if (error) {
     // If the RPC is not deployed yet, signal the caller to use the fallback.
@@ -1073,19 +1198,21 @@ export async function debitWallet(req: Request, res: Response) {
       throw createPublicApiError(400, "wallet_amount_invalid", "Enter a valid amount to continue.");
     }
 
-    const currency = safeCurrency((await getOrCreateWallet(user.id)).currency || "NGN");
+    const scope = await resolveWalletScopeFromRequest(req);
+    const scopedWallet = await getOrCreateWallet(user.id, scope);
+    const currency = safeCurrency(scopedWallet.currency || "NGN");
 
     // Security: atomic debit. Throws PublicApiError on insufficient funds / frozen.
     let balance: number;
     let txReference: string;
     try {
-      const result = await atomicDebitWallet({ userId: user.id, amount: amountNumber, reason, currency });
+      const result = await atomicDebitWallet({ userId: user.id, walletId: scopedWallet.id, amount: amountNumber, reason, currency });
       balance = result.balance;
       txReference = result.reference;
     } catch (err: any) {
       // Backward-compat fallback: only when the RPC migration is not yet applied.
       if (!err?.rpcMissing) throw err;
-      const wallet = await getOrCreateWallet(user.id);
+      const wallet = scopedWallet;
       if (safeNumber(wallet.balance) < amountNumber) {
         throw createPublicApiError(400, "wallet_insufficient_funds", "Insufficient funds.");
       }
@@ -1101,7 +1228,11 @@ export async function debitWallet(req: Request, res: Response) {
       txReference = `debit_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
       await insertWalletTransactionWithFallback({
         wallet_id: wallet.id,
+        wallet_account_id: wallet.id,
         user_id: user.id,
+        estate_id: scope.estateId || null,
+        home_id: scope.homeId || null,
+        membership_id: scope.membershipId || null,
         direction: "debit",
         type: "service_charge",
         amount: amountNumber,
@@ -1116,7 +1247,7 @@ export async function debitWallet(req: Request, res: Response) {
       type: "wallet.debited",
       schemaVersion: SIGNAL_SCHEMA_VERSION,
       source: "user",
-      walletId: user.id,
+      walletId: scopedWallet.id,
       userId: user.id,
       amount: amountNumber,
       currency,
@@ -1129,8 +1260,8 @@ export async function debitWallet(req: Request, res: Response) {
       surface: "consumer",
       event_type: "wallet.transaction.debited",
       category: "wallet",
-      estate_id: user.estate_id || null,
-      home_id: user.home_id || null,
+      estate_id: scope.estateId || user.estate_id || null,
+      home_id: scope.homeId || user.home_id || null,
       actor_id: user.id,
       entity_type: "wallet_transaction",
       entity_id: txReference,
@@ -1138,7 +1269,7 @@ export async function debitWallet(req: Request, res: Response) {
       severity: "info",
       title: "Wallet debit recorded",
       summary: `${formatAmount(amountNumber, currency)} was debited from the wallet.`,
-      payload: { amount: amountNumber, balance, reason },
+      payload: { amount: amountNumber, balance, reason, wallet_id: scopedWallet.id, membership_id: scope.membershipId || null },
     }, { source_table: "wallet_transactions", source_event_id: txReference });
 
     void emitAuditEvent({
@@ -1146,9 +1277,9 @@ export async function debitWallet(req: Request, res: Response) {
       actorRole: user.role,
       action: "wallet.debited",
       resourceType: "wallet",
-      resourceId: user.id,
-      estateId: user.estate_id,
-      homeId: user.home_id,
+      resourceId: String(scopedWallet.id),
+      estateId: scope.estateId || user.estate_id,
+      homeId: scope.homeId || user.home_id,
       status: "success",
       metadata: { amount: amountNumber, reason, reference: txReference, atomic: true },
       req,

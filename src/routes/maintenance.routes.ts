@@ -7,11 +7,13 @@ import {
 
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { auditOnSuccess } from "../middleware/audit";
+import { resolveRequestContext } from "../middleware/contextResolver";
 
 const router = Router();
 
 // ✅ THIS is what you were missing
 router.use(requireAuth);
+router.use(resolveRequestContext);
 
 // GET /maintenance?status=open
 router.get("/", requirePermission("support.read"), listMyMaintenance);

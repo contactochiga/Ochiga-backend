@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { auditOnSuccess } from "../middleware/audit";
+import { resolveRequestContext } from "../middleware/contextResolver";
 import {
   createOrGetDirectThread,
   listInbox,
@@ -17,16 +18,16 @@ import {
 
 const router = Router();
 
-router.get("/residents", requireAuth, requirePermission("community.read"), listResidents);
-router.post("/presence/ping", requireAuth, requirePermission("community.read"), pingPresence);
-router.get("/inbox", requireAuth, requirePermission("community.read"), listInbox);
-router.post("/thread/direct", requireAuth, requirePermission("community.write"), createOrGetDirectThread);
-router.post("/media/upload", requireAuth, requirePermission("community.write"), auditOnSuccess("document.generated", "message_media", "mediaId"), uploadMessageMedia);
-router.get("/thread/:threadId/messages", requireAuth, requirePermission("community.read"), listThreadMessages);
-router.post("/thread/:threadId/messages", requireAuth, requirePermission("community.write"), auditOnSuccess("message.sent", "thread", "threadId"), sendMessage);
-router.post("/thread/:threadId/read", requireAuth, requirePermission("community.read"), markThreadRead);
+router.get("/residents", requireAuth, resolveRequestContext, requirePermission("community.read"), listResidents);
+router.post("/presence/ping", requireAuth, resolveRequestContext, requirePermission("community.read"), pingPresence);
+router.get("/inbox", requireAuth, resolveRequestContext, requirePermission("community.read"), listInbox);
+router.post("/thread/direct", requireAuth, resolveRequestContext, requirePermission("community.write"), createOrGetDirectThread);
+router.post("/media/upload", requireAuth, resolveRequestContext, requirePermission("community.write"), auditOnSuccess("document.generated", "message_media", "mediaId"), uploadMessageMedia);
+router.get("/thread/:threadId/messages", requireAuth, resolveRequestContext, requirePermission("community.read"), listThreadMessages);
+router.post("/thread/:threadId/messages", requireAuth, resolveRequestContext, requirePermission("community.write"), auditOnSuccess("message.sent", "thread", "threadId"), sendMessage);
+router.post("/thread/:threadId/read", requireAuth, resolveRequestContext, requirePermission("community.read"), markThreadRead);
 
-router.post("/message/:messageId/report", requireAuth, requirePermission("community.write"), auditOnSuccess("message.moderated", "message", "messageId"), reportMessage);
+router.post("/message/:messageId/report", requireAuth, resolveRequestContext, requirePermission("community.write"), auditOnSuccess("message.moderated", "message", "messageId"), reportMessage);
 
 router.get("/mod/reports", requireAuth, requirePermission("support.assign"), listModerationReports);
 router.post("/mod/reports/:reportId/resolve", requireAuth, requirePermission("support.assign"), auditOnSuccess("message.moderated", "moderation_report", "reportId"), resolveModerationReport);

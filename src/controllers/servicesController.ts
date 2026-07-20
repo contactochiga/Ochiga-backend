@@ -10,6 +10,7 @@ import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { emitInfrastructureServiceSignal } from "../services/infrastructureServiceSignals";
 import { getInfrastructureServiceProvider, providerTypeForService, type ProviderHealth, type ServiceKey as ProviderServiceKey } from "../services/infrastructureServiceProviders";
 import { logger } from "../observability/logger";
+import { getOrCreateScopedWallet, resolveWalletScopeForHome } from "../services/walletScopeService";
 
 type ServiceKey =
   | "utility_token"
@@ -345,6 +346,15 @@ function missingColumn(error: any, column: string) {
   return msg.includes(column);
 }
 
+function extractMissingColumnName(msg: string): string | null {
+  if (!msg) return null;
+  let match = msg.match(/Could not find the ['"]([^'"]+)['"] column/i);
+  if (match?.[1]) return match[1];
+  match = msg.match(/column\s+"([^"]+)"\s+of\s+relation/i);
+  if (match?.[1]) return match[1];
+  return null;
+}
+
 function normalizeServiceConfig(
   estateId: string,
   serviceKey: ServiceKey,
@@ -435,7 +445,16 @@ async function readServiceConfigsForEstate(estateId: string) {
   };
 }
 
-async function getOrCreateWallet(userId: string) {
+async function getOrCreateWallet(userId: string, scope?: { estateId?: string | null; homeId?: string | null; membershipId?: string | null }) {
+  if (scope?.homeId) {
+    return getOrCreateScopedWallet({
+      userId,
+      estateId: scope.estateId || null,
+      homeId: scope.homeId || null,
+      membershipId: scope.membershipId || null,
+    });
+  }
+
   const { data: existing, error: fetchErr } = await supabaseAdmin
     .from("wallets")
     .select("*")
@@ -458,7 +477,7 @@ async function getOrCreateWallet(userId: string) {
 async function insertWalletTransactionWithFallback(row: Record<string, any>) {
   let payload = { ...row };
 
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     const { data, error } = await supabaseAdmin
       .from("wallet_transactions")
       .insert([payload])
@@ -472,6 +491,15 @@ async function insertWalletTransactionWithFallback(row: Record<string, any>) {
         ...(payload.metadata || {}),
         direction: row.direction || null,
       };
+      continue;
+    }
+    const missing = extractMissingColumnName(String(error?.message || ""));
+    if (missing && Object.prototype.hasOwnProperty.call(payload, missing)) {
+      payload.metadata = {
+        ...(payload.metadata || {}),
+        [missing]: payload[missing],
+      };
+      delete payload[missing];
       continue;
     }
     throw new Error(error.message);
@@ -1111,7 +1139,12 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
 
   let wallet: any = null;
   try {
-    wallet = await getOrCreateWallet(user.id);
+    const walletScope = await resolveWalletScopeForHome({
+      userId: String(user.id),
+      estateId,
+      homeId: String(home.id),
+    });
+    wallet = await getOrCreateWallet(user.id, walletScope);
   } catch (error: any) {
     diagnostics.wallet = servicePublicError(error, "Wallet details are temporarily unavailable.").code;
     logger.error("home_service_registry_wallet_failed", { estate_id: estateId, home_id: String(home.id), actor_id: String(user.id), error });
@@ -1448,7 +1481,10 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     return res.status(400).json({ error: "Amount must be at least 100" });
   }
 
-  const home = await resolveHomeForUser(user);
+  const home = await resolveHomeForUser(user, {
+    estateId: String((req as any).oisContext?.estate_id || req.body?.estate_id || "").trim() || null,
+    homeId: String((req as any).oisContext?.home_id || req.body?.home_id || "").trim() || null,
+  });
   if (!home?.id) return res.status(400).json({ error: "No home linked to this account" });
 
   const accounts = await readHomeServiceAccounts(String(home.id)).catch(() => new Map<string, any>());
@@ -1463,7 +1499,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     return res.status(400).json({ error: "Account reference mismatch for this service" });
   }
 
-  const estateId = String(user.estate_id || "").trim();
+  const estateId = String(home.estate_id || user.estate_id || "").trim();
   let activeConfig: ServiceConfigRow | null = null;
   if (estateId) {
     try {
@@ -1479,8 +1515,14 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   }
 
   let wallet: any;
+  let walletScope: { estateId?: string | null; homeId?: string | null; membershipId?: string | null };
   try {
-    wallet = await getOrCreateWallet(user.id);
+    walletScope = await resolveWalletScopeForHome({
+      userId: String(user.id),
+      estateId,
+      homeId: String(home.id),
+    });
+    wallet = await getOrCreateWallet(user.id, walletScope);
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || "Failed to load wallet" });
   }
@@ -1503,6 +1545,9 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     service_key: serviceKey,
     account_ref: accountRef,
     home_id: String(home.id),
+    estate_id: estateId || null,
+    membership_id: walletScope.membershipId || null,
+    wallet_account_id: wallet.id,
     source: "services_api",
     direction: "debit",
     receipt: buildReceiptDetails(activeConfig, serviceKey, amount, {
@@ -1517,6 +1562,10 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   try {
     txRow = await insertWalletTransactionWithFallback({
       wallet_id: wallet.id,
+      wallet_account_id: wallet.id,
+      estate_id: estateId || null,
+      home_id: String(home.id),
+      membership_id: walletScope.membershipId || null,
       direction: "debit",
       type: SERVICE_TX_TYPE[serviceKey],
       amount,
@@ -1535,6 +1584,8 @@ export async function payServiceFromWallet(req: Request, res: Response) {
         service_key: serviceKey,
         estate_id: estateId || null,
         home_id: String(home.id),
+        membership_id: walletScope.membershipId || null,
+        wallet_account_id: wallet.id,
         user_id: String(user.id),
         wallet_transaction_id: txRow?.id || null,
         provider: activeConfig?.metadata?.provider || null,
@@ -1555,16 +1606,21 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   }
 
   await handleSignal({
-    type: "wallet.debited",
-    schemaVersion: SIGNAL_SCHEMA_VERSION,
-    source: "user",
-    walletId: wallet.id,
-    userId: user.id,
-    amount,
-    currency: "NGN",
-    reason: `service_payment:${serviceKey}`,
-    timestamp: now,
-  });
+      type: "wallet.debited",
+      schemaVersion: SIGNAL_SCHEMA_VERSION,
+      source: "user",
+      walletId: wallet.id,
+      userId: user.id,
+      amount,
+      currency: "NGN",
+      reason: `service_payment:${serviceKey}`,
+      metadata: {
+        estate_id: estateId || null,
+        home_id: String(home.id),
+        membership_id: walletScope.membershipId || null,
+      },
+      timestamp: now,
+    });
 
   const receipt = {
     id: String(txRow?.id || reference),
@@ -1576,6 +1632,9 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     status: fulfillmentStatus,
     created_at: now,
     home_id: String(home.id),
+    estate_id: estateId || null,
+    membership_id: walletScope.membershipId || null,
+    wallet_account_id: wallet.id,
     unit_cost: metadata.receipt.unit_cost,
     unit_name: metadata.receipt.unit_name,
     computed_units: metadata.receipt.computed_units,
@@ -1979,7 +2038,12 @@ export async function listServicePayments(req: Request, res: Response) {
 
   let wallet: any;
   try {
-    wallet = await getOrCreateWallet(user.id);
+    const activeHomeId = homeFilter || String((req as any).oisContext?.home_id || user.home_id || "").trim();
+    const activeEstateId = String(req.query.estate_id || (req as any).oisContext?.estate_id || user.estate_id || "").trim();
+    const walletScope = activeHomeId
+      ? await resolveWalletScopeForHome({ userId: String(user.id), estateId: activeEstateId || null, homeId: activeHomeId })
+      : undefined;
+    wallet = await getOrCreateWallet(user.id, walletScope);
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || "Failed to load wallet" });
   }
@@ -1998,7 +2062,7 @@ export async function listServicePayments(req: Request, res: Response) {
     const expectedTypes = new Set(Object.values(SERVICE_TX_TYPE));
     if (!expectedTypes.has(String(x?.type || ""))) return false;
     if (serviceFilter && String(meta.service_key || "") !== serviceFilter) return false;
-    if (homeFilter && String(meta.home_id || "") !== homeFilter) return false;
+    if (homeFilter && String(x?.home_id || meta.home_id || "") !== homeFilter) return false;
     if (String(meta.source || "") !== "services_api") return false;
     return true;
   });

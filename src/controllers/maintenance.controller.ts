@@ -4,7 +4,8 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 type AuthReq = Request & {
-  user?: { id: string; estate_id?: string; role?: string };
+  user?: { id: string; estate_id?: string; home_id?: string; role?: string };
+  oisContext?: { estate_id?: string | null; home_id?: string | null; membership_id?: string | null };
 };
 
 function extractMissingColumnName(msg: string): string | null {
@@ -66,18 +67,39 @@ async function insertWithSchemaFallback<T>(
 
 // --- helpers: resolve estate + home ---
 async function resolveEstateAndHome(req: AuthReq, homeId?: string | null) {
-  let estateId = req.user?.estate_id || undefined;
+  const requestedHomeId = String(homeId || req.query.home_id || req.query.homeId || req.oisContext?.home_id || req.user?.home_id || "").trim() || null;
+  let estateId = String(req.oisContext?.estate_id || req.user?.estate_id || "").trim() || undefined;
+  let membershipId = req.oisContext?.membership_id || null;
 
   // If home_id is supplied, it is the “plot/house” inside the estate.
-  if (homeId) {
+  if (requestedHomeId) {
     const { data: home, error } = await supabaseAdmin
       .from("homes")
       .select("id, estate_id")
-      .eq("id", homeId)
+      .eq("id", requestedHomeId)
       .maybeSingle();
 
     if (error) throw new Error(error.message);
+    if (!home?.id) {
+      const err = Object.assign(new Error("Home is not available"), { statusCode: 404 });
+      throw err;
+    }
     if (home?.estate_id) estateId = home.estate_id;
+    if (req.user?.id) {
+      const { data: membership, error: membershipError } = await supabaseAdmin
+        .from("home_memberships")
+        .select("id, status")
+        .eq("home_id", requestedHomeId)
+        .eq("user_id", req.user.id)
+        .eq("status", "active")
+        .maybeSingle();
+      if (membershipError) throw new Error(membershipError.message);
+      if (!membership?.id && !["admin", "super_admin", "estate_admin", "manager", "operator"].includes(String(req.user?.role || ""))) {
+        const err = Object.assign(new Error("You do not have access to this home"), { statusCode: 403 });
+        throw err;
+      }
+      membershipId = membership?.id || membershipId || null;
+    }
   }
 
   // fallback: membership estate
@@ -95,7 +117,7 @@ async function resolveEstateAndHome(req: AuthReq, homeId?: string | null) {
     estateId = mem?.estate_id || undefined;
   }
 
-  return { estateId, homeId: homeId || null };
+  return { estateId, homeId: requestedHomeId, membershipId };
 }
 
 async function listEstateOpsUserIds(estateId: string) {
@@ -145,7 +167,7 @@ export async function listMyMaintenance(req: AuthReq, res: Response) {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const status = String(req.query.status || "").trim();
-    const { estateId } = await resolveEstateAndHome(req, null);
+    const { estateId, homeId } = await resolveEstateAndHome(req, null);
 
     // ✅ FIX: your table uses resident_id (not requested_by)
     let q = supabaseAdmin
@@ -155,6 +177,7 @@ export async function listMyMaintenance(req: AuthReq, res: Response) {
       .order("created_at", { ascending: false });
 
     if (estateId) q = q.eq("estate_id", estateId);
+    if (homeId) q = q.eq("home_id", homeId);
 
     if (status) {
       q = q.eq("status", status);
@@ -181,13 +204,14 @@ export async function createMaintenance(req: AuthReq, res: Response) {
 
     // ✅ include category since UI sends it (schema fallback will drop if missing)
     const { home_id, title, description, priority, category } = req.body || {};
-    const { estateId, homeId } = await resolveEstateAndHome(req, home_id);
+    const { estateId, homeId, membershipId } = await resolveEstateAndHome(req, home_id);
 
     if (!estateId) return res.status(400).json({ error: "No estate linked" });
 
     const request = await insertWithSchemaFallback<any>("maintenance_requests", {
       estate_id: estateId,
       home_id: homeId,
+      membership_id: membershipId || undefined,
       resident_id: userId, // ✅ FIX
       title: title || "Maintenance request",
       description: description || null,
@@ -211,7 +235,7 @@ export async function createMaintenance(req: AuthReq, res: Response) {
       severity: String(request.priority || priority || "").toLowerCase() === "critical" ? "critical" : "attention",
       title: request.title || "Maintenance request created",
       summary: request.description || "A maintenance request was submitted.",
-      payload: { status: request.status || "open", priority: request.priority || priority || "medium", category: request.category || category || null },
+      payload: { status: request.status || "open", priority: request.priority || priority || "medium", category: request.category || category || null, membership_id: membershipId || null },
       occurred_at: request.created_at,
     }, { source_table: "maintenance_requests", source_event_id: `${request.id}:maintenance.created` });
 
@@ -220,6 +244,8 @@ export async function createMaintenance(req: AuthReq, res: Response) {
     if (opsUserIds.length) {
       await notifyUsers(opsUserIds, {
         estate_id: estateId,
+        home_id: homeId || null,
+        membership_id: membershipId || null,
         type: "maintenance_request",
         title: "New maintenance request",
         message: `${request.title || "Maintenance request"} received`,
@@ -228,6 +254,8 @@ export async function createMaintenance(req: AuthReq, res: Response) {
       });
     } else {
       await notifyEstate(estateId, {
+        home_id: homeId || null,
+        membership_id: membershipId || null,
         type: "maintenance_request",
         title: "New maintenance request",
         message: `${request.title || "Maintenance request"} received`,
@@ -238,6 +266,8 @@ export async function createMaintenance(req: AuthReq, res: Response) {
 
     await notifyUsers([userId], {
       estate_id: estateId,
+      home_id: homeId || null,
+      membership_id: membershipId || null,
       type: "maintenance_submitted",
       title: "Maintenance submitted",
       message: "Your request has been logged and sent to facility.",

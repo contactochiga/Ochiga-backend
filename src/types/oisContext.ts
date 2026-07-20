@@ -18,6 +18,7 @@ export type OyiTarget = {
 export type OisContextEstate = { id: string; name: string | null; role?: string | null };
 export type OisContextHome = {
   id: string;
+  membership_id?: string | null;
   name: string | null;
   block?: string | null;
   unit?: string | null;
@@ -43,6 +44,7 @@ export type OisContext = {
   deployment_id: string | null;
   estate_id: string | null;
   home_id: string | null;
+  membership_id?: string | null;
   module: string | null;
   target: OyiTarget | null;
   estate: OisContextEstate | null;

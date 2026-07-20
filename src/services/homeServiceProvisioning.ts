@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitServiceRegistryEvent } from "./serviceRegistryEvents";
 import { emitInfrastructureServiceSignal } from "./infrastructureServiceSignals";
 import { getInfrastructureServiceProvider } from "./infrastructureServiceProviders";
+import { getOrCreateScopedWallet, resolveWalletScopeForHome } from "./walletScopeService";
 
 export type CanonicalServiceKey =
   | "utility_token"
@@ -145,24 +146,9 @@ function normalizeServiceBindings(
   return normalized;
 }
 
-async function upsertWalletForResident(userId: string) {
-  const { data: existing, error: fetchErr } = await supabaseAdmin
-    .from("wallets")
-    .select("id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (fetchErr) throw new Error(fetchErr.message);
-  if (existing?.id) return existing;
-
-  const { data: created, error: createErr } = await supabaseAdmin
-    .from("wallets")
-    .insert([{ user_id: userId, balance: 0, currency: "NGN" }])
-    .select("id")
-    .single();
-
-  if (createErr) throw new Error(createErr.message);
-  return created;
+async function upsertWalletForResident(userId: string, estateId: string, homeId: string) {
+  const scope = await resolveWalletScopeForHome({ userId, estateId, homeId });
+  return getOrCreateScopedWallet(scope);
 }
 
 async function syncResidentAssignment(estateId: string, homeId: string, residentId: string | null | undefined) {
@@ -205,7 +191,7 @@ async function syncResidentAssignment(estateId: string, homeId: string, resident
     .eq("id", userId);
   if (userPatchError && !tableMissing(userPatchError)) throw new Error(userPatchError.message);
 
-  await upsertWalletForResident(userId);
+  await upsertWalletForResident(userId, estateId, homeId);
 }
 
 async function upsertServiceAssignment(

@@ -64,6 +64,66 @@ async function getMember(threadId: string, userId: string) {
     .maybeSingle();
 }
 
+function requestScope(req: Request, user: any) {
+  return {
+    estateId: clean((req as any).oisContext?.estate_id || req.query?.estate_id || req.body?.estate_id || user?.estate_id),
+    homeId: clean((req as any).oisContext?.home_id || req.query?.home_id || req.body?.home_id || user?.home_id),
+  };
+}
+
+async function assertActiveHomeMembership(userId: string, estateId: string, homeId: string) {
+  if (!homeId) return null;
+  const { data: home, error: homeErr } = await supabaseAdmin
+    .from("homes")
+    .select("id, estate_id")
+    .eq("id", homeId)
+    .maybeSingle();
+  if (homeErr) throw new Error(homeErr.message);
+  if (!home?.id || (estateId && String(home.estate_id) !== String(estateId))) {
+    const err = Object.assign(new Error("Home is not available in this estate"), { statusCode: 403 });
+    throw err;
+  }
+  const { data, error } = await supabaseAdmin
+    .from("home_memberships")
+    .select("id, role, status")
+    .eq("home_id", homeId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.id) {
+    const err = Object.assign(new Error("You do not have access to this home"), { statusCode: 403 });
+    throw err;
+  }
+  return data;
+}
+
+async function userIdsForHome(homeId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("home_memberships")
+    .select("user_id")
+    .eq("home_id", homeId)
+    .eq("status", "active");
+  if (error) throw new Error(error.message);
+  return new Set((data || []).map((row: any) => clean(row.user_id)).filter(Boolean));
+}
+
+async function assertThreadInActiveScope(req: Request, user: any, thread: any) {
+  const { estateId, homeId } = requestScope(req, user);
+  if (estateId && String(thread?.estate_id || "") !== estateId) {
+    const err = Object.assign(new Error("Thread is outside the selected estate"), { statusCode: 403 });
+    throw err;
+  }
+  if (homeId) {
+    const threadHomeId = clean(thread?.home_id);
+    if (threadHomeId && threadHomeId !== homeId) {
+      const err = Object.assign(new Error("Thread is outside the selected home"), { statusCode: 403 });
+      throw err;
+    }
+    await assertActiveHomeMembership(String(user.id), estateId || clean(thread?.estate_id), homeId);
+  }
+}
+
 async function ensureMessageTables(res: Response) {
   const { error } = await supabaseAdmin.from("dm_threads").select("id").limit(1);
   if (!error) return true;
@@ -78,13 +138,14 @@ async function ensureMessageTables(res: Response) {
   return false;
 }
 
-async function touchPresence(user: any) {
+async function touchPresence(user: any, req?: Request) {
   if (!user?.id) return;
+  const scope = req ? requestScope(req, user) : { estateId: clean(user.estate_id), homeId: clean(user.home_id) };
 
   const payload = {
     user_id: String(user.id),
-    estate_id: user.estate_id || null,
-    home_id: user.home_id || null,
+    estate_id: scope.estateId || null,
+    home_id: scope.homeId || null,
     last_seen_at: new Date().toISOString(),
     is_online: true,
     updated_at: new Date().toISOString(),
@@ -134,21 +195,35 @@ async function getPresenceMap(userIds: string[]) {
 export async function listResidents(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
-  if (!user?.estate_id) return res.status(400).json({ error: "No estate linked" });
-  await touchPresence(user);
+  const { estateId, homeId } = requestScope(req, user);
+  if (!estateId) return res.status(400).json({ error: "No estate linked" });
+  try {
+    if (homeId) await assertActiveHomeMembership(String(user.id), estateId, homeId);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 500).json({ error: error?.message || "Unable to resolve message scope" });
+  }
+  await touchPresence(user, req);
 
   const q = clean(req.query.q || "").toLowerCase();
 
   const { data, error } = await supabaseAdmin
     .from("users")
     .select("id, username, full_name, email, role, home_id")
-    .eq("estate_id", user.estate_id)
+    .eq("estate_id", estateId)
     .neq("id", user.id)
     .limit(200);
 
   if (error) return res.status(500).json({ error: error.message });
 
   let items = (data || []) as any[];
+  if (homeId) {
+    try {
+      const scopedUsers = await userIdsForHome(homeId);
+      items = items.filter((u) => scopedUsers.has(String(u.id)));
+    } catch (e: any) {
+      return res.status(500).json({ error: e?.message || "Failed to resolve home residents" });
+    }
+  }
   const presenceMap = await getPresenceMap(items.map((u) => String(u.id)));
   if (q) {
     items = items.filter((u) => {
@@ -173,9 +248,15 @@ export async function listResidents(req: Request, res: Response) {
 export async function createOrGetDirectThread(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
-  if (!user?.estate_id) return res.status(400).json({ error: "No estate linked" });
+  const { estateId, homeId } = requestScope(req, user);
+  if (!estateId) return res.status(400).json({ error: "No estate linked" });
   if (!(await ensureMessageTables(res))) return;
-  await touchPresence(user);
+  try {
+    if (homeId) await assertActiveHomeMembership(String(user.id), estateId, homeId);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 500).json({ error: error?.message || "Unable to resolve message scope" });
+  }
+  await touchPresence(user, req);
 
   const peerUserId = clean(req.body?.peer_user_id);
   if (!peerUserId) return res.status(400).json({ error: "peer_user_id is required" });
@@ -184,20 +265,25 @@ export async function createOrGetDirectThread(req: Request, res: Response) {
   const { data: peer, error: peerErr } = await getUserById(peerUserId);
   if (peerErr) return res.status(500).json({ error: peerErr.message });
   if (!peer?.id) return res.status(404).json({ error: "Resident not found" });
-  if (String(peer.estate_id) !== String(user.estate_id)) {
+  if (String(peer.estate_id) !== estateId) {
     return res.status(403).json({ error: "Resident is not in your estate" });
+  }
+  if (homeId) {
+    const scopedUsers = await userIdsForHome(homeId);
+    if (!scopedUsers.has(peerUserId)) return res.status(403).json({ error: "Resident is not in the selected home" });
   }
 
   const { userA, userB } = normalizePair(String(user.id), String(peerUserId));
 
-  const existing = await supabaseAdmin
+  let existingQuery = supabaseAdmin
     .from("dm_threads")
     .select("*")
-    .eq("estate_id", user.estate_id)
+    .eq("estate_id", estateId)
     .eq("kind", "direct")
     .eq("user_a_id", userA)
-    .eq("user_b_id", userB)
-    .maybeSingle();
+    .eq("user_b_id", userB);
+  existingQuery = homeId ? existingQuery.eq("home_id", homeId) : existingQuery.is("home_id", null);
+  const existing = await existingQuery.maybeSingle();
 
   if (existing.error && !isMissingTable(existing.error, "dm_threads")) {
     return res.status(500).json({ error: existing.error.message });
@@ -209,7 +295,9 @@ export async function createOrGetDirectThread(req: Request, res: Response) {
   const inserted = await supabaseAdmin
     .from("dm_threads")
     .insert({
-      estate_id: user.estate_id,
+      estate_id: estateId,
+      home_id: homeId || null,
+      scope: homeId ? "home" : "global",
       kind: "direct",
       user_a_id: userA,
       user_b_id: userB,
@@ -225,8 +313,8 @@ export async function createOrGetDirectThread(req: Request, res: Response) {
 
   const membersUpsert = await supabaseAdmin.from("dm_thread_members").upsert(
     [
-      { thread_id: thread.id, estate_id: user.estate_id, user_id: user.id, role: "member", is_active: true },
-      { thread_id: thread.id, estate_id: user.estate_id, user_id: peerUserId, role: "member", is_active: true },
+      { thread_id: thread.id, estate_id: estateId, home_id: homeId || null, user_id: user.id, role: "member", is_active: true },
+      { thread_id: thread.id, estate_id: estateId, home_id: homeId || null, user_id: peerUserId, role: "member", is_active: true },
     ] as any,
     { onConflict: "thread_id,user_id" }
   );
@@ -239,32 +327,44 @@ export async function listInbox(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!(await ensureMessageTables(res))) return;
-  await touchPresence(user);
+  const { estateId, homeId } = requestScope(req, user);
+  try {
+    if (homeId) await assertActiveHomeMembership(String(user.id), estateId, homeId);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 500).json({ error: error?.message || "Unable to resolve message scope" });
+  }
+  await touchPresence(user, req);
 
-  const { data: memberships, error: memErr } = await supabaseAdmin
+  let membershipQuery = supabaseAdmin
     .from("dm_thread_members")
-    .select("thread_id,last_read_at")
+    .select("thread_id,last_read_at,home_id")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .order("joined_at", { ascending: false })
     .limit(200);
+  membershipQuery = homeId ? membershipQuery.eq("home_id", homeId) : membershipQuery.is("home_id", null);
+  const { data: memberships, error: memErr } = await membershipQuery;
 
   if (memErr) return res.status(500).json({ error: memErr.message });
   const threadIds = (memberships || []).map((m: any) => String(m.thread_id));
   if (!threadIds.length) return res.json({ threads: [] });
 
-  const { data: threads, error: tErr } = await supabaseAdmin
+  let threadQuery = supabaseAdmin
     .from("dm_threads")
     .select("*")
     .in("id", threadIds)
     .order("last_message_at", { ascending: false, nullsFirst: false });
+  threadQuery = homeId ? threadQuery.eq("home_id", homeId) : threadQuery.is("home_id", null);
+  const { data: threads, error: tErr } = await threadQuery;
 
   if (tErr) return res.status(500).json({ error: tErr.message });
+  const scopedThreadIds = (threads || []).map((thread: any) => String(thread.id));
+  if (!scopedThreadIds.length) return res.json({ threads: [] });
 
   const { data: latestMsgs, error: msgErr } = await supabaseAdmin
     .from("dm_messages")
     .select("id,thread_id,body,sender_id,created_at,is_hidden")
-    .in("thread_id", threadIds)
+    .in("thread_id", scopedThreadIds)
     .eq("is_hidden", false)
     .order("created_at", { ascending: false })
     .limit(1000);
@@ -354,7 +454,7 @@ export async function listThreadMessages(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!(await ensureMessageTables(res))) return;
-  await touchPresence(user);
+  await touchPresence(user, req);
 
   const threadId = clean(req.params.threadId);
   if (!threadId) return res.status(400).json({ error: "threadId is required" });
@@ -362,6 +462,14 @@ export async function listThreadMessages(req: Request, res: Response) {
   const { data: member, error: mErr } = await getMember(threadId, user.id);
   if (mErr) return res.status(500).json({ error: mErr.message });
   if (!member?.id) return res.status(403).json({ error: "Not a member of this thread" });
+  const { data: thread, error: threadErr } = await getThreadById(threadId);
+  if (threadErr) return res.status(500).json({ error: threadErr.message });
+  if (!thread?.id) return res.status(404).json({ error: "Thread not found" });
+  try {
+    await assertThreadInActiveScope(req, user, thread);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 500).json({ error: error?.message || "Thread is outside the selected context" });
+  }
 
   const limit = Math.max(1, Math.min(100, Number.parseInt(clean(req.query.limit), 10) || 50));
   const before = clean(req.query.before || "");
@@ -399,7 +507,7 @@ export async function sendMessage(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!(await ensureMessageTables(res))) return;
-  await touchPresence(user);
+  await touchPresence(user, req);
 
   const threadId = clean(req.params.threadId);
   const body = clean(req.body?.body);
@@ -414,7 +522,11 @@ export async function sendMessage(req: Request, res: Response) {
   const { data: thread, error: tErr } = await getThreadById(threadId);
   if (tErr) return res.status(500).json({ error: tErr.message });
   if (!thread?.id) return res.status(404).json({ error: "Thread not found" });
-  if (String(thread.estate_id) !== String(user.estate_id)) return res.status(403).json({ error: "Unauthorized" });
+  try {
+    await assertThreadInActiveScope(req, user, thread);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 403).json({ error: error?.message || "Unauthorized" });
+  }
 
   const { data: member, error: mErr } = await getMember(threadId, user.id);
   if (mErr) return res.status(500).json({ error: mErr.message });
@@ -429,6 +541,7 @@ export async function sendMessage(req: Request, res: Response) {
     .insert({
       thread_id: threadId,
       estate_id: thread.estate_id,
+      home_id: thread.home_id || requestScope(req, user).homeId || null,
       sender_id: user.id,
       body: body || caption || null,
       message_type: ["image", "video", "file"].includes(messageType) ? messageType : "text",
@@ -525,10 +638,18 @@ export async function markThreadRead(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   if (!(await ensureMessageTables(res))) return;
-  await touchPresence(user);
+  await touchPresence(user, req);
 
   const threadId = clean(req.params.threadId);
   if (!threadId) return res.status(400).json({ error: "threadId is required" });
+  const { data: thread, error: threadErr } = await getThreadById(threadId);
+  if (threadErr) return res.status(500).json({ error: threadErr.message });
+  if (!thread?.id) return res.status(404).json({ error: "Thread not found" });
+  try {
+    await assertThreadInActiveScope(req, user, thread);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 403).json({ error: error?.message || "Thread is outside the selected context" });
+  }
 
   const { error } = await supabaseAdmin
     .from("dm_thread_members")
@@ -545,7 +666,7 @@ export async function pingPresence(req: Request, res: Response) {
   const user = req.user as any;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-  await touchPresence(user);
+  await touchPresence(user, req);
   return res.json({ ok: true, last_seen_at: new Date().toISOString() });
 }
 
@@ -572,12 +693,21 @@ export async function reportMessage(req: Request, res: Response) {
   const { data: member, error: mErr } = await getMember(String(msg.thread_id), user.id);
   if (mErr) return res.status(500).json({ error: mErr.message });
   if (!member?.id) return res.status(403).json({ error: "Not a member of this thread" });
+  const { data: thread, error: threadErr } = await getThreadById(String(msg.thread_id));
+  if (threadErr) return res.status(500).json({ error: threadErr.message });
+  if (!thread?.id) return res.status(404).json({ error: "Thread not found" });
+  try {
+    await assertThreadInActiveScope(req, user, thread);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 403).json({ error: error?.message || "Thread is outside the selected context" });
+  }
 
   const up = await supabaseAdmin
     .from("dm_reports")
     .upsert(
       {
         estate_id: msg.estate_id,
+        home_id: thread.home_id || null,
         thread_id: msg.thread_id,
         message_id: msg.id,
         reported_by: user.id,
