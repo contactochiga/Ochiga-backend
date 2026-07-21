@@ -273,7 +273,7 @@ function servicePublicError(error: any, fallback: string) {
   if (status === 403) return { status: 403, code: "service_scope_denied", message: "This account does not have access to these home services." };
   if (status === 400 && /home/i.test(message)) return { status: 400, code: "home_context_unavailable", message: "Your home context could not be loaded." };
   if (tableMissing(error)) return { status: 503, code: "service_schema_unavailable", message: "Infrastructure services are temporarily unavailable." };
-  if (/column|constraint|schema cache/i.test(message)) return { status: 503, code: "service_schema_mismatch", message: "Infrastructure services are temporarily unavailable." };
+  if (/column|constraint|schema cache|function .*does not exist|Could not find the function/i.test(message)) return { status: 503, code: "service_schema_mismatch", message: "Infrastructure services are temporarily unavailable." };
   return { status: status >= 400 && status < 500 ? status : 500, code: "service_accounts_unavailable", message: fallback };
 }
 
@@ -579,6 +579,111 @@ function buildReceiptDetails(config: ServiceConfigRow | null, serviceKey: Servic
   };
 }
 
+function asNumber(value: unknown, fallback = 0) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
+}
+
+function money(value: unknown) {
+  return Number((Math.round(asNumber(value) * 100) / 100).toFixed(2));
+}
+
+function electricityPolicyFromConfig(config: ServiceConfigRow | null) {
+  const metadata = config?.metadata && typeof config.metadata === "object" ? config.metadata : {};
+  const electricity = metadata?.electricity && typeof metadata.electricity === "object" ? metadata.electricity : {};
+  const tariff = asNumber(electricity.tariff_per_kwh ?? config?.unit_cost, 0);
+  return {
+    residentPurchasesEnabled: electricity.resident_purchases_enabled == null ? Boolean(config?.active && tariff > 0) : Boolean(electricity.resident_purchases_enabled),
+    minimumAmount: money(electricity.minimum_purchase_amount ?? 1000),
+    maximumAmount: money(electricity.maximum_purchase_amount ?? 100000),
+    fixedFee: money(electricity.fixed_fee ?? 0),
+    percentageFee: asNumber(electricity.percentage_fee, 0),
+    taxPercentage: asNumber(electricity.tax_percentage, 0),
+    tariffPerKwh: money(tariff),
+    fulfilmentMethod: String(electricity.fulfilment_method || "token"),
+    vendingMode: String(electricity.vending_mode || "facility"),
+    issuerName: String(electricity.issuer_name || "Oyi"),
+    supportContact: String(electricity.support_contact || ""),
+    effectiveFrom: String(electricity.effective_from || metadata?.policy?.effective_from || config?.updated_at || config?.created_at || ""),
+  };
+}
+
+function buildElectricityQuote(input: {
+  amount: number;
+  config: ServiceConfigRow | null;
+  meterId: string;
+  accountRef: string;
+  wallet: any;
+}) {
+  const policy = electricityPolicyFromConfig(input.config);
+  const amount = money(input.amount);
+  const fee = money(policy.fixedFee + (amount * Math.max(0, policy.percentageFee)) / 100);
+  const taxableBase = Math.max(0, amount - fee);
+  const tax = money((taxableBase * Math.max(0, policy.taxPercentage)) / 100);
+  const netServiceAmount = money(Math.max(0, amount - fee - tax));
+  const units = policy.tariffPerKwh > 0 ? Number((netServiceAmount / policy.tariffPerKwh).toFixed(2)) : null;
+  const purchaseAvailable =
+    Boolean(input.config?.active) &&
+    policy.residentPurchasesEnabled &&
+    Boolean(input.meterId || input.accountRef) &&
+    policy.tariffPerKwh > 0 &&
+    amount >= policy.minimumAmount &&
+    amount <= policy.maximumAmount &&
+    policy.vendingMode === "test";
+  const unavailableReason = !input.config?.active
+    ? "electricity_not_active"
+    : !policy.residentPurchasesEnabled
+    ? "resident_purchases_disabled"
+    : !input.meterId && !input.accountRef
+    ? "meter_not_linked"
+    : policy.tariffPerKwh <= 0
+    ? "tariff_not_configured"
+    : amount < policy.minimumAmount
+    ? "amount_below_minimum"
+    : amount > policy.maximumAmount
+    ? "amount_above_maximum"
+    : policy.vendingMode !== "test"
+    ? "provider_not_configured"
+    : null;
+  return {
+    quote_id: `elec_${Date.now()}_${randomBytes(3).toString("hex")}`,
+    service_key: "utility_token" as ServiceKey,
+    service_title: "Electricity",
+    amount,
+    fee,
+    tax,
+    total_deduction: amount,
+    net_service_amount: netServiceAmount,
+    currency: String(input.wallet?.currency || input.config?.currency || "NGN"),
+    units,
+    unit_name: input.config?.unit_name || "kWh",
+    tariff: {
+      rate: policy.tariffPerKwh,
+      unit_name: input.config?.unit_name || "kWh",
+      effective_from: policy.effectiveFrom || null,
+      issuer_name: policy.issuerName,
+      support_contact: policy.supportContact || null,
+    },
+    meter: {
+      meter_id: input.meterId || input.accountRef,
+      account_ref: input.accountRef || input.meterId,
+    },
+    wallet: {
+      wallet_account_id: String(input.wallet?.id || ""),
+      balance_before: money(input.wallet?.balance || 0),
+      balance_after: money(asNumber(input.wallet?.balance, 0) - amount),
+      sufficient: asNumber(input.wallet?.balance, 0) >= amount,
+    },
+    fulfilment: {
+      method: policy.fulfilmentMethod,
+      mode: policy.vendingMode,
+      test_mode: policy.vendingMode === "test",
+    },
+    purchase_available: purchaseAvailable,
+    unavailable_reason: unavailableReason,
+  };
+}
+
 async function sendServiceReceiptEmail(user: any, receipt: any) {
   const to = String(user?.email || "").trim();
   if (!to || !to.includes("@")) return;
@@ -828,6 +933,133 @@ function providerFulfillmentStatus(serviceKey: ServiceKey) {
   return "manual_review";
 }
 
+async function findServiceTransactionByIdempotency(input: {
+  estateId: string;
+  homeId: string;
+  userId: string;
+  idempotencyKey: string | null;
+}) {
+  if (!input.idempotencyKey) return null;
+  const { data, error } = await supabaseAdmin
+    .from("service_transactions")
+    .select("*")
+    .eq("estate_id", input.estateId)
+    .eq("home_id", input.homeId)
+    .eq("user_id", input.userId)
+    .eq("idempotency_key", input.idempotencyKey)
+    .maybeSingle();
+  if (error) {
+    if (tableMissing(error) || /schema cache|column/i.test(String(error.message || ""))) throw Object.assign(new Error(error.message), { statusCode: 503, cause: error });
+    throw Object.assign(new Error(error.message), { statusCode: 500, cause: error });
+  }
+  return data || null;
+}
+
+async function resolveElectricityPurchaseContext(req: Request, user: any) {
+  const requestedHomeId = String((req as any).oisContext?.home_id || req.body?.home_id || req.query?.home_id || "").trim() || null;
+  const requestedEstateId = String((req as any).oisContext?.estate_id || req.body?.estate_id || req.query?.estate_id || "").trim() || null;
+  const home = await resolveHomeForUser(user, { homeId: requestedHomeId, estateId: requestedEstateId });
+  if (!home?.id) throw Object.assign(new Error("Your home context could not be loaded."), { statusCode: 400 });
+  const estateId = String(home.estate_id || user.estate_id || "").trim();
+  const homeId = String(home.id);
+  if (!estateId) throw Object.assign(new Error("Your estate context could not be loaded."), { statusCode: 400 });
+
+  const { configs } = await readServiceConfigsForEstate(estateId);
+  const config = configs.find((item) => item.service_key === "utility_token") || normalizeServiceConfig(estateId, "utility_token");
+  const accounts = await listServiceAccountsForScope({ estateId, homeId });
+  const account = accounts.find((item: any) => item.service_key === "utility_token");
+  const identifier = String(account?.identifier || account?.meter_number || account?.account_number || home.electricity_meter || "").trim();
+  if (!account?.id && !identifier) {
+    throw Object.assign(new Error("Electricity is not connected for this home."), { statusCode: 404, code: "electricity_not_connected" });
+  }
+  const requestedMeter = String(req.body?.meter_id || req.body?.account_ref || req.query?.meter_id || req.query?.account_ref || "").trim();
+  if (requestedMeter && identifier && requestedMeter !== identifier) {
+    throw Object.assign(new Error("That meter does not belong to the selected home."), { statusCode: 403, code: "meter_scope_denied" });
+  }
+
+  const walletScope = await resolveWalletScopeForHome({ userId: String(user.id), estateId, homeId });
+  const wallet = await getOrCreateWallet(String(user.id), walletScope);
+  return {
+    estateId,
+    homeId,
+    home,
+    config,
+    account,
+    serviceAccountId: String(account?.id || ""),
+    meterId: String(account?.meter_number || account?.identifier || identifier || ""),
+    accountRef: String(account?.account_number || account?.identifier || identifier || ""),
+    walletScope,
+    wallet,
+  };
+}
+
+async function debitHomeWallet(input: {
+  walletId: string;
+  userId: string;
+  amount: number;
+  reference: string;
+  type: string;
+  reason: string;
+}) {
+  const { data, error } = await supabaseAdmin.rpc("oyi_debit_home_wallet", {
+    p_wallet_id: input.walletId,
+    p_user_id: input.userId,
+    p_amount: input.amount,
+    p_reason: input.reason,
+    p_currency: "NGN",
+    p_reference: input.reference,
+    p_type: input.type,
+  });
+  if (error) throw Object.assign(new Error(error.message), { statusCode: /function|schema cache/i.test(String(error.message || "")) ? 503 : 500, cause: error });
+  const result = data as any;
+  if (!result?.ok) {
+    const code = String(result?.code || "wallet_debit_failed");
+    const statusCode = code === "insufficient_funds" ? 400 : code === "frozen" ? 403 : 500;
+    throw Object.assign(new Error(code), { statusCode, code });
+  }
+  return result;
+}
+
+function serviceReceiptFromPurchase(input: {
+  transactionId: string;
+  reference: string;
+  quote: ReturnType<typeof buildElectricityQuote>;
+  walletAccountId: string;
+  walletTransactionId?: string | null;
+  homeId: string;
+  estateId: string;
+  membershipId?: string | null;
+  token?: string | null;
+  testMode?: boolean;
+}) {
+  return {
+    id: input.transactionId,
+    reference: input.reference,
+    service_key: "utility_token",
+    service_title: "Electricity",
+    account_ref: input.quote.meter.account_ref,
+    meter_id: input.quote.meter.meter_id,
+    amount: input.quote.amount,
+    fee: input.quote.fee,
+    tax: input.quote.tax,
+    total_deduction: input.quote.total_deduction,
+    net_service_amount: input.quote.net_service_amount,
+    status: "completed",
+    created_at: new Date().toISOString(),
+    home_id: input.homeId,
+    estate_id: input.estateId,
+    membership_id: input.membershipId || null,
+    wallet_account_id: input.walletAccountId,
+    wallet_transaction_id: input.walletTransactionId || null,
+    unit_cost: input.quote.tariff.rate,
+    unit_name: input.quote.unit_name,
+    computed_units: input.quote.units,
+    token_code: input.token || null,
+    test_mode: Boolean(input.testMode),
+    tariff: input.quote.tariff,
+  };
+}
+
 function serviceStatusFrom(enabled: boolean, linked: boolean, serviceKey: ServiceKey) {
   if (!enabled) return "unavailable";
   if (!linked && ["utility_token", "water_service", "gas_service", "internet_service", "fiber_internet", "generator_recovery", "solar_battery_service"].includes(serviceKey)) return "setup_needed";
@@ -947,33 +1179,75 @@ async function insertServiceTransactionRecord(input: {
   estateId?: string | null;
   homeId?: string | null;
   residentId?: string | null;
+  membershipId?: string | null;
+  walletAccountId?: string | null;
+  walletTransactionId?: string | null;
   serviceAccountId?: string | null;
   serviceKey: ServiceKey;
   provider?: string | null;
+  meterId?: string | null;
+  accountRef?: string | null;
   amount?: number | null;
+  fee?: number | null;
+  tax?: number | null;
+  totalDeduction?: number | null;
+  netServiceAmount?: number | null;
+  computedUnits?: number | null;
   currency?: string | null;
   status: ServiceTransactionStatus;
   transactionType: ServiceTransactionType;
   settlementStatus?: ServiceSettlementStatus;
+  fulfilmentType?: string | null;
+  fulfilmentMethod?: string | null;
+  vendingMode?: string | null;
   providerReference?: string | null;
+  tokenReference?: string | null;
+  meterCreditReference?: string | null;
+  receiptReference?: string | null;
+  completedAt?: string | null;
+  failureCode?: string | null;
+  safeFailureMessage?: string | null;
+  tariffSnapshot?: Record<string, any> | null;
+  receipt?: Record<string, any> | null;
   idempotencyKey?: string | null;
   metadata?: Record<string, any> | null;
 }) {
   const row = {
     estate_id: input.estateId || null,
     home_id: input.homeId || null,
+    membership_id: input.membershipId || null,
     resident_id: input.residentId || null,
     user_id: input.residentId || null,
+    wallet_account_id: input.walletAccountId || null,
+    wallet_transaction_id: input.walletTransactionId || null,
     service_account_id: input.serviceAccountId || null,
     service_type: serviceDomainFor(input.serviceKey),
     service_key: input.serviceKey,
     provider: input.provider || null,
+    meter_id: input.meterId || null,
+    account_ref: input.accountRef || null,
     amount: Number(input.amount || 0),
+    fee: Number(input.fee || 0),
+    tax: Number(input.tax || 0),
+    total_deduction: Number(input.totalDeduction || input.amount || 0),
+    net_service_amount: Number(input.netServiceAmount || input.amount || 0),
+    computed_units: input.computedUnits == null ? null : Number(input.computedUnits),
     currency: String(input.currency || "NGN"),
     status: input.status,
     transaction_type: input.transactionType,
+    fulfilment_type: input.fulfilmentType || "pending_provider",
     settlement_status: input.settlementStatus || "none",
+    fulfilment_method: input.fulfilmentMethod || null,
+    vending_mode: input.vendingMode || null,
     provider_reference: input.providerReference || null,
+    token_reference: input.tokenReference || null,
+    meter_credit_reference: input.meterCreditReference || null,
+    receipt_reference: input.receiptReference || null,
+    completed_at: input.completedAt || null,
+    failure_code: input.failureCode || null,
+    safe_failure_message: input.safeFailureMessage || null,
+    tariff_snapshot: input.tariffSnapshot || {},
+    receipt: input.receipt || {},
     idempotency_key: input.idempotencyKey || null,
     metadata: input.metadata || {},
   };
@@ -1120,18 +1394,18 @@ async function listServiceAccountsForScope(input: {
   }
   let walletRows: any[] = [];
   if (residentIds.size) {
-    const { data } = await supabaseAdmin.from("wallets").select("id, user_id").in("user_id", [...residentIds]);
+    const { data } = await supabaseAdmin.from("wallets").select("id, user_id, home_id").in("user_id", [...residentIds]);
     walletRows = data || [];
   }
   const userMap = new Map(residentRows.map((row: any) => [String(row.id), row]));
-  const walletMap = new Map(walletRows.map((row: any) => [String(row.user_id), row]));
+  const walletMap = new Map(walletRows.map((row: any) => [`${row.user_id}:${row.home_id || ""}`, row]));
 
   return (accounts || []).map((row: any) => {
     const home = homeMap.get(String(row.home_id || ""));
     const assignment = assignmentMap.get(`${row.home_id}:${row.service_key}`);
     const residentId = String(assignment?.user_id || home?.resident_id || "").trim() || null;
     const resident = residentId ? userMap.get(residentId) : null;
-    const wallet = residentId ? walletMap.get(residentId) : null;
+    const wallet = residentId ? walletMap.get(`${residentId}:${row.home_id || ""}`) : null;
     const metadata = row.metadata || {};
     const providerHealth = getInfrastructureServiceProvider(row.service_key as ProviderServiceKey).health({
       provider: row.provider,
@@ -1266,6 +1540,16 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
   const internetHealth = providerHealthFor("internet_service", internetLinked);
   const generatorHealth = providerHealthFor("generator_recovery", generatorLinked);
   const solarHealth = providerHealthFor("solar_battery_service", solarLinked);
+  const electricityPolicy = electricityPolicyFromConfig(configByKey.get("utility_token") || null);
+  const electricitySemantics = {
+    ...statusSemantics(configEnabled("utility_token"), electricityLinked, electricityHealth),
+    provider_status: electricityLinked ? (electricityPolicy.vendingMode === "test" ? "available" : "pending") : "not_required",
+    transaction_availability: !configEnabled("utility_token") || !electricityLinked
+      ? "not_supported"
+      : electricityPolicy.vendingMode === "test" && electricityPolicy.residentPurchasesEnabled && electricityPolicy.tariffPerKwh > 0
+      ? "available"
+      : "temporarily_unavailable",
+  };
 
   const response: any = {
     ok: true,
@@ -1287,7 +1571,7 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       last_payment_at: lastPaid("utility_token"),
       vending_readiness: electricityHealth.readiness,
 	      provider_health: electricityHealth.status,
-	      ...statusSemantics(configEnabled("utility_token"), electricityLinked, electricityHealth),
+	      ...electricitySemantics,
 	      ...profileFrom(accounts, "utility_token"),
 	    },
     water: {
@@ -1858,6 +2142,334 @@ export async function listMyServiceAccounts(req: Request, res: Response) {
       actor_id: user.id,
       requested_estate_id: String(req.query.estate_id || "").trim() || null,
       requested_home_id: String(req.query.home_id || "").trim() || null,
+    });
+  }
+}
+
+export async function quoteElectricityPurchase(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ ok: false, code: "service_auth_required", error: "Not authenticated" });
+
+  let context: Awaited<ReturnType<typeof resolveElectricityPurchaseContext>> | null = null;
+  try {
+    const amount = Number(req.body?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ ok: false, code: "invalid_amount", error: "Enter an electricity purchase amount." });
+    }
+    context = await resolveElectricityPurchaseContext(req, user);
+    const quote = buildElectricityQuote({
+      amount,
+      config: context.config,
+      meterId: context.meterId,
+      accountRef: context.accountRef,
+      wallet: context.wallet,
+    });
+    logger.info("electricity_purchase_quote_created", {
+      request_id: req.requestId || null,
+      user_id: String(user.id),
+      membership_id: context.walletScope.membershipId || null,
+      estate_id: context.estateId,
+      home_id: context.homeId,
+      service_account_id: context.serviceAccountId || null,
+      wallet_account_id: context.wallet?.id || null,
+      service_type: "electricity",
+      amount: quote.amount,
+      purchase_available: quote.purchase_available,
+      unavailable_reason: quote.unavailable_reason,
+    });
+    return res.json({ ok: true, quote });
+  } catch (error: any) {
+    return serviceTransactionErrorResponse(req, res, error, "Electricity purchase is temporarily unavailable.", {
+      user_id: String(user.id),
+      membership_id: context?.walletScope?.membershipId || (req as any).oisContext?.membership_id || null,
+      estate_id: context?.estateId || (req as any).oisContext?.estate_id || null,
+      home_id: context?.homeId || (req as any).oisContext?.home_id || null,
+      service_account_id: context?.serviceAccountId || null,
+      wallet_account_id: context?.wallet?.id || null,
+      service_type: "electricity",
+      failure_stage: "electricity_quote",
+    });
+  }
+}
+
+export async function confirmElectricityPurchase(req: Request, res: Response) {
+  const user = req.user;
+  if (!user?.id) return res.status(401).json({ ok: false, code: "service_auth_required", error: "Not authenticated" });
+
+  let context: Awaited<ReturnType<typeof resolveElectricityPurchaseContext>> | null = null;
+  let transaction: any = null;
+  const idempotencyKey = String(req.body?.idempotency_key || req.headers["x-idempotency-key"] || "").trim() || null;
+
+  try {
+    const amount = Number(req.body?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ ok: false, code: "invalid_amount", error: "Enter an electricity purchase amount." });
+    }
+    context = await resolveElectricityPurchaseContext(req, user);
+
+    const existing = await findServiceTransactionByIdempotency({
+      estateId: context.estateId,
+      homeId: context.homeId,
+      userId: String(user.id),
+      idempotencyKey,
+    });
+    if (existing?.id) {
+      return res.json({
+        ok: true,
+        transaction: existing,
+        receipt: existing.receipt || existing.metadata?.receipt || null,
+        idempotent: true,
+        message: "This electricity purchase was already recorded.",
+      });
+    }
+
+    const quote = buildElectricityQuote({
+      amount,
+      config: context.config,
+      meterId: context.meterId,
+      accountRef: context.accountRef,
+      wallet: context.wallet,
+    });
+    if (!quote.wallet.sufficient) {
+      return res.status(400).json({
+        ok: false,
+        code: "insufficient_funds",
+        error: "Your selected home wallet does not have enough funds for this purchase.",
+        wallet_charged: false,
+      });
+    }
+    if (!quote.purchase_available) {
+      transaction = await insertServiceTransactionRecord({
+        estateId: context.estateId,
+        homeId: context.homeId,
+        residentId: String(user.id),
+        membershipId: context.walletScope.membershipId || null,
+        walletAccountId: context.wallet?.id || null,
+        serviceAccountId: context.serviceAccountId || null,
+        serviceKey: "utility_token",
+        provider: context.account?.provider || null,
+        meterId: quote.meter.meter_id,
+        accountRef: quote.meter.account_ref,
+        amount: quote.amount,
+        fee: quote.fee,
+        tax: quote.tax,
+        totalDeduction: quote.total_deduction,
+        netServiceAmount: quote.net_service_amount,
+        computedUnits: quote.units,
+        currency: quote.currency,
+        status: "pending_provider",
+        transactionType: "electricity_purchase",
+        settlementStatus: "unsupported",
+        fulfilmentType: "pending_provider",
+        fulfilmentMethod: quote.fulfilment.method,
+        vendingMode: quote.fulfilment.mode,
+        idempotencyKey,
+        tariffSnapshot: quote.tariff,
+        failureCode: quote.unavailable_reason,
+        safeFailureMessage: "Electricity purchase is not available for this home yet.",
+        metadata: {
+          source: "services_api",
+          service_key: "utility_token",
+          quote,
+          wallet_charged: false,
+        },
+      });
+      return res.status(409).json({
+        ok: false,
+        code: quote.unavailable_reason || "electricity_purchase_unavailable",
+        error: "Electricity purchase is temporarily unavailable. Your wallet has not been charged.",
+        wallet_charged: false,
+        transaction,
+        quote,
+      });
+    }
+
+    const reference = `elec_${Date.now()}_${randomBytes(4).toString("hex")}`;
+    transaction = await insertServiceTransactionRecord({
+      estateId: context.estateId,
+      homeId: context.homeId,
+      residentId: String(user.id),
+      membershipId: context.walletScope.membershipId || null,
+      walletAccountId: context.wallet.id,
+      serviceAccountId: context.serviceAccountId || null,
+      serviceKey: "utility_token",
+      provider: context.account?.provider || null,
+      meterId: quote.meter.meter_id,
+      accountRef: quote.meter.account_ref,
+      amount: quote.amount,
+      fee: quote.fee,
+      tax: quote.tax,
+      totalDeduction: quote.total_deduction,
+      netServiceAmount: quote.net_service_amount,
+      computedUnits: quote.units,
+      currency: "NGN",
+      status: "pending",
+      transactionType: "electricity_purchase",
+      settlementStatus: "pending",
+      fulfilmentType: quote.fulfilment.method,
+      fulfilmentMethod: quote.fulfilment.method,
+      vendingMode: quote.fulfilment.mode,
+      receiptReference: reference,
+      idempotencyKey,
+      tariffSnapshot: quote.tariff,
+      metadata: {
+        source: "services_api",
+        service_key: "utility_token",
+        quote,
+        wallet_charged: false,
+      },
+    });
+
+    const debit = await debitHomeWallet({
+      walletId: String(context.wallet.id),
+      userId: String(user.id),
+      amount: quote.total_deduction,
+      reference,
+      type: "power",
+      reason: "electricity_purchase",
+    });
+
+    const testToken = quote.fulfilment.test_mode
+      ? `TEST-${randomBytes(2).toString("hex").toUpperCase()}-${randomBytes(2).toString("hex").toUpperCase()}-${randomBytes(2).toString("hex").toUpperCase()}`
+      : null;
+    const receipt = serviceReceiptFromPurchase({
+      transactionId: String(transaction.id),
+      reference,
+      quote,
+      walletAccountId: String(context.wallet.id),
+      walletTransactionId: debit.transaction_id || null,
+      homeId: context.homeId,
+      estateId: context.estateId,
+      membershipId: context.walletScope.membershipId || null,
+      token: testToken,
+      testMode: quote.fulfilment.test_mode,
+    });
+
+    const { data: completed, error: updateError } = await supabaseAdmin
+      .from("service_transactions")
+      .update({
+        status: "completed",
+        settlement_status: "settled",
+        wallet_transaction_id: debit.transaction_id || null,
+        provider_reference: reference,
+        token_reference: testToken,
+        receipt_reference: reference,
+        completed_at: new Date().toISOString(),
+        receipt,
+        metadata: {
+          ...(transaction.metadata || {}),
+          receipt,
+          wallet_charged: true,
+          wallet_debit: debit,
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", transaction.id)
+      .select("*")
+      .single();
+    if (updateError) throw Object.assign(new Error(updateError.message), { statusCode: tableMissing(updateError) ? 503 : 500, cause: updateError });
+    transaction = completed || transaction;
+
+    if (debit.transaction_id) {
+      await supabaseAdmin
+        .from("wallet_transactions")
+        .update({
+          metadata: {
+            source: "services_api",
+            direction: "debit",
+            service_key: "utility_token",
+            account_ref: quote.meter.account_ref,
+            meter_id: quote.meter.meter_id,
+            home_id: context.homeId,
+            estate_id: context.estateId,
+            membership_id: context.walletScope.membershipId || null,
+            wallet_account_id: context.wallet.id,
+            service_account_id: context.serviceAccountId || null,
+            receipt,
+          },
+        })
+        .eq("id", debit.transaction_id);
+    }
+
+    await handleSignal({
+      type: "wallet.debited",
+      schemaVersion: SIGNAL_SCHEMA_VERSION,
+      source: "user",
+      walletId: context.wallet.id,
+      userId: user.id,
+      amount: quote.total_deduction,
+      currency: "NGN",
+      reason: "electricity_purchase",
+      metadata: {
+        estate_id: context.estateId,
+        home_id: context.homeId,
+        membership_id: context.walletScope.membershipId || null,
+        service_account_id: context.serviceAccountId || null,
+        transaction_id: transaction.id,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    try {
+      await NotificationService.sendToUser(String(user.id), {
+        title: "Electricity purchase successful",
+        message: quote.fulfilment.test_mode
+          ? "A test electricity token has been generated for this home."
+          : "Your electricity purchase has been completed.",
+        type: "wallet",
+        payload: { estate_id: context.estateId, home_id: context.homeId, kind: "service.receipt", receipt },
+        entityId: String(transaction.id),
+      });
+    } catch (notifyErr) {
+      logger.warn("electricity_purchase_notification_failed", { transaction_id: transaction.id, error: notifyErr });
+    }
+
+    try {
+      await sendServiceReceiptEmail(user, receipt);
+    } catch (mailErr) {
+      logger.warn("electricity_purchase_email_failed", { transaction_id: transaction.id, error: mailErr });
+    }
+
+    await emitServiceRegistryEvent({
+      event: "wallet.service_payment.updated",
+      estate_id: context.estateId,
+      home_id: context.homeId,
+      service_key: "utility_token",
+      user_id: String(user.id),
+      actor_id: String(user.id),
+      payload: { receipt, balance: debit.balance, transaction_id: transaction.id },
+    });
+    await emitServiceRegistryEvent({
+      event: "home.service_registry.updated",
+      estate_id: context.estateId,
+      home_id: context.homeId,
+      service_key: "utility_token",
+      user_id: String(user.id),
+      actor_id: String(user.id),
+      payload: { reason: "electricity_purchase" },
+    });
+
+    return res.json({
+      ok: true,
+      wallet_charged: true,
+      balance: debit.balance,
+      transaction,
+      receipt,
+      message: quote.fulfilment.test_mode
+        ? "Test electricity token generated. This token is not valid for a live meter."
+        : "Electricity purchase completed.",
+    });
+  } catch (error: any) {
+    return serviceTransactionErrorResponse(req, res, error, "Electricity purchase is temporarily unavailable. Your wallet has not been charged.", {
+      user_id: String(user.id),
+      membership_id: context?.walletScope?.membershipId || (req as any).oisContext?.membership_id || null,
+      estate_id: context?.estateId || (req as any).oisContext?.estate_id || null,
+      home_id: context?.homeId || (req as any).oisContext?.home_id || null,
+      service_account_id: context?.serviceAccountId || null,
+      wallet_account_id: context?.wallet?.id || null,
+      service_type: "electricity",
+      transaction_id: transaction?.id || null,
+      failure_stage: transaction ? "electricity_purchase_confirm" : "electricity_purchase_prepare",
     });
   }
 }

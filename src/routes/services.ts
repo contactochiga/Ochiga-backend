@@ -3,6 +3,7 @@ import { requireAuth, requirePermission } from "../middleware/auth";
 import { resolveRequestContext } from "../middleware/contextResolver";
 import {
   createServiceTransaction,
+  confirmElectricityPurchase,
   getHomeServiceRegistry,
   listEstateServiceTransactions,
   listServiceRegistryEvents,
@@ -12,6 +13,7 @@ import {
   listServiceConfigs,
   listServicePayments,
   payServiceFromWallet,
+  quoteElectricityPurchase,
   upsertServiceConfig,
 } from "../controllers/servicesController";
 
@@ -22,6 +24,8 @@ router.get("/accounts", requireAuth, resolveRequestContext, requirePermission("s
 router.get("/accounts/me", requireAuth, resolveRequestContext, requirePermission("services.read"), listMyServiceAccounts);
 router.get("/config", requireAuth, resolveRequestContext, requirePermission("services.read"), listServiceConfigs);
 router.patch("/config/:serviceKey", requireAuth, resolveRequestContext, requirePermission("services.manage"), upsertServiceConfig);
+router.post("/electricity/quote", requireAuth, resolveRequestContext, requirePermission("services.pay"), quoteElectricityPurchase);
+router.post("/electricity/purchase", requireAuth, resolveRequestContext, requirePermission("services.pay"), confirmElectricityPurchase);
 router.post("/pay", requireAuth, resolveRequestContext, requirePermission("services.pay"), payServiceFromWallet);
 router.post("/transactions", requireAuth, resolveRequestContext, requirePermission("services.pay"), createServiceTransaction);
 router.get("/estate/transactions", requireAuth, resolveRequestContext, requirePermission("services.read"), listEstateServiceTransactions);
