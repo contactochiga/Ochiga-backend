@@ -68,13 +68,15 @@ begin
     select conname
     from pg_constraint c
     join pg_class t on t.oid = c.conrelid
-    where t.relname = 'wallets'
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'wallets'
       and c.contype = 'u'
       and (
-        select array_agg(a.attname order by a.attnum)
+        select array_agg(a.attname::text order by a.attnum)
         from unnest(c.conkey) k(attnum)
         join pg_attribute a on a.attrelid = t.oid and a.attnum = k.attnum
-      ) = array['user_id']
+      ) = array['user_id']::text[]
   loop
     execute format('alter table public.wallets drop constraint if exists %I', r.conname);
   end loop;
@@ -83,6 +85,7 @@ end $$;
 drop index if exists public.uniq_wallets_user_id;
 drop index if exists public.wallets_user_id_key;
 drop index if exists public.idx_wallets_user_id_unique;
+drop index if exists public.wallets_estate_user_unique;
 
 create unique index if not exists idx_wallets_user_home_unique
   on wallets(user_id, home_id)
