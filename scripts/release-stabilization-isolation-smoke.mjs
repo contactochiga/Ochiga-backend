@@ -22,10 +22,14 @@ function assertMatch(file, regex, label = String(regex)) {
 }
 
 const migration = "supabase/migrations/20260718163714_release_stabilization_multi_home_isolation.sql";
+const serviceTransactionRepairMigration = "supabase/migrations/20260721214703_service_transactions_schema_cache_repair.sql";
 
 assertIncludes(migration, "idx_wallets_user_home_unique", "home-scoped wallet uniqueness");
 assertIncludes(migration, "wallet_account_id", "wallet transaction account scope");
 assertIncludes(migration, "service_transactions", "service_transactions repair");
+assertIncludes(serviceTransactionRepairMigration, "create table if not exists service_transactions", "corrective service transaction table repair migration");
+assertIncludes(serviceTransactionRepairMigration, "idempotency_key", "service transaction idempotency key");
+assertIncludes(serviceTransactionRepairMigration, "select pg_notify('pgrst', 'reload schema')", "corrective service transaction migration reloads PostgREST schema cache");
 assertIncludes(migration, "dm_threads", "message thread scope repair");
 assertIncludes(migration, "home_id uuid", "home-scoped message columns");
 assertIncludes(migration, "oyi_credit_home_wallet", "home wallet credit RPC");
@@ -38,6 +42,10 @@ assertIncludes("src/controllers/walletController.ts", "oyi_credit_home_wallet", 
 assertIncludes("src/controllers/walletController.ts", "wallet_home_scope_mismatch", "wallet payment home mismatch guard");
 assertIncludes("src/controllers/servicesController.ts", "resolveWalletScopeForHome", "service payment home wallet scope");
 assertIncludes("src/controllers/servicesController.ts", "wallet_account_id: wallet.id", "service payment wallet account stamping");
+assertIncludes("src/controllers/servicesController.ts", "serviceTransactionErrorResponse", "service transaction typed error response");
+assertIncludes("src/controllers/servicesController.ts", "service_schema_unavailable", "missing service transaction schema maps to 503");
+assertIncludes("src/controllers/servicesController.ts", "idempotency_key", "service transaction idempotency propagation");
+assertIncludes("src/controllers/servicesController.ts", "transaction_availability", "service status semantic separation");
 assertIncludes("src/services/homeServiceProvisioning.ts", "getOrCreateScopedWallet", "home provisioning creates home wallet");
 
 assertIncludes("src/routes/messages.ts", "resolveRequestContext", "message routes resolve active context");

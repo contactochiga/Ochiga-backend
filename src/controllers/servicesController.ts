@@ -292,6 +292,29 @@ function serviceErrorResponse(res: Response, error: any, fallback: string, conte
   });
 }
 
+function serviceTransactionErrorResponse(
+  req: Request,
+  res: Response,
+  error: any,
+  fallback: string,
+  context: Record<string, unknown> = {},
+) {
+  const publicError = servicePublicError(error, fallback);
+  logger.error("service_transaction_failed", {
+    request_id: req.requestId || null,
+    correlation_id: req.correlationId || null,
+    ...context,
+    status: publicError.status,
+    error_code: publicError.code,
+    error,
+  });
+  return res.status(publicError.status).json({
+    ok: false,
+    code: publicError.code,
+    error: publicError.message,
+  });
+}
+
 type ServiceConfigRow = {
   estate_id: string;
   service_key: ServiceKey;
@@ -811,6 +834,22 @@ function serviceStatusFrom(enabled: boolean, linked: boolean, serviceKey: Servic
   return providerFulfillmentStatus(serviceKey) === "manual_review" && serviceKey !== "service_charge" ? "available" : "active";
 }
 
+function statusSemantics(enabled: boolean, linked: boolean, health: ProviderHealth) {
+  const providerStatus = !enabled ? "unavailable" : linked ? (health.supported ? "available" : "pending") : "not_required";
+  const transactionAvailability = !enabled
+    ? "not_supported"
+    : !linked
+    ? "not_supported"
+    : health.supported
+    ? "available"
+    : "temporarily_unavailable";
+  return {
+    provisioning_status: linked ? "provisioned" : "not_provisioned",
+    provider_status: providerStatus,
+    transaction_availability: transactionAvailability,
+  };
+}
+
 function profileFrom(accounts: Map<string, any>, serviceKey: ServiceKey) {
   const metadata = accountValue(accounts, serviceKey, "metadata", {}) || {};
   return {
@@ -917,6 +956,7 @@ async function insertServiceTransactionRecord(input: {
   transactionType: ServiceTransactionType;
   settlementStatus?: ServiceSettlementStatus;
   providerReference?: string | null;
+  idempotencyKey?: string | null;
   metadata?: Record<string, any> | null;
 }) {
   const row = {
@@ -934,8 +974,24 @@ async function insertServiceTransactionRecord(input: {
     transaction_type: input.transactionType,
     settlement_status: input.settlementStatus || "none",
     provider_reference: input.providerReference || null,
+    idempotency_key: input.idempotencyKey || null,
     metadata: input.metadata || {},
   };
+
+  if (input.idempotencyKey && input.estateId && input.homeId && input.residentId) {
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("service_transactions")
+      .select("*")
+      .eq("estate_id", input.estateId)
+      .eq("home_id", input.homeId)
+      .eq("user_id", input.residentId)
+      .eq("idempotency_key", input.idempotencyKey)
+      .maybeSingle();
+    if (existingError && !tableMissing(existingError) && !/column|schema cache/i.test(String(existingError.message || ""))) {
+      throw Object.assign(new Error(existingError.message), { code: "service_transaction_lookup_failed", statusCode: 500, cause: existingError });
+    }
+    if (existing?.id) return existing;
+  }
 
   const { data, error } = await supabaseAdmin
     .from("service_transactions")
@@ -943,7 +999,14 @@ async function insertServiceTransactionRecord(input: {
     .select("*")
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    const wrapped = Object.assign(new Error(error.message), {
+      code: tableMissing(error) ? "service_schema_unavailable" : "service_transaction_insert_failed",
+      statusCode: tableMissing(error) || /column|constraint|schema cache/i.test(String(error.message || "")) ? 503 : 500,
+      cause: error,
+    });
+    throw wrapped;
+  }
   return data;
 }
 
@@ -1214,7 +1277,7 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       currency: String(wallet?.currency || "NGN"),
       available: Boolean(wallet?.id),
     },
-    electricity: {
+	    electricity: {
       enabled: configEnabled("utility_token"),
       meter_id: String(accountValue(accounts, "utility_token", "meter_id", home.electricity_meter || "") || ""),
       provider: accountValue(accounts, "utility_token", "provider", configByKey.get("utility_token")?.metadata?.provider || null),
@@ -1223,9 +1286,10 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       balance: accountValue(accounts, "utility_token", "balance", null),
       last_payment_at: lastPaid("utility_token"),
       vending_readiness: electricityHealth.readiness,
-      provider_health: electricityHealth.status,
-      ...profileFrom(accounts, "utility_token"),
-    },
+	      provider_health: electricityHealth.status,
+	      ...statusSemantics(configEnabled("utility_token"), electricityLinked, electricityHealth),
+	      ...profileFrom(accounts, "utility_token"),
+	    },
     water: {
       enabled: configEnabled("water_service"),
       meter_id: String(accountValue(accounts, "water_service", "meter_id", home.water_meter || "") || ""),
@@ -1235,9 +1299,10 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       balance: accountValue(accounts, "water_service", "balance", null),
       last_payment_at: lastPaid("water_service"),
       vending_readiness: waterHealth.readiness,
-      provider_health: waterHealth.status,
-      ...profileFrom(accounts, "water_service"),
-    },
+	      provider_health: waterHealth.status,
+	      ...statusSemantics(configEnabled("water_service"), waterLinked, waterHealth),
+	      ...profileFrom(accounts, "water_service"),
+	    },
     gas: {
       enabled: configEnabled("gas_service"),
       meter_id: String(accountValue(accounts, "gas_service", "meter_id", "") || ""),
@@ -1248,9 +1313,10 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       balance: accountValue(accounts, "gas_service", "balance", null),
       last_payment_at: lastPaid("gas_service"),
       vending_readiness: gasHealth.readiness,
-      provider_health: gasHealth.status,
-      ...profileFrom(accounts, "gas_service"),
-    },
+	      provider_health: gasHealth.status,
+	      ...statusSemantics(configEnabled("gas_service"), gasLinked, gasHealth),
+	      ...profileFrom(accounts, "gas_service"),
+	    },
     internet: {
       enabled: configEnabled("internet_service") || configEnabled("fiber_internet"),
       provider: accountValue(accounts, "internet_service", "provider", null),
@@ -1260,9 +1326,10 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       status: status("internet_service", internetLinked),
       expires_at: accountValue(accounts, "internet_service", "expires_at", null),
       vending_readiness: internetHealth.readiness,
-      provider_health: internetHealth.status,
-      ...profileFrom(accounts, "internet_service"),
-    },
+	      provider_health: internetHealth.status,
+	      ...statusSemantics(configEnabled("internet_service") || configEnabled("fiber_internet"), internetLinked, internetHealth),
+	      ...profileFrom(accounts, "internet_service"),
+	    },
     generator_recovery: {
       enabled: configEnabled("generator_recovery"),
       provider: accountValue(accounts, "generator_recovery", "provider", configByKey.get("generator_recovery")?.metadata?.provider || null),
@@ -1271,9 +1338,10 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       status: status("generator_recovery", generatorLinked),
       last_payment_at: lastPaid("generator_recovery"),
       vending_readiness: generatorHealth.readiness,
-      provider_health: generatorHealth.status,
-      ...profileFrom(accounts, "generator_recovery"),
-    },
+	      provider_health: generatorHealth.status,
+	      ...statusSemantics(configEnabled("generator_recovery"), generatorLinked, generatorHealth),
+	      ...profileFrom(accounts, "generator_recovery"),
+	    },
     solar_battery: {
       enabled: configEnabled("solar_battery_service"),
       provider: accountValue(accounts, "solar_battery_service", "provider", configByKey.get("solar_battery_service")?.metadata?.provider || null),
@@ -1283,9 +1351,10 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       status: status("solar_battery_service", solarLinked),
       last_payment_at: lastPaid("solar_battery_service"),
       vending_readiness: solarHealth.readiness,
-      provider_health: solarHealth.status,
-      ...profileFrom(accounts, "solar_battery_service"),
-    },
+	      provider_health: solarHealth.status,
+	      ...statusSemantics(configEnabled("solar_battery_service"), solarLinked, solarHealth),
+	      ...profileFrom(accounts, "solar_battery_service"),
+	    },
     estate_fees: {
       enabled: serviceChargeEnabled,
       outstanding: accountValue(accounts, "service_charge", "outstanding", null),
@@ -1795,147 +1864,191 @@ export async function listMyServiceAccounts(req: Request, res: Response) {
 
 export async function createServiceTransaction(req: Request, res: Response) {
   const user = req.user;
-  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+  if (!user?.id) return res.status(401).json({ ok: false, code: "service_auth_required", error: "Not authenticated" });
 
-  const serviceKey = String(req.body?.service_key || "").trim() as ServiceKey;
-  if (!VALID_SERVICE_KEYS.has(serviceKey)) return res.status(400).json({ error: "Invalid service_key" });
+  let estateId: string | null = null;
+  let homeId: string | null = null;
+  let serviceAccountId: string | null = null;
+  let serviceKey: ServiceKey | null = null;
+  let transactionType: ServiceTransactionType | null = null;
+  let amount = 0;
+  let transaction: any = null;
+  let status: ServiceTransactionStatus = "pending";
+  let execution: any = null;
+  let provider: ReturnType<typeof getInfrastructureServiceProvider> | null = null;
 
-  const amount = req.body?.amount == null || req.body?.amount === "" ? 0 : Number(req.body.amount);
-  if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ error: "Amount must be zero or greater" });
+  try {
+    serviceKey = String(req.body?.service_key || "").trim() as ServiceKey;
+    if (!VALID_SERVICE_KEYS.has(serviceKey)) {
+      return res.status(400).json({ ok: false, code: "invalid_service_key", error: "This service is not available." });
+    }
 
-  const transactionType = String(req.body?.transaction_type || transactionTypeForService(serviceKey)).trim() as ServiceTransactionType;
-  const accountRef = String(req.body?.account_ref || "").trim();
-  const notes = String(req.body?.notes || "").trim() || null;
+    amount = req.body?.amount == null || req.body?.amount === "" ? 0 : Number(req.body.amount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return res.status(400).json({ ok: false, code: "invalid_amount", error: "Amount must be zero or greater." });
+    }
 
-  const home = await resolveHomeForUser(user, {
-    homeId: String(req.body?.home_id || "").trim() || null,
-    estateId: String(req.body?.estate_id || "").trim() || null,
-  });
-  if (!home?.id) return res.status(400).json({ error: "No home linked to this account" });
+    transactionType = String(req.body?.transaction_type || transactionTypeForService(serviceKey)).trim() as ServiceTransactionType;
+    const accountRef = String(req.body?.account_ref || "").trim();
+    const notes = String(req.body?.notes || "").trim() || null;
+    const idempotencyKey = String(req.body?.idempotency_key || req.headers["x-idempotency-key"] || "").trim() || null;
+    const requestedHomeId = String((req as any).oisContext?.home_id || req.body?.home_id || "").trim() || null;
+    const requestedEstateId = String((req as any).oisContext?.estate_id || req.body?.estate_id || "").trim() || null;
 
-  const estateId = String(home.estate_id || user.estate_id || "").trim();
-  if (!estateId) return res.status(400).json({ error: "No estate linked to this service account" });
+    const home = await resolveHomeForUser(user, { homeId: requestedHomeId, estateId: requestedEstateId });
+    if (!home?.id) return res.status(400).json({ ok: false, code: "home_context_unavailable", error: "Your home context could not be loaded." });
 
-  const accounts = await listServiceAccountsForScope({ estateId, homeId: String(home.id) });
-  const account = accounts.find((item: any) => item.service_key === serviceKey);
-  if (!account) return res.status(404).json({ error: "Provisioned service account not found for this home" });
-  if (accountRef && account.identifier && accountRef !== account.identifier) {
-    return res.status(400).json({ error: "Account reference mismatch for this service" });
-  }
+    estateId = String(home.estate_id || user.estate_id || "").trim();
+    homeId = String(home.id);
+    if (!estateId) return res.status(400).json({ ok: false, code: "estate_context_unavailable", error: "Your estate context could not be loaded." });
 
-  const provider = getInfrastructureServiceProvider(serviceKey as ProviderServiceKey);
-  const execution = await provider.execute({
-    provider: account.provider,
-    accountRef: account.identifier,
-    amount,
-    serviceKey,
-    transactionType,
-    metadata: { notes },
-  });
+    const accounts = await listServiceAccountsForScope({ estateId, homeId });
+    const account = accounts.find((item: any) => item.service_key === serviceKey);
+    if (!account) return res.status(404).json({ ok: false, code: "service_account_not_found", error: "This home does not have that service connected." });
+    serviceAccountId = String(account.id || "");
+    if (accountRef && account.identifier && accountRef !== account.identifier) {
+      return res.status(400).json({ ok: false, code: "service_account_mismatch", error: "That account does not match this home." });
+    }
 
-  const status: ServiceTransactionStatus =
-    execution.status === "pending_provider"
-      ? "pending_provider"
-      : execution.status === "manual_review"
-      ? "manual_review"
-      : "unsupported";
-
-  const transaction = await insertServiceTransactionRecord({
-    estateId,
-    homeId: String(home.id),
-    residentId: String(user.id),
-    serviceAccountId: String(account.id),
-    serviceKey,
-    provider: account.provider,
-    amount,
-    currency: "NGN",
-    status,
-    transactionType,
-    settlementStatus: execution.settlementStatus,
-    providerReference: execution.providerReference,
-    metadata: {
-      account_ref: account.identifier,
-      notes,
-      requested_from: "consumer_services",
-      provider_reason: execution.reason,
-      service_title: account.service_title,
-    },
-  });
-
-  await emitServiceRegistryEvent({
-    event: "service.transaction.initiated",
-    estate_id: estateId,
-    home_id: String(home.id),
-    service_key: serviceKey,
-    user_id: String(user.id),
-    actor_id: String(user.id),
-    payload: { transaction_id: transaction.id, transaction_type: transactionType, status, amount, provider_reference: execution.providerReference },
-  });
-  await emitInfrastructureServiceSignal({
-    type: "service.transaction.initiated",
-    estateId,
-    homeId: String(home.id),
-    userId: String(user.id),
-    actorId: String(user.id),
-    serviceKey,
-    source: "user",
-    metadata: { transaction_id: transaction.id, transaction_type: transactionType, status, amount },
-  });
-
-  if (transactionType === "issue_report") {
-    await emitServiceRegistryEvent({
-      event: "service.issue.reported",
+    logger.info("service_transaction_stage", {
+      request_id: req.requestId || null,
+      user_id: String(user.id),
+      membership_id: (req as any).oisContext?.membership_id || null,
       estate_id: estateId,
-      home_id: String(home.id),
+      home_id: homeId,
+      service_account_id: serviceAccountId,
+      service_type: serviceDomainFor(serviceKey),
+      failure_stage: "provider_execute_start",
+    });
+
+    provider = getInfrastructureServiceProvider(serviceKey as ProviderServiceKey);
+    execution = await provider.execute({
+      provider: account.provider,
+      accountRef: account.identifier,
+      amount,
+      serviceKey,
+      transactionType,
+      metadata: { notes },
+    });
+
+    status =
+      execution.status === "pending_provider"
+        ? "pending_provider"
+        : execution.status === "manual_review"
+        ? "manual_review"
+        : "unsupported";
+
+    transaction = await insertServiceTransactionRecord({
+      estateId,
+      homeId,
+      residentId: String(user.id),
+      serviceAccountId,
+      serviceKey,
+      provider: account.provider,
+      amount,
+      currency: "NGN",
+      status,
+      transactionType,
+      settlementStatus: execution.settlementStatus,
+      providerReference: execution.providerReference,
+      idempotencyKey,
+      metadata: {
+        account_ref: account.identifier,
+        notes,
+        requested_from: "consumer_services",
+        provider_reason: execution.reason,
+        service_title: account.service_title,
+        idempotency_key: idempotencyKey,
+      },
+    });
+
+    await emitServiceRegistryEvent({
+      event: "service.transaction.initiated",
+      estate_id: estateId,
+      home_id: homeId,
       service_key: serviceKey,
       user_id: String(user.id),
       actor_id: String(user.id),
-      payload: { transaction_id: transaction.id, notes, status },
+      payload: { transaction_id: transaction.id, transaction_type: transactionType, status, amount, provider_reference: execution.providerReference },
     });
     await emitInfrastructureServiceSignal({
-      type: "service.issue.reported",
+      type: "service.transaction.initiated",
       estateId,
-      homeId: String(home.id),
+      homeId,
       userId: String(user.id),
       actorId: String(user.id),
       serviceKey,
       source: "user",
-      metadata: { transaction_id: transaction.id, notes, status },
+      metadata: { transaction_id: transaction.id, transaction_type: transactionType, status, amount },
     });
-  }
 
-  if (status === "unsupported") {
-    await emitServiceRegistryEvent({
-      event: "service.transaction.failed",
-      estate_id: estateId,
-      home_id: String(home.id),
-      service_key: serviceKey,
+    if (transactionType === "issue_report") {
+      await emitServiceRegistryEvent({
+        event: "service.issue.reported",
+        estate_id: estateId,
+        home_id: homeId,
+        service_key: serviceKey,
+        user_id: String(user.id),
+        actor_id: String(user.id),
+        payload: { transaction_id: transaction.id, notes, status },
+      });
+      await emitInfrastructureServiceSignal({
+        type: "service.issue.reported",
+        estateId,
+        homeId,
+        userId: String(user.id),
+        actorId: String(user.id),
+        serviceKey,
+        source: "user",
+        metadata: { transaction_id: transaction.id, notes, status },
+      });
+    }
+
+    if (status === "unsupported") {
+      await emitServiceRegistryEvent({
+        event: "service.transaction.failed",
+        estate_id: estateId,
+        home_id: homeId,
+        service_key: serviceKey,
+        user_id: String(user.id),
+        actor_id: String(user.id),
+        payload: { transaction_id: transaction.id, reason: execution.reason, status },
+      });
+      await emitInfrastructureServiceSignal({
+        type: "service.transaction.failed",
+        estateId,
+        homeId,
+        userId: String(user.id),
+        actorId: String(user.id),
+        serviceKey,
+        source: "user",
+        metadata: { transaction_id: transaction.id, reason: execution.reason, status },
+      });
+    }
+
+    return res.status(202).json({
+      ok: true,
+      transaction,
+      provider: {
+        type: provider.key,
+        label: provider.label,
+        execution,
+      },
+      message: execution.reason,
+    });
+  } catch (error: any) {
+    return serviceTransactionErrorResponse(req, res, error, "This service request is temporarily unavailable.", {
       user_id: String(user.id),
-      actor_id: String(user.id),
-      payload: { transaction_id: transaction.id, reason: execution.reason, status },
-    });
-    await emitInfrastructureServiceSignal({
-      type: "service.transaction.failed",
-      estateId,
-      homeId: String(home.id),
-      userId: String(user.id),
-      actorId: String(user.id),
-      serviceKey,
-      source: "user",
-      metadata: { transaction_id: transaction.id, reason: execution.reason, status },
+      membership_id: (req as any).oisContext?.membership_id || null,
+      estate_id: estateId,
+      home_id: homeId,
+      service_account_id: serviceAccountId,
+      wallet_account_id: null,
+      service_type: serviceKey ? serviceDomainFor(serviceKey) : null,
+      transaction_id: transaction?.id || null,
+      failure_stage: transaction ? "post_transaction_processing" : execution ? "transaction_insert" : "provider_execution",
     });
   }
-
-  return res.status(202).json({
-    ok: true,
-    transaction,
-    provider: {
-      type: provider.key,
-      label: provider.label,
-      execution,
-    },
-    message: execution.reason,
-  });
 }
 
 export async function listEstateServicePayments(req: Request, res: Response) {
