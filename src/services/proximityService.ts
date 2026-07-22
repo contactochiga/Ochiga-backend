@@ -246,12 +246,17 @@ async function countActiveVisitors(user: AuthUser) {
 }
 
 async function countAttentionNotifications(user: AuthUser) {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("notifications")
     .select("id,type,title,payload,status")
     .eq("user_id", user.id)
     .neq("status", "read")
     .limit(100);
+  if (user.estate_id) query = query.or(`estate_id.is.null,estate_id.eq.${user.estate_id}`);
+  if (user.home_id) query = query.or(`home_id.is.null,home_id.eq.${user.home_id}`);
+  else query = query.is("home_id", null);
+
+  const { data, error } = await query;
   if (error) return null;
   return (data || []).filter((row: any) => {
     const text = `${row?.type || ""} ${row?.title || ""} ${row?.payload?.severity || ""} ${row?.payload?.kind || ""}`.toLowerCase();

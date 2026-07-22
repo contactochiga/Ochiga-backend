@@ -593,7 +593,25 @@ export async function sendMessage(req: Request, res: Response) {
               ? `${body.slice(0, 90)}...`
               : body,
       type: "system",
-      payload: { threadId, messageId: msg.id, kind: "chat.dm" },
+      payload: {
+        threadId,
+        thread_id: threadId,
+        messageId: msg.id,
+        message_id: msg.id,
+        kind: "chat.dm",
+        estate_id: thread.estate_id || null,
+        home_id: thread.home_id || requestScope(req, user).homeId || null,
+      },
+      routing: {
+        source_type: "message",
+        source_id: String(threadId),
+        destination: "page",
+        target: { target_type: "message", target_id: String(threadId), open_as: "page", action: "inspect" },
+        actionability: "informational",
+        attention_eligible: false,
+        queue_eligible: false,
+        acknowledgement_required: false,
+      },
       entityId: String(msg.id),
     });
   }
@@ -851,9 +869,23 @@ export async function resolveModerationReport(req: Request, res: Response) {
       type: "system",
       payload: {
         threadId: report.thread_id,
+        thread_id: report.thread_id,
         messageId: report.message_id,
+        message_id: report.message_id,
         reportId: report.id,
         action,
+        estate_id: report.estate_id || null,
+        home_id: report.home_id || null,
+      },
+      routing: {
+        source_type: "message",
+        source_id: String(report.thread_id || report.id),
+        destination: "page",
+        target: { target_type: "message", target_id: String(report.thread_id || ""), open_as: "page", action: "inspect" },
+        actionability: "informational",
+        attention_eligible: false,
+        queue_eligible: false,
+        acknowledgement_required: false,
       },
       entityId: String(report.id),
     });

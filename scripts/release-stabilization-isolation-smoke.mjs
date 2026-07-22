@@ -54,5 +54,31 @@ assertIncludes("src/controllers/messagesController.ts", ".eq(\"home_id\", homeId
 assertIncludes("src/routes/maintenance.routes.ts", "resolveRequestContext", "maintenance routes resolve active context");
 assertIncludes("src/controllers/maintenance.controller.ts", ".eq(\"home_id\", homeId)", "maintenance home filtering");
 assertMatch("src/controllers/maintenance.controller.ts", /home_memberships[\s\S]+eq\("home_id", requestedHomeId\)/, "maintenance validates home membership");
+assertIncludes("src/controllers/maintenance.controller.ts", "NotificationService.sendToUser", "maintenance notifications use canonical notification service");
+assertIncludes("src/controllers/maintenance.controller.ts", "home_id: existing.home_id", "maintenance update notifications keep home scope");
+
+assertIncludes("src/routes/notifications.ts", "resolveRequestContext", "notifications resolve active context");
+assertIncludes("src/routes/notifications.ts", "home_id.eq", "notifications filter by active home");
+assertIncludes("src/routes/notifications.ts", "markNotificationAcknowledged(id, String(user.id), req.oisContext?.estate_id", "notification read acknowledgement is context-scoped");
+assertIncludes("src/services/NotificationService.ts", ".from(\"home_memberships\")", "home notifications resolve active memberships");
+assertIncludes("src/services/NotificationService.ts", "home_id: row?.home_id", "push payload carries home scope");
+
+assertIncludes("src/routes/activity.ts", "resolveRequestContext", "activity routes resolve active context");
+assertIncludes("src/routes/activity.ts", "req.oisContext?.home_id", "activity uses active home from canonical context");
+assertIncludes("src/routes/activity.ts", ".eq(\"home_id\", homeId)", "activity source queries filter selected home");
+assertIncludes("src/routes/activity.ts", ".eq(\"home_id\", homeId)", "activity wallet and domain records are home filtered");
+
+assertIncludes("src/routes/proximityRoutes.ts", "resolveRequestContext", "proximity routes resolve active context");
+assertIncludes("src/routes/proximityRoutes.ts", "scopedUser(req)", "proximity uses selected-home context");
+assertIncludes("src/services/proximityService.ts", "home_id.eq", "proximity attention notifications are home-scoped");
+
+assertIncludes("src/routes/scenes.ts", "resolveRequestContext", "scenes resolve active context");
+assertIncludes("src/routes/scenes.ts", "activeScope(req)", "scenes use selected active scope");
+assertIncludes("src/routes/scenes.ts", "executeDeviceCommandForActor", "scene execution stays on canonical command runtime");
+
+assertIncludes("src/routes/visitors.ts", "resolveRequestContext", "visitor routes resolve active context");
+assertIncludes("src/controllers/visitorController.ts", "(req as any).oisContext?.home_id", "visitor controller reads selected active home");
+assertIncludes("src/controllers/visitorController.ts", "visitor_id", "visitor notifications carry canonical visitor id");
+assertIncludes("src/controllers/visitorController.ts", "home_id: data.home_id", "visitor update notifications carry home scope");
 
 console.log("release-stabilization-isolation-smoke: ok");

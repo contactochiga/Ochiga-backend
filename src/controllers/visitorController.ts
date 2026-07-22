@@ -25,8 +25,8 @@ const VISITOR_LINK_BASE = process.env.VISITOR_LINK_BASE || "";
 function requireUserContext(req: Request) {
   const user = (req as any).user as any;
 
-  const estateId = user?.estate_id || user?.estateId;
-  const homeId = user?.home_id || user?.homeId;
+  const estateId = (req as any).oisContext?.estate_id || user?.estate_id || user?.estateId;
+  const homeId = (req as any).oisContext?.home_id || user?.home_id || user?.homeId;
   const userId = user?.id;
 
   if (!userId) throw new Error("Not authenticated");
@@ -41,8 +41,8 @@ function readUserContext(req: Request) {
   return {
     user,
     userId: user?.id ? String(user.id) : "",
-    estateId: user?.estate_id || user?.estateId || null,
-    homeId: user?.home_id || user?.homeId || null,
+    estateId: (req as any).oisContext?.estate_id || user?.estate_id || user?.estateId || null,
+    homeId: (req as any).oisContext?.home_id || user?.home_id || user?.homeId || null,
     role: String(user?.role || "guest").toLowerCase(),
   };
 }
@@ -201,7 +201,7 @@ export async function createVisitor(req: Request, res: Response) {
       type: "visitor",
       entityId: visitorId,
       message: `New visitor "${data.visitor_name}" created.`,
-      payload: { link, accessCode, visitorName: data.visitor_name },
+      payload: { link, accessCode, visitorName: data.visitor_name, visitorId, visitor_id: visitorId, estate_id: estateId, home_id: homeId },
     };
 
     await notifyUser(userId, payload);
@@ -306,7 +306,7 @@ export async function approveVisitor(req: Request, res: Response) {
         type: "visitor",
         entityId: id,
         message: `Visitor "${data.visitor_name}" approved.`,
-        payload: { visitorId: id },
+        payload: { visitorId: id, visitor_id: id, estate_id: data.estate_id || null, home_id: data.home_id || null },
       };
       await notifyUser(residentId, payload);
     }
@@ -347,7 +347,7 @@ export async function denyVisitor(req: Request, res: Response) {
         type: "visitor",
         entityId: id,
         message: `Visitor "${data.visitor_name}" denied.`,
-        payload: { visitorId: id },
+        payload: { visitorId: id, visitor_id: id, estate_id: data.estate_id || null, home_id: data.home_id || null },
       };
       await notifyUser(residentId, payload);
     }
@@ -403,7 +403,7 @@ export async function markEntry(req: Request, res: Response) {
         type: "visitor",
         entityId: id,
         message: `Visitor "${va.visitor_name}" entered.`,
-        payload: { visitorId: id, arrivedAt },
+        payload: { visitorId: id, visitor_id: id, arrivedAt, estate_id: va.estate_id || null, home_id: va.home_id || null },
       };
       await notifyUser(residentId, payload);
     }
@@ -473,7 +473,7 @@ export async function markExit(req: Request, res: Response) {
         type: "visitor",
         entityId: id,
         message: `Visitor "${va.visitor_name}" exited.`,
-        payload: { visitorId: id, exitedAt, durationMinutes },
+        payload: { visitorId: id, visitor_id: id, exitedAt, durationMinutes, estate_id: va.estate_id || null, home_id: va.home_id || null },
       };
       await notifyUser(residentId, payload);
     }

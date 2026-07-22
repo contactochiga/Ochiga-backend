@@ -8,11 +8,13 @@ import {
 
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { auditOnSuccess } from "../middleware/audit";
+import { resolveRequestContext } from "../middleware/contextResolver";
 
 const router = Router();
 
 // ✅ THIS is what you were missing
 router.use(requireAuth);
+router.use(resolveRequestContext);
 
 // GET /facility/maintenance
 router.get("/", requirePermission("support.read"), listFacilityMaintenance);

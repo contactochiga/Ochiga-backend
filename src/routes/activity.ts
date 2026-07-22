@@ -1,5 +1,6 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth";
+import { resolveRequestContext } from "../middleware/contextResolver";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { withNotificationRouting } from "../services/notifications/notificationRoutingService";
 import { summarizeDeviceRuntime } from "../services/deviceRuntimeSessionsService";
@@ -548,17 +549,47 @@ async function buildActivity(req: express.Request) {
   const user = req.user!;
   const userId = String(user.id);
   const userEmail = String(user.email || "").trim().toLowerCase();
-  const estateId = user.estate_id ? String(user.estate_id) : "";
-  const homeId = user.home_id ? String(user.home_id) : "";
+  const estateId = req.oisContext?.estate_id ? String(req.oisContext.estate_id) : user.estate_id ? String(user.estate_id) : "";
+  const homeId = req.oisContext?.home_id ? String(req.oisContext.home_id) : user.home_id ? String(user.home_id) : "";
   const sinceIso = new Date(Date.now() - 30 * DAY_MS).toISOString();
 
   const [notifications, legacyVisitors, visitorAccess, maintenance, commandLedger, wallets, incidents, facilityIncidents, community, devices, messageMemberships, invites, homeMemberships, estateMemberships, scenes, automations, audits] = await Promise.all([
-    safeSelect("notifications", (q) => q.select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(60)),
-    safeSelect("visitors", (q) => q.select("id,visitor_name,name,full_name,purpose,status,created_at,updated_at,estate_id,home_id,resident_id,created_by,user_id").or(`created_by.eq.${userId},resident_id.eq.${userId},user_id.eq.${userId}${homeId ? `,home_id.eq.${homeId}` : ""}`).order("created_at", { ascending: false }).limit(20)),
-    safeSelect("visitor_access", (q) => q.select("*").or(`created_by.eq.${userId},resident_id.eq.${userId},user_id.eq.${userId}${homeId ? `,home_id.eq.${homeId}` : ""}`).order("created_at", { ascending: false }).limit(30)),
-    safeSelect("maintenance_requests", (q) => q.select("*").or(`user_id.eq.${userId},resident_id.eq.${userId},created_by.eq.${userId}${homeId ? `,home_id.eq.${homeId}` : ""}`).order("created_at", { ascending: false }).limit(30)),
-    safeSelect("ai_execution_ledger", (q) => q.select("*").eq("actor_user_id", userId).order("requested_at", { ascending: false }).limit(20)),
-    safeSelect("wallets", (q) => q.select("id,user_id").eq("user_id", userId).limit(10)),
+    safeSelect("notifications", (q) => {
+      let next = q.select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(60);
+      if (estateId) next = next.or(`estate_id.is.null,estate_id.eq.${estateId}`);
+      next = homeId ? next.or(`home_id.is.null,home_id.eq.${homeId}`) : next.is("home_id", null);
+      return next;
+    }),
+    safeSelect("visitors", (q) => {
+      let next = q.select("id,visitor_name,name,full_name,purpose,status,created_at,updated_at,estate_id,home_id,resident_id,created_by,user_id").or(`created_by.eq.${userId},resident_id.eq.${userId},user_id.eq.${userId}`).order("created_at", { ascending: false }).limit(20);
+      if (estateId) next = next.eq("estate_id", estateId);
+      if (homeId) next = next.eq("home_id", homeId);
+      return next;
+    }),
+    safeSelect("visitor_access", (q) => {
+      let next = q.select("*").or(`created_by.eq.${userId},resident_id.eq.${userId},user_id.eq.${userId}`).order("created_at", { ascending: false }).limit(30);
+      if (estateId) next = next.eq("estate_id", estateId);
+      if (homeId) next = next.eq("home_id", homeId);
+      return next;
+    }),
+    safeSelect("maintenance_requests", (q) => {
+      let next = q.select("*").or(`user_id.eq.${userId},resident_id.eq.${userId},created_by.eq.${userId}`).order("created_at", { ascending: false }).limit(30);
+      if (estateId) next = next.eq("estate_id", estateId);
+      if (homeId) next = next.eq("home_id", homeId);
+      return next;
+    }),
+    safeSelect("ai_execution_ledger", (q) => {
+      let next = q.select("*").eq("actor_user_id", userId).order("requested_at", { ascending: false }).limit(20);
+      if (estateId) next = next.eq("estate_id", estateId);
+      if (homeId) next = next.eq("home_id", homeId);
+      return next;
+    }),
+    safeSelect("wallets", (q) => {
+      let next = q.select("id,user_id,home_id,estate_id").eq("user_id", userId).limit(10);
+      if (estateId) next = next.eq("estate_id", estateId);
+      next = homeId ? next.eq("home_id", homeId) : next.is("home_id", null);
+      return next;
+    }),
     estateId ? safeSelect("incidents", (q) => q.select("*").eq("estate_id", estateId).order("created_at", { ascending: false }).limit(20)) : Promise.resolve({ rows: [], available: true, reason: null }),
     estateId ? safeSelect("facility_incidents", (q) => q.select("*").eq("estate_id", estateId).order("created_at", { ascending: false }).limit(20)) : Promise.resolve({ rows: [], available: true, reason: null }),
     estateId ? safeSelect("community_posts", (q) => q.select("*").eq("estate_id", estateId).neq("status", "deleted").order("created_at", { ascending: false }).limit(30)) : Promise.resolve({ rows: [], available: true, reason: null }),
@@ -568,7 +599,12 @@ async function buildActivity(req: express.Request) {
       if (homeId) next = next.eq("home_id", homeId);
       return next;
     }),
-    safeSelect("dm_thread_members", (q) => q.select("thread_id,last_read_at").eq("user_id", userId).eq("is_active", true).limit(200)),
+    safeSelect("dm_thread_members", (q) => {
+      let next = q.select("thread_id,last_read_at,home_id,estate_id").eq("user_id", userId).eq("is_active", true).limit(200);
+      if (estateId) next = next.or(`estate_id.is.null,estate_id.eq.${estateId}`);
+      next = homeId ? next.or(`home_id.is.null,home_id.eq.${homeId}`) : next.is("home_id", null);
+      return next;
+    }),
     userEmail ? safeSelect("invites", (q) => q.select("*").eq("invited_email", userEmail).order("created_at", { ascending: false }).limit(20)) : Promise.resolve({ rows: [], available: true, reason: null }),
     safeSelect("home_memberships", (q) => q.select("*").eq("user_id", userId).order("updated_at", { ascending: false, nullsFirst: false }).limit(20)),
     safeSelect("estate_memberships", (q) => q.select("*").eq("user_id", userId).order("updated_at", { ascending: false, nullsFirst: false }).limit(20)),
@@ -679,7 +715,7 @@ async function buildActivity(req: express.Request) {
   return { summary, events, sources, generated_at: new Date().toISOString() };
 }
 
-router.get("/feed", requireAuth, async (req, res) => {
+router.get("/feed", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const data = await buildActivity(req);
     res.json({ items: data.events, summary: data.summary, generated_at: data.generated_at });
@@ -688,7 +724,7 @@ router.get("/feed", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/summary", requireAuth, async (req, res) => {
+router.get("/summary", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const data = await buildActivity(req);
     res.json({ summary: data.summary, generated_at: data.generated_at });
@@ -697,12 +733,11 @@ router.get("/summary", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/runtime-summary", requireAuth, async (req, res) => {
+router.get("/runtime-summary", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const user = req.user!;
-    const homeId = user.home_id ? String(user.home_id) : String(req.query.home_id || "");
+    const homeId = req.oisContext?.home_id ? String(req.oisContext.home_id) : user.home_id ? String(user.home_id) : String(req.query.home_id || "");
     if (!homeId) return res.json({ range: String(req.query.range || "today"), total_seconds: 0, activations: 0, open_sessions: 0, sessions: [] });
-    if (user.home_id && homeId !== String(user.home_id)) return res.status(403).json({ error: "Home is outside active context" });
     const runtime = await summarizeDeviceRuntime({ homeId, range: String(req.query.range || "today") });
     res.json(runtime);
   } catch (err: any) {
@@ -710,7 +745,7 @@ router.get("/runtime-summary", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/awareness", requireAuth, async (req, res) => {
+router.get("/awareness", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const data = await buildActivity(req);
     const events = data.events || [];
@@ -729,7 +764,7 @@ router.get("/awareness", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/sources", requireAuth, async (req, res) => {
+router.get("/sources", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const data = await buildActivity(req);
     res.json({ sources: data.sources, generated_at: data.generated_at });

@@ -1,14 +1,24 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
+import { resolveRequestContext } from "../middleware/contextResolver";
 import { getProximitySettings, recordProximityEvent, updateProximitySettings } from "../services/proximityService";
 
 const router = Router();
 
 router.use(requireAuth);
+router.use(resolveRequestContext);
+
+function scopedUser(req: any) {
+  return {
+    ...(req.user || {}),
+    estate_id: req.oisContext?.estate_id || req.user?.estate_id || null,
+    home_id: req.oisContext?.home_id || req.user?.home_id || null,
+  };
+}
 
 router.get("/settings", async (req, res) => {
   try {
-    const settings = await getProximitySettings(req.user as any);
+    const settings = await getProximitySettings(scopedUser(req) as any);
     return res.json({ settings });
   } catch (err: any) {
     console.error("GET /proximity/settings failed", err?.message || err);
@@ -18,7 +28,7 @@ router.get("/settings", async (req, res) => {
 
 router.patch("/settings", async (req, res) => {
   try {
-    const settings = await updateProximitySettings(req.user as any, req.body || {}, req);
+    const settings = await updateProximitySettings(scopedUser(req) as any, req.body || {}, req);
     return res.json({ settings });
   } catch (err: any) {
     console.error("PATCH /proximity/settings failed", err?.message || err);
@@ -28,7 +38,7 @@ router.patch("/settings", async (req, res) => {
 
 router.post("/event", async (req, res) => {
   try {
-    const result = await recordProximityEvent(req.user as any, req.body || {}, req);
+    const result = await recordProximityEvent(scopedUser(req) as any, req.body || {}, req);
     return res.json(result);
   } catch (err: any) {
     console.error("POST /proximity/event failed", err?.message || err);

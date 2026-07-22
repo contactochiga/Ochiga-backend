@@ -1,22 +1,27 @@
 import express from "express";
 import { requireAuth, requirePermission } from "../middleware/auth";
+import { resolveRequestContext } from "../middleware/contextResolver";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { getUserNotificationPreferences, upsertUserNotificationPreference, type NotificationCategory } from "../services/notificationPolicyService";
 import { withNotificationRouting } from "../services/notifications/notificationRoutingService";
 
 const router = express.Router();
 
-async function markNotificationAcknowledged(id: string, userId: string) {
-  return supabaseAdmin
+async function markNotificationAcknowledged(id: string, userId: string, estateId?: string | null, homeId?: string | null) {
+  let query = supabaseAdmin
     .from("notifications")
     .update({
       status: "read",
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("user_id", userId)
-    .select()
-    .single();
+    .eq("user_id", userId);
+
+  if (estateId) query = query.or(`estate_id.is.null,estate_id.eq.${estateId}`);
+  if (homeId) query = query.or(`home_id.is.null,home_id.eq.${homeId}`);
+  else query = query.is("home_id", null);
+
+  return query.select().single();
 }
 
 // =============================
@@ -25,11 +30,13 @@ async function markNotificationAcknowledged(id: string, userId: string) {
 //  - /notifications              -> all
 //  - /notifications?unread=true  -> only unread (status != "read" OR null)
 // =============================
-router.get("/", requireAuth, requirePermission("notifications.read"), async (req, res) => {
+router.get("/", requireAuth, resolveRequestContext, requirePermission("notifications.read"), async (req, res) => {
   const user = req.user;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
   const unread = String(req.query.unread || "").toLowerCase() === "true";
+  const estateId = req.oisContext?.estate_id || null;
+  const homeId = req.oisContext?.home_id || null;
 
   // Base query
   let q = supabaseAdmin
@@ -37,6 +44,10 @@ router.get("/", requireAuth, requirePermission("notifications.read"), async (req
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+
+  if (estateId) q = q.or(`estate_id.is.null,estate_id.eq.${estateId}`);
+  if (homeId) q = q.or(`home_id.is.null,home_id.eq.${homeId}`);
+  else q = q.is("home_id", null);
 
   // ✅ unread filter
   // Treat null/empty status as unread too (legacy safety)
@@ -79,13 +90,13 @@ router.patch("/preferences/:category", requireAuth, requirePermission("notificat
 // =============================
 // MARK notification as read
 // =============================
-router.post("/read/:id", requireAuth, requirePermission("notifications.read"), async (req, res) => {
+router.post("/read/:id", requireAuth, resolveRequestContext, requirePermission("notifications.read"), async (req, res) => {
   const user = req.user;
   const { id } = req.params;
 
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  const { data, error } = await markNotificationAcknowledged(id, String(user.id));
+  const { data, error } = await markNotificationAcknowledged(id, String(user.id), req.oisContext?.estate_id || null, req.oisContext?.home_id || null);
 
   if (error) return res.status(500).json({ error: error.message });
 
@@ -93,13 +104,13 @@ router.post("/read/:id", requireAuth, requirePermission("notifications.read"), a
 });
 
 // Canonical acknowledgement alias for activity/notification consumers.
-router.post("/ack/:id", requireAuth, requirePermission("notifications.read"), async (req, res) => {
+router.post("/ack/:id", requireAuth, resolveRequestContext, requirePermission("notifications.read"), async (req, res) => {
   const user = req.user;
   const { id } = req.params;
 
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
-  const { data, error } = await markNotificationAcknowledged(id, String(user.id));
+  const { data, error } = await markNotificationAcknowledged(id, String(user.id), req.oisContext?.estate_id || null, req.oisContext?.home_id || null);
 
   if (error) return res.status(500).json({ error: error.message });
 

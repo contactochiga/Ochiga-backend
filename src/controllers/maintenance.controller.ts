@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
+import { NotificationService, type NotificationType } from "../services/NotificationService";
 
 type AuthReq = Request & {
   user?: { id: string; estate_id?: string; home_id?: string; role?: string };
@@ -137,24 +138,57 @@ async function listEstateOpsUserIds(estateId: string) {
 }
 
 async function notifyUsers(userIds: string[], payload: Record<string, any>) {
-  const inserts = userIds.map((uid) =>
-    insertWithSchemaFallback("notifications", {
-      user_id: uid,
-      ...payload,
-      read: false,
-      created_at: new Date().toISOString(),
+  const sends = userIds.map((uid) =>
+    NotificationService.sendToUser(uid, {
+      title: String(payload.title || "Maintenance update"),
+      message: String(payload.message || "Maintenance request updated"),
+      type: "maintenance" as NotificationType,
+      payload: {
+        ...payload,
+        request_id: payload.entity_id || payload.request_id || null,
+        source_type: "maintenance",
+      },
+      entityId: payload.entity_id ? String(payload.entity_id) : undefined,
+      routing: {
+        source_type: "maintenance",
+        source_id: payload.entity_id ? String(payload.entity_id) : null,
+        destination: "page",
+        target: payload.entity_id ? { target_type: "maintenance", target_id: String(payload.entity_id), open_as: "page", action: "inspect" } : null,
+        actionability: "review",
+        attention_eligible: true,
+        queue_eligible: false,
+        acknowledgement_required: false,
+      },
     })
   );
-  await Promise.allSettled(inserts);
+  await Promise.allSettled(sends);
 }
 
 async function notifyEstate(estateId: string, payload: Record<string, any>) {
-  await insertWithSchemaFallback("notifications", {
-    estate_id: estateId,
-    ...payload,
-    read: false,
-    created_at: new Date().toISOString(),
-  });
+  for (const role of ["owner", "admin", "manager", "security"]) {
+    await NotificationService.sendToRole(estateId, role, {
+      title: String(payload.title || "Maintenance update"),
+      message: String(payload.message || "Maintenance request updated"),
+      type: "maintenance",
+      payload: {
+        ...payload,
+        estate_id: estateId,
+        request_id: payload.entity_id || payload.request_id || null,
+        source_type: "maintenance",
+      },
+      entityId: payload.entity_id ? String(payload.entity_id) : undefined,
+      routing: {
+        source_type: "maintenance",
+        source_id: payload.entity_id ? String(payload.entity_id) : null,
+        destination: "page",
+        target: payload.entity_id ? { target_type: "maintenance", target_id: String(payload.entity_id), open_as: "page", action: "inspect" } : null,
+        actionability: "review",
+        attention_eligible: true,
+        queue_eligible: true,
+        acknowledgement_required: false,
+      },
+    });
+  }
 }
 
 /**
@@ -405,6 +439,8 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
           : `Your request was updated${note ? ` — ${note}` : ""}`,
         entity_type: "maintenance",
         entity_id: id,
+        home_id: existing.home_id || null,
+        membership_id: existing.membership_id || null,
       });
     }
 
@@ -417,6 +453,8 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
         message: `${existing.title || "Request"} → ${String(updated.status || status || "updated")}`,
         entity_type: "maintenance",
         entity_id: id,
+        home_id: existing.home_id || null,
+        membership_id: existing.membership_id || null,
       });
     }
 

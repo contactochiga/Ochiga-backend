@@ -2,21 +2,27 @@ import { Router } from "express";
 import { emitAuditEvent } from "../core/foundation";
 import { executeDeviceCommandForActor } from "../controllers/deviceCommandController";
 import { requireAuth, requirePermission, type AuthUser } from "../middleware/auth";
+import { resolveRequestContext } from "../middleware/contextResolver";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { resolveVisibleDevice } from "../services/deviceRuntimeService";
 import { hasWatchScope } from "../services/watchPolicy";
 
 const router = Router();
 router.use(requireAuth);
+router.use(resolveRequestContext);
 
-function actorScope(actor: AuthUser) {
-  return { estate_id: actor.estate_id || null, home_id: actor.home_id || null };
+function activeScope(req: any) {
+  return {
+    estate_id: req.oisContext?.estate_id || req.user?.estate_id || null,
+    home_id: req.oisContext?.home_id || req.user?.home_id || null,
+  };
 }
 
-function scoped(query: any, actor: AuthUser) {
+function scoped(query: any, req: any) {
+  const scope = activeScope(req);
   let next = query;
-  if (actor.estate_id) next = next.eq("estate_id", actor.estate_id);
-  if (actor.home_id) next = next.eq("home_id", actor.home_id);
+  if (scope.estate_id) next = next.eq("estate_id", scope.estate_id);
+  if (scope.home_id) next = next.eq("home_id", scope.home_id);
   return next;
 }
 
@@ -33,7 +39,8 @@ function safeSceneCommand(command: Record<string, any>) {
   return keys.length > 0 && keys.every((key) => ["switch", "power", "on", "temperature", "temp_set"].includes(key));
 }
 
-async function audit(actor: AuthUser, action: string, resourceId: string, metadata: Record<string, any> = {}) {
+async function audit(actor: AuthUser, action: string, resourceId: string, metadata: Record<string, any> = {}, req?: any) {
+  const scope = req ? activeScope(req) : { estate_id: actor.estate_id || null, home_id: actor.home_id || null };
   await emitAuditEvent({
     actorId: actor.id,
     actorEmail: actor.email,
@@ -41,8 +48,8 @@ async function audit(actor: AuthUser, action: string, resourceId: string, metada
     action,
     resourceType: "scene",
     resourceId,
-    estateId: actor.estate_id,
-    homeId: actor.home_id,
+    estateId: scope.estate_id || undefined,
+    homeId: scope.home_id || undefined,
     status: "success",
     metadata,
   } as any);
@@ -50,7 +57,7 @@ async function audit(actor: AuthUser, action: string, resourceId: string, metada
 
 router.get("/", requirePermission("devices.read"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
-  const { data, error } = await scoped(supabaseAdmin.from("consumer_scenes").select("*"), req.user!)
+  const { data, error } = await scoped(supabaseAdmin.from("consumer_scenes").select("*"), req)
     .order("created_at", { ascending: false });
   if (error) return res.json({ available: false, scenes: [], error: error.message });
   res.json({ available: true, scenes: data || [] });
@@ -67,7 +74,7 @@ router.post("/", requirePermission("devices.control"), async (req, res) => {
     }
   }
   const row = {
-    ...actorScope(req.user!),
+    ...activeScope(req),
     created_by: req.user!.id,
     name,
     description: String(req.body?.description || "").trim().slice(0, 240) || null,
@@ -78,7 +85,7 @@ router.post("/", requirePermission("devices.control"), async (req, res) => {
   };
   const { data, error } = await supabaseAdmin.from("consumer_scenes").insert(row as any).select("*").single();
   if (error) return res.status(500).json({ error: error.message });
-  await audit(req.user!, "scene.created", data.id, { action_count: actions.length });
+  await audit(req.user!, "scene.created", data.id, { action_count: actions.length }, req);
   res.status(201).json(data);
 });
 
@@ -104,23 +111,23 @@ router.patch("/:id", requirePermission("devices.control"), async (req, res) => {
     }
     updates.actions = actions;
   }
-  const { data, error } = await scoped(supabaseAdmin.from("consumer_scenes").update(updates).eq("id", req.params.id).select("*") as any, req.user!).single();
+  const { data, error } = await scoped(supabaseAdmin.from("consumer_scenes").update(updates).eq("id", req.params.id).select("*") as any, req).single();
   if (error) return res.status(404).json({ error: error.message || "Scene not found" });
-  await audit(req.user!, "scene.updated", data.id, { action_count: cleanActions(data.actions).length });
+  await audit(req.user!, "scene.updated", data.id, { action_count: cleanActions(data.actions).length }, req);
   res.json(data);
 });
 
 router.delete("/:id", requirePermission("devices.control"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
-  const { data, error } = await scoped(supabaseAdmin.from("consumer_scenes").delete().eq("id", req.params.id).select("id") as any, req.user!).maybeSingle();
+  const { data, error } = await scoped(supabaseAdmin.from("consumer_scenes").delete().eq("id", req.params.id).select("id") as any, req).maybeSingle();
   if (error) return res.status(500).json({ error: error.message });
   if (!data) return res.status(404).json({ error: "Scene not found" });
-  await audit(req.user!, "scene.deleted", req.params.id, {});
+  await audit(req.user!, "scene.deleted", req.params.id, {}, req);
   res.json({ ok: true, id: req.params.id });
 });
 
 router.post("/:id/run", requirePermission("devices.control"), async (req, res) => {
-  const { data: scene, error } = await scoped(supabaseAdmin.from("consumer_scenes").select("*").eq("id", req.params.id), req.user!).maybeSingle();
+  const { data: scene, error } = await scoped(supabaseAdmin.from("consumer_scenes").select("*").eq("id", req.params.id), req).maybeSingle();
   if (error || !scene) return res.status(404).json({ error: "Scene not found" });
   const actions = cleanActions(scene.actions);
   const results = [];
@@ -136,13 +143,13 @@ router.post("/:id/run", requirePermission("devices.control"), async (req, res) =
       results.push({ device_id: action.device_id, status: "failed", error: runError?.message || "command_failed" });
     }
   }
-  await audit(req.user!, "scene.executed", scene.id, { results });
+  await audit(req.user!, "scene.executed", scene.id, { results }, req);
   res.json({ ok: results.every((item) => item.status !== "failed" && item.status !== "denied"), scene_id: scene.id, results });
 });
 
 router.get("/automations", requirePermission("devices.read"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
-  const { data, error } = await scoped(supabaseAdmin.from("consumer_automations").select("*"), req.user!)
+  const { data, error } = await scoped(supabaseAdmin.from("consumer_automations").select("*"), req)
     .order("created_at", { ascending: false });
   if (error) return res.json({ available: false, automations: [], error: error.message });
   res.json({ available: true, automations: data || [] });
@@ -160,10 +167,10 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
       return res.status(403).json({ error: "Automation contains an unavailable or unsafe device action" });
     }
   }
-  const row = { ...actorScope(req.user!), created_by: req.user!.id, name, trigger, condition, actions, enabled: req.body?.enabled !== false };
+  const row = { ...activeScope(req), created_by: req.user!.id, name, trigger, condition, actions, enabled: req.body?.enabled !== false };
   const { data, error } = await supabaseAdmin.from("consumer_automations").insert(row as any).select("*").single();
   if (error) return res.status(500).json({ error: error.message });
-  await audit(req.user!, "automation.created", data.id, { action_count: actions.length });
+  await audit(req.user!, "automation.created", data.id, { action_count: actions.length }, req);
   res.status(201).json(data);
 });
 
@@ -188,18 +195,18 @@ router.patch("/automations/:id", requirePermission("devices.control"), async (re
     }
     updates.actions = actions;
   }
-  const { data, error } = await scoped(supabaseAdmin.from("consumer_automations").update(updates).eq("id", req.params.id).select("*") as any, req.user!).single();
+  const { data, error } = await scoped(supabaseAdmin.from("consumer_automations").update(updates).eq("id", req.params.id).select("*") as any, req).single();
   if (error) return res.status(404).json({ error: error.message || "Automation not found" });
-  await audit(req.user!, updates.enabled === false ? "automation.paused" : "automation.updated", data.id, { enabled: data.enabled });
+  await audit(req.user!, updates.enabled === false ? "automation.paused" : "automation.updated", data.id, { enabled: data.enabled }, req);
   res.json(data);
 });
 
 router.delete("/automations/:id", requirePermission("devices.control"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
-  const { data, error } = await scoped(supabaseAdmin.from("consumer_automations").delete().eq("id", req.params.id).select("id") as any, req.user!).maybeSingle();
+  const { data, error } = await scoped(supabaseAdmin.from("consumer_automations").delete().eq("id", req.params.id).select("id") as any, req).maybeSingle();
   if (error) return res.status(500).json({ error: error.message });
   if (!data) return res.status(404).json({ error: "Automation not found" });
-  await audit(req.user!, "automation.deleted", req.params.id, {});
+  await audit(req.user!, "automation.deleted", req.params.id, {}, req);
   res.json({ ok: true, id: req.params.id });
 });
 

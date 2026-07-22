@@ -96,6 +96,11 @@ function emitRealtimeNotification(userId: string, payload: any) {
   io?.to(`user:${userId}`).emit("notification:new", payload);
 }
 
+function isMissingRelationError(error: any) {
+  const msg = String(error?.message || error?.details || "");
+  return /does not exist|schema cache|Could not find the table/i.test(msg);
+}
+
 async function insertNotificationRows(rows: Record<string, any>[]) {
   if (!rows.length) return { data: [], error: null };
   let payload = rows.map((row) => ({ ...compact(row) }));
@@ -169,6 +174,7 @@ export class NotificationService {
       payload: row?.payload || {},
       routing: withNotificationRouting(row).routing,
       estate_id: row?.estate_id || null,
+      home_id: row?.home_id || row?.payload?.home_id || null,
     };
   }
 
@@ -260,17 +266,40 @@ export class NotificationService {
 
   /** Send notification to all users in a home */
   static async sendToHome(homeId: string, notification: NotificationPayload) {
-    const { data: users, error } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("home_id", homeId);
+    const byMembership = await supabaseAdmin
+      .from("home_memberships")
+      .select("user_id")
+      .eq("home_id", homeId)
+      .eq("status", "active");
 
-    if (error || !users?.length) return { error };
+    let userIds = !byMembership.error
+      ? (byMembership.data || [])
+        .map((r: any) => String(r?.user_id || "").trim())
+        .filter(Boolean)
+      : [];
+
+    if (byMembership.error && !isMissingRelationError(byMembership.error)) {
+      return { error: byMembership.error };
+    }
+
+    if (!userIds.length) {
+      const { data: users, error } = await supabaseAdmin
+        .from("users")
+        .select("id")
+        .eq("home_id", homeId);
+
+      if (error || !users?.length) return { error };
+      userIds = (users || [])
+        .map((u: any) => String(u?.id || "").trim())
+        .filter(Boolean);
+    }
+
+    userIds = Array.from(new Set(userIds));
+    if (!userIds.length) return { error: null };
 
     const prepared: any[] = [];
     const pushRows = new Set<string>();
-    for (const u of users) {
-      const userId = String(u.id);
+    for (const userId of userIds) {
       const policy = await decideNotification(userId, notification).catch(() => null);
         const nextPayload = {
           ...(notification.payload || {}),
