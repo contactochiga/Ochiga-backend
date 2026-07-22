@@ -9,6 +9,11 @@ import { syncIrChildAppliancesForHub } from "../controllers/deviceIrController";
 import { logger } from "../observability/logger";
 import { keepDeviceOverrides, upsertCanonicalDeviceIdentity } from "./deviceIdentityService";
 import { deviceRuntimeStateService } from "./deviceRuntimeStateService";
+import {
+  isObsoleteIrChild,
+  isTuyaProviderVirtualRemote,
+  markTechnicalProviderRemoteMetadata,
+} from "./deviceInventoryVisibility";
 
 type TuyaSyncActor = {
   id: string;
@@ -64,6 +69,15 @@ function comparable(row: any) {
     provider_name: row?.metadata?.oyi?.provider_name || null,
     provider_available: row?.metadata?.oyi?.provider_available !== false,
   });
+}
+
+function isProviderVirtualRemoteDiscovery(discoveredDevice: any) {
+  const category = cleanStr(
+    discoveredDevice?.metadata?.raw?.category ||
+    discoveredDevice?.metadata?.category ||
+    discoveredDevice?.category,
+  ).toLowerCase();
+  return ["infrared_tv", "infrared_ac", "infrared_fan", "infrared_stb", "infrared_projector"].includes(category);
 }
 
 async function audit(actor: TuyaSyncActor, action: string, status: "success" | "failed", metadata: Record<string, any>, req?: Request, resourceId = "tuya") {
@@ -176,6 +190,7 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
       const existing = existingByExternal.get(externalId);
       const providerName = cleanStr(discoveredDevice?.name) || "Device";
       const online = Boolean(discoveredDevice?.online);
+      const providerVirtualRemote = isProviderVirtualRemoteDiscovery(discoveredDevice);
       const metadata = {
         ...(existing?.metadata || {}),
         ...(discoveredDevice?.metadata || {}),
@@ -204,10 +219,13 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
         capabilities: Array.isArray(discoveredDevice?.capabilities) ? discoveredDevice.capabilities : [],
         protocols: Array.isArray(discoveredDevice?.protocols) ? discoveredDevice.protocols : [],
         icon: cleanStr((discoveredDevice as any)?.icon || (discoveredDevice?.metadata as any)?.icon) || existing?.icon || null,
-        sync_state: existing?.home_id ? "assigned" : "available_unassigned",
+        sync_state: providerVirtualRemote ? "provider_virtual_remote" : existing?.home_id ? "assigned" : "available_unassigned",
         last_seen_at: online ? syncedAt : existing?.last_seen_at || null,
         last_event_at: syncedAt,
-        metadata,
+        metadata: providerVirtualRemote
+          ? markTechnicalProviderRemoteMetadata(metadata, "tuya_ir_bound_remote_promoted_as_canonical_child")
+          : metadata,
+        is_managed_disabled: providerVirtualRemote ? true : existing?.is_managed_disabled ?? false,
         updated_at: syncedAt,
       };
 
@@ -256,6 +274,7 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
     for (const existing of existingRows || []) {
       const externalId = cleanStr((existing as any).external_id);
       if (!externalId || providerIds.has(externalId) || !linkedToActor(existing, actor)) continue;
+      if ((existing as any)?.is_virtual || isObsoleteIrChild(existing) || isTuyaProviderVirtualRemote(existing)) continue;
       const metadata = {
         ...((existing as any).metadata || {}),
         oyi: {

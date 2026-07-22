@@ -204,6 +204,20 @@ async function defaultReadProviderState(device: Record<string, any>) {
   if (device?.is_virtual && device?.parent_device_id) {
     const parent = await defaultResolveDevice(String(device.parent_device_id));
     if (!parent?.id) throw new Error("Virtual device parent is unavailable");
+    if (device?.metadata?.ir_appliance?.remote_id) {
+      return enrichDeviceProviderState({
+        state: {
+          online: parent.online !== false,
+          provider_virtual: true,
+          parent_hub_online: parent.online !== false,
+          remote_id: device.metadata.ir_appliance.remote_id,
+        },
+        metadata: { ...(parent.metadata || {}), ...(device.metadata || {}) },
+        device,
+        provider: String(parent?.provider || parent?.vendor || adapterName(parent)),
+        adapter: adapterName(parent),
+      });
+    }
     providerDevice = {
       ...parent,
       name: device.name,

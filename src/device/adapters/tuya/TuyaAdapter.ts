@@ -116,7 +116,7 @@ function toDeviceCategory(raw?: string): DeviceCategory {
   if (["wk", "camera", "ipc", "ipcamera"].includes(c)) return "camera" as DeviceCategory;
   if (["wnykq", "infrared_remote", "ir_remote", "remote_control", "universal_remote", "tv_remote", "set_top_box", "stb"].includes(c)) return "unknown" as DeviceCategory;
   if (["kt", "air_conditioner", "ac", "climate"].includes(c)) return "thermostat" as DeviceCategory;
-  if (["ms", "doorlock", "lock"].includes(c)) return "lock" as DeviceCategory;
+  if (["ms", "jtmspro", "jtmsbh", "jtms", "doorlock", "lock", "smart_lock", "door_lock"].includes(c)) return "lock" as DeviceCategory;
   if (["sensor", "pir", "motion", "smoke_sensor", "gas_sensor"].includes(c)) return "sensor" as DeviceCategory;
   if (["cl", "curtain", "blind", "shade"].includes(c)) return "unknown" as DeviceCategory;
   if (["thermostat", "temp_humidity_sensor"].includes(c)) return "thermostat" as DeviceCategory;
@@ -134,6 +134,9 @@ function tuyaCategoryFamily(raw?: string) {
     wnykq: "ir_remote",
     cl: "curtain",
     ms: "lock",
+    jtmspro: "lock",
+    jtmsbh: "lock",
+    jtms: "lock",
     dj: "light",
     switch: "switch",
     socket: "plug",
@@ -145,6 +148,11 @@ function tuyaCategoryFamily(raw?: string) {
     air_conditioner: "climate",
     ac: "climate",
     climate: "climate",
+    infrared_ac: "climate",
+    infrared_tv: "television",
+    infrared_fan: "fan",
+    infrared_stb: "set_top_box",
+    infrared_projector: "projector",
     infrared_remote: "ir_remote",
     ir_remote: "ir_remote",
     remote_control: "ir_remote",
@@ -155,6 +163,8 @@ function tuyaCategoryFamily(raw?: string) {
     shade: "curtain",
     doorlock: "lock",
     lock: "lock",
+    smart_lock: "lock",
+    door_lock: "lock",
     light: "light",
     lighting: "light",
     ceiling_light: "light",
@@ -169,10 +179,12 @@ function tuyaCategoryProfile(raw?: string) {
   if (family === "plug") return "plug";
   if (family === "camera") return "camera";
   if (family === "climate") return "climate";
+  if (family === "television") return "television";
   if (family === "ir_remote") return "ir_remote";
   if (family === "curtain") return "curtain";
   if (family === "lock") return "lock";
   if (family === "light") return "light";
+  if (["fan", "projector", "set_top_box", "speaker"].includes(family)) return family;
   return "generic";
 }
 

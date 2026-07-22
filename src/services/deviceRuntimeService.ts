@@ -1,6 +1,10 @@
 import type { AuthUser } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { hasWatchScope } from "./watchPolicy";
+import {
+  isTechnicalDeviceHiddenFromResidents,
+  resolveCanonicalIrChildForProviderRemote,
+} from "./deviceInventoryVisibility";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -130,7 +134,16 @@ export async function listVisibleDevices(actor: AuthUser, limit = 50, scope: Dev
   query = applyVisibleDeviceScope(query, actor, scope);
   const { data, error } = await query;
   if (error) throw error;
-  return data || [];
+  const rows = data || [];
+  const irParentIds = new Set(
+    rows
+      .filter((device: any) => device?.is_virtual && device?.metadata?.ir_appliance?.remote_id)
+      .map((device: any) => String(device?.parent_device_id || "").trim())
+      .filter(Boolean),
+  );
+  return rows.filter((device: any) =>
+    !isTechnicalDeviceHiddenFromResidents(device, { parentHasIrChildren: irParentIds.has(String(device?.id || "")) }),
+  );
 }
 
 export async function resolveVisibleDevice(actor: AuthUser, ref: unknown, scope: DeviceRuntimeScope = {}) {
@@ -141,7 +154,11 @@ export async function resolveVisibleDevice(actor: AuthUser, ref: unknown, scope:
   query = UUID_RE.test(deviceRef) ? query.eq("id", deviceRef) : query.eq("external_id", deviceRef);
   const { data, error } = await query.maybeSingle();
   if (error) throw error;
-  return data || null;
+  if (!data) return null;
+  const canonicalChild = await resolveCanonicalIrChildForProviderRemote(data);
+  if (canonicalChild?.id) return canonicalChild;
+  if (isTechnicalDeviceHiddenFromResidents(data)) return null;
+  return data;
 }
 
 export function logDeviceCommandDiagnostic(label: string, input: Record<string, unknown>) {

@@ -5,6 +5,7 @@ import { logger } from "../observability/logger";
 import { sendPublicApiError } from "../services/publicApi";
 import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeRequestStageSync } from "../observability/requestStageTiming";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
+import { isTechnicalDeviceHiddenFromResidents } from "../services/deviceInventoryVisibility";
 
 const ESTATE_WIDE_ROLES = new Set(["admin", "manager", "estate_admin", "facility_admin", "facility_manager", "operator"]);
 
@@ -35,7 +36,16 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
 
     const { data, error } = await timeRequestStage(req, "runtime_registry", async () => await query);
     if (error) throw error;
-    const devices = data || [];
+    const allDevices = data || [];
+    const irParentIds = new Set(
+      allDevices
+        .filter((device: any) => device?.is_virtual && device?.metadata?.ir_appliance?.remote_id)
+        .map((device: any) => String(device?.parent_device_id || "").trim())
+        .filter(Boolean),
+    );
+    const devices = estateWide ? allDevices : allDevices.filter((device: any) =>
+      !isTechnicalDeviceHiddenFromResidents(device, { parentHasIrChildren: irParentIds.has(String(device?.id || "")) }),
+    );
     deviceReadScopeCache.setMany(devices);
     const cacheMisses = devices.filter((device: any) => !deviceRuntimeStateService.has(String(device.id))).length;
     await timeRequestStage(req, "runtime_snapshot_batch", () => deviceRuntimeStateService.hydrateMany(devices));

@@ -5,6 +5,7 @@ import { summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEn
 import { logger } from "../observability/logger";
 import { sendPublicApiError } from "../services/publicApi";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
+import { isTechnicalDeviceHiddenFromResidents } from "../services/deviceInventoryVisibility";
 
 function cleanText(value: any, fallback: string | null = null) {
   const text = String(value ?? "").trim();
@@ -263,6 +264,12 @@ export async function getEstateDevices(req: Request, res: Response) {
     }
 
     let rows = data || [];
+    const irParentIds = new Set(
+      rows
+        .filter((device: any) => device?.is_virtual && device?.metadata?.ir_appliance?.remote_id)
+        .map((device: any) => String(device?.parent_device_id || "").trim())
+        .filter(Boolean),
+    );
     deviceReadScopeCache.setMany(rows);
     const deviceIds = rows.map((device: any) => String(device?.id || "")).filter(Boolean);
     const stateMap = new Map<string, any>();
@@ -280,6 +287,7 @@ export async function getEstateDevices(req: Request, res: Response) {
     const devices = rows
       .filter((device: any) => {
         if (isEstateWide) return includeUnassigned || Boolean(device?.home_id);
+        if (isTechnicalDeviceHiddenFromResidents(device, { parentHasIrChildren: irParentIds.has(String(device?.id || "")) })) return false;
         const assignedToActiveHome = String(device?.home_id || "") === activeHomeId;
         if (assignedToActiveHome) return true;
         if (!includeUnassigned || device?.home_id) return false;

@@ -382,7 +382,10 @@ export async function syncIrChildAppliancesForHub(hub: any) {
       provider: hub.provider,
       external_id: externalId,
       bind_state: hub.bind_state || (hub.room_id ? "room_bound" : hub.home_id ? "home_bound" : "estate_bound"),
-      status: hub.status || "ready",
+      status: hub.online === false ? "offline" : "online",
+      online: hub.online !== false,
+      sync_state: hub.home_id ? "assigned" : "available_unassigned",
+      is_managed_disabled: false,
       metadata,
     };
 

@@ -7,6 +7,10 @@ import { logger } from "../observability/logger";
 import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeRequestStageSync } from "../observability/requestStageTiming";
 import { sendPublicApiError } from "../services/publicApi";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
+import {
+  isTechnicalDeviceHiddenFromResidents,
+  resolveCanonicalIrChildForProviderRemote,
+} from "../services/deviceInventoryVisibility";
 
 const DEVICE_SELECT = "id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,external_id,vendor,provider,adapter,online,status,type,category,capabilities,metadata,last_seen_at,last_event_at,updated_at";
 const SNAPSHOT_SELECT = "device_states(device_id,status,last_seen,updated_at)";
@@ -160,8 +164,14 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
       });
       stateDbRoundTrips += resolved.databaseRoundTrips ?? 1;
       resolutionSource = resolved.resolutionSource || "database";
-      const device = resolved.device;
-      if (!device?.id) return res.status(404).json({ error: "Device not found" });
+      const resolvedDevice = resolved.device;
+      if (!resolvedDevice?.id) return res.status(404).json({ error: "Device not found" });
+      let device: Record<string, any> = resolvedDevice;
+      const canonicalChild = await resolveCanonicalIrChildForProviderRemote(device);
+      if (canonicalChild?.id) device = canonicalChild;
+      if (isTechnicalDeviceHiddenFromResidents(device)) {
+        return res.status(404).json({ error: "Device not found in this home" });
+      }
       if (homeId && String(device.home_id || "") !== String(homeId)) {
         return res.status(403).json({ error: "This device is not assigned to your current home." });
       }
