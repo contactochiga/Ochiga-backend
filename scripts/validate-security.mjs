@@ -38,7 +38,12 @@ const checks = [
   },
   {
     label: "Consumer runtime headers allowed by CORS",
-    pass: /X-Oyi-Runtime/.test(read("src/config/originPolicy.ts")) && /X-Ochiga-Surface/.test(read("src/config/originPolicy.ts")),
+    pass:
+      /X-Oyi-Runtime/.test(read("src/config/originPolicy.ts")) &&
+      /X-Ochiga-Surface/.test(read("src/config/originPolicy.ts")) &&
+      /X-Oyi-Estate-Id/.test(read("src/config/originPolicy.ts")) &&
+      /X-Oyi-Home-Id/.test(read("src/config/originPolicy.ts")) &&
+      /X-Oyi-Context-Key/.test(read("src/config/originPolicy.ts")),
     critical: true,
   },
   {

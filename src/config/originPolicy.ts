@@ -44,6 +44,9 @@ export const allowedHeaders = [
   "X-Ochiga-Surface",
   "X-Oyi-Contract-Version",
   "X-Oyi-Runtime",
+  "X-Oyi-Estate-Id",
+  "X-Oyi-Home-Id",
+  "X-Oyi-Context-Key",
   "Accept",
   "Origin",
 ];
