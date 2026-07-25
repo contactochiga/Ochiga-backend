@@ -218,6 +218,34 @@ function controlProfile(device: DeviceOperationalSignalInput["device"]) {
   return "generic";
 }
 
+function isSmartAccessDevice(input: DeviceOperationalSignalInput, enrichedState?: any) {
+  const metadata = asRecord(input.device.metadata);
+  const haystack = [
+    input.device.name,
+    input.device.type,
+    input.device.category,
+    metadata.raw?.category,
+    metadata.device_family,
+    metadata.control_profile,
+    enrichedState?.device_family,
+    enrichedState?.control_profile,
+    Array.isArray(enrichedState?.capability_codes) ? enrichedState.capability_codes.join(" ") : "",
+  ].map((item) => String(item || "").toLowerCase()).join(" ");
+  return /\b(smart_access|lock|doorlock|door_lock|jtms|jtmspro|jtmsbh|access_control|unlock|temporary_password)\b/.test(haystack);
+}
+
+function smartAccessDomain(input: DeviceOperationalSignalInput, observedSource: DeviceObservedSource, actor: ReturnType<typeof actorDetails>, enrichedState: any) {
+  if (!isSmartAccessDevice(input, enrichedState)) return "infrastructure_devices";
+  const metadata = asRecord(input.device.metadata);
+  const ownership = String(metadata.ownership_class || metadata.oyi?.ownership_class || metadata.projection?.ownership_class || "").toLowerCase();
+  const isResidentRoutine =
+    (actor.type === "resident" || observedSource === "app" || observedSource === "watch") &&
+    !/tamper|forced|wrong|alarm|jam|failed|offline|authorization_required/.test(`${input.eventType} ${JSON.stringify(input.newState || {})}`.toLowerCase()) &&
+    !/building_managed|facility/.test(ownership);
+  if (isResidentRoutine) return "smart_access_private";
+  return "infrastructure_devices";
+}
+
 function enrichedStateSummary(input: DeviceOperationalSignalInput) {
   return enrichDeviceProviderState({
     state: asRecord(input.newState),
@@ -330,13 +358,14 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
     ...(Array.isArray(enrichedState.capability_codes) ? enrichedState.capability_codes : []),
   ]));
   const resolvedControlProfile = text(enrichedState.control_profile) || controlProfile(input.device);
+  const domain = smartAccessDomain(input, observedSource, actor, enrichedState);
   const runtimeTrace = runtimeTraceFields();
   const signalPayload: any = {
     schemaVersion: SIGNAL_SCHEMA_VERSION,
     id: `${input.eventType}:${input.device.id}:${input.providerEventId || occurredAt}`,
     source: adapter || "device_adapter",
     type: "telemetry",
-    domain: "infrastructure_devices",
+    domain,
     origin,
     initiatorType: actor.type === "resident" ? "resident" : actor.type === "operator" ? "operator" : observedSource === "physical_switch" ? "device" : observedSource === "provider_reported" || observedSource === "provider_app" ? "provider" : observedSource === "automation" || observedSource === "scene" ? "automation" : "system",
     initiatorId: actor.id,

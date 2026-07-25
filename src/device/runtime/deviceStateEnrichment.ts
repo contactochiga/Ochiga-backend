@@ -405,8 +405,8 @@ function inferSupportedControls(deviceFamily: string, codes: string[]) {
   }
   if (deviceFamily === "lock") {
     controls.add("lock_state");
-    if (codes.some((code) => /(^|_)lock($|_)|switch/.test(code))) controls.add("lock");
-    if (codes.some((code) => /unlock|remote_no_dp_key|switch/.test(code))) controls.add("unlock");
+    // Sensitive access controls are exposed only by the Smart Access evidence
+    // model after a real executable provider mapping is known.
     if (codes.some((code) => /battery|electricity/.test(code))) controls.add("battery_level");
     if (codes.some((code) => /tamper|hijack|alarm|wrong|trial|attempt|jam/.test(code))) controls.add("security_event");
     if (codes.some((code) => /record|history|log/.test(code))) controls.add("operation_history");

@@ -33,23 +33,48 @@ expect(
 );
 expect(
   "src/services/smartAccessCapabilityService.ts",
-  /CapabilityStatus[\s\S]*temporarily_unavailable[\s\S]*permission_denied[\s\S]*setup_incomplete/,
-  "capability states must distinguish unknown, unavailable and permission/setup states",
+  /CapabilityStatus[\s\S]*temporarily_unavailable[\s\S]*permission_denied[\s\S]*setup_incomplete[\s\S]*provider_declared_only[\s\S]*mapping_missing[\s\S]*verification_required/,
+  "capability states must distinguish declared, readable, executable and verification states",
 );
 expect(
   "src/services/smartAccessCapabilityService.ts",
-  /media:\s*\{[\s\S]*live_view: status\(mediaCodes\.length \? providerStatus : "unsupported"/,
-  "media must be unsupported unless provider evidence confirms it",
+  /declaredByProvider[\s\S]*readableByOyi[\s\S]*executableByOyi[\s\S]*liveVerified/,
+  "capability evidence must preserve declaration, readability, executability and live verification",
 );
 expect(
   "src/services/smartAccessCapabilityService.ts",
-  /batteryPercentage[\s\S]*batteryPercentage <= 20/,
-  "battery-low handling must use normalized smart-access state",
+  /remoteUnlockExecutableCode[\s\S]*mapping_missing[\s\S]*Provider schema declares unlock methods/,
+  "remote unlock must be mapping_missing when only provider schema declares it",
+);
+expect(
+  "src/services/smartAccessCapabilityService.ts",
+  /smartAccessSupportedControls[\s\S]*executableByOyi === true[\s\S]*readableByOyi === true/,
+  "supported controls must be derived from executable/readable evidence, not code presence",
+);
+expect(
+  "src/services/smartAccessCapabilityService.ts",
+  /residual_electricity[\s\S]*batteryPercentage <= 20[\s\S]*critical/,
+  "battery-low handling must map residual_electricity into normalized critical state",
+);
+expect(
+  "src/device/runtime/deviceStateEnrichment.ts",
+  /Sensitive access controls are exposed only by the Smart Access evidence/,
+  "generic runtime enrichment must not expose lock/unlock controls from schema presence",
+);
+expect(
+  "src/device/adapters/tuya/TuyaAdapter.ts",
+  /desiredLocked[\s\S]*\? \["lock", "remote_lock"\][\s\S]*: \["unlock", "remote_unlock"\]/,
+  "Tuya lock commands must only target explicit remote lock/unlock mappings",
 );
 expect(
   "src/controllers/smartAccessController.ts",
   /resolveScopedDevice[\s\S]*home_id[\s\S]*This device is outside the active home/,
   "smart-access routes must enforce active home scope server-side",
+);
+expect(
+  "src/controllers/smartAccessController.ts",
+  /loadDeviceStateRow[\s\S]*device_states[\s\S]*getSmartAccessProfileForDevice\(device, \{ refresh,[\s\S]*stateRow/,
+  "smart-access routes must enrich profiles from the latest runtime state row",
 );
 expect(
   "src/controllers/smartAccessController.ts",
@@ -62,6 +87,36 @@ expect(
   "smart-access routes must live under canonical devices before command/state fallthrough",
 );
 expect(
+  "src/routes/signals.ts",
+  /resolveRequestContext[\s\S]*requestDeviceCommand/,
+  "legacy signal device-command route must delegate into the canonical device command runtime",
+);
+expect(
+  "src/controllers/deviceCommandController.ts",
+  /assertContextPayloadMatches[\s\S]*COMMAND_HOME_CONTEXT_MISMATCH[\s\S]*accepted: false/,
+  "device commands must reject stale scope and return a non-accepted envelope",
+);
+expect(
+  "src/services/deviceOperationalSignalService.ts",
+  /smartAccessDomain[\s\S]*smart_access_private/,
+  "routine resident smart-access events must use the private smart-access domain",
+);
+expect(
+  "src/oyi-core/service.ts",
+  /oyi_signal_duplicates_prevented_total[\s\S]*signal_rejected_before_reasoning|signal_rejected_before_reasoning[\s\S]*oyi_signal_duplicates_prevented_total/,
+  "duplicate signals must be rejected before reasoning and side effects",
+);
+expect(
+  "src/core/control-plane/index.ts",
+  /runtimeEnvelope\?\.receipt\?\.accepted === false[\s\S]*return runtimeEnvelope/,
+  "control-plane dispatch must stop before subscribers for rejected duplicate signals",
+);
+expect(
+  "supabase/migrations/20260725165000_presence_home_scope_conflict_repair.sql",
+  /user_presence_user_home_key[\s\S]*unique \(user_id, home_id\)/,
+  "presence migration must add a real home-scoped unique constraint for upsert",
+);
+expect(
   "src/services/tuyaRegistrySyncService.ts",
   /persistSmartAccessSnapshot[\s\S]*tuya_registry_sync/,
   "Tuya discovery must refresh smart-access snapshots without duplicating the registry",
@@ -71,6 +126,12 @@ if (failures.length) {
   console.error("Smart Access runtime smoke failed:");
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
+}
+
+const skipLinked = process.argv.includes("--skip-linked") || process.env.SMART_ACCESS_SKIP_LINKED === "1";
+if (skipLinked) {
+  console.log("Smart Access runtime smoke passed.");
+  process.exit(0);
 }
 
 for (const query of [

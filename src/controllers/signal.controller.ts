@@ -22,6 +22,9 @@ export async function ingestSignal(req: any, res: Response) {
       type,
       timestamp: new Date().toISOString(),
       ...raw,
+      estateId: raw.estateId || raw.estate_id || req.oisContext?.estate_id || req.user?.estate_id || null,
+      homeId: raw.homeId || raw.home_id || req.oisContext?.home_id || req.user?.home_id || null,
+      unitId: raw.unitId || raw.unit_id || raw.homeId || raw.home_id || req.oisContext?.home_id || req.user?.home_id || null,
     };
 
     // ✅ If device command and requestedBy missing, derive from auth user
@@ -35,11 +38,16 @@ export async function ingestSignal(req: any, res: Response) {
         role: req.user.role,
       };
     }
+    if (signal.type === "device.command.requested" && !signal.deviceScope) {
+      signal.deviceScope = signal.homeId ? "home" : signal.estateId ? "estate" : undefined;
+    }
 
     const runtime = await handleSignal(signal as Signal);
 
-    return res.status(202).json({
-      status: "accepted",
+    const accepted = runtime?.receipt?.accepted !== false;
+    return res.status(accepted ? 202 : 409).json({
+      accepted,
+      status: accepted ? "accepted" : "rejected",
       signalType: signal.type,
       runtime,
     });

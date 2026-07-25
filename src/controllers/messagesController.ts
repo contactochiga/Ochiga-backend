@@ -151,12 +151,35 @@ async function touchPresence(user: any, req?: Request) {
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabaseAdmin
-    .from("user_presence")
-    .upsert(payload as any, { onConflict: scope.homeId ? "user_id,home_id" : "user_id" });
+  let error: any = null;
+  if (scope.homeId) {
+    ({ error } = await supabaseAdmin
+      .from("user_presence")
+      .upsert(payload as any, { onConflict: "user_id,home_id" }));
+  } else {
+    const existing = await supabaseAdmin
+      .from("user_presence")
+      .select("id")
+      .eq("user_id", String(user.id))
+      .is("home_id", null)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing.error && !isMissingTable(existing.error, "user_presence")) {
+      error = existing.error;
+    } else if (existing.data?.id) {
+      const updateResult = await supabaseAdmin
+        .from("user_presence")
+        .update(payload as any)
+        .eq("id", String((existing.data as any).id));
+      error = updateResult.error;
+    } else {
+      ({ error } = await supabaseAdmin.from("user_presence").insert(payload as any));
+    }
+  }
 
   if (error && !isMissingTable(error, "user_presence")) {
-    console.warn("touchPresence failed:", error.message);
+    if (!/duplicate key/i.test(String(error.message || ""))) console.warn("touchPresence failed:", error.message);
   }
 }
 

@@ -301,6 +301,29 @@ function commandIdempotencyKey(req: Request, user: AuthUser, rawId: string, comm
   return `request:${user.id}:${rawId}:${source}:${commandFingerprint(command)}:${shortReplayWindow}`;
 }
 
+function assertContextPayloadMatches(req: Request, scope: DeviceRuntimeScope) {
+  const bodyEstate = String(req.body?.estateId || req.body?.estate_id || "").trim();
+  const bodyHome = String(req.body?.homeId || req.body?.home_id || "").trim();
+  if (bodyEstate && scope.estateId && bodyEstate !== String(scope.estateId)) {
+    const error: any = new Error("Command estate context does not match the active session.");
+    error.statusCode = 409;
+    error.code = "COMMAND_ESTATE_CONTEXT_MISMATCH";
+    throw error;
+  }
+  if (bodyHome && scope.homeId && bodyHome !== String(scope.homeId)) {
+    const error: any = new Error("Command home context does not match the active session.");
+    error.statusCode = 409;
+    error.code = "COMMAND_HOME_CONTEXT_MISMATCH";
+    throw error;
+  }
+  if (!scope.estateId || !scope.homeId) {
+    const error: any = new Error("Active home context is required for device control.");
+    error.statusCode = 409;
+    error.code = "COMMAND_SCOPE_REQUIRED";
+    throw error;
+  }
+}
+
 function assertUnlockConfirmed(req: Request, device: any, command: Record<string, any>) {
   const family = deviceCommandFamily(device);
   if (family !== "lock") return;
@@ -738,6 +761,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       estateId: (req as any).oisContext?.estate_id || user.estate_id || null,
       homeId: (req as any).oisContext?.home_id || user.home_id || null,
     };
+    assertContextPayloadMatches(req, scope);
     const key = commandIdempotencyKey(req, user, rawId, command, source);
     pruneCommandAcceptances();
     const existing = commandAcceptances.get(key);
@@ -755,6 +779,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
 
     const response = {
       ok: true,
+      accepted: true,
       status: "command_accepted",
       execution_status: "pending",
       idempotency_key: key,
@@ -814,7 +839,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     if (/not assigned to your current home/i.test(message)) {
       error = "This device is not assigned to your current home.";
       details = error;
-    } else if (/does not support switch control|does not expose/i.test(message)) {
+    } else if (/does not support switch control|does not expose|does not support remote|mapping/i.test(message)) {
       error = "This device does not expose that control.";
       details = error;
     } else if (/appliance profile/i.test(message)) {
@@ -824,6 +849,14 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       error = "The connected device provider is temporarily unavailable.";
       details = error;
     }
-    return res.status(statusCode).json({ error, details });
+    return res.status(statusCode).json({
+      ok: false,
+      accepted: false,
+      status: "rejected",
+      reason: e?.code || (statusCode === 403 ? "permission_denied" : statusCode === 409 ? "context_conflict" : statusCode === 422 ? "capability_mapping_missing" : "command_rejected"),
+      execution_id: null,
+      error,
+      details,
+    });
   }
 }

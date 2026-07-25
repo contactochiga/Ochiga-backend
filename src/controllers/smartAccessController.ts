@@ -48,6 +48,22 @@ async function resolveScopedDevice(req: Request) {
   return data;
 }
 
+async function loadDeviceStateRow(deviceId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("device_states")
+    .select("*")
+    .eq("device_id", deviceId)
+    .maybeSingle();
+  if (error) {
+    logger.warn("smart_access_state_read_failed", {
+      device_id: deviceId,
+      error: error.message,
+    });
+    return null;
+  }
+  return data || null;
+}
+
 function safeError(res: Response, error: any, fallback: string) {
   const statusCode = Number(error?.statusCode || error?.status || 500);
   return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({
@@ -61,7 +77,8 @@ export async function getSmartAccessDevice(req: Request, res: Response) {
   try {
     const device = await resolveScopedDevice(req);
     const refresh = String(req.query.refresh || "").toLowerCase() === "true";
-    const profile = await getSmartAccessProfileForDevice(device, { refresh, source: refresh ? "api_refresh" : "api_read" });
+    const stateRow = await loadDeviceStateRow(device.id);
+    const profile = await getSmartAccessProfileForDevice(device, { refresh, source: refresh ? "api_refresh" : "api_read", stateRow });
     const [records, credentials] = await Promise.all([
       listSmartAccessRecords(device, 5).catch(() => []),
       listSmartAccessCredentials(device).catch(() => []),
@@ -98,7 +115,8 @@ export async function getSmartAccessDevice(req: Request, res: Response) {
 export async function refreshSmartAccessDevice(req: Request, res: Response) {
   try {
     const device = await resolveScopedDevice(req);
-    const profile = await getSmartAccessProfileForDevice(device, { refresh: true, source: "manual_refresh" });
+    const stateRow = await loadDeviceStateRow(device.id);
+    const profile = await getSmartAccessProfileForDevice(device, { refresh: true, source: "manual_refresh", stateRow });
     return res.json({ ok: true, profile });
   } catch (error: any) {
     return safeError(res, error, "Smart access refresh is temporarily unavailable.");

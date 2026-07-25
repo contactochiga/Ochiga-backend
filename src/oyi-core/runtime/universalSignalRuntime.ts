@@ -31,6 +31,10 @@ export type SignalRuntimeReceipt = {
 };
 
 function outputsFor(signal: NormalizedSignal): SignalRuntimeOutput[] {
+  if (signal.domain === "smart_access_private") {
+    if (signal.severity === "critical" || signal.severity === "warning") return ["activity", "notifications", "executive_intelligence"];
+    return ["activity"];
+  }
   const outputs = new Set<SignalRuntimeOutput>(["operational_intelligence", "activity", "reports", "future_ai"]);
   const haystack = `${signal.type} ${signal.source} ${signal.domain} ${signal.entity.type}`.toLowerCase();
   if (/device|edge|infrastructure|telemetry|meter|camera|onvif|tuya|mqtt|ble|matter/.test(haystack)) {

@@ -38,8 +38,8 @@ export function summarizeSmartLockCapabilities(device: any, stateRow?: any | nul
     LOCK_CATEGORY_HINTS.has(category) ||
     Array.from(capabilityCodes).some((code) => /lock|door|unlock|temporary|password|fingerprint|tamper|hijack|battery/.test(code));
 
-  const canRemoteLock = isLock && smartAccess.capabilities?.control?.lock?.status === "supported";
-  const canRemoteUnlock = isLock && smartAccess.capabilities?.control?.unlock?.status === "supported";
+  const canRemoteLock = isLock && smartAccess.capabilities?.control?.lock?.executableByOyi === true;
+  const canRemoteUnlock = isLock && smartAccess.capabilities?.control?.unlock?.executableByOyi === true;
 
   return {
     is_lock: isLock,
@@ -48,7 +48,12 @@ export function summarizeSmartLockCapabilities(device: any, stateRow?: any | nul
     can_remote_lock: canRemoteLock,
     can_remote_unlock: canRemoteUnlock,
     supported_controls: Array.from(new Set([
-      ...(summary.supported_controls || []),
+      ...(summary.supported_controls || []).filter((control: any) => {
+        const value = clean(control);
+        if (value === "lock") return canRemoteLock;
+        if (value === "unlock") return canRemoteUnlock;
+        return true;
+      }),
       ...(isLock ? ["smart_access", "lock_state", canRemoteLock ? "lock" : null, canRemoteUnlock ? "unlock" : null] : []),
     ].filter(Boolean) as string[])),
     smart_access: smartAccess,
@@ -63,13 +68,21 @@ export function assertSmartLockCommandAllowed(device: any, command: Record<strin
   const wantsUnlock = value === "false" || value === "unlocked" || value === "unlock" || command?.unlock === true;
   const wantsLock = value === "true" || value === "locked" || value === "lock" || command?.lock === true || command?.locked === true;
   if (wantsUnlock && !lock.can_remote_unlock) {
-    const error: any = new Error("Remote unlock is not supported by this lock.");
-    error.statusCode = 400;
+    const reason = lock.smart_access?.capabilities?.control?.unlock?.status === "mapping_missing"
+      ? "Remote unlock is declared by the provider, but Oyi does not have a verified command mapping for this connection."
+      : "Remote unlock is not supported by this lock.";
+    const error: any = new Error(reason);
+    error.statusCode = 422;
+    error.code = "LOCK_UNLOCK_MAPPING_MISSING";
     throw error;
   }
   if (wantsLock && !lock.can_remote_lock) {
-    const error: any = new Error("Remote lock is not supported by this lock.");
-    error.statusCode = 400;
+    const reason = lock.smart_access?.capabilities?.control?.lock?.status === "mapping_missing"
+      ? "Remote lock is declared by the provider, but Oyi does not have a verified command mapping for this connection."
+      : "Remote lock is not supported by this lock.";
+    const error: any = new Error(reason);
+    error.statusCode = 422;
+    error.code = "LOCK_LOCK_MAPPING_MISSING";
     throw error;
   }
 }

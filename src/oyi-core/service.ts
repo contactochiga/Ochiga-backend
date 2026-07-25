@@ -166,6 +166,68 @@ class OyiCoreRuntimeKernel {
       patchRuntimeContext(traceForSignal(seedSignal));
       observeStage("signal.receive", receiptStartedAt, { mode: "receive" });
 
+      if (!receipt.accepted) {
+        const duplicateAwareness: OperationalAwareness = {
+          id: `awareness:${seedSignal.id}:deduplicated`,
+          kind: "operational",
+          title: receipt.duplicate ? "Duplicate signal ignored" : "Signal rejected",
+          summary: receipt.duplicate ? "Oyi already processed this signal recently." : "Oyi rejected this signal before operational reasoning.",
+          reason: receipt.duplicate ? "duplicate_signal" : "signal_validation_failed",
+          impact: "No duplicate activity, notification, recommendation, automation, or reporting work was created.",
+          urgency: "monitor",
+          owner: "Oyi Core",
+          recommended_action: "No action needed.",
+          verification: "Runtime receipt",
+          supporting_evidence: seedSignal.evidence,
+          related_signals: [seedSignal.id],
+          related_executions: [execution.executionId],
+          executionReference: execution.executionId,
+          confidence: 1,
+          generated_at: receipt.receivedAt,
+          context: {},
+        };
+        const bundle: RuntimeBundle = {
+          signals: [seedSignal],
+          awareness: [duplicateAwareness],
+          insights: [],
+          recommendations: [],
+          automationPlans: [],
+        };
+        const envelope: RuntimeEnvelope = {
+          receipt: { ...receipt, signal: seedSignal },
+          bundle,
+          execution_record: execution,
+          operational_signal: seedSignal,
+          operational_awareness: duplicateAwareness,
+          operational_insights: [],
+          operational_recommendations: [],
+          operational_automation_plans: [],
+        };
+        const completedAt = new Date().toISOString();
+        envelope.execution_record = executionLedger.complete(execution.executionId, {
+          completedAt,
+          duration: Math.max(0, new Date(completedAt).getTime() - new Date(execution.startedAt).getTime()),
+          status: "failed",
+          result: {
+            accepted: false,
+            duplicate: receipt.duplicate,
+            outputs: receipt.outputs,
+            issues: receipt.issues,
+            priority: receipt.priority,
+            summary: receipt.duplicate ? "Duplicate signal rejected before reasoning and side effects." : "Signal rejected before reasoning and side effects.",
+          },
+          evidence: seedSignal.evidence,
+        }) || execution;
+        operationalMetrics.increment("oyi_signal_duplicates_prevented_total", { duplicate: String(receipt.duplicate) });
+        logger.info("oyi_runtime_signal_rejected_before_reasoning", {
+          signal_id: seedSignal.id,
+          domain: seedSignal.domain,
+          duplicate: receipt.duplicate,
+          accepted: false,
+        });
+        return envelope;
+      }
+
       const key = scopeKey(seedSignal);
       const history = this.recentSignals.get(key) || [];
       const nextHistory = [seedSignal, ...history.filter((item) => item.id !== seedSignal.id)].slice(0, 80);

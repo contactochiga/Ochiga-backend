@@ -13,6 +13,9 @@ export async function handleSignal(signal: Signal): Promise<RuntimeEnvelope | nu
   }
 
   const runtimeEnvelope = await oyiCoreRuntime.receiveSignal(signal as any);
+  if (runtimeEnvelope?.receipt?.accepted === false) {
+    return runtimeEnvelope;
+  }
 
   // 1) Subscribers (side-effects)
   try {

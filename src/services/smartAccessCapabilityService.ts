@@ -12,12 +12,20 @@ export type CapabilityStatus =
   | "temporarily_unavailable"
   | "permission_denied"
   | "setup_incomplete"
-  | "provider_disconnected";
+  | "provider_disconnected"
+  | "provider_declared_only"
+  | "mapping_missing"
+  | "verification_required";
 
 type CapabilityEvidence = {
-  codes?: string[];
+  declaredByProvider?: boolean;
+  readableByOyi?: boolean;
+  executableByOyi?: boolean;
+  liveVerified?: boolean;
+  sourceCodes?: string[];
   reason?: string;
   provider?: string;
+  verifiedAt?: string;
 };
 
 function clean(value: any) {
@@ -44,8 +52,18 @@ function firstCode(codes: Set<string>, matcher: RegExp) {
   return Array.from(codes).find((code) => matcher.test(code)) || null;
 }
 
-function status(status: CapabilityStatus, evidence: CapabilityEvidence = {}) {
-  return { status, ...evidence };
+function status(statusValue: CapabilityStatus, evidence: CapabilityEvidence = {}) {
+  return {
+    declaredByProvider: Boolean(evidence.declaredByProvider),
+    readableByOyi: Boolean(evidence.readableByOyi),
+    executableByOyi: Boolean(evidence.executableByOyi),
+    liveVerified: Boolean(evidence.liveVerified),
+    status: statusValue,
+    reason: evidence.reason,
+    sourceCodes: evidence.sourceCodes || [],
+    provider: evidence.provider,
+    verifiedAt: evidence.verifiedAt,
+  };
 }
 
 function boolValue(value: any): boolean | null {
@@ -136,10 +154,15 @@ export function buildSmartAccessProfile(device: any, stateRow?: any | null) {
   const provider = lower(device?.provider || device?.vendor || device?.adapter || "unknown") || "unknown";
   const providerDisconnected = summary.provider_health === "authorization_required" || summary.provider_health === "degraded";
   const providerStatus: CapabilityStatus = providerDisconnected ? "temporarily_unavailable" : isSmartAccess ? "supported" : "unsupported";
-  const remoteLockCode = firstCode(codes, /^(remote_)?lock$|lock_switch|switch$/);
-  const remoteUnlockCode = firstCode(codes, /^unlock$|remote_unlock|unlock_switch|remote_no_dp_key|switch$/);
+  const rawRuntime = record(stateRow);
+  const readSucceeded = Boolean(rawRuntime.state || rawRuntime.normalized_state || rawRuntime.provider_timestamp || rawRuntime.runtime_timestamp || evidenceFromStateRow(stateRow).length);
+  const verifiedAt = clean(rawRuntime.provider_timestamp || rawRuntime.last_refresh || rawRuntime.runtime_timestamp) || undefined;
+  const remoteLockDeclared = Array.from(codes).filter((code) => /^(remote_)?lock$|lock_switch|manual_lock|automatic_lock|rtc_lock|lock_motor_state/.test(code));
+  const remoteUnlockDeclared = Array.from(codes).filter((code) => /^unlock|remote_no_dp_key|unlock_phone_remote|remote_pd|ble_unlock|check_code|dynamic|password|fingerprint|card/.test(code));
+  const remoteLockExecutableCode = firstCode(codes, /^(remote_lock|lock)$/);
+  const remoteUnlockExecutableCode = firstCode(codes, /^(remote_unlock|unlock)$/);
   const lockStateCode = firstCode(codes, /lock_state|status_lock|closed_opened|door_state|open_close|doorcontact_state/);
-  const batteryCode = firstCode(codes, /battery|electricity|va_battery/);
+  const batteryCode = firstCode(codes, /battery|electricity|residual_electricity|va_battery/);
   const credentialCodes = Array.from(codes).filter((code) => /temporary|password|pin|code|dynamic|one_time|clear|ticket|schedule/.test(code));
   const memberCodes = Array.from(codes).filter((code) => /member|user|family|guest|owner/.test(code));
   const historyCodes = Array.from(codes).filter((code) => /record|history|log|unlock_record|access/.test(code));
@@ -150,44 +173,44 @@ export function buildSmartAccessProfile(device: any, stateRow?: any | null) {
 
   const capabilities = {
     state: {
-      online: status(isSmartAccess ? "supported" : "unsupported", { codes: ["online"] }),
-      lock_state: status(lockStateCode || remoteLockCode || remoteUnlockCode ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: [lockStateCode, remoteLockCode, remoteUnlockCode].filter(Boolean) as string[] }),
-      door_state: status(lockStateCode ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: lockStateCode ? [lockStateCode] : [] }),
-      battery: status(batteryCode ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: batteryCode ? [batteryCode] : [] }),
-      security: status(securityCodes.length ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: securityCodes }),
+      online: status(isSmartAccess ? "supported" : "unsupported", { declaredByProvider: isSmartAccess, readableByOyi: readSucceeded, liveVerified: readSucceeded, sourceCodes: ["online"], verifiedAt }),
+      lock_state: status(lockStateCode ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(lockStateCode), readableByOyi: Boolean(lockStateCode && readSucceeded), liveVerified: Boolean(lockStateCode && readSucceeded), sourceCodes: lockStateCode ? [lockStateCode] : [], verifiedAt }),
+      door_state: status(lockStateCode ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(lockStateCode), readableByOyi: Boolean(lockStateCode && readSucceeded), liveVerified: Boolean(lockStateCode && readSucceeded), sourceCodes: lockStateCode ? [lockStateCode] : [], verifiedAt }),
+      battery: status(batteryCode ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(batteryCode), readableByOyi: Boolean(batteryCode && readSucceeded), liveVerified: Boolean(batteryCode && readSucceeded), sourceCodes: batteryCode ? [batteryCode] : [], verifiedAt }),
+      security: status(securityCodes.length ? (readSucceeded ? providerStatus : "provider_declared_only") : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(securityCodes.length), readableByOyi: Boolean(securityCodes.length && readSucceeded), liveVerified: Boolean(securityCodes.length && readSucceeded), sourceCodes: securityCodes, verifiedAt }),
     },
     control: {
-      lock: status(remoteLockCode ? providerStatus : isSmartAccess ? "unsupported" : "unsupported", { codes: remoteLockCode ? [remoteLockCode] : [] }),
-      unlock: status(remoteUnlockCode ? providerStatus : isSmartAccess ? "unsupported" : "unsupported", { codes: remoteUnlockCode ? [remoteUnlockCode] : [] }),
+      lock: status(remoteLockExecutableCode ? "verification_required" : remoteLockDeclared.length ? "mapping_missing" : isSmartAccess ? "unsupported" : "unsupported", { declaredByProvider: Boolean(remoteLockDeclared.length || remoteLockExecutableCode), executableByOyi: Boolean(remoteLockExecutableCode), liveVerified: false, sourceCodes: Array.from(new Set([remoteLockExecutableCode, ...remoteLockDeclared].filter(Boolean) as string[])), reason: remoteLockExecutableCode ? "Remote lock mapping exists but requires live verification before high-risk control is treated as verified." : remoteLockDeclared.length ? "Provider schema declares lock-related functions, but Oyi has no safe remote-lock command mapping for this connection." : undefined }),
+      unlock: status(remoteUnlockExecutableCode ? "verification_required" : remoteUnlockDeclared.length ? "mapping_missing" : isSmartAccess ? "unsupported" : "unsupported", { declaredByProvider: Boolean(remoteUnlockDeclared.length || remoteUnlockExecutableCode), executableByOyi: Boolean(remoteUnlockExecutableCode), liveVerified: false, sourceCodes: Array.from(new Set([remoteUnlockExecutableCode, ...remoteUnlockDeclared].filter(Boolean) as string[])), reason: remoteUnlockExecutableCode ? "Remote unlock mapping exists but requires live verification before high-risk control is treated as verified." : remoteUnlockDeclared.length ? "Provider schema declares unlock methods, but Oyi has no safe cloud unlock command mapping for this connection." : undefined }),
     },
     credentials: {
-      temporary_code: status(credentialCodes.length ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: credentialCodes }),
-      one_time_code: status(credentialCodes.some((code) => /one_time|dynamic/.test(code)) ? providerStatus : credentialCodes.length ? "unknown" : isSmartAccess ? "unknown" : "unsupported", { codes: credentialCodes }),
-      revoke: status(credentialCodes.some((code) => /clear|delete|remove|revoke/.test(code)) ? providerStatus : credentialCodes.length ? "unknown" : isSmartAccess ? "unknown" : "unsupported", { codes: credentialCodes }),
+      temporary_code: status(credentialCodes.length ? "provider_declared_only" : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(credentialCodes.length), executableByOyi: false, liveVerified: false, sourceCodes: credentialCodes, reason: credentialCodes.length ? "Temporary-code functions are declared by the provider, but Oyi has not verified the required provider credential workflow for this connection." : undefined }),
+      one_time_code: status(credentialCodes.some((code) => /one_time|dynamic/.test(code)) ? "provider_declared_only" : credentialCodes.length ? "unknown" : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: credentialCodes.some((code) => /one_time|dynamic/.test(code)), executableByOyi: false, liveVerified: false, sourceCodes: credentialCodes }),
+      revoke: status(credentialCodes.some((code) => /clear|delete|remove|revoke/.test(code)) ? "provider_declared_only" : credentialCodes.length ? "unknown" : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: credentialCodes.some((code) => /clear|delete|remove|revoke/.test(code)), executableByOyi: false, liveVerified: false, sourceCodes: credentialCodes }),
     },
     members: {
-      list: status(memberCodes.length ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: memberCodes }),
-      manage: status(memberCodes.length ? "setup_incomplete" : isSmartAccess ? "unknown" : "unsupported", { codes: memberCodes, reason: memberCodes.length ? "Provider member APIs must confirm write support before Oyi enables management." : undefined }),
+      list: status(memberCodes.length ? "provider_declared_only" : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(memberCodes.length), readableByOyi: false, sourceCodes: memberCodes }),
+      manage: status(memberCodes.length ? "setup_incomplete" : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(memberCodes.length), executableByOyi: false, sourceCodes: memberCodes, reason: memberCodes.length ? "Provider member APIs must confirm write support before Oyi enables management." : undefined }),
     },
     history: {
-      access_records: status(historyCodes.length || isSmartAccess ? providerStatus : "unsupported", { codes: historyCodes, reason: historyCodes.length ? undefined : "Provider history may be available through a dedicated API." }),
+      access_records: status(historyCodes.length ? "provider_declared_only" : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(historyCodes.length), readableByOyi: false, liveVerified: false, sourceCodes: historyCodes, reason: historyCodes.length ? "Provider access-record functions are declared, but Oyi has not verified a readable access-record API for this connection." : "Provider history may be available through a dedicated API." }),
     },
     security: {
-      tamper: status(securityCodes.length ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: securityCodes }),
-      wrong_attempt: status(securityCodes.some((code) => /wrong|trial|attempt/.test(code)) ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: securityCodes }),
-      battery_low: status(batteryCode || securityCodes.some((code) => /battery|low/.test(code)) ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: [batteryCode, ...securityCodes].filter(Boolean) as string[] }),
+      tamper: status(securityCodes.length ? (readSucceeded ? providerStatus : "provider_declared_only") : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(securityCodes.length), readableByOyi: Boolean(securityCodes.length && readSucceeded), sourceCodes: securityCodes, verifiedAt }),
+      wrong_attempt: status(securityCodes.some((code) => /wrong|trial|attempt/.test(code)) ? (readSucceeded ? providerStatus : "provider_declared_only") : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: securityCodes.some((code) => /wrong|trial|attempt/.test(code)), readableByOyi: Boolean(readSucceeded), sourceCodes: securityCodes, verifiedAt }),
+      battery_low: status(batteryCode || securityCodes.some((code) => /battery|low/.test(code)) ? (readSucceeded ? providerStatus : "provider_declared_only") : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: Boolean(batteryCode || securityCodes.some((code) => /battery|low/.test(code))), readableByOyi: Boolean(readSucceeded), sourceCodes: [batteryCode, ...securityCodes].filter(Boolean) as string[], verifiedAt }),
     },
     doorbell: {
-      events: status(doorbellCodes.length ? providerStatus : isSmartAccess ? "unsupported" : "unsupported", { codes: doorbellCodes }),
+      events: status(doorbellCodes.length ? "provider_declared_only" : isSmartAccess ? "unsupported" : "unsupported", { declaredByProvider: Boolean(doorbellCodes.length), readableByOyi: false, liveVerified: false, sourceCodes: doorbellCodes, reason: doorbellCodes.length ? "Doorbell is declared in provider schema, but event subscription has not been verified for Oyi." : undefined }),
     },
     media: {
-      live_view: status(mediaCodes.length ? providerStatus : "unsupported", { codes: mediaCodes }),
-      snapshot: status(mediaCodes.some((code) => /snapshot|image/.test(code)) ? providerStatus : "unsupported", { codes: mediaCodes }),
-      recordings: status(mediaCodes.some((code) => /recording|clip/.test(code)) ? providerStatus : "unsupported", { codes: mediaCodes }),
+      live_view: status(mediaCodes.length ? "provider_declared_only" : "unsupported", { declaredByProvider: Boolean(mediaCodes.length), readableByOyi: false, executableByOyi: false, liveVerified: false, sourceCodes: mediaCodes }),
+      snapshot: status(mediaCodes.some((code) => /snapshot|image/.test(code)) ? "provider_declared_only" : "unsupported", { declaredByProvider: mediaCodes.some((code) => /snapshot|image/.test(code)), sourceCodes: mediaCodes }),
+      recordings: status(mediaCodes.some((code) => /recording|clip/.test(code)) ? "provider_declared_only" : "unsupported", { declaredByProvider: mediaCodes.some((code) => /recording|clip/.test(code)), sourceCodes: mediaCodes }),
     },
     settings: {
-      auto_lock: status(settingsCodes.some((code) => /auto_lock/.test(code)) ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: settingsCodes }),
-      passage_mode: status(settingsCodes.some((code) => /passage/.test(code)) ? providerStatus : isSmartAccess ? "unknown" : "unsupported", { codes: settingsCodes }),
+      auto_lock: status(settingsCodes.some((code) => /auto_lock/.test(code)) ? "provider_declared_only" : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: settingsCodes.some((code) => /auto_lock/.test(code)), sourceCodes: settingsCodes }),
+      passage_mode: status(settingsCodes.some((code) => /passage/.test(code)) ? "provider_declared_only" : isSmartAccess ? "unknown" : "unsupported", { declaredByProvider: settingsCodes.some((code) => /passage/.test(code)), sourceCodes: settingsCodes }),
     },
   };
 
@@ -225,17 +248,24 @@ export function buildSmartAccessProfile(device: any, stateRow?: any | null) {
   };
 }
 
+function evidenceFromStateRow(stateRow: any): string[] {
+  return [
+    ...array(stateRow?.state?.__raw),
+    ...array(stateRow?.__raw),
+  ].map(codeOf).filter(Boolean);
+}
+
 export function smartAccessSupportedControls(capabilities: any) {
   const controls: string[] = ["smart_access"];
   if (capabilities?.state?.lock_state?.status === "supported") controls.push("lock_state");
-  if (capabilities?.control?.lock?.status === "supported") controls.push("lock");
-  if (capabilities?.control?.unlock?.status === "supported") controls.push("unlock");
-  if (capabilities?.state?.battery?.status === "supported") controls.push("battery_level");
-  if (capabilities?.history?.access_records?.status === "supported") controls.push("access_records");
-  if (capabilities?.credentials?.temporary_code?.status === "supported") controls.push("temporary_access_code");
-  if (capabilities?.members?.list?.status === "supported") controls.push("access_members");
-  if (capabilities?.doorbell?.events?.status === "supported") controls.push("doorbell_events");
-  if (capabilities?.media?.live_view?.status === "supported") controls.push("media_session");
+  if (capabilities?.control?.lock?.executableByOyi === true) controls.push("lock");
+  if (capabilities?.control?.unlock?.executableByOyi === true) controls.push("unlock");
+  if (capabilities?.state?.battery?.readableByOyi === true) controls.push("battery_level");
+  if (capabilities?.history?.access_records?.readableByOyi === true) controls.push("access_records");
+  if (capabilities?.credentials?.temporary_code?.executableByOyi === true) controls.push("temporary_access_code");
+  if (capabilities?.members?.list?.readableByOyi === true) controls.push("access_members");
+  if (capabilities?.doorbell?.events?.readableByOyi === true) controls.push("doorbell_events");
+  if (capabilities?.media?.live_view?.executableByOyi === true) controls.push("media_session");
   return Array.from(new Set(controls));
 }
 
@@ -253,7 +283,7 @@ export function normalizeSmartAccessState(device: any, runtime?: any | null) {
   const online = boolValue(source.online ?? device?.online ?? device?.status);
   const lockedBool = boolValue(source.locked ?? source.lock ?? source.lock_state ?? source.status_lock ?? source.closed_opened);
   const doorOpen = boolValue(source.door_open ?? source.door_state ?? source.open_close ?? source.doorcontact_state);
-  const batteryPercentage = numberValue(source.battery_percentage, source.battery, source.electricity, source.va_battery);
+  const batteryPercentage = numberValue(source.battery_percentage, source.residual_electricity, source.battery, source.electricity, source.va_battery);
   const tamperActive = boolValue(source.tamper ?? source.hijack ?? source.anti_lock_outside ?? source.alarm);
   const wrongAttemptActive = boolValue(source.wrong_attempt ?? source.trial_error ?? source.unlock_wrong ?? source.wrong_finger);
   const batteryLow = batteryPercentage !== null ? batteryPercentage <= 20 : boolValue(source.battery_low ?? source.low_battery);
@@ -263,6 +293,7 @@ export function normalizeSmartAccessState(device: any, runtime?: any | null) {
     lockState: lockedBool === true ? "locked" : lockedBool === false ? "unlocked" : null,
     doorOpen,
     batteryPercentage,
+    batteryLevel: batteryPercentage === null ? "unknown" : batteryPercentage <= 20 ? "critical" : batteryPercentage <= 35 ? "low" : "normal",
     batteryLow: batteryLow === true,
     tamperActive: tamperActive === true,
     wrongAttemptActive: wrongAttemptActive === true,
@@ -359,20 +390,37 @@ export async function persistSmartAccessSnapshot(device: any, input?: { source?:
   return profile;
 }
 
-export async function getSmartAccessProfileForDevice(device: any, options: { refresh?: boolean; source?: string } = {}) {
-  if (options.refresh) return persistSmartAccessSnapshot(device, { source: options.source || "manual_refresh" });
+function hasCapabilityEvidenceModel(capabilities: any) {
+  const unlock = capabilities?.control?.unlock;
+  const battery = capabilities?.state?.battery;
+  return Boolean(
+    unlock &&
+    typeof unlock === "object" &&
+    "declaredByProvider" in unlock &&
+    "executableByOyi" in unlock &&
+    battery &&
+    typeof battery === "object" &&
+    "readableByOyi" in battery
+  );
+}
+
+export async function getSmartAccessProfileForDevice(device: any, options: { refresh?: boolean; source?: string; stateRow?: any | null } = {}) {
+  if (options.refresh) return persistSmartAccessSnapshot(device, { source: options.source || "manual_refresh", stateRow: options.stateRow || null });
   const current = record(device?.metadata?.smart_access);
-  if (current?.capabilities) {
-    const profile = buildSmartAccessProfile(device, null);
+  if (current?.capabilities && hasCapabilityEvidenceModel(current.capabilities)) {
+    const profile = buildSmartAccessProfile(device, options.stateRow || null);
     return {
       ...profile,
       capabilities: current.capabilities,
-      state: current.state || profile.state,
-      supported_controls: Array.isArray(current.supported_controls) ? current.supported_controls : profile.supported_controls,
+      state: {
+        ...(record(current.state)),
+        ...(record(profile.state)),
+      },
+      supported_controls: smartAccessSupportedControls(current.capabilities),
       raw_fingerprint: current.raw_fingerprint || profile.raw_fingerprint,
     };
   }
-  return persistSmartAccessSnapshot(device, { source: options.source || "first_read" });
+  return persistSmartAccessSnapshot(device, { source: options.source || "first_read", stateRow: options.stateRow || null });
 }
 
 export async function listSmartAccessRecords(device: any, limit = 30) {

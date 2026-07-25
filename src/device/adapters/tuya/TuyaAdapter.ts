@@ -956,8 +956,8 @@ export class TuyaAdapter implements DeviceAdapter {
         ((command as any)?.unlock === true ? false : undefined);
       const desiredLocked = toBool(raw);
       const candidates = desiredLocked
-        ? ["lock", "remote_lock", "lock_switch", "switch"]
-        : ["unlock", "remote_unlock", "unlock_switch", "remote_no_dp_key", "switch"];
+        ? ["lock", "remote_lock"]
+        : ["unlock", "remote_unlock"];
       for (const code of candidates) {
         const fn = schema.functionsByCode[code];
         if (!fn) continue;
