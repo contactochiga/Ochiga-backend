@@ -50,6 +50,7 @@ export type CanonicalDeviceAvailability =
 
 export type CanonicalDeviceState = {
   availability: CanonicalDeviceAvailability;
+  availabilityReason?: CanonicalDeviceAvailabilityReason;
   lastSeenAt: string | null;
   lastProviderSyncAt: string | null;
   staleAfterMs: number | null;
@@ -57,6 +58,7 @@ export type CanonicalDeviceState = {
     key: string;
     value: string | number | boolean | null;
     label: string;
+    confidence?: "live" | "last_confirmed" | "inferred" | "unknown";
   };
   secondaryState?: {
     key: string;
@@ -73,6 +75,43 @@ export type CanonicalDeviceState = {
   supportedActions: string[];
   executableActions: string[];
   providerEvidence: Record<string, unknown>;
+};
+
+export type CanonicalDeviceAvailabilityReason =
+  | "provider_reports_online"
+  | "provider_reports_offline"
+  | "last_success_too_old"
+  | "provider_connection_missing"
+  | "provider_permission_denied"
+  | "gateway_offline"
+  | "local_only_unreachable"
+  | "setup_incomplete"
+  | "unknown";
+
+export type CanonicalDevicePresentation = {
+  availability: CanonicalDeviceAvailability;
+  availabilityReason: CanonicalDeviceAvailabilityReason;
+  assignment: {
+    estateId: string | null;
+    buildingId: string | null;
+    homeId: string | null;
+    roomId: string | null;
+    roomName: string | null;
+  };
+  lastSeenAt: string | null;
+  lastCheckedAt: string | null;
+  lastConfirmedStateAt: string | null;
+  staleAfterMs: number | null;
+  primaryState: CanonicalDeviceState["primaryState"] & {
+    confidence: "live" | "last_confirmed" | "inferred" | "unknown";
+  };
+  secondaryState?: CanonicalDeviceState["secondaryState"];
+  batteryPercentage: number | null;
+  batteryLevel: NonNullable<CanonicalDeviceState["batteryLevel"]>;
+  supportedActions: string[];
+  executableActions: string[];
+  alerts: CanonicalDeviceState["alerts"];
+  summary: string;
 };
 
 export type DeviceStateEventSummary = {
@@ -614,7 +653,7 @@ function activitySummary(args: { name?: string | null; primaryState: string; hea
   if (args.primaryState === "unlocked") return `${name} is unlocked.`;
   if (args.deviceFamily === "ir_remote") return `${name} remote is ready.`;
   if (args.primaryState === "reporting") return `${name} is reporting normally.`;
-  return `${name} state is available.`;
+  return `${name} is ready.`;
 }
 
 export function enrichDeviceProviderState(input: {
@@ -802,17 +841,18 @@ function canonicalSecondaryState(enriched: EnrichedDeviceState): CanonicalDevice
   return undefined;
 }
 
-function canonicalAvailability(enriched: EnrichedDeviceState, device: AnyRecord, stateRow?: AnyRecord | null): CanonicalDeviceAvailability {
+function canonicalAvailabilityWithReason(enriched: EnrichedDeviceState, device: AnyRecord, stateRow?: AnyRecord | null): { availability: CanonicalDeviceAvailability; reason: CanonicalDeviceAvailabilityReason } {
   const providerHealth = text(enriched.provider_health, stateRow?.provider_health).toLowerCase();
   const authorizationState = text(enriched?._oyi_runtime?.authorization_state, stateRow?.authorization_state).toLowerCase();
   const normalized = enriched.normalized_state || normalizeStateFields(enriched);
   const freshness = text(stateRow?.freshness, enriched?._oyi_runtime?.freshness).toLowerCase();
-  if (!text(device?.external_id, device?.provider_device_id, device?.metadata?.provider_device_id) && !device?.is_virtual) return "setup_incomplete";
-  if (/authorization|required|permission|expired|disconnected|not_linked|authentication/.test(providerHealth) || /required|denied|expired|failed/.test(authorizationState)) return "provider_disconnected";
-  if (normalized.online === false || providerHealth === "offline" || enriched.health_status === "offline") return "offline";
-  if (freshness === "stale" || freshness === "expired" || stateRow?.stale === true) return "stale";
-  if (normalized.online === true || providerHealth === "healthy" || providerHealth === "ok") return "online";
-  return "unknown";
+  if (!text(device?.external_id, device?.provider_device_id, device?.metadata?.provider_device_id) && !device?.is_virtual) return { availability: "setup_incomplete", reason: "setup_incomplete" };
+  if (/permission|authorization|required/.test(providerHealth) || /required|denied|expired|failed/.test(authorizationState)) return { availability: "provider_disconnected", reason: "provider_permission_denied" };
+  if (/expired|disconnected|not_linked|authentication/.test(providerHealth)) return { availability: "provider_disconnected", reason: "provider_connection_missing" };
+  if (normalized.online === false || providerHealth === "offline" || enriched.health_status === "offline") return { availability: "offline", reason: "provider_reports_offline" };
+  if (freshness === "stale" || freshness === "expired" || stateRow?.stale === true) return { availability: "stale", reason: "last_success_too_old" };
+  if (normalized.online === true || providerHealth === "healthy" || providerHealth === "ok") return { availability: "online", reason: "provider_reports_online" };
+  return { availability: "unknown", reason: "unknown" };
 }
 
 function canonicalExecutableActions(enriched: EnrichedDeviceState, device: AnyRecord) {
@@ -844,7 +884,8 @@ export function buildCanonicalDeviceState(device: AnyRecord, enrichedInput: Enri
   const normalized = enriched.normalized_state || normalizeStateFields(enriched);
   const battery = normalized.battery;
   const batteryState = batteryLevel(battery);
-  const availability = canonicalAvailability(enriched, device, stateRow);
+  const availabilityInfo = canonicalAvailabilityWithReason(enriched, device, stateRow);
+  const availability = availabilityInfo.availability;
   const alerts: CanonicalDeviceState["alerts"] = [];
   if (availability === "offline") alerts.push({ type: "offline", severity: "warning", message: "Device is offline." });
   if (availability === "provider_disconnected") alerts.push({ type: "provider_disconnected", severity: "warning", message: "Provider connection needs attention." });
@@ -853,10 +894,14 @@ export function buildCanonicalDeviceState(device: AnyRecord, enrichedInput: Enri
   for (const fault of normalized.faults || []) alerts.push({ type: "fault", severity: "warning", message: String(fault) });
   return {
     availability,
+    availabilityReason: availabilityInfo.reason,
     lastSeenAt: isoTimestamp(stateRow?.last_seen, enriched?._oyi_runtime?.last_refresh, enriched?._oyi_timeline?.received_at, device?.last_seen_at, device?.updated_at),
     lastProviderSyncAt: isoTimestamp(stateRow?.provider_timestamp, enriched?._oyi_runtime?.provider_timestamp, enriched?._oyi_timeline?.provider_reported_at),
     staleAfterMs: Number(enriched?._oyi_runtime?.ttl || stateRow?.ttl || 0) || null,
-    primaryState: canonicalPrimaryState(enriched),
+    primaryState: {
+      ...canonicalPrimaryState(enriched),
+      confidence: availability === "online" ? "live" : availability === "stale" || availability === "offline" ? "last_confirmed" : "unknown",
+    },
     secondaryState: canonicalSecondaryState(enriched),
     batteryPercentage: battery,
     batteryLevel: batteryState,
@@ -872,6 +917,72 @@ export function buildCanonicalDeviceState(device: AnyRecord, enrichedInput: Enri
       device_family: enriched.device_family || null,
       capability_codes: sanitizePublicCapabilityCodes(enriched.capability_codes || []),
     },
+  };
+}
+
+function assignmentForDevice(device: AnyRecord) {
+  return {
+    estateId: text(device?.estate_id) || null,
+    buildingId: text(device?.building_id, device?.metadata?.building_id) || null,
+    homeId: text(device?.home_id) || null,
+    roomId: text(device?.room_id) || null,
+    roomName: text(device?.room_name, device?.rooms?.name, device?.room?.name, device?.metadata?.room_name) || null,
+  };
+}
+
+function presentationSummary(input: {
+  deviceFamily: string;
+  canonical: CanonicalDeviceState;
+  availabilityReason: CanonicalDeviceAvailabilityReason;
+}) {
+  const { deviceFamily, canonical, availabilityReason } = input;
+  const availability = canonical.availability;
+  const primary = canonical.primaryState?.label || "State unknown";
+  const battery = typeof canonical.batteryPercentage === "number" ? `Battery ${Math.round(canonical.batteryPercentage)}%` : "";
+  if (availabilityReason === "provider_reports_offline") return "Provider reports offline";
+  if (availability === "offline") return "Offline";
+  if (availability === "provider_disconnected") return "Provider connection needs attention";
+  if (availability === "setup_incomplete") return "Setup incomplete";
+  if (availability === "stale") return `Stale · ${primary}`;
+  if (deviceFamily === "lock") return [primary, battery].filter(Boolean).join(" · ") || primary;
+  if (deviceFamily === "ir_remote") return "Remote ready";
+  if (["television", "projector", "set_top_box", "speaker"].includes(deviceFamily) && canonical.primaryState?.key === "remote_state") return "Remote ready";
+  if (deviceFamily === "climate" && canonical.primaryState?.key === "climate_state") return "Remote ready";
+  return canonical.secondaryState?.key === "channels" ? canonical.secondaryState.label : primary;
+}
+
+export function buildCanonicalDevicePresentation(
+  device: AnyRecord,
+  canonical: CanonicalDeviceState,
+  enrichedInput: EnrichedDeviceState | AnyRecord,
+): CanonicalDevicePresentation {
+  const enriched = (enrichedInput?.normalized_state ? enrichedInput : enrichDeviceProviderState({
+    state: enrichedInput,
+    metadata: device?.metadata,
+    device,
+    provider: device?.provider || device?.vendor,
+    adapter: device?.adapter || device?.vendor,
+  })) as EnrichedDeviceState;
+  const availabilityReason = canonical.availabilityReason || canonicalAvailabilityWithReason(enriched, device).reason;
+  return {
+    availability: canonical.availability,
+    availabilityReason,
+    assignment: assignmentForDevice(device),
+    lastSeenAt: canonical.lastSeenAt,
+    lastCheckedAt: canonical.lastProviderSyncAt || isoTimestamp(enriched?._oyi_runtime?.last_refresh, device?.updated_at),
+    lastConfirmedStateAt: canonical.primaryState?.value !== null ? (canonical.lastSeenAt || canonical.lastProviderSyncAt) : null,
+    staleAfterMs: canonical.staleAfterMs,
+    primaryState: {
+      ...canonical.primaryState,
+      confidence: canonical.primaryState.confidence || (canonical.availability === "online" ? "live" : canonical.availability === "stale" || canonical.availability === "offline" ? "last_confirmed" : "unknown"),
+    },
+    secondaryState: canonical.secondaryState,
+    batteryPercentage: typeof canonical.batteryPercentage === "number" ? canonical.batteryPercentage : null,
+    batteryLevel: canonical.batteryLevel || "unknown",
+    supportedActions: canonical.supportedActions || [],
+    executableActions: canonical.executableActions || [],
+    alerts: canonical.alerts || [],
+    summary: presentationSummary({ deviceFamily: enriched.device_family, canonical, availabilityReason }),
   };
 }
 
@@ -902,8 +1013,10 @@ export function summarizeDeviceFrontendContract(device: AnyRecord, stateRow?: An
     activity_summary: enriched.activity_summary,
     capability_codes: publicCapabilityCodes,
   };
+  const canonicalState = buildCanonicalDeviceState(device, enriched, stateRow);
   return {
     ...summary,
-    canonical_state: buildCanonicalDeviceState(device, enriched, stateRow),
+    canonical_state: canonicalState,
+    canonical_presentation: buildCanonicalDevicePresentation(device, canonicalState, enriched),
   };
 }

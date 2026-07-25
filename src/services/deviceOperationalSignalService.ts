@@ -78,6 +78,14 @@ export type DeviceOperationalSignalInput = {
     vendor?: string | null;
     adapter?: string | null;
     provider?: string | null;
+    estate_id?: string | null;
+    building_id?: string | null;
+    home_id?: string | null;
+    room_id?: string | null;
+    ownership_class?: string | null;
+    projection_policy?: string | null;
+    visibility_policy?: string | null;
+    control_policy?: string | null;
     metadata?: Record<string, any> | null;
   };
   previousState?: Record<string, any> | null;
@@ -237,11 +245,20 @@ function isSmartAccessDevice(input: DeviceOperationalSignalInput, enrichedState?
 function smartAccessDomain(input: DeviceOperationalSignalInput, observedSource: DeviceObservedSource, actor: ReturnType<typeof actorDetails>, enrichedState: any) {
   if (!isSmartAccessDevice(input, enrichedState)) return "infrastructure_devices";
   const metadata = asRecord(input.device.metadata);
-  const ownership = String(metadata.ownership_class || metadata.oyi?.ownership_class || metadata.projection?.ownership_class || "").toLowerCase();
+  const ownership = String(
+    input.device.ownership_class ||
+    metadata.ownership_class ||
+    metadata.oyi?.ownership_class ||
+    metadata.projection?.ownership_class ||
+    input.extraMetadata?.ownership_class ||
+    ""
+  ).toLowerCase();
+  const hasHomeScope = Boolean(text(input.homeId || input.device.home_id || input.extraMetadata?.home_id));
   const isResidentRoutine =
     (actor.type === "resident" || observedSource === "app" || observedSource === "watch") &&
     !/tamper|forced|wrong|alarm|jam|failed|offline|authorization_required/.test(`${input.eventType} ${JSON.stringify(input.newState || {})}`.toLowerCase()) &&
-    !/building_managed|facility/.test(ownership);
+    !/building_managed|facility/.test(ownership) &&
+    hasHomeScope;
   if (isResidentRoutine) return "smart_access_private";
   return "infrastructure_devices";
 }
@@ -370,8 +387,8 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
     initiatorType: actor.type === "resident" ? "resident" : actor.type === "operator" ? "operator" : observedSource === "physical_switch" ? "device" : observedSource === "provider_reported" || observedSource === "provider_app" ? "provider" : observedSource === "automation" || observedSource === "scene" ? "automation" : "system",
     initiatorId: actor.id,
     estateId: text(input.estateId),
-    buildingId: null,
-    unitId: text(input.homeId),
+    buildingId: text(input.device.building_id || input.extraMetadata?.building_id),
+    unitId: text(input.homeId || input.device.home_id),
     provider,
     providerEventId: text(input.providerEventId),
     sessionId: text(recent?.metadata?.session_id),
@@ -410,6 +427,12 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
     timestamp: occurredAt,
     context: {
       event_type: input.eventType,
+      estate_id: text(input.estateId || input.device.estate_id),
+      building_id: text(input.device.building_id || input.extraMetadata?.building_id),
+      home_id: text(input.homeId || input.device.home_id),
+      room_id: text(input.roomId || input.device.room_id),
+      ownership_class: text(input.device.ownership_class || input.extraMetadata?.ownership_class),
+      projection_policy: text(input.device.projection_policy || input.extraMetadata?.projection_policy),
       old_state: asRecord(input.previousState),
       new_state: asRecord(input.newState),
       changed_keys: telemetry.changed_keys || [],
@@ -441,6 +464,13 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
       device_type: text(input.device.type),
       device_category: text(input.device.category),
       device_family: text(enrichedState.device_family),
+      estate_id: text(input.estateId || input.device.estate_id),
+      building_id: text(input.device.building_id || input.extraMetadata?.building_id),
+      home_id: text(input.homeId || input.device.home_id),
+      room_id: text(input.roomId || input.device.room_id),
+      ownership_class: text(input.device.ownership_class || input.extraMetadata?.ownership_class),
+      projection_policy: text(input.device.projection_policy || input.extraMetadata?.projection_policy),
+      visibility_policy: text(input.device.visibility_policy || input.extraMetadata?.visibility_policy),
       raw_provider_payload: asRecord(input.newState),
       previous_state: asRecord(input.previousState),
       changed_keys: telemetry.changed_keys || [],

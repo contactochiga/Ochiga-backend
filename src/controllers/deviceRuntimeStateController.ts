@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
+import { buildCanonicalDevicePresentation } from "../device/runtime/deviceStateEnrichment";
 import { logger } from "../observability/logger";
 import { sendPublicApiError } from "../services/publicApi";
 import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeRequestStageSync } from "../observability/requestStageTiming";
@@ -8,6 +9,29 @@ import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 import { isTechnicalDeviceHiddenFromResidents } from "../services/deviceInventoryVisibility";
 
 const ESTATE_WIDE_ROLES = new Set(["admin", "manager", "estate_admin", "facility_admin", "facility_manager", "operator"]);
+
+function isUuid(value: unknown) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
+async function attachRoomNames(devices: Array<Record<string, any>>) {
+  const roomIds = Array.from(new Set(devices.map((device) => String(device?.room_id || "").trim()).filter(isUuid)));
+  if (!roomIds.length) return devices;
+  const { data, error } = await supabaseAdmin
+    .from("rooms")
+    .select("id,name,home_id")
+    .in("id", roomIds);
+  if (error) {
+    logger.warn("device_runtime_room_lookup_failed", { error });
+    return devices;
+  }
+  const rooms = new Map((data || []).map((room: any) => [String(room.id), room]));
+  return devices.map((device) => {
+    const room = rooms.get(String(device?.room_id || ""));
+    if (!room || (device.home_id && room.home_id && String(device.home_id) !== String(room.home_id))) return device;
+    return { ...device, room_name: room.name || null };
+  });
+}
 
 export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
   const user: any = req.user;
@@ -36,7 +60,7 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
 
     const { data, error } = await timeRequestStage(req, "runtime_registry", async () => await query);
     if (error) throw error;
-    const allDevices = data || [];
+    const allDevices = await attachRoomNames(data || []);
     const irParentIds = new Set(
       allDevices
         .filter((device: any) => device?.is_virtual && device?.metadata?.ir_appliance?.remote_id)
@@ -66,6 +90,9 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
           staleAfterMs: runtime?.ttl || summary.canonical_state.staleAfterMs || 10_000,
         }
         : null;
+      const presentation = canonicalState
+        ? buildCanonicalDevicePresentation(device, canonicalState, { ...(summary || {}), normalized_state: summary?.normalized_state || {} })
+        : summary?.canonical_presentation || null;
       return {
         id: String(device.id),
         device_id: String(device.id),
@@ -73,6 +100,7 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
         estate_id: device.estate_id || null,
         home_id: device.home_id || null,
         room_id: device.room_id || null,
+        room_name: device.room_name || null,
         parent_device_id: device.parent_device_id || null,
         is_virtual: Boolean(device.is_virtual),
         external_id: device.external_id || null,
@@ -85,6 +113,8 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
         state: runtime?.state || {},
         canonical_state: canonicalState,
         canonicalState,
+        canonical_presentation: presentation,
+        presentation,
         normalized_state: summary?.normalized_state || {},
         primary_state: summary?.primary_state || "unknown",
         health_status: summary?.health_status || "unknown",

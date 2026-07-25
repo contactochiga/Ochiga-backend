@@ -170,7 +170,7 @@ async function resolveDeviceForStateEvent(input: {
 }) {
   const ref = String(input.ref || "").trim();
   if (!ref) return null;
-  const select = "id,name,estate_id,home_id,room_id,category,type,external_id,provider,vendor,adapter,metadata";
+  const select = "id,name,estate_id,building_id,home_id,room_id,category,type,external_id,provider,vendor,adapter,ownership_class,visibility_policy,control_policy,critical_event_policy,metadata";
 
   let byId = supabaseAdmin.from("devices").select(select).eq("id", ref);
   if (input.estateId) byId = byId.eq("estate_id", input.estateId);
@@ -467,6 +467,14 @@ export async function initMqttBridge() {
             vendor: String(device?.vendor || ""),
             adapter: String(device?.adapter || "mqtt"),
             provider: String(device?.provider || device?.vendor || "mqtt"),
+            estate_id: device?.estate_id || estateId || null,
+            building_id: device?.building_id || device?.metadata?.building_id || null,
+            home_id: device?.home_id || null,
+            room_id: device?.room_id || null,
+            ownership_class: device?.ownership_class || device?.metadata?.ownership_class || device?.metadata?.oyi?.ownership_class || null,
+            projection_policy: (device as any)?.projection_policy || device?.visibility_policy || device?.metadata?.projection_policy || null,
+            visibility_policy: device?.visibility_policy || null,
+            control_policy: device?.control_policy || null,
             metadata: device?.metadata || {},
           },
           previousState: previousStatus,
@@ -486,6 +494,12 @@ export async function initMqttBridge() {
             health_status: persistedStatus.health_status,
             supported_controls: persistedStatus.supported_controls,
             capability_codes: persistedStatus.capability_codes,
+            estate_id: device?.estate_id || estateId || null,
+            building_id: device?.building_id || device?.metadata?.building_id || null,
+            home_id: device?.home_id || null,
+            room_id: device?.room_id || null,
+            ownership_class: device?.ownership_class || device?.metadata?.ownership_class || device?.metadata?.oyi?.ownership_class || null,
+            projection_policy: (device as any)?.projection_policy || device?.visibility_policy || device?.metadata?.projection_policy || null,
           },
         });
       } catch (err) {

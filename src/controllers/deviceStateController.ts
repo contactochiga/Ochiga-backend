@@ -7,6 +7,7 @@ import { logger } from "../observability/logger";
 import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeRequestStageSync } from "../observability/requestStageTiming";
 import { sendPublicApiError } from "../services/publicApi";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
+import { buildCanonicalDevicePresentation } from "../device/runtime/deviceStateEnrichment";
 import {
   isTechnicalDeviceHiddenFromResidents,
   resolveCanonicalIrChildForProviderRemote,
@@ -51,6 +52,22 @@ function relatedSnapshot(value: unknown) {
   return value && typeof value === "object" ? value as Record<string, any> : null;
 }
 
+async function withRoomName(device: Record<string, any>) {
+  const roomId = String(device?.room_id || "").trim();
+  if (!roomId || !isUuid(roomId)) return device;
+  const { data, error } = await supabaseAdmin
+    .from("rooms")
+    .select("id,name,home_id")
+    .eq("id", roomId)
+    .maybeSingle();
+  if (error || !data) {
+    if (error) logger.warn("device_state_room_lookup_failed", { error, device_id: device?.id, room_id: roomId });
+    return device;
+  }
+  if (device.home_id && data.home_id && String(device.home_id) !== String(data.home_id)) return device;
+  return { ...device, room_name: data.name || null };
+}
+
 async function findDevice(input: { rawId: string; estateId: string; includeSnapshot: boolean }) {
   if (!input.includeSnapshot && isUuid(input.rawId)) {
     const cached = deviceReadScopeCache.get(input.rawId, input.estateId);
@@ -76,6 +93,10 @@ export function buildDeviceStateResponse(input: {
   const { device, runtime, intelligence, timeline } = input;
   const summary = runtime?.summary || null;
   const state = runtime?.state || {};
+  const canonicalState = summary?.canonical_state || null;
+  const presentation = canonicalState
+    ? buildCanonicalDevicePresentation(device, canonicalState, { ...(summary || {}), normalized_state: summary?.normalized_state || {} })
+    : summary?.canonical_presentation || null;
   return {
     deviceId: device.id,
     device_id: device.id,
@@ -102,6 +123,19 @@ export function buildDeviceStateResponse(input: {
     activity_summary: summary?.activity_summary || null,
     channel_definitions: summary?.channel_definitions || [],
     capability_codes: summary?.capability_codes || [],
+    canonical_state: canonicalState,
+    canonicalState,
+    canonical_presentation: presentation,
+    presentation,
+    assignment: presentation?.assignment || {
+      estateId: device.estate_id || null,
+      buildingId: device.building_id || device.metadata?.building_id || null,
+      homeId: device.home_id || null,
+      roomId: device.room_id || null,
+      roomName: device.room_name || null,
+    },
+    room_id: device.room_id || null,
+    room_name: device.room_name || null,
     lastSeen: runtime?.last_refresh || device.last_seen_at || null,
     provider_timestamp: runtime?.provider_timestamp || null,
     runtime_timestamp: runtime?.runtime_timestamp || null,
@@ -175,6 +209,7 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
       if (homeId && String(device.home_id || "") !== String(homeId)) {
         return res.status(403).json({ error: "This device is not assigned to your current home." });
       }
+      device = await timeRequestStage(req, "room_assignment", async () => withRoomName(device));
 
       let runtime = timeRequestStageSync(req, "runtime_memory", () => dependencies.runtime.get(String(device.id)));
       if (runtime) {

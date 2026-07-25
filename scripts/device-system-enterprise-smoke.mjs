@@ -38,18 +38,38 @@ expect(
 );
 expect(
   "src/device/runtime/deviceStateEnrichment.ts",
-  /canonical_state: buildCanonicalDeviceState/,
-  "Frontend summaries must include canonical_state",
+  /const canonicalState = buildCanonicalDeviceState[\s\S]*canonical_state: canonicalState[\s\S]*canonical_presentation: buildCanonicalDevicePresentation/,
+  "Frontend summaries must include one computed canonical_state and canonical_presentation",
+);
+expect(
+  "src/device/runtime/deviceStateEnrichment.ts",
+  /export type CanonicalDevicePresentation[\s\S]*availabilityReason[\s\S]*assignment[\s\S]*roomName[\s\S]*summary/,
+  "Runtime enrichment must expose one canonical presentation contract for Consumer and Facility UI",
+);
+expect(
+  "src/device/runtime/deviceStateEnrichment.ts",
+  /function presentationSummary[\s\S]*Battery[\s\S]*Provider reports offline[\s\S]*Remote ready/,
+  "Presentation summaries must be provider-neutral and device-specific",
 );
 expect(
   "src/services/deviceRuntimeStateService.ts",
-  /canonical_state: entry\.summary\.canonical_state[\s\S]*canonicalState: entry\.summary\.canonical_state/,
-  "Runtime websocket payloads must carry canonical_state",
+  /room_name:[\s\S]*canonical_state: entry\.summary\.canonical_state[\s\S]*canonical_presentation: presentation/,
+  "Runtime websocket payloads must carry canonical_state, canonical_presentation and room metadata",
 );
 expect(
   "src/services/deviceRuntimeStateService.ts",
-  /refreshDeadline[\s\S]*provider_disconnected[\s\S]*nextRefreshAt[\s\S]*device_runtime_scheduler_tick[\s\S]*skipped/,
-  "Runtime scheduler must classify deadlines and log due/skipped behavior",
+  /deterministicJitterMs[\s\S]*refreshDeadline[\s\S]*provider_disconnected[\s\S]*nextRefreshAt[\s\S]*device_runtime_scheduler_tick[\s\S]*refresh_classes/,
+  "Runtime scheduler must classify deadlines, jitter refreshes and log due/skipped behavior",
+);
+expect(
+  "src/controllers/deviceRuntimeStateController.ts",
+  /attachRoomNames[\s\S]*rooms[\s\S]*room_name[\s\S]*canonical_presentation: presentation/,
+  "Runtime dashboard must resolve room names and return canonical presentation",
+);
+expect(
+  "src/controllers/deviceStateController.ts",
+  /withRoomName[\s\S]*room_name[\s\S]*canonical_presentation[\s\S]*presentation/,
+  "Single-device state must resolve room names and return canonical presentation",
 );
 expect(
   "src/services/smartAccessCapabilityService.ts",

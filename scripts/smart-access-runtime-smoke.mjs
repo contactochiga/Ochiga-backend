@@ -98,8 +98,13 @@ expect(
 );
 expect(
   "src/services/deviceOperationalSignalService.ts",
-  /smartAccessDomain[\s\S]*smart_access_private/,
-  "routine resident smart-access events must use the private smart-access domain",
+  /smartAccessDomain[\s\S]*ownership_class[\s\S]*hasHomeScope[\s\S]*smart_access_private/,
+  "routine resident smart-access events must use canonical home/ownership scope for the private smart-access domain",
+);
+expect(
+  "src/services/deviceRuntimeStateService.ts",
+  /estate_id: device\?\.estate_id[\s\S]*home_id: device\?\.home_id[\s\S]*ownership_class/,
+  "Runtime V2 state signals must carry canonical device scope into private-routing policy",
 );
 expect(
   "src/oyi-core/service.ts",

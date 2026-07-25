@@ -1,6 +1,7 @@
 import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import {
+  buildCanonicalDevicePresentation,
   diffEnrichedDeviceState,
   enrichDeviceProviderState,
   sanitizePublicCapabilityCodes,
@@ -107,11 +108,11 @@ const ACTIVE_WINDOW_MS = 60_000;
 const RECENT_WINDOW_MS = 10 * 60_000;
 const SCHEDULER_TICK_MS = 15_000;
 const ACTIVE_REFRESH_INTERVAL_MS = 30_000;
-const RECENT_REFRESH_INTERVAL_MS = 60_000;
-const INACTIVE_REFRESH_INTERVAL_MS = 3 * 60_000;
+const RECENT_REFRESH_INTERVAL_MS = 2 * 60_000;
+const INACTIVE_REFRESH_INTERVAL_MS = 10 * 60_000;
 const PROVIDER_DISCONNECTED_REFRESH_INTERVAL_MS = 15 * 60_000;
-const OFFLINE_REFRESH_INTERVAL_MS = 5 * 60_000;
-const CRITICAL_REFRESH_INTERVAL_MS = 20_000;
+const OFFLINE_REFRESH_INTERVAL_MS = 10 * 60_000;
+const CRITICAL_REFRESH_INTERVAL_MS = 45_000;
 const MAX_CACHE_ENTRIES = 50_000;
 const AUTHORIZATION_BACKOFF_INITIAL_MS = 5 * 60_000;
 const AUTHORIZATION_BACKOFF_MAX_MS = 60 * 60_000;
@@ -155,6 +156,16 @@ function authorizationStateFromState(state: Record<string, any> | null | undefin
   return ["authorized", "authorization_required", "device_not_linked", "unknown"].includes(value)
     ? value as ProviderAuthorizationState
     : "unknown";
+}
+
+function deterministicJitterMs(deviceId: string, intervalMs: number) {
+  if (!deviceId || intervalMs <= 0) return 0;
+  const maxJitter = Math.min(30_000, Math.max(2_000, Math.floor(intervalMs * 0.15)));
+  let hash = 0;
+  for (let i = 0; i < deviceId.length; i += 1) {
+    hash = ((hash << 5) - hash + deviceId.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % maxJitter;
 }
 
 function integrationOwner(device: Record<string, any>) {
@@ -555,6 +566,14 @@ export class DeviceRuntimeStateService {
           vendor: String(device?.vendor || ""),
           adapter: adapterName(device),
           provider: String(device?.provider || device?.vendor || adapterName(device)),
+          estate_id: device?.estate_id || null,
+          building_id: device?.building_id || device?.metadata?.building_id || null,
+          home_id: device?.home_id || null,
+          room_id: device?.room_id || null,
+          ownership_class: device?.ownership_class || device?.metadata?.ownership_class || device?.metadata?.oyi?.ownership_class || null,
+          projection_policy: device?.projection_policy || device?.visibility_policy || device?.metadata?.projection_policy || null,
+          visibility_policy: device?.visibility_policy || null,
+          control_policy: device?.control_policy || null,
           metadata: device?.metadata || {},
         },
         previousState,
@@ -573,6 +592,12 @@ export class DeviceRuntimeStateService {
           health_status: entry.summary.health_status,
           provider_authorization_recovered: authorizationRecovered,
           previous_provider_error: previousProviderError?.classification || null,
+          estate_id: device?.estate_id || null,
+          building_id: device?.building_id || device?.metadata?.building_id || null,
+          home_id: device?.home_id || null,
+          room_id: device?.room_id || null,
+          ownership_class: device?.ownership_class || device?.metadata?.ownership_class || device?.metadata?.oyi?.ownership_class || null,
+          projection_policy: device?.projection_policy || device?.visibility_policy || device?.metadata?.projection_policy || null,
         },
       }).catch((error) => logger.error("device_runtime_signal_failed", { error, device_id: entry.device_id }));
     }
@@ -773,13 +798,17 @@ export class DeviceRuntimeStateService {
       refreshClass = "recently_active";
       interval = RECENT_REFRESH_INTERVAL_MS;
     }
-    const nextRefreshAt = (entry.last_refresh_attempt_ms || new Date(entry.last_refresh).getTime() || now) + interval;
+    const jitterMs = deterministicJitterMs(entry.device_id, interval);
+    const nextRefreshAt = (entry.last_refresh_attempt_ms || new Date(entry.last_refresh).getTime() || now) + interval + jitterMs;
     const due = entry.dirty || (snapshot.stale && ageSinceAttempt >= interval && now >= nextRefreshAt);
-    return { due, refreshClass, interval, nextRefreshAt, ageSinceAttempt };
+    return { due, refreshClass, interval, jitterMs, nextRefreshAt, ageSinceAttempt };
   }
 
   private websocketPayload(entry: RuntimeEntry, source: string, providerEventId?: string | null, event?: Record<string, any> | null) {
     const snapshot = this.snapshot(entry);
+    const presentation = entry.summary.canonical_state
+      ? buildCanonicalDevicePresentation(entry.device, entry.summary.canonical_state, { ...entry.summary, normalized_state: entry.summary.normalized_state })
+      : entry.summary.canonical_presentation || null;
     return {
       deviceId: entry.device_id,
       device_id: entry.device_id,
@@ -790,11 +819,14 @@ export class DeviceRuntimeStateService {
       homeId: entry.device?.home_id || null,
       room_id: entry.device?.room_id || null,
       roomId: entry.device?.room_id || null,
+      room_name: entry.device?.room_name || entry.device?.metadata?.room_name || null,
       state: entry.state,
       summary: entry.summary,
       normalized_state: entry.summary.normalized_state,
       canonical_state: entry.summary.canonical_state,
       canonicalState: entry.summary.canonical_state,
+      canonical_presentation: presentation,
+      presentation,
       primary_state: entry.summary.primary_state,
       health_status: entry.summary.health_status,
       provider_health: entry.summary.provider_health,
@@ -853,6 +885,11 @@ export class DeviceRuntimeStateService {
         skipped,
         fresh,
         suppressed,
+        refresh_classes: Array.from(this.cache.values()).reduce((acc, entry) => {
+          const key = entry.refresh_class || "unclassified";
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
         queue: this.queue.stats(),
       });
     }
