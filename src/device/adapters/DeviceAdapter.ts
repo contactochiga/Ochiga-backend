@@ -54,6 +54,27 @@ export interface DeviceAdapter {
     context: AdapterContext
   ): Promise<void>;
 
+  /** Optional provider evidence for capability-driven smart access devices. */
+  discoverCapabilities?(deviceId: string, context?: AdapterContext): Promise<Record<string, any>>;
+
+  /** Optional provider-normalized smart access state. */
+  readSmartAccessState?(deviceId: string, context?: AdapterContext): Promise<Record<string, any>>;
+
+  /** Optional provider access-record lookup for smart access devices. */
+  listAccessRecords?(deviceId: string, context?: AdapterContext): Promise<any[]>;
+
+  /** Optional provider member lookup for smart access devices. */
+  listMembers?(deviceId: string, context?: AdapterContext): Promise<any[]>;
+
+  /** Optional provider-backed credential creation for smart access devices. */
+  createCredential?(deviceId: string, credential: Record<string, any>, context?: AdapterContext): Promise<Record<string, any>>;
+
+  /** Optional provider-backed credential revocation for smart access devices. */
+  revokeCredential?(deviceId: string, credentialId: string, context?: AdapterContext): Promise<Record<string, any>>;
+
+  /** Optional short-lived media session for camera/doorbell-enabled access devices. */
+  requestMediaSession?(deviceId: string, context?: AdapterContext): Promise<Record<string, any>>;
+
   /**
    * Start listening to device events / state changes
    * Adapter MUST emit Signals into Control Plane

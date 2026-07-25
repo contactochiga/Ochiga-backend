@@ -19,6 +19,7 @@ import {
   getLegacyProviderAccountId,
   markProviderConnectionSync,
 } from "./providerConnectionService";
+import { persistSmartAccessSnapshot } from "./smartAccessCapabilityService";
 
 type TuyaSyncActor = {
   id: string;
@@ -83,6 +84,19 @@ function isProviderVirtualRemoteDiscovery(discoveredDevice: any) {
     discoveredDevice?.category,
   ).toLowerCase();
   return ["infrared_tv", "infrared_ac", "infrared_fan", "infrared_stb", "infrared_projector"].includes(category);
+}
+
+function isSmartAccessDiscovery(discoveredDevice: any) {
+  const haystack = [
+    discoveredDevice?.category,
+    discoveredDevice?.metadata?.raw?.category,
+    discoveredDevice?.metadata?.device_family,
+    discoveredDevice?.metadata?.control_profile,
+    discoveredDevice?.metadata?.product_name,
+    discoveredDevice?.metadata?.model,
+    discoveredDevice?.name,
+  ].map((item) => String(item || "").toLowerCase()).join(" ");
+  return /\b(lock|doorlock|smart_lock|door_lock|jtms|jtmspro|jtmsbh|ms|access_control)\b/.test(haystack);
 }
 
 async function audit(actor: TuyaSyncActor, action: string, status: "success" | "failed", metadata: Record<string, any>, req?: Request, resourceId = "tuya") {
@@ -252,6 +266,15 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
           continue;
         }
         added += 1;
+        if (isSmartAccessDiscovery(discoveredDevice)) {
+          await persistSmartAccessSnapshot(data, { source: "tuya_registry_sync" }).catch((error) => {
+            logger.warn("tuya_registry_smart_access_snapshot_failed", {
+              device_id: data?.id || null,
+              external_id: externalId,
+              error: error?.message || "snapshot_failed",
+            });
+          });
+        }
         await audit(actor, "integration.tuya.device.added", "success", { external_id: externalId, assigned: false }, req, data.id);
         emitRegistrySignals(actor, data, "added");
         continue;
@@ -274,7 +297,25 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
         errors.push(`${providerName}: ${error.message}`);
         continue;
       }
+      if (isSmartAccessDiscovery(discoveredDevice) && (!data?.metadata?.smart_access || cleanStr(data?.metadata?.smart_access?.raw_fingerprint) === "")) {
+        await persistSmartAccessSnapshot(data, { source: "tuya_registry_sync" }).catch((snapshotError) => {
+          logger.warn("tuya_registry_smart_access_snapshot_failed", {
+            device_id: data?.id || null,
+            external_id: externalId,
+            error: snapshotError?.message || "snapshot_failed",
+          });
+        });
+      }
       if (comparable(existing) !== comparable(row)) {
+        if (isSmartAccessDiscovery(discoveredDevice)) {
+          await persistSmartAccessSnapshot(data, { source: "tuya_registry_sync" }).catch((error) => {
+            logger.warn("tuya_registry_smart_access_snapshot_failed", {
+              device_id: data?.id || null,
+              external_id: externalId,
+              error: error?.message || "snapshot_failed",
+            });
+          });
+        }
         await audit(actor, "integration.tuya.device.updated", "success", { external_id: externalId, assigned: Boolean(data.home_id) }, req, data.id);
         emitRegistrySignals(actor, data, "updated");
       }

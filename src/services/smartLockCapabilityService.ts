@@ -1,4 +1,5 @@
 import { summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
+import { buildSmartAccessProfile } from "./smartAccessCapabilityService";
 
 function clean(value: any) {
   return String(value ?? "").trim().toLowerCase();
@@ -16,6 +17,7 @@ const LOCK_CATEGORY_HINTS = new Set([
 
 export function summarizeSmartLockCapabilities(device: any, stateRow?: any | null) {
   const summary = summarizeDeviceFrontendContract(device || {}, stateRow || null);
+  const smartAccess = buildSmartAccessProfile(device || {}, stateRow || null);
   const family = clean(summary.device_family);
   const profile = clean(summary.control_profile);
   const category = clean(device?.metadata?.raw?.category || device?.metadata?.category || device?.category || device?.type);
@@ -30,41 +32,26 @@ export function summarizeSmartLockCapabilities(device: any, stateRow?: any | nul
   }
 
   const isLock =
+    smartAccess.is_smart_access ||
     family === "lock" ||
     profile === "lock" ||
     LOCK_CATEGORY_HINTS.has(category) ||
     Array.from(capabilityCodes).some((code) => /lock|door|unlock|temporary|password|fingerprint|tamper|hijack|battery/.test(code));
 
-  const canRemoteLock =
-    isLock &&
-    (
-      controls.has("lock") ||
-      controls.has("remote_lock") ||
-      capabilityCodes.has("remote_lock") ||
-      capabilityCodes.has("lock") ||
-      capabilityCodes.has("switch")
-    );
-  const canRemoteUnlock =
-    isLock &&
-    (
-      controls.has("unlock") ||
-      controls.has("remote_unlock") ||
-      capabilityCodes.has("remote_unlock") ||
-      capabilityCodes.has("unlock") ||
-      capabilityCodes.has("lock") ||
-      capabilityCodes.has("switch")
-    );
+  const canRemoteLock = isLock && smartAccess.capabilities?.control?.lock?.status === "supported";
+  const canRemoteUnlock = isLock && smartAccess.capabilities?.control?.unlock?.status === "supported";
 
   return {
     is_lock: isLock,
-    device_family: isLock ? "lock" : summary.device_family,
-    control_profile: isLock ? "lock" : summary.control_profile,
+    device_family: isLock ? "smart_access" : summary.device_family,
+    control_profile: isLock ? "smart_access" : summary.control_profile,
     can_remote_lock: canRemoteLock,
     can_remote_unlock: canRemoteUnlock,
     supported_controls: Array.from(new Set([
       ...(summary.supported_controls || []),
-      ...(isLock ? ["lock_state", canRemoteLock ? "lock" : null, canRemoteUnlock ? "unlock" : null] : []),
+      ...(isLock ? ["smart_access", "lock_state", canRemoteLock ? "lock" : null, canRemoteUnlock ? "unlock" : null] : []),
     ].filter(Boolean) as string[])),
+    smart_access: smartAccess,
     capability_codes: Array.from(capabilityCodes),
   };
 }

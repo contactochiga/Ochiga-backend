@@ -13,6 +13,14 @@ import { auditOnSuccess } from "../middleware/audit";
 import { summarizeDeviceRuntime } from "../services/deviceRuntimeSessionsService";
 import { getDeviceRuntimeDashboard } from "../controllers/deviceRuntimeStateController";
 import { getTuyaAuthorizationDiagnostics } from "../controllers/tuyaAuthorizationDiagnosticsController";
+import {
+  createSmartAccessCredential,
+  getSmartAccessCredentials,
+  getSmartAccessDevice,
+  getSmartAccessRecords,
+  refreshSmartAccessDevice,
+  requestSmartAccessMediaSession,
+} from "../controllers/smartAccessController";
 
 const router = Router();
 
@@ -92,6 +100,12 @@ router.get("/home/:homeId/runtime", requireAuth, resolveRequestContext, requireP
 
 router.get("/:deviceId/ir/profiles", requireAuth, resolveRequestContext, requirePermission("devices.read"), listIrProfiles);
 router.post("/:deviceId/ir/appliances", requireAuth, resolveRequestContext, requirePermission("devices.control"), createIrAppliance);
+router.get("/:deviceId/smart-access", requireAuth, resolveRequestContext, requirePermission("devices.read"), getSmartAccessDevice);
+router.post("/:deviceId/smart-access/refresh", requireAuth, resolveRequestContext, requirePermission("devices.read"), refreshSmartAccessDevice);
+router.get("/:deviceId/smart-access/records", requireAuth, resolveRequestContext, requirePermission("devices.read"), getSmartAccessRecords);
+router.get("/:deviceId/smart-access/credentials", requireAuth, resolveRequestContext, requirePermission("devices.read"), getSmartAccessCredentials);
+router.post("/:deviceId/smart-access/credentials", requireAuth, resolveRequestContext, requirePermission("devices.control"), createSmartAccessCredential);
+router.post("/:deviceId/smart-access/media/session", requireAuth, resolveRequestContext, requirePermission("devices.read"), requestSmartAccessMediaSession);
 router.post("/:deviceId/command", requireAuth, resolveRequestContext, requirePermission("devices.control"), requestDeviceCommand);
 router.get("/:deviceId/state", requireDeviceRuntimeReadAuth, resolveDeviceRuntimeContext, requirePermission("devices.read"), getDeviceState);
 

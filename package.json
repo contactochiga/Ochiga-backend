@@ -72,13 +72,14 @@
     "smoke:device-access-grants": "node scripts/enterprise-device-ownership-smoke.mjs",
     "smoke:tuya-locks": "node scripts/enterprise-device-ownership-smoke.mjs",
     "smoke:lock-security": "node scripts/enterprise-device-ownership-smoke.mjs",
+    "smoke:smart-access": "node scripts/smart-access-runtime-smoke.mjs",
     "smoke:multi-home-integrations": "node scripts/enterprise-device-ownership-smoke.mjs",
     "smoke:socket-scope": "node scripts/enterprise-device-ownership-smoke.mjs",
     "smoke:inventory-reconciliation": "node scripts/enterprise-device-ownership-smoke.mjs",
     "smoke:device-scale": "node scripts/enterprise-device-ownership-smoke.mjs",
     "validate:env": "node scripts/validate-env.mjs",
     "validate:security": "node scripts/validate-security.mjs",
-    "validate:release": "node scripts/validate-release.mjs && npm run smoke:release-closure && npm run smoke:release-stabilization && npm run smoke:service-provisioning && npm run smoke:electricity-purchase && npm run smoke:device-schema && npm run smoke:device-runtime-v2 && npm run smoke:device-fast-state && npm run smoke:tuya-authorization && npm run smoke:device-control-matrix && npm run smoke:tuya-ir-inventory && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence && npm run smoke:infrastructure-onboarding && npm run smoke:operational-object-context && npm run smoke:canonical-truth && npm run smoke:compatibility-delegation && npm run smoke:wallet-funding && npm run smoke:wallet-webhook-idempotency && npm run smoke:wallet-receipt && npm run smoke:wallet-notification && npm run smoke:wallet-return-flow"
+    "validate:release": "node scripts/validate-release.mjs && npm run smoke:release-closure && npm run smoke:release-stabilization && npm run smoke:service-provisioning && npm run smoke:electricity-purchase && npm run smoke:device-schema && npm run smoke:device-runtime-v2 && npm run smoke:device-fast-state && npm run smoke:tuya-authorization && npm run smoke:device-control-matrix && npm run smoke:tuya-ir-inventory && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence && npm run smoke:infrastructure-onboarding && npm run smoke:operational-object-context && npm run smoke:canonical-truth && npm run smoke:compatibility-delegation && npm run smoke:wallet-funding && npm run smoke:wallet-webhook-idempotency && npm run smoke:wallet-receipt && npm run smoke:wallet-notification && npm run smoke:wallet-return-flow && npm run smoke:smart-access"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

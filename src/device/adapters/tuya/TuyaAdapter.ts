@@ -1019,6 +1019,54 @@ export class TuyaAdapter implements DeviceAdapter {
     return out;
   }
 
+  async discoverCapabilities(deviceId: string, _context?: AdapterContext): Promise<Record<string, any>> {
+    const startedAt = Date.now();
+    const schema = await this.getDeviceSchema(deviceId);
+    const metadata: Record<string, any> = await this.getCachedDeviceMetadata(deviceId).catch(() => ({}));
+    logger.info("tuya_smart_access_capability_evidence", {
+      device_id: deviceId,
+      real_category: metadata?.raw?.category || metadata?.category || null,
+      product_name: metadata?.raw?.product_name || metadata?.product_name || null,
+      model: metadata?.raw?.model || metadata?.model || null,
+      function_codes: Object.keys(schema.functionsByCode),
+      latency_ms: Date.now() - startedAt,
+    });
+    return {
+      provider: "tuya",
+      category: metadata?.raw?.category || metadata?.category || null,
+      product_id: metadata?.raw?.product_id || metadata?.product_id || null,
+      product_name: metadata?.raw?.product_name || metadata?.product_name || null,
+      model: metadata?.raw?.model || metadata?.model || null,
+      functions: schema.functions,
+      function_codes: Object.keys(schema.functionsByCode),
+      source: "tuya_functions_schema",
+    };
+  }
+
+  async readSmartAccessState(deviceId: string, _context?: AdapterContext): Promise<Record<string, any>> {
+    return this.getLiveState(deviceId);
+  }
+
+  async listAccessRecords(_deviceId: string, _context?: AdapterContext): Promise<any[]> {
+    throw new Error("Tuya access-record lookup is not enabled for this project.");
+  }
+
+  async listMembers(_deviceId: string, _context?: AdapterContext): Promise<any[]> {
+    throw new Error("Tuya member lookup is not enabled for this project.");
+  }
+
+  async createCredential(_deviceId: string, _credential: Record<string, any>, _context?: AdapterContext): Promise<Record<string, any>> {
+    throw new Error("Tuya credential creation is not enabled for this project.");
+  }
+
+  async revokeCredential(_deviceId: string, _credentialId: string, _context?: AdapterContext): Promise<Record<string, any>> {
+    throw new Error("Tuya credential revocation is not enabled for this project.");
+  }
+
+  async requestMediaSession(_deviceId: string, _context?: AdapterContext): Promise<Record<string, any>> {
+    throw new Error("This Tuya access device does not expose an Oyi media session.");
+  }
+
   /* ------------------------------------------------
    * COMMAND
    * ------------------------------------------------ */
