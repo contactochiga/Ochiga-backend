@@ -47,6 +47,16 @@ expect(
   "Runtime websocket payloads must carry canonical_state",
 );
 expect(
+  "src/services/deviceRuntimeStateService.ts",
+  /refreshDeadline[\s\S]*provider_disconnected[\s\S]*nextRefreshAt[\s\S]*device_runtime_scheduler_tick[\s\S]*skipped/,
+  "Runtime scheduler must classify deadlines and log due/skipped behavior",
+);
+expect(
+  "src/services/smartAccessCapabilityService.ts",
+  /function lockOperationMatrix[\s\S]*bluetooth_unlock[\s\S]*fingerprint_enrol_delete[\s\S]*operation_matrix: lockOperationMatrix/,
+  "Smart Access profiles must expose an operation matrix with native/physical blockers",
+);
+expect(
   "src/controllers/deviceRuntimeStateController.ts",
   /canonical_state: canonicalState[\s\S]*provider_requests: 0/,
   "Runtime dashboard must return canonical_state without provider reads",

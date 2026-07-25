@@ -155,7 +155,7 @@ async function touchPresence(user: any, req?: Request) {
   if (scope.homeId) {
     ({ error } = await supabaseAdmin
       .from("user_presence")
-      .upsert(payload as any, { onConflict: "user_id,home_id" }));
+      .upsert(payload as any, { onConflict: scope.homeId ? "user_id,home_id" : "user_id" }));
   } else {
     const existing = await supabaseAdmin
       .from("user_presence")

@@ -607,9 +607,14 @@ function activitySummary(args: { name?: string | null; primaryState: string; hea
   const name = text(args.name, "Device");
   if (args.healthStatus === "offline") return `${name} is offline.`;
   if (args.healthStatus === "degraded") return `${name} reported a device fault.`;
+  if (args.healthStatus === "battery_low") return `${name} battery is low.`;
   if (args.primaryState === "on") return `${name} is active.`;
   if (args.primaryState === "off") return `${name} is idle.`;
-  return `${name} reported a new device update.`;
+  if (args.primaryState === "locked") return `${name} is locked.`;
+  if (args.primaryState === "unlocked") return `${name} is unlocked.`;
+  if (args.deviceFamily === "ir_remote") return `${name} remote is ready.`;
+  if (args.primaryState === "reporting") return `${name} is reporting normally.`;
+  return `${name} state is available.`;
 }
 
 export function enrichDeviceProviderState(input: {

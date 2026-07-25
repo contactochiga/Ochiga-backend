@@ -38,12 +38,16 @@ export type DeviceRuntimeSnapshot = {
   provider_warning: string | null;
   retry_after: string | null;
   last_successful_refresh: string | null;
+  next_refresh_at?: string | null;
+  refresh_class?: string | null;
 };
 
 type RuntimeEntry = Omit<DeviceRuntimeSnapshot, "stale" | "freshness" | "age_ms"> & {
   device: Record<string, any>;
   accessed_at_ms: number;
   last_refresh_attempt_ms?: number;
+  next_refresh_at_ms?: number;
+  refresh_class?: "currently_viewed" | "recently_commanded" | "active_critical" | "active_normal" | "recently_active" | "inactive" | "offline" | "provider_disconnected";
 };
 
 type DeviceRuntimeStateDependencies = {
@@ -105,6 +109,9 @@ const SCHEDULER_TICK_MS = 15_000;
 const ACTIVE_REFRESH_INTERVAL_MS = 30_000;
 const RECENT_REFRESH_INTERVAL_MS = 60_000;
 const INACTIVE_REFRESH_INTERVAL_MS = 3 * 60_000;
+const PROVIDER_DISCONNECTED_REFRESH_INTERVAL_MS = 15 * 60_000;
+const OFFLINE_REFRESH_INTERVAL_MS = 5 * 60_000;
+const CRITICAL_REFRESH_INTERVAL_MS = 20_000;
 const MAX_CACHE_ENTRIES = 50_000;
 const AUTHORIZATION_BACKOFF_INITIAL_MS = 5 * 60_000;
 const AUTHORIZATION_BACKOFF_MAX_MS = 60 * 60_000;
@@ -734,7 +741,41 @@ export class DeviceRuntimeStateService {
       provider_warning: entry.provider_warning,
       retry_after: entry.retry_after,
       last_successful_refresh: entry.last_successful_refresh,
+      next_refresh_at: entry.next_refresh_at_ms ? new Date(entry.next_refresh_at_ms).toISOString() : null,
+      refresh_class: entry.refresh_class || null,
     };
+  }
+
+  private refreshDeadline(entry: RuntimeEntry, snapshot: DeviceRuntimeSnapshot, now: number) {
+    const providerDisconnected = ["authorization_required", "degraded"].includes(String(snapshot.summary.provider_health || "")) || Boolean(snapshot.retry_after);
+    const offline = snapshot.summary.provider_health === "offline" || snapshot.summary.health_status === "offline" || snapshot.summary.canonical_state?.availability === "offline";
+    const critical = String(snapshot.summary.device_family || "").match(/lock|camera|security/) || snapshot.summary.canonical_state?.batteryLevel === "critical";
+    const ageSinceAccess = now - entry.accessed_at_ms;
+    const ageSinceAttempt = now - (entry.last_refresh_attempt_ms || 0);
+    let refreshClass: NonNullable<RuntimeEntry["refresh_class"]> = "inactive";
+    let interval = INACTIVE_REFRESH_INTERVAL_MS;
+    if (providerDisconnected) {
+      refreshClass = "provider_disconnected";
+      interval = PROVIDER_DISCONNECTED_REFRESH_INTERVAL_MS;
+    } else if (offline) {
+      refreshClass = "offline";
+      interval = OFFLINE_REFRESH_INTERVAL_MS;
+    } else if (critical && ageSinceAccess <= ACTIVE_WINDOW_MS) {
+      refreshClass = "active_critical";
+      interval = CRITICAL_REFRESH_INTERVAL_MS;
+    } else if (entry.dirty) {
+      refreshClass = "recently_commanded";
+      interval = 0;
+    } else if (ageSinceAccess <= ACTIVE_WINDOW_MS) {
+      refreshClass = "currently_viewed";
+      interval = ACTIVE_REFRESH_INTERVAL_MS;
+    } else if (ageSinceAccess <= RECENT_WINDOW_MS) {
+      refreshClass = "recently_active";
+      interval = RECENT_REFRESH_INTERVAL_MS;
+    }
+    const nextRefreshAt = (entry.last_refresh_attempt_ms || new Date(entry.last_refresh).getTime() || now) + interval;
+    const due = entry.dirty || (snapshot.stale && ageSinceAttempt >= interval && now >= nextRefreshAt);
+    return { due, refreshClass, interval, nextRefreshAt, ageSinceAttempt };
   }
 
   private websocketPayload(entry: RuntimeEntry, source: string, providerEventId?: string | null, event?: Record<string, any> | null) {
@@ -775,22 +816,46 @@ export class DeviceRuntimeStateService {
 
   private refreshActiveEntries() {
     const now = this.now();
+    let evaluated = 0;
+    let suppressed = 0;
+    let fresh = 0;
+    let skipped = 0;
     const candidates = Array.from(this.cache.values())
       .filter((entry) => {
-        if (this.isRefreshSuppressed(entry.device_id)) return false;
-        if (entry.dirty) return true;
+        evaluated += 1;
+        if (this.isRefreshSuppressed(entry.device_id)) {
+          suppressed += 1;
+          return false;
+        }
         const snapshot = this.snapshot(entry);
-        if (!snapshot.stale) return false;
-        const ageSinceAccess = now - entry.accessed_at_ms;
-        const ageSinceAttempt = now - (entry.last_refresh_attempt_ms || 0);
-        const offline = snapshot.summary.provider_health === "offline" || snapshot.summary.health_status === "offline";
-        if (offline) return ageSinceAttempt >= INACTIVE_REFRESH_INTERVAL_MS;
-        if (ageSinceAccess <= ACTIVE_WINDOW_MS) return ageSinceAttempt >= ACTIVE_REFRESH_INTERVAL_MS;
-        if (ageSinceAccess <= RECENT_WINDOW_MS) return ageSinceAttempt >= RECENT_REFRESH_INTERVAL_MS;
-        return snapshot.freshness === "expired" && ageSinceAttempt >= INACTIVE_REFRESH_INTERVAL_MS;
+        const deadline = this.refreshDeadline(entry, snapshot, now);
+        entry.refresh_class = deadline.refreshClass;
+        entry.next_refresh_at_ms = deadline.nextRefreshAt;
+        if (!snapshot.stale && !entry.dirty) {
+          fresh += 1;
+          return false;
+        }
+        if (!deadline.due) {
+          skipped += 1;
+          return false;
+        }
+        return true;
       })
       .sort((a, b) => Number(b.dirty) - Number(a.dirty) || a.accessed_at_ms - b.accessed_at_ms)
       .slice(0, 25);
+    operationalMetrics.gauge("oyi_device_runtime_scheduler_evaluated", evaluated);
+    operationalMetrics.gauge("oyi_device_runtime_scheduler_due", candidates.length);
+    operationalMetrics.gauge("oyi_device_runtime_scheduler_skipped", skipped + fresh + suppressed);
+    if (evaluated || candidates.length) {
+      logger.debug("device_runtime_scheduler_tick", {
+        evaluated,
+        due: candidates.length,
+        skipped,
+        fresh,
+        suppressed,
+        queue: this.queue.stats(),
+      });
+    }
     for (const entry of candidates) {
       void this.refresh(entry.device, entry.dirty ? "high" : "normal", "background")
         .catch((error) => logger.warn("device_runtime_background_refresh_failed", { error, device_id: entry.device_id }));

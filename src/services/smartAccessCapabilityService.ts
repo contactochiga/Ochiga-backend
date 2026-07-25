@@ -117,6 +117,48 @@ function smartAccessFamily(device: any, summary: any, codes: Set<string>) {
   return /\b(lock|doorlock|smart_lock|door_lock|jtms|jtmspro|jtmsbh|ms|access_control|unlock|temporary|password|fingerprint)\b/.test(haystack);
 }
 
+function lockOperationMatrix(codes: Set<string>, capabilities: any) {
+  const has = (pattern: RegExp) => Array.from(codes).some((code) => pattern.test(code));
+  const statusFor = (implemented: boolean, declared: boolean, blocker: string) => ({
+    provider_declared: declared,
+    cloud_api_exists: implemented,
+    project_permission_available: implemented,
+    gateway_required: /gateway/.test(blocker),
+    bluetooth_required: /bluetooth|ble/.test(blocker),
+    native_sdk_required: /native|sdk|bluetooth|ble/.test(blocker),
+    physical_confirmation_required: /physical|fingerprint|card|enrol/.test(blocker),
+    implemented,
+    executable: implemented,
+    live_verified: false,
+    blocker: implemented ? "Live verification required before high-risk operation is marked verified." : blocker,
+  });
+  const remoteLock = capabilities?.control?.lock;
+  const remoteUnlock = capabilities?.control?.unlock;
+  return [
+    ["remote_lock", statusFor(remoteLock?.executableByOyi === true, remoteLock?.declaredByProvider === true, "No safe Tuya cloud lock mapping is enabled for this project connection.")],
+    ["remote_unlock", statusFor(remoteUnlock?.executableByOyi === true, remoteUnlock?.declaredByProvider === true, "No safe Tuya cloud unlock mapping is enabled. Tuya lock remote unlock can require Smart Lock Open Service permission and Remote Unlock enabled in Smart Life.")],
+    ["bluetooth_unlock", statusFor(false, has(/unlock_ble|ble_unlock|bluetooth/), "Bluetooth unlock requires Tuya native/BLE lock SDK, local proximity, and secure native key storage.")],
+    ["custom_pin", statusFor(false, has(/password|temporary_password|unlock_password/), "PIN management requires Tuya Smart Lock API/SDK credential workflow and must not be enabled from DP declaration alone.")],
+    ["time_limited_pin", statusFor(false, has(/temporary_password|offline_time|schedule/), "Time-limited PINs require provider credential APIs and live permission verification.")],
+    ["one_time_pin", statusFor(false, has(/dynamic|one_time|unlock_dynamic/), "One-time/dynamic PINs require provider lock SDK support and live verification.")],
+    ["offline_pin", statusFor(false, has(/offline|unlock_offline/), "Offline PIN operations require provider lock SDK/API support and secure local handling.")],
+    ["pin_modify_delete", statusFor(false, has(/password.*modify|password.*delete|temporary_password_modify|temporary_password_delete/), "PIN modification/deletion requires provider credential APIs; Oyi will not infer it from schema codes.")],
+    ["member_create_delete", statusFor(false, has(/member|user|family|guest/), "Member management requires provider lock/member API support; lock members are not Oyi residents automatically.")],
+    ["fingerprint_enrol_delete", statusFor(false, has(/fingerprint/), "Fingerprint enrolment/deletion usually requires physical lock interaction and/or native SDK support.")],
+    ["card_enrol_delete", statusFor(false, has(/card/), "Card enrolment/deletion usually requires physical lock interaction and/or native SDK support.")],
+    ["access_records", statusFor(false, capabilities?.history?.access_records?.declaredByProvider === true, "Access records require a readable provider history API or webhook/event subscription.")],
+    ["lock_alarms", statusFor(capabilities?.security?.tamper?.readableByOyi === true, capabilities?.security?.tamper?.declaredByProvider === true, "Alarm evidence is provider-declared until status/event delivery is verified.")],
+    ["doorbell", statusFor(false, capabilities?.doorbell?.events?.declaredByProvider === true, "Doorbell support requires event subscription/webhook/status verification.")],
+    ["auto_lock", statusFor(false, capabilities?.settings?.auto_lock?.declaredByProvider === true, "Auto-lock configuration requires a safe provider setting API.")],
+    ["passage_mode", statusFor(false, capabilities?.settings?.passage_mode?.declaredByProvider === true, "Passage mode requires a safe provider setting API.")],
+    ["reverse_lock", statusFor(false, has(/reverse_lock/), "Reverse-lock state/configuration requires provider-specific support verification.")],
+    ["beep_volume", statusFor(false, has(/beep_volume|volume/), "Beep volume requires a safe provider setting API.")],
+    ["lock_clock", statusFor(false, has(/rtc_lock|clock|time/), "Lock clock sync requires provider setting support.")],
+    ["battery", statusFor(capabilities?.state?.battery?.readableByOyi === true, capabilities?.state?.battery?.declaredByProvider === true, "Battery is unavailable until provider state read succeeds.")],
+    ["motor_state", statusFor(capabilities?.state?.security?.readableByOyi === true, has(/lock_motor_state/), "Motor state is provider-declared until readable state delivery is verified.")],
+  ].map(([operation, details]) => ({ operation, ...(details as Record<string, any>) }));
+}
+
 export function buildSmartAccessProfile(device: any, stateRow?: any | null) {
   const summary = summarizeDeviceFrontendContract(device || {}, stateRow || null);
   const metadata = record(device?.metadata);
@@ -238,6 +280,7 @@ export function buildSmartAccessProfile(device: any, stateRow?: any | null) {
     capabilities,
     supported_controls: smartAccessSupportedControls(capabilities),
     capability_codes: Array.from(codes).sort(),
+    operation_matrix: lockOperationMatrix(codes, capabilities),
     state,
     evidence,
     confidence: {

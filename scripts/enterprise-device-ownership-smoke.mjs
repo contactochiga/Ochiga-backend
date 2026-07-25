@@ -32,8 +32,8 @@ expect(
 );
 expect(
   "src/device/adapters/tuya/TuyaAdapter.ts",
-  /wantsLock[\s\S]*remote_unlock[\s\S]*lock_switch/,
-  "Tuya adapter must map lock commands before generic power commands",
+  /wantsLock[\s\S]*desiredLocked[\s\S]*\? \["lock", "remote_lock"\][\s\S]*: \["unlock", "remote_unlock"\][\s\S]*wantsPower/,
+  "Tuya adapter must map explicit lock commands before generic power commands",
 );
 expect(
   "src/server.ts",
