@@ -403,7 +403,14 @@ function inferSupportedControls(deviceFamily: string, codes: string[]) {
     controls.add("stream");
     controls.add("snapshot");
   }
-  if (deviceFamily === "lock") controls.add("lock");
+  if (deviceFamily === "lock") {
+    controls.add("lock_state");
+    if (codes.some((code) => /(^|_)lock($|_)|switch/.test(code))) controls.add("lock");
+    if (codes.some((code) => /unlock|remote_no_dp_key|switch/.test(code))) controls.add("unlock");
+    if (codes.some((code) => /battery|electricity/.test(code))) controls.add("battery_level");
+    if (codes.some((code) => /tamper|hijack|alarm|wrong|trial|attempt|jam/.test(code))) controls.add("security_event");
+    if (codes.some((code) => /record|history|log/.test(code))) controls.add("operation_history");
+  }
   if (deviceFamily === "curtain") controls.add("position");
   if (deviceFamily === "ir_remote") {
     controls.add("remote");

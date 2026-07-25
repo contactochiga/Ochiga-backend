@@ -926,6 +926,10 @@ export class TuyaAdapter implements DeviceAdapter {
       "on" in (command || {}) ||
       "state" in (command || {}) ||
       "switch" in (command || {});
+    const wantsLock =
+      "lock" in (command || {}) ||
+      "locked" in (command || {}) ||
+      "unlock" in (command || {});
 
     const channelRaw = (command as any)?.channel ?? (command as any)?.gang ?? null;
     const channel = channelRaw == null ? null : Number(channelRaw);
@@ -941,6 +945,26 @@ export class TuyaAdapter implements DeviceAdapter {
 
       const fn = schema.functionsByCode[code];
       out.push({ code, value: this.coerceValueByFunction(fn, value) });
+    }
+
+    // 2) Lock mapping. Tuya lock models vary widely, so use the provider
+    // schema first and only target functions the device actually exposes.
+    if (wantsLock && out.length === 0) {
+      const raw =
+        (command as any)?.lock ??
+        (command as any)?.locked ??
+        ((command as any)?.unlock === true ? false : undefined);
+      const desiredLocked = toBool(raw);
+      const candidates = desiredLocked
+        ? ["lock", "remote_lock", "lock_switch", "switch"]
+        : ["unlock", "remote_unlock", "unlock_switch", "remote_no_dp_key", "switch"];
+      for (const code of candidates) {
+        const fn = schema.functionsByCode[code];
+        if (!fn) continue;
+        const value = code === "switch" ? desiredLocked : this.coerceValueByFunction(fn, desiredLocked);
+        out.push({ code, value });
+        break;
+      }
     }
 
     // 2) Power mapping

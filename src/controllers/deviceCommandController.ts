@@ -13,6 +13,7 @@ import { emitOperationalDeviceSignal } from "../services/deviceOperationalSignal
 import { enrichDeviceProviderState, summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
 import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
 import { logger } from "../observability/logger";
+import { assertSmartLockCommandAllowed, summarizeSmartLockCapabilities } from "../services/smartLockCapabilityService";
 
 function textFromDevice(device: any) {
   return [
@@ -52,7 +53,8 @@ function deviceCommandFamily(device: any) {
   if (deviceFamily === "television" || profile === "television" || profile === "tv" || /\b(tv|television|smart tv|android tv|google tv|samsung tv|lg tv|hisense tv|tcl|set top|set_top_box|decoder|stb)\b/.test(identity)) return "tv";
   if (deviceFamily === "ir_remote" || profile === "ir_remote" || controls.includes("remote")) return "ir";
   if (deviceFamily === "curtain" || profile === "curtain") return "curtain";
-  if (deviceFamily === "lock" || profile === "lock") return "lock";
+  const lockSummary = summarizeSmartLockCapabilities(device);
+  if (lockSummary.is_lock || deviceFamily === "lock" || profile === "lock") return "lock";
   if (deviceFamily === "switch" || deviceFamily === "plug" || deviceFamily === "light" || profile === "switch" || profile === "plug") return "switch";
   if (capabilityCodes.some((code) => /^switch(_\d+)?$/.test(code)) && !controls.includes("remote")) return "switch";
   return "unknown";
@@ -128,7 +130,17 @@ function assertDeviceCommandSupported(device: any, command: Record<string, any>)
     }
     return;
   }
-  if (family === "curtain" || family === "lock") return;
+  if (family === "curtain") return;
+  if (family === "lock") {
+    assertSmartLockCommandAllowed(device, command);
+    const keys = commandKeys(command);
+    if (!keys.some((key: string) => /lock|unlock|switch|state/.test(key))) {
+      const error: any = new Error("This lock does not support that action.");
+      error.statusCode = 400;
+      throw error;
+    }
+    return;
+  }
   if (family === "camera") {
     const error: any = new Error("This device does not support switch control.");
     error.statusCode = 400;
@@ -169,6 +181,28 @@ function normalizeCommand(input: any, device?: any): Record<string, any> {
     if (next.fan != null && next.fan_speed == null) next.fan_speed = next.fan;
     if (next.wind != null && next.fan_speed == null) next.fan_speed = next.wind;
     if (next.temp != null && next.temperature == null) next.temperature = next.temp;
+    return next;
+  }
+
+  if (family === "lock") {
+    const next: Record<string, any> = { ...c, type: c.type || "lock" };
+    const requested =
+      c.locked ??
+      c.lock ??
+      c.unlock ??
+      c.state ??
+      c.switch ??
+      c.power ??
+      c.on;
+    if (requested !== undefined) {
+      if (typeof requested === "boolean") {
+        next.lock = c.unlock === true ? false : requested;
+      } else {
+        const text = String(requested).toLowerCase();
+        if (text === "unlocked" || text === "unlock" || text === "open") next.lock = false;
+        if (text === "locked" || text === "lock" || text === "closed") next.lock = true;
+      }
+    }
     return next;
   }
 
@@ -265,6 +299,29 @@ function commandIdempotencyKey(req: Request, user: AuthUser, rawId: string, comm
   if (explicit) return `explicit:${user.id}:${rawId}:${source}:${explicit}`;
   const shortReplayWindow = Math.floor(Date.now() / 5_000);
   return `request:${user.id}:${rawId}:${source}:${commandFingerprint(command)}:${shortReplayWindow}`;
+}
+
+function assertUnlockConfirmed(req: Request, device: any, command: Record<string, any>) {
+  const family = deviceCommandFamily(device);
+  if (family !== "lock") return;
+  const wantsUnlock =
+    command?.lock === false ||
+    command?.locked === false ||
+    command?.unlock === true ||
+    String(command?.state || "").toLowerCase() === "unlocked";
+  if (!wantsUnlock) return;
+  const confirmed =
+    req.body?.confirmed === true ||
+    req.body?.confirmation === true ||
+    req.body?.meta?.unlock_confirmed === true ||
+    req.body?.metadata?.unlock_confirmed === true ||
+    req.body?.command?.unlock_confirmed === true;
+  if (!confirmed) {
+    const error: any = new Error("Unlocking this lock needs confirmation.");
+    error.statusCode = 409;
+    error.code = "LOCK_UNLOCK_CONFIRMATION_REQUIRED";
+    throw error;
+  }
 }
 
 async function resolveCommandTarget(input: {
@@ -694,6 +751,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       command,
       scope,
     });
+    assertUnlockConfirmed(req, target.commandDevice, target.normalizedCommand);
 
     const response = {
       ok: true,

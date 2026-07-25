@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
+import { getHomeProviderConnection } from "../services/providerConnectionService";
 
 function cleanStr(v: any) {
   const s = String(v ?? "").trim();
@@ -103,8 +104,11 @@ export async function assignDevices(req: Request, res: Response) {
     const user: any = (req as any).user;
     if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-    if (!user.estate_id) return res.status(400).json({ error: "User has no estate" });
-    if (!user.home_id) return res.status(400).json({ error: "User has no home" });
+    const estateId = cleanStr((req as any).oisContext?.estate_id || user.estate_id);
+    const homeId = cleanStr((req as any).oisContext?.home_id || user.home_id);
+    if (!estateId) return res.status(400).json({ error: "User has no estate" });
+    if (!homeId) return res.status(400).json({ error: "User has no home" });
+    const providerConnection = await getHomeProviderConnection({ id: user.id, estate_id: estateId, home_id: homeId }, "tuya").catch(() => null);
 
     const incomingDevices = Array.isArray((req.body as any)?.devices)
       ? (req.body as any).devices
@@ -119,8 +123,8 @@ export async function assignDevices(req: Request, res: Response) {
     }
 
     const room_id = await resolveRoomId({
-      estate_id: user.estate_id,
-      home_id: user.home_id,
+      estate_id: estateId,
+      home_id: homeId,
       room_id: (req.body as any)?.room_id,
       room: (req.body as any)?.room,
     });
@@ -157,8 +161,8 @@ export async function assignDevices(req: Request, res: Response) {
         const lng = numOrNull(d?.lng ?? d?.metadata?.lng);
 
         return {
-          estate_id: user.estate_id,
-          home_id: user.home_id,
+          estate_id: estateId,
+          home_id: homeId,
           room_id,
           name,
           type,
@@ -183,7 +187,7 @@ export async function assignDevices(req: Request, res: Response) {
     const vendors = Array.from(new Set(rows.map((r) => String(r.vendor))));
     const { data: existingRows, error: existingErr } = await supabaseAdmin
       .from("devices")
-      .select("id,vendor,external_id,estate_id,home_id,metadata,adapter,provider,status,sync_state,is_managed_disabled")
+      .select("id,vendor,external_id,estate_id,home_id,metadata,adapter,provider,status,sync_state,is_managed_disabled,provider_connection_id,owner_user_id,ownership_class,visibility_policy,control_policy,critical_event_policy")
       .in("vendor", vendors)
       .in("external_id", externalIds);
 
@@ -192,8 +196,8 @@ export async function assignDevices(req: Request, res: Response) {
     }
 
     const conflicts = (existingRows || []).filter((d: any) => {
-      const sameEstate = String(d?.estate_id || "") === String(user.estate_id || "");
-      const sameHome = String(d?.home_id || "") === String(user.home_id || "");
+      const sameEstate = String(d?.estate_id || "") === String(estateId || "");
+      const sameHome = String(d?.home_id || "") === String(homeId || "");
       const isUnassigned = !d?.home_id;
       return !(sameEstate && (sameHome || isUnassigned));
     });
@@ -238,6 +242,14 @@ export async function assignDevices(req: Request, res: Response) {
         provider: existing?.provider || row.vendor,
         bind_state: room_id ? "room_bound" : "home_bound",
         sync_state: "assigned",
+        provider_connection_id: existing?.provider_connection_id || providerConnection?.id || null,
+        owner_user_id: existing?.owner_user_id || providerConnection?.owner_user_id || user.id,
+        ownership_class: existing?.ownership_class || (providerConnection?.id ? "resident_owned" : "shared_home"),
+        assignment_scope: "home",
+        commissioning_status: "assigned",
+        visibility_policy: existing?.visibility_policy || {},
+        control_policy: existing?.control_policy || {},
+        critical_event_policy: existing?.critical_event_policy || {},
         metadata: { ...(existing?.metadata || {}), ...(row.metadata || {}) },
       };
       if (!existing?.id) {
@@ -250,7 +262,7 @@ export async function assignDevices(req: Request, res: Response) {
       assigned.push(data);
     }
     if (pendingInsert.length) {
-      const { data, error } = await supabaseAdmin.from("devices").upsert(pendingInsert, { onConflict: "vendor,external_id" }).select("*");
+      const { data, error } = await supabaseAdmin.from("devices").upsert(pendingInsert, { onConflict: "estate_id,adapter,external_id" }).select("*");
       if (error) {
         console.error("assignDevices upsert error:", error);
         return res.status(500).json({ error: error.message });

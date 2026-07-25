@@ -153,21 +153,24 @@ async function touchPresence(user: any, req?: Request) {
 
   const { error } = await supabaseAdmin
     .from("user_presence")
-    .upsert(payload as any, { onConflict: "user_id" });
+    .upsert(payload as any, { onConflict: scope.homeId ? "user_id,home_id" : "user_id" });
 
   if (error && !isMissingTable(error, "user_presence")) {
     console.warn("touchPresence failed:", error.message);
   }
 }
 
-async function getPresenceMap(userIds: string[]) {
+async function getPresenceMap(userIds: string[], homeId?: string | null) {
   const cleanIds = Array.from(new Set(userIds.map((x) => clean(x)).filter(Boolean)));
   if (!cleanIds.length) return {} as Record<string, { last_seen_at: string | null; is_online: boolean }>;
 
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("user_presence")
     .select("user_id,last_seen_at,is_online")
     .in("user_id", cleanIds);
+  const scopedHomeId = clean(homeId);
+  query = scopedHomeId ? query.eq("home_id", scopedHomeId) : query.is("home_id", null);
+  const { data, error } = await query;
 
   if (error) {
     if (!isMissingTable(error, "user_presence")) {
@@ -224,7 +227,7 @@ export async function listResidents(req: Request, res: Response) {
       return res.status(500).json({ error: e?.message || "Failed to resolve home residents" });
     }
   }
-  const presenceMap = await getPresenceMap(items.map((u) => String(u.id)));
+  const presenceMap = await getPresenceMap(items.map((u) => String(u.id)), homeId);
   if (q) {
     items = items.filter((u) => {
       const src = `${u?.username || ""} ${u?.full_name || ""} ${u?.email || ""}`.toLowerCase();

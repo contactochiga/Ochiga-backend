@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent } from "../core/foundation";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
+import { canFacilityViewDevice, projectDeviceForSurface } from "../services/deviceProjectionService";
 
 /**
  * Expected "canonical" discovered device shape (from your adapters/types.ts)
@@ -43,7 +44,11 @@ export async function listRegisteredDevices(req: any, res: Response) {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    return res.json({ estate_id: estateId, devices: data || [] });
+    const devices = (data || [])
+      .filter((device: any) => canFacilityViewDevice(device, req.user))
+      .map((device: any) => projectDeviceForSurface(device, { actor: req.user, surface: "facility" }));
+
+    return res.json({ estate_id: estateId, devices });
   } catch (err: any) {
     console.error("listRegisteredDevices error:", err);
     return res.status(500).json({ error: err?.message || "Server error" });
@@ -94,6 +99,12 @@ export async function registerDevice(req: any, res: Response) {
       capabilities: normalized.capabilities,
       protocols: normalized.protocols,
       metadata: normalized.metadata,
+      ownership_class: home_id ? "shared_home" : "building_managed",
+      assignment_scope: home_id ? "home" : "estate",
+      commissioning_status: home_id ? "assigned" : "discovered",
+      visibility_policy: {},
+      control_policy: {},
+      critical_event_policy: {},
     };
 
     const { data, error } = await supabaseAdmin
@@ -150,7 +161,7 @@ export async function assignDevice(req: any, res: Response) {
 
     const { data: current, error: currentError } = await supabaseAdmin
       .from("devices")
-      .select("id,estate_id,home_id,room_id")
+      .select("id,estate_id,home_id,room_id,ownership_class")
       .eq("id", deviceId)
       .eq("estate_id", estateId)
       .maybeSingle();
@@ -190,6 +201,9 @@ export async function assignDevice(req: any, res: Response) {
     const nextRoomId = hasHome && !home_id ? null : hasRoom ? room_id : current.room_id;
     update.bind_state = nextRoomId ? "room_bound" : nextHomeId ? "home_bound" : "discovered";
     update.sync_state = nextHomeId ? "assigned" : "available_unassigned";
+    update.assignment_scope = nextHomeId ? "home" : "estate";
+    update.commissioning_status = nextHomeId ? "assigned" : "discovered";
+    update.ownership_class = body.ownership_class || (nextHomeId ? current?.ownership_class || "shared_home" : "building_managed");
 
     const { data, error } = await supabaseAdmin
       .from("devices")

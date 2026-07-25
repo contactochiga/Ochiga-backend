@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { getTuyaUidForUser, syncTuyaRegistryForActor } from "../services/tuyaRegistrySyncService";
+import { canFacilityViewDevice, projectDeviceForSurface } from "../services/deviceProjectionService";
 
 function clean(value: any, fallback = "") {
   return String(value ?? fallback).trim();
@@ -75,7 +76,10 @@ export async function getFacilityInfrastructure(req: Request, res: Response) {
 
   const homes = new Map((homesResult.data as any[]).map((home) => [clean(home.id), home]));
   const rooms = new Map((roomsResult.data as any[]).map((room) => [clean(room.id), room]));
-  const registry = (devicesResult.data as any[]).map((device) => ({
+  const registry = (devicesResult.data as any[])
+    .filter((device) => canFacilityViewDevice(device, actor))
+    .map((device) => projectDeviceForSurface(device, { actor, surface: "facility" }))
+    .map((device) => ({
     id: device.id,
     oyi_id: device.id,
     external_id: clean(device.external_id) || null,
@@ -97,6 +101,10 @@ export async function getFacilityInfrastructure(req: Request, res: Response) {
     capabilities: safeArray(device.capabilities),
     protocols: safeArray(device.protocols),
     metadata: sanitizeMetadata(device.metadata),
+    ownership_class: clean(device.ownership_class, "building_managed"),
+    assignment_scope: clean(device.assignment_scope, device.home_id ? "home" : "estate"),
+    commissioning_status: clean(device.commissioning_status, "unknown"),
+    projection: device.projection || null,
   }));
 
   const discovered = (discoveredResult.data as any[]).map((device) => ({

@@ -6,6 +6,12 @@ import { syncTuyaRegistryForActor } from "../services/tuyaRegistrySyncService";
 import { resolveRequestContext } from "../middleware/contextResolver";
 import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
 import { logger } from "../observability/logger";
+import {
+  getHomeProviderConnection,
+  getLegacyProviderAccountId,
+  serializeProviderConnection,
+  upsertHomeProviderConnection,
+} from "../services/providerConnectionService";
 
 const router = express.Router();
 const SUPPORTED_INTEGRATIONS = new Set(["tuya", "alexa", "google_assistant"]);
@@ -528,45 +534,82 @@ router.post("/context/select", requireAuth, auditOnSuccess("user.context.selecte
   });
 });
 
-router.get("/integrations/tuya", requireAuth, requirePermission("devices.read"), async (req, res) => {
+router.get("/integrations/tuya", requireAuth, requirePermission("devices.read"), resolveRequestContext, async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
-  const uid = await getTuyaUidForUser(user.id);
-  const masked = uid ? `${uid.slice(0, 4)}***${uid.slice(-3)}` : null;
+  const scopedActor = {
+    ...user,
+    estate_id: (req as any).oisContext?.estate_id || user.estate_id,
+    home_id: (req as any).oisContext?.home_id || user.home_id,
+  };
+  const connection = await getHomeProviderConnection(scopedActor as any, "tuya");
+  const legacyUid = connection ? null : await getLegacyProviderAccountId(user.id, "tuya");
+  const serialized = connection
+    ? serializeProviderConnection(connection)
+    : {
+        provider: "tuya",
+        connected: Boolean(legacyUid),
+        tuya_uid: legacyUid,
+        masked_uid: maskExternalId(legacyUid),
+        external_user_id: legacyUid,
+        masked_external_user_id: maskExternalId(legacyUid),
+        connection_id: null,
+        home_id: scopedActor.home_id || null,
+        estate_id: scopedActor.estate_id || null,
+        connection_scope: legacyUid ? "legacy_user" : null,
+      };
   const provider_ready = Boolean(process.env.TUYA_ACCESS_ID && process.env.TUYA_ACCESS_SECRET);
   return res.json({
+    ...serialized,
     provider: "tuya",
-    connected: !!uid,
+    connected: Boolean((serialized as any).connected),
     provider_ready,
     credential_status: provider_ready ? "ready" : "missing",
-    tuya_uid: uid,
-    masked_uid: masked,
   });
 });
 
-router.patch("/integrations/tuya", requireAuth, requirePermission("devices.control"), auditOnSuccess("settings.updated", "integration", "tuya"), async (req, res) => {
+router.patch("/integrations/tuya", requireAuth, requirePermission("devices.control"), resolveRequestContext, auditOnSuccess("settings.updated", "integration", "tuya"), async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
 
   const tuya_uid = String(req.body?.tuya_uid || "").trim();
   if (!tuya_uid) return res.status(400).json({ error: "tuya_uid is required" });
 
+  let connection: any = null;
+  try {
+    connection = await upsertHomeProviderConnection({
+      id: user.id,
+      estate_id: (req as any).oisContext?.estate_id || user.estate_id,
+      home_id: (req as any).oisContext?.home_id || user.home_id,
+    }, "tuya", tuya_uid, { last_saved_from: "consumer_me_integration" });
+  } catch (error: any) {
+    return res.status(/membership|home context|estate/i.test(String(error?.message || "")) ? 403 : 500).json({
+      error: error?.message || "Failed to save Tuya connection",
+      code: "PROVIDER_CONNECTION_SAVE_FAILED",
+    });
+  }
+
+  // Compatibility: keep legacy storage populated for old clients and existing sync jobs.
   const result = await setTuyaUidForUser(user.id, tuya_uid);
-  if (!result.ok) return res.status(500).json({ error: result.error || "Failed to save Tuya UID" });
+  if (!result.ok) logger.warn("legacy_tuya_uid_save_failed", { actor_id: user.id, error: result.error });
 
   await deviceRuntimeStateService.clearAuthorizationSuppressionForIntegration(user.id, tuya_uid).catch((error) => {
     logger.warn("tuya_relink_runtime_backoff_reset_failed", { error, actor_id: user.id });
   });
 
-  return res.json({ ok: true, provider: "tuya", connected: true, tuya_uid });
+  return res.json({ ok: true, ...serializeProviderConnection(connection), provider: "tuya", connected: true, tuya_uid });
 });
 
-router.post("/integrations/tuya/sync", requireAuth, requirePermission("devices.read"), async (req, res) => {
+router.post("/integrations/tuya/sync", requireAuth, requirePermission("devices.read"), resolveRequestContext, async (req, res) => {
   const user = req.user;
   if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
   try {
-    return res.json(await syncTuyaRegistryForActor(user as any, req));
+    return res.json(await syncTuyaRegistryForActor({
+      ...(user as any),
+      estate_id: (req as any).oisContext?.estate_id || user.estate_id,
+      home_id: (req as any).oisContext?.home_id || user.home_id,
+    }, req));
   } catch (err: any) {
     const message = err?.message || "Tuya sync failed";
     const status = message.includes("not linked") ? 409 : message.includes("estate context") ? 400 : 502;

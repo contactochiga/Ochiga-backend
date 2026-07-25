@@ -16,8 +16,8 @@ import { getTuyaAuthorizationDiagnostics } from "../controllers/tuyaAuthorizatio
 
 const router = Router();
 
-router.get("/discover", requireAuth, requirePermission("devices.read"), discoverDevices);
-router.post("/assign", requireAuth, requirePermission("devices.control"), assignDevices);
+router.get("/discover", requireAuth, resolveRequestContext, requirePermission("devices.read"), discoverDevices);
+router.post("/assign", requireAuth, resolveRequestContext, requirePermission("devices.control"), assignDevices);
 
 // ✅ THIS WAS MISSING (your frontend calls it)
 router.get("/estate/:estateId", requireAuth, resolveRequestContext, requirePermission("devices.read"), getEstateDevices);

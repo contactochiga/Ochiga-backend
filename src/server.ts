@@ -137,6 +137,34 @@ io.on("connection", (socket) => {
     socket.join(`home:${homeId}`);
   });
 
+  socket.on("scope:replace", async (scope: { estate_id?: string; estateId?: string; home_id?: string; homeId?: string }) => {
+    const estateId = String(scope?.estate_id || scope?.estateId || "").trim();
+    const homeId = String(scope?.home_id || scope?.homeId || "").trim();
+    const user = socket.data.user;
+
+    if (estateId) {
+      if (!canUseSocket(socket, "estates.read")) return denySocket(socket, "estates.read", "estate", estateId);
+      if (user?.estate_id && String(user.estate_id) !== estateId && !canUseSocket(socket, "office.read")) {
+        return denySocket(socket, "estates.read", "estate", estateId);
+      }
+    }
+    if (homeId) {
+      if (!canUseSocket(socket, "homes.read")) return denySocket(socket, "homes.read", "home", homeId);
+      if (!await canAccessHomeSocketResource(user, homeId)) {
+        return denySocket(socket, "homes.read", "home", homeId);
+      }
+    }
+
+    for (const room of Array.from(socket.rooms)) {
+      if (room === socket.id) continue;
+      if (/^(estate|home|room|device|thread):/.test(String(room))) socket.leave(room);
+    }
+    if (estateId) socket.join(`estate:${estateId}`);
+    if (homeId) socket.join(`home:${homeId}`);
+    socket.data.active_scope = { estate_id: estateId || null, home_id: homeId || null };
+    socket.emit("scope:active", socket.data.active_scope);
+  });
+
   socket.on("subscribe:device", async (deviceId: string) => {
     if (!canUseSocket(socket, "devices.read")) return denySocket(socket, "devices.read", "device", String(deviceId || ""));
     const { data: device } = await supabaseAdmin

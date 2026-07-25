@@ -4,6 +4,7 @@ import { AdapterContext } from "../device/adapters/types";
 import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { getHomeProviderConnection, getLegacyProviderAccountId } from "../services/providerConnectionService";
 
 function cleanStr(v: any) {
   const s = String(v ?? "").trim();
@@ -11,30 +12,7 @@ function cleanStr(v: any) {
 }
 
 async function resolveUserTuyaUid(userId: string): Promise<string | null> {
-  const fromUsers = await supabaseAdmin
-    .from("users")
-    .select("tuya_uid")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (!fromUsers.error) {
-    const uid = cleanStr((fromUsers.data as any)?.tuya_uid);
-    if (uid) return uid;
-  }
-
-  const fromInteg = await supabaseAdmin
-    .from("user_integrations")
-    .select("external_user_id")
-    .eq("user_id", userId)
-    .eq("provider", "tuya")
-    .maybeSingle();
-
-  if (!fromInteg.error) {
-    const uid = cleanStr((fromInteg.data as any)?.external_user_id);
-    if (uid) return uid;
-  }
-
-  return null;
+  return getLegacyProviderAccountId(userId, "tuya");
 }
 
 /**
@@ -76,14 +54,20 @@ export async function discoverDevices(req: Request, res: Response) {
 
     // ✅ Security: user must discover with their own linked Tuya identity.
     // Optional admin override only for debugging.
-    let tuyaUid = await resolveUserTuyaUid(String(user.id));
+    const actor = {
+      ...user,
+      estate_id: (req as any).oisContext?.estate_id || user.estate_id,
+      home_id: (req as any).oisContext?.home_id || user.home_id,
+    };
+    const providerConnection = await getHomeProviderConnection(actor, "tuya").catch(() => null);
+    let tuyaUid = cleanStr(providerConnection?.provider_account_id) || await resolveUserTuyaUid(String(user.id));
     if (!tuyaUid && user?.role === "admin") {
       tuyaUid = cleanStr(req.query.uid);
     }
 
     const context: AdapterContext = {
-      estateId: user.estate_id,
-      homeId: user.home_id,
+      estateId: actor.estate_id,
+      homeId: actor.home_id,
       userId: user.id,
       credentials: {
         apiKey: process.env.TUYA_ACCESS_ID,
@@ -129,7 +113,7 @@ export async function discoverDevices(req: Request, res: Response) {
       const { data: existing, error: exErr } = await supabaseAdmin
         .from("devices")
         .select("external_id,home_id")
-        .eq("estate_id", user.estate_id)
+        .eq("estate_id", actor.estate_id)
         .eq("vendor", adapterName) // vendor is "tuya" for tuya adapter
         .in("external_id", extIds);
 

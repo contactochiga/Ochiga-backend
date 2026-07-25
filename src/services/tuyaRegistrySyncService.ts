@@ -14,6 +14,11 @@ import {
   isTuyaProviderVirtualRemote,
   markTechnicalProviderRemoteMetadata,
 } from "./deviceInventoryVisibility";
+import {
+  getHomeProviderConnection,
+  getLegacyProviderAccountId,
+  markProviderConnectionSync,
+} from "./providerConnectionService";
 
 type TuyaSyncActor = {
   id: string;
@@ -117,23 +122,7 @@ function emitRegistrySignals(actor: TuyaSyncActor, device: any, kind: "added" | 
 }
 
 export async function getTuyaUidForUser(userId: string): Promise<string | null> {
-  const direct = await supabaseAdmin.from("users").select("tuya_uid").eq("id", userId).maybeSingle();
-  if (!direct.error) {
-    const uid = cleanStr((direct.data as any)?.tuya_uid);
-    if (uid) return uid;
-  }
-
-  const integration = await supabaseAdmin
-    .from("user_integrations")
-    .select("external_user_id")
-    .eq("user_id", userId)
-    .eq("provider", "tuya")
-    .maybeSingle();
-  if (!integration.error) {
-    const uid = cleanStr((integration.data as any)?.external_user_id);
-    if (uid) return uid;
-  }
-  return null;
+  return getLegacyProviderAccountId(userId, "tuya");
 }
 
 export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Request): Promise<TuyaSyncSummary> {
@@ -141,7 +130,8 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
   if (!actor.estate_id) throw new Error("User has no estate context");
 
   const syncedAt = new Date().toISOString();
-  const tuyaUid = await getTuyaUidForUser(actor.id);
+  const providerConnection = await getHomeProviderConnection(actor, "tuya");
+  const tuyaUid = cleanStr(providerConnection?.provider_account_id) || await getTuyaUidForUser(actor.id);
   if (!tuyaUid) throw new Error("Tuya / Smart Life is not linked for this account.");
   if (!process.env.TUYA_ACCESS_ID || !process.env.TUYA_ACCESS_SECRET) {
     throw new Error("Tuya backend credentials are missing.");
@@ -163,7 +153,7 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
         apiSecret: process.env.TUYA_ACCESS_SECRET,
         tuyaUid,
       },
-    };
+      };
     const discovered = await adapter.discover(context);
     const { data: existingRows, error: existingError } = await supabaseAdmin
       .from("devices")
@@ -197,14 +187,23 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
         oyi: {
           ...(existing?.metadata?.oyi || {}),
           integration_owner_user_id: actor.id,
+          provider_connection_id: providerConnection?.id || existing?.provider_connection_id || null,
           provider_name: providerName,
           provider_available: true,
           provider_last_synced_at: syncedAt,
         },
+        provider_connection: providerConnection
+          ? {
+              id: providerConnection.id,
+              scope: providerConnection.connection_scope,
+              home_id: providerConnection.home_id,
+              owner_user_id: providerConnection.owner_user_id,
+            }
+          : existing?.metadata?.provider_connection || null,
       };
       const row = {
         estate_id: actor.estate_id,
-        home_id: existing?.home_id || null,
+        home_id: existing?.home_id || providerConnection?.home_id || actor.home_id || null,
         room_id: existing?.room_id || null,
         name: existing && (hasResidentAlias(existing) || existing.home_id) ? existing.name : providerName,
         type: cleanStr((discoveredDevice as any)?.type || discoveredDevice?.category) || existing?.type || "device",
@@ -219,13 +218,23 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
         capabilities: Array.isArray(discoveredDevice?.capabilities) ? discoveredDevice.capabilities : [],
         protocols: Array.isArray(discoveredDevice?.protocols) ? discoveredDevice.protocols : [],
         icon: cleanStr((discoveredDevice as any)?.icon || (discoveredDevice?.metadata as any)?.icon) || existing?.icon || null,
-        sync_state: providerVirtualRemote ? "provider_virtual_remote" : existing?.home_id ? "assigned" : "available_unassigned",
+        sync_state: providerVirtualRemote ? "provider_virtual_remote" : (existing?.home_id || providerConnection?.home_id || actor.home_id) ? "assigned" : "available_unassigned",
         last_seen_at: online ? syncedAt : existing?.last_seen_at || null,
         last_event_at: syncedAt,
         metadata: providerVirtualRemote
           ? markTechnicalProviderRemoteMetadata(metadata, "tuya_ir_bound_remote_promoted_as_canonical_child")
           : metadata,
         is_managed_disabled: providerVirtualRemote ? true : existing?.is_managed_disabled ?? false,
+        provider_connection_id: providerConnection?.id || existing?.provider_connection_id || null,
+        owner_user_id: providerConnection?.owner_user_id || existing?.owner_user_id || actor.id,
+        ownership_class: providerVirtualRemote
+          ? "hidden_technical"
+          : existing?.ownership_class || (providerConnection?.id ? "resident_owned" : existing?.home_id ? "shared_home" : "building_managed"),
+        assignment_scope: existing?.assignment_scope || ((existing?.home_id || providerConnection?.home_id || actor.home_id) ? "home" : "estate"),
+        commissioning_status: existing?.commissioning_status || ((existing?.home_id || providerConnection?.home_id || actor.home_id) ? "assigned" : "discovered"),
+        visibility_policy: existing?.visibility_policy || {},
+        control_policy: existing?.control_policy || {},
+        critical_event_policy: existing?.critical_event_policy || {},
         updated_at: syncedAt,
       };
 
@@ -339,9 +348,12 @@ export async function syncTuyaRegistryForActor(actor: TuyaSyncActor, req?: Reque
       unavailable,
       errors,
     };
+    await markProviderConnectionSync(providerConnection?.id, { ok: errors.length === 0, error: errors.join("; "), syncedAt });
     await audit(actor, "integration.tuya.sync.completed", errors.length ? "failed" : "success", result, req);
     return result;
   } catch (error: any) {
+    const providerConnection = await getHomeProviderConnection(actor, "tuya").catch(() => null);
+    await markProviderConnectionSync(providerConnection?.id, { ok: false, error }).catch(() => null);
     await audit(actor, "integration.tuya.sync.completed", "failed", { provider: "tuya", error: error?.message || "Tuya sync failed" }, req);
     throw error;
   }

@@ -5,6 +5,10 @@ import {
   isTechnicalDeviceHiddenFromResidents,
   resolveCanonicalIrChildForProviderRemote,
 } from "./deviceInventoryVisibility";
+import {
+  canConsumerViewDevice,
+  projectDeviceForSurface,
+} from "./deviceProjectionService";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -141,9 +145,13 @@ export async function listVisibleDevices(actor: AuthUser, limit = 50, scope: Dev
       .map((device: any) => String(device?.parent_device_id || "").trim())
       .filter(Boolean),
   );
-  return rows.filter((device: any) =>
-    !isTechnicalDeviceHiddenFromResidents(device, { parentHasIrChildren: irParentIds.has(String(device?.id || "")) }),
-  );
+  const activeHomeId = resolveDeviceRuntimeScope(actor, scope).homeId;
+  return rows
+    .filter((device: any) =>
+      !isTechnicalDeviceHiddenFromResidents(device, { parentHasIrChildren: irParentIds.has(String(device?.id || "")) }),
+    )
+    .filter((device: any) => canConsumerViewDevice(device, actor, activeHomeId))
+    .map((device: any) => projectDeviceForSurface(device, { actor, surface: "consumer", activeHomeId }));
 }
 
 export async function resolveVisibleDevice(actor: AuthUser, ref: unknown, scope: DeviceRuntimeScope = {}) {
@@ -156,9 +164,12 @@ export async function resolveVisibleDevice(actor: AuthUser, ref: unknown, scope:
   if (error) throw error;
   if (!data) return null;
   const canonicalChild = await resolveCanonicalIrChildForProviderRemote(data);
-  if (canonicalChild?.id) return canonicalChild;
+  const resolved = canonicalChild?.id ? canonicalChild : data;
+  const activeHomeId = resolveDeviceRuntimeScope(actor, scope).homeId;
+  if (!canConsumerViewDevice(resolved, actor, activeHomeId)) return null;
+  if (canonicalChild?.id) return projectDeviceForSurface(canonicalChild, { actor, surface: "consumer", activeHomeId });
   if (isTechnicalDeviceHiddenFromResidents(data)) return null;
-  return data;
+  return projectDeviceForSurface(data, { actor, surface: "consumer", activeHomeId });
 }
 
 export function logDeviceCommandDiagnostic(label: string, input: Record<string, unknown>) {
