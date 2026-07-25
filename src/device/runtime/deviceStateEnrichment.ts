@@ -40,6 +40,41 @@ export type EnrichedDeviceState = AnyRecord & {
   activity_summary: string;
 };
 
+export type CanonicalDeviceAvailability =
+  | "online"
+  | "offline"
+  | "stale"
+  | "unknown"
+  | "provider_disconnected"
+  | "setup_incomplete";
+
+export type CanonicalDeviceState = {
+  availability: CanonicalDeviceAvailability;
+  lastSeenAt: string | null;
+  lastProviderSyncAt: string | null;
+  staleAfterMs: number | null;
+  primaryState: {
+    key: string;
+    value: string | number | boolean | null;
+    label: string;
+  };
+  secondaryState?: {
+    key: string;
+    value: string | number | boolean | null;
+    label: string;
+  };
+  batteryPercentage?: number | null;
+  batteryLevel?: "normal" | "low" | "critical" | "unknown";
+  alerts: Array<{
+    type: string;
+    severity: "info" | "warning" | "critical";
+    message: string;
+  }>;
+  supportedActions: string[];
+  executableActions: string[];
+  providerEvidence: Record<string, unknown>;
+};
+
 export type DeviceStateEventSummary = {
   changed: boolean;
   changed_keys: string[];
@@ -82,6 +117,16 @@ function boolValue(value: any): boolean | null {
 function numberValue(value: any): number | null {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+}
+
+function isoTimestamp(...values: any[]) {
+  for (const value of values) {
+    const raw = text(value);
+    if (!raw) continue;
+    const date = new Date(raw);
+    if (Number.isFinite(date.getTime())) return date.toISOString();
+  }
+  return null;
 }
 
 function flatten(value: AnyRecord, prefix = "", out: AnyRecord = {}) {
@@ -499,7 +544,13 @@ function normalizeStateFields(state: AnyRecord) {
   const color_temperature = numberValue(state.temp_value_v2 ?? state.temp_value ?? state.colour_temp ?? state.color_temp);
   const temperature = numberValue(state.va_temperature ?? state.temp_current ?? state.temperature);
   const humidity = numberValue(state.va_humidity ?? state.humidity_value ?? state.humidity);
-  const battery = numberValue(state.battery_percentage ?? state.battery_value ?? state.battery);
+  const battery = numberValue(
+    state.battery_percentage ??
+    state.residual_electricity ??
+    state.battery_value ??
+    state.battery ??
+    state.electricity,
+  );
   const lock_state = text(state.closed_opened, state.lock_state, state.status_lock) || null;
   const curtain_position = numberValue(state.percent_state ?? state.percent_control ?? state.position);
   const countdown = numberValue(state.countdown_1 ?? state.countdown ?? state.timer_countdown);
@@ -686,6 +737,139 @@ export function diffEnrichedDeviceState(previousState: AnyRecord | null | undefi
   };
 }
 
+function stateLabel(key: string, value: string | number | boolean | null) {
+  if (value === null || value === undefined || value === "") return "State unknown";
+  if (key === "temperature" && typeof value === "number") return `${Math.round(value)}°C`;
+  if (key === "battery" && typeof value === "number") return `${Math.round(value)}% battery`;
+  const raw = String(value).replace(/[_-]+/g, " ").trim().toLowerCase();
+  if (raw === "on") return "On";
+  if (raw === "off") return "Off";
+  if (raw === "online") return "Online";
+  if (raw === "offline") return "Offline";
+  if (raw === "locked") return "Locked";
+  if (raw === "unlocked") return "Unlocked";
+  if (raw === "open") return "Open";
+  if (raw === "closed") return "Closed";
+  if (raw === "reporting") return "Reporting";
+  if (raw === "fault") return "Attention";
+  if (raw === "idle") return "Ready";
+  return raw
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function batteryLevel(value: number | null): CanonicalDeviceState["batteryLevel"] {
+  if (value == null || !Number.isFinite(value)) return "unknown";
+  if (value <= 20) return "critical";
+  if (value <= 35) return "low";
+  return "normal";
+}
+
+function canonicalPrimaryState(enriched: EnrichedDeviceState): CanonicalDeviceState["primaryState"] {
+  const normalized = enriched.normalized_state || normalizeStateFields(enriched);
+  if (enriched.device_family === "lock" && normalized.lock_state) {
+    const value = String(normalized.lock_state).toLowerCase().includes("unlock") ? "unlocked" : "locked";
+    return { key: "lock_state", value, label: stateLabel("lock_state", value) };
+  }
+  if (normalized.power !== null) return { key: "power", value: normalized.power, label: normalized.power ? "On" : "Off" };
+  if (normalized.temperature !== null) return { key: "temperature", value: normalized.temperature, label: stateLabel("temperature", normalized.temperature) };
+  if (enriched.device_family === "ir_remote") return { key: "remote", value: "ready", label: "Remote ready" };
+  if (["television", "projector", "set_top_box", "speaker"].includes(enriched.device_family) && normalized.power === null) {
+    return { key: "remote_state", value: "unknown", label: "State unknown" };
+  }
+  if (enriched.device_family === "climate" && normalized.power === null) {
+    return { key: "climate_state", value: "unknown", label: "State unknown" };
+  }
+  const primary = text(enriched.primary_state).toLowerCase() || "unknown";
+  return { key: "primary_state", value: primary === "unknown" ? null : primary, label: stateLabel("primary_state", primary) };
+}
+
+function canonicalSecondaryState(enriched: EnrichedDeviceState): CanonicalDeviceState["secondaryState"] | undefined {
+  const normalized = enriched.normalized_state || normalizeStateFields(enriched);
+  if (normalized.battery !== null) return { key: "battery", value: normalized.battery, label: stateLabel("battery", normalized.battery) };
+  if (normalized.humidity !== null) return { key: "humidity", value: normalized.humidity, label: `${Math.round(normalized.humidity)}% humidity` };
+  const channels = Array.isArray(enriched.channel_definitions) ? enriched.channel_definitions : [];
+  if (channels.length > 1) {
+    const active = channels.filter((channel) => channel.state === true).length;
+    return { key: "channels", value: active, label: `${active} of ${channels.length} channels on` };
+  }
+  return undefined;
+}
+
+function canonicalAvailability(enriched: EnrichedDeviceState, device: AnyRecord, stateRow?: AnyRecord | null): CanonicalDeviceAvailability {
+  const providerHealth = text(enriched.provider_health, stateRow?.provider_health).toLowerCase();
+  const authorizationState = text(enriched?._oyi_runtime?.authorization_state, stateRow?.authorization_state).toLowerCase();
+  const normalized = enriched.normalized_state || normalizeStateFields(enriched);
+  const freshness = text(stateRow?.freshness, enriched?._oyi_runtime?.freshness).toLowerCase();
+  if (!text(device?.external_id, device?.provider_device_id, device?.metadata?.provider_device_id) && !device?.is_virtual) return "setup_incomplete";
+  if (/authorization|required|permission|expired|disconnected|not_linked|authentication/.test(providerHealth) || /required|denied|expired|failed/.test(authorizationState)) return "provider_disconnected";
+  if (normalized.online === false || providerHealth === "offline" || enriched.health_status === "offline") return "offline";
+  if (freshness === "stale" || freshness === "expired" || stateRow?.stale === true) return "stale";
+  if (normalized.online === true || providerHealth === "healthy" || providerHealth === "ok") return "online";
+  return "unknown";
+}
+
+function canonicalExecutableActions(enriched: EnrichedDeviceState, device: AnyRecord) {
+  const supported = new Set((Array.isArray(enriched.supported_controls) ? enriched.supported_controls : []).map((value) => String(value || "").toLowerCase()));
+  const metadata = asRecord(device?.metadata);
+  const smartAccess = asRecord(metadata.smart_access || metadata.smartAccess || enriched.smart_access || enriched.smartAccess);
+  const evidence = asRecord(smartAccess.capability_evidence || smartAccess.capabilityEvidence || smartAccess.evidence);
+  const actions = new Set<string>();
+  for (const control of supported) {
+    if (["battery_level", "lock_state", "security_event", "operation_history", "stream", "snapshot"].includes(control)) continue;
+    actions.add(control);
+  }
+  const unlockEvidence = asRecord(evidence.remote_unlock || evidence.unlock);
+  const lockEvidence = asRecord(evidence.remote_lock || evidence.lock);
+  if (unlockEvidence.executableByOyi === true || unlockEvidence.executable_by_oyi === true) actions.add("unlock");
+  if (lockEvidence.executableByOyi === true || lockEvidence.executable_by_oyi === true) actions.add("lock");
+  if (enriched.device_family === "lock" && !actions.has("unlock")) actions.delete("unlock");
+  return Array.from(actions);
+}
+
+export function buildCanonicalDeviceState(device: AnyRecord, enrichedInput: EnrichedDeviceState | AnyRecord, stateRow?: AnyRecord | null): CanonicalDeviceState {
+  const enriched = (enrichedInput?.normalized_state ? enrichedInput : enrichDeviceProviderState({
+    state: enrichedInput,
+    metadata: device?.metadata,
+    device,
+    provider: device?.provider || device?.vendor,
+    adapter: device?.adapter || device?.vendor,
+  })) as EnrichedDeviceState;
+  const normalized = enriched.normalized_state || normalizeStateFields(enriched);
+  const battery = normalized.battery;
+  const batteryState = batteryLevel(battery);
+  const availability = canonicalAvailability(enriched, device, stateRow);
+  const alerts: CanonicalDeviceState["alerts"] = [];
+  if (availability === "offline") alerts.push({ type: "offline", severity: "warning", message: "Device is offline." });
+  if (availability === "provider_disconnected") alerts.push({ type: "provider_disconnected", severity: "warning", message: "Provider connection needs attention." });
+  if (batteryState === "critical") alerts.push({ type: "battery_critical", severity: "critical", message: "Battery is critically low." });
+  else if (batteryState === "low") alerts.push({ type: "battery_low", severity: "warning", message: "Battery is low." });
+  for (const fault of normalized.faults || []) alerts.push({ type: "fault", severity: "warning", message: String(fault) });
+  return {
+    availability,
+    lastSeenAt: isoTimestamp(stateRow?.last_seen, enriched?._oyi_runtime?.last_refresh, enriched?._oyi_timeline?.received_at, device?.last_seen_at, device?.updated_at),
+    lastProviderSyncAt: isoTimestamp(stateRow?.provider_timestamp, enriched?._oyi_runtime?.provider_timestamp, enriched?._oyi_timeline?.provider_reported_at),
+    staleAfterMs: Number(enriched?._oyi_runtime?.ttl || stateRow?.ttl || 0) || null,
+    primaryState: canonicalPrimaryState(enriched),
+    secondaryState: canonicalSecondaryState(enriched),
+    batteryPercentage: battery,
+    batteryLevel: batteryState,
+    alerts,
+    supportedActions: Array.isArray(enriched.supported_controls) ? enriched.supported_controls : [],
+    executableActions: canonicalExecutableActions(enriched, device),
+    providerEvidence: {
+      provider: device?.provider || device?.vendor || null,
+      adapter: device?.adapter || device?.vendor || null,
+      provider_health: enriched.provider_health || null,
+      authorization_state: enriched?._oyi_runtime?.authorization_state || stateRow?.authorization_state || null,
+      control_profile: enriched.control_profile || null,
+      device_family: enriched.device_family || null,
+      capability_codes: sanitizePublicCapabilityCodes(enriched.capability_codes || []),
+    },
+  };
+}
+
 export function summarizeDeviceFrontendContract(device: AnyRecord, stateRow?: AnyRecord | null) {
   const state = asRecord(stateRow?.status);
   const enriched = state.normalized_state ? state : enrichDeviceProviderState({
@@ -696,7 +880,7 @@ export function summarizeDeviceFrontendContract(device: AnyRecord, stateRow?: An
     adapter: device?.adapter || device?.vendor,
   });
   const publicCapabilityCodes = sanitizePublicCapabilityCodes(enriched.capability_codes || []);
-  return {
+  const summary = {
     state,
     normalized_state: enriched.normalized_state,
     capabilities: Array.from(new Set([...(Array.isArray(device?.capabilities) ? device.capabilities : []), ...publicCapabilityCodes])),
@@ -712,5 +896,9 @@ export function summarizeDeviceFrontendContract(device: AnyRecord, stateRow?: An
     last_signal: enriched.activity_summary,
     activity_summary: enriched.activity_summary,
     capability_codes: publicCapabilityCodes,
+  };
+  return {
+    ...summary,
+    canonical_state: buildCanonicalDeviceState(device, enriched, stateRow),
   };
 }

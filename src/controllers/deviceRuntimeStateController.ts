@@ -57,7 +57,17 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
       if (!runtime || runtime.freshness === "expired" || runtime.dirty) expired.push(device);
       else if (runtime.stale) stale.push(device);
       const summary = runtime?.summary || null;
+      const canonicalState = summary?.canonical_state
+        ? {
+          ...summary.canonical_state,
+          availability: runtime?.stale && summary.canonical_state.availability === "online" ? "stale" : summary.canonical_state.availability,
+          lastSeenAt: summary.canonical_state.lastSeenAt || runtime?.last_refresh || device.last_seen_at || null,
+          lastProviderSyncAt: summary.canonical_state.lastProviderSyncAt || runtime?.provider_timestamp || null,
+          staleAfterMs: runtime?.ttl || summary.canonical_state.staleAfterMs || 10_000,
+        }
+        : null;
       return {
+        id: String(device.id),
         device_id: String(device.id),
         name: String(device.name || "Device"),
         estate_id: device.estate_id || null,
@@ -65,7 +75,16 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
         room_id: device.room_id || null,
         parent_device_id: device.parent_device_id || null,
         is_virtual: Boolean(device.is_virtual),
+        external_id: device.external_id || null,
+        provider: device.provider || device.vendor || null,
+        vendor: device.vendor || device.provider || null,
+        adapter: device.adapter || device.vendor || device.provider || null,
+        type: device.type || null,
+        category: device.category || null,
+        metadata: device.metadata || {},
         state: runtime?.state || {},
+        canonical_state: canonicalState,
+        canonicalState,
         normalized_state: summary?.normalized_state || {},
         primary_state: summary?.primary_state || "unknown",
         health_status: summary?.health_status || "unknown",

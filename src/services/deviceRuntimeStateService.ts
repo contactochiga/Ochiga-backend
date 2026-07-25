@@ -752,6 +752,8 @@ export class DeviceRuntimeStateService {
       state: entry.state,
       summary: entry.summary,
       normalized_state: entry.summary.normalized_state,
+      canonical_state: entry.summary.canonical_state,
+      canonicalState: entry.summary.canonical_state,
       primary_state: entry.summary.primary_state,
       health_status: entry.summary.health_status,
       provider_health: entry.summary.provider_health,
