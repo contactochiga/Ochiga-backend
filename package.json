@@ -44,6 +44,8 @@
     "smoke:release-closure": "node scripts/release-closure-device-command-ir-smoke.mjs",
     "smoke:ir-stream": "node scripts/release-closure-device-command-ir-smoke.mjs",
     "smoke:ir-repeated-tap": "node scripts/release-closure-device-command-ir-smoke.mjs",
+    "smoke:ir-button-map": "node scripts/release-closure-device-command-ir-smoke.mjs",
+    "smoke:ir-hub-feasibility": "node scripts/release-closure-device-command-ir-smoke.mjs",
     "smoke:release-stabilization": "node scripts/release-stabilization-isolation-smoke.mjs",
     "smoke:service-provisioning": "node scripts/service-provisioning-smoke.mjs",
     "smoke:electricity-purchase": "node scripts/electricity-purchase-lifecycle-smoke.mjs",

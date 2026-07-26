@@ -46,6 +46,9 @@ export interface DeviceAdapter {
   /** Optional IR remote key/schema lookup for a bound virtual remote. */
   listIrRemoteKeys?(infraredId: string, remoteId: string, context?: AdapterContext): Promise<any[]>;
 
+  /** Optional read-only IR hub capability/catalogue evidence for management readiness. */
+  auditIrHubCapabilities?(infraredId: string, context?: AdapterContext): Promise<Record<string, any>>;
+
   /** Optional IR command dispatch through a physical hub and provider remote binding. */
   executeIrRemoteCommand?(
     infraredId: string,

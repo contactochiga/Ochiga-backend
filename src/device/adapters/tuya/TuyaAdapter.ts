@@ -883,6 +883,62 @@ export class TuyaAdapter implements DeviceAdapter {
     return keys;
   }
 
+  async auditIrHubCapabilities(infraredId: string, context?: AdapterContext): Promise<Record<string, any>> {
+    const checkedAt = new Date().toISOString();
+    const evidence: Array<Record<string, any>> = [];
+    const probe = async (operation: string, method: "GET" | "POST", path: string, safeToExpose = false) => {
+      const row: Record<string, any> = {
+        operation,
+        endpoint: path,
+        sdk: "tuya_cloud_ir",
+        entitlement: "unknown",
+        live_result: "not_checked",
+        safe_to_expose: false,
+        implementation_status: safeToExpose ? "read_only_probe" : "documented_not_enabled",
+      };
+      if (method !== "GET") {
+        row.live_result = "not_mutated";
+        row.entitlement = "mutation_requires_explicit_operator_flow";
+        evidence.push(row);
+        return row;
+      }
+      try {
+        const result = await this.requestIr<any>(method, () => path, undefined, { context, infraredId, endpointKind: `audit:${operation}` });
+        const count = Array.isArray(result) ? result.length : Array.isArray(result?.list) ? result.list.length : Array.isArray(result?.result) ? result.result.length : null;
+        row.entitlement = "available";
+        row.live_result = count == null ? "success" : `success:${count}`;
+        row.safe_to_expose = safeToExpose;
+        row.implementation_status = safeToExpose ? "implemented_read_only" : "available_but_not_exposed";
+      } catch (error) {
+        const classified = classifyProviderError(error, { provider: "tuya", operation: path });
+        row.entitlement = classified.classification;
+        row.live_result = classified.provider_code ? `provider_error:${classified.provider_code}` : classified.classification;
+        row.safe_to_expose = false;
+        row.implementation_status = "blocked_by_provider_or_permission";
+      }
+      evidence.push(row);
+      return row;
+    };
+
+    await probe("categories", "GET", `/v1.0/infrareds/${encodeURIComponent(infraredId)}/categories`, true);
+    await probe("bound_remotes", "GET", `/v1.0/infrareds/${encodeURIComponent(infraredId)}/remotes`, true);
+    await probe("add_remote", "POST", `/v1.0/infrareds/${encodeURIComponent(infraredId)}/add-remote`, false);
+    await probe("delete_remote", "POST", `/v1.0/infrareds/${encodeURIComponent(infraredId)}/remotes/{remote_id}`, false);
+    await probe("standard_command", "POST", `/v1.0/infrareds/${encodeURIComponent(infraredId)}/remotes/{remote_id}/command`, false);
+    await probe("raw_command", "POST", `/v2.0/infrareds/${encodeURIComponent(infraredId)}/remotes/{remote_id}/raw/command`, false);
+    await probe("learning_status", "POST", `/v1.0/infrareds/${encodeURIComponent(infraredId)}/learning-state`, false);
+    await probe("smart_matching_token", "GET", `/v1.0/infrareds/${encodeURIComponent(infraredId)}/matching-remotes/token`, false);
+    return {
+      provider: "tuya",
+      infrared_id: infraredId,
+      checked_at: checkedAt,
+      deprecated_api_family: true,
+      production_path: "bound_remote_control_with_exact_provider_keys",
+      add_remote_safe_to_expose: false,
+      evidence,
+    };
+  }
+
   private commandValue(command: Record<string, any>, ...keys: string[]) {
     for (const key of keys) {
       if (Object.prototype.hasOwnProperty.call(command || {}, key)) return (command as any)[key];
@@ -935,6 +991,8 @@ export class TuyaAdapter implements DeviceAdapter {
     if (normalized === "channel_down") return ["channel_down", "ch_down", "ch-", "channel-"];
     if (normalized === "input") return ["input", "source"];
     if (normalized === "return") return ["back", "return"];
+    if (normalized === "back") return ["back", "return"];
+    if (normalized === "home") return ["home", "homepage"];
     if (normalized) return [normalized, direct];
 
     if (typeof (command as any).power === "boolean" || typeof (command as any).on === "boolean") {
@@ -955,6 +1013,13 @@ export class TuyaAdapter implements DeviceAdapter {
     if ((command as any).fan_speed != null || (command as any).fan != null || (command as any).wind != null) return "fan_speed";
     if ((command as any).swing != null) return "swing";
     return "";
+  }
+
+  private unsupportedIrCommandError(message = "This remote does not expose that control.") {
+    const error: any = new Error(message);
+    error.statusCode = 422;
+    error.code = "IR_COMMAND_UNSUPPORTED";
+    return error;
   }
 
   private acEnum(value: any, map: Record<string, number>) {
@@ -1014,6 +1079,7 @@ export class TuyaAdapter implements DeviceAdapter {
     const appliance = ((context as any)?.device?.metadata?.ir_appliance || {}) as Record<string, any>;
     const family = cleanStr(appliance.appliance_type || (context as any)?.device?.metadata?.device_family || (context as any)?.device?.type).toLowerCase();
     const rawKey = cleanStr((command as any).raw_key || (command as any).rawKey);
+    const supportedKeys = this.supportedIrKeys(context);
     const supportedDefinition = this.findSupportedIrKey(context, this.keyCandidates(command));
     const key = cleanStr(this.supportedKeyCode(supportedDefinition) || this.remoteCommandKey(command));
     const shouldUseAcEndpoint = /^(ac|air_conditioner|climate)$/.test(family) && (
@@ -1067,19 +1133,46 @@ export class TuyaAdapter implements DeviceAdapter {
         latency_ms: Date.now() - startedAt,
       });
     } else {
-      if (!key) throw new Error("This remote does not expose that control.");
-      result = await this.requestIr<any>(
-        "POST",
-        (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/command`,
-        { key },
-        { context, infraredId, endpointKind: "remote_command" },
-      );
+      if (!key) throw this.unsupportedIrCommandError();
+      if (supportedKeys.length && !supportedDefinition) throw this.unsupportedIrCommandError();
+      const standardPayload = { key };
+      let dispatchedEndpointKind = "remote_command";
+      try {
+        result = await this.requestIr<any>(
+          "POST",
+          (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/command`,
+          standardPayload,
+          { context, infraredId, endpointKind: "remote_command" },
+        );
+      } catch (error) {
+        const classified = classifyProviderError(error, { provider: "tuya", operation: "ir_remote_command" });
+        const canTryRawKey = Boolean(supportedDefinition?.key_id || supportedDefinition?.id || supportedDefinition?.key);
+        if (!canTryRawKey || ["permission_denied", "device_not_linked", "integration_expired", "authentication_failed", "rate_limited"].includes(classified.classification)) {
+          throw error;
+        }
+        logger.warn("tuya_ir_standard_command_fallback_to_raw", {
+          canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+          infrared_id: infraredId,
+          remote_id: remoteId,
+          key,
+          provider_code: classified.provider_code,
+          safe_message: classified.safe_message,
+          fallback: "raw_remote_command",
+        });
+        result = await this.requestIr<any>(
+          "POST",
+          (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/raw/command`,
+          (version: string) => this.rawCommandPayload(version, key, appliance, context),
+          { context, infraredId, endpointKind: "raw_remote_command" },
+        );
+        dispatchedEndpointKind = "raw_remote_command";
+      }
       logger.info("tuya_ir_command_dispatched", {
         canonical_device_id: (context as any)?.canonicalDevice?.id || null,
         infrared_id: infraredId,
         remote_id: remoteId,
-        endpoint_kind: "remote_command",
-        payload: { key },
+        endpoint_kind: dispatchedEndpointKind,
+        payload: standardPayload,
         response: result,
         latency_ms: Date.now() - startedAt,
       });
