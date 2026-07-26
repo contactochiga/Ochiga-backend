@@ -9,7 +9,7 @@ import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 import { isTechnicalDeviceHiddenFromResidents } from "../services/deviceInventoryVisibility";
 
 const ESTATE_WIDE_ROLES = new Set(["admin", "manager", "estate_admin", "facility_admin", "facility_manager", "operator"]);
-const DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT = 50_000;
+export const DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT = 50_000;
 
 function isUuid(value: unknown) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
@@ -108,12 +108,109 @@ function compactRuntimeState(state: Record<string, any> | null | undefined, norm
 }
 
 function runtimeContractFreshness(runtime: any) {
-  const authorizationState = String(runtime?.authorization_state || "");
-  if (authorizationState === "device_not_linked" || authorizationState === "authorization_required") return "provider_disconnected";
-  if (runtime?.provider_warning || runtime?.provider_error) return "unavailable";
   if (runtime?.freshness === "fresh") return "fresh";
-  if (runtime?.freshness === "stale") return "ageing";
-  return "expired";
+  if (runtime?.freshness === "stale") return "stale";
+  if (runtime?.freshness === "expired") return "expired";
+  return "unknown";
+}
+
+function compactCanonicalState(state: Record<string, any> | null | undefined) {
+  if (!state || typeof state !== "object") return null;
+  const compact = {
+    availability: state.availability || "unknown",
+    availabilityReason: state.availabilityReason || "unknown",
+    lastSeenAt: state.lastSeenAt || null,
+    lastProviderSyncAt: state.lastProviderSyncAt || null,
+    staleAfterMs: state.staleAfterMs ?? null,
+    primaryState: state.primaryState || { key: "state", value: null, label: "State unknown" },
+    secondaryState: state.secondaryState || undefined,
+    batteryPercentage: state.batteryPercentage ?? null,
+    batteryLevel: state.batteryLevel || "unknown",
+    alerts: Array.isArray(state.alerts) ? state.alerts.slice(0, 3) : [],
+    supportedActions: Array.isArray(state.supportedActions) ? state.supportedActions : [],
+    executableActions: Array.isArray(state.executableActions) ? state.executableActions : [],
+  };
+  return Object.fromEntries(Object.entries(compact).filter(([, value]) => value !== undefined));
+}
+
+function compactPresentation(presentation: Record<string, any> | null | undefined) {
+  if (!presentation || typeof presentation !== "object") return null;
+  return {
+    availability: presentation.availability || "unknown",
+    availabilityReason: presentation.availabilityReason || "unknown",
+    assignment: presentation.assignment || null,
+    lastSeenAt: presentation.lastSeenAt || null,
+    lastCheckedAt: presentation.lastCheckedAt || null,
+    lastConfirmedStateAt: presentation.lastConfirmedStateAt || null,
+    staleAfterMs: presentation.staleAfterMs ?? null,
+    primaryState: presentation.primaryState || null,
+    secondaryState: presentation.secondaryState || null,
+    batteryPercentage: presentation.batteryPercentage ?? null,
+    batteryLevel: presentation.batteryLevel || "unknown",
+    supportedActions: Array.isArray(presentation.supportedActions) ? presentation.supportedActions : [],
+    executableActions: Array.isArray(presentation.executableActions) ? presentation.executableActions : [],
+    alerts: Array.isArray(presentation.alerts) ? presentation.alerts.slice(0, 3) : [],
+    summary: presentation.summary || "State unknown",
+  };
+}
+
+export function buildCompactRuntimeDashboardDevice(device: Record<string, any>, runtime: any) {
+  const freshnessState = runtimeContractFreshness(runtime);
+  const summary = runtime?.summary || null;
+  const rawCanonicalState = summary?.canonical_state
+    ? {
+      ...summary.canonical_state,
+      availability: runtime?.stale && summary.canonical_state.availability === "online" ? "stale" : summary.canonical_state.availability,
+      lastSeenAt: summary.canonical_state.lastSeenAt || runtime?.last_refresh || device.last_seen_at || null,
+      lastProviderSyncAt: summary.canonical_state.lastProviderSyncAt || runtime?.provider_timestamp || null,
+      staleAfterMs: runtime?.ttl || summary.canonical_state.staleAfterMs || 10_000,
+    }
+    : null;
+  const rawPresentation = rawCanonicalState
+    ? buildCanonicalDevicePresentation(device, rawCanonicalState, { ...(summary || {}), normalized_state: summary?.normalized_state || {} })
+    : summary?.canonical_presentation || null;
+  const normalizedState = summary?.normalized_state || {};
+  return {
+    id: String(device.id),
+    device_id: String(device.id),
+    name: String(device.name || "Device"),
+    estate_id: device.estate_id || null,
+    home_id: device.home_id || null,
+    room_id: device.room_id || null,
+    room_name: device.room_name || null,
+    parent_device_id: device.parent_device_id || null,
+    is_virtual: Boolean(device.is_virtual),
+    external_id: device.external_id || null,
+    provider: device.provider || device.vendor || null,
+    adapter: device.adapter || device.vendor || device.provider || null,
+    type: device.type || null,
+    category: device.category || null,
+    metadata: compactDeviceMetadata(device.metadata || {}),
+    state: compactRuntimeState(runtime?.state || {}, normalizedState),
+    canonical_state: compactCanonicalState(rawCanonicalState),
+    canonical_presentation: compactPresentation(rawPresentation),
+    primary_state: summary?.primary_state || "unknown",
+    health_status: summary?.health_status || "unknown",
+    provider_health: summary?.provider_health || "unknown",
+    provider_warning: runtime?.provider_warning || null,
+    authorization_state: runtime?.authorization_state || "unknown",
+    retry_after: runtime?.retry_after || null,
+    freshness_state: freshnessState,
+    runtime_freshness: freshnessState,
+    last_confirmed_at: runtime?.provider_timestamp || runtime?.last_successful_refresh || device.last_seen_at || null,
+    is_cache_expired: freshnessState === "expired",
+    supported_controls: summary?.supported_controls || [],
+    channel_definitions: summary?.channel_definitions || [],
+    control_profile: summary?.control_profile || device.metadata?.control_profile || "generic",
+    device_family: summary?.device_family || device.metadata?.device_family || "unknown",
+    activity_summary: summary?.activity_summary || null,
+    capability_codes: summary?.capability_codes || [],
+    last_refresh: runtime?.last_refresh || null,
+    ttl: runtime?.ttl || 10_000,
+    stale: runtime?.stale ?? true,
+    freshness: runtime?.freshness || "expired",
+    synchronizing: !runtime,
+  };
 }
 
 export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
@@ -161,10 +258,9 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
     let staleCount = 0;
     const freshnessCounts: Record<string, number> = {
       fresh: 0,
-      ageing: 0,
+      stale: 0,
       expired: 0,
-      unavailable: 0,
-      provider_disconnected: 0,
+      unknown: 0,
     };
     const runtimeDevices = timeRequestStageSync(req, "runtime_frontend_contracts", () => devices.map((device: any) => {
       const runtime = deviceRuntimeStateService.get(String(device.id));
@@ -172,70 +268,7 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
       else if (runtime.stale) staleCount += 1;
       const freshnessState = runtimeContractFreshness(runtime);
       freshnessCounts[freshnessState] = (freshnessCounts[freshnessState] || 0) + 1;
-      const summary = runtime?.summary || null;
-      const canonicalState = summary?.canonical_state
-        ? {
-          ...summary.canonical_state,
-          availability: runtime?.stale && summary.canonical_state.availability === "online" ? "stale" : summary.canonical_state.availability,
-          lastSeenAt: summary.canonical_state.lastSeenAt || runtime?.last_refresh || device.last_seen_at || null,
-          lastProviderSyncAt: summary.canonical_state.lastProviderSyncAt || runtime?.provider_timestamp || null,
-          staleAfterMs: runtime?.ttl || summary.canonical_state.staleAfterMs || 10_000,
-        }
-        : null;
-      const presentation = canonicalState
-        ? buildCanonicalDevicePresentation(device, canonicalState, { ...(summary || {}), normalized_state: summary?.normalized_state || {} })
-        : summary?.canonical_presentation || null;
-      return {
-        id: String(device.id),
-        device_id: String(device.id),
-        name: String(device.name || "Device"),
-        estate_id: device.estate_id || null,
-        home_id: device.home_id || null,
-        room_id: device.room_id || null,
-        room_name: device.room_name || null,
-        parent_device_id: device.parent_device_id || null,
-        is_virtual: Boolean(device.is_virtual),
-        external_id: device.external_id || null,
-        provider: device.provider || device.vendor || null,
-        vendor: device.vendor || device.provider || null,
-        adapter: device.adapter || device.vendor || device.provider || null,
-        type: device.type || null,
-        category: device.category || null,
-        metadata: compactDeviceMetadata(device.metadata || {}),
-        state: compactRuntimeState(runtime?.state || {}, summary?.normalized_state || {}),
-        canonical_state: canonicalState,
-        canonicalState,
-        canonical_presentation: presentation,
-        presentation,
-        normalized_state: summary?.normalized_state || {},
-        primary_state: summary?.primary_state || "unknown",
-        health_status: summary?.health_status || "unknown",
-        provider_health: summary?.provider_health || "unknown",
-        provider_warning: runtime?.provider_warning || null,
-        authorization_state: runtime?.authorization_state || "unknown",
-        last_provider_error: runtime?.provider_error || null,
-        retry_after: runtime?.retry_after || null,
-        last_successful_refresh: runtime?.last_successful_refresh || null,
-        freshness_state: freshnessState,
-        runtime_freshness: freshnessState,
-        last_confirmed_at: runtime?.last_successful_refresh || runtime?.provider_timestamp || runtime?.last_refresh || device.last_seen_at || null,
-        is_cache_expired: freshnessState === "expired",
-        supported_controls: summary?.supported_controls || [],
-        capabilities: summary?.capabilities || device.capabilities || [],
-        channel_definitions: summary?.channel_definitions || [],
-        control_profile: summary?.control_profile || device.metadata?.control_profile || "generic",
-        device_family: summary?.device_family || device.metadata?.device_family || "unknown",
-        telemetry_summary: null,
-        activity_summary: summary?.activity_summary || null,
-        capability_codes: summary?.capability_codes || [],
-        provider_timestamp: runtime?.provider_timestamp || null,
-        runtime_timestamp: runtime?.runtime_timestamp || null,
-        last_refresh: runtime?.last_refresh || null,
-        ttl: runtime?.ttl || 10_000,
-        stale: runtime?.stale ?? true,
-        freshness: runtime?.freshness || "expired",
-        synchronizing: !runtime,
-      };
+      return buildCompactRuntimeDashboardDevice(device, runtime);
     }));
 
     const body = {

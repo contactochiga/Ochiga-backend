@@ -22,7 +22,7 @@ import { redis } from "./config/redis";
 // ---------------------------
 // MQTT + EVENT PROCESSOR
 // ---------------------------
-import { initMqttBridge } from "./device/bridge";
+import { initMqttBridge, shutdownMqttBridge } from "./device/bridge";
 import { startEventProcessor } from "./event-processor/eventProcessor";
 import { setIO } from "./realtime/io";
 import { authenticateSocket, canUseSocket, denySocket } from "./socketAuth";
@@ -592,3 +592,32 @@ httpServer.listen(PORT, async () => {
     process.exit(1);
   }
 });
+
+let shuttingDown = false;
+async function gracefulShutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info("backend_shutdown_started", { signal });
+  const deadline = setTimeout(() => {
+    logger.error("backend_shutdown_forced", { signal, timeout_ms: 10_000 });
+    process.exit(1);
+  }, 10_000);
+  deadline.unref?.();
+  try {
+    deviceRuntimeStateService.stop();
+    io.close();
+    await shutdownMqttBridge().catch((error) => logger.warn("mqtt_bridge_shutdown_failed", { error }));
+    if (redis.isOpen) await redis.quit().catch((error) => logger.warn("redis_shutdown_failed", { error }));
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    clearTimeout(deadline);
+    logger.info("backend_shutdown_complete", { signal });
+    process.exit(0);
+  } catch (error) {
+    clearTimeout(deadline);
+    logger.error("backend_shutdown_failed", { signal, error });
+    process.exit(1);
+  }
+}
+
+process.once("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+process.once("SIGINT", () => void gracefulShutdown("SIGINT"));

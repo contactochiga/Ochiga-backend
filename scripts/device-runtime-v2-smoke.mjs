@@ -120,6 +120,15 @@ check(reused?.viewed_until_at === viewed?.viewed_until_at && runtime.stats().cur
 now += 30_000;
 const renewed = runtime.markViewed("device-1", { ttlMs: 45_000, source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
 check(renewed?.viewed_until_at !== viewed?.viewed_until_at && runtime.stats().currently_viewed === 1, "near-expiry panel lease renews as one logical viewed device");
+const released = runtime.releaseViewed("device-1", { source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
+check(released?.viewed_until_at === null && runtime.stats().currently_viewed === 0, "explicit panel close releases the viewed lease immediately");
+const reopened = runtime.markViewed("device-1", { ttlMs: 45_000, source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
+check(Boolean(reopened?.viewed_until_at) && runtime.stats().currently_viewed === 1, "reopened panel creates one fresh logical lease after release");
+runtime.releaseViewed("device-1", { source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
+const secondLease = runtime.markViewed("device-2", { ttlMs: 45_000, source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
+check(Boolean(secondLease?.viewed_until_at) && runtime.stats().currently_viewed === 1, "one open panel on another device reports one viewed lease");
+runtime.releaseViewed("device-2", { source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
+runtime.markViewed("device-3", { ttlMs: 45_000, source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
 now += 46_000;
 check(runtime.stats().currently_viewed === 0, "view lease expires back to zero after the short TTL");
 

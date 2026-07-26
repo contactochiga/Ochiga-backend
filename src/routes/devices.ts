@@ -3,7 +3,7 @@ import { Router } from "express";
 import { requireAuth, requireDeviceRuntimeReadAuth, requirePermission } from "../middleware/auth";
 import { resolveDeviceRuntimeContext, resolveRequestContext } from "../middleware/contextResolver";
 import { discoverDevices } from "../controllers/deviceDiscoveryController";
-import { getDeviceState } from "../controllers/deviceStateController";
+import { getDeviceState, releaseDeviceStateView } from "../controllers/deviceStateController";
 import { assignDevices } from "../controllers/deviceAssignController";
 import { requestDeviceCommand } from "../controllers/deviceCommandController";
 import { getEstateDevices } from "../controllers/deviceEstateController"; // ✅ add
@@ -107,6 +107,7 @@ router.get("/:deviceId/smart-access/credentials", requireAuth, resolveRequestCon
 router.post("/:deviceId/smart-access/credentials", requireAuth, resolveRequestContext, requirePermission("devices.control"), createSmartAccessCredential);
 router.post("/:deviceId/smart-access/media/session", requireAuth, resolveRequestContext, requirePermission("devices.read"), requestSmartAccessMediaSession);
 router.post("/:deviceId/command", requireAuth, resolveRequestContext, requirePermission("devices.control"), requestDeviceCommand);
+router.post("/:deviceId/state/view/release", requireDeviceRuntimeReadAuth, resolveDeviceRuntimeContext, requirePermission("devices.read"), releaseDeviceStateView);
 router.get("/:deviceId/state", requireDeviceRuntimeReadAuth, resolveDeviceRuntimeContext, requirePermission("devices.read"), getDeviceState);
 
 export default router;

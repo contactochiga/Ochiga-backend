@@ -536,3 +536,13 @@ export function publishDeviceAction(topic: string, command: any) {
     console.error("publishDeviceAction err", err);
   }
 }
+
+export async function shutdownMqttBridge() {
+  if (!client) return;
+  const closing = client;
+  client = null;
+  await new Promise<void>((resolve) => {
+    closing.end(false, {}, () => resolve());
+    setTimeout(resolve, 2_000).unref?.();
+  });
+}

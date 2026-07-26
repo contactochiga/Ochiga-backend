@@ -36,7 +36,6 @@ redis.on("error", (err) => {
   operationalMetrics.increment("oyi_provider_failures_total", { provider: "redis" });
   runtimeHealthRegistry.markQueue("offline", err.message);
   logger.error("redis_error", { error: err });
-  process.exit(1); // ⛔ fail fast, no infinite loops
 });
 
 export default redis;

@@ -1,4 +1,5 @@
 import { adapterRegistry } from "../device/adapters/registry";
+import { createHash } from "crypto";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import {
   buildCanonicalDevicePresentation,
@@ -170,6 +171,13 @@ function deterministicJitterMs(deviceId: string, intervalMs: number) {
     hash = ((hash << 5) - hash + deviceId.charCodeAt(i)) | 0;
   }
   return Math.abs(hash) % maxJitter;
+}
+
+function leaseKeyHash(input: { deviceId: string; actorId?: string | null; homeId?: string | null; source?: string | null }) {
+  return createHash("sha256")
+    .update([input.actorId || "anonymous", input.homeId || "no-home", input.deviceId, input.source || "device_panel"].join(":"))
+    .digest("hex")
+    .slice(0, 16);
 }
 
 function integrationOwner(device: Record<string, any>) {
@@ -634,6 +642,7 @@ export class DeviceRuntimeStateService {
     const renewWindowMs = Math.floor(ttlMs / 2);
     const shouldRenew = !active || previousUntil - now < renewWindowMs;
     const nextUntil = shouldRenew ? now + ttlMs : previousUntil;
+    const leaseKey = leaseKeyHash({ deviceId: entry.device_id, actorId: input.actorId, homeId: input.homeId || entry.device?.home_id, source: input.source });
     entry.accessed_at_ms = now;
     entry.last_viewed_at_ms = now;
     entry.viewed_until_ms = nextUntil;
@@ -645,9 +654,12 @@ export class DeviceRuntimeStateService {
         estate_id: input.estateId || entry.device?.estate_id || null,
         home_id: input.homeId || entry.device?.home_id || null,
         actor_id: input.actorId || null,
+        lease_key: leaseKey,
+        reason: input.source || "device_panel",
         previous_expires_at: previousUntil ? new Date(previousUntil).toISOString() : null,
         lease_expires_at: new Date(nextUntil).toISOString(),
         ttl_ms: ttlMs,
+        current_logical_lease_count: this.stats().currently_viewed,
       });
     } else if (shouldRenew) {
       logger.info("device_runtime_view_lease_renewed", {
@@ -656,9 +668,12 @@ export class DeviceRuntimeStateService {
         estate_id: input.estateId || entry.device?.estate_id || null,
         home_id: input.homeId || entry.device?.home_id || null,
         actor_id: input.actorId || null,
+        lease_key: leaseKey,
+        reason: input.source || "device_panel",
         previous_expires_at: new Date(previousUntil).toISOString(),
         lease_expires_at: new Date(nextUntil).toISOString(),
         ttl_ms: ttlMs,
+        current_logical_lease_count: this.stats().currently_viewed,
       });
     } else {
       logger.debug("device_runtime_view_lease_reused", {
@@ -667,8 +682,43 @@ export class DeviceRuntimeStateService {
         estate_id: input.estateId || entry.device?.estate_id || null,
         home_id: input.homeId || entry.device?.home_id || null,
         actor_id: input.actorId || null,
+        lease_key: leaseKey,
+        reason: input.source || "device_panel",
         lease_expires_at: new Date(nextUntil).toISOString(),
         ttl_ms: ttlMs,
+        current_logical_lease_count: this.stats().currently_viewed,
+      });
+    }
+    return this.snapshot(entry);
+  }
+
+  releaseViewed(deviceId: string, input: {
+    source?: string;
+    estateId?: string | null;
+    homeId?: string | null;
+    actorId?: string | null;
+  } = {}) {
+    const entry = this.cache.get(String(deviceId));
+    if (!entry) return null;
+    const now = this.now();
+    const previousUntil = Number(entry.viewed_until_ms || 0);
+    const leaseKey = leaseKeyHash({ deviceId: entry.device_id, actorId: input.actorId, homeId: input.homeId || entry.device?.home_id, source: input.source });
+    if (previousUntil > now) {
+      entry.viewed_until_ms = 0;
+      entry.last_viewed_at_ms = undefined;
+      if (entry.refresh_class === "currently_viewed") entry.refresh_class = undefined;
+      logger.info("device_runtime_view_lease_released", {
+        device_id: entry.device_id,
+        source: input.source || "device_panel",
+        reason: input.source || "device_panel",
+        estate_id: input.estateId || entry.device?.estate_id || null,
+        home_id: input.homeId || entry.device?.home_id || null,
+        actor_id: input.actorId || null,
+        lease_key: leaseKey,
+        previous_expires_at: new Date(previousUntil).toISOString(),
+        released_at: new Date(now).toISOString(),
+        ttl_ms: Math.max(0, previousUntil - now),
+        current_logical_lease_count: this.stats().currently_viewed,
       });
     }
     return this.snapshot(entry);
@@ -850,7 +900,11 @@ export class DeviceRuntimeStateService {
         device_id: entry.device_id,
         estate_id: entry.device?.estate_id || null,
         home_id: entry.device?.home_id || null,
+        lease_key: leaseKeyHash({ deviceId: entry.device_id, homeId: entry.device?.home_id, source: "device_panel" }),
+        reason: "device_panel",
         lease_expired_at: new Date(viewedUntil).toISOString(),
+        ttl_ms: 0,
+        current_logical_lease_count: this.stats().currently_viewed,
       });
       entry.viewed_until_ms = 0;
     }

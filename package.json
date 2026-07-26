@@ -35,6 +35,7 @@
     "smoke:oyi-runtime": "npm run build && node scripts/oyi-runtime-smoke.mjs",
     "smoke:device-runtime": "npm run build && node scripts/device-runtime-adapter-smoke.mjs",
     "smoke:device-runtime-v2": "npm run build && node scripts/device-runtime-v2-smoke.mjs",
+    "smoke:device-runtime-payload": "npm run build && node scripts/device-runtime-payload-budget-smoke.mjs",
     "smoke:device-fast-state": "npm run build && node scripts/device-fast-state-read-smoke.mjs",
     "smoke:tuya-authorization": "npm run build && node scripts/tuya-authorization-runtime-smoke.mjs",
     "smoke:device-control-matrix": "npm run build && node scripts/device-control-matrix-smoke.mjs",
@@ -113,7 +114,7 @@
     "smoke:scheduler-refresh-classes": "npm run smoke:device-runtime-v2",
     "validate:env": "node scripts/validate-env.mjs",
     "validate:security": "node scripts/validate-security.mjs",
-    "validate:release": "node scripts/validate-release.mjs && npm run smoke:release-closure && npm run smoke:release-stabilization && npm run smoke:service-provisioning && npm run smoke:electricity-purchase && npm run smoke:device-schema && npm run smoke:device-runtime-v2 && npm run smoke:device-fast-state && npm run smoke:tuya-authorization && npm run smoke:device-control-matrix && npm run smoke:tuya-ir-inventory && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence && npm run smoke:infrastructure-onboarding && npm run smoke:operational-object-context && npm run smoke:canonical-truth && npm run smoke:compatibility-delegation && npm run smoke:wallet-funding && npm run smoke:wallet-webhook-idempotency && npm run smoke:wallet-receipt && npm run smoke:wallet-notification && npm run smoke:wallet-return-flow && npm run smoke:smart-access"
+    "validate:release": "node scripts/validate-release.mjs && npm run smoke:release-closure && npm run smoke:release-stabilization && npm run smoke:service-provisioning && npm run smoke:electricity-purchase && npm run smoke:device-schema && npm run smoke:device-runtime-v2 && npm run smoke:device-runtime-payload && npm run smoke:device-fast-state && npm run smoke:tuya-authorization && npm run smoke:device-control-matrix && npm run smoke:tuya-ir-inventory && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence && npm run smoke:infrastructure-onboarding && npm run smoke:operational-object-context && npm run smoke:canonical-truth && npm run smoke:compatibility-delegation && npm run smoke:wallet-funding && npm run smoke:wallet-webhook-idempotency && npm run smoke:wallet-receipt && npm run smoke:wallet-notification && npm run smoke:wallet-return-flow && npm run smoke:smart-access"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

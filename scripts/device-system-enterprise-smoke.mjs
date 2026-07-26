@@ -63,8 +63,8 @@ expect(
 );
 expect(
   "src/controllers/deviceRuntimeStateController.ts",
-  /attachRoomNames[\s\S]*rooms[\s\S]*room_name[\s\S]*canonical_presentation: presentation/,
-  "Runtime dashboard must resolve room names and return canonical presentation",
+  /attachRoomNames[\s\S]*rooms[\s\S]*room_name[\s\S]*buildCompactRuntimeDashboardDevice[\s\S]*canonical_presentation: compactPresentation/,
+  "Runtime dashboard must resolve room names and return compact canonical presentation",
 );
 expect(
   "src/controllers/deviceStateController.ts",
@@ -78,12 +78,12 @@ expect(
 );
 expect(
   "src/controllers/deviceRuntimeStateController.ts",
-  /canonical_state: canonicalState[\s\S]*dashboard_mode: "compact_cache_only"[\s\S]*provider_requests_deferred: 0/,
+  /canonical_state: compactCanonicalState[\s\S]*dashboard_mode: "compact_cache_only"[\s\S]*provider_requests_deferred: 0/,
   "Runtime dashboard must return canonical_state as compact cache-only data without provider reads",
 );
 expect(
   "src/controllers/deviceRuntimeStateController.ts",
-  /DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT = 50_000[\s\S]*runtimeContractFreshness[\s\S]*freshnessCounts[\s\S]*runtime_freshness[\s\S]*last_confirmed_at[\s\S]*device_runtime_dashboard_payload_budget_exceeded/,
+  /DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT = 50_000[\s\S]*runtimeContractFreshness[\s\S]*last_confirmed_at[\s\S]*freshnessCounts[\s\S]*payload_budget_bytes[\s\S]*device_runtime_dashboard_payload_budget_exceeded/,
   "Runtime dashboard must expose compact freshness semantics and enforce a 50KB payload budget",
 );
 expect(
@@ -101,10 +101,35 @@ reject(
   /runtime_dashboard_stale|runtime_dashboard_expired/,
   "Runtime dashboard must not trigger broad provider refresh sweeps",
 );
+reject(
+  "src/config/redis.ts",
+  /process\.exit/,
+  "Redis runtime errors must degrade health instead of terminating Node",
+);
+expect(
+  "src/server.ts",
+  /gracefulShutdown[\s\S]*deviceRuntimeStateService\.stop\(\)[\s\S]*shutdownMqttBridge[\s\S]*redis\.quit[\s\S]*httpServer\.close[\s\S]*SIGTERM[\s\S]*SIGINT/,
+  "Backend must stop Runtime V2, MQTT, Redis and HTTP cleanly during platform shutdown",
+);
 expect(
   "src/services/deviceRuntimeStateService.ts",
-  /markViewed[\s\S]*device_runtime_view_lease_acquired[\s\S]*device_runtime_view_lease_renewed[\s\S]*device_runtime_view_lease_reused[\s\S]*device_runtime_view_lease_expired/,
-  "Runtime V2 must acquire, renew, reuse and expire explicit panel view leases",
+  /markViewed[\s\S]*device_runtime_view_lease_acquired[\s\S]*device_runtime_view_lease_renewed[\s\S]*device_runtime_view_lease_reused[\s\S]*releaseViewed[\s\S]*device_runtime_view_lease_released[\s\S]*device_runtime_view_lease_expired/,
+  "Runtime V2 must acquire, renew, reuse, explicitly release and expire panel view leases",
+);
+expect(
+  "src/controllers/deviceStateController.ts",
+  /createReleaseDeviceStateView[\s\S]*releaseViewed[\s\S]*device_runtime_view_release_failed/,
+  "Backend must expose a scoped panel lease release path for Consumer close/unmount",
+);
+expect(
+  "src/routes/devices.ts",
+  /state\/view\/release[\s\S]*releaseDeviceStateView/,
+  "Device routes must register the explicit panel lease release endpoint",
+);
+expect(
+  "scripts/device-runtime-payload-budget-smoke.mjs",
+  /Buffer\.byteLength[\s\S]*key\.key_id === 106[\s\S]*Verbose provider evidence[\s\S]*runtime_payload_bytes_after/,
+  "Payload budget smoke must measure actual bytes while preserving TV mute evidence and stripping verbose provider data",
 );
 expect(
   "src/controllers/deviceStateController.ts",

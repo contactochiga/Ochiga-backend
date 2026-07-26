@@ -22,7 +22,7 @@ type StateIncludes = {
 };
 
 type DeviceStateControllerDependencies = {
-  runtime: Pick<typeof deviceRuntimeStateService, "has" | "get" | "hydrateSnapshot" | "markViewed" | "shouldRefresh" | "scheduleRefresh">;
+  runtime: Pick<typeof deviceRuntimeStateService, "has" | "get" | "hydrateSnapshot" | "markViewed" | "releaseViewed" | "shouldRefresh" | "scheduleRefresh">;
   findDevice: (input: { rawId: string; estateId: string; includeSnapshot: boolean }) => Promise<{
     device: Record<string, any> | null;
     snapshot: Record<string, any> | null;
@@ -297,3 +297,52 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
 }
 
 export const getDeviceState = createGetDeviceState();
+
+export function createReleaseDeviceStateView(overrides: Partial<DeviceStateControllerDependencies> = {}) {
+  const dependencies = { ...defaultDependencies, ...overrides };
+  return async function releaseDeviceStateViewHandler(req: Request, res: Response) {
+    const rawId = String(req.params.deviceId || "").trim();
+    const estateId = req.oisContext?.estate_id || req.user?.estate_id || null;
+    const homeId = req.oisContext?.home_id || req.user?.home_id || null;
+    try {
+      if (!estateId) return res.status(400).json({ error: "User has no estate" });
+      if (!rawId) return res.status(400).json({ error: "Missing deviceId" });
+      const resolved = await dependencies.findDevice({ rawId, estateId, includeSnapshot: false });
+      let device = resolved.device;
+      if (!device?.id) return res.status(404).json({ error: "Device not found" });
+      const canonicalChild = await resolveCanonicalIrChildForProviderRemote(device);
+      if (canonicalChild?.id) device = canonicalChild;
+      if (!device?.id) return res.status(404).json({ error: "Device not found" });
+      if (isTechnicalDeviceHiddenFromResidents(device)) return res.status(404).json({ error: "Device not found in this home" });
+      if (homeId && String(device.home_id || "") !== String(homeId)) {
+        return res.status(403).json({ error: "This device is not assigned to your current home." });
+      }
+      const snapshot = dependencies.runtime.releaseViewed(String(device.id), {
+        source: "device_panel",
+        estateId,
+        homeId,
+        actorId: req.user?.id || null,
+      });
+      return res.json({
+        ok: true,
+        device_id: String(device.id),
+        viewed_until_at: snapshot?.viewed_until_at || null,
+      });
+    } catch (error) {
+      logger.error("device_runtime_view_release_failed", {
+        error,
+        device_ref: rawId || null,
+        estate_id: estateId,
+        home_id: homeId,
+      });
+      return sendPublicApiError(
+        res,
+        error,
+        { statusCode: 503, code: "device_runtime_view_release_failed", message: "Device view lease could not be released." },
+        { operation: "devices.state.release", device_ref: rawId, estate_id: estateId, home_id: homeId },
+      );
+    }
+  };
+}
+
+export const releaseDeviceStateView = createReleaseDeviceStateView();
