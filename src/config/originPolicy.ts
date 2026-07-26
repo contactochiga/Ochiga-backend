@@ -47,6 +47,10 @@ export const allowedHeaders = [
   "X-Oyi-Estate-Id",
   "X-Oyi-Home-Id",
   "X-Oyi-Context-Key",
+  "Idempotency-Key",
+  "X-Idempotency-Key",
+  "X-IR-Tap-Sequence",
+  "X-Client-Tap-Timestamp",
   "Accept",
   "Origin",
 ];
