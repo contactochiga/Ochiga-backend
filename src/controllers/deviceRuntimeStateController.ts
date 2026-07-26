@@ -9,6 +9,7 @@ import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 import { isTechnicalDeviceHiddenFromResidents } from "../services/deviceInventoryVisibility";
 
 const ESTATE_WIDE_ROLES = new Set(["admin", "manager", "estate_admin", "facility_admin", "facility_manager", "operator"]);
+const DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT = 50_000;
 
 function isUuid(value: unknown) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
@@ -106,6 +107,15 @@ function compactRuntimeState(state: Record<string, any> | null | undefined, norm
   return compact;
 }
 
+function runtimeContractFreshness(runtime: any) {
+  const authorizationState = String(runtime?.authorization_state || "");
+  if (authorizationState === "device_not_linked" || authorizationState === "authorization_required") return "provider_disconnected";
+  if (runtime?.provider_warning || runtime?.provider_error) return "unavailable";
+  if (runtime?.freshness === "fresh") return "fresh";
+  if (runtime?.freshness === "stale") return "ageing";
+  return "expired";
+}
+
 export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
   const user: any = req.user;
   const context: any = (req as any).oisContext || null;
@@ -149,10 +159,19 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
 
     let expiredCount = 0;
     let staleCount = 0;
+    const freshnessCounts: Record<string, number> = {
+      fresh: 0,
+      ageing: 0,
+      expired: 0,
+      unavailable: 0,
+      provider_disconnected: 0,
+    };
     const runtimeDevices = timeRequestStageSync(req, "runtime_frontend_contracts", () => devices.map((device: any) => {
       const runtime = deviceRuntimeStateService.get(String(device.id));
       if (!runtime || runtime.freshness === "expired" || runtime.dirty) expiredCount += 1;
       else if (runtime.stale) staleCount += 1;
+      const freshnessState = runtimeContractFreshness(runtime);
+      freshnessCounts[freshnessState] = (freshnessCounts[freshnessState] || 0) + 1;
       const summary = runtime?.summary || null;
       const canonicalState = summary?.canonical_state
         ? {
@@ -197,6 +216,10 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
         last_provider_error: runtime?.provider_error || null,
         retry_after: runtime?.retry_after || null,
         last_successful_refresh: runtime?.last_successful_refresh || null,
+        freshness_state: freshnessState,
+        runtime_freshness: freshnessState,
+        last_confirmed_at: runtime?.last_successful_refresh || runtime?.provider_timestamp || runtime?.last_refresh || device.last_seen_at || null,
+        is_cache_expired: freshnessState === "expired",
         supported_controls: summary?.supported_controls || [],
         capabilities: summary?.capabilities || device.capabilities || [],
         channel_definitions: summary?.channel_definitions || [],
@@ -226,10 +249,22 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
       provider_refreshes_scheduled: 0,
       dashboard_mode: "compact_cache_only",
       runtime: deviceRuntimeStateService.stats(),
+      freshness_counts: freshnessCounts,
+      payload_budget_bytes: DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT,
     };
     const serialized = timeRequestStageSync(req, "serialization", () => JSON.stringify(body));
+    const responseBytes = Buffer.byteLength(serialized);
     exposeServerTiming(req, res);
     const timing = requestStageTimingSnapshot(req);
+    if (responseBytes > DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT) {
+      logger.warn("device_runtime_dashboard_payload_budget_exceeded", {
+        estate_id: estateId,
+        home_id: requestedHomeId || activeHomeId || null,
+        device_count: devices.length,
+        response_bytes: responseBytes,
+        budget_bytes: DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT,
+      });
+    }
     logger.info("device_runtime_dashboard_timing", {
       estate_id: estateId,
       home_id: requestedHomeId || activeHomeId || null,
@@ -243,8 +278,10 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
       provider_refreshes_scheduled: 0,
       stale_count: staleCount,
       expired_count: expiredCount,
+      freshness_counts: freshnessCounts,
       cache_only: true,
-      response_bytes: Buffer.byteLength(serialized),
+      response_bytes: responseBytes,
+      payload_budget_bytes: DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT,
       total_ms: timing.total_ms,
       stages: timing.stages,
     });

@@ -83,6 +83,16 @@ expect(
 );
 expect(
   "src/controllers/deviceRuntimeStateController.ts",
+  /DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT = 50_000[\s\S]*runtimeContractFreshness[\s\S]*freshnessCounts[\s\S]*runtime_freshness[\s\S]*last_confirmed_at[\s\S]*device_runtime_dashboard_payload_budget_exceeded/,
+  "Runtime dashboard must expose compact freshness semantics and enforce a 50KB payload budget",
+);
+expect(
+  "src/services/deviceRuntimeStateService.ts",
+  /input\.source === "persistent_snapshot"[\s\S]*Persisted snapshots may be old[\s\S]*last_refresh_attempt_ms: seededRefreshAttemptMs/,
+  "Persistent snapshot hydration must seed scheduler timing to prevent cold-start provider bursts",
+);
+expect(
+  "src/controllers/deviceRuntimeStateController.ts",
   /compactDeviceMetadata[\s\S]*supported_keys[\s\S]*compactRuntimeState/,
   "Runtime dashboard must compact inventory payloads while preserving IR key evidence",
 );

@@ -112,6 +112,11 @@ expect(
   "routine resident smart-access events must use canonical home/ownership scope for the private smart-access domain",
 );
 expect(
+  "src/services/deviceOperationalSignalService.ts",
+  /resolvedEstateId[\s\S]*resolvedHomeId[\s\S]*unitId: resolvedHomeId[\s\S]*home_id: resolvedHomeId/,
+  "provider telemetry must enrich top-level Oyi Core scope from the canonical device record before routing",
+);
+expect(
   "src/oyi-core/runtime/universalSignalRuntime.ts",
   /smart_access_private[\s\S]*resident_device_private[\s\S]*return \["activity"\]/,
   "routine resident-owned device events must avoid facility registry, reports and digital twin outputs",

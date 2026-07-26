@@ -85,6 +85,10 @@ check(stale?.freshness === "stale" && stale.stale === true, "10-60 second state 
 now += 50_000;
 const expired = runtime.get("device-1");
 check(expired?.freshness === "expired", "state older than 60 seconds is returned as expired");
+runtime.refreshActiveEntries();
+await wait(0);
+check(providerReads === 0, "cold-start expired persisted snapshots are not immediately provider-due");
+check(runtime.get("device-1")?.next_refresh_at, "expired persisted snapshots receive a jittered future refresh deadline");
 
 const concurrentSameDevice = Array.from({ length: 20 }, () => runtime.refresh(devices[0], "high", "dedupe_test"));
 await Promise.all(concurrentSameDevice);

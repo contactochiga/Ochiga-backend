@@ -18,6 +18,7 @@ import {
 } from "../device/runtime/providerErrors";
 
 export type DeviceRuntimeFreshness = "fresh" | "stale" | "expired";
+export type DeviceRuntimeContractFreshness = "fresh" | "ageing" | "expired" | "unavailable" | "provider_disconnected";
 export type DeviceRuntimeRefreshPriority = "normal" | "high";
 
 export type DeviceRuntimeSnapshot = {
@@ -379,6 +380,7 @@ export class DeviceRuntimeStateService {
         provider_latency_ms: input.providerLatencyMs ?? null,
       },
     };
+    const seededRefreshAttemptMs = input.source === "persistent_snapshot" ? this.now() : undefined;
     const entry: RuntimeEntry = {
       device_id: String(device.id),
       device,
@@ -403,7 +405,10 @@ export class DeviceRuntimeStateService {
       accessed_at_ms: 0,
       viewed_until_ms: 0,
       last_viewed_at_ms: undefined,
-      last_refresh_attempt_ms: undefined,
+      // Persisted snapshots may be old when a process starts. Seeding the
+      // scheduler attempt time prevents a cold cache from making every device
+      // provider-due on the first scheduler tick.
+      last_refresh_attempt_ms: seededRefreshAttemptMs,
     };
     this.cache.set(entry.device_id, entry);
     this.trimCache();

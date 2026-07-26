@@ -369,6 +369,12 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
   const provider = text(input.provider || input.device.provider || input.device.vendor || adapter);
   const externalId = text(input.device.external_id || input.device.metadata?.external_id);
   const enrichedState = enrichedStateSummary(input);
+  const resolvedEstateId = text(input.estateId || input.device.estate_id || input.extraMetadata?.estate_id);
+  const resolvedBuildingId = text(input.device.building_id || input.extraMetadata?.building_id);
+  const resolvedHomeId = text(input.homeId || input.device.home_id || input.extraMetadata?.home_id);
+  const resolvedRoomId = text(input.roomId || input.device.room_id || input.extraMetadata?.room_id);
+  const resolvedOwnershipClass = text(input.device.ownership_class || input.extraMetadata?.ownership_class);
+  const resolvedProjectionPolicy = text(input.device.projection_policy || input.extraMetadata?.projection_policy);
   const capabilities = Array.from(new Set([
     ...deviceCapabilities(input.device),
     ...(Array.isArray(enrichedState.capability_codes) ? enrichedState.capability_codes : []),
@@ -385,9 +391,9 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
     origin,
     initiatorType: actor.type === "resident" ? "resident" : actor.type === "operator" ? "operator" : observedSource === "physical_switch" ? "device" : observedSource === "provider_reported" || observedSource === "provider_app" ? "provider" : observedSource === "automation" || observedSource === "scene" ? "automation" : "system",
     initiatorId: actor.id,
-    estateId: text(input.estateId),
-    buildingId: text(input.device.building_id || input.extraMetadata?.building_id),
-    unitId: text(input.homeId || input.device.home_id),
+    estateId: resolvedEstateId,
+    buildingId: resolvedBuildingId,
+    unitId: resolvedHomeId,
     provider,
     providerEventId: text(input.providerEventId),
     sessionId: text(recent?.metadata?.session_id),
@@ -404,15 +410,15 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
       status: input.eventType,
     },
     estate: {
-      id: text(input.estateId),
+      id: resolvedEstateId,
       name: text(input.extraMetadata?.estate_name),
     },
     building: {
-      id: null,
+      id: resolvedBuildingId,
       name: null,
     },
     room: {
-      id: text(input.roomId),
+      id: resolvedRoomId,
       name: text(input.extraMetadata?.room_name),
     },
     actor: {
@@ -426,12 +432,12 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
     timestamp: occurredAt,
     context: {
       event_type: input.eventType,
-      estate_id: text(input.estateId || input.device.estate_id),
-      building_id: text(input.device.building_id || input.extraMetadata?.building_id),
-      home_id: text(input.homeId || input.device.home_id),
-      room_id: text(input.roomId || input.device.room_id),
-      ownership_class: text(input.device.ownership_class || input.extraMetadata?.ownership_class),
-      projection_policy: text(input.device.projection_policy || input.extraMetadata?.projection_policy),
+      estate_id: resolvedEstateId,
+      building_id: resolvedBuildingId,
+      home_id: resolvedHomeId,
+      room_id: resolvedRoomId,
+      ownership_class: resolvedOwnershipClass,
+      projection_policy: resolvedProjectionPolicy,
       old_state: asRecord(input.previousState),
       new_state: asRecord(input.newState),
       changed_keys: telemetry.changed_keys || [],
@@ -463,12 +469,12 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
       device_type: text(input.device.type),
       device_category: text(input.device.category),
       device_family: text(enrichedState.device_family),
-      estate_id: text(input.estateId || input.device.estate_id),
-      building_id: text(input.device.building_id || input.extraMetadata?.building_id),
-      home_id: text(input.homeId || input.device.home_id),
-      room_id: text(input.roomId || input.device.room_id),
-      ownership_class: text(input.device.ownership_class || input.extraMetadata?.ownership_class),
-      projection_policy: text(input.device.projection_policy || input.extraMetadata?.projection_policy),
+      estate_id: resolvedEstateId,
+      building_id: resolvedBuildingId,
+      home_id: resolvedHomeId,
+      room_id: resolvedRoomId,
+      ownership_class: resolvedOwnershipClass,
+      projection_policy: resolvedProjectionPolicy,
       visibility_policy: text(input.device.visibility_policy || input.extraMetadata?.visibility_policy),
       raw_provider_payload: asRecord(input.newState),
       previous_state: asRecord(input.previousState),
