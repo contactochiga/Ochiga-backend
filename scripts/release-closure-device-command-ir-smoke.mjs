@@ -56,6 +56,10 @@ assert(/auditIrHubCapabilities/.test(tuyaAdapter) && /"categories"/.test(tuyaAda
 assert(/confirmation_strategy: "provider_ack_only"/.test(tuyaAdapter) && /provider_ack_only[\s\S]*return \{[\s\S]*confirmation_strategy: "provider_ack_only"/.test(commandController), "TV IR commands use provider_ack_only and return before fake state confirmation");
 assert(/irCommandLanes/.test(commandController) && /runInIrCommandLane/.test(commandController) && /IR_DISPATCH_SPACING_MS/.test(commandController), "TV IR commands use a bounded per-remote FIFO dispatch lane");
 assert(/commandClientSequence/.test(commandController) && /ir_backend_received/.test(commandController) && /ir_response_sent/.test(commandController), "TV IR commands propagate tap sequence diagnostics through backend receipt and response");
+assert(/device_command_request_created/.test(commandController), "generic device commands use device_command_request_created observability");
+assert(/if \(providerAckOnly\) \{[\s\S]*logger\.info\("ir_request_created"/.test(commandController), "ir_request_created is emitted only for provider-ack IR commands");
+assert(/commandExecutionId/.test(commandController) && /command_execution_id: executionId/.test(commandController), "device command acceptance creates and returns a canonical command execution id");
+assert(!/await NotificationService\.sendToUser\(String\(user\.id\), \{[\s\S]{0,600}kind: "device\.command\.requested"/.test(commandController), "successful routine device commands do not directly push confirmation-pending notifications");
 assert(!/providerAckOnly[\s\S]{0,220}scheduleRefresh/.test(commandController), "provider_ack_only TV IR commands do not schedule observable-state confirmation refreshes");
 assert(/Add or sync an appliance profile before using this remote/.test(tuyaAdapter), "Tuya adapter fails honestly when a virtual remote is missing provider binding");
 assert(/family === "tv" \|\| family === "ir"/.test(commandController) && /type: c\.type \|\| "tv_remote"/.test(commandController), "TV and generic IR commands keep remote command shape instead of switch payloads");

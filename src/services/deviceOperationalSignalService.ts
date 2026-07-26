@@ -54,6 +54,7 @@ export type DeviceOperationalSignalInput = {
     | "device.power.off"
     | "device.physical_switch.detected"
     | "device.command.requested"
+    | "device.command.accepted"
     | "device.command.executed"
     | "device.command.failed"
     | "device.offline"
@@ -244,6 +245,7 @@ function isSmartAccessDevice(input: DeviceOperationalSignalInput, enrichedState?
 
 function privateDeviceDomain(input: DeviceOperationalSignalInput, observedSource: DeviceObservedSource, actor: ReturnType<typeof actorDetails>, enrichedState: any) {
   const metadata = asRecord(input.device.metadata);
+  const commandExecutionId = text(input.extraMetadata?.command_execution_id || input.extraMetadata?.commandExecutionId);
   const ownership = String(
     input.device.ownership_class ||
     metadata.ownership_class ||
@@ -253,10 +255,18 @@ function privateDeviceDomain(input: DeviceOperationalSignalInput, observedSource
     ""
   ).toLowerCase();
   const hasHomeScope = Boolean(text(input.homeId || input.device.home_id || input.extraMetadata?.home_id));
-  const isResidentRoutine =
-    (actor.type === "resident" || observedSource === "app" || observedSource === "watch") &&
-    !/tamper|forced|wrong|alarm|jam|failed|offline|authorization_required/.test(`${input.eventType} ${JSON.stringify(input.newState || {})}`.toLowerCase()) &&
+  const routineText = `${input.eventType} ${JSON.stringify(input.newState || {})}`.toLowerCase();
+  const critical = /tamper|forced|wrong|alarm|jam|failed|offline|authorization_required/.test(routineText);
+  const residentOwnedOrShared =
     !/building_managed|facility/.test(ownership) &&
+    (hasHomeScope || /resident_owned|shared_home|private|resident/.test(ownership));
+  const commandLifecycle =
+    /^device\.command\.(requested|accepted|executed)$/.test(input.eventType) ||
+    (input.eventType === "device.state.changed" && Boolean(commandExecutionId));
+  const isResidentRoutine =
+    (actor.type === "resident" || observedSource === "app" || observedSource === "watch" || (commandLifecycle && commandExecutionId)) &&
+    !critical &&
+    residentOwnedOrShared &&
     hasHomeScope;
   if (isResidentRoutine) return isSmartAccessDevice(input, enrichedState) ? "smart_access_private" : "resident_device_private";
   return "infrastructure_devices";
@@ -324,7 +334,7 @@ export async function isDuplicateDeviceTransition(input: {
 
 function detectObservedSource(input: DeviceOperationalSignalInput, recent: RecentCommandContext, telemetry: ReturnType<typeof deriveTelemetrySummary>) {
   const explicit = normalizeSource(String(input.source || "system"));
-  if (input.eventType === "device.command.requested" || input.eventType === "device.command.executed" || input.eventType === "device.command.failed") {
+  if (input.eventType === "device.command.requested" || input.eventType === "device.command.accepted" || input.eventType === "device.command.executed" || input.eventType === "device.command.failed") {
     return explicit;
   }
   if (recent && ["app", "facility", "watch", "automation", "scene"].includes(recent.source)) {
@@ -382,9 +392,16 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
   const resolvedControlProfile = text(enrichedState.control_profile) || controlProfile(input.device);
   const domain = privateDeviceDomain(input, observedSource, actor, enrichedState);
   const runtimeTrace = runtimeTraceFields();
+  const commandExecutionId = text(input.extraMetadata?.command_execution_id || input.extraMetadata?.commandExecutionId);
+  const lifecycleSignalId =
+    commandExecutionId && /^device\.command\.(requested|accepted|executed|failed)$/.test(input.eventType)
+      ? `${input.eventType}:${commandExecutionId}`
+      : commandExecutionId && input.eventType === "device.state.changed"
+        ? `device.state.changed:${commandExecutionId}`
+        : `${input.eventType}:${input.device.id}:${input.providerEventId || occurredAt}`;
   const signalPayload: any = {
     schemaVersion: SIGNAL_SCHEMA_VERSION,
-    id: `${input.eventType}:${input.device.id}:${input.providerEventId || occurredAt}`,
+    id: lifecycleSignalId,
     source: adapter || "device_adapter",
     type: "telemetry",
     domain,
@@ -432,6 +449,7 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
     timestamp: occurredAt,
     context: {
       event_type: input.eventType,
+      command_execution_id: commandExecutionId,
       estate_id: resolvedEstateId,
       building_id: resolvedBuildingId,
       home_id: resolvedHomeId,
@@ -462,6 +480,7 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
       provider,
       external_id: externalId,
       provider_event_id: text(input.providerEventId),
+      command_execution_id: commandExecutionId,
       observed_source: observedSource,
       recent_command_source: recent?.source || null,
       command: asRecord(input.command),

@@ -173,12 +173,25 @@ confirmationRuntime.set(devices[0], {
   capability_codes: ["switch_1"],
   telemetry_summary: {},
   activity_summary: "Device 1 is idle.",
-  _oyi_pending_command: { command: { switch_1: true }, source: "app", confirmation: "pending" },
+  _oyi_pending_command: {
+    command: { switch_1: true },
+    source: "app",
+    confirmation: "pending",
+    command_execution_id: "command-execution-smoke-1",
+    actor_id: "resident-1",
+    actor_role: "resident",
+    home_id: "home-1",
+    estate_id: "estate-1",
+    ownership_class: "resident_owned",
+  },
 }, { dirty: true });
 const confirmed = await confirmationRuntime.refresh(devices[0], "high", "command_confirmation_test");
 await wait(0);
 check(confirmed?.state?._oyi_command_confirmation?.confirmation === "confirmed", "background state read confirms the pending command");
+check(confirmed?.state?._oyi_command_confirmation?.command_execution_id === "command-execution-smoke-1", "background state confirmation preserves the original command execution id");
 check(confirmationSignals[0]?.eventType === "device.command.executed", "confirmed command continues through the canonical operational signal path");
+check(confirmationSignals[0]?.providerEventId === "device.command.executed:command-execution-smoke-1", "confirmed command signal uses the deterministic command execution lifecycle id");
+check(confirmationSignals[0]?.extraMetadata?.command_execution_id === "command-execution-smoke-1", "confirmed command signal carries command_execution_id in metadata");
 
 await confirmationRuntime.acceptProviderState(devices[0], { switch_1: true, online: true }, {
   providerTimestamp: "2026-07-16T10:00:00.000Z",

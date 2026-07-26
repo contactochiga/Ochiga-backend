@@ -529,6 +529,9 @@ export class DeviceRuntimeStateService {
         command: pendingCommand.command,
         source: pendingCommand.source || null,
         provider_accepted_at: pendingCommand.provider_accepted_at || null,
+        command_execution_id: pendingCommand.command_execution_id || null,
+        actor_id: pendingCommand.actor_id || null,
+        actor_role: pendingCommand.actor_role || null,
         state_confirmed_at: entry.runtime_timestamp,
         confirmation: "confirmed",
       };
@@ -544,6 +547,9 @@ export class DeviceRuntimeStateService {
         command: pendingCommand.command,
         source: pendingCommand.source || null,
         provider_accepted_at: pendingCommand.provider_accepted_at || null,
+        command_execution_id: pendingCommand.command_execution_id || null,
+        actor_id: pendingCommand.actor_id || null,
+        actor_role: pendingCommand.actor_role || null,
         last_checked_at: entry.runtime_timestamp,
         confirmation: confirmation.comparable ? "not_observed" : "unavailable",
       };
@@ -570,7 +576,9 @@ export class DeviceRuntimeStateService {
         source: "provider_reported",
         provider: String(device?.provider || device?.vendor || adapterName(device)),
         adapter: adapterName(device),
-        providerEventId: input.providerEventId || null,
+        providerEventId: confirmation.confirmed && pendingCommand?.command_execution_id
+          ? `device.command.executed:${pendingCommand.command_execution_id}`
+          : input.providerEventId || null,
         estateId: device?.estate_id || null,
         homeId: device?.home_id || null,
         roomId: device?.room_id || null,
@@ -609,6 +617,9 @@ export class DeviceRuntimeStateService {
           health_status: entry.summary.health_status,
           provider_authorization_recovered: authorizationRecovered,
           previous_provider_error: previousProviderError?.classification || null,
+          command_execution_id: pendingCommand?.command_execution_id || null,
+          actor_id: pendingCommand?.actor_id || null,
+          actor_role: pendingCommand?.actor_role || null,
           estate_id: device?.estate_id || null,
           building_id: device?.building_id || device?.metadata?.building_id || null,
           home_id: device?.home_id || null,

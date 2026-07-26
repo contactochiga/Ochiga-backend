@@ -113,6 +113,16 @@ expect(
 );
 expect(
   "src/services/deviceOperationalSignalService.ts",
+  /commandExecutionId[\s\S]*commandLifecycle[\s\S]*residentOwnedOrShared[\s\S]*resident_device_private/,
+  "provider-confirmed command lifecycle events must remain private when a resident-owned command execution id is present",
+);
+expect(
+  "src/services/deviceOperationalSignalService.ts",
+  /commandExecutionId[\s\S]*\^device\\\.command\\\.\(requested\|accepted\|executed\|failed\)[\s\S]*`\$\{input\.eventType\}:\$\{commandExecutionId\}`[\s\S]*`device\.state\.changed:\$\{commandExecutionId\}`/,
+  "command lifecycle signals must use deterministic command_execution_id-based IDs",
+);
+expect(
+  "src/services/deviceOperationalSignalService.ts",
   /resolvedEstateId[\s\S]*resolvedHomeId[\s\S]*unitId: resolvedHomeId[\s\S]*home_id: resolvedHomeId/,
   "provider telemetry must enrich top-level Oyi Core scope from the canonical device record before routing",
 );
@@ -125,6 +135,11 @@ expect(
   "src/services/deviceRuntimeStateService.ts",
   /estate_id: device\?\.estate_id[\s\S]*home_id: device\?\.home_id[\s\S]*ownership_class/,
   "Runtime V2 state signals must carry canonical device scope into private-routing policy",
+);
+expect(
+  "src/services/deviceRuntimeStateService.ts",
+  /_oyi_command_confirmation[\s\S]*command_execution_id[\s\S]*providerEventId: confirmation\.confirmed/,
+  "Runtime V2 command confirmations must propagate the original command_execution_id into executed signals",
 );
 expect(
   "src/oyi-core/service.ts",
