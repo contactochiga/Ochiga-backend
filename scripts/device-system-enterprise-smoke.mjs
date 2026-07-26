@@ -112,6 +112,16 @@ expect(
   "Backend must stop Runtime V2, MQTT, Redis and HTTP cleanly during platform shutdown",
 );
 expect(
+  "src/observability/http.ts",
+  /versionHandler[\s\S]*commit_sha[\s\S]*RENDER_GIT_COMMIT/,
+  "Backend must expose safe build metadata for deployment SHA verification",
+);
+expect(
+  "src/app.ts",
+  /app\.get\("\/version", versionHandler\)/,
+  "Backend must mount a public safe version endpoint",
+);
+expect(
   "src/services/deviceRuntimeStateService.ts",
   /markViewed[\s\S]*device_runtime_view_lease_acquired[\s\S]*device_runtime_view_lease_renewed[\s\S]*device_runtime_view_lease_reused[\s\S]*releaseViewed[\s\S]*device_runtime_view_lease_released[\s\S]*device_runtime_view_lease_expired/,
   "Runtime V2 must acquire, renew, reuse, explicitly release and expire panel view leases",

@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
-import { healthHandler, metricsHandler, requestContextMiddleware, requestLoggingMiddleware, runtimeHealthHandler } from "./observability/http";
+import { healthHandler, metricsHandler, requestContextMiddleware, requestLoggingMiddleware, runtimeHealthHandler, versionHandler } from "./observability/http";
 import { aiRateLimit, authRateLimit, runtimeRateLimit, signalIngressRateLimit } from "./middleware/rateLimit";
 import { httpCorsOptions } from "./config/originPolicy";
 import { attachUser } from "./middleware/auth";
@@ -158,6 +158,7 @@ app.get("/health", (_req, res) => {
   return healthHandler(_req, res);
 });
 
+app.get("/version", versionHandler);
 app.get("/health/runtime", attachUser, requireInternalAccess, runtimeHealthHandler);
 app.get("/metrics", attachUser, requireInternalAccess, metricsHandler);
 

@@ -8,6 +8,7 @@ import { providerHealthRegistry } from "./providerHealth";
 import { redis } from "../config/redis";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { startRequestStageTiming } from "./requestStageTiming";
+import pkg from "../../package.json";
 
 declare global {
   namespace Express {
@@ -120,6 +121,16 @@ export async function healthSummary() {
 export async function healthHandler(_req: Request, res: Response) {
   const summary = await healthSummary();
   res.status(summary.status === "ok" ? 200 : 503).json(summary);
+}
+
+export function versionHandler(_req: Request, res: Response) {
+  res.json({
+    service: "oyi-backend",
+    package_version: pkg.version || null,
+    commit_sha: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || process.env.GIT_COMMIT || process.env.SOURCE_VERSION || null,
+    deployed_at: process.env.RENDER_DEPLOY_CREATED_AT || process.env.DEPLOYED_AT || null,
+    environment: process.env.NODE_ENV || null,
+  });
 }
 
 export async function runtimeHealthHandler(_req: Request, res: Response) {
