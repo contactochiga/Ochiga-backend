@@ -108,8 +108,13 @@ expect(
 );
 expect(
   "src/services/deviceOperationalSignalService.ts",
-  /smartAccessDomain[\s\S]*ownership_class[\s\S]*hasHomeScope[\s\S]*smart_access_private/,
+  /privateDeviceDomain[\s\S]*ownership_class[\s\S]*hasHomeScope[\s\S]*smart_access_private[\s\S]*resident_device_private/,
   "routine resident smart-access events must use canonical home/ownership scope for the private smart-access domain",
+);
+expect(
+  "src/oyi-core/runtime/universalSignalRuntime.ts",
+  /smart_access_private[\s\S]*resident_device_private[\s\S]*return \["activity"\]/,
+  "routine resident-owned device events must avoid facility registry, reports and digital twin outputs",
 );
 expect(
   "src/services/deviceRuntimeStateService.ts",

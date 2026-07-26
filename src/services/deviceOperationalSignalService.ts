@@ -242,8 +242,7 @@ function isSmartAccessDevice(input: DeviceOperationalSignalInput, enrichedState?
   return /\b(smart_access|lock|doorlock|door_lock|jtms|jtmspro|jtmsbh|access_control|unlock|temporary_password)\b/.test(haystack);
 }
 
-function smartAccessDomain(input: DeviceOperationalSignalInput, observedSource: DeviceObservedSource, actor: ReturnType<typeof actorDetails>, enrichedState: any) {
-  if (!isSmartAccessDevice(input, enrichedState)) return "infrastructure_devices";
+function privateDeviceDomain(input: DeviceOperationalSignalInput, observedSource: DeviceObservedSource, actor: ReturnType<typeof actorDetails>, enrichedState: any) {
   const metadata = asRecord(input.device.metadata);
   const ownership = String(
     input.device.ownership_class ||
@@ -259,7 +258,7 @@ function smartAccessDomain(input: DeviceOperationalSignalInput, observedSource: 
     !/tamper|forced|wrong|alarm|jam|failed|offline|authorization_required/.test(`${input.eventType} ${JSON.stringify(input.newState || {})}`.toLowerCase()) &&
     !/building_managed|facility/.test(ownership) &&
     hasHomeScope;
-  if (isResidentRoutine) return "smart_access_private";
+  if (isResidentRoutine) return isSmartAccessDevice(input, enrichedState) ? "smart_access_private" : "resident_device_private";
   return "infrastructure_devices";
 }
 
@@ -375,7 +374,7 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
     ...(Array.isArray(enrichedState.capability_codes) ? enrichedState.capability_codes : []),
   ]));
   const resolvedControlProfile = text(enrichedState.control_profile) || controlProfile(input.device);
-  const domain = smartAccessDomain(input, observedSource, actor, enrichedState);
+  const domain = privateDeviceDomain(input, observedSource, actor, enrichedState);
   const runtimeTrace = runtimeTraceFields();
   const signalPayload: any = {
     schemaVersion: SIGNAL_SCHEMA_VERSION,

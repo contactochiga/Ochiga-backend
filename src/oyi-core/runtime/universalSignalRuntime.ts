@@ -31,7 +31,7 @@ export type SignalRuntimeReceipt = {
 };
 
 function outputsFor(signal: NormalizedSignal): SignalRuntimeOutput[] {
-  if (signal.domain === "smart_access_private") {
+  if (signal.domain === "smart_access_private" || signal.domain === "resident_device_private") {
     if (signal.severity === "critical" || signal.severity === "warning") return ["activity", "notifications", "executive_intelligence"];
     return ["activity"];
   }
