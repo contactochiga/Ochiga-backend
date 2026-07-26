@@ -625,20 +625,43 @@ export class DeviceRuntimeStateService {
     const now = this.now();
     const ttlMs = Math.max(15_000, Math.min(Number(input.ttlMs || 45_000), 120_000));
     const previousUntil = Number(entry.viewed_until_ms || 0);
-    const nextUntil = Math.max(previousUntil, now + ttlMs);
-    const shouldLog = !previousUntil || previousUntil <= now || previousUntil - now < Math.floor(ttlMs / 2);
+    const active = previousUntil > now;
+    const renewWindowMs = Math.floor(ttlMs / 2);
+    const shouldRenew = !active || previousUntil - now < renewWindowMs;
+    const nextUntil = shouldRenew ? now + ttlMs : previousUntil;
     entry.accessed_at_ms = now;
     entry.last_viewed_at_ms = now;
     entry.viewed_until_ms = nextUntil;
     entry.refresh_class = "currently_viewed";
-    if (shouldLog) {
+    if (!active) {
       logger.info("device_runtime_view_lease_acquired", {
         device_id: entry.device_id,
         source: input.source || "device_panel",
         estate_id: input.estateId || entry.device?.estate_id || null,
         home_id: input.homeId || entry.device?.home_id || null,
         actor_id: input.actorId || null,
-        renewed: previousUntil > now,
+        previous_expires_at: previousUntil ? new Date(previousUntil).toISOString() : null,
+        lease_expires_at: new Date(nextUntil).toISOString(),
+        ttl_ms: ttlMs,
+      });
+    } else if (shouldRenew) {
+      logger.info("device_runtime_view_lease_renewed", {
+        device_id: entry.device_id,
+        source: input.source || "device_panel",
+        estate_id: input.estateId || entry.device?.estate_id || null,
+        home_id: input.homeId || entry.device?.home_id || null,
+        actor_id: input.actorId || null,
+        previous_expires_at: new Date(previousUntil).toISOString(),
+        lease_expires_at: new Date(nextUntil).toISOString(),
+        ttl_ms: ttlMs,
+      });
+    } else {
+      logger.debug("device_runtime_view_lease_reused", {
+        device_id: entry.device_id,
+        source: input.source || "device_panel",
+        estate_id: input.estateId || entry.device?.estate_id || null,
+        home_id: input.homeId || entry.device?.home_id || null,
+        actor_id: input.actorId || null,
         lease_expires_at: new Date(nextUntil).toISOString(),
         ttl_ms: ttlMs,
       });

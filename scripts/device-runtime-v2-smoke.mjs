@@ -111,6 +111,11 @@ check(snapshotLoads - snapshotLoadsBeforeDashboard <= 1, "dashboard runtime avoi
 check(runtime.stats().currently_viewed === 0, "dashboard cached reads create zero currently-viewed leases");
 const viewed = runtime.markViewed("device-1", { ttlMs: 45_000, source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
 check(Boolean(viewed?.viewed_until_at) && runtime.stats().currently_viewed === 1, "explicit panel lease marks exactly one device currently viewed");
+const reused = runtime.markViewed("device-1", { ttlMs: 45_000, source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
+check(reused?.viewed_until_at === viewed?.viewed_until_at && runtime.stats().currently_viewed === 1, "active panel lease is reused without duplicating or extending every read");
+now += 30_000;
+const renewed = runtime.markViewed("device-1", { ttlMs: 45_000, source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
+check(renewed?.viewed_until_at !== viewed?.viewed_until_at && runtime.stats().currently_viewed === 1, "near-expiry panel lease renews as one logical viewed device");
 now += 46_000;
 check(runtime.stats().currently_viewed === 0, "view lease expires back to zero after the short TTL");
 

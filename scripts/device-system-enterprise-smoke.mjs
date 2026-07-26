@@ -93,8 +93,8 @@ reject(
 );
 expect(
   "src/services/deviceRuntimeStateService.ts",
-  /markViewed[\s\S]*device_runtime_view_lease_acquired[\s\S]*device_runtime_view_lease_expired/,
-  "Runtime V2 must acquire and expire explicit panel view leases",
+  /markViewed[\s\S]*device_runtime_view_lease_acquired[\s\S]*device_runtime_view_lease_renewed[\s\S]*device_runtime_view_lease_reused[\s\S]*device_runtime_view_lease_expired/,
+  "Runtime V2 must acquire, renew, reuse and expire explicit panel view leases",
 );
 expect(
   "src/controllers/deviceStateController.ts",
