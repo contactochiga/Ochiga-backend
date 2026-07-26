@@ -279,6 +279,13 @@ function pendingConfirmationCopy(name: string) {
   };
 }
 
+function commandSentCopy(name: string) {
+  return {
+    title: `${name} command sent`,
+    message: "The provider accepted this remote command.",
+  };
+}
+
 const commandAcceptances = new Map<string, { expiresAt: number; response: Record<string, any> }>();
 const COMMAND_ACCEPTANCE_TTL_MS = 2 * 60_000;
 
@@ -293,12 +300,21 @@ function commandFingerprint(command: Record<string, any>) {
   return crypto.createHash("sha256").update(JSON.stringify(command || {})).digest("hex").slice(0, 16);
 }
 
-function commandIdempotencyKey(req: Request, user: AuthUser, rawId: string, command: Record<string, any>, source: CommandSource) {
+function commandIdempotencyKey(req: Request, user: AuthUser, rawId: string, command: Record<string, any>, source: CommandSource, replayWindowMs = 5_000) {
   const explicit =
     String(req.headers["idempotency-key"] || req.headers["x-idempotency-key"] || req.body?.idempotency_key || req.body?.command_id || "").trim();
   if (explicit) return `explicit:${user.id}:${rawId}:${source}:${explicit}`;
-  const shortReplayWindow = Math.floor(Date.now() / 5_000);
+  const shortReplayWindow = Math.floor(Date.now() / Math.max(250, replayWindowMs));
   return `request:${user.id}:${rawId}:${source}:${commandFingerprint(command)}:${shortReplayWindow}`;
+}
+
+function isIrProviderAckOnlyDevice(device: any, command: Record<string, any>) {
+  const remoteId = String(device?.metadata?.ir_appliance?.remote_id || device?.metadata?.ir_appliance?.profile_id || device?.metadata?.remote_id || "").trim();
+  if (!remoteId) return false;
+  const family = deviceCommandFamily(device);
+  if (family === "ac") return false;
+  const type = String((command as any)?.type || "").toLowerCase();
+  return family === "tv" || family === "ir" || type === "tv_remote" || type === "ir_remote";
 }
 
 function assertContextPayloadMatches(req: Request, scope: DeviceRuntimeScope) {
@@ -468,7 +484,7 @@ export async function executeDeviceCommandForActor(input: {
       lifecycleStep("pending", "Command received"),
       lifecycleStep("dispatched", "Dispatching to provider"),
     ];
-    await adapter.executeCommand(commandDevice.external_id, normalized, {
+    const providerDispatch = await adapter.executeCommand(commandDevice.external_id, normalized, {
       estateId: commandDevice.estate_id,
       homeId: commandDevice.home_id,
       userId: user.id,
@@ -486,6 +502,75 @@ export async function executeDeviceCommandForActor(input: {
       command: normalized,
       provider_result: "accepted",
     });
+
+    if ((providerDispatch as any)?.confirmation_strategy === "provider_ack_only" || isIrProviderAckOnlyDevice(commandDevice, normalized)) {
+      const commandOccurredAt = new Date().toISOString();
+      const commandSummary = commandSentCopy(String(deviceRow.name || "Device"));
+      lifecycle.push(lifecycleStep("provider_ack_only", "Provider acknowledgement only", "This IR command has no reliable observable device-state confirmation."));
+      void emitAuditEvent({
+        actorId: user.id,
+        actorEmail: user.email,
+        actorRole: user.role,
+        action: "device.command.executed",
+        resourceType: "device",
+        resourceId: deviceRow.id,
+        estateId: deviceRow.estate_id,
+        homeId: deviceRow.home_id,
+        status: "success",
+        metadata: {
+          command: normalized,
+          vendor: deviceRow.vendor,
+          external_id: deviceRow.external_id,
+          source: commandSource,
+          execution_status: "provider_ack_only",
+          confirmation_strategy: "provider_ack_only",
+          command_lifecycle: lifecycle,
+          provider_dispatch: providerDispatch || null,
+        },
+        req: input.req,
+      } as any);
+      void recordDeviceEvent({
+        deviceId: String(deviceRow.id),
+        estateId: deviceRow.estate_id || user.estate_id || null,
+        homeId: deviceRow.home_id || user.home_id || null,
+        roomId: deviceRow.room_id || null,
+        userId: user.id,
+        actorId: user.id,
+        eventType: "device.command.executed",
+        previousState: null,
+        newState: { last_command: normalized, confirmation_strategy: "provider_ack_only" },
+        source: commandSource,
+        confidence: "confirmed",
+        latencyMs: Date.now() - startedAt,
+        metadata: {
+          command: normalized,
+          vendor: deviceRow.vendor,
+          external_id: deviceRow.external_id,
+          control_profile: summarizeDeviceFrontendContract(deviceRow).control_profile,
+          device_family: summarizeDeviceFrontendContract(deviceRow).device_family,
+          execution_status: "provider_ack_only",
+          confirmation_strategy: "provider_ack_only",
+          command_lifecycle: lifecycle,
+          private_projection: true,
+        },
+        title: commandSummary.title,
+        summary: commandSummary.message,
+      });
+      return {
+        ok: true,
+        accepted: true,
+        dispatched: true,
+        status: "command_dispatched",
+        execution_status: "provider_ack_only",
+        confirmation_strategy: "provider_ack_only",
+        device: { id: deviceRow.id, name: deviceRow.name, external_id: commandDevice.external_id, vendor: commandDevice.vendor },
+        command: normalized,
+        command_lifecycle: lifecycle,
+        provider: (providerDispatch as any)?.provider || "tuya",
+        provider_latency_ms: (providerDispatch as any)?.latency_ms ?? null,
+        message: commandSummary.message,
+      };
+    }
 
     const previousRuntime = await deviceRuntimeStateService.getOrHydrate(deviceRow);
     const previousState = previousRuntime?.state || null;
@@ -762,13 +847,6 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       homeId: (req as any).oisContext?.home_id || user.home_id || null,
     };
     assertContextPayloadMatches(req, scope);
-    const key = commandIdempotencyKey(req, user, rawId, command, source);
-    pruneCommandAcceptances();
-    const existing = commandAcceptances.get(key);
-    if (existing && existing.expiresAt > Date.now()) {
-      return res.status(202).json({ ...existing.response, duplicate: true });
-    }
-
     const target = await resolveCommandTarget({
       user,
       rawId,
@@ -776,6 +854,30 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       scope,
     });
     assertUnlockConfirmed(req, target.commandDevice, target.normalizedCommand);
+    const providerAckOnly = isIrProviderAckOnlyDevice(target.commandDevice, target.normalizedCommand);
+    const key = commandIdempotencyKey(req, user, rawId, target.normalizedCommand, source, providerAckOnly ? 350 : 5_000);
+    pruneCommandAcceptances();
+    const existing = commandAcceptances.get(key);
+    if (existing && existing.expiresAt > Date.now()) {
+      return res.status(providerAckOnly ? 200 : 202).json({ ...existing.response, duplicate: true });
+    }
+
+    if (providerAckOnly) {
+      const result = await executeDeviceCommandForActor({
+        actor: user,
+        deviceId: rawId,
+        command: target.normalizedCommand,
+        source,
+        scope,
+        req,
+      });
+      const response = {
+        ...result,
+        idempotency_key: key,
+      };
+      commandAcceptances.set(key, { expiresAt: Date.now() + COMMAND_ACCEPTANCE_TTL_MS, response });
+      return res.status(200).json(response);
+    }
 
     const response = {
       ok: true,

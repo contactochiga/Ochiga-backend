@@ -10,6 +10,7 @@ import { providerHealthRegistry } from "../../../observability/providerHealth";
 import { enrichDeviceProviderState } from "../../runtime/deviceStateEnrichment";
 import { classifyProviderError, isProviderAuthorizationError } from "../../runtime/providerErrors";
 import { logger } from "../../../observability/logger";
+import { supabaseAdmin } from "../../../supabase/supabaseClient";
 
 // v1.0 users/{uid}/devices response item shape (common fields)
 type TuyaUserDevice = {
@@ -233,6 +234,26 @@ type DeviceSchema = {
   primaryPowerCode: string | null; // "switch" or "power" or null
 };
 
+type TuyaIrPreferredVersion = "v1.0" | "v2.0";
+
+type TuyaIrEndpointCompatibility = {
+  preferred_version?: TuyaIrPreferredVersion;
+  v2_compatible?: boolean | "unknown";
+  reason?: string | null;
+  provider_code?: string | null;
+  last_verified_at?: string | null;
+  expires_at?: string | null;
+};
+
+type TuyaIrRequestOptions = {
+  context?: AdapterContext;
+  infraredId?: string;
+  endpointKind?: string;
+};
+
+const irEndpointCompatibilityMemory = new Map<string, TuyaIrEndpointCompatibility>();
+const IR_ENDPOINT_COMPATIBILITY_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
 export class TuyaAdapter implements DeviceAdapter {
   readonly name = "tuya";
   readonly vendor = "Tuya";
@@ -259,13 +280,114 @@ export class TuyaAdapter implements DeviceAdapter {
     return Array.from(new Set(versions));
   }
 
+  private irCompatibilityScope(context?: AdapterContext, infraredId?: string) {
+    const device = (context as any)?.canonicalDevice || (context as any)?.device || {};
+    const providerConnectionId = cleanStr(device?.provider_connection_id || (context as any)?.providerConnectionId);
+    const homeId = cleanStr((context as any)?.homeId || device?.home_id);
+    const ownerId = cleanStr((context as any)?.userId || device?.owner_user_id || device?.metadata?.oyi?.integration_owner_user_id);
+    const region = cleanStr(process.env.TUYA_BASE_URL).replace(/^https?:\/\//, "").split("/")[0] || "tuya";
+    const hub = cleanStr(infraredId || device?.parent_external_id || device?.metadata?.ir_appliance?.infrared_id || device?.external_id);
+    const scope = providerConnectionId || `${ownerId || "unknown-owner"}:${homeId || "unknown-home"}`;
+    return {
+      key: `${region}:${scope}:${hub || "unknown-hub"}`,
+      providerConnectionId,
+      hub,
+    };
+  }
+
+  private isFreshIrCompatibility(entry?: TuyaIrEndpointCompatibility | null) {
+    if (!entry?.preferred_version) return false;
+    const expiresAt = entry.expires_at ? Date.parse(entry.expires_at) : 0;
+    return Number.isFinite(expiresAt) && expiresAt > Date.now();
+  }
+
+  private async loadIrCompatibility(context?: AdapterContext, infraredId?: string): Promise<TuyaIrEndpointCompatibility | null> {
+    const scope = this.irCompatibilityScope(context, infraredId);
+    const cached = irEndpointCompatibilityMemory.get(scope.key);
+    if (this.isFreshIrCompatibility(cached)) return cached || null;
+    if (!scope.providerConnectionId || !scope.hub) return cached || null;
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("provider_connections")
+        .select("metadata")
+        .eq("id", scope.providerConnectionId)
+        .maybeSingle();
+      if (error) throw error;
+      const metadata = data?.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, any> : {};
+      const next = metadata?.tuya_ir_endpoint_compatibility?.[scope.hub] || null;
+      if (next) {
+        irEndpointCompatibilityMemory.set(scope.key, next);
+        return next;
+      }
+    } catch (error) {
+      logger.debug("tuya_ir_endpoint_compatibility_load_failed", {
+        provider_connection_id: scope.providerConnectionId,
+        infrared_id: scope.hub,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return cached || null;
+  }
+
+  private async rememberIrCompatibility(
+    context: AdapterContext | undefined,
+    infraredId: string | undefined,
+    patch: Omit<TuyaIrEndpointCompatibility, "last_verified_at" | "expires_at">,
+  ) {
+    const scope = this.irCompatibilityScope(context, infraredId);
+    const entry: TuyaIrEndpointCompatibility = {
+      ...patch,
+      last_verified_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + IR_ENDPOINT_COMPATIBILITY_TTL_MS).toISOString(),
+    };
+    irEndpointCompatibilityMemory.set(scope.key, entry);
+    if (!scope.providerConnectionId || !scope.hub) return;
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("provider_connections")
+        .select("metadata")
+        .eq("id", scope.providerConnectionId)
+        .maybeSingle();
+      if (error) throw error;
+      const metadata = data?.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, any> : {};
+      const nextMetadata = {
+        ...metadata,
+        tuya_ir_endpoint_compatibility: {
+          ...(metadata.tuya_ir_endpoint_compatibility || {}),
+          [scope.hub]: entry,
+        },
+      };
+      await supabaseAdmin
+        .from("provider_connections")
+        .update({ metadata: nextMetadata, updated_at: new Date().toISOString() } as any)
+        .eq("id", scope.providerConnectionId);
+    } catch (error) {
+      logger.debug("tuya_ir_endpoint_compatibility_persist_failed", {
+        provider_connection_id: scope.providerConnectionId,
+        infrared_id: scope.hub,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async orderedIrApiVersions(options?: TuyaIrRequestOptions) {
+    const configured = this.irApiVersions();
+    const compatibility = await this.loadIrCompatibility(options?.context, options?.infraredId);
+    if (this.isFreshIrCompatibility(compatibility) && compatibility?.preferred_version) {
+      return Array.from(new Set([compatibility.preferred_version, ...configured]));
+    }
+    return configured;
+  }
+
   private async requestIr<T>(
     method: "GET" | "POST",
     pathFactory: (version: string) => string,
     body?: any | ((version: string) => any),
+    options?: TuyaIrRequestOptions,
   ): Promise<T> {
     let lastError: unknown = null;
-    for (const version of this.irApiVersions()) {
+    let v2Incompatibility: { provider_code: string | null; reason: string | null } | null = null;
+    for (const version of await this.orderedIrApiVersions(options)) {
       const path = pathFactory(version);
       const resolvedBody = typeof body === "function" ? body(version) : body;
       try {
@@ -282,10 +404,33 @@ export class TuyaAdapter implements DeviceAdapter {
           endpoint: path,
           response,
         });
+        if (method === "POST" && options?.infraredId) {
+          if (version === "v1.0" && v2Incompatibility) {
+            void this.rememberIrCompatibility(options.context, options.infraredId, {
+              preferred_version: "v1.0",
+              v2_compatible: false,
+              provider_code: v2Incompatibility.provider_code,
+              reason: v2Incompatibility.reason || "v2_incompatible_v1_succeeded",
+            });
+          } else if (version === "v2.0") {
+            void this.rememberIrCompatibility(options.context, options.infraredId, {
+              preferred_version: "v2.0",
+              v2_compatible: true,
+              provider_code: null,
+              reason: "v2_succeeded",
+            });
+          }
+        }
         return response;
       } catch (error) {
         lastError = error;
         const classified = classifyProviderError(error, { provider: "tuya", operation: path });
+        if (version === "v2.0" && classified.provider_code === "20001") {
+          v2Incompatibility = {
+            provider_code: classified.provider_code,
+            reason: classified.safe_message || "Tuya IR v2 endpoint incompatible for this command",
+          };
+        }
         if (["permission_denied", "device_not_linked", "integration_expired", "authentication_failed", "rate_limited"].includes(classified.classification)) {
           throw error;
         }
@@ -688,10 +833,12 @@ export class TuyaAdapter implements DeviceAdapter {
     return remotes;
   }
 
-  async listIrRemoteKeys(infraredId: string, remoteId: string): Promise<any[]> {
+  async listIrRemoteKeys(infraredId: string, remoteId: string, context?: AdapterContext): Promise<any[]> {
     const result = await this.requestIr<any>(
       "GET",
       (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/keys`,
+      undefined,
+      { context, infraredId, endpointKind: "remote_keys" },
     );
     const payload = result && typeof result === "object" && !Array.isArray(result) ? result : {};
     const keys = arrayPayload(result, ["key_list", "keys", "list", "result"]).map((item) => ({
@@ -835,7 +982,7 @@ export class TuyaAdapter implements DeviceAdapter {
     remoteId: string,
     command: Record<string, any>,
     context: AdapterContext,
-  ): Promise<void> {
+  ): Promise<Record<string, any>> {
     if (!remoteId) throw new Error("Add or sync an appliance profile before using this remote.");
     const startedAt = Date.now();
     const appliance = ((context as any)?.device?.metadata?.ir_appliance || {}) as Record<string, any>;
@@ -866,6 +1013,7 @@ export class TuyaAdapter implements DeviceAdapter {
           ? `/${version}/infrareds/${encodeURIComponent(infraredId)}/air-conditioners/${encodeURIComponent(remoteId)}/scenes/command`
           : `/${version}/infrareds/${encodeURIComponent(infraredId)}/air-conditioners/${encodeURIComponent(remoteId)}/command`,
         payload,
+        { context, infraredId, endpointKind },
       );
       logger.info("tuya_ir_command_dispatched", {
         canonical_device_id: (context as any)?.canonicalDevice?.id || null,
@@ -881,6 +1029,7 @@ export class TuyaAdapter implements DeviceAdapter {
         "POST",
         (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/raw/command`,
         (version: string) => this.rawCommandPayload(version, rawKey, appliance, context),
+        { context, infraredId, endpointKind: "raw_remote_command" },
       );
       logger.info("tuya_ir_command_dispatched", {
         canonical_device_id: (context as any)?.canonicalDevice?.id || null,
@@ -897,6 +1046,7 @@ export class TuyaAdapter implements DeviceAdapter {
         "POST",
         (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/command`,
         { key },
+        { context, infraredId, endpointKind: "remote_command" },
       );
       logger.info("tuya_ir_command_dispatched", {
         canonical_device_id: (context as any)?.canonicalDevice?.id || null,
@@ -915,6 +1065,14 @@ export class TuyaAdapter implements DeviceAdapter {
 
     operationalMetrics.increment("oyi_provider_ir_commands_total", { provider: "tuya" });
     providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "ir_command_executed", wired: true });
+    return {
+      provider: "tuya",
+      accepted: true,
+      dispatched: true,
+      confirmation_strategy: "provider_ack_only",
+      provider_response: result,
+      latency_ms: Date.now() - startedAt,
+    };
   }
 
   private buildTuyaCommands(schema: DeviceSchema, command: Record<string, any>) {
@@ -1074,7 +1232,7 @@ export class TuyaAdapter implements DeviceAdapter {
     deviceId: string,
     command: Record<string, any>,
     _context: AdapterContext
-  ): Promise<void> {
+  ): Promise<Record<string, any> | void> {
     const startedAt = Date.now();
     const remoteId = cleanStr(
       (_context as any)?.device?.metadata?.ir_appliance?.remote_id ||
@@ -1082,8 +1240,7 @@ export class TuyaAdapter implements DeviceAdapter {
       (_context as any)?.device?.metadata?.remote_id,
     );
     if (remoteId) {
-      await this.executeIrRemoteCommand(deviceId, remoteId, command, _context);
-      return;
+      return this.executeIrRemoteCommand(deviceId, remoteId, command, _context);
     }
     if (/^(tv_remote|ac_remote|ir_remote|climate)$/i.test(String((command as any)?.type || ""))) {
       throw new Error("Add or sync an appliance profile before using this remote.");
@@ -1112,6 +1269,13 @@ export class TuyaAdapter implements DeviceAdapter {
 
     operationalMetrics.increment("oyi_provider_commands_total", { provider: "tuya" });
     providerHealthRegistry.heartbeat("tuya", { latencyMs: Date.now() - startedAt, note: "command_executed", wired: true });
+    return {
+      provider: "tuya",
+      accepted: true,
+      dispatched: true,
+      confirmation_strategy: "observable_state",
+      latency_ms: Date.now() - startedAt,
+    };
   }
 
   /* ------------------------------------------------

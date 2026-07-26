@@ -35,7 +35,7 @@ export interface DeviceAdapter {
     deviceId: string,
     command: Record<string, any>,
     context: AdapterContext
-  ): Promise<void>;
+  ): Promise<Record<string, any> | void>;
 
   /** Read provider state for synchronization into the canonical Oyi runtime. */
   getLiveState?(deviceId: string): Promise<Record<string, any>>;
@@ -52,7 +52,7 @@ export interface DeviceAdapter {
     remoteId: string,
     command: Record<string, any>,
     context: AdapterContext
-  ): Promise<void>;
+  ): Promise<Record<string, any> | void>;
 
   /** Optional provider evidence for capability-driven smart access devices. */
   discoverCapabilities?(deviceId: string, context?: AdapterContext): Promise<Record<string, any>>;

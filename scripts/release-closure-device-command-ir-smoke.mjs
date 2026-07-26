@@ -28,8 +28,9 @@ assert(!/publishSourceIntelligenceEvent\s*\(/.test(commandController), "device c
 assert(/emitOperationalDeviceSignal\s*\(/.test(commandController), "device command controller emits through the canonical operational signal path");
 assert(/commandIdempotencyKey/.test(commandController) && /commandAcceptances/.test(commandController), "device command acceptance has an explicit idempotency guard");
 assert(/shortReplayWindow/.test(commandController) && !/Math\.random\(\)/.test(commandController), "implicit command idempotency uses a stable replay window instead of randomness");
-assert(/void\s+executeDeviceCommandForActor/.test(commandController), "POST /devices/:id/command starts provider execution asynchronously");
-assert(/res\.status\(202\)\.json/.test(commandController), "POST /devices/:id/command returns 202 Accepted");
+assert(/providerAckOnly[\s\S]*executeDeviceCommandForActor[\s\S]*res\.status\(200\)\.json/.test(commandController), "IR provider-ack commands dispatch synchronously and return 200 after provider acceptance");
+assert(/void\s+executeDeviceCommandForActor/.test(commandController), "observable-state commands still start provider execution asynchronously");
+assert(/res\.status\(202\)\.json/.test(commandController), "observable-state command acceptance still returns 202 Accepted");
 
 assert(!/router\.get\(["']\/info\/:id["'][^;]+requirePermission\(["']visitors\.manage["']/.test(visitorRoutes), "visitor detail route does not require visitors.manage before ownership scope validation");
 
@@ -45,6 +46,8 @@ assert(!/\/remotes\/\$\{encodeURIComponent\(remoteId\)\}\/ac\/command/.test(tuya
 assert(/category_id/.test(tuyaAdapter) && /key_id/.test(tuyaAdapter) && /raw\/command/.test(tuyaAdapter), "Tuya raw IR commands carry the v2 raw command identity fields");
 assert(/executeIrRemoteCommand/.test(tuyaAdapter), "Tuya adapter routes virtual remote commands through the IR command handler");
 assert(/if \(!res\.data\?\.success\)/.test(tuyaClient) && /throw error/.test(tuyaClient) && /tuyaResultAccepted/.test(tuyaAdapter), "Tuya IR command acceptance requires provider success and accepted result");
+assert(/tuya_ir_endpoint_compatibility/.test(tuyaAdapter) && /provider_code.*20001/.test(tuyaAdapter) && /preferred_version: "v1\.0"/.test(tuyaAdapter), "Tuya IR endpoint compatibility remembers v1 after recognized v2 incompatibility");
+assert(/confirmation_strategy: "provider_ack_only"/.test(tuyaAdapter) && /provider_ack_only[\s\S]*return \{[\s\S]*confirmation_strategy: "provider_ack_only"/.test(commandController), "TV IR commands use provider_ack_only and return before fake state confirmation");
 assert(/Add or sync an appliance profile before using this remote/.test(tuyaAdapter), "Tuya adapter fails honestly when a virtual remote is missing provider binding");
 assert(/family === "tv" \|\| family === "ir"/.test(commandController) && /type: c\.type \|\| "tv_remote"/.test(commandController), "TV and generic IR commands keep remote command shape instead of switch payloads");
 assert(/profile === "air_conditioner"/.test(commandController) && /type: c\.type \|\| "ac_remote"/.test(commandController), "AC commands keep air-conditioner command shape instead of switch payloads");
