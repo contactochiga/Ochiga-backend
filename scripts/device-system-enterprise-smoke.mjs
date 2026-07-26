@@ -78,8 +78,28 @@ expect(
 );
 expect(
   "src/controllers/deviceRuntimeStateController.ts",
-  /canonical_state: canonicalState[\s\S]*provider_requests: 0/,
-  "Runtime dashboard must return canonical_state without provider reads",
+  /canonical_state: canonicalState[\s\S]*dashboard_mode: "compact_cache_only"[\s\S]*provider_requests_deferred: 0/,
+  "Runtime dashboard must return canonical_state as compact cache-only data without provider reads",
+);
+expect(
+  "src/controllers/deviceRuntimeStateController.ts",
+  /compactDeviceMetadata[\s\S]*supported_keys[\s\S]*compactRuntimeState/,
+  "Runtime dashboard must compact inventory payloads while preserving IR key evidence",
+);
+reject(
+  "src/controllers/deviceRuntimeStateController.ts",
+  /runtime_dashboard_stale|runtime_dashboard_expired/,
+  "Runtime dashboard must not trigger broad provider refresh sweeps",
+);
+expect(
+  "src/services/deviceRuntimeStateService.ts",
+  /markViewed[\s\S]*device_runtime_view_lease_acquired[\s\S]*device_runtime_view_lease_expired/,
+  "Runtime V2 must acquire and expire explicit panel view leases",
+);
+expect(
+  "src/controllers/deviceStateController.ts",
+  /viewMode[\s\S]*markViewed[\s\S]*device_panel_view_stale[\s\S]*markDirty: false/,
+  "Single-device state reads must use explicit panel leases and non-dirty targeted refreshes",
 );
 expect(
   "src/controllers/deviceRuntimeStateController.ts",

@@ -41,11 +41,14 @@ export type DeviceRuntimeSnapshot = {
   last_successful_refresh: string | null;
   next_refresh_at?: string | null;
   refresh_class?: string | null;
+  viewed_until_at?: string | null;
 };
 
-type RuntimeEntry = Omit<DeviceRuntimeSnapshot, "stale" | "freshness" | "age_ms"> & {
+type RuntimeEntry = Omit<DeviceRuntimeSnapshot, "stale" | "freshness" | "age_ms" | "viewed_until_at"> & {
   device: Record<string, any>;
   accessed_at_ms: number;
+  viewed_until_ms?: number;
+  last_viewed_at_ms?: number;
   last_refresh_attempt_ms?: number;
   next_refresh_at_ms?: number;
   refresh_class?: "currently_viewed" | "recently_commanded" | "active_critical" | "active_normal" | "recently_active" | "inactive" | "offline" | "provider_disconnected";
@@ -332,7 +335,6 @@ export class DeviceRuntimeStateService {
   get(deviceId: string) {
     const entry = this.cache.get(String(deviceId));
     if (!entry) return null;
-    entry.accessed_at_ms = this.now();
     return this.snapshot(entry);
   }
 
@@ -398,7 +400,9 @@ export class DeviceRuntimeStateService {
       provider_warning: String(stateWithRuntime?._oyi_runtime?.provider_warning || "").trim() || null,
       retry_after: validTimestamp(stateWithRuntime?._oyi_runtime?.next_retry_at),
       last_successful_refresh: validTimestamp(stateWithRuntime?._oyi_runtime?.provider_last_success_at),
-      accessed_at_ms: this.now(),
+      accessed_at_ms: 0,
+      viewed_until_ms: 0,
+      last_viewed_at_ms: undefined,
       last_refresh_attempt_ms: undefined,
     };
     this.cache.set(entry.device_id, entry);
@@ -609,6 +613,39 @@ export class DeviceRuntimeStateService {
     if (entry) entry.dirty = true;
   }
 
+  markViewed(deviceId: string, input: {
+    ttlMs?: number;
+    source?: string;
+    estateId?: string | null;
+    homeId?: string | null;
+    actorId?: string | null;
+  } = {}) {
+    const entry = this.cache.get(String(deviceId));
+    if (!entry) return null;
+    const now = this.now();
+    const ttlMs = Math.max(15_000, Math.min(Number(input.ttlMs || 45_000), 120_000));
+    const previousUntil = Number(entry.viewed_until_ms || 0);
+    const nextUntil = Math.max(previousUntil, now + ttlMs);
+    const shouldLog = !previousUntil || previousUntil <= now || previousUntil - now < Math.floor(ttlMs / 2);
+    entry.accessed_at_ms = now;
+    entry.last_viewed_at_ms = now;
+    entry.viewed_until_ms = nextUntil;
+    entry.refresh_class = "currently_viewed";
+    if (shouldLog) {
+      logger.info("device_runtime_view_lease_acquired", {
+        device_id: entry.device_id,
+        source: input.source || "device_panel",
+        estate_id: input.estateId || entry.device?.estate_id || null,
+        home_id: input.homeId || entry.device?.home_id || null,
+        actor_id: input.actorId || null,
+        renewed: previousUntil > now,
+        lease_expires_at: new Date(nextUntil).toISOString(),
+        ttl_ms: ttlMs,
+      });
+    }
+    return this.snapshot(entry);
+  }
+
   isRefreshSuppressed(deviceId: string) {
     const entry = this.cache.get(String(deviceId));
     if (!entry?.retry_after) return false;
@@ -671,8 +708,8 @@ export class DeviceRuntimeStateService {
     return Promise.allSettled(devices.map((device) => this.refresh(device, priority, reason)));
   }
 
-  scheduleRefresh(device: Record<string, any>, input: { priority?: DeviceRuntimeRefreshPriority; reason?: string; delayMs?: number } = {}) {
-    this.markDirty(String(device.id));
+  scheduleRefresh(device: Record<string, any>, input: { priority?: DeviceRuntimeRefreshPriority; reason?: string; delayMs?: number; markDirty?: boolean } = {}) {
+    if (input.markDirty !== false) this.markDirty(String(device.id));
     const run = () => {
       void this.refresh(device, input.priority || "high", input.reason || "scheduled")
         .catch((error) => logger.warn("device_runtime_scheduled_refresh_failed", { error, device_id: device.id }));
@@ -691,11 +728,13 @@ export class DeviceRuntimeStateService {
   }
 
   stats() {
+    const now = this.now();
     return {
       cache_entries: this.cache.size,
       in_flight_refreshes: this.refreshes.size,
       in_flight_hydrations: this.hydrations.size,
       refresh_queue: this.queue.stats(),
+      currently_viewed: Array.from(this.cache.values()).filter((entry) => Number(entry.viewed_until_ms || 0) > now).length,
       authorization_suppressed: Array.from(this.cache.values()).filter((entry) => this.isRefreshSuppressed(entry.device_id)).length,
     };
   }
@@ -768,6 +807,7 @@ export class DeviceRuntimeStateService {
       last_successful_refresh: entry.last_successful_refresh,
       next_refresh_at: entry.next_refresh_at_ms ? new Date(entry.next_refresh_at_ms).toISOString() : null,
       refresh_class: entry.refresh_class || null,
+      viewed_until_at: Number(entry.viewed_until_ms || 0) > this.now() ? new Date(Number(entry.viewed_until_ms)).toISOString() : null,
     };
   }
 
@@ -775,7 +815,18 @@ export class DeviceRuntimeStateService {
     const providerDisconnected = ["authorization_required", "degraded"].includes(String(snapshot.summary.provider_health || "")) || Boolean(snapshot.retry_after);
     const offline = snapshot.summary.provider_health === "offline" || snapshot.summary.health_status === "offline" || snapshot.summary.canonical_state?.availability === "offline";
     const critical = String(snapshot.summary.device_family || "").match(/lock|camera|security/) || snapshot.summary.canonical_state?.batteryLevel === "critical";
-    const ageSinceAccess = now - entry.accessed_at_ms;
+    const viewedUntil = Number(entry.viewed_until_ms || 0);
+    const viewActive = viewedUntil > now;
+    if (!viewActive && viewedUntil && entry.refresh_class === "currently_viewed") {
+      logger.info("device_runtime_view_lease_expired", {
+        device_id: entry.device_id,
+        estate_id: entry.device?.estate_id || null,
+        home_id: entry.device?.home_id || null,
+        lease_expired_at: new Date(viewedUntil).toISOString(),
+      });
+      entry.viewed_until_ms = 0;
+    }
+    const ageSinceAccess = viewActive ? now - (entry.last_viewed_at_ms || entry.accessed_at_ms || now) : Number.POSITIVE_INFINITY;
     const ageSinceAttempt = now - (entry.last_refresh_attempt_ms || 0);
     let refreshClass: NonNullable<RuntimeEntry["refresh_class"]> = "inactive";
     let interval = INACTIVE_REFRESH_INTERVAL_MS;
@@ -785,16 +836,16 @@ export class DeviceRuntimeStateService {
     } else if (offline) {
       refreshClass = "offline";
       interval = OFFLINE_REFRESH_INTERVAL_MS;
-    } else if (critical && ageSinceAccess <= ACTIVE_WINDOW_MS) {
+    } else if (critical && viewActive && ageSinceAccess <= ACTIVE_WINDOW_MS) {
       refreshClass = "active_critical";
       interval = CRITICAL_REFRESH_INTERVAL_MS;
     } else if (entry.dirty) {
       refreshClass = "recently_commanded";
       interval = 0;
-    } else if (ageSinceAccess <= ACTIVE_WINDOW_MS) {
+    } else if (viewActive && ageSinceAccess <= ACTIVE_WINDOW_MS) {
       refreshClass = "currently_viewed";
       interval = ACTIVE_REFRESH_INTERVAL_MS;
-    } else if (ageSinceAccess <= RECENT_WINDOW_MS) {
+    } else if (Number.isFinite(ageSinceAccess) && ageSinceAccess <= RECENT_WINDOW_MS) {
       refreshClass = "recently_active";
       interval = RECENT_REFRESH_INTERVAL_MS;
     }
@@ -873,7 +924,7 @@ export class DeviceRuntimeStateService {
         }
         return true;
       })
-      .sort((a, b) => Number(b.dirty) - Number(a.dirty) || a.accessed_at_ms - b.accessed_at_ms)
+      .sort((a, b) => Number(b.dirty) - Number(a.dirty) || (a.last_viewed_at_ms || a.accessed_at_ms || 0) - (b.last_viewed_at_ms || b.accessed_at_ms || 0))
       .slice(0, 25);
     operationalMetrics.gauge("oyi_device_runtime_scheduler_evaluated", evaluated);
     operationalMetrics.gauge("oyi_device_runtime_scheduler_due", candidates.length);

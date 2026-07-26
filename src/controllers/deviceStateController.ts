@@ -22,7 +22,7 @@ type StateIncludes = {
 };
 
 type DeviceStateControllerDependencies = {
-  runtime: Pick<typeof deviceRuntimeStateService, "has" | "get" | "hydrateSnapshot" | "shouldRefresh" | "scheduleRefresh">;
+  runtime: Pick<typeof deviceRuntimeStateService, "has" | "get" | "hydrateSnapshot" | "markViewed" | "shouldRefresh" | "scheduleRefresh">;
   findDevice: (input: { rawId: string; estateId: string; includeSnapshot: boolean }) => Promise<{
     device: Record<string, any> | null;
     snapshot: Record<string, any> | null;
@@ -182,6 +182,8 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
     const estateId = req.oisContext?.estate_id || req.user?.estate_id || null;
     const homeId = req.oisContext?.home_id || req.user?.home_id || null;
     const includes = parseDeviceStateIncludes(req.query.include);
+    const viewMode = String(req.query.view || req.query.lease || "").trim().toLowerCase();
+    const wantsViewLease = ["panel", "device", "active"].includes(viewMode);
     let stateDbRoundTrips = 0;
     let snapshotIncluded = false;
     let cacheSource = "miss";
@@ -218,6 +220,15 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
         runtime = timeRequestStageSync(req, "snapshot_hydration", () => dependencies.runtime.hydrateSnapshot(device, resolved.snapshot));
         cacheSource = runtime ? "persistent_snapshot" : "miss";
       }
+      if (wantsViewLease) {
+        runtime = timeRequestStageSync(req, "runtime_view_lease", () => dependencies.runtime.markViewed(String(device.id), {
+          ttlMs: 45_000,
+          source: "device_panel",
+          estateId,
+          homeId,
+          actorId: req.user?.id || null,
+        })) || runtime;
+      }
 
       let intelligence: any = undefined;
       if (includes.intelligence && runtime) {
@@ -235,10 +246,12 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
       const body = timeRequestStageSync(req, "frontend_contract", () => buildDeviceStateResponse({ device, runtime, intelligence, timeline }));
       const serialized = timeRequestStageSync(req, "serialization", () => JSON.stringify(body));
 
-      if (dependencies.runtime.shouldRefresh(runtime)) {
+      const refreshDeferred = wantsViewLease && dependencies.runtime.shouldRefresh(runtime);
+      if (refreshDeferred) {
         dependencies.defer(() => dependencies.runtime.scheduleRefresh(device, {
           priority: !runtime || runtime.freshness === "expired" ? "high" : "normal",
-          reason: "device_opened",
+          reason: "device_panel_view_stale",
+          markDirty: false,
         }));
       }
 
@@ -255,7 +268,11 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
         include_timeline: includes.timeline,
         state_path_db_round_trips: stateDbRoundTrips,
         response_bytes: Buffer.byteLength(serialized),
-        refresh_deferred: dependencies.runtime.shouldRefresh(runtime),
+        view_lease_acquired: wantsViewLease,
+        provider_requests_sync: 0,
+        provider_requests_deferred: refreshDeferred ? 1 : 0,
+        provider_refreshes_scheduled: refreshDeferred ? 1 : 0,
+        refresh_deferred: refreshDeferred,
         total_ms: timing.total_ms,
         stages: timing.stages,
       });

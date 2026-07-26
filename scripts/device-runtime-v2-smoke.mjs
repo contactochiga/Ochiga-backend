@@ -108,6 +108,11 @@ check(dashboard.every(Boolean), "dashboard runtime returns cached summaries for 
 check(dashboardLatency < 300, "cached dashboard assembly completes under 300ms");
 check(providerReads === beforeBatchReads + 11, "dashboard runtime performs no provider requests");
 check(snapshotLoads - snapshotLoadsBeforeDashboard <= 1, "dashboard runtime avoids N+1 snapshot queries");
+check(runtime.stats().currently_viewed === 0, "dashboard cached reads create zero currently-viewed leases");
+const viewed = runtime.markViewed("device-1", { ttlMs: 45_000, source: "smoke_panel", estateId: "estate-1", homeId: "home-1", actorId: "resident-1" });
+check(Boolean(viewed?.viewed_until_at) && runtime.stats().currently_viewed === 1, "explicit panel lease marks exactly one device currently viewed");
+now += 46_000;
+check(runtime.stats().currently_viewed === 0, "view lease expires back to zero after the short TTL");
 
 runtime.markDirty("device-1");
 const dirty = runtime.get("device-1");

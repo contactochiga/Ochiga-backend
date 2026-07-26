@@ -33,6 +33,79 @@ async function attachRoomNames(devices: Array<Record<string, any>>) {
   });
 }
 
+function compactIrSupportedKeys(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry: any) => ({
+      canonical_key: entry?.canonical_key || entry?.canonicalKey || entry?.key || null,
+      key: entry?.key || entry?.provider_key || entry?.providerKey || entry?.key_code || entry?.code || null,
+      key_code: entry?.key_code || entry?.code || entry?.provider_key || entry?.providerKey || null,
+      key_name: entry?.key_name || entry?.label || entry?.canonical_key || entry?.canonicalKey || null,
+      provider_key: entry?.provider_key || entry?.providerKey || entry?.code || null,
+      key_id: entry?.key_id ?? entry?.keyId ?? null,
+      id: entry?.id ?? entry?.key_id ?? entry?.keyId ?? null,
+      label: entry?.label || null,
+      supported: entry?.supported !== false,
+      dispatch_mode: entry?.dispatch_mode || entry?.dispatchMode || null,
+    }))
+    .filter((entry) => entry.canonical_key || entry.provider_key || entry.key_id != null);
+}
+
+function compactDeviceMetadata(metadata: Record<string, any> | null | undefined) {
+  const source = metadata && typeof metadata === "object" ? metadata : {};
+  const ir = source.ir_appliance && typeof source.ir_appliance === "object" ? source.ir_appliance : null;
+  const oyi = source.oyi && typeof source.oyi === "object" ? source.oyi : {};
+  const compact: Record<string, any> = {
+    device_family: source.device_family || source.family || null,
+    control_profile: source.control_profile || null,
+    ownership_class: source.ownership_class || oyi.ownership_class || null,
+    projection_policy: source.projection_policy || source.visibility_policy || oyi.projection_policy || null,
+  };
+  if (ir) {
+    compact.ir_appliance = {
+      infrared_id: ir.infrared_id || ir.infraredId || null,
+      remote_id: ir.remote_id || ir.remoteId || null,
+      remote_index: ir.remote_index ?? ir.remoteIndex ?? null,
+      category_id: ir.category_id || ir.categoryId || null,
+      brand_id: ir.brand_id || ir.brandId || null,
+      appliance_type: ir.appliance_type || ir.applianceType || null,
+      supported_keys: compactIrSupportedKeys(ir.supported_keys || ir.supportedKeys || ir.key_map || ir.keyMap),
+    };
+  }
+  return Object.fromEntries(Object.entries(compact).filter(([, value]) => value != null));
+}
+
+function compactRuntimeState(state: Record<string, any> | null | undefined, normalized: Record<string, any> | null | undefined) {
+  const source = state && typeof state === "object" ? state : {};
+  const normalizedSource = normalized && typeof normalized === "object" ? normalized : {};
+  const allowedKeys = [
+    "online",
+    "power",
+    "switch",
+    "switch_1",
+    "switch_2",
+    "switch_3",
+    "mode",
+    "temperature",
+    "temp_set",
+    "fan_speed",
+    "locked",
+    "lock_state",
+    "door_state",
+    "battery",
+    "battery_percentage",
+    "batteryPercentage",
+    "residual_electricity",
+  ];
+  const compact: Record<string, any> = {};
+  for (const key of allowedKeys) {
+    if (source[key] == null) continue;
+    compact[key] = source[key];
+  }
+  if (Object.keys(normalizedSource).length) compact.normalized_state = normalizedSource;
+  return compact;
+}
+
 export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
   const user: any = req.user;
   const context: any = (req as any).oisContext || null;
@@ -74,12 +147,12 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
     const cacheMisses = devices.filter((device: any) => !deviceRuntimeStateService.has(String(device.id))).length;
     await timeRequestStage(req, "runtime_snapshot_batch", () => deviceRuntimeStateService.hydrateMany(devices));
 
-    const expired: any[] = [];
-    const stale: any[] = [];
+    let expiredCount = 0;
+    let staleCount = 0;
     const runtimeDevices = timeRequestStageSync(req, "runtime_frontend_contracts", () => devices.map((device: any) => {
       const runtime = deviceRuntimeStateService.get(String(device.id));
-      if (!runtime || runtime.freshness === "expired" || runtime.dirty) expired.push(device);
-      else if (runtime.stale) stale.push(device);
+      if (!runtime || runtime.freshness === "expired" || runtime.dirty) expiredCount += 1;
+      else if (runtime.stale) staleCount += 1;
       const summary = runtime?.summary || null;
       const canonicalState = summary?.canonical_state
         ? {
@@ -109,8 +182,8 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
         adapter: device.adapter || device.vendor || device.provider || null,
         type: device.type || null,
         category: device.category || null,
-        metadata: device.metadata || {},
-        state: runtime?.state || {},
+        metadata: compactDeviceMetadata(device.metadata || {}),
+        state: compactRuntimeState(runtime?.state || {}, summary?.normalized_state || {}),
         canonical_state: canonicalState,
         canonicalState,
         canonical_presentation: presentation,
@@ -129,7 +202,7 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
         channel_definitions: summary?.channel_definitions || [],
         control_profile: summary?.control_profile || device.metadata?.control_profile || "generic",
         device_family: summary?.device_family || device.metadata?.device_family || "unknown",
-        telemetry_summary: summary?.telemetry_summary || {},
+        telemetry_summary: null,
         activity_summary: summary?.activity_summary || null,
         capability_codes: summary?.capability_codes || [],
         provider_timestamp: runtime?.provider_timestamp || null,
@@ -142,19 +215,16 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
       };
     }));
 
-    if (expired.length || stale.length) {
-      setImmediate(() => {
-        if (expired.length) void deviceRuntimeStateService.refreshMany(expired, "high", "runtime_dashboard_expired");
-        if (stale.length) void deviceRuntimeStateService.refreshMany(stale, "normal", "runtime_dashboard_stale");
-      });
-    }
-
     const body = {
       devices: runtimeDevices,
       count: runtimeDevices.length,
       generated_at: new Date().toISOString(),
       source: "oyi_device_runtime_v2",
       provider_requests: 0,
+      provider_requests_sync: 0,
+      provider_requests_deferred: 0,
+      provider_refreshes_scheduled: 0,
+      dashboard_mode: "compact_cache_only",
       runtime: deviceRuntimeStateService.stats(),
     };
     const serialized = timeRequestStageSync(req, "serialization", () => JSON.stringify(body));
@@ -168,6 +238,12 @@ export async function getDeviceRuntimeDashboard(req: Request, res: Response) {
       snapshot_cache_misses: cacheMisses,
       database_round_trips: 1 + (cacheMisses ? 1 : 0),
       provider_requests: 0,
+      provider_requests_sync: 0,
+      provider_requests_deferred: 0,
+      provider_refreshes_scheduled: 0,
+      stale_count: staleCount,
+      expired_count: expiredCount,
+      cache_only: true,
       response_bytes: Buffer.byteLength(serialized),
       total_ms: timing.total_ms,
       stages: timing.stages,

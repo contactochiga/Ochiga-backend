@@ -89,10 +89,10 @@ const snapshot = {
   last_successful_refresh: "2026-07-16T10:00:00.000Z",
 };
 
-function request(include = "") {
+function request(include = "", extraQuery = {}) {
   return {
     params: { deviceId: device.id },
-    query: include ? { include } : {},
+    query: { ...(include ? { include } : {}), ...extraQuery },
     headers: {},
     user: { id: "user-1", role: "resident", estate_id: "estate-1", home_id: "home-1" },
     oisContext: { estate_id: "estate-1", home_id: "home-1" },
@@ -118,6 +118,7 @@ function runtime(overrides = {}) {
     has: () => true,
     get: () => snapshot,
     hydrateSnapshot: () => snapshot,
+    markViewed: () => snapshot,
     shouldRefresh: () => false,
     scheduleRefresh: () => {},
     ...overrides,
@@ -182,10 +183,33 @@ const staleStarted = performance.now();
 await staleHandler(request(), staleResponse);
 const staleDuration = performance.now() - staleStarted;
 check(staleResponse.statusCode === 200 && staleResponse.body.stale === true, "stale cached state returns immediately");
-check(staleRefreshes === 0 && deferred.length === 1, "stale provider refresh is deferred beyond the response");
-deferred.forEach((operation) => operation());
-check(staleRefreshes === 1, "deferred stale refresh remains scheduled");
+check(staleRefreshes === 0 && deferred.length === 0, "ordinary stale reads do not schedule provider refreshes");
 check(staleDuration < 150, `stale synthetic response is not delayed by refresh (${staleDuration.toFixed(1)}ms)`);
+
+const panelDeferred = [];
+let panelRefreshes = 0;
+let panelLeases = 0;
+const panelStaleHandler = createGetDeviceState({
+  runtime: runtime({
+    get: () => staleSnapshot,
+    shouldRefresh: () => true,
+    markViewed: () => {
+      panelLeases += 1;
+      return { ...staleSnapshot, viewed_until_at: "2026-07-16T10:00:45.000Z" };
+    },
+    scheduleRefresh: (_device, input) => {
+      if (input?.reason === "device_panel_view_stale" && input?.markDirty === false) panelRefreshes += 1;
+    },
+  }),
+  findDevice: async () => ({ device, snapshot: null }),
+  defer: (operation) => panelDeferred.push(operation),
+});
+const panelStaleResponse = response();
+await panelStaleHandler(request("", { view: "panel" }), panelStaleResponse);
+check(panelStaleResponse.statusCode === 200 && panelLeases === 1, "panel stale read acquires a single explicit view lease");
+check(panelRefreshes === 0 && panelDeferred.length === 1, "panel stale provider refresh is deferred beyond the response");
+panelDeferred.forEach((operation) => operation());
+check(panelRefreshes === 1, "deferred panel refresh remains targeted and non-dirty");
 
 let intelligenceLoads = 0;
 let timelineBuilds = 0;
