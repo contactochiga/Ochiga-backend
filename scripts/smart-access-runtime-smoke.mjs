@@ -46,6 +46,16 @@ expect(
   /remoteUnlockExecutableCode[\s\S]*mapping_missing[\s\S]*Provider schema declares unlock methods/,
   "remote unlock must be mapping_missing when only provider schema declares it",
 );
+{
+  const smartAccessService = read("src/services/smartAccessCapabilityService.ts");
+  if (
+    !/lockOperationMatrix[\s\S]*remote_unlock[\s\S]*custom_pin[\s\S]*time_limited_pin[\s\S]*one_time_pin[\s\S]*fingerprint_enrol_delete/.test(smartAccessService) ||
+    !/native_sdk_required/.test(smartAccessService) ||
+    !/physical_confirmation_required/.test(smartAccessService)
+  ) {
+    failures.push("src/services/smartAccessCapabilityService.ts: smart-lock operation matrix must separate cloud executable, native/BLE and physical-interaction requirements");
+  }
+}
 expect(
   "src/services/smartAccessCapabilityService.ts",
   /smartAccessSupportedControls[\s\S]*executableByOyi === true[\s\S]*readableByOyi === true/,

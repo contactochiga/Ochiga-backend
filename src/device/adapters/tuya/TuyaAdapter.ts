@@ -387,21 +387,33 @@ export class TuyaAdapter implements DeviceAdapter {
   ): Promise<T> {
     let lastError: unknown = null;
     let v2Incompatibility: { provider_code: string | null; reason: string | null } | null = null;
-    for (const version of await this.orderedIrApiVersions(options)) {
+    const compatibility = await this.loadIrCompatibility(options?.context, options?.infraredId);
+    const preferenceCacheHit = this.isFreshIrCompatibility(compatibility) && Boolean(compatibility?.preferred_version);
+    const versions = preferenceCacheHit && compatibility?.preferred_version
+      ? Array.from(new Set([compatibility.preferred_version, ...this.irApiVersions()]))
+      : this.irApiVersions();
+    for (const version of versions) {
       const path = pathFactory(version);
       const resolvedBody = typeof body === "function" ? body(version) : body;
       try {
-        logger.debug("tuya_ir_provider_request", {
+        logger.info("ir_provider_endpoint_selected", {
           method,
           version,
           endpoint: path,
+          endpoint_kind: options?.endpointKind || null,
+          infrared_id: options?.infraredId || null,
+          preference_cache_hit: preferenceCacheHit,
           payload: resolvedBody || null,
         });
+        const providerStartedAt = Date.now();
         const response = await this.client.request<T>(method, path, resolvedBody);
-        logger.debug("tuya_ir_provider_response", {
+        logger.info("ir_provider_acknowledged", {
           method,
           version,
           endpoint: path,
+          endpoint_kind: options?.endpointKind || null,
+          infrared_id: options?.infraredId || null,
+          provider_latency_ms: Date.now() - providerStartedAt,
           response,
         });
         if (method === "POST" && options?.infraredId) {
@@ -430,13 +442,27 @@ export class TuyaAdapter implements DeviceAdapter {
             provider_code: classified.provider_code,
             reason: classified.safe_message || "Tuya IR v2 endpoint incompatible for this command",
           };
+          logger.warn("ir_provider_rejected", {
+            method,
+            version,
+            endpoint: path,
+            endpoint_kind: options?.endpointKind || null,
+            infrared_id: options?.infraredId || null,
+            provider_code: classified.provider_code,
+            safe_message: classified.safe_message,
+            fallback: "v1.0",
+          });
+          continue;
         }
         if (["permission_denied", "device_not_linked", "integration_expired", "authentication_failed", "rate_limited"].includes(classified.classification)) {
           throw error;
         }
-        logger.warn("tuya_ir_endpoint_attempt_failed", {
+        logger.warn("ir_provider_rejected", {
+          method,
           version,
-          operation: path,
+          endpoint: path,
+          endpoint_kind: options?.endpointKind || null,
+          infrared_id: options?.infraredId || null,
           classification: classified.classification,
           provider_code: classified.provider_code,
           safe_message: classified.safe_message,

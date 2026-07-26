@@ -47,7 +47,12 @@ assert(/category_id/.test(tuyaAdapter) && /key_id/.test(tuyaAdapter) && /raw\/co
 assert(/executeIrRemoteCommand/.test(tuyaAdapter), "Tuya adapter routes virtual remote commands through the IR command handler");
 assert(/if \(!res\.data\?\.success\)/.test(tuyaClient) && /throw error/.test(tuyaClient) && /tuyaResultAccepted/.test(tuyaAdapter), "Tuya IR command acceptance requires provider success and accepted result");
 assert(/tuya_ir_endpoint_compatibility/.test(tuyaAdapter) && /provider_code.*20001/.test(tuyaAdapter) && /preferred_version: "v1\.0"/.test(tuyaAdapter), "Tuya IR endpoint compatibility remembers v1 after recognized v2 incompatibility");
+assert(/classified\.provider_code === "20001"[\s\S]*fallback: "v1\.0"[\s\S]*continue/.test(tuyaAdapter), "Tuya IR v2 incompatibility code 20001 always falls through to the working v1 endpoint");
+assert(/ir_provider_endpoint_selected/.test(tuyaAdapter) && /ir_provider_acknowledged/.test(tuyaAdapter) && /ir_provider_rejected/.test(tuyaAdapter), "Tuya IR dispatch logs endpoint selection, acknowledgement and rejection evidence");
 assert(/confirmation_strategy: "provider_ack_only"/.test(tuyaAdapter) && /provider_ack_only[\s\S]*return \{[\s\S]*confirmation_strategy: "provider_ack_only"/.test(commandController), "TV IR commands use provider_ack_only and return before fake state confirmation");
+assert(/irCommandLanes/.test(commandController) && /runInIrCommandLane/.test(commandController) && /IR_DISPATCH_SPACING_MS/.test(commandController), "TV IR commands use a bounded per-remote FIFO dispatch lane");
+assert(/commandClientSequence/.test(commandController) && /ir_backend_received/.test(commandController) && /ir_response_sent/.test(commandController), "TV IR commands propagate tap sequence diagnostics through backend receipt and response");
+assert(!/providerAckOnly[\s\S]{0,220}scheduleRefresh/.test(commandController), "provider_ack_only TV IR commands do not schedule observable-state confirmation refreshes");
 assert(/Add or sync an appliance profile before using this remote/.test(tuyaAdapter), "Tuya adapter fails honestly when a virtual remote is missing provider binding");
 assert(/family === "tv" \|\| family === "ir"/.test(commandController) && /type: c\.type \|\| "tv_remote"/.test(commandController), "TV and generic IR commands keep remote command shape instead of switch payloads");
 assert(/profile === "air_conditioner"/.test(commandController) && /type: c\.type \|\| "ac_remote"/.test(commandController), "AC commands keep air-conditioner command shape instead of switch payloads");

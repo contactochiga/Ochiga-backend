@@ -288,6 +288,10 @@ function commandSentCopy(name: string) {
 
 const commandAcceptances = new Map<string, { expiresAt: number; response: Record<string, any> }>();
 const COMMAND_ACCEPTANCE_TTL_MS = 2 * 60_000;
+const irCommandLanes = new Map<string, Promise<void>>();
+const IR_QUEUE_MAX_WAIT_MS = 4_000;
+const IR_QUEUE_LANE_TTL_MS = 30_000;
+const IR_DISPATCH_SPACING_MS = Number(process.env.OYI_IR_DISPATCH_SPACING_MS || 80);
 
 function pruneCommandAcceptances() {
   const now = Date.now();
@@ -300,12 +304,75 @@ function commandFingerprint(command: Record<string, any>) {
   return crypto.createHash("sha256").update(JSON.stringify(command || {})).digest("hex").slice(0, 16);
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+function irCommandLaneKey(device: any) {
+  const appliance = device?.metadata?.ir_appliance || {};
+  return [
+    device?.provider_connection_id || "connection",
+    appliance.infrared_id || device?.parent_external_id || device?.external_id || device?.id,
+    appliance.remote_id || appliance.profile_id || device?.metadata?.remote_id || "remote",
+  ].map((part) => String(part || "")).join(":");
+}
+
+async function runInIrCommandLane<T>(key: string, task: () => Promise<T>): Promise<T> {
+  const queuedAt = Date.now();
+  const previous = irCommandLanes.get(key) || Promise.resolve();
+  let releaseLane!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseLane = resolve;
+  });
+  const lanePromise = previous.then(() => current).catch(() => current);
+  irCommandLanes.set(key, lanePromise);
+
+  try {
+    logger.info("ir_dispatch_queued", {
+      lane: key,
+      queue_wait_budget_ms: IR_QUEUE_MAX_WAIT_MS,
+      dispatch_spacing_ms: IR_DISPATCH_SPACING_MS,
+    });
+    await Promise.race([
+      previous.catch(() => undefined),
+      sleep(IR_QUEUE_MAX_WAIT_MS).then(() => {
+        const error: any = new Error("This remote command waited too long and was not sent.");
+        error.statusCode = 429;
+        error.code = "ir_queue_expired";
+        throw error;
+      }),
+    ]);
+    const queueWaitMs = Date.now() - queuedAt;
+    if (IR_DISPATCH_SPACING_MS > 0) await sleep(IR_DISPATCH_SPACING_MS);
+    logger.info("ir_dispatch_queue_released", {
+      lane: key,
+      queue_wait_ms: queueWaitMs,
+    });
+    return await task();
+  } finally {
+    releaseLane();
+    setTimeout(() => {
+      if (irCommandLanes.get(key) === lanePromise) irCommandLanes.delete(key);
+    }, IR_QUEUE_LANE_TTL_MS).unref?.();
+  }
+}
+
 function commandIdempotencyKey(req: Request, user: AuthUser, rawId: string, command: Record<string, any>, source: CommandSource, replayWindowMs = 5_000) {
   const explicit =
     String(req.headers["idempotency-key"] || req.headers["x-idempotency-key"] || req.body?.idempotency_key || req.body?.command_id || "").trim();
   if (explicit) return `explicit:${user.id}:${rawId}:${source}:${explicit}`;
   const shortReplayWindow = Math.floor(Date.now() / Math.max(250, replayWindowMs));
   return `request:${user.id}:${rawId}:${source}:${commandFingerprint(command)}:${shortReplayWindow}`;
+}
+
+function commandClientSequence(req: Request) {
+  return String(
+    req.headers["x-ir-tap-sequence"] ||
+    req.body?.tap_sequence ||
+    req.body?.ir_tap_sequence ||
+    req.body?.client_sequence ||
+    "",
+  ).trim();
 }
 
 function isIrProviderAckOnlyDevice(device: any, command: Record<string, any>) {
@@ -480,18 +547,46 @@ export async function executeDeviceCommandForActor(input: {
     }
 
     const normalized = normalizedCommand;
+    const providerAckOnly = isIrProviderAckOnlyDevice(commandDevice, normalized);
+    const irLane = providerAckOnly ? irCommandLaneKey(commandDevice) : null;
+    const irTapSequence = commandClientSequence(input.req as Request);
     const lifecycle = [
       lifecycleStep("pending", "Command received"),
       lifecycleStep("dispatched", "Dispatching to provider"),
     ];
-    const providerDispatch = await adapter.executeCommand(commandDevice.external_id, normalized, {
+    const dispatchContext = {
       estateId: commandDevice.estate_id,
       homeId: commandDevice.home_id,
       userId: user.id,
       credentials: {},
       device: commandDevice,
       canonicalDevice: deviceRow,
-    } as any);
+      irTapSequence,
+    } as any;
+    if (providerAckOnly) {
+      logger.info("ir_backend_received", {
+        canonical_device_id: deviceRow.id,
+        command_device_id: commandDevice.id || null,
+        infrared_id: commandDevice.external_id,
+        remote_id: commandDevice?.metadata?.ir_appliance?.remote_id || commandDevice?.metadata?.remote_id || null,
+        command_key: normalized?.key || normalized?.command_key || normalized?.raw_key || normalized?.type || null,
+        tap_sequence: irTapSequence || null,
+        client_tap_timestamp: input.req?.body?.client_tap_timestamp || null,
+        lane: irLane,
+      });
+    }
+    const providerDispatch = providerAckOnly && irLane
+      ? await runInIrCommandLane(irLane, async () => {
+        logger.info("ir_provider_dispatch_started", {
+          canonical_device_id: deviceRow.id,
+          infrared_id: commandDevice.external_id,
+          remote_id: commandDevice?.metadata?.ir_appliance?.remote_id || commandDevice?.metadata?.remote_id || null,
+          command_key: normalized?.key || normalized?.command_key || normalized?.raw_key || normalized?.type || null,
+          tap_sequence: irTapSequence || null,
+        });
+        return adapter.executeCommand(commandDevice.external_id, normalized, dispatchContext);
+      })
+      : await adapter.executeCommand(commandDevice.external_id, normalized, dispatchContext);
     lifecycle.push(lifecycleStep("provider_accepted", "Provider accepted"));
     logDeviceCommandDiagnostic("device.command.provider", {
       device_id: rawId,
@@ -503,7 +598,7 @@ export async function executeDeviceCommandForActor(input: {
       provider_result: "accepted",
     });
 
-    if ((providerDispatch as any)?.confirmation_strategy === "provider_ack_only" || isIrProviderAckOnlyDevice(commandDevice, normalized)) {
+    if ((providerDispatch as any)?.confirmation_strategy === "provider_ack_only" || providerAckOnly) {
       const commandOccurredAt = new Date().toISOString();
       const commandSummary = commandSentCopy(String(deviceRow.name || "Device"));
       lifecycle.push(lifecycleStep("provider_ack_only", "Provider acknowledgement only", "This IR command has no reliable observable device-state confirmation."));
@@ -847,6 +942,14 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       homeId: (req as any).oisContext?.home_id || user.home_id || null,
     };
     assertContextPayloadMatches(req, scope);
+    logger.info("ir_request_created", {
+      canonical_device_id: rawId,
+      command_key: command?.key || command?.command_key || command?.raw_key || command?.type || null,
+      tap_sequence: commandClientSequence(req) || null,
+      client_tap_timestamp: req.body?.client_tap_timestamp || null,
+      estate_id: scope.estateId,
+      home_id: scope.homeId,
+    });
     const target = await resolveCommandTarget({
       user,
       rawId,
@@ -876,6 +979,17 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         idempotency_key: key,
       };
       commandAcceptances.set(key, { expiresAt: Date.now() + COMMAND_ACCEPTANCE_TTL_MS, response });
+      logger.info("ir_response_sent", {
+        canonical_device_id: target.deviceRow.id,
+        infrared_id: target.commandDevice.external_id || null,
+        remote_id: target.commandDevice?.metadata?.ir_appliance?.remote_id || target.commandDevice?.metadata?.remote_id || null,
+        command_key: target.normalizedCommand?.key || target.normalizedCommand?.command_key || target.normalizedCommand?.raw_key || target.normalizedCommand?.type || null,
+        tap_sequence: commandClientSequence(req) || null,
+        accepted: response.accepted,
+        dispatched: response.dispatched,
+        confirmation_strategy: response.confirmation_strategy,
+        provider_latency_ms: response.provider_latency_ms ?? null,
+      });
       return res.status(200).json(response);
     }
 
