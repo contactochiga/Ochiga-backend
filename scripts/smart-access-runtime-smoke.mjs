@@ -67,6 +67,31 @@ expect(
   "battery-low handling must map residual_electricity into normalized critical state",
 );
 expect(
+  "src/services/smartAccessCapabilityService.ts",
+  /provider_connection_state[\s\S]*device_reachability[\s\S]*lock_state_freshness[\s\S]*lock_state_confirmed_at[\s\S]*provider_reconnect_required/,
+  "smart-access frontend contract must separate provider connection, reachability, lock position and freshness",
+);
+expect(
+  "src/services/smartAccessCapabilityService.ts",
+  /LOCK_POSITION_CODES[\s\S]*lock_motor_state[\s\S]*manual_lock[\s\S]*reverse_lock[\s\S]*rtc_lock[\s\S]*automatic_lock/,
+  "Tuya lock position must use an explicit DP allowlist rather than generic capability presence",
+);
+expect(
+  "src/services/smartAccessCapabilityService.ts",
+  /tuya_lock_state_interpreted[\s\S]*source_dp_code[\s\S]*normalized_lock_state[\s\S]*raw_value_type[\s\S]*provider_connection_state[\s\S]*freshness/,
+  "lock state interpretation must emit a sanitized structured diagnostic event",
+);
+expect(
+  "src/services/smartAccessCapabilityService.ts",
+  /remoteUnlockAvailable[\s\S]*connection\.state === "connected"[\s\S]*deviceReachability === "online"[\s\S]*liveVerified === true/,
+  "remote unlock must stay unavailable unless provider health, reachability, policy and live verification all allow it",
+);
+expect(
+  "src/services/smartAccessCapabilityService.ts",
+  /state_snapshot: profile\.state[\s\S]*truth: profile\.truth/,
+  "smart-access snapshots must persist normalized read-only truth without credential secrets",
+);
+expect(
   "src/device/runtime/deviceStateEnrichment.ts",
   /Sensitive access controls are exposed only by the Smart Access evidence/,
   "generic runtime enrichment must not expose lock/unlock controls from schema presence",

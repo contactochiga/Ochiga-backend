@@ -28,6 +28,14 @@ type CapabilityEvidence = {
   verifiedAt?: string;
 };
 
+type LockConnectionState = "connected" | "disconnected" | "reconnect_required" | "unknown";
+type LockReachability = "online" | "offline" | "unknown";
+type LockPosition = "locked" | "unlocked" | "unknown";
+type LockFreshness = "fresh" | "stale" | "expired" | "unknown";
+
+const LOCK_STATE_FRESH_MS = Number(process.env.OYI_SMART_ACCESS_LOCK_FRESH_MS || 60_000);
+const LOCK_STATE_EXPIRED_MS = Number(process.env.OYI_SMART_ACCESS_LOCK_EXPIRED_MS || LOCK_STATE_FRESH_MS * 10);
+
 function clean(value: any) {
   return String(value ?? "").trim();
 }
@@ -83,6 +91,34 @@ function numberValue(...values: any[]) {
   return null;
 }
 
+function timestampValue(...values: any[]) {
+  for (const value of values) {
+    const raw = clean(value);
+    if (!raw) continue;
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  return null;
+}
+
+function runtimePayload(runtime: any): Record<string, any> {
+  const row = record(runtime);
+  return {
+    ...record(row.status),
+    ...record(row.state),
+    ...record(row.normalized_state),
+    ...row,
+  };
+}
+
+function runtimeMeta(runtime: any): Record<string, any> {
+  const payload = runtimePayload(runtime);
+  return {
+    ...record(payload._oyi_runtime),
+    ...record(record(runtime)._oyi_runtime),
+  };
+}
+
 function masked(value: any) {
   const raw = clean(value);
   if (!raw) return null;
@@ -115,6 +151,192 @@ function smartAccessFamily(device: any, summary: any, codes: Set<string>) {
     Array.from(codes).join(" "),
   ].map(lower).join(" ");
   return /\b(lock|doorlock|smart_lock|door_lock|jtms|jtmspro|jtmsbh|ms|access_control|unlock|temporary|password|fingerprint)\b/.test(haystack);
+}
+
+function freshnessForTimestamp(value: any): LockFreshness {
+  const raw = clean(value);
+  if (!raw) return "unknown";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  const age = Date.now() - date.getTime();
+  if (age <= LOCK_STATE_FRESH_MS) return "fresh";
+  if (age <= LOCK_STATE_EXPIRED_MS) return "stale";
+  return "expired";
+}
+
+function providerConnectionState(summary: any, runtime: any): {
+  state: LockConnectionState;
+  reconnectRequired: boolean;
+  errorCode: string | null;
+  errorClassification: string | null;
+  lastSuccessAt: string | null;
+} {
+  const payload = runtimePayload(runtime);
+  const meta = runtimeMeta(runtime);
+  const providerError = record(meta.provider_error || payload.provider_error);
+  const providerHealth = lower(payload.provider_health || meta.provider_health || summary.provider_health);
+  const authorizationState = lower(payload.authorization_state || meta.authorization_state);
+  const errorCode = clean(providerError.code || payload.last_provider_error_code || payload.error_code) || null;
+  const errorClassification = clean(providerError.classification || payload.last_provider_error_classification || payload.error_classification) || null;
+  const lastSuccessAt = timestampValue(
+    meta.provider_last_success_at,
+    meta.last_success_at,
+    payload.last_successful_provider_contact_at,
+    payload.provider_timestamp,
+    payload.last_seen,
+  );
+
+  const reconnectRequired = /device_not_linked|invalid_binding|authorization|required|denied|expired|authentication|permission/.test(
+    [providerHealth, authorizationState, errorCode, errorClassification].filter(Boolean).join(" "),
+  );
+  if (reconnectRequired) {
+    return { state: "reconnect_required", reconnectRequired: true, errorCode, errorClassification, lastSuccessAt };
+  }
+  if (/disconnected|offline|unavailable|degraded/.test(providerHealth)) {
+    return { state: "disconnected", reconnectRequired: false, errorCode, errorClassification, lastSuccessAt };
+  }
+  if (lastSuccessAt || /healthy|ok|connected|online/.test(providerHealth)) {
+    return { state: "connected", reconnectRequired: false, errorCode, errorClassification, lastSuccessAt };
+  }
+  return { state: "unknown", reconnectRequired: false, errorCode, errorClassification, lastSuccessAt };
+}
+
+function providerStatusMap(device: any, runtime: any): Record<string, any> {
+  const metadata = record(device?.metadata);
+  const rawStatus = [
+    ...array(metadata.raw?.status),
+    ...array(metadata.status),
+    ...array(runtime?.state?.__raw),
+    ...array(runtime?.__raw),
+    ...array(runtimePayload(runtime).__raw),
+  ];
+  const map = rawStatus.reduce((acc: Record<string, any>, item: any) => {
+    const code = codeOf(item);
+    if (code) acc[code] = item?.value ?? item?.status ?? item?.state;
+    return acc;
+  }, {});
+  const payload = runtimePayload(runtime);
+  for (const [key, value] of Object.entries(payload)) {
+    if (typeof value !== "object") map[lower(key)] = value;
+  }
+  return map;
+}
+
+const LOCK_POSITION_CODES = [
+  "lock_motor_state",
+  "manual_lock",
+  "reverse_lock",
+  "rtc_lock",
+  "automatic_lock",
+  "lock_state",
+  "status_lock",
+];
+
+function normalizeLockDpValue(code: string, value: any): LockPosition | null {
+  const raw = lower(value);
+  if (["locked", "lock", "closed", "close"].includes(raw)) return "locked";
+  if (["unlocked", "unlock", "opened", "open"].includes(raw)) return "unlocked";
+  if (["true", "1"].includes(raw) && LOCK_POSITION_CODES.includes(code)) return "locked";
+  if (["false", "0"].includes(raw) && /lock_state|status_lock/.test(code)) return "unlocked";
+  return null;
+}
+
+function interpretTuyaLockState(device: any, runtime: any, summary: any, connectionState: LockConnectionState, emitLog = true) {
+  const source = providerStatusMap(device, runtime);
+  let sourceDpCode: string | null = null;
+  let lockState: LockPosition = "unknown";
+  let rawValueType = "undefined";
+
+  for (const code of LOCK_POSITION_CODES) {
+    if (!(code in source)) continue;
+    const normalized = normalizeLockDpValue(code, source[code]);
+    sourceDpCode = code;
+    rawValueType = Array.isArray(source[code]) ? "array" : typeof source[code];
+    if (normalized) {
+      lockState = normalized;
+      break;
+    }
+  }
+
+  const payload = runtimePayload(runtime);
+  const meta = runtimeMeta(runtime);
+  const confirmedAt = timestampValue(
+    payload.lock_state_confirmed_at,
+    payload.provider_timestamp,
+    meta.provider_last_success_at,
+    payload.last_seen,
+    payload.updated_at,
+    summary.lastConfirmedStateAt,
+  );
+  const freshness = freshnessForTimestamp(confirmedAt);
+
+  if (emitLog && smartAccessFamily(device, summary, new Set(Object.keys(source)))) {
+    logger.info("tuya_lock_state_interpreted", {
+      canonical_device_id: device?.id || null,
+      provider_device_id: device?.external_id || null,
+      source_dp_code: sourceDpCode,
+      normalized_lock_state: lockState,
+      raw_value_type: rawValueType,
+      state_confirmed_at: confirmedAt,
+      provider_connection_state: connectionState,
+      freshness,
+    });
+  }
+
+  return { lockState, sourceDpCode, rawValueType, confirmedAt, freshness };
+}
+
+function buildSmartAccessTruth(device: any, runtime: any, summary: any, capabilities: any) {
+  const payload = runtimePayload(runtime);
+  const connection = providerConnectionState(summary, runtime);
+  const interpreted = interpretTuyaLockState(device, runtime, summary, connection.state);
+  const source = providerStatusMap(device, runtime);
+  const onlineValue = boolValue(source.online ?? source.is_online ?? payload.online ?? device?.online);
+  const deviceReachability: LockReachability = connection.state === "connected"
+    ? onlineValue === false ? "offline" : onlineValue === true ? "online" : "unknown"
+    : connection.state === "disconnected" || connection.state === "reconnect_required"
+      ? "offline"
+      : "unknown";
+  const batteryPercentage = numberValue(source.battery_percentage, source.residual_electricity, source.battery, source.electricity, source.va_battery);
+  const batteryConfirmedAt = timestampValue(
+    payload.battery_confirmed_at,
+    payload.provider_timestamp,
+    runtimeMeta(runtime).provider_last_success_at,
+    payload.last_seen,
+    payload.updated_at,
+  );
+  const remoteUnlockExecutable = capabilities?.control?.unlock?.executableByOyi === true;
+  const remoteUnlockAvailable = Boolean(
+    remoteUnlockExecutable &&
+    connection.state === "connected" &&
+    deviceReachability === "online" &&
+    capabilities?.control?.unlock?.liveVerified === true,
+  );
+  const remoteUnlockUnavailableReason = remoteUnlockAvailable
+    ? null
+    : connection.reconnectRequired || connection.state === "disconnected"
+      ? "Provider connection requires reconnection."
+      : remoteUnlockExecutable
+        ? "Remote unlock is disabled by security policy."
+        : "This lock does not expose safe remote unlock.";
+
+  return {
+    provider_connection_state: connection.state,
+    device_reachability: deviceReachability,
+    lock_state: interpreted.lockState,
+    lock_state_freshness: interpreted.freshness,
+    lock_state_confirmed_at: interpreted.confirmedAt,
+    lock_state_source_dp_code: interpreted.sourceDpCode,
+    battery_level: batteryPercentage,
+    battery_freshness: freshnessForTimestamp(batteryConfirmedAt),
+    battery_confirmed_at: batteryConfirmedAt,
+    last_successful_provider_contact_at: connection.lastSuccessAt,
+    last_provider_error_code: connection.errorCode,
+    last_provider_error_classification: connection.errorClassification,
+    remote_unlock_available: remoteUnlockAvailable,
+    remote_unlock_unavailable_reason: remoteUnlockUnavailableReason,
+    provider_reconnect_required: connection.reconnectRequired,
+  };
 }
 
 function lockOperationMatrix(codes: Set<string>, capabilities: any) {
@@ -196,8 +418,8 @@ export function buildSmartAccessProfile(device: any, stateRow?: any | null) {
   const provider = lower(device?.provider || device?.vendor || device?.adapter || "unknown") || "unknown";
   const providerDisconnected = summary.provider_health === "authorization_required" || summary.provider_health === "degraded";
   const providerStatus: CapabilityStatus = providerDisconnected ? "temporarily_unavailable" : isSmartAccess ? "supported" : "unsupported";
-  const rawRuntime = record(stateRow);
-  const readSucceeded = Boolean(rawRuntime.state || rawRuntime.normalized_state || rawRuntime.provider_timestamp || rawRuntime.runtime_timestamp || evidenceFromStateRow(stateRow).length);
+  const rawRuntime = runtimePayload(stateRow);
+  const readSucceeded = Boolean(Object.keys(rawRuntime).length || rawRuntime.provider_timestamp || rawRuntime.runtime_timestamp || evidenceFromStateRow(stateRow).length);
   const verifiedAt = clean(rawRuntime.provider_timestamp || rawRuntime.last_refresh || rawRuntime.runtime_timestamp) || undefined;
   const remoteLockDeclared = Array.from(codes).filter((code) => /^(remote_)?lock$|lock_switch|manual_lock|automatic_lock|rtc_lock|lock_motor_state/.test(code));
   const remoteUnlockDeclared = Array.from(codes).filter((code) => /^unlock|remote_no_dp_key|unlock_phone_remote|remote_pd|ble_unlock|check_code|dynamic|password|fingerprint|card/.test(code));
@@ -257,6 +479,23 @@ export function buildSmartAccessProfile(device: any, stateRow?: any | null) {
   };
 
   const state = normalizeSmartAccessState(device, stateRow || summary);
+  const truth = buildSmartAccessTruth(device, stateRow || summary, summary, capabilities);
+  const mergedState = {
+    ...state,
+    online: truth.device_reachability === "online" ? true : truth.device_reachability === "offline" ? false : state.online,
+    locked: truth.lock_state === "locked" ? true : truth.lock_state === "unlocked" ? false : null,
+    lockState: truth.lock_state === "unknown" ? null : truth.lock_state,
+    batteryPercentage: typeof truth.battery_level === "number" ? truth.battery_level : state.batteryPercentage,
+    batteryLevel: typeof truth.battery_level === "number"
+      ? truth.battery_level <= 20 ? "critical" : truth.battery_level <= 35 ? "low" : "normal"
+      : state.batteryLevel,
+    provider_connection_state: truth.provider_connection_state,
+    device_reachability: truth.device_reachability,
+    lock_state_freshness: truth.lock_state_freshness,
+    lock_state_confirmed_at: truth.lock_state_confirmed_at,
+    battery_freshness: truth.battery_freshness,
+    battery_confirmed_at: truth.battery_confirmed_at,
+  };
   const evidence = {
     provider,
     metadata: safeMetadata(device),
@@ -281,7 +520,8 @@ export function buildSmartAccessProfile(device: any, stateRow?: any | null) {
     supported_controls: smartAccessSupportedControls(capabilities),
     capability_codes: Array.from(codes).sort(),
     operation_matrix: lockOperationMatrix(codes, capabilities),
-    state,
+    state: mergedState,
+    truth,
     evidence,
     confidence: {
       classification: isSmartAccess ? (evidence.function_codes.length || evidence.status_codes.length ? "high" : "medium") : "low",
@@ -313,7 +553,7 @@ export function smartAccessSupportedControls(capabilities: any) {
 }
 
 export function normalizeSmartAccessState(device: any, runtime?: any | null) {
-  const state = record(runtime?.state || runtime);
+  const state = runtimePayload(runtime);
   const normalized = record(runtime?.normalized_state);
   const metadata = record(device?.metadata);
   const rawStatus = array(metadata.raw?.status);
@@ -324,7 +564,8 @@ export function normalizeSmartAccessState(device: any, runtime?: any | null) {
   }, {});
   const source = { ...rawMap, ...state, ...normalized };
   const online = boolValue(source.online ?? device?.online ?? device?.status);
-  const lockedBool = boolValue(source.locked ?? source.lock ?? source.lock_state ?? source.status_lock ?? source.closed_opened);
+  const lockTruth = interpretTuyaLockState(device, runtime, summarizeDeviceFrontendContract(device || {}, runtime || null), "unknown", false);
+  const lockedBool = lockTruth.lockState === "locked" ? true : lockTruth.lockState === "unlocked" ? false : null;
   const doorOpen = boolValue(source.door_open ?? source.door_state ?? source.open_close ?? source.doorcontact_state);
   const batteryPercentage = numberValue(source.battery_percentage, source.residual_electricity, source.battery, source.electricity, source.va_battery);
   const tamperActive = boolValue(source.tamper ?? source.hijack ?? source.anti_lock_outside ?? source.alarm);
@@ -425,6 +666,7 @@ export async function persistSmartAccessSnapshot(device: any, input?: { source?:
       last_verified_at: now,
       capabilities: profile.capabilities,
       state: profile.state,
+      truth: profile.truth,
       supported_controls: profile.supported_controls,
       raw_fingerprint: profile.raw_fingerprint,
     },
@@ -459,6 +701,7 @@ export async function getSmartAccessProfileForDevice(device: any, options: { ref
         ...(record(current.state)),
         ...(record(profile.state)),
       },
+      truth: profile.truth,
       supported_controls: smartAccessSupportedControls(current.capabilities),
       raw_fingerprint: current.raw_fingerprint || profile.raw_fingerprint,
     };
