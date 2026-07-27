@@ -359,7 +359,7 @@ async function runInIrCommandLane<T>(key: string, task: () => Promise<T>): Promi
 
 function commandIdempotencyKey(req: Request, user: AuthUser, rawId: string, command: Record<string, any>, source: CommandSource, replayWindowMs = 5_000) {
   const explicit =
-    String(req.headers["idempotency-key"] || req.headers["x-idempotency-key"] || req.body?.idempotency_key || req.body?.command_id || "").trim();
+    String(req.headers["idempotency-key"] || req.headers["x-idempotency-key"] || req.headers["x-command-key"] || req.body?.idempotency_key || req.body?.command_key || req.body?.command_id || "").trim();
   if (explicit) return `explicit:${user.id}:${rawId}:${source}:${explicit}`;
   const shortReplayWindow = Math.floor(Date.now() / Math.max(250, replayWindowMs));
   return `request:${user.id}:${rawId}:${source}:${commandFingerprint(command)}:${shortReplayWindow}`;
@@ -368,11 +368,29 @@ function commandIdempotencyKey(req: Request, user: AuthUser, rawId: string, comm
 function commandClientSequence(req: Request) {
   return String(
     req.headers["x-ir-tap-sequence"] ||
+    req.headers["x-tap-sequence"] ||
+    req.headers["x-client-tap-sequence"] ||
     req.body?.tap_sequence ||
     req.body?.ir_tap_sequence ||
     req.body?.client_sequence ||
     "",
   ).trim();
+}
+
+function commandClientTimestamp(req?: Request | null) {
+  return String(req?.headers?.["x-client-tap-timestamp"] || req?.body?.client_tap_timestamp || "").trim() || null;
+}
+
+function commandClientKey(req: Request, normalized?: Record<string, any>) {
+  return String(
+    req.headers["x-command-key"] ||
+    req.body?.command_key ||
+    normalized?.command_key ||
+    normalized?.key ||
+    normalized?.raw_key ||
+    normalized?.type ||
+    "",
+  ).trim() || null;
 }
 
 function commandExecutionId(req?: Request | null) {
@@ -595,7 +613,10 @@ export async function executeDeviceCommandForActor(input: {
     const normalized = normalizedCommand;
     const providerAckOnly = isIrProviderAckOnlyDevice(commandDevice, normalized);
     const irLane = providerAckOnly ? irCommandLaneKey(commandDevice) : null;
-    const irTapSequence = commandClientSequence(input.req as Request);
+    const clientCommandKey = input.req ? commandClientKey(input.req as Request, normalized) : normalized?.command_key || normalized?.key || normalized?.raw_key || normalized?.type || null;
+    const clientTapSequence = input.req ? commandClientSequence(input.req as Request) : "";
+    const clientTapTimestamp = commandClientTimestamp(input.req as Request);
+    const irTapSequence = providerAckOnly ? clientTapSequence : "";
     const lifecycle = [
       lifecycleStep("pending", "Command received"),
       lifecycleStep("dispatched", "Dispatching to provider"),
@@ -609,6 +630,9 @@ export async function executeDeviceCommandForActor(input: {
       canonicalDevice: deviceRow,
       irTapSequence,
       commandExecutionId: executionId,
+      commandKey: clientCommandKey,
+      tapSequence: clientTapSequence || null,
+      clientTapTimestamp,
     } as any;
     if (providerAckOnly) {
       logger.info("ir_backend_received", {
@@ -616,9 +640,9 @@ export async function executeDeviceCommandForActor(input: {
         command_device_id: commandDevice.id || null,
         infrared_id: commandDevice.external_id,
         remote_id: commandDevice?.metadata?.ir_appliance?.remote_id || commandDevice?.metadata?.remote_id || null,
-        command_key: normalized?.key || normalized?.command_key || normalized?.raw_key || normalized?.type || null,
+        command_key: clientCommandKey,
         tap_sequence: irTapSequence || null,
-        client_tap_timestamp: input.req?.body?.client_tap_timestamp || null,
+        client_tap_timestamp: clientTapTimestamp,
         lane: irLane,
       });
     }
@@ -628,7 +652,7 @@ export async function executeDeviceCommandForActor(input: {
           canonical_device_id: deviceRow.id,
           infrared_id: commandDevice.external_id,
           remote_id: commandDevice?.metadata?.ir_appliance?.remote_id || commandDevice?.metadata?.remote_id || null,
-          command_key: normalized?.key || normalized?.command_key || normalized?.raw_key || normalized?.type || null,
+          command_key: clientCommandKey,
           tap_sequence: irTapSequence || null,
         });
         return adapter.executeCommand(commandDevice.external_id, normalized, dispatchContext);
@@ -707,6 +731,9 @@ export async function executeDeviceCommandForActor(input: {
         status: "command_dispatched",
         execution_status: "provider_ack_only",
         command_execution_id: executionId,
+        command_key: clientCommandKey,
+        tap_sequence: clientTapSequence || null,
+        client_tap_timestamp: clientTapTimestamp,
         confirmation_strategy: "provider_ack_only",
         device: { id: deviceRow.id, name: deviceRow.name, external_id: commandDevice.external_id, vendor: commandDevice.vendor },
         command: normalized,
@@ -736,6 +763,9 @@ export async function executeDeviceCommandForActor(input: {
         confirmation: "pending",
         actor_id: user.id,
         actor_role: user.role,
+        command_key: clientCommandKey,
+        tap_sequence: clientTapSequence || null,
+        client_tap_timestamp: clientTapTimestamp,
         ...commandScopeMetadata(deviceRow, user, executionId),
       },
       _oyi_timeline: {
@@ -796,6 +826,9 @@ export async function executeDeviceCommandForActor(input: {
       latencyMs: Date.now() - startedAt,
       metadata: {
         command: normalized,
+        command_key: clientCommandKey,
+        tap_sequence: clientTapSequence || null,
+        client_tap_timestamp: clientTapTimestamp,
         vendor: deviceRow.vendor,
         external_id: deviceRow.external_id,
         control_profile: runtimeSummary.control_profile,
@@ -844,6 +877,9 @@ export async function executeDeviceCommandForActor(input: {
         capability_codes: runtimeSummary.capability_codes,
         execution_status: commandStatus,
         command_lifecycle: lifecycle,
+        command_key: clientCommandKey,
+        tap_sequence: clientTapSequence || null,
+        client_tap_timestamp: clientTapTimestamp,
         ...commandScopeMetadata(deviceRow, user, executionId),
       },
     });
@@ -853,6 +889,9 @@ export async function executeDeviceCommandForActor(input: {
       status: "command_partial_confirmation",
       execution_status: commandStatus,
       command_execution_id: executionId,
+      command_key: clientCommandKey,
+      tap_sequence: clientTapSequence || null,
+      client_tap_timestamp: clientTapTimestamp,
       device: { id: deviceRow.id, name: deviceRow.name, external_id: commandDevice.external_id, vendor: commandDevice.vendor },
       command: normalized,
       state: persistedState,
@@ -972,11 +1011,14 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     const providerAckOnly = isIrProviderAckOnlyDevice(target.commandDevice, target.normalizedCommand);
     const key = commandIdempotencyKey(req, user, rawId, target.normalizedCommand, source, providerAckOnly ? 350 : 5_000);
     const executionId = commandExecutionId(req);
+    const clientCommandKey = commandClientKey(req, target.normalizedCommand);
+    const clientTapSequence = commandClientSequence(req) || null;
+    const clientTapTimestamp = commandClientTimestamp(req);
     logger.info("device_command_request_created", {
       canonical_device_id: target.deviceRow.id,
-      command_key: target.normalizedCommand?.key || target.normalizedCommand?.command_key || target.normalizedCommand?.raw_key || target.normalizedCommand?.type || null,
-      tap_sequence: providerAckOnly ? commandClientSequence(req) || null : null,
-      client_tap_timestamp: providerAckOnly ? req.body?.client_tap_timestamp || null : null,
+      command_key: clientCommandKey,
+      tap_sequence: clientTapSequence,
+      client_tap_timestamp: clientTapTimestamp,
       estate_id: scope.estateId,
       home_id: scope.homeId,
       command_execution_id: executionId,
@@ -985,9 +1027,9 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     if (providerAckOnly) {
       logger.info("ir_request_created", {
         canonical_device_id: target.deviceRow.id,
-        command_key: target.normalizedCommand?.key || target.normalizedCommand?.command_key || target.normalizedCommand?.raw_key || target.normalizedCommand?.type || null,
-        tap_sequence: commandClientSequence(req) || null,
-        client_tap_timestamp: req.body?.client_tap_timestamp || null,
+        command_key: clientCommandKey,
+        tap_sequence: clientTapSequence,
+        client_tap_timestamp: clientTapTimestamp,
         estate_id: scope.estateId,
         home_id: scope.homeId,
         command_execution_id: executionId,
@@ -1013,14 +1055,17 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         ...result,
         idempotency_key: key,
         command_execution_id: executionId,
+        command_key: clientCommandKey,
+        tap_sequence: clientTapSequence,
+        client_tap_timestamp: clientTapTimestamp,
       };
       commandAcceptances.set(key, { expiresAt: Date.now() + COMMAND_ACCEPTANCE_TTL_MS, response });
       logger.info("ir_response_sent", {
         canonical_device_id: target.deviceRow.id,
         infrared_id: target.commandDevice.external_id || null,
         remote_id: target.commandDevice?.metadata?.ir_appliance?.remote_id || target.commandDevice?.metadata?.remote_id || null,
-        command_key: target.normalizedCommand?.key || target.normalizedCommand?.command_key || target.normalizedCommand?.raw_key || target.normalizedCommand?.type || null,
-        tap_sequence: commandClientSequence(req) || null,
+        command_key: clientCommandKey,
+        tap_sequence: clientTapSequence,
         accepted: response.accepted,
         dispatched: response.dispatched,
         confirmation_strategy: response.confirmation_strategy,
@@ -1036,6 +1081,9 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       execution_status: "pending",
       idempotency_key: key,
       command_execution_id: executionId,
+      command_key: clientCommandKey,
+      tap_sequence: clientTapSequence,
+      client_tap_timestamp: clientTapTimestamp,
       device: {
         id: target.deviceRow.id,
         name: target.deviceRow.name,

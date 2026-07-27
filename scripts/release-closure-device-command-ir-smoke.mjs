@@ -27,6 +27,9 @@ assert(!/from\s+["']\.\.\/services\/oyiRuntimeEventBus["']/.test(commandControll
 assert(!/publishSourceIntelligenceEvent\s*\(/.test(commandController), "device command controller does not emit a second source-intelligence command signal");
 assert(/emitOperationalDeviceSignal\s*\(/.test(commandController), "device command controller emits through the canonical operational signal path");
 assert(/commandIdempotencyKey/.test(commandController) && /commandAcceptances/.test(commandController), "device command acceptance has an explicit idempotency guard");
+assert(/headers\["x-command-key"\]/.test(commandController) && /req\.body\?\.command_key/.test(commandController), "non-IR commands can use client command_key as the idempotency identity");
+assert(/headers\["x-tap-sequence"\]/.test(commandController) && /headers\["x-client-tap-sequence"\]/.test(commandController), "non-IR commands accept explicit tap sequence headers");
+assert(/function commandClientTimestamp/.test(commandController) && /client_tap_timestamp/.test(commandController), "device commands preserve client tap timestamps");
 assert(/shortReplayWindow/.test(commandController) && !/Math\.random\(\)/.test(commandController), "implicit command idempotency uses a stable replay window instead of randomness");
 assert(/providerAckOnly[\s\S]*executeDeviceCommandForActor[\s\S]*res\.status\(200\)\.json/.test(commandController), "IR provider-ack commands dispatch synchronously and return 200 after provider acceptance");
 assert(/void\s+executeDeviceCommandForActor/.test(commandController), "observable-state commands still start provider execution asynchronously");
@@ -57,6 +60,8 @@ assert(/confirmation_strategy: "provider_ack_only"/.test(tuyaAdapter) && /provid
 assert(/irCommandLanes/.test(commandController) && /runInIrCommandLane/.test(commandController) && /IR_DISPATCH_SPACING_MS/.test(commandController), "TV IR commands use a bounded per-remote FIFO dispatch lane");
 assert(/commandClientSequence/.test(commandController) && /ir_backend_received/.test(commandController) && /ir_response_sent/.test(commandController), "TV IR commands propagate tap sequence diagnostics through backend receipt and response");
 assert(/device_command_request_created/.test(commandController), "generic device commands use device_command_request_created observability");
+assert(/command_key: clientCommandKey/.test(commandController) && /tap_sequence: clientTapSequence/.test(commandController) && /client_tap_timestamp: clientTapTimestamp/.test(commandController), "generic command acceptance returns and logs client command identity");
+assert(/_oyi_pending_command[\s\S]*command_key: clientCommandKey[\s\S]*tap_sequence: clientTapSequence/.test(commandController), "pending runtime state carries command identity for later confirmation reconciliation");
 assert(/if \(providerAckOnly\) \{[\s\S]*logger\.info\("ir_request_created"/.test(commandController), "ir_request_created is emitted only for provider-ack IR commands");
 assert(/commandExecutionId/.test(commandController) && /command_execution_id: executionId/.test(commandController), "device command acceptance creates and returns a canonical command execution id");
 assert(!/await NotificationService\.sendToUser\(String\(user\.id\), \{[\s\S]{0,600}kind: "device\.command\.requested"/.test(commandController), "successful routine device commands do not directly push confirmation-pending notifications");
