@@ -9,7 +9,7 @@ const MAX_DEVICE_SCOPE_ENTRIES = 50_000;
 class DeviceReadScopeCache {
   private readonly entries = new Map<string, DeviceScopeEntry>();
 
-  get(deviceId: string, estateId: string) {
+  get(deviceId: string, estateId?: string | null) {
     const key = String(deviceId || "").trim();
     const entry = this.entries.get(key);
     if (!entry) return null;
@@ -17,13 +17,13 @@ class DeviceReadScopeCache {
       this.entries.delete(key);
       return null;
     }
-    if (String(entry.device?.estate_id || "") !== String(estateId || "")) return null;
+    if (estateId && entry.device?.estate_id && String(entry.device.estate_id) !== String(estateId)) return null;
     return entry.device;
   }
 
   set(device: Record<string, any>) {
     const key = String(device?.id || "").trim();
-    if (!key || !device?.estate_id) return;
+    if (!key) return;
     this.entries.set(key, { device, expires_at: Date.now() + DEVICE_SCOPE_TTL_MS });
     while (this.entries.size > MAX_DEVICE_SCOPE_ENTRIES) {
       const oldest = this.entries.keys().next().value;

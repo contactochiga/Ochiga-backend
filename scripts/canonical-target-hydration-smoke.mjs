@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-service-role-key";
 
 const registry = await import("../dist/oyi-core/runtime/canonicalTargetHydrationRegistry.js");
+const panelHydrationSource = await readFile(new URL("../src/services/canonicalDevicePanelHydrationService.ts", import.meta.url), "utf8");
+const panelControllerSource = await readFile(new URL("../src/controllers/deviceStateController.ts", import.meta.url), "utf8");
+const readResolverSource = await readFile(new URL("../src/services/canonicalDeviceReadResolver.ts", import.meta.url), "utf8");
 
 function validVisibleState(overrides = {}) {
   const fetchedAt = new Date().toISOString();
@@ -144,8 +148,20 @@ function runVisibleFallback() {
   assert.equal(unsupportedChannel.status, "unsupported");
 }
 
+function runScopeParityGuards() {
+  assert.match(panelHydrationSource, /resolveCanonicalDeviceForRead/);
+  assert.match(panelControllerSource, /resolveCanonicalDeviceForRead/);
+  assert.doesNotMatch(panelHydrationSource, /\.eq\("estate_id",\s*estateId\)/);
+  assert.doesNotMatch(panelControllerSource, /\.eq\("estate_id",\s*input\.estateId\)/);
+  assert.match(readResolverSource, /\.from\("devices"\)\.select\(selection\)/);
+  assert.match(readResolverSource, /homeBelongsToEstate/);
+  assert.match(readResolverSource, /device_outside_active_home/);
+  assert.match(readResolverSource, /technical_provider_object_hidden/);
+}
+
 runQueryErrorTruth();
 runPanelMapping();
 runVisibleFallback();
+runScopeParityGuards();
 
 console.log("canonical-target-hydration-smoke passed");

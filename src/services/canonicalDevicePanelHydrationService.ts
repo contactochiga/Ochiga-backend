@@ -2,24 +2,13 @@ import { buildDeviceStateResponse } from "../controllers/deviceStateController";
 import { buildDeviceTimeline } from "./deviceRuntimeService";
 import { loadDeviceIntelligenceContext } from "./deviceIntelligenceService";
 import { deviceRuntimeStateService } from "./deviceRuntimeStateService";
-import { deviceReadScopeCache } from "./deviceReadScopeCache";
-import {
-  isTechnicalDeviceHiddenFromResidents,
-  resolveCanonicalIrChildForProviderRemote,
-} from "./deviceInventoryVisibility";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { logger } from "../observability/logger";
-
-const DEVICE_SELECT = "id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,external_id,vendor,provider,adapter,online,status,type,category,capabilities,metadata,last_seen_at,last_event_at,updated_at";
-const SNAPSHOT_SELECT = "device_states(device_id,status,last_seen,updated_at)";
+import { resolveCanonicalDeviceForRead } from "./canonicalDeviceReadResolver";
+import type { AuthUser } from "../middleware/auth";
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(value);
-}
-
-function relatedSnapshot(value: unknown) {
-  if (Array.isArray(value)) return value[0] || null;
-  return value && typeof value === "object" ? value as Record<string, any> : null;
 }
 
 async function withRoomName(device: Record<string, any>) {
@@ -40,9 +29,10 @@ async function withRoomName(device: Record<string, any>) {
 
 export type CanonicalDevicePanelHydrationResult =
   | { status: "hydrated"; device: Record<string, any>; runtime: ReturnType<typeof deviceRuntimeStateService.get>; panel: Record<string, any>; source: "runtime_cache" | "persistent_snapshot" | "canonical_backend" }
-  | { status: "not_found" | "scope_mismatch" | "query_failed" | "unavailable"; reason: string; error_code?: string | null };
+  | { status: "not_found" | "scope_mismatch" | "permission_denied" | "query_failed" | "hidden" | "unavailable"; reason: string; error_code?: string | null };
 
 export async function hydrateCanonicalDevicePanel(input: {
+  actor?: AuthUser | null;
   deviceId: string;
   estateId: string | null;
   homeId: string | null;
@@ -55,34 +45,23 @@ export async function hydrateCanonicalDevicePanel(input: {
   if (!rawId || !estateId) return { status: "unavailable", reason: "missing_scope" };
   try {
     const warmCandidate = isUuid(rawId) && deviceRuntimeStateService.has(rawId);
-    const selection = warmCandidate ? DEVICE_SELECT : `${DEVICE_SELECT},${SNAPSHOT_SELECT}`;
-    let query = supabaseAdmin.from("devices").select(selection).eq("estate_id", estateId);
-    query = isUuid(rawId) ? query.eq("id", rawId) : query.eq("external_id", rawId);
-    const { data, error } = await query.maybeSingle();
-    if (error) {
-      logger.warn("canonical_device_hydration_query_failed", {
-        table: "devices",
-        object_type: "device",
-        device_id: rawId,
-        error_code: (error as any)?.code || null,
-        error_message: (error as any)?.message || "query_failed",
-      });
-      return { status: "query_failed", reason: "device_lookup_failed", error_code: (error as any)?.code || null };
-    }
-    if (!data) return { status: "not_found", reason: "device_not_found" };
-    const { device_states: stateRelation, ...deviceRow } = data as Record<string, any>;
-    let device = deviceRow;
-    deviceReadScopeCache.set(device);
-    const canonicalChild = await resolveCanonicalIrChildForProviderRemote(device);
-    if (canonicalChild?.id) device = canonicalChild;
-    if (isTechnicalDeviceHiddenFromResidents(device)) return { status: "not_found", reason: "device_hidden_from_resident_inventory" };
-    if (homeId && String(device.home_id || "") !== homeId) return { status: "scope_mismatch", reason: "device_outside_active_home" };
+    const resolved = await resolveCanonicalDeviceForRead({
+      actor: input.actor || null,
+      deviceId: rawId,
+      estateId,
+      homeId,
+      includeSnapshot: !warmCandidate,
+      surface: "consumer",
+      source: "conversation_hydration",
+    });
+    if (resolved.status !== "hydrated") return { status: resolved.status, reason: resolved.reason, error_code: "error_code" in resolved ? resolved.error_code : null };
+    let device = resolved.device;
     device = await withRoomName(device);
 
     let runtime = deviceRuntimeStateService.get(String(device.id));
     let source: "runtime_cache" | "persistent_snapshot" | "canonical_backend" = runtime ? "runtime_cache" : "canonical_backend";
     if (!runtime && !warmCandidate) {
-      runtime = deviceRuntimeStateService.hydrateSnapshot(device, relatedSnapshot(stateRelation));
+      runtime = deviceRuntimeStateService.hydrateSnapshot(device, resolved.snapshot);
       if (runtime) source = "persistent_snapshot";
     }
     if (!runtime) {

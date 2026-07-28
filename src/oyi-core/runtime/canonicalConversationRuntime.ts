@@ -119,6 +119,7 @@ export type CanonicalConversationRequest = {
   recent_executions?: Array<Record<string, unknown>> | null;
   active_scenes?: Array<Record<string, unknown>> | null;
   active_automations?: Array<Record<string, unknown>> | null;
+  active_intelligence_context?: Record<string, unknown> | null;
   conversation_context?: Record<string, unknown> | null;
 };
 
@@ -2307,7 +2308,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   } as OyiChatInput);
   const explicitCandidate = explicitObjectCandidate(input);
   const threadCandidate = threadObjectCandidate(threadContext);
-  const activeContextRecord = recordOf(recordOf(input.context).active_intelligence_context || recordOf(recordOf(input.context).runtime_context).active_context || recordOf(input.conversation_context).active_context);
+  const activeContextRecord = recordOf(input.active_intelligence_context || recordOf(input.context).active_intelligence_context || recordOf(recordOf(input.context).runtime_context).active_context || recordOf(input.conversation_context).active_context);
   const selectedSubobjectRecord = recordOf(activeContextRecord.selected_subobject || recordOf(input.conversation_context).selected_subobject);
   const targetResolution = resolveConversationTarget({
     query: input.message,

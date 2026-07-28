@@ -6,15 +6,8 @@ import { deviceRuntimeStateService, type DeviceRuntimeSnapshot } from "../servic
 import { logger } from "../observability/logger";
 import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeRequestStageSync } from "../observability/requestStageTiming";
 import { sendPublicApiError } from "../services/publicApi";
-import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 import { buildCanonicalDevicePresentation } from "../device/runtime/deviceStateEnrichment";
-import {
-  isTechnicalDeviceHiddenFromResidents,
-  resolveCanonicalIrChildForProviderRemote,
-} from "../services/deviceInventoryVisibility";
-
-const DEVICE_SELECT = "id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,external_id,vendor,provider,adapter,online,status,type,category,capabilities,metadata,last_seen_at,last_event_at,updated_at";
-const SNAPSHOT_SELECT = "device_states(device_id,status,last_seen,updated_at)";
+import { resolveCanonicalDeviceForRead } from "../services/canonicalDeviceReadResolver";
 
 type StateIncludes = {
   intelligence: boolean;
@@ -23,7 +16,9 @@ type StateIncludes = {
 
 type DeviceStateControllerDependencies = {
   runtime: Pick<typeof deviceRuntimeStateService, "has" | "get" | "hydrateSnapshot" | "markViewed" | "releaseViewed" | "shouldRefresh" | "scheduleRefresh">;
-  findDevice: (input: { rawId: string; estateId: string; includeSnapshot: boolean }) => Promise<{
+  findDevice: (input: { rawId: string; estateId: string | null; homeId: string | null; actor?: any; includeSnapshot: boolean }) => Promise<{
+    status?: string;
+    reason?: string | null;
     device: Record<string, any> | null;
     snapshot: Record<string, any> | null;
     databaseRoundTrips?: number;
@@ -47,11 +42,6 @@ export function parseDeviceStateIncludes(value: unknown): StateIncludes {
   };
 }
 
-function relatedSnapshot(value: unknown) {
-  if (Array.isArray(value)) return value[0] || null;
-  return value && typeof value === "object" ? value as Record<string, any> : null;
-}
-
 async function withRoomName(device: Record<string, any>) {
   const roomId = String(device?.room_id || "").trim();
   if (!roomId || !isUuid(roomId)) return device;
@@ -66,22 +56,6 @@ async function withRoomName(device: Record<string, any>) {
   }
   if (device.home_id && data.home_id && String(device.home_id) !== String(data.home_id)) return device;
   return { ...device, room_name: data.name || null };
-}
-
-async function findDevice(input: { rawId: string; estateId: string; includeSnapshot: boolean }) {
-  if (!input.includeSnapshot && isUuid(input.rawId)) {
-    const cached = deviceReadScopeCache.get(input.rawId, input.estateId);
-    if (cached) return { device: cached, snapshot: null, databaseRoundTrips: 0, resolutionSource: "scope_cache" as const };
-  }
-  const selection = input.includeSnapshot ? `${DEVICE_SELECT},${SNAPSHOT_SELECT}` : DEVICE_SELECT;
-  let query = supabaseAdmin.from("devices").select(selection).eq("estate_id", input.estateId);
-  query = isUuid(input.rawId) ? query.eq("id", input.rawId) : query.eq("external_id", input.rawId);
-  const { data, error } = await query.maybeSingle();
-  if (error) throw error;
-  if (!data) return { device: null, snapshot: null, databaseRoundTrips: 1, resolutionSource: "database" as const };
-  const { device_states: stateRelation, ...device } = data as Record<string, any>;
-  deviceReadScopeCache.set(device);
-  return { device, snapshot: relatedSnapshot(stateRelation), databaseRoundTrips: 1, resolutionSource: "database" as const };
 }
 
 export function buildDeviceStateResponse(input: {
@@ -162,7 +136,25 @@ export function buildDeviceStateResponse(input: {
 
 const defaultDependencies: DeviceStateControllerDependencies = {
   runtime: deviceRuntimeStateService,
-  findDevice,
+  findDevice: async (input) => {
+    const resolved = await resolveCanonicalDeviceForRead({
+      actor: input.actor || null,
+      deviceId: input.rawId,
+      estateId: input.estateId,
+      homeId: input.homeId,
+      includeSnapshot: input.includeSnapshot,
+      surface: "consumer",
+      source: "device_state_controller",
+    });
+    return {
+      status: resolved.status,
+      reason: "reason" in resolved ? resolved.reason : null,
+      device: resolved.status === "hydrated" ? resolved.device : null,
+      snapshot: resolved.status === "hydrated" ? resolved.snapshot : null,
+      databaseRoundTrips: resolved.databaseRoundTrips,
+      resolutionSource: resolved.resolutionSource === "none" ? "database" : resolved.resolutionSource,
+    };
+  },
   loadIntelligence: loadDeviceIntelligenceContext,
   buildTimeline: buildDeviceTimeline,
   defer: (operation) => setImmediate(operation),
@@ -196,21 +188,17 @@ export function createGetDeviceState(overrides: Partial<DeviceStateControllerDep
       const warmCandidate = isUuid(rawId) && dependencies.runtime.has(rawId);
       snapshotIncluded = !warmCandidate;
       const resolved = await timeRequestStage(req, "device_resolution", async () => {
-        return dependencies.findDevice({ rawId, estateId, includeSnapshot: snapshotIncluded });
+        return dependencies.findDevice({ rawId, estateId, homeId, actor: req.user, includeSnapshot: snapshotIncluded });
       });
       stateDbRoundTrips += resolved.databaseRoundTrips ?? 1;
       resolutionSource = resolved.resolutionSource || "database";
       const resolvedDevice = resolved.device;
-      if (!resolvedDevice?.id) return res.status(404).json({ error: "Device not found" });
+      if (!resolvedDevice?.id) {
+        if (resolved.status === "scope_mismatch") return res.status(403).json({ error: "This device is not assigned to your current home." });
+        if (resolved.status === "permission_denied") return res.status(403).json({ error: "You do not have access to this device." });
+        return res.status(404).json({ error: "Device not found" });
+      }
       let device: Record<string, any> = resolvedDevice;
-      const canonicalChild = await resolveCanonicalIrChildForProviderRemote(device);
-      if (canonicalChild?.id) device = canonicalChild;
-      if (isTechnicalDeviceHiddenFromResidents(device)) {
-        return res.status(404).json({ error: "Device not found in this home" });
-      }
-      if (homeId && String(device.home_id || "") !== String(homeId)) {
-        return res.status(403).json({ error: "This device is not assigned to your current home." });
-      }
       device = await timeRequestStage(req, "room_assignment", async () => withRoomName(device));
 
       let runtime = timeRequestStageSync(req, "runtime_memory", () => dependencies.runtime.get(String(device.id)));
@@ -307,16 +295,9 @@ export function createReleaseDeviceStateView(overrides: Partial<DeviceStateContr
     try {
       if (!estateId) return res.status(400).json({ error: "User has no estate" });
       if (!rawId) return res.status(400).json({ error: "Missing deviceId" });
-      const resolved = await dependencies.findDevice({ rawId, estateId, includeSnapshot: false });
+      const resolved = await dependencies.findDevice({ rawId, estateId, homeId, actor: req.user, includeSnapshot: false });
       let device = resolved.device;
-      if (!device?.id) return res.status(404).json({ error: "Device not found" });
-      const canonicalChild = await resolveCanonicalIrChildForProviderRemote(device);
-      if (canonicalChild?.id) device = canonicalChild;
-      if (!device?.id) return res.status(404).json({ error: "Device not found" });
-      if (isTechnicalDeviceHiddenFromResidents(device)) return res.status(404).json({ error: "Device not found in this home" });
-      if (homeId && String(device.home_id || "") !== String(homeId)) {
-        return res.status(403).json({ error: "This device is not assigned to your current home." });
-      }
+      if (!device?.id) return res.status(resolved.status === "scope_mismatch" || resolved.status === "permission_denied" ? 403 : 404).json({ error: resolved.status === "permission_denied" ? "You do not have access to this device." : "Device not found" });
       const snapshot = dependencies.runtime.releaseViewed(String(device.id), {
         source: "device_panel",
         estateId,

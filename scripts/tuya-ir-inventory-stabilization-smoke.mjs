@@ -21,6 +21,7 @@ const estateController = read("src/controllers/deviceEstateController.ts");
 const runtimeService = read("src/services/deviceRuntimeService.ts");
 const stateService = read("src/services/deviceRuntimeStateService.ts");
 const stateController = read("src/controllers/deviceStateController.ts");
+const canonicalReadResolver = read("src/services/canonicalDeviceReadResolver.ts");
 const migration = read("supabase/migrations/20260722093000_tuya_ir_inventory_stabilization.sql");
 const tuyaAdapter = read("src/device/adapters/tuya/TuyaAdapter.ts");
 const enrichment = read("src/device/runtime/deviceStateEnrichment.ts");
@@ -41,7 +42,8 @@ assert(/isTechnicalDeviceHiddenFromResidents/.test(runtimeController), "Runtime 
 assert(/isTechnicalDeviceHiddenFromResidents/.test(estateController), "Estate device list hides technical IR records from resident inventory");
 assert(/resolveCanonicalIrChildForProviderRemote/.test(runtimeService), "Command resolution can recover stale provider remote targets");
 assert(/provider_virtual:\s*true/.test(stateService), "Runtime refresh avoids provider reads for virtual IR appliances");
-assert(/resolveCanonicalIrChildForProviderRemote/.test(stateController), "State reads resolve stale provider remote rows to canonical children");
+assert(/resolveCanonicalDeviceForRead/.test(stateController), "State reads use the canonical device read resolver");
+assert(/resolveCanonicalIrChildForProviderRemote/.test(canonicalReadResolver), "Canonical state reads resolve stale provider remote rows to canonical children");
 
 assert(/infrared_tv/.test(migration) && /infrared_ac/.test(migration), "Migration repairs existing raw Tuya IR TV/AC remote rows");
 assert(/obsolete_ir_profile/.test(migration), "Migration marks unbound historical IR child profiles obsolete");

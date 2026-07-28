@@ -12,6 +12,7 @@ export type HydrationStatus =
   | "permission_denied"
   | "scope_mismatch"
   | "query_failed"
+  | "hidden"
   | "unavailable"
   | "unsupported";
 
@@ -289,6 +290,7 @@ export function parseDeviceChannelTargetForTest(canonicalId: string) {
 async function loadCanonicalDeviceFacts(request: CanonicalHydrationRequest, deviceId: string, startedAt: number): Promise<CanonicalHydrationResult> {
   const scope = activeScope(request);
   const hydration = await hydrateCanonicalDevicePanel({
+    actor: request.actor,
     deviceId,
     estateId: scope.estate_id,
     homeId: scope.home_id,
