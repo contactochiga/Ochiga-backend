@@ -74,7 +74,8 @@ assertIncludes("src/services/proximityService.ts", "home_id.eq", "proximity atte
 
 assertIncludes("src/routes/scenes.ts", "resolveRequestContext", "scenes resolve active context");
 assertIncludes("src/routes/scenes.ts", "activeScope(req)", "scenes use selected active scope");
-assertIncludes("src/routes/scenes.ts", "executeDeviceCommandForActor", "scene execution stays on canonical command runtime");
+assertIncludes("src/routes/scenes.ts", "executeResidentActionBatch", "scene execution uses shared resident action batch executor");
+assertIncludes("src/services/residentActionBatchExecutionService.ts", "executeDeviceCommandForActor", "scene execution stays on canonical command runtime");
 
 assertIncludes("src/routes/visitors.ts", "resolveRequestContext", "visitor routes resolve active context");
 assertIncludes("src/controllers/visitorController.ts", "(req as any).oisContext?.home_id", "visitor controller reads selected active home");

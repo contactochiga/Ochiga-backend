@@ -37,6 +37,7 @@ import { operationalMetrics } from "./observability/metrics";
 import { runtimeHealthRegistry } from "./observability/runtimeHealth";
 import { socketCorsOptions } from "./config/originPolicy";
 import { deviceRuntimeStateService } from "./services/deviceRuntimeStateService";
+import { startAutomationRuntimeV2Scheduler, stopAutomationRuntimeV2Scheduler } from "./routes/scenes";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -557,6 +558,7 @@ httpServer.listen(PORT, async () => {
 
   try {
     deviceRuntimeStateService.start();
+    startAutomationRuntimeV2Scheduler();
     await CommunityLiveService.init();
     logger.info("community_live_initialized");
 
@@ -605,6 +607,7 @@ async function gracefulShutdown(signal: NodeJS.Signals) {
   deadline.unref?.();
   try {
     deviceRuntimeStateService.stop();
+    stopAutomationRuntimeV2Scheduler();
     io.close();
     await shutdownMqttBridge().catch((error) => logger.warn("mqtt_bridge_shutdown_failed", { error }));
     if (redis.isOpen) await redis.quit().catch((error) => logger.warn("redis_shutdown_failed", { error }));

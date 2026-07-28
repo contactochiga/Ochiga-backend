@@ -4,14 +4,15 @@ import path from "node:path";
 
 const root = process.cwd();
 const scenesRoute = fs.readFileSync(path.join(root, "src/routes/scenes.ts"), "utf8");
+const batchService = fs.readFileSync(path.join(root, "src/services/residentActionBatchExecutionService.ts"), "utf8");
 
 const required = [
   ["canonical action validator", "canonicalizeSceneAction"],
   ["Runtime V2 frontend contract", "summarizeDeviceFrontendContract"],
   ["canonical command controller", "executeDeviceCommandForActor"],
   ["scene run identity", "sceneRunId"],
-  ["stable action execution identity", "stableActionExecutionId"],
-  ["per-action idempotency", "sceneActionIdempotencyKey"],
+  ["stable action execution identity", "stableResidentActionExecutionId"],
+  ["per-action idempotency", "residentActionIdempotencyKey"],
   ["bounded concurrency", "SCENE_ACTION_CONCURRENCY"],
   ["scene action timeout", "SCENE_ACTION_TIMEOUT_MS"],
   ["multi-gang ambiguity rejection", "ambiguous_multi_gang_scene_action"],
@@ -37,7 +38,8 @@ const required = [
   ["runtime freshness in validation", "runtime_freshness"],
 ];
 
-const missing = required.filter(([, needle]) => !scenesRoute.includes(needle));
+const combined = `${scenesRoute}\n${batchService}`;
+const missing = required.filter(([, needle]) => !combined.includes(needle));
 if (missing.length) {
   console.error("Scene Runtime V2 smoke failed. Missing invariants:");
   for (const [label, needle] of missing) console.error(`- ${label}: ${needle}`);
@@ -49,7 +51,7 @@ if (/safeSceneCommand/.test(scenesRoute)) {
   process.exit(1);
 }
 
-if (!/source:\s*"scene"/.test(scenesRoute) || !/commandExecutionId:\s*actionExecutionId/.test(scenesRoute)) {
+if (!combined.includes("executeResidentActionBatch") || !/source:\s*kind/.test(combined) || !/commandExecutionId:\s*actionExecutionId/.test(combined)) {
   console.error("Scene Runtime V2 smoke failed: scene actions are not routed through canonical command execution with explicit action IDs.");
   process.exit(1);
 }

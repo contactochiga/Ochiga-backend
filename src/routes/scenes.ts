@@ -1,7 +1,6 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { emitAuditEvent } from "../core/foundation";
-import { executeDeviceCommandForActor } from "../controllers/deviceCommandController";
 import { requireAuth, requirePermission, type AuthUser } from "../middleware/auth";
 import { resolveRequestContext } from "../middleware/contextResolver";
 import { supabaseAdmin } from "../supabase/supabaseClient";
@@ -10,6 +9,17 @@ import { hasWatchScope } from "../services/watchPolicy";
 import { summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
 import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
 import { logger } from "../observability/logger";
+import {
+  executeResidentActionBatch,
+  residentBatchCounts,
+  residentBatchStatus,
+  type ResidentCanonicalAction,
+} from "../services/residentActionBatchExecutionService";
+import {
+  automationOccurrenceKey,
+  nextAutomationRunAt,
+  validateAutomationTrigger,
+} from "../services/automationScheduleService";
 
 const router = Router();
 router.use(requireAuth);
@@ -26,7 +36,7 @@ type CleanSceneAction = {
   action_label?: string | null;
 };
 
-type CanonicalSceneAction = CleanSceneAction & {
+export type CanonicalSceneAction = CleanSceneAction & ResidentCanonicalAction & {
   device_name: string;
   command_code: string;
   action_label: string;
@@ -331,7 +341,7 @@ async function canonicalizeSceneAction(req: any, action: CleanSceneAction, index
   throw fail(sceneActionError("This device is not supported by scenes yet.", 422, "unsupported_scene_device", errorContext));
 }
 
-async function canonicalizeSceneActions(req: any, actions: CleanSceneAction[]) {
+export async function canonicalizeSceneActions(req: any, actions: CleanSceneAction[]) {
   const canonical: CanonicalSceneAction[] = [];
   for (let index = 0; index < actions.length; index += 1) {
     canonical.push(await canonicalizeSceneAction(req, actions[index], index));
@@ -345,81 +355,12 @@ function sceneRunId(req: any, sceneId: string) {
   return crypto.randomUUID();
 }
 
-function stableActionExecutionId(sceneRunId: string, index: number, action: CanonicalSceneAction) {
-  const hash = crypto.createHash("sha256").update(`${sceneRunId}:${index}:${action.device_id}:${action.command_code}`).digest("hex").slice(0, 24);
-  return `scene_action:${hash}`;
-}
-
-function sceneActionIdempotencyKey(sceneRunId: string, index: number, action: CanonicalSceneAction) {
-  return `scene:${sceneRunId}:action:${index}:${action.device_id}:${action.command_code}`;
-}
-
-function sceneActionReq(req: any, commandKey: string, executionId: string, actionIndex: number, requestedAt: string) {
-  return {
-    ...req,
-    headers: {
-      ...(req.headers || {}),
-      "idempotency-key": commandKey,
-    },
-    body: {
-      ...(req.body || {}),
-      source: "scene",
-      command_source: "scene",
-      idempotency_key: commandKey,
-      command_key: commandKey,
-      command_execution_id: executionId,
-      tap_sequence: actionIndex + 1,
-      client_tap_timestamp: Date.parse(requestedAt),
-    },
-  };
-}
-
-async function withTimeout<T>(promise: Promise<T>, ms: number) {
-  let timeout: NodeJS.Timeout | null = null;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_resolve, reject) => {
-        timeout = setTimeout(() => {
-          const error: any = new Error("Scene action timed out.");
-          error.statusCode = 504;
-          error.code = "scene_action_timed_out";
-          reject(error);
-        }, ms);
-      }),
-    ]);
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
-}
-
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>) {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  async function worker() {
-    while (next < items.length) {
-      const index = next;
-      next += 1;
-      results[index] = await fn(items[index], index);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
-  return results;
-}
-
 function overallSceneStatus(results: Array<{ status: string }>) {
-  const failed = results.filter((item) => ["failed", "denied", "skipped", "timed_out"].includes(item.status)).length;
-  if (!results.length || failed === results.length) return "failed";
-  if (failed > 0) return "partially_completed";
-  return "completed";
+  return residentBatchStatus(results, "scene");
 }
 
 function sceneRunCounts(results: Array<{ status: string }>) {
-  return {
-    total: results.length,
-    completed: results.filter((item) => ["completed", "accepted", "pending_confirmation"].includes(item.status)).length,
-    failed: results.filter((item) => ["failed", "denied", "skipped", "timed_out"].includes(item.status)).length,
-  };
+  return residentBatchCounts(results);
 }
 
 async function audit(actor: AuthUser, action: string, resourceId: string, metadata: Record<string, any> = {}, req?: any) {
@@ -561,58 +502,14 @@ router.post("/:id/run", requirePermission("devices.control"), async (req, res) =
     domain: "resident_device_private",
   }, req);
 
-  const results = await mapWithConcurrency(canonicalActions, SCENE_ACTION_CONCURRENCY, async (action, index) => {
-    const commandKey = sceneActionIdempotencyKey(runId, index, action);
-    const actionExecutionId = stableActionExecutionId(runId, index, action);
-    const actionReq = sceneActionReq(req, commandKey, actionExecutionId, index, requestedAt);
-    try {
-      const result: any = await withTimeout(executeDeviceCommandForActor({
-        actor: req.user!,
-        deviceId: action.device_id,
-        command: action.command,
-        source: "scene",
-        scope: { estateId: activeScope(req).estate_id, homeId: activeScope(req).home_id },
-        req: actionReq as any,
-        commandExecutionId: actionExecutionId,
-      }), SCENE_ACTION_TIMEOUT_MS);
-      const status = result?.confirmation_strategy === "provider_ack_only"
-        ? "accepted"
-        : result?.execution_status === "partial_confirmation" || result?.status === "command_partial_confirmation"
-          ? "pending_confirmation"
-          : result?.ok === true
-            ? "completed"
-            : "failed";
-      return {
-        action_index: index,
-        scene_action_execution_id: actionExecutionId,
-        idempotency_key: commandKey,
-        command_execution_id: result?.command_execution_id || actionExecutionId,
-        device_id: action.device_id,
-        device_name: action.device_name,
-        command: action.command,
-        action_label: action.action_label,
-        status,
-        requested_at: requestedAt,
-        completed_at: new Date().toISOString(),
-        error: null,
-      };
-    } catch (runError: any) {
-      const status = Number(runError?.statusCode) === 403 ? "denied" : Number(runError?.statusCode) === 504 ? "timed_out" : "failed";
-      return {
-        action_index: index,
-        scene_action_execution_id: actionExecutionId,
-        idempotency_key: commandKey,
-        command_execution_id: actionExecutionId,
-        device_id: action.device_id,
-        device_name: action.device_name,
-        command: action.command,
-        action_label: action.action_label,
-        status,
-        requested_at: requestedAt,
-        completed_at: new Date().toISOString(),
-        error: runError?.message || "command_failed",
-      };
-    }
+  const results = await executeResidentActionBatch({
+    kind: "scene",
+    actor: req.user!,
+    req,
+    runId,
+    actions: canonicalActions,
+    requestedAt,
+    scope: { estateId: activeScope(req).estate_id, homeId: activeScope(req).home_id },
   });
   const completedAt = new Date().toISOString();
   const status = overallSceneStatus(results);
@@ -669,6 +566,228 @@ router.get("/:id/runs", requirePermission("devices.read"), async (req, res) => {
   res.json({ available: true, runs });
 });
 
+export async function executeConsumerAutomation(input: {
+  automation: any;
+  actor: AuthUser;
+  req: any;
+  source: "scheduled" | "manual_test";
+  scheduledFor?: string | null;
+  occurrenceKey?: string | null;
+}) {
+  const { automation, actor, req, source } = input;
+  const requestedAt = new Date().toISOString();
+  const runId = crypto.randomUUID();
+  const scheduledFor = input.scheduledFor || requestedAt;
+  const triggerType = String(automation?.trigger?.type || "schedule");
+  const occurrenceKey = automationOccurrenceKey(String(automation.id), scheduledFor, source, input.occurrenceKey || String(req.headers?.["idempotency-key"] || ""));
+  const existing = await supabaseAdmin
+    .from("consumer_automation_runs")
+    .select("*")
+    .eq("automation_id", automation.id)
+    .eq("trigger_occurrence_key", occurrenceKey)
+    .maybeSingle();
+  if (existing.data?.id) {
+    logger.info("automation_run_duplicate_suppressed", {
+      automation_id: automation.id,
+      automation_run_id: existing.data.id,
+      trigger_occurrence_key: occurrenceKey,
+      source,
+    });
+    return existing.data;
+  }
+
+  const runRow = {
+    id: runId,
+    automation_id: automation.id,
+    estate_id: automation.estate_id || null,
+    home_id: automation.home_id || null,
+    created_by: automation.created_by || actor.id,
+    trigger_type: triggerType,
+    trigger_occurrence_key: occurrenceKey,
+    source,
+    status: "running",
+    scheduled_for: scheduledFor,
+    started_at: requestedAt,
+    counts: { total: 0, completed: 0, failed: 0 },
+    actions: [],
+  };
+  const inserted = await supabaseAdmin.from("consumer_automation_runs").insert(runRow as any).select("*").single();
+  if (inserted.error) {
+    if (/duplicate|unique/i.test(inserted.error.message || "")) {
+      const { data } = await supabaseAdmin
+        .from("consumer_automation_runs")
+        .select("*")
+        .eq("automation_id", automation.id)
+        .eq("trigger_occurrence_key", occurrenceKey)
+        .maybeSingle();
+      if (data) return data;
+    }
+    throw inserted.error;
+  }
+
+  logger.info("automation_run_created", {
+    automation_id: automation.id,
+    automation_run_id: runId,
+    trigger_occurrence_key: occurrenceKey,
+    trigger_type: triggerType,
+    source,
+    scheduled_for: scheduledFor,
+  });
+
+  const actions = cleanActions(automation.actions);
+  let canonicalActions: CanonicalSceneAction[] = [];
+  try {
+    canonicalActions = await canonicalizeSceneActions(req, actions);
+  } catch (err: any) {
+    const completedAt = new Date().toISOString();
+    const failedActions = actions.map((action, index) => ({
+      action_index: index,
+      device_id: action.device_id,
+      canonical_device_id: action.device_id,
+      status: "skipped",
+      error: err?.message || "Automation action is not allowed.",
+    }));
+    const failed = {
+      status: "failed",
+      completed_at: completedAt,
+      counts: { total: actions.length, completed: 0, failed: actions.length || 1 },
+      actions: failedActions,
+      error_code: err?.code || "automation_action_invalid",
+      error_message: err?.message || "Automation action is not allowed.",
+    };
+    await supabaseAdmin.from("consumer_automation_runs").update(failed as any).eq("id", runId);
+    await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
+    logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code });
+    return { ...runRow, ...failed };
+  }
+
+  const results = await executeResidentActionBatch({
+    kind: "automation",
+    actor,
+    req,
+    runId,
+    actions: canonicalActions,
+    requestedAt,
+    scope: { estateId: automation.estate_id, homeId: automation.home_id },
+  });
+  const completedAt = new Date().toISOString();
+  const status = residentBatchStatus(results, "automation");
+  const counts = residentBatchCounts(results);
+  const completed = {
+    status,
+    completed_at: completedAt,
+    counts,
+    actions: results,
+    error_code: null,
+    error_message: null,
+  };
+  await supabaseAdmin.from("consumer_automation_runs").update(completed as any).eq("id", runId);
+  await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: status }).eq("id", automation.id);
+  await audit(actor, `automation.run.${status}`, automation.id, { ...completed, automation_run_id: runId, source, domain: "resident_device_private" }, req);
+  logger.info("automation_run_completed", {
+    automation_id: automation.id,
+    automation_run_id: runId,
+    trigger_occurrence_key: occurrenceKey,
+    source,
+    status,
+  });
+  return { ...runRow, ...completed };
+}
+
+let automationScheduler: NodeJS.Timeout | null = null;
+let automationSchedulerRunning = false;
+
+export function startAutomationRuntimeV2Scheduler() {
+  if (automationScheduler) return;
+  logger.info("automation_scheduler_started", { tick_ms: 30_000 });
+  automationScheduler = setInterval(() => {
+    void automationSchedulerTick();
+  }, 30_000);
+  automationScheduler.unref?.();
+  void automationSchedulerTick();
+}
+
+export function stopAutomationRuntimeV2Scheduler() {
+  if (automationScheduler) clearInterval(automationScheduler);
+  automationScheduler = null;
+}
+
+async function automationSchedulerTick() {
+  if (automationSchedulerRunning) return;
+  automationSchedulerRunning = true;
+  const started = Date.now();
+  try {
+    const nowIso = new Date().toISOString();
+    const { data, error } = await supabaseAdmin
+      .from("consumer_automations")
+      .select("*")
+      .eq("enabled", true)
+      .not("next_run_at", "is", null)
+      .lte("next_run_at", nowIso)
+      .order("next_run_at", { ascending: true })
+      .limit(10);
+    if (error) throw error;
+    logger.info("automation_scheduler_tick", { due: data?.length || 0, duration_ms: Date.now() - started });
+    for (const automation of data || []) {
+      void claimAndRunAutomation(automation).catch((runError) => logger.error("automation_run_failed", { error: runError, automation_id: automation?.id, source: "scheduled" }));
+    }
+  } catch (error) {
+    logger.error("automation_scheduler_tick_failed", { error });
+  } finally {
+    automationSchedulerRunning = false;
+  }
+}
+
+async function claimAndRunAutomation(automation: any) {
+  const triggerResult = validateAutomationTrigger(automation.trigger);
+  if (!triggerResult.ok) {
+    await supabaseAdmin.from("consumer_automations").update({ last_run_status: "skipped", enabled: false, next_run_at: null }).eq("id", automation.id);
+    logger.warn("automation_run_skipped", { automation_id: automation.id, reason: triggerResult.code });
+    return;
+  }
+  const scheduledFor = String(automation.next_run_at || new Date().toISOString());
+  const occurrenceKey = automationOccurrenceKey(String(automation.id), scheduledFor, "scheduled");
+  logger.info("automation_trigger_due", {
+    automation_id: automation.id,
+    trigger_occurrence_key: occurrenceKey,
+    trigger_type: triggerResult.trigger.schedule_type,
+    scheduled_for: scheduledFor,
+  });
+  const next = triggerResult.trigger.schedule_type === "once" ? null : nextAutomationRunAt(triggerResult.trigger, new Date(new Date(scheduledFor).getTime() + 1000));
+  const claim = await supabaseAdmin
+    .from("consumer_automations")
+    .update({
+      next_run_at: next ? next.toISOString() : null,
+      enabled: triggerResult.trigger.schedule_type === "once" ? false : automation.enabled,
+      updated_at: new Date().toISOString(),
+    } as any)
+    .eq("id", automation.id)
+    .eq("next_run_at", scheduledFor)
+    .select("*")
+    .maybeSingle();
+  if (!claim.data) {
+    logger.info("automation_run_duplicate_suppressed", { automation_id: automation.id, trigger_occurrence_key: occurrenceKey, reason: "claim_lost" });
+    return;
+  }
+  logger.info("automation_next_run_calculated", {
+    automation_id: automation.id,
+    trigger_occurrence_key: occurrenceKey,
+    next_run_at: next ? next.toISOString() : null,
+  });
+  const { data: actor } = await supabaseAdmin.from("users").select("*").eq("id", automation.created_by).maybeSingle();
+  if (!actor?.id) {
+    logger.warn("automation_run_skipped", { automation_id: automation.id, trigger_occurrence_key: occurrenceKey, reason: "creator_unavailable" });
+    return;
+  }
+  const req = {
+    user: actor,
+    headers: {},
+    body: { source: "automation" },
+    oisContext: { estate_id: automation.estate_id, home_id: automation.home_id },
+  };
+  await executeConsumerAutomation({ automation: claim.data, actor: actor as AuthUser, req, source: "scheduled", scheduledFor, occurrenceKey });
+}
+
 router.get("/automations", requirePermission("devices.read"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
   const { data, error } = await scoped(supabaseAdmin.from("consumer_automations").select("*"), req)
@@ -680,7 +799,9 @@ router.get("/automations", requirePermission("devices.read"), async (req, res) =
 router.post("/automations", requirePermission("devices.control"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
   const name = String(req.body?.name || "").trim().slice(0, 80);
-  const trigger = req.body?.trigger && typeof req.body.trigger === "object" ? req.body.trigger : null;
+  const triggerResult = validateAutomationTrigger(req.body?.trigger);
+  if (!triggerResult.ok) return res.status(422).json({ error: triggerResult.error, code: triggerResult.code });
+  const trigger = triggerResult.trigger;
   const condition = req.body?.condition && typeof req.body.condition === "object" ? req.body.condition : {};
   const actions = cleanActions(req.body?.actions);
   if (!name || !trigger || !actions.length) return res.status(400).json({ error: "A name, trigger, and at least one device action are required" });
@@ -690,7 +811,19 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
   } catch (err: any) {
     return res.status(Number(err?.statusCode || 422)).json({ error: err?.message || "Automation contains an unavailable or unsafe device action", code: err?.code || "automation_action_invalid" });
   }
-  const row = { ...activeScope(req), created_by: req.user!.id, name, trigger, condition, actions: canonicalActions, enabled: req.body?.enabled !== false };
+  const nextRun = req.body?.enabled === false ? null : nextAutomationRunAt(trigger);
+  const row = {
+    ...activeScope(req),
+    created_by: req.user!.id,
+    name,
+    trigger,
+    condition,
+    actions: canonicalActions,
+    enabled: req.body?.enabled !== false,
+    timezone: trigger.timezone,
+    schedule_version: 1,
+    next_run_at: nextRun ? nextRun.toISOString() : null,
+  };
   const { data, error } = await supabaseAdmin.from("consumer_automations").insert(row as any).select("*").single();
   if (error) return res.status(500).json({ error: error.message });
   await audit(req.user!, "automation.created", data.id, { action_count: actions.length }, req);
@@ -706,7 +839,14 @@ router.patch("/automations/:id", requirePermission("devices.control"), async (re
     updates.name = name;
   }
   if (req.body?.enabled != null) updates.enabled = req.body.enabled === true;
-  if (req.body?.trigger != null) updates.trigger = req.body.trigger && typeof req.body.trigger === "object" ? req.body.trigger : {};
+  let validatedTrigger: ReturnType<typeof validateAutomationTrigger> | null = null;
+  if (req.body?.trigger != null) {
+    validatedTrigger = validateAutomationTrigger(req.body.trigger);
+    if (!validatedTrigger.ok) return res.status(422).json({ error: validatedTrigger.error, code: validatedTrigger.code });
+    updates.trigger = validatedTrigger.trigger;
+    updates.timezone = validatedTrigger.trigger.timezone;
+    updates.schedule_version = 1;
+  }
   if (req.body?.condition != null) updates.condition = req.body.condition && typeof req.body.condition === "object" ? req.body.condition : {};
   if (req.body?.actions != null) {
     const actions = cleanActions(req.body.actions);
@@ -717,6 +857,11 @@ router.patch("/automations/:id", requirePermission("devices.control"), async (re
       return res.status(Number(err?.statusCode || 422)).json({ error: err?.message || "Automation contains an unavailable or unsafe device action", code: err?.code || "automation_action_invalid" });
     }
   }
+  const current = await scoped(supabaseAdmin.from("consumer_automations").select("*").eq("id", req.params.id), req).maybeSingle();
+  if (!current.data) return res.status(404).json({ error: "Automation not found" });
+  const triggerForNext = validatedTrigger || validateAutomationTrigger(current.data.trigger);
+  const enabledForNext = updates.enabled == null ? current.data.enabled !== false : updates.enabled === true;
+  updates.next_run_at = enabledForNext && triggerForNext.ok ? nextAutomationRunAt(triggerForNext.trigger)?.toISOString() || null : null;
   const { data, error } = await scoped(supabaseAdmin.from("consumer_automations").update(updates).eq("id", req.params.id).select("*") as any, req).single();
   if (error) return res.status(404).json({ error: error.message || "Automation not found" });
   await audit(req.user!, updates.enabled === false ? "automation.paused" : "automation.updated", data.id, { enabled: data.enabled }, req);
@@ -730,6 +875,48 @@ router.delete("/automations/:id", requirePermission("devices.control"), async (r
   if (!data) return res.status(404).json({ error: "Automation not found" });
   await audit(req.user!, "automation.deleted", req.params.id, {}, req);
   res.json({ ok: true, id: req.params.id });
+});
+
+router.post("/automations/:id/test", requirePermission("devices.control"), async (req, res) => {
+  if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
+  const { data: automation, error } = await scoped(supabaseAdmin.from("consumer_automations").select("*").eq("id", req.params.id), req).maybeSingle();
+  if (error || !automation) return res.status(404).json({ error: "Automation not found" });
+  try {
+    const result = await executeConsumerAutomation({ automation, actor: req.user!, req, source: "manual_test" });
+    return res.json({
+      ok: ["succeeded", "partially_succeeded"].includes(String(result.status)),
+      automation_run_id: result.id,
+      scene_run_id: result.id,
+      scene_id: automation.id,
+      scene_name: automation.name,
+      status: result.status,
+      requested_at: result.started_at,
+      completed_at: result.completed_at,
+      counts: result.counts || { total: 0, completed: 0, failed: 0 },
+      actions: result.actions || [],
+      source: "manual_test",
+    });
+  } catch (runError: any) {
+    logger.error("automation_run_failed", { error: runError, automation_id: req.params.id, source: "manual_test" });
+    return res.status(500).json({ error: "Automation test could not run.", code: "automation_test_failed" });
+  }
+});
+
+router.get("/automations/:id/runs", requirePermission("devices.read"), async (req, res) => {
+  if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
+  const { data: automation, error: automationError } = await scoped(supabaseAdmin.from("consumer_automations").select("id,name").eq("id", req.params.id), req).maybeSingle();
+  if (automationError || !automation) return res.status(404).json({ error: "Automation not found" });
+  const { data, error } = await scoped(
+    supabaseAdmin
+      .from("consumer_automation_runs")
+      .select("*")
+      .eq("automation_id", req.params.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    req,
+  );
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ available: true, runs: data || [] });
 });
 
 export default router;
