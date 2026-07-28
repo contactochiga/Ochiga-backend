@@ -62,6 +62,37 @@ function publicActionError(message: string, statusCode = 422, code = "unsupporte
   return error;
 }
 
+function sceneActionError(
+  message: string,
+  statusCode: number,
+  code: string,
+  context: {
+    actionIndex?: number;
+    canonicalDeviceId?: string | null;
+    commandKey?: string | null;
+    legacyCode?: string;
+  } = {},
+) {
+  const error: any = publicActionError(message, statusCode, code);
+  error.action_index = context.actionIndex;
+  error.canonical_device_id = context.canonicalDeviceId || null;
+  error.command_key = context.commandKey || null;
+  if (context.legacyCode) error.legacy_code = context.legacyCode;
+  return error;
+}
+
+function sceneActionErrorPayload(err: any) {
+  return {
+    error: err?.message || "Scene contains an unavailable or unsafe device action",
+    message: err?.message || "Scene contains an unavailable or unsafe device action",
+    code: err?.code || "scene_action_invalid",
+    legacy_code: err?.legacy_code || null,
+    action_index: Number.isInteger(err?.action_index) ? err.action_index : null,
+    canonical_device_id: err?.canonical_device_id || null,
+    command_key: err?.command_key || null,
+  };
+}
+
 function boolValue(value: any): boolean | null {
   if (value === true || value === false) return value;
   const raw = String(value ?? "").trim().toLowerCase();
@@ -122,36 +153,48 @@ function controllableChannels(summary: any) {
 async function canonicalizeSceneAction(req: any, action: CleanSceneAction, index: number): Promise<CanonicalSceneAction> {
   const scope = activeScope(req);
   const device = await resolveVisibleDevice(req.user!, action.device_id, { estateId: scope.estate_id, homeId: scope.home_id });
-  if (!device?.id) throw publicActionError("Scene contains a device outside this home.", 403, "device_out_of_scope");
+  if (!device?.id) {
+    throw sceneActionError("Scene contains a device outside this home.", 403, "device_out_of_scope", {
+      actionIndex: index,
+      canonicalDeviceId: action.device_id,
+    });
+  }
 
   const summary = summarizeDeviceFrontendContract(device);
   const family = sceneDeviceFamily(device, summary);
-  if (family === "lock") throw publicActionError("Lock actions are unavailable in scenes for safety.", 422, "lock_scene_action_blocked");
-  if (family === "ir") throw publicActionError("TV and IR remote actions are not enabled for scenes in this phase.", 422, "ir_scene_action_blocked");
-
   const entries = commandEntries(action.command);
-  if (entries.length !== 1) throw publicActionError("Each scene action must control exactly one device action.", 422, "scene_action_not_atomic");
-  const [rawKey, rawValue] = entries[0];
+  const [rawKey, rawValue] = entries[0] || [];
   const key = String(rawKey || "").trim();
   const keyLower = key.toLowerCase();
+  const errorContext = { actionIndex: index, canonicalDeviceId: String(device.id), commandKey: key || null };
+
+  if (family === "lock") throw sceneActionError("Lock actions are unavailable in scenes for safety.", 422, "lock_scene_action_blocked", errorContext);
+  if (family === "ir") throw sceneActionError("TV and IR remote actions are not enabled for scenes in this phase.", 422, "ir_scene_action_blocked", errorContext);
+
+  if (entries.length !== 1) throw sceneActionError("Each scene action must control exactly one device action.", 422, "scene_action_not_atomic", errorContext);
   const channels = controllableChannels(summary);
   const capabilityCodes = new Set([...(summary.capability_codes || []), ...(summary.supported_controls || [])].map((item: any) => String(item).toLowerCase()));
   const deviceName = String(device.name || "Device");
 
   if (family === "switch") {
     const desired = boolValue(rawValue);
-    if (desired === null) throw publicActionError("Switch scene actions must be On or Off.", 422, "invalid_switch_value");
+    if (desired === null) throw sceneActionError("Switch scene actions must be On or Off.", 422, "invalid_switch_value", errorContext);
     let commandCode = key;
     if (["switch", "power", "on"].includes(keyLower)) {
       if (channels.length > 1) {
-        throw publicActionError("Choose a specific switch channel for this multi-gang device.", 422, "ambiguous_multi_gang_scene_action");
+        throw sceneActionError("Choose a specific switch channel for this multi-gang device.", 422, "ambiguous_multi_gang_scene_action", errorContext);
       }
       commandCode = channels[0]?.code || (capabilityCodes.has("switch_1") ? "switch_1" : keyLower);
     } else if (/^switch_\d+$/i.test(key)) {
       const hasChannel = channels.some((channel: { code: string }) => channel.code.toLowerCase() === keyLower);
-      if (!hasChannel && !capabilityCodes.has(keyLower)) throw publicActionError("This switch channel is not exposed by the device.", 422, "unsupported_switch_channel");
+      if (!hasChannel && !capabilityCodes.has(keyLower)) {
+        throw sceneActionError("This switch channel is not exposed by the device.", 422, "SCENE_CHANNEL_NOT_EXPOSED", {
+          ...errorContext,
+          legacyCode: "unsupported_switch_channel",
+        });
+      }
     } else if (!capabilityCodes.has(keyLower)) {
-      throw publicActionError("This device does not expose that scene action.", 422, "unsupported_scene_command");
+      throw sceneActionError("This device does not expose that scene action.", 422, "unsupported_scene_command", errorContext);
     }
     const channel = channels.find((item: { code: string; name: string }) => item.code.toLowerCase() === String(commandCode).toLowerCase());
     const actionLabel = action.action_label || action.label || `${channel?.name || titleCase(commandCode, "Power")} → ${desired ? "On" : "Off"}`;
@@ -167,11 +210,11 @@ async function canonicalizeSceneAction(req: any, action: CleanSceneAction, index
 
   if (family === "curtain") {
     if (!["open", "close", "position"].includes(keyLower) || !capabilityCodes.has(keyLower)) {
-      throw publicActionError("This curtain does not expose that safe scene action.", 422, "unsupported_curtain_action");
+      throw sceneActionError("This curtain does not expose that safe scene action.", 422, "unsupported_curtain_action", errorContext);
     }
     const value = keyLower === "position" ? numberValue(rawValue) : boolValue(rawValue);
     if (value === null || (typeof value === "number" && (value < 0 || value > 100))) {
-      throw publicActionError("Curtain scene action value is invalid.", 422, "invalid_curtain_value");
+      throw sceneActionError("Curtain scene action value is invalid.", 422, "invalid_curtain_value", errorContext);
     }
     const actionLabel = action.action_label || action.label || `${titleCase(keyLower)} → ${String(value)}`;
     return { device_id: String(device.id), command: { [keyLower]: value }, label: action.label || actionLabel, action_label: actionLabel, device_name: deviceName, command_code: keyLower };
@@ -179,15 +222,15 @@ async function canonicalizeSceneAction(req: any, action: CleanSceneAction, index
 
   if (family === "climate") {
     if (!["temperature", "temp_set", "mode"].includes(keyLower) || !capabilityCodes.has(keyLower)) {
-      throw publicActionError("This climate device does not expose that scene action.", 422, "unsupported_climate_action");
+      throw sceneActionError("This climate device does not expose that scene action.", 422, "unsupported_climate_action", errorContext);
     }
     const value = keyLower === "mode" ? String(rawValue || "").trim() : numberValue(rawValue);
-    if (value === "" || value === null) throw publicActionError("Climate scene action value is invalid.", 422, "invalid_climate_value");
+    if (value === "" || value === null) throw sceneActionError("Climate scene action value is invalid.", 422, "invalid_climate_value", errorContext);
     const actionLabel = action.action_label || action.label || `${titleCase(keyLower)} → ${String(value)}`;
     return { device_id: String(device.id), command: { [keyLower]: value }, label: action.label || actionLabel, action_label: actionLabel, device_name: deviceName, command_code: keyLower };
   }
 
-  throw publicActionError("This device is not supported by scenes yet.", 422, "unsupported_scene_device");
+  throw sceneActionError("This device is not supported by scenes yet.", 422, "unsupported_scene_device", errorContext);
 }
 
 async function canonicalizeSceneActions(req: any, actions: CleanSceneAction[]) {
@@ -314,7 +357,7 @@ router.post("/", requirePermission("devices.control"), async (req, res) => {
   try {
     canonicalActions = await canonicalizeSceneActions(req, actions);
   } catch (err: any) {
-    return res.status(Number(err?.statusCode || 422)).json({ error: err?.message || "Scene contains an unavailable or unsafe device action", code: err?.code || "scene_action_invalid" });
+    return res.status(Number(err?.statusCode || 422)).json(sceneActionErrorPayload(err));
   }
   const row = {
     ...activeScope(req),
@@ -350,7 +393,7 @@ router.patch("/:id", requirePermission("devices.control"), async (req, res) => {
     try {
       updates.actions = await canonicalizeSceneActions(req, actions);
     } catch (err: any) {
-      return res.status(Number(err?.statusCode || 422)).json({ error: err?.message || "Scene contains an unavailable or unsafe device action", code: err?.code || "scene_action_invalid" });
+      return res.status(Number(err?.statusCode || 422)).json(sceneActionErrorPayload(err));
     }
   }
   const { data, error } = await scoped(supabaseAdmin.from("consumer_scenes").update(updates).eq("id", req.params.id).select("*") as any, req).single();
@@ -394,7 +437,7 @@ router.post("/:id/run", requirePermission("devices.control"), async (req, res) =
       })),
     };
     await audit(req.user!, "scene.run.failed", scene.id, { ...failed, domain: "resident_device_private" }, req);
-    return res.status(Number(err?.statusCode || 422)).json({ ok: false, ...failed, error: err?.message || "Scene contains an unavailable or unsafe device action" });
+    return res.status(Number(err?.statusCode || 422)).json({ ok: false, ...failed, ...sceneActionErrorPayload(err) });
   }
 
   await audit(req.user!, "scene.run.requested", scene.id, {

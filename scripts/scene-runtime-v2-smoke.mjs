@@ -21,6 +21,11 @@ const required = [
   ["scene run requested audit", "scene.run.requested"],
   ["scene run history route", 'router.get("/:id/runs"'],
   ["automation canonical action validation", "Automation contains an unavailable or unsafe device action"],
+  ["structured scene validation payload", "sceneActionErrorPayload"],
+  ["invalid channel structured code", "SCENE_CHANNEL_NOT_EXPOSED"],
+  ["invalid action index", "action_index"],
+  ["invalid action device id", "canonical_device_id"],
+  ["invalid action command key", "command_key"],
 ];
 
 const missing = required.filter(([, needle]) => !scenesRoute.includes(needle));
