@@ -329,7 +329,16 @@ class OyiCoreRuntimeKernel {
 
       await this.safeHook(() => this.hooks.persistSignal?.(seedSignal, envelope.receipt));
       await this.safeHook(() => this.hooks.persistBundle?.(bundle, key));
-      await this.safeHook(() => canonicalIntelligenceStore.recordBundle(bundle, envelope.receipt));
+      await this.safeHook(async () => {
+        const lifecycle = await canonicalIntelligenceStore.recordBundle(bundle, envelope.receipt);
+        logger.info("oyi_core_lifecycle_persisted", {
+          signal_id: seedSignal.id,
+          incident_id: lifecycle.incidentId,
+          delivery_rows: lifecycle.deliveryRows,
+          persisted: lifecycle.persisted,
+          issues: lifecycle.issues,
+        });
+      });
       await this.safeHook(async () => {
         await this.hooks.audit?.(envelope.receipt);
         if (envelope.receipt.accepted && (seedSignal.severity === "critical" || seedSignal.severity === "warning")) {

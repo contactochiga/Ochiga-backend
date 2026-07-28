@@ -7,6 +7,7 @@ import { executionLedger, type ExecutionLedgerScope } from "../oyi-core/runtime/
 import { adaptCanonicalToCompatibilityChat, runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
 import { operationalMetrics } from "../observability/metrics";
 import { normalizeIntelligenceContextEnvelope } from "../oyi-core/contracts/intelligenceContextEnvelope";
+import { canonicalIntelligenceStore } from "../oyi-core/persistence/canonicalIntelligenceStore";
 
 const router = Router();
 
@@ -113,6 +114,38 @@ router.post("/runtime/context", requireAuth, resolveRequestContext, async (req, 
     return res.json({ ok: true, context });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to normalize Oyi runtime context" });
+  }
+});
+
+router.post("/runtime/feedback", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const objectType = String(req.body?.object_type || "").trim();
+    const objectId = String(req.body?.object_id || "").trim();
+    const feedbackType = String(req.body?.feedback_type || "").trim();
+    if (!objectType || !objectId || !feedbackType) return res.status(422).json({ ok: false, error: "object_type, object_id and feedback_type are required" });
+    await canonicalIntelligenceStore.recordFeedback({
+      objectType,
+      objectId,
+      feedbackType,
+      actorId: req.user?.id || null,
+      reason: req.body?.reason ? String(req.body.reason) : null,
+      outcome: req.body?.outcome && typeof req.body.outcome === "object" ? req.body.outcome : {},
+    });
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to record Oyi feedback" });
+  }
+});
+
+router.post("/runtime/outbox/process", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    if (!Array.isArray(req.user?.permissions) || !req.user.permissions.includes("system.admin")) {
+      return res.status(403).json({ ok: false, error: "Permission denied" });
+    }
+    const result = await canonicalIntelligenceStore.processDeliveryOutbox(req.body?.limit ? Number(req.body.limit) : 25);
+    return res.json({ ok: true, ...result });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to process Oyi delivery outbox" });
   }
 });
 

@@ -8,6 +8,8 @@ import {
   type OyiChatInput,
   type OyiSurface,
 } from "../../services/oyiUnifiedIntelligenceService";
+import { buildModuleFacts } from "./moduleFactAdapters";
+import { resolveConversationTarget } from "./conversationTargetResolver";
 
 export type OperationalObjectType =
   | "estate"
@@ -137,6 +139,8 @@ export type CanonicalConversationResponse = {
     module: string | null;
     context_source: "explicit_request" | "thread_state" | "page_selection" | "home_scope" | "estate_scope" | "global_scope";
     warnings: string[];
+    target_resolution?: Record<string, unknown>;
+    module_facts?: Record<string, unknown>;
   };
   execution: Record<string, unknown>;
   cards: Array<Record<string, unknown>>;
@@ -2270,6 +2274,13 @@ async function persistCanonicalShapedAssistantMessage(threadId: string, response
           ...metadata,
           truth,
           operational_object: operationalObject,
+          evidence_references: truth.object?.evidence_references || [],
+          active_target: operationalObject ? {
+            object_type: operationalObject.object_type,
+            object_id: operationalObject.canonical_id,
+            object_name: operationalObject.label,
+            module: operationalObject.source_module,
+          } : null,
           canonical_response_shaped: true,
         },
       } as any)
@@ -2291,6 +2302,51 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   const threadCandidate = threadObjectCandidate(threadContext);
   const preferredCandidate = explicitCandidate || threadCandidate;
   const resolved = await resolveCandidate(actor, oisContext, preferredCandidate);
+  const targetResolution = resolveConversationTarget({
+    query: input.message,
+    explicitTarget: input.target as any,
+    selectedObject: input.operational_object as any,
+    pageObject: resolved.object ? {
+      object_type: resolved.object.object_type,
+      object_id: resolved.object.canonical_id,
+      object_name: resolved.object.label,
+    } : null,
+    threadTarget: threadCandidate ? {
+      object_type: threadCandidate.object_type,
+      object_id: threadCandidate.canonical_id,
+      object_name: threadCandidate.label,
+    } : null,
+    context: {
+      surface: input.surface,
+      module: input.module || oisContext?.module || "other",
+      route: text(recordOf(input.context).route),
+      estate_id: input.estate_id || oisContext?.estate_id || null,
+      building_id: text(recordOf(input.context).building_id || recordOf(input.context).buildingId) || null,
+      home_id: input.home_id || oisContext?.home_id || null,
+      room_id: input.room_id || text(recordOf(input.context).room_id || recordOf(input.context).roomId) || null,
+      object_type: resolved.object?.object_type || null,
+      object_id: resolved.object?.canonical_id || null,
+      object_name: resolved.object?.label || null,
+    } as any,
+  });
+  const moduleFacts = buildModuleFacts({
+    surface: input.surface,
+    module: input.module || oisContext?.module || "other",
+    route: text(recordOf(input.context).route),
+    estate_id: input.estate_id || oisContext?.estate_id || null,
+    building_id: text(recordOf(input.context).building_id || recordOf(input.context).buildingId) || null,
+    home_id: input.home_id || oisContext?.home_id || null,
+    room_id: input.room_id || text(recordOf(input.context).room_id || recordOf(input.context).roomId) || null,
+    object_type: resolved.object?.object_type || null,
+    object_id: resolved.object?.canonical_id || null,
+    object_name: resolved.object?.label || null,
+    privacy_class: resolved.object?.home_id ? "home_private" : "building_operational",
+  } as any, {
+    capabilities: resolved.object?.capabilities || [],
+    current_state: resolved.object?.current_state || null,
+    health: resolved.object?.health || null,
+    relationships: resolved.object?.relationships || {},
+  });
   const compatibilityInput = compatibilityInputFromCanonical(input, resolved.object);
   const compatibility = await runOyiUnifiedChat(actor, compatibilityInput) as Record<string, unknown>;
   const shapedCompatibility = shapeObjectConversation(input, compatibility, resolved.object);
@@ -2315,7 +2371,13 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       home_id: input.home_id || oisContext?.home_id || null,
       module: input.module || oisContext?.module || null,
       context_source: resolved.source,
-      warnings: [...resolved.warnings, ...(threadContext.warning ? [threadContext.warning] : [])],
+      warnings: [
+        ...resolved.warnings,
+        ...(targetResolution.ambiguous && targetResolution.clarificationQuestion ? [targetResolution.clarificationQuestion] : []),
+        ...(threadContext.warning ? [threadContext.warning] : []),
+      ],
+      target_resolution: targetResolution,
+      module_facts: moduleFacts,
     },
     execution: recordOf(shapedCompatibility.execution),
     cards: Array.isArray(shapedCompatibility.cards) ? shapedCompatibility.cards as Array<Record<string, unknown>> : [],
@@ -2323,7 +2385,11 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     suggested_actions: Array.isArray(shapedCompatibility.suggested_actions) ? shapedCompatibility.suggested_actions as Array<Record<string, unknown>> : [],
     awareness: shapedCompatibility.awareness ? recordOf(shapedCompatibility.awareness) : undefined,
     confirmations: Array.isArray(shapedCompatibility.confirmations) ? shapedCompatibility.confirmations as Array<Record<string, unknown>> : [],
-    warnings: [...resolved.warnings, ...(threadContext.warning ? [threadContext.warning] : [])],
+    warnings: [
+      ...resolved.warnings,
+      ...(targetResolution.ambiguous && targetResolution.clarificationQuestion ? [targetResolution.clarificationQuestion] : []),
+      ...(threadContext.warning ? [threadContext.warning] : []),
+    ],
     source: "oyi_canonical_runtime",
     safe_mode: true,
     approvalRequired: Boolean(shapedCompatibility.approvalRequired || shapedCompatibility.requiresConfirmation || recordOf(shapedCompatibility.execution).status === "pending_confirmation"),

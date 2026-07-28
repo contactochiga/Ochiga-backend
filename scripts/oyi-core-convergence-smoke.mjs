@@ -12,6 +12,11 @@ const { runtimeSubscriptionEngine } = await import("../dist/oyi-core/runtime/run
 const { normalizeIntelligenceContextEnvelope } = await import("../dist/oyi-core/contracts/intelligenceContextEnvelope.js");
 const { getRegisteredOperation, operationPlanType } = await import("../dist/oyi-core/runtime/operationRegistry.js");
 const { resolveIntelligencePolicy, channelsForRuntimeDelivery } = await import("../dist/oyi-core/policy/intelligencePolicyResolver.js");
+const { correlateIncident } = await import("../dist/oyi-core/runtime/incidentCorrelation.js");
+const { reasoningPolicyFor } = await import("../dist/oyi-core/runtime/domainReasoningPolicies.js");
+const { classifyPredictionPayload } = await import("../dist/oyi-core/runtime/predictionTruth.js");
+const { buildModuleFacts } = await import("../dist/oyi-core/runtime/moduleFactAdapters.js");
+const { resolveConversationTarget } = await import("../dist/oyi-core/runtime/conversationTargetResolver.js");
 
 function check(name, fn) {
   try {
@@ -81,6 +86,42 @@ if (mode === "all" || mode === "lifecycle") {
     assert.equal(delivered.length, 1);
     assert.equal(delivered[0].channel, "consumer:signal");
   });
+
+  const commandIncident = correlateIncident(first.signal, null);
+  const offline = universalSignalRuntime.receive({
+    id: "device-offline",
+    source: "tuya",
+    type: "telemetry",
+    domain: "device_availability",
+    provider: "tuya",
+    estate_id: "estate-a",
+    metadata: { home_id: "home-a", availability: "offline" },
+    entity: { id: "switch-a", type: "device", status: "offline" },
+    severity: "warning",
+    confidence: 0.88,
+  }).signal;
+  const recovery = universalSignalRuntime.receive({
+    id: "device-recovery",
+    source: "tuya",
+    type: "telemetry",
+    domain: "device_availability",
+    provider: "tuya",
+    estate_id: "estate-a",
+    metadata: { home_id: "home-a", availability: "online" },
+    entity: { id: "switch-a", type: "device", status: "online" },
+    severity: "info",
+    confidence: 0.92,
+  }).signal;
+  check("command lifecycle does not create independent incident", () => {
+    assert.equal(commandIncident, null);
+  });
+  check("offline signal creates durable incident key and recovery resolves same entity", () => {
+    const offlineIncident = correlateIncident(offline, null);
+    const recoveryIncident = correlateIncident(recovery, null);
+    assert.ok(offlineIncident?.incidentKey.includes("switch-a"));
+    assert.equal(recoveryIncident?.status, "resolved");
+    assert.equal(recoveryIncident?.incidentKey, offlineIncident?.incidentKey);
+  });
 }
 
 if (mode === "all" || mode === "contextual") {
@@ -117,6 +158,22 @@ if (mode === "all" || mode === "contextual") {
     assert.equal(roomContext.object_id, "room-a");
     assert.notEqual(roomContext.object_id, deviceContext.object_id);
   });
+  const target = resolveConversationTarget({
+    query: "Why is this unavailable?",
+    pageObject: { object_type: "device", object_id: "device-b", object_name: "Bedroom switch" },
+    threadTarget: { object_type: "device", object_id: "stale-device", object_name: "Old target" },
+    context: deviceContext,
+  });
+  const facts = buildModuleFacts(deviceContext, { channel_definitions: [{ code: "switch_2" }] });
+  check("conversation target resolver prefers current page object over stale thread target", () => {
+    assert.equal(target.objectId, "device-b");
+    assert.equal(target.source, "page_object");
+  });
+  check("module adapter returns facts only and preserves channel metadata", () => {
+    assert.equal(facts.adapter, "device");
+    assert.deepEqual(facts.facts.channel_definitions, [{ code: "switch_2" }]);
+    assert.equal(facts.facts.recommendation_policy, "oyi_core_only");
+  });
 }
 
 if (mode === "all" || mode === "feedback") {
@@ -128,6 +185,11 @@ if (mode === "all" || mode === "feedback") {
     assert.match(migration, /create table if not exists public\.intelligence_feedback/i);
     assert.match(migration, /create table if not exists public\.operational_delivery_outbox/i);
     assert.match(migration, /unique index if not exists idx_operational_signals_key/i);
+  });
+  const classified = classifyPredictionPayload({ method: "template_forecast", evidence: [{ id: "one" }], horizon: "24h" });
+  check("unsupported template forecast is downgraded below forecast without evidence window/outcome", () => {
+    assert.equal(classified.prediction_type, "rule");
+    assert.equal(classified.user_facing_label, "Rule-based notice");
   });
 }
 
@@ -151,6 +213,11 @@ if (mode === "all" || mode === "convergence") {
     assert.equal(getRegisteredOperation("smart_access.remote_unlock"), null);
     assert.equal(operationPlanType("smart_access.remote_unlock"), "suggest_only");
     assert.equal(operationPlanType("infrastructure.request_verification"), "prepare_workflow");
+  });
+  check("domain reasoning policy distinguishes provider ack from physical confirmation", () => {
+    const policy = reasoningPolicyFor("device_command_lifecycle");
+    assert.match(policy.verificationRule, /Provider acknowledgement is not physical confirmation/i);
+    assert.match(policy.excludedEvidence.join(","), /audit\.recorded/);
   });
 }
 

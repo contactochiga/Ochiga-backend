@@ -18,6 +18,7 @@ import { listAgentCollaborations } from "../intelligence-core/collaboration";
 import { getAgentResponsibilities, getEscalatedWorkflows, getOpenWorkflows, getWorkflow, listWorkflows, WORKFLOW_CONTRACTS } from "../intelligence-core/workflows";
 import { hasPermission } from "../core/foundation";
 import { getSecurityAuditReport, getSecurityObservability } from "../security/securityObservability";
+import { oyiCoreRuntime } from "../oyi-core/service";
 
 const router = Router();
 
@@ -158,7 +159,27 @@ router.get("/executive", requireAuth, async (req, res) => {
   try {
     const body = await observeAgentAction(
       { agent_id: "ochiga_executive", action: "intelligence.executive", tool: "intelligence:executive", surface: "api", actor: req.user },
-      async () => getExecutiveIntelligence(req.user || null)
+      async () => {
+        const legacy = await getExecutiveIntelligence(req.user || null);
+        const canonical = oyiCoreRuntime.executive("daily", {
+          signals: [],
+          context: { estate_id: req.user?.estate_id || null, home_id: req.user?.home_id || null, surface: "facility" } as any,
+          permissions: Array.isArray(req.user?.permissions) ? req.user.permissions : [],
+        });
+        return {
+          ...legacy,
+          canonical_runtime: {
+            source: "/oyi/runtime/executive",
+            briefing_id: canonical.id,
+            status: "generated",
+            generated_at: canonical.generatedAt,
+          },
+          deprecation: {
+            live_operational_truth: "delegated_to_oyi_core",
+            retained_scope: "organization_directory_agent_health_workflow_administration_historical_views",
+          },
+        };
+      }
     );
     return res.status(workflowHttpStatus(body)).json(body);
   } catch (err: any) {
