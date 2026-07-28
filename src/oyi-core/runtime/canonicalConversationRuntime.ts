@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type { AuthUser } from "../../middleware/auth";
 import type { OisContext, OyiTarget } from "../../types/oisContext";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
+import { logger } from "../../observability/logger";
 import {
   loadOyiConversationContext,
   runOyiUnifiedChat,
@@ -10,6 +11,7 @@ import {
 } from "../../services/oyiUnifiedIntelligenceService";
 import { buildModuleFacts } from "./moduleFactAdapters";
 import { resolveConversationTarget } from "./conversationTargetResolver";
+import { hydrateCanonicalTarget } from "./canonicalTargetHydrationRegistry";
 
 export type OperationalObjectType =
   | "estate"
@@ -2224,6 +2226,7 @@ export function canonicalObjectConversationForTest(input: { message: string; obj
 }
 
 function compatibilityInputFromCanonical(input: CanonicalConversationRequest, operationalObject: OperationalObject | null): OyiChatInput {
+  const objectMetadata = recordOf(operationalObject?.metadata);
   return {
     surface: input.surface,
     estate_id: input.estate_id || operationalObject?.estate_id || null,
@@ -2233,15 +2236,15 @@ function compatibilityInputFromCanonical(input: CanonicalConversationRequest, op
     message: input.message,
     thread_id: input.thread_id || null,
     context: input.context as OisContext | null,
-    device_id: input.device_id || (operationalObject?.object_type === "device" ? operationalObject.canonical_id : null),
-    device_name: input.device_name || (operationalObject?.object_type === "device" ? operationalObject.label : null),
+    device_id: input.device_id || (operationalObject?.object_type === "device" ? operationalObject.canonical_id : operationalObject?.object_type === "device_channel" ? operationalObject.parent_id : null),
+    device_name: input.device_name || (operationalObject?.object_type === "device" || operationalObject?.object_type === "device_channel" ? operationalObject.label : null),
     room_id: input.room_id || operationalObject?.room_id || null,
     room_name: input.room_name || null,
     control_profile: input.control_profile || null,
     primary_state: input.primary_state || operationalObject?.current_state || null,
     health_status: input.health_status || operationalObject?.health || null,
-    supported_controls: input.supported_controls || null,
-    channel_definitions: input.channel_definitions || null,
+    supported_controls: input.supported_controls || operationalObject?.capabilities || null,
+    channel_definitions: input.channel_definitions || (Array.isArray(objectMetadata.channel_definitions) ? objectMetadata.channel_definitions as Array<Record<string, unknown>> : null),
     memory_summary: input.memory_summary || null,
     relationships: input.relationships || (operationalObject?.relationships as Record<string, unknown>) || null,
     predictive_findings: input.predictive_findings || null,
@@ -2304,18 +2307,16 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   } as OyiChatInput);
   const explicitCandidate = explicitObjectCandidate(input);
   const threadCandidate = threadObjectCandidate(threadContext);
-  const preferredCandidate = explicitCandidate || threadCandidate;
-  const resolved = await resolveCandidate(actor, oisContext, preferredCandidate);
   const activeContextRecord = recordOf(recordOf(input.context).active_intelligence_context || recordOf(recordOf(input.context).runtime_context).active_context || recordOf(input.conversation_context).active_context);
   const selectedSubobjectRecord = recordOf(activeContextRecord.selected_subobject || recordOf(input.conversation_context).selected_subobject);
   const targetResolution = resolveConversationTarget({
     query: input.message,
     explicitTarget: input.target as any,
     selectedObject: Object.keys(selectedSubobjectRecord).length ? selectedSubobjectRecord as any : input.operational_object as any,
-    pageObject: resolved.object ? {
-      object_type: resolved.object.object_type,
-      object_id: resolved.object.canonical_id,
-      object_name: resolved.object.label,
+    pageObject: explicitCandidate ? {
+      object_type: explicitCandidate.object_type,
+      object_id: explicitCandidate.canonical_id,
+      object_name: explicitCandidate.label || null,
     } : null,
     threadTarget: threadCandidate ? {
       object_type: threadCandidate.object_type,
@@ -2330,12 +2331,41 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       building_id: text(recordOf(input.context).building_id || recordOf(input.context).buildingId) || null,
       home_id: input.home_id || oisContext?.home_id || null,
       room_id: input.room_id || text(recordOf(input.context).room_id || recordOf(input.context).roomId) || null,
-      object_type: resolved.object?.object_type || null,
-      object_id: resolved.object?.canonical_id || null,
-      object_name: resolved.object?.label || null,
+      object_type: explicitCandidate?.object_type || null,
+      object_id: explicitCandidate?.canonical_id || null,
+      object_name: explicitCandidate?.label || null,
       active_intelligence_context: activeContextRecord,
     } as any,
   });
+  const visibleStateRecord = recordOf(activeContextRecord.visible_state || recordOf(input.conversation_context).visible_state || recordOf(recordOf(input.operational_object).metadata).visible_state);
+  logger.info("conversation_target_resolved", {
+    request_id: text(recordOf(input.context).request_id) || null,
+    context_id: text(activeContextRecord.context_id) || null,
+    context_version: Number(activeContextRecord.context_version) || null,
+    object_type: targetResolution.objectType,
+    canonical_id: targetResolution.objectId,
+    target_source: targetResolution.source,
+    target_confidence: targetResolution.confidence,
+    estate_id: input.estate_id || oisContext?.estate_id || null,
+    home_id: input.home_id || oisContext?.home_id || null,
+    room_id: input.room_id || text(recordOf(input.context).room_id || recordOf(input.context).roomId) || null,
+  });
+  const hydration = await hydrateCanonicalTarget({
+    actor,
+    oisContext,
+    target: targetResolution,
+    activeContext: activeContextRecord,
+    visibleState: Object.keys(visibleStateRecord).length ? visibleStateRecord : null,
+  });
+  let resolved: ResolvedOperationalObject = {
+    object: hydration.object,
+    source: explicitCandidate?.source || threadCandidate?.source || "page_selection",
+    warnings: hydration.status === "hydrated" ? [] : hydration.reason ? [hydration.reason] : [],
+  };
+  if (!resolved.object && targetResolution.source !== "explicit_canonical_target" && targetResolution.source !== "selected_subobject" && targetResolution.source !== "active_page_object") {
+    const preferredCandidate = explicitCandidate || threadCandidate;
+    resolved = await resolveCandidate(actor, oisContext, preferredCandidate);
+  }
   const moduleFacts = buildModuleFacts({
     surface: input.surface,
     module: input.module || oisContext?.module || "other",
@@ -2353,9 +2383,15 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     current_state: resolved.object?.current_state || null,
     health: resolved.object?.health || null,
     relationships: resolved.object?.relationships || {},
+    hydration_status: hydration.status,
+    hydration_source: hydration.source,
+    hydration_truth_state: hydration.truth_state,
+    hydration_facts: hydration.facts,
+    hydration_evidence: hydration.evidence,
   });
-  if (explicitCandidate && !resolved.object) {
-    const label = cleanLabel(explicitCandidate.label || targetResolution.objectName, "the selected item");
+  const exactTargetRequested = Boolean(explicitCandidate || ["explicit_canonical_target", "selected_subobject", "active_page_object"].includes(targetResolution.source));
+  if (exactTargetRequested && !resolved.object) {
+    const label = cleanLabel(explicitCandidate?.label || targetResolution.objectName, "the selected item");
     const answer = `I know you are asking about ${label}, but I could not retrieve its current information in this scope.`;
     const shaped = {
       id: `oyi-runtime:${randomUUID()}`,
@@ -2392,7 +2428,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         module: input.module || oisContext?.module || null,
         context_source: resolved.source,
         warnings: resolved.warnings,
-        target_resolution: { ...targetResolution, hydrationStatus: "not_found", scopeWidened: false },
+        target_resolution: { ...targetResolution, hydrationStatus: hydration.status, hydrationSource: hydration.source, hydrationReason: hydration.reason, scopeWidened: false },
         module_facts: moduleFacts,
       },
       execution: {},
@@ -2437,7 +2473,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         ...(targetResolution.ambiguous && targetResolution.clarificationQuestion ? [targetResolution.clarificationQuestion] : []),
         ...(threadContext.warning ? [threadContext.warning] : []),
       ],
-      target_resolution: targetResolution,
+      target_resolution: { ...targetResolution, hydrationStatus: hydration.status, hydrationSource: hydration.source, hydrationTruthState: hydration.truth_state, hydrationReason: hydration.reason, scopeWidened: false },
       module_facts: moduleFacts,
     },
     execution: recordOf(shapedCompatibility.execution),

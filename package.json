@@ -122,6 +122,11 @@
     ,"smoke:oyi-core-contextual-intelligence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs contextual"
     ,"smoke:oyi-core-lifecycle": "npm run build && node scripts/oyi-core-convergence-smoke.mjs lifecycle"
     ,"smoke:oyi-core-feedback": "npm run build && node scripts/oyi-core-convergence-smoke.mjs feedback"
+    ,"smoke:canonical-target-hydration": "npm run build && node scripts/canonical-target-hydration-smoke.mjs"
+    ,"smoke:device-conversation-hydration": "npm run smoke:canonical-target-hydration"
+    ,"smoke:device-channel-conversation-hydration": "npm run smoke:canonical-target-hydration"
+    ,"smoke:visible-state-fallback": "npm run smoke:canonical-target-hydration"
+    ,"smoke:hydration-error-truth": "npm run smoke:canonical-target-hydration"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
