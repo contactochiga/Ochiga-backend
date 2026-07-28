@@ -2188,6 +2188,11 @@ function contextualObjectActions(object: OperationalObject, input: CanonicalConv
   return actions.slice(0, 6);
 }
 
+function isReadOnlyBroadDeviceIntent(message: string) {
+  return /\b(show|list|which|what|check|find)\b[\s\S]{0,40}\b(offline|unavailable|down|failed)\b[\s\S]{0,30}\bdevices?\b/i.test(message)
+    || /\b(show|list|which)\b[\s\S]{0,40}\bdevices?\b[\s\S]{0,30}\b(offline|unavailable|down|failed)\b/i.test(message);
+}
+
 function shapeObjectConversation(input: CanonicalConversationRequest, response: Record<string, unknown>, object: OperationalObject | null) {
   if (!object) return response;
   const next = { ...response };
@@ -2310,16 +2315,24 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   const threadCandidate = threadObjectCandidate(threadContext);
   const activeContextRecord = recordOf(input.active_intelligence_context || recordOf(input.context).active_intelligence_context || recordOf(recordOf(input.context).runtime_context).active_context || recordOf(input.conversation_context).active_context);
   const selectedSubobjectRecord = recordOf(activeContextRecord.selected_subobject || recordOf(input.conversation_context).selected_subobject);
+  const broadReadOnlyDeviceIntent = isReadOnlyBroadDeviceIntent(input.message || "");
+  if (broadReadOnlyDeviceIntent) {
+    logger.info("read_only_command_execution_blocked", {
+      intent: "show_offline_devices",
+      target: "home_scope",
+      attempted_operation: "device_command_context_reuse",
+    });
+  }
   const targetResolution = resolveConversationTarget({
     query: input.message,
     explicitTarget: input.target as any,
-    selectedObject: Object.keys(selectedSubobjectRecord).length ? selectedSubobjectRecord as any : input.operational_object as any,
-    pageObject: explicitCandidate ? {
+    selectedObject: broadReadOnlyDeviceIntent ? null : Object.keys(selectedSubobjectRecord).length ? selectedSubobjectRecord as any : input.operational_object as any,
+    pageObject: !broadReadOnlyDeviceIntent && explicitCandidate ? {
       object_type: explicitCandidate.object_type,
       object_id: explicitCandidate.canonical_id,
       object_name: explicitCandidate.label || null,
     } : null,
-    threadTarget: threadCandidate ? {
+    threadTarget: broadReadOnlyDeviceIntent ? null : threadCandidate ? {
       object_type: threadCandidate.object_type,
       object_id: threadCandidate.canonical_id,
       object_name: threadCandidate.label,

@@ -127,6 +127,15 @@
     ,"smoke:device-channel-conversation-hydration": "npm run smoke:canonical-target-hydration"
     ,"smoke:visible-state-fallback": "npm run smoke:canonical-target-hydration"
     ,"smoke:hydration-error-truth": "npm run smoke:canonical-target-hydration"
+    ,"smoke:command-lifecycle-truth": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:async-command-failure": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:observable-state-confirmation": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:multi-gang-channel-safety": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:ir-provider-result-truth": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:provider-error-classification": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:read-only-command-firewall": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:conversation-command-correlation": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:optimistic-state-reconciliation": "node scripts/device-command-truth-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

@@ -14,6 +14,10 @@ import { enrichDeviceProviderState, summarizeDeviceFrontendContract } from "../d
 import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
 import { logger } from "../observability/logger";
 import { assertSmartLockCommandAllowed, summarizeSmartLockCapabilities } from "../services/smartLockCapabilityService";
+import {
+  classifyCommandProviderError,
+  upsertDeviceCommandExecution,
+} from "../services/deviceCommandExecutionStore";
 
 function textFromDevice(device: any) {
   return [
@@ -282,7 +286,51 @@ function pendingConfirmationCopy(name: string) {
 function commandSentCopy(name: string) {
   return {
     title: `${name} command sent`,
-    message: "The provider accepted this remote command.",
+    message: "The IR command was accepted for dispatch. Oyi cannot confirm whether the appliance physically responded.",
+  };
+}
+
+function commandTargetType(command: Record<string, any>, providerAckOnly = false) {
+  if (providerAckOnly) return "virtual_remote";
+  const keys = Object.keys(command || {}).filter((key) => !["type", "command_key", "source", "metadata"].includes(key));
+  return keys.some((key) => /^switch_\d+$/i.test(key)) ? "device_channel" : "device";
+}
+
+function commandChannelCode(command: Record<string, any>) {
+  return Object.keys(command || {}).find((key) => /^switch_\d+$/i.test(key)) || null;
+}
+
+function commandExpectedState(command: Record<string, any>) {
+  const out: Record<string, any> = {};
+  for (const [key, value] of Object.entries(command || {})) {
+    if (["type", "command_key", "source", "metadata"].includes(key)) continue;
+    if (value == null || typeof value === "object") continue;
+    out[key] = value;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function commandPublicStatus(input: {
+  requestStatus?: string;
+  dispatchStatus?: string;
+  providerStatus?: string;
+  confirmationStatus?: string;
+  physicalEffectStatus?: string;
+  finalStatus?: string;
+  truthState?: string;
+  safeMessage?: string | null;
+  retryable?: boolean | null;
+}) {
+  return {
+    request_status: input.requestStatus || "accepted",
+    dispatch_status: input.dispatchStatus || "pending",
+    provider_status: input.providerStatus || "pending",
+    confirmation_status: input.confirmationStatus || "pending",
+    physical_effect_status: input.physicalEffectStatus || "unknown",
+    final_status: input.finalStatus || "accepted_for_processing",
+    truth_state: input.truthState || "pending_confirmation",
+    safe_error_message: input.safeMessage || null,
+    retryable: input.retryable ?? null,
   };
 }
 
@@ -578,6 +626,12 @@ export async function executeDeviceCommandForActor(input: {
 
   const deviceRef = deviceRow?.id || rawId;
   const executionId = input.commandExecutionId || commandExecutionId(input.req as Request);
+  const clientCommandKey = input.req ? commandClientKey(input.req as Request, normalizedCommand) : normalizedCommand?.command_key || normalizedCommand?.key || normalizedCommand?.raw_key || normalizedCommand?.type || null;
+  const clientTapSequence = input.req ? commandClientSequence(input.req as Request) : "";
+  const clientTapTimestamp = commandClientTimestamp(input.req as Request);
+  const commandRequestedAt = new Date().toISOString();
+  const commandProvider = String(commandDevice?.provider || commandDevice?.vendor || deviceRow?.provider || deviceRow?.vendor || "device_adapter");
+  const expectedState = commandExpectedState(normalizedCommand);
   logDeviceCommandDiagnostic("device.command.requested", {
     device_id: rawId,
     matched_device_id: deviceRow?.id,
@@ -586,6 +640,36 @@ export async function executeDeviceCommandForActor(input: {
     normalized_online_state: deviceRow ? normalizeDeviceOnlineState(deviceRow).state : "not_found",
     command,
     command_execution_id: executionId,
+  });
+  await upsertDeviceCommandExecution({
+    command_execution_id: executionId,
+    request_id: (input.req as any)?.id || null,
+    actor_id: user.id,
+    actor_email: user.email || null,
+    actor_role: user.role || null,
+    estate_id: deviceRow?.estate_id || user.estate_id || null,
+    home_id: deviceRow?.home_id || user.home_id || null,
+    room_id: deviceRow?.room_id || null,
+    canonical_device_id: deviceRow?.id || null,
+    parent_device_id: deviceRow?.parent_device_id || null,
+    target_type: commandTargetType(normalizedCommand, isIrProviderAckOnlyDevice(commandDevice, normalizedCommand)),
+    channel_code: commandChannelCode(normalizedCommand),
+    provider: commandProvider,
+    provider_device_id: commandDevice?.external_id || null,
+    command_type: deviceCommandFamily(commandDevice),
+    normalized_command: normalizedCommand,
+    command_key: clientCommandKey,
+    source: commandSource,
+    requested_at: commandRequestedAt,
+    request_status: "requested",
+    dispatch_status: "not_started",
+    provider_status: "not_started",
+    confirmation_status: "not_started",
+    physical_effect_status: "unknown",
+    expected_state: expectedState,
+    final_status: "requested",
+    truth_state: "requested",
+    lifecycle: [lifecycleStep("requested", "Command requested")],
   });
   void emitAuditEvent({
     actorId: user.id,
@@ -613,9 +697,6 @@ export async function executeDeviceCommandForActor(input: {
     const normalized = normalizedCommand;
     const providerAckOnly = isIrProviderAckOnlyDevice(commandDevice, normalized);
     const irLane = providerAckOnly ? irCommandLaneKey(commandDevice) : null;
-    const clientCommandKey = input.req ? commandClientKey(input.req as Request, normalized) : normalized?.command_key || normalized?.key || normalized?.raw_key || normalized?.type || null;
-    const clientTapSequence = input.req ? commandClientSequence(input.req as Request) : "";
-    const clientTapTimestamp = commandClientTimestamp(input.req as Request);
     const irTapSequence = providerAckOnly ? clientTapSequence : "";
     const lifecycle = [
       lifecycleStep("pending", "Command received"),
@@ -646,6 +727,34 @@ export async function executeDeviceCommandForActor(input: {
         lane: irLane,
       });
     }
+    await upsertDeviceCommandExecution({
+      command_execution_id: executionId,
+      actor_id: user.id,
+      estate_id: deviceRow?.estate_id || user.estate_id || null,
+      home_id: deviceRow?.home_id || user.home_id || null,
+      room_id: deviceRow?.room_id || null,
+      canonical_device_id: deviceRow.id,
+      parent_device_id: deviceRow.parent_device_id || null,
+      target_type: commandTargetType(normalized, providerAckOnly),
+      channel_code: commandChannelCode(normalized),
+      provider: "tuya",
+      provider_device_id: commandDevice.external_id || null,
+      command_type: deviceCommandFamily(commandDevice),
+      normalized_command: normalized,
+      command_key: clientCommandKey,
+      source: commandSource,
+      accepted_at: new Date().toISOString(),
+      dispatched_at: new Date().toISOString(),
+      request_status: "accepted",
+      dispatch_status: "dispatching",
+      provider_status: "pending",
+      confirmation_status: providerAckOnly ? "not_observable" : "pending",
+      physical_effect_status: providerAckOnly ? "unknown" : "unknown",
+      expected_state: commandExpectedState(normalized),
+      final_status: "dispatching",
+      truth_state: "provider_dispatching",
+      lifecycle: [lifecycleStep("dispatching", "Provider dispatch started")],
+    });
     const providerDispatch = providerAckOnly && irLane
       ? await runInIrCommandLane(irLane, async () => {
         logger.info("ir_provider_dispatch_started", {
@@ -659,6 +768,34 @@ export async function executeDeviceCommandForActor(input: {
       })
       : await adapter.executeCommand(commandDevice.external_id, normalized, dispatchContext);
     lifecycle.push(lifecycleStep("provider_accepted", "Provider accepted"));
+    await upsertDeviceCommandExecution({
+      command_execution_id: executionId,
+      actor_id: user.id,
+      estate_id: deviceRow?.estate_id || user.estate_id || null,
+      home_id: deviceRow?.home_id || user.home_id || null,
+      room_id: deviceRow?.room_id || null,
+      canonical_device_id: deviceRow.id,
+      parent_device_id: deviceRow.parent_device_id || null,
+      target_type: commandTargetType(normalized, providerAckOnly),
+      channel_code: commandChannelCode(normalized),
+      provider: "tuya",
+      provider_device_id: commandDevice.external_id || null,
+      command_type: deviceCommandFamily(commandDevice),
+      normalized_command: normalized,
+      command_key: clientCommandKey,
+      source: commandSource,
+      provider_completed_at: new Date().toISOString(),
+      request_status: "accepted",
+      dispatch_status: "dispatched",
+      provider_status: "accepted",
+      confirmation_status: providerAckOnly ? "not_observable" : "awaiting_state_confirmation",
+      physical_effect_status: providerAckOnly ? "unknown" : "unknown",
+      expected_state: commandExpectedState(normalized),
+      final_status: providerAckOnly ? "provider_accepted" : "awaiting_state_confirmation",
+      truth_state: providerAckOnly ? "provider_ack_only_physical_unknown" : "awaiting_state_confirmation",
+      metadata: { provider_dispatch: providerDispatch || null },
+      lifecycle: [lifecycleStep(providerAckOnly ? "provider_accepted" : "awaiting_state_confirmation", providerAckOnly ? "Provider accepted IR dispatch" : "Provider accepted; awaiting state confirmation")],
+    });
     logDeviceCommandDiagnostic("device.command.provider", {
       device_id: rawId,
       matched_device_id: deviceRow.id,
@@ -728,6 +865,7 @@ export async function executeDeviceCommandForActor(input: {
         ok: true,
         accepted: true,
         dispatched: true,
+        final: true,
         status: "command_dispatched",
         execution_status: "provider_ack_only",
         command_execution_id: executionId,
@@ -735,6 +873,15 @@ export async function executeDeviceCommandForActor(input: {
         tap_sequence: clientTapSequence || null,
         client_tap_timestamp: clientTapTimestamp,
         confirmation_strategy: "provider_ack_only",
+        ...commandPublicStatus({
+          requestStatus: "accepted",
+          dispatchStatus: "dispatched",
+          providerStatus: "accepted",
+          confirmationStatus: "not_observable",
+          physicalEffectStatus: "unknown",
+          finalStatus: "provider_accepted",
+          truthState: "provider_ack_only_physical_unknown",
+        }),
         device: { id: deviceRow.id, name: deviceRow.name, external_id: commandDevice.external_id, vendor: commandDevice.vendor },
         command: normalized,
         command_lifecycle: lifecycle,
@@ -896,6 +1043,15 @@ export async function executeDeviceCommandForActor(input: {
       command: normalized,
       state: persistedState,
       command_lifecycle: lifecycle,
+      ...commandPublicStatus({
+        requestStatus: "accepted",
+        dispatchStatus: "dispatched",
+        providerStatus: "accepted",
+        confirmationStatus: "awaiting_state_confirmation",
+        physicalEffectStatus: "unknown",
+        finalStatus: "awaiting_state_confirmation",
+        truthState: "awaiting_state_confirmation",
+      }),
       message: commandSummary.message,
     };
   }
@@ -985,6 +1141,7 @@ async function emitDeviceCommandFailure(input: {
 }
 
 export async function requestDeviceCommand(req: Request, res: Response) {
+  let lastCommandExecutionId = "rejected";
   try {
     const rawId = String(req.params.deviceId || "").trim();
     const command = req.body?.command;
@@ -1007,10 +1164,26 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       command,
       scope,
     });
+    if (String(req.body?.target_type || "").toLowerCase() === "device_channel" && !commandChannelCode(target.normalizedCommand)) {
+      return res.status(422).json({
+        error: "missing_channel_code",
+        details: "Individual channel commands must include an exact switch_N command key.",
+        accepted: false,
+        final: true,
+        request_status: "rejected",
+        provider_status: "not_started",
+        confirmation_status: "not_started",
+        physical_effect_status: "unknown",
+        final_status: "rejected",
+        truth_state: "invalid_command",
+        retryable: false,
+      });
+    }
     assertUnlockConfirmed(req, target.commandDevice, target.normalizedCommand);
     const providerAckOnly = isIrProviderAckOnlyDevice(target.commandDevice, target.normalizedCommand);
     const key = commandIdempotencyKey(req, user, rawId, target.normalizedCommand, source, providerAckOnly ? 350 : 5_000);
     const executionId = commandExecutionId(req);
+    lastCommandExecutionId = executionId;
     const clientCommandKey = commandClientKey(req, target.normalizedCommand);
     const clientTapSequence = commandClientSequence(req) || null;
     const clientTapTimestamp = commandClientTimestamp(req);
@@ -1060,25 +1233,70 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         client_tap_timestamp: clientTapTimestamp,
       };
       commandAcceptances.set(key, { expiresAt: Date.now() + COMMAND_ACCEPTANCE_TTL_MS, response });
+      const irResponse = response as any;
       logger.info("ir_response_sent", {
         canonical_device_id: target.deviceRow.id,
         infrared_id: target.commandDevice.external_id || null,
         remote_id: target.commandDevice?.metadata?.ir_appliance?.remote_id || target.commandDevice?.metadata?.remote_id || null,
         command_key: clientCommandKey,
         tap_sequence: clientTapSequence,
-        accepted: response.accepted,
-        dispatched: response.dispatched,
-        confirmation_strategy: response.confirmation_strategy,
-        provider_latency_ms: response.provider_latency_ms ?? null,
+        accepted: irResponse.accepted,
+        dispatched: irResponse.dispatched,
+        confirmation_strategy: irResponse.confirmation_strategy,
+        provider_latency_ms: irResponse.provider_latency_ms ?? null,
       });
       return res.status(200).json(response);
     }
 
+    await upsertDeviceCommandExecution({
+      command_execution_id: executionId,
+      idempotency_key: key,
+      request_id: (req as any).id || null,
+      actor_id: user.id,
+      actor_email: user.email || null,
+      actor_role: user.role || null,
+      estate_id: target.deviceRow?.estate_id || scope.estateId || null,
+      home_id: target.deviceRow?.home_id || scope.homeId || null,
+      room_id: target.deviceRow?.room_id || null,
+      canonical_device_id: target.deviceRow.id,
+      parent_device_id: target.deviceRow.parent_device_id || null,
+      target_type: commandTargetType(target.normalizedCommand, false),
+      channel_code: commandChannelCode(target.normalizedCommand),
+      provider: String(target.commandDevice?.provider || target.commandDevice?.vendor || "device_adapter"),
+      provider_device_id: target.commandDevice?.external_id || null,
+      command_type: deviceCommandFamily(target.commandDevice),
+      normalized_command: target.normalizedCommand,
+      command_key: clientCommandKey,
+      source,
+      requested_at: new Date().toISOString(),
+      accepted_at: new Date().toISOString(),
+      request_status: "accepted",
+      dispatch_status: "queued",
+      provider_status: "pending",
+      confirmation_status: "pending",
+      physical_effect_status: "unknown",
+      expected_state: commandExpectedState(target.normalizedCommand),
+      final_status: "accepted_for_processing",
+      truth_state: "pending_confirmation",
+      lifecycle: [
+        lifecycleStep("accepted_for_processing", "Command accepted for asynchronous provider execution", "This is not final success."),
+      ],
+    });
     const response = {
       ok: true,
       accepted: true,
+      final: false,
       status: "command_accepted",
-      execution_status: "pending",
+      execution_status: "accepted_for_processing",
+      ...commandPublicStatus({
+        requestStatus: "accepted",
+        dispatchStatus: "queued",
+        providerStatus: "pending",
+        confirmationStatus: "pending",
+        physicalEffectStatus: "unknown",
+        finalStatus: "accepted_for_processing",
+        truthState: "pending_confirmation",
+      }),
       idempotency_key: key,
       command_execution_id: executionId,
       command_key: clientCommandKey,
@@ -1091,7 +1309,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         vendor: target.commandDevice.vendor,
       },
       command: target.normalizedCommand,
-      message: `${String(target.deviceRow.name || "Device")} command accepted. Oyi will confirm the device state in the background.`,
+      message: "Command sent. Waiting for confirmation.",
     };
     commandAcceptances.set(key, { expiresAt: Date.now() + COMMAND_ACCEPTANCE_TTL_MS, response });
 
@@ -1104,6 +1322,7 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       req,
       commandExecutionId: executionId,
     }).catch((error) => {
+      const classified = classifyCommandProviderError(error, "device_command_background_execution");
       logger.error("device_command_background_execution_failed", {
         error,
         device_id: rawId,
@@ -1112,7 +1331,49 @@ export async function requestDeviceCommand(req: Request, res: Response) {
         home_id: scope.homeId,
         idempotency_key: key,
         command_execution_id: executionId,
+        provider_error_classification: classified.classification,
+        provider_error_code: classified.provider_code,
       });
+      void upsertDeviceCommandExecution({
+        command_execution_id: executionId,
+        actor_id: user.id,
+        actor_email: user.email || null,
+        actor_role: user.role || null,
+        estate_id: target.deviceRow?.estate_id || scope.estateId || null,
+        home_id: target.deviceRow?.home_id || scope.homeId || null,
+        room_id: target.deviceRow?.room_id || null,
+        canonical_device_id: target.deviceRow.id,
+        parent_device_id: target.deviceRow.parent_device_id || null,
+        target_type: commandTargetType(target.normalizedCommand, false),
+        channel_code: commandChannelCode(target.normalizedCommand),
+        provider: String(target.commandDevice?.provider || target.commandDevice?.vendor || "device_adapter"),
+        provider_device_id: target.commandDevice?.external_id || null,
+        command_type: deviceCommandFamily(target.commandDevice),
+        normalized_command: target.normalizedCommand,
+        command_key: clientCommandKey,
+        source,
+        provider_completed_at: new Date().toISOString(),
+        finalised_at: new Date().toISOString(),
+        request_status: "accepted",
+        dispatch_status: "failed",
+        provider_status: "rejected",
+        confirmation_status: "failed",
+        physical_effect_status: "unknown",
+        provider_error_classification: classified.classification,
+        provider_error_code: classified.provider_code,
+        safe_error_message: classified.safe_message,
+        retryable: classified.retryable,
+        expected_state: commandExpectedState(target.normalizedCommand),
+        final_status: "provider_rejected",
+        truth_state: "failed",
+        lifecycle: [lifecycleStep("provider_rejected", "Provider rejected or failed command dispatch", classified.safe_message)],
+      });
+      void deviceRuntimeStateService.finalizePendingCommandFailure(target.deviceRow, {
+        commandExecutionId: executionId,
+        error: classified.safe_message,
+        providerStatus: "rejected",
+        source,
+      }).catch(() => undefined);
       void emitDeviceCommandFailure({ req, user, rawId, command: target.normalizedCommand, source, error, commandExecutionId: executionId }).catch((signalError) => {
         logger.error("device_command_background_failure_signal_failed", { error: signalError, device_id: rawId, actor_id: user.id });
       });
@@ -1132,12 +1393,33 @@ export async function requestDeviceCommand(req: Request, res: Response) {
           command: req.body?.command || null,
           source: commandSourceFor(req.body?.source || req.body?.command_source, user),
           error: e,
-          commandExecutionId: "rejected",
+          commandExecutionId: lastCommandExecutionId,
         });
       } catch {}
     }
     const message = String(e?.message || e || "");
     const statusCode = Number(e?.statusCode || 500);
+    const classified = classifyCommandProviderError(e, "device_command_request");
+    if (lastCommandExecutionId !== "rejected") {
+      void upsertDeviceCommandExecution({
+        command_execution_id: lastCommandExecutionId,
+        actor_id: user?.id || null,
+        actor_email: user?.email || null,
+        actor_role: user?.role || null,
+        estate_id: (req as any).oisContext?.estate_id || user?.estate_id || null,
+        home_id: (req as any).oisContext?.home_id || user?.home_id || null,
+        provider_status: statusCode >= 500 || statusCode === 424 || statusCode === 502 || statusCode === 503 ? "rejected" : "not_dispatched",
+        confirmation_status: "failed",
+        physical_effect_status: "unknown",
+        provider_error_classification: classified.classification,
+        provider_error_code: classified.provider_code,
+        safe_error_message: classified.safe_message,
+        retryable: classified.retryable,
+        final_status: statusCode === 422 || statusCode === 400 || statusCode === 403 || statusCode === 409 ? "failed" : "provider_rejected",
+        truth_state: "failed",
+        lifecycle: [lifecycleStep("failed", "Command failed before confirmed completion", classified.safe_message)],
+      });
+    }
     let error = "Command failed";
     let details = message || "The device command could not complete.";
     if (/not assigned to your current home/i.test(message)) {
@@ -1156,11 +1438,23 @@ export async function requestDeviceCommand(req: Request, res: Response) {
     return res.status(statusCode).json({
       ok: false,
       accepted: false,
+      final: true,
       status: "rejected",
+      request_status: "rejected",
+      provider_status: statusCode === 424 || statusCode === 502 || statusCode === 503 ? "rejected" : "not_dispatched",
+      confirmation_status: "failed",
+      physical_effect_status: "unknown",
+      final_status: "failed",
+      truth_state: "failed",
       reason: e?.code || (statusCode === 403 ? "permission_denied" : statusCode === 409 ? "context_conflict" : statusCode === 422 ? "capability_mapping_missing" : "command_rejected"),
-      execution_id: null,
+      command_execution_id: lastCommandExecutionId === "rejected" ? null : lastCommandExecutionId,
+      execution_id: lastCommandExecutionId === "rejected" ? null : lastCommandExecutionId,
       error,
       details,
+      provider_error_classification: classified.classification,
+      provider_error_code: classified.provider_code,
+      safe_error_message: classified.safe_message,
+      retryable: classified.retryable,
     });
   }
 }

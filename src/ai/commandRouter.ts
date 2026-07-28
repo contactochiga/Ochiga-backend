@@ -1469,12 +1469,17 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
       command: effectiveCommand,
     });
     const result = await executeDeviceCommandForActor({ actor, deviceId: String(device.id || device.external_id), command: effectiveCommand || {}, source: args.__oyi_surface === "facility" ? "facility" : "app", scope: runtimeScope, req });
-    const actionText = classification.action === "set_temperature" ? `set to ${(effectiveCommand as any)?.temperature}°` : classification.action === "on" ? "on" : "off";
-    const queued = result.status === "command_queued";
-    const summary = queued ? `${device.name || "Device"} command queued.` : `${device.name || "Device"} is ${actionText}.`;
-    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "executed", estateId, homeId, resultSummary: summary, metadata: { device_id: device.id, command: effectiveCommand, result } });
+    const commandResult: any = result;
+    const finalStatus = String(commandResult?.final_status || commandResult?.execution_status || commandResult?.status || "");
+    const awaiting = /accepted_for_processing|awaiting_state_confirmation|partial_confirmation|pending/.test(finalStatus);
+    const summary = awaiting
+      ? `${device.name || "Device"} command was accepted. Oyi is waiting for device-state confirmation.`
+      : finalStatus === "state_confirmed"
+        ? `${device.name || "Device"} state was confirmed.`
+        : `${device.name || "Device"} command status: ${finalStatus || "recorded"}.`;
+    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: awaiting ? "pending_confirmation" : finalStatus === "state_confirmed" ? "executed" : "executed", estateId, homeId, resultSummary: summary, metadata: { device_id: device.id, command: effectiveCommand, result } });
     await audit(req, actor, "ai.tool.executed", "success", { tool_id: "device_command", ledger_id: ledger.id, device_id: device.id });
-    return { tool_id: "device_command", status: queued ? "queued" : "executed", ledger_id: ledger.id || null, summary, data: { device_id: device.id, command_status: result.status } };
+    return { tool_id: "device_command", status: awaiting ? "pending_confirmation" : "executed", ledger_id: ledger.id || null, summary, data: { device_id: device.id, command_status: commandResult.status, command_execution_id: commandResult.command_execution_id || null, final_status: commandResult.final_status || null } };
   } catch (error: any) {
     const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "failed", estateId, homeId, errorMessage: error?.message || String(error), resultSummary: "The device command could not complete." });
     await audit(req, actor, "ai.action.failed", "failed", { tool_id: "device_command", ledger_id: ledger.id, error: error?.message || String(error) });

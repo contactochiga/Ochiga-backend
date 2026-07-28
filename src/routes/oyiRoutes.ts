@@ -8,6 +8,7 @@ import { adaptCanonicalToCompatibilityChat, runCanonicalConversation } from "../
 import { operationalMetrics } from "../observability/metrics";
 import { normalizeIntelligenceContextEnvelope } from "../oyi-core/contracts/intelligenceContextEnvelope";
 import { canonicalIntelligenceStore } from "../oyi-core/persistence/canonicalIntelligenceStore";
+import { getDeviceCommandExecution } from "../services/deviceCommandExecutionStore";
 
 const router = Router();
 
@@ -255,6 +256,17 @@ router.get("/runtime/executions/stats/automation", requireAuth, resolveRequestCo
 router.get("/runtime/executions/:executionId", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const id = String(req.params.executionId || "");
+    const commandExecution = await getDeviceCommandExecution(id).catch(() => null);
+    if (commandExecution?.command_execution_id) {
+      const actorId = String((commandExecution as any).actor_id || "");
+      const homeId = String((commandExecution as any).home_id || "");
+      const estateId = String((commandExecution as any).estate_id || "");
+      const isResident = String(req.user?.role || "").toLowerCase() === "resident";
+      if (isResident && req.user?.id && actorId && actorId !== String(req.user.id)) return res.status(403).json({ ok: false, error: "Execution is outside your scope" });
+      if (req.oisContext?.home_id && homeId && homeId !== String(req.oisContext.home_id)) return res.status(403).json({ ok: false, error: "Execution is outside active home" });
+      if (req.oisContext?.estate_id && estateId && estateId !== String(req.oisContext.estate_id)) return res.status(403).json({ ok: false, error: "Execution is outside active building" });
+      return res.json({ ok: true, execution: commandExecution });
+    }
     const local = executionLedger.get(id);
     if (local) return res.json({ ok: true, execution: local });
     const executions = await executionLedger.listPersisted(runtimeExecutionScope(req, 200));

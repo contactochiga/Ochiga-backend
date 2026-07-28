@@ -407,7 +407,7 @@ export class TuyaAdapter implements DeviceAdapter {
         });
         const providerStartedAt = Date.now();
         const response = await this.client.request<T>(method, path, resolvedBody);
-        logger.info("ir_provider_acknowledged", {
+        logger.info("ir_provider_response_received", {
           method,
           version,
           endpoint: path,
@@ -416,6 +416,26 @@ export class TuyaAdapter implements DeviceAdapter {
           provider_latency_ms: Date.now() - providerStartedAt,
           response,
         });
+        if (method !== "POST" || tuyaResultAccepted(response)) {
+          logger.info("ir_provider_accepted", {
+            method,
+            version,
+            endpoint: path,
+            endpoint_kind: options?.endpointKind || null,
+            infrared_id: options?.infraredId || null,
+            provider_latency_ms: Date.now() - providerStartedAt,
+          });
+        } else {
+          logger.warn("ir_provider_rejected", {
+            method,
+            version,
+            endpoint: path,
+            endpoint_kind: options?.endpointKind || null,
+            infrared_id: options?.infraredId || null,
+            accepted: false,
+            provider_response: response,
+          });
+        }
         if (method === "POST" && options?.infraredId) {
           if (version === "v1.0" && v2Incompatibility) {
             void this.rememberIrCompatibility(options.context, options.infraredId, {
@@ -1179,7 +1199,16 @@ export class TuyaAdapter implements DeviceAdapter {
     }
 
     if (!tuyaResultAccepted(result)) {
-      throw new Error("The connected provider did not confirm this remote command.");
+      logger.warn("ir_dispatch_unconfirmed", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+        infrared_id: infraredId,
+        remote_id: remoteId,
+        response: result,
+      });
+      const error: any = new Error("The connected provider did not confirm this remote command.");
+      error.statusCode = 424;
+      error.code = "IR_PROVIDER_DISPATCH_UNCONFIRMED";
+      throw error;
     }
 
     operationalMetrics.increment("oyi_provider_ir_commands_total", { provider: "tuya" });

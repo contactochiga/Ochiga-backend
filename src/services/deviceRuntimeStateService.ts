@@ -17,6 +17,7 @@ import {
   type CanonicalProviderError,
   type ProviderAuthorizationState,
 } from "../device/runtime/providerErrors";
+import { upsertDeviceCommandExecution } from "./deviceCommandExecutionStore";
 
 export type DeviceRuntimeFreshness = "fresh" | "stale" | "expired";
 export type DeviceRuntimeContractFreshness = "fresh" | "ageing" | "expired" | "unavailable" | "provider_disconnected";
@@ -535,6 +536,36 @@ export class DeviceRuntimeStateService {
         state_confirmed_at: entry.runtime_timestamp,
         confirmation: "confirmed",
       };
+      delete entry.state._oyi_pending_command;
+      void upsertDeviceCommandExecution({
+        command_execution_id: pendingCommand.command_execution_id || "",
+        actor_id: pendingCommand.actor_id || null,
+        actor_role: pendingCommand.actor_role || null,
+        estate_id: device?.estate_id || null,
+        home_id: device?.home_id || null,
+        room_id: device?.room_id || null,
+        canonical_device_id: String(device.id),
+        parent_device_id: device?.parent_device_id || null,
+        target_type: Object.keys(pendingCommand.command || {}).some((key) => /^switch_\d+$/i.test(key)) ? "device_channel" : "device",
+        channel_code: Object.keys(pendingCommand.command || {}).find((key) => /^switch_\d+$/i.test(key)) || null,
+        provider: String(device?.provider || device?.vendor || adapterName(device)),
+        provider_device_id: device?.external_id || null,
+        normalized_command: pendingCommand.command || null,
+        command_key: pendingCommand.command_key || null,
+        source: pendingCommand.source || null,
+        confirmation_completed_at: entry.runtime_timestamp,
+        finalised_at: entry.runtime_timestamp,
+        request_status: "accepted",
+        dispatch_status: "dispatched",
+        provider_status: "accepted",
+        confirmation_status: "state_confirmed",
+        physical_effect_status: "inferred",
+        expected_state: pendingCommand.command || null,
+        observed_state: entry.state,
+        final_status: "state_confirmed",
+        truth_state: "state_confirmed",
+        lifecycle: [{ status: "state_confirmed", occurred_at: entry.runtime_timestamp, label: "Runtime V2 confirmed the requested state." }],
+      });
     } else if (pendingCommand && confirmationAttempts < 3) {
       entry.state._oyi_pending_command = {
         ...pendingCommand,
@@ -543,6 +574,7 @@ export class DeviceRuntimeStateService {
       };
       entry.dirty = true;
     } else if (pendingCommand) {
+      const terminalConfirmation = confirmation.comparable ? "state_mismatch" : "confirmation_timed_out";
       entry.state._oyi_command_confirmation = {
         command: pendingCommand.command,
         source: pendingCommand.source || null,
@@ -551,8 +583,42 @@ export class DeviceRuntimeStateService {
         actor_id: pendingCommand.actor_id || null,
         actor_role: pendingCommand.actor_role || null,
         last_checked_at: entry.runtime_timestamp,
-        confirmation: confirmation.comparable ? "not_observed" : "unavailable",
+        confirmation: terminalConfirmation,
       };
+      delete entry.state._oyi_pending_command;
+      void upsertDeviceCommandExecution({
+        command_execution_id: pendingCommand.command_execution_id || "",
+        actor_id: pendingCommand.actor_id || null,
+        actor_role: pendingCommand.actor_role || null,
+        estate_id: device?.estate_id || null,
+        home_id: device?.home_id || null,
+        room_id: device?.room_id || null,
+        canonical_device_id: String(device.id),
+        parent_device_id: device?.parent_device_id || null,
+        target_type: Object.keys(pendingCommand.command || {}).some((key) => /^switch_\d+$/i.test(key)) ? "device_channel" : "device",
+        channel_code: Object.keys(pendingCommand.command || {}).find((key) => /^switch_\d+$/i.test(key)) || null,
+        provider: String(device?.provider || device?.vendor || adapterName(device)),
+        provider_device_id: device?.external_id || null,
+        normalized_command: pendingCommand.command || null,
+        command_key: pendingCommand.command_key || null,
+        source: pendingCommand.source || null,
+        confirmation_completed_at: entry.runtime_timestamp,
+        finalised_at: entry.runtime_timestamp,
+        request_status: "accepted",
+        dispatch_status: "dispatched",
+        provider_status: "accepted",
+        confirmation_status: terminalConfirmation,
+        physical_effect_status: confirmation.comparable ? "contradicted" : "unknown",
+        expected_state: pendingCommand.command || null,
+        observed_state: entry.state,
+        final_status: terminalConfirmation,
+        truth_state: terminalConfirmation,
+        safe_error_message: confirmation.comparable
+          ? "The provider accepted the command, but the latest device state did not match the requested value."
+          : "Oyi could not confirm a fresh device state after the provider accepted the command.",
+        retryable: true,
+        lifecycle: [{ status: terminalConfirmation, occurred_at: entry.runtime_timestamp, label: "Runtime V2 could not confirm the requested state." }],
+      });
     }
     try {
       await this.persist(entry);
@@ -635,6 +701,54 @@ export class DeviceRuntimeStateService {
   markDirty(deviceId: string) {
     const entry = this.cache.get(String(deviceId));
     if (entry) entry.dirty = true;
+  }
+
+  async finalizePendingCommandFailure(device: Record<string, any>, input: {
+    commandExecutionId: string;
+    error?: string | null;
+    providerStatus?: string | null;
+    source?: string | null;
+  }) {
+    const entry = this.cache.get(String(device.id));
+    if (!entry) return null;
+    const pendingCommand = entry.state?._oyi_pending_command && typeof entry.state._oyi_pending_command === "object"
+      ? entry.state._oyi_pending_command as Record<string, any>
+      : null;
+    if (!pendingCommand || String(pendingCommand.command_execution_id || "") !== String(input.commandExecutionId || "")) return this.snapshot(entry);
+    const runtimeTimestamp = new Date(this.now()).toISOString();
+    entry.state._oyi_command_confirmation = {
+      command: pendingCommand.command,
+      source: pendingCommand.source || input.source || null,
+      provider_accepted_at: pendingCommand.provider_accepted_at || null,
+      command_execution_id: pendingCommand.command_execution_id || null,
+      actor_id: pendingCommand.actor_id || null,
+      actor_role: pendingCommand.actor_role || null,
+      failed_at: runtimeTimestamp,
+      confirmation: "failed",
+      error: input.error || "The provider did not complete the command.",
+    };
+    delete entry.state._oyi_pending_command;
+    entry.dirty = false;
+    entry.runtime_timestamp = runtimeTimestamp;
+    entry.summary = summarizeDeviceFrontendContract(device, {
+      status: entry.state,
+      last_seen: entry.last_refresh,
+      updated_at: entry.runtime_timestamp,
+    });
+    try {
+      await this.persist(entry);
+    } catch (error) {
+      logger.error("device_runtime_pending_command_failure_persist_failed", { error, device_id: entry.device_id });
+    }
+    const payload = this.websocketPayload(entry, input.source || "command_failure", `device.command.failed:${input.commandExecutionId}`, null);
+    this.broadcast(entry, payload);
+    logger.info("optimistic_state_rolled_back", {
+      device: entry.device_id,
+      channel: Object.keys(pendingCommand.command || {}).find((key) => /^switch_\d+$/i.test(key)) || null,
+      command_execution_id: input.commandExecutionId,
+      restored_state: "last_confirmed",
+    });
+    return this.snapshot(entry);
   }
 
   markViewed(deviceId: string, input: {
