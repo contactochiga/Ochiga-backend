@@ -153,8 +153,13 @@ expect(
 );
 expect(
   "src/oyi-core/runtime/universalSignalRuntime.ts",
-  /smart_access_private[\s\S]*resident_device_private[\s\S]*return \["activity"\]/,
-  "routine resident-owned device events must avoid facility registry, reports and digital twin outputs",
+  /resolveIntelligencePolicy[\s\S]*allowedOutputs/,
+  "routine resident-owned device events must delegate output selection to the canonical intelligence policy resolver",
+);
+expect(
+  "src/oyi-core/policy/intelligencePolicyResolver.ts",
+  /resident_device_private[\s\S]*smart_access_private[\s\S]*infrastructure_registry[\s\S]*digital_twin[\s\S]*reports/,
+  "canonical intelligence policy must keep routine resident-owned device events out of facility registry, reports and digital twin outputs",
 );
 expect(
   "src/services/deviceRuntimeStateService.ts",

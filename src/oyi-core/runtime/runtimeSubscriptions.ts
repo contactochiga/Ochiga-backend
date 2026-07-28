@@ -7,6 +7,7 @@ import type { ConversationRequest, ConversationResponse } from "./conversation";
 import type { ExecutiveBriefing } from "./executive";
 import { operationalMetrics } from "../../observability/metrics";
 import { runtimeHealthRegistry } from "../../observability/runtimeHealth";
+import { channelsForRuntimeDelivery } from "../policy/intelligencePolicyResolver";
 
 export type RuntimeChannel =
   | "facility:signal"
@@ -147,7 +148,7 @@ export class RuntimeSubscriptionEngine {
     this.publish({
       kind: "signal",
       payload,
-      channels: ["facility:signal", "consumer:signal", "activity:event", "future:digital-twin", "future:conversation"],
+      channels: channelsForRuntimeDelivery(payload.signal, payload.receipt?.outputs as any, "signal", ["facility:signal", "consumer:signal", "activity:event", "future:conversation"]),
       dedupeKey: payload.signal?.id,
     });
   }
@@ -156,7 +157,7 @@ export class RuntimeSubscriptionEngine {
     this.publish({
       kind: "awareness",
       payload,
-      channels: ["facility:awareness", "consumer:awareness", "office:awareness", "notification:event", "activity:event", "future:digital-twin", "future:conversation", "future:executive"],
+      channels: channelsForRuntimeDelivery(payload.signal, payload.receipt?.outputs as any, "awareness", ["facility:awareness", "consumer:awareness", "notification:event", "activity:event", "future:conversation"]),
       dedupeKey: payload.awareness?.id || payload.signal?.id,
     });
   }
@@ -166,7 +167,7 @@ export class RuntimeSubscriptionEngine {
     this.publish({
       kind: "insight",
       payload,
-      channels: ["facility:insight", "consumer:insight", "office:insight", "notification:event", "activity:event", "future:digital-twin", "future:conversation", "future:executive"],
+      channels: channelsForRuntimeDelivery(payload.signal, payload.receipt?.outputs as any, "insight", ["facility:insight", "consumer:insight", "notification:event", "activity:event", "future:conversation"]),
     });
   }
 
@@ -175,7 +176,7 @@ export class RuntimeSubscriptionEngine {
     this.publish({
       kind: "recommendation",
       payload,
-      channels: ["facility:recommendation", "consumer:recommendation", "office:recommendation", "notification:event", "activity:event", "future:conversation", "future:executive"],
+      channels: channelsForRuntimeDelivery(payload.signal, payload.receipt?.outputs as any, "recommendation", ["facility:recommendation", "consumer:recommendation", "notification:event", "activity:event", "future:conversation"]),
     });
   }
 
@@ -184,7 +185,7 @@ export class RuntimeSubscriptionEngine {
     this.publish({
       kind: "automation",
       payload,
-      channels: ["facility:automation", "consumer:automation", "office:automation", "activity:event", "future:conversation", "future:executive"],
+      channels: channelsForRuntimeDelivery(payload.signal, payload.receipt?.outputs as any, "automation", ["facility:automation", "consumer:automation", "activity:event", "future:conversation"]),
     });
   }
 

@@ -6,6 +6,7 @@ import {
   type NormalizedSignal,
   type SignalPriority,
 } from "../contracts/operationalSignal";
+import { resolveIntelligencePolicy } from "../policy/intelligencePolicyResolver";
 
 export type SignalRuntimeOutput =
   | "operational_intelligence"
@@ -31,21 +32,7 @@ export type SignalRuntimeReceipt = {
 };
 
 function outputsFor(signal: NormalizedSignal): SignalRuntimeOutput[] {
-  if (signal.domain === "smart_access_private" || signal.domain === "resident_device_private") {
-    if (signal.severity === "critical" || signal.severity === "warning") return ["activity", "notifications", "executive_intelligence"];
-    return ["activity"];
-  }
-  const outputs = new Set<SignalRuntimeOutput>(["operational_intelligence", "activity", "reports", "future_ai"]);
-  const haystack = `${signal.type} ${signal.source} ${signal.domain} ${signal.entity.type}`.toLowerCase();
-  if (/device|edge|infrastructure|telemetry|meter|camera|onvif|tuya|mqtt|ble|matter/.test(haystack)) {
-    outputs.add("infrastructure_registry");
-    outputs.add("digital_twin");
-  }
-  if (/notification|communication|message|security|visitor|maintenance|financial|wallet|community/.test(haystack)) outputs.add("notifications");
-  if (/automation|rule|scene|device|edge|visitor|maintenance/.test(haystack)) outputs.add("automation");
-  if (/ai|oyi|conversation|message|communication/.test(haystack)) outputs.add("conversation");
-  if (/executive|financial|security|critical|governance/.test(haystack) || signal.severity === "critical") outputs.add("executive_intelligence");
-  return [...outputs];
+  return resolveIntelligencePolicy(signal).allowedOutputs;
 }
 
 export class UniversalSignalRuntime {

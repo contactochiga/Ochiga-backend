@@ -14,6 +14,8 @@ import { logger } from "../observability/logger";
 import { operationalMetrics } from "../observability/metrics";
 import { createRuntimeContext, getRuntimeContext, markRuntimeStage, patchRuntimeContext, runtimeTraceFields, withRuntimeContext, type RuntimeStage } from "../observability/runtimeContext";
 import { runtimeHealthRegistry } from "../observability/runtimeHealth";
+import { canonicalIntelligenceStore } from "./persistence/canonicalIntelligenceStore";
+import { resolveIntelligencePolicy } from "./policy/intelligencePolicyResolver";
 
 export type RuntimeBundle = {
   signals: NormalizedSignal[];
@@ -165,8 +167,18 @@ class OyiCoreRuntimeKernel {
       };
       patchRuntimeContext(traceForSignal(seedSignal));
       observeStage("signal.receive", receiptStartedAt, { mode: "receive" });
+      const outputPolicy = resolveIntelligencePolicy(seedSignal);
+      const durable = receipt.accepted ? await canonicalIntelligenceStore.recordSignal(seedSignal, receipt) : { persisted: false, duplicate: false, signalId: null, reason: "receipt_rejected" };
+      const effectiveReceipt: SignalRuntimeReceipt = {
+        ...receipt,
+        signal: seedSignal,
+        accepted: receipt.accepted && !durable.duplicate,
+        duplicate: receipt.duplicate || durable.duplicate,
+        outputs: outputPolicy.allowedOutputs,
+        issues: durable.reason && !durable.persisted ? [...receipt.issues, `durable_store:${durable.reason}`] : receipt.issues,
+      };
 
-      if (!receipt.accepted) {
+      if (!effectiveReceipt.accepted) {
         const duplicateAwareness: OperationalAwareness = {
           id: `awareness:${seedSignal.id}:deduplicated`,
           kind: "operational",
@@ -194,7 +206,7 @@ class OyiCoreRuntimeKernel {
           automationPlans: [],
         };
         const envelope: RuntimeEnvelope = {
-          receipt: { ...receipt, signal: seedSignal },
+          receipt: effectiveReceipt,
           bundle,
           execution_record: execution,
           operational_signal: seedSignal,
@@ -209,20 +221,20 @@ class OyiCoreRuntimeKernel {
           duration: Math.max(0, new Date(completedAt).getTime() - new Date(execution.startedAt).getTime()),
           status: "failed",
           result: {
-            accepted: false,
-            duplicate: receipt.duplicate,
-            outputs: receipt.outputs,
-            issues: receipt.issues,
-            priority: receipt.priority,
-            summary: receipt.duplicate ? "Duplicate signal rejected before reasoning and side effects." : "Signal rejected before reasoning and side effects.",
+          accepted: false,
+          duplicate: effectiveReceipt.duplicate,
+          outputs: effectiveReceipt.outputs,
+          issues: effectiveReceipt.issues,
+          priority: effectiveReceipt.priority,
+          summary: effectiveReceipt.duplicate ? "Duplicate signal rejected before reasoning and side effects." : "Signal rejected before reasoning and side effects.",
           },
           evidence: seedSignal.evidence,
         }) || execution;
-        operationalMetrics.increment("oyi_signal_duplicates_prevented_total", { duplicate: String(receipt.duplicate) });
+        operationalMetrics.increment("oyi_signal_duplicates_prevented_total", { duplicate: String(effectiveReceipt.duplicate) });
         logger.info("oyi_runtime_signal_rejected_before_reasoning", {
           signal_id: seedSignal.id,
           domain: seedSignal.domain,
-          duplicate: receipt.duplicate,
+          duplicate: effectiveReceipt.duplicate,
           accepted: false,
         });
         return envelope;
@@ -275,7 +287,7 @@ class OyiCoreRuntimeKernel {
         automationPlans,
       };
       const envelope: RuntimeEnvelope = {
-        receipt: { ...receipt, signal: seedSignal },
+        receipt: effectiveReceipt,
         bundle,
         execution_record: execution,
         operational_signal: seedSignal,
@@ -317,6 +329,7 @@ class OyiCoreRuntimeKernel {
 
       await this.safeHook(() => this.hooks.persistSignal?.(seedSignal, envelope.receipt));
       await this.safeHook(() => this.hooks.persistBundle?.(bundle, key));
+      await this.safeHook(() => canonicalIntelligenceStore.recordBundle(bundle, envelope.receipt));
       await this.safeHook(async () => {
         await this.hooks.audit?.(envelope.receipt);
         if (envelope.receipt.accepted && (seedSignal.severity === "critical" || seedSignal.severity === "warning")) {
@@ -328,13 +341,15 @@ class OyiCoreRuntimeKernel {
             resourceType: "operational_signal",
             resourceId: seedSignal.id,
             estateId: seedSignal.estate.id || null,
-            homeId: null,
+            homeId: String(seedSignal.metadata.home_id || seedSignal.context.home_id || "") || null,
             status: envelope.receipt.accepted ? "success" : "denied",
             metadata: {
               duplicate: envelope.receipt.duplicate,
               issues: envelope.receipt.issues,
               priority: envelope.receipt.priority,
               domain: seedSignal.domain,
+              privacy_class: outputPolicy.privacyClass,
+              denied_outputs: outputPolicy.deniedOutputs,
               runtime_trace: runtimeTraceFields(),
             },
           } as any);
@@ -346,6 +361,7 @@ class OyiCoreRuntimeKernel {
         domain: seedSignal.domain,
         accepted: envelope.receipt.accepted,
         outputs: envelope.receipt.outputs,
+        privacy_class: outputPolicy.privacyClass,
       });
       return envelope;
     };

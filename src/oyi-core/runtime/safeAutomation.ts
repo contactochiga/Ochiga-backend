@@ -1,5 +1,6 @@
 import type { NormalizedSignal, SignalSeverity } from "../contracts/operationalSignal";
 import type { OperationalRecommendation, RecommendationActionType } from "./operationalRecommendations";
+import { operationPlanType } from "./operationRegistry";
 import type { OperationalInsight } from "./operationalReasoning";
 import type { OperationalAwareness, OperationalContext } from "./contextAwareness";
 
@@ -15,7 +16,7 @@ export type AutomationDomain =
   | "operational_governance"
   | "executive";
 
-export type AutomationExecutionMode = "suggest_only" | "prepare_workflow" | "request_approval" | "execute_safe";
+export type AutomationExecutionMode = "suggest_only" | "prepare_workflow" | "request_approval" | "executable_action";
 export type AutomationPlanStatus = "planned" | "awaiting_approval" | "prepared" | "expired" | "cancelled";
 
 export type AutomationPlan = {
@@ -73,7 +74,7 @@ function executionMode(recommendation: OperationalRecommendation, permissions: s
   const hasPermissions = required.every((permission) => permissions.includes(permission));
   if (!hasPermissions) return "suggest_only";
   if (["schedule_preventive_inspection", "respond_to_complaints", "prepare_management_review"].includes(recommendation.actionType)) return "prepare_workflow";
-  return recommendation.safeToAutomate ? "execute_safe" : "suggest_only";
+  return recommendation.safeToAutomate ? operationPlanType(operationIdFor(recommendation)) : "suggest_only";
 }
 
 function permissionsForAction(actionType: RecommendationActionType, domain: AutomationDomain) {
@@ -88,7 +89,14 @@ function permissionsForAction(actionType: RecommendationActionType, domain: Auto
 }
 
 function safeToExecute(mode: AutomationExecutionMode, recommendation: OperationalRecommendation) {
-  return mode === "execute_safe" && !["financial", "security", "visitor"].includes(recommendation.domain);
+  return mode === "executable_action" && !["financial", "security", "visitor"].includes(recommendation.domain);
+}
+
+function operationIdFor(recommendation: OperationalRecommendation) {
+  if (recommendation.domain === "maintenance" && recommendation.actionType === "schedule_preventive_inspection") return "maintenance.prepare_workflow";
+  if (["infrastructure", "utility", "environmental"].includes(recommendation.domain)) return "infrastructure.request_verification";
+  if (recommendation.actionType === "request_operator_decision") return "notification.prepare_notice";
+  return null;
 }
 
 export function buildAutomationPlans(input: AutomationInput): AutomationPlan[] {
@@ -110,8 +118,8 @@ export function buildAutomationPlans(input: AutomationInput): AutomationPlan[] {
           ? "prepare_non_executing_workflow"
           : mode === "request_approval"
           ? "request_operator_approval"
-          : mode === "execute_safe"
-          ? "execute_internal_low_risk_step"
+          : mode === "executable_action"
+          ? "execute_registered_low_risk_operation"
           : "suggest_next_action",
       targetEntity: {
         id: signal?.entity.id || null,
@@ -145,8 +153,8 @@ export function buildAutomationPlans(input: AutomationInput): AutomationPlan[] {
           ? "Cancel the prepared workflow and return ownership to the originating operational queue."
           : mode === "request_approval"
           ? "Reject the approval request and leave the recommendation in review state."
-          : mode === "execute_safe"
-          ? "Cancel the internal automation task and reopen the recommendation for operator review."
+          : mode === "executable_action"
+          ? "Cancel the registered low-risk operation and reopen the recommendation for operator review."
           : "No automated action is executed; cancel by closing the suggestion.",
       auditReason: `${recommendation.reason} Recommendation ${recommendation.id} produced a ${mode} automation plan.`,
       expectedOutcome:
@@ -154,7 +162,7 @@ export function buildAutomationPlans(input: AutomationInput): AutomationPlan[] {
           ? `Prepare a safe workflow for: ${recommendation.recommendedAction}`
           : mode === "request_approval"
           ? `Gather operator approval before proceeding with: ${recommendation.recommendedAction}`
-          : mode === "execute_safe"
+          : mode === "executable_action"
           ? `Perform a low-risk internal automation step related to: ${recommendation.recommendedAction}`
           : `Provide operator-ready guidance for: ${recommendation.recommendedAction}`,
       relatedSignals: [...recommendation.relatedSignals],
@@ -171,7 +179,7 @@ export function buildAutomationPlans(input: AutomationInput): AutomationPlan[] {
           ? "Prepare the workflow and route it to the correct operator queue."
           : mode === "request_approval"
           ? "Request operator approval before any further action."
-          : mode === "execute_safe"
+          : mode === "executable_action"
           ? "Run the reversible internal step and retain the audit trail."
           : "Present the plan as guidance only.",
     };

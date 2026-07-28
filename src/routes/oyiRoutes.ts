@@ -6,6 +6,7 @@ import { oyiCoreRuntime } from "../oyi-core/service";
 import { executionLedger, type ExecutionLedgerScope } from "../oyi-core/runtime/executionLedger";
 import { adaptCanonicalToCompatibilityChat, runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
 import { operationalMetrics } from "../observability/metrics";
+import { normalizeIntelligenceContextEnvelope } from "../oyi-core/contracts/intelligenceContextEnvelope";
 
 const router = Router();
 
@@ -103,6 +104,15 @@ router.post("/runtime/evaluate", requireAuth, resolveRequestContext, async (req,
     return res.json({ ok: true, ...body });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to evaluate Oyi runtime" });
+  }
+});
+
+router.post("/runtime/context", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    const context = normalizeIntelligenceContextEnvelope({ ...(req.body?.context || {}), ...(req.oisContext || {}) }, (req.user || {}) as unknown as Record<string, unknown>);
+    return res.json({ ok: true, context });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to normalize Oyi runtime context" });
   }
 });
 
