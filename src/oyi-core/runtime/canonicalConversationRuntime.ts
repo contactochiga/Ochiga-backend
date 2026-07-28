@@ -314,17 +314,21 @@ function objectTypeFromTarget(target: OyiTarget | null | undefined): Operational
 
 function explicitObjectCandidate(input: CanonicalConversationRequest): ObjectCandidate | null {
   const contextRecord = recordOf(input.context);
-  const explicit = recordOf(input.operational_object || contextRecord.operational_object);
+  const activeContext = recordOf(contextRecord.active_intelligence_context || recordOf(contextRecord.runtime_context).active_context || recordOf(input.conversation_context).active_context);
+  const activeSelected = recordOf(activeContext.selected_subobject);
+  const activePrimary = recordOf(activeContext.primary_object);
+  const explicit = recordOf(input.operational_object || contextRecord.operational_object || (Object.keys(activeSelected).length ? activeSelected : activePrimary));
   const explicitType = objectTypeFromEntityType(explicit.object_type || explicit.type);
   const explicitId = text(explicit.canonical_id || explicit.target_id || explicit.id);
   if (explicitType && explicitId) {
+    const activeScope = recordOf(activeContext.scope);
     return {
       object_type: explicitType,
       canonical_id: explicitId,
       label: text(explicit.label || explicit.title) || null,
-      estate_id: text(explicit.estate_id) || input.estate_id || null,
-      home_id: text(explicit.home_id) || input.home_id || null,
-      room_id: text(explicit.room_id) || input.room_id || null,
+      estate_id: text(explicit.estate_id || activeScope.estate_id) || input.estate_id || null,
+      home_id: text(explicit.home_id || activeScope.home_id) || input.home_id || null,
+      room_id: text(explicit.room_id || activeScope.room_id) || input.room_id || null,
       source_module: text(explicit.source_module) || input.module || null,
       metadata: explicit,
       source: "explicit_request",
@@ -2302,10 +2306,12 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   const threadCandidate = threadObjectCandidate(threadContext);
   const preferredCandidate = explicitCandidate || threadCandidate;
   const resolved = await resolveCandidate(actor, oisContext, preferredCandidate);
+  const activeContextRecord = recordOf(recordOf(input.context).active_intelligence_context || recordOf(recordOf(input.context).runtime_context).active_context || recordOf(input.conversation_context).active_context);
+  const selectedSubobjectRecord = recordOf(activeContextRecord.selected_subobject || recordOf(input.conversation_context).selected_subobject);
   const targetResolution = resolveConversationTarget({
     query: input.message,
     explicitTarget: input.target as any,
-    selectedObject: input.operational_object as any,
+    selectedObject: Object.keys(selectedSubobjectRecord).length ? selectedSubobjectRecord as any : input.operational_object as any,
     pageObject: resolved.object ? {
       object_type: resolved.object.object_type,
       object_id: resolved.object.canonical_id,
@@ -2327,6 +2333,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       object_type: resolved.object?.object_type || null,
       object_id: resolved.object?.canonical_id || null,
       object_name: resolved.object?.label || null,
+      active_intelligence_context: activeContextRecord,
     } as any,
   });
   const moduleFacts = buildModuleFacts({
@@ -2347,6 +2354,60 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     health: resolved.object?.health || null,
     relationships: resolved.object?.relationships || {},
   });
+  if (explicitCandidate && !resolved.object) {
+    const label = cleanLabel(explicitCandidate.label || targetResolution.objectName, "the selected item");
+    const answer = `I know you are asking about ${label}, but I could not retrieve its current information in this scope.`;
+    const shaped = {
+      id: `oyi-runtime:${randomUUID()}`,
+      thread_id: text(input.thread_id) || randomUUID(),
+      intent: "target_unavailable",
+      understood: `Inspect ${label}`,
+      message: answer,
+      reply: answer,
+      display_mode: "detail",
+      confidence: 0.86,
+      awareness: {
+        headline: `${label} is unavailable to Oyi Core right now`,
+        summary: "The active context was preserved, and Oyi did not widen to unrelated records.",
+        severity: "attention",
+      },
+    };
+    const truth = canonicalTruthFor(shaped, null);
+    return {
+      id: shaped.id,
+      thread_id: shaped.thread_id,
+      intent: shaped.intent,
+      understood: shaped.understood,
+      summary: shaped.message,
+      answer,
+      reply: answer,
+      message: answer,
+      display_mode: "detail",
+      truth,
+      operational_object: null,
+      context: {
+        surface: input.surface,
+        estate_id: input.estate_id || oisContext?.estate_id || null,
+        home_id: input.home_id || oisContext?.home_id || null,
+        module: input.module || oisContext?.module || null,
+        context_source: resolved.source,
+        warnings: resolved.warnings,
+        target_resolution: { ...targetResolution, hydrationStatus: "not_found", scopeWidened: false },
+        module_facts: moduleFacts,
+      },
+      execution: {},
+      cards: [],
+      sources: [],
+      suggested_actions: [],
+      awareness: shaped.awareness,
+      confirmations: [],
+      warnings: resolved.warnings,
+      source: "oyi_canonical_runtime",
+      safe_mode: true,
+      approvalRequired: false,
+      requiresConfirmation: false,
+    };
+  }
   const compatibilityInput = compatibilityInputFromCanonical(input, resolved.object);
   const compatibility = await runOyiUnifiedChat(actor, compatibilityInput) as Record<string, unknown>;
   const shapedCompatibility = shapeObjectConversation(input, compatibility, resolved.object);

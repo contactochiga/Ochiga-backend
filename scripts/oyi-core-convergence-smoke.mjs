@@ -167,7 +167,44 @@ if (mode === "all" || mode === "contextual") {
   const facts = buildModuleFacts(deviceContext, { channel_definitions: [{ code: "switch_2" }] });
   check("conversation target resolver prefers current page object over stale thread target", () => {
     assert.equal(target.objectId, "device-b");
-    assert.equal(target.source, "page_object");
+    assert.equal(target.source, "active_page_object");
+  });
+  const smartIrTarget = resolveConversationTarget({
+    query: "Is this device working?",
+    threadTarget: { object_type: "device", object_id: "stale-device", object_name: "Old target" },
+    context: {
+      module: "device",
+      home_id: "home-a",
+      active_intelligence_context: {
+        context_id: "ctx-smart-ir-tv",
+        context_version: 7,
+        primary_object: { object_type: "device", canonical_id: "smart-ir-tv", label: "Smart IR TV" },
+        selected_subobject: null,
+      },
+    },
+  });
+  check("exact active context target beats this-device named phrase parsing", () => {
+    assert.equal(smartIrTarget.objectId, "smart-ir-tv");
+    assert.equal(smartIrTarget.objectName, "Smart IR TV");
+    assert.equal(smartIrTarget.source, "active_page_object");
+  });
+  const channelTarget = resolveConversationTarget({
+    query: "Is this channel on?",
+    context: {
+      module: "device",
+      home_id: "home-a",
+      active_intelligence_context: {
+        context_id: "ctx-channel",
+        context_version: 8,
+        primary_object: { object_type: "device", canonical_id: "switch-device", label: "Kitchen switch" },
+        selected_subobject: { object_type: "device_channel", canonical_id: "switch-device:switch_2", label: "Kitchen switch · Channel 2", parent_id: "switch-device", metadata: { channel_code: "switch_2" } },
+      },
+    },
+  });
+  check("selected device channel binds before parent device", () => {
+    assert.equal(channelTarget.objectType, "device_channel");
+    assert.equal(channelTarget.objectId, "switch-device:switch_2");
+    assert.equal(channelTarget.source, "selected_subobject");
   });
   check("module adapter returns facts only and preserves channel metadata", () => {
     assert.equal(facts.adapter, "device");
