@@ -26,6 +26,15 @@ const required = [
   ["invalid action index", "action_index"],
   ["invalid action device id", "canonical_device_id"],
   ["invalid action command key", "command_key"],
+  ["runtime snapshot-aware validation", "deviceRuntimeStateService.getOrHydrate"],
+  ["scene create request log", "scene_create_request_received"],
+  ["scene validation start log", "scene_action_validation_started"],
+  ["scene validation failure log", "scene_action_validation_failed"],
+  ["scene capability contract log", "scene_action_capability_contract"],
+  ["scene create rejected log", "scene_create_rejected"],
+  ["scene create completed log", "scene_create_completed"],
+  ["exposed channel keys in validation", "exposed_channel_keys"],
+  ["runtime freshness in validation", "runtime_freshness"],
 ];
 
 const missing = required.filter(([, needle]) => !scenesRoute.includes(needle));

@@ -8,6 +8,8 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { resolveVisibleDevice } from "../services/deviceRuntimeService";
 import { hasWatchScope } from "../services/watchPolicy";
 import { summarizeDeviceFrontendContract } from "../device/runtime/deviceStateEnrichment";
+import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
+import { logger } from "../observability/logger";
 
 const router = Router();
 router.use(requireAuth);
@@ -71,6 +73,8 @@ function sceneActionError(
     canonicalDeviceId?: string | null;
     commandKey?: string | null;
     legacyCode?: string;
+    exposedChannelKeys?: string[];
+    runtimeFreshness?: string | null;
   } = {},
 ) {
   const error: any = publicActionError(message, statusCode, code);
@@ -78,6 +82,8 @@ function sceneActionError(
   error.canonical_device_id = context.canonicalDeviceId || null;
   error.command_key = context.commandKey || null;
   if (context.legacyCode) error.legacy_code = context.legacyCode;
+  error.exposed_channel_keys = Array.isArray(context.exposedChannelKeys) ? context.exposedChannelKeys : [];
+  error.runtime_freshness = context.runtimeFreshness || null;
   return error;
 }
 
@@ -90,6 +96,8 @@ function sceneActionErrorPayload(err: any) {
     action_index: Number.isInteger(err?.action_index) ? err.action_index : null,
     canonical_device_id: err?.canonical_device_id || null,
     command_key: err?.command_key || null,
+    exposed_channel_keys: Array.isArray(err?.exposed_channel_keys) ? err.exposed_channel_keys : [],
+    runtime_freshness: err?.runtime_freshness || null,
   };
 }
 
@@ -150,51 +158,141 @@ function controllableChannels(summary: any) {
     }));
 }
 
+function validationLogBase(req: any) {
+  const scope = activeScope(req);
+  return {
+    actor_id: req.user?.id || null,
+    estate_id: scope.estate_id,
+    home_id: scope.home_id,
+  };
+}
+
+function sanitizedActionsForLog(actions: CleanSceneAction[]) {
+  return actions.map((action, index) => {
+    const [commandKey, value] = commandEntries(action.command)[0] || [];
+    return {
+      action_index: index,
+      canonical_device_id: action.device_id,
+      command_key: commandKey ? String(commandKey) : null,
+      value_type: typeof value,
+      value: typeof value === "boolean" || typeof value === "number" || typeof value === "string" ? value : null,
+    };
+  });
+}
+
+async function frontendContractForSceneValidation(device: any) {
+  const snapshot = await deviceRuntimeStateService.getOrHydrate(device).catch((error) => {
+    logger.warn("scene_action_runtime_snapshot_unavailable", {
+      device_id: String(device?.id || ""),
+      error,
+    });
+    return null;
+  });
+  const stateRow = snapshot
+    ? {
+      status: snapshot.state,
+      last_seen: snapshot.last_refresh,
+      updated_at: snapshot.runtime_timestamp,
+    }
+    : null;
+  return {
+    summary: snapshot?.summary || summarizeDeviceFrontendContract(device, stateRow),
+    runtimeFreshness: snapshot?.freshness || "unavailable",
+    runtimeSource: snapshot?.source || "none",
+  };
+}
+
 async function canonicalizeSceneAction(req: any, action: CleanSceneAction, index: number): Promise<CanonicalSceneAction> {
   const scope = activeScope(req);
+  const [submittedKey, submittedValue] = commandEntries(action.command)[0] || [];
+  logger.info("scene_action_validation_started", {
+    ...validationLogBase(req),
+    action_index: index,
+    canonical_device_id: action.device_id,
+    command_key: submittedKey ? String(submittedKey) : null,
+    value_type: typeof submittedValue,
+  });
+
   const device = await resolveVisibleDevice(req.user!, action.device_id, { estateId: scope.estate_id, homeId: scope.home_id });
   if (!device?.id) {
+    logger.warn("scene_action_validation_failed", {
+      ...validationLogBase(req),
+      action_index: index,
+      canonical_device_id: action.device_id,
+      command_key: submittedKey ? String(submittedKey) : null,
+      exposed_channel_keys: [],
+      runtime_freshness: "unavailable",
+      validation_code: "device_out_of_scope",
+    });
     throw sceneActionError("Scene contains a device outside this home.", 403, "device_out_of_scope", {
       actionIndex: index,
       canonicalDeviceId: action.device_id,
+      commandKey: submittedKey ? String(submittedKey) : null,
+      runtimeFreshness: "unavailable",
     });
   }
 
-  const summary = summarizeDeviceFrontendContract(device);
+  const { summary, runtimeFreshness, runtimeSource } = await frontendContractForSceneValidation(device);
   const family = sceneDeviceFamily(device, summary);
   const entries = commandEntries(action.command);
   const [rawKey, rawValue] = entries[0] || [];
   const key = String(rawKey || "").trim();
   const keyLower = key.toLowerCase();
-  const errorContext = { actionIndex: index, canonicalDeviceId: String(device.id), commandKey: key || null };
-
-  if (family === "lock") throw sceneActionError("Lock actions are unavailable in scenes for safety.", 422, "lock_scene_action_blocked", errorContext);
-  if (family === "ir") throw sceneActionError("TV and IR remote actions are not enabled for scenes in this phase.", 422, "ir_scene_action_blocked", errorContext);
-
-  if (entries.length !== 1) throw sceneActionError("Each scene action must control exactly one device action.", 422, "scene_action_not_atomic", errorContext);
   const channels = controllableChannels(summary);
+  const exposedChannelKeys = channels.map((channel: { code: string }) => channel.code);
   const capabilityCodes = new Set([...(summary.capability_codes || []), ...(summary.supported_controls || [])].map((item: any) => String(item).toLowerCase()));
+  const errorContext = { actionIndex: index, canonicalDeviceId: String(device.id), commandKey: key || null, exposedChannelKeys, runtimeFreshness };
+
+  logger.info("scene_action_capability_contract", {
+    ...validationLogBase(req),
+    action_index: index,
+    canonical_device_id: String(device.id),
+    command_key: key || null,
+    device_family: family,
+    exposed_channel_keys: exposedChannelKeys,
+    capability_keys: Array.from(capabilityCodes).filter((code) => /^switch(_\d+)?$/.test(code) || ["switch", "power", "on"].includes(code)),
+    runtime_freshness: runtimeFreshness,
+    runtime_source: runtimeSource,
+  });
+
+  const fail = (error: any) => {
+    logger.warn("scene_action_validation_failed", {
+      ...validationLogBase(req),
+      action_index: Number.isInteger(error?.action_index) ? error.action_index : index,
+      canonical_device_id: error?.canonical_device_id || String(device.id),
+      command_key: error?.command_key || key || null,
+      exposed_channel_keys: Array.isArray(error?.exposed_channel_keys) ? error.exposed_channel_keys : exposedChannelKeys,
+      runtime_freshness: error?.runtime_freshness || runtimeFreshness,
+      validation_code: error?.code || "scene_action_invalid",
+    });
+    return error;
+  };
+
+  if (family === "lock") throw fail(sceneActionError("Lock actions are unavailable in scenes for safety.", 422, "lock_scene_action_blocked", errorContext));
+  if (family === "ir") throw fail(sceneActionError("TV and IR remote actions are not enabled for scenes in this phase.", 422, "ir_scene_action_blocked", errorContext));
+
+  if (entries.length !== 1) throw fail(sceneActionError("Each scene action must control exactly one device action.", 422, "scene_action_not_atomic", errorContext));
   const deviceName = String(device.name || "Device");
 
   if (family === "switch") {
     const desired = boolValue(rawValue);
-    if (desired === null) throw sceneActionError("Switch scene actions must be On or Off.", 422, "invalid_switch_value", errorContext);
+    if (desired === null) throw fail(sceneActionError("Switch scene actions must be On or Off.", 422, "invalid_switch_value", errorContext));
     let commandCode = key;
     if (["switch", "power", "on"].includes(keyLower)) {
       if (channels.length > 1) {
-        throw sceneActionError("Choose a specific switch channel for this multi-gang device.", 422, "ambiguous_multi_gang_scene_action", errorContext);
+        throw fail(sceneActionError("Choose a specific switch channel for this multi-gang device.", 422, "ambiguous_multi_gang_scene_action", errorContext));
       }
       commandCode = channels[0]?.code || (capabilityCodes.has("switch_1") ? "switch_1" : keyLower);
     } else if (/^switch_\d+$/i.test(key)) {
       const hasChannel = channels.some((channel: { code: string }) => channel.code.toLowerCase() === keyLower);
       if (!hasChannel && !capabilityCodes.has(keyLower)) {
-        throw sceneActionError("This switch channel is not exposed by the device.", 422, "SCENE_CHANNEL_NOT_EXPOSED", {
+        throw fail(sceneActionError("This switch channel is not exposed by the device.", 422, "SCENE_CHANNEL_NOT_EXPOSED", {
           ...errorContext,
           legacyCode: "unsupported_switch_channel",
-        });
+        }));
       }
     } else if (!capabilityCodes.has(keyLower)) {
-      throw sceneActionError("This device does not expose that scene action.", 422, "unsupported_scene_command", errorContext);
+      throw fail(sceneActionError("This device does not expose that scene action.", 422, "unsupported_scene_command", errorContext));
     }
     const channel = channels.find((item: { code: string; name: string }) => item.code.toLowerCase() === String(commandCode).toLowerCase());
     const actionLabel = action.action_label || action.label || `${channel?.name || titleCase(commandCode, "Power")} → ${desired ? "On" : "Off"}`;
@@ -210,11 +308,11 @@ async function canonicalizeSceneAction(req: any, action: CleanSceneAction, index
 
   if (family === "curtain") {
     if (!["open", "close", "position"].includes(keyLower) || !capabilityCodes.has(keyLower)) {
-      throw sceneActionError("This curtain does not expose that safe scene action.", 422, "unsupported_curtain_action", errorContext);
+      throw fail(sceneActionError("This curtain does not expose that safe scene action.", 422, "unsupported_curtain_action", errorContext));
     }
     const value = keyLower === "position" ? numberValue(rawValue) : boolValue(rawValue);
     if (value === null || (typeof value === "number" && (value < 0 || value > 100))) {
-      throw sceneActionError("Curtain scene action value is invalid.", 422, "invalid_curtain_value", errorContext);
+      throw fail(sceneActionError("Curtain scene action value is invalid.", 422, "invalid_curtain_value", errorContext));
     }
     const actionLabel = action.action_label || action.label || `${titleCase(keyLower)} → ${String(value)}`;
     return { device_id: String(device.id), command: { [keyLower]: value }, label: action.label || actionLabel, action_label: actionLabel, device_name: deviceName, command_code: keyLower };
@@ -222,15 +320,15 @@ async function canonicalizeSceneAction(req: any, action: CleanSceneAction, index
 
   if (family === "climate") {
     if (!["temperature", "temp_set", "mode"].includes(keyLower) || !capabilityCodes.has(keyLower)) {
-      throw sceneActionError("This climate device does not expose that scene action.", 422, "unsupported_climate_action", errorContext);
+      throw fail(sceneActionError("This climate device does not expose that scene action.", 422, "unsupported_climate_action", errorContext));
     }
     const value = keyLower === "mode" ? String(rawValue || "").trim() : numberValue(rawValue);
-    if (value === "" || value === null) throw sceneActionError("Climate scene action value is invalid.", 422, "invalid_climate_value", errorContext);
+    if (value === "" || value === null) throw fail(sceneActionError("Climate scene action value is invalid.", 422, "invalid_climate_value", errorContext));
     const actionLabel = action.action_label || action.label || `${titleCase(keyLower)} → ${String(value)}`;
     return { device_id: String(device.id), command: { [keyLower]: value }, label: action.label || actionLabel, action_label: actionLabel, device_name: deviceName, command_code: keyLower };
   }
 
-  throw sceneActionError("This device is not supported by scenes yet.", 422, "unsupported_scene_device", errorContext);
+  throw fail(sceneActionError("This device is not supported by scenes yet.", 422, "unsupported_scene_device", errorContext));
 }
 
 async function canonicalizeSceneActions(req: any, actions: CleanSceneAction[]) {
@@ -352,12 +450,22 @@ router.post("/", requirePermission("devices.control"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
   const name = String(req.body?.name || "").trim().slice(0, 80);
   const actions = cleanActions(req.body?.actions);
+  logger.info("scene_create_request_received", {
+    ...validationLogBase(req),
+    action_count: actions.length,
+    actions: sanitizedActionsForLog(actions),
+  });
   if (!name || !actions.length) return res.status(400).json({ error: "A scene name and at least one device action are required" });
   let canonicalActions: CanonicalSceneAction[];
   try {
     canonicalActions = await canonicalizeSceneActions(req, actions);
   } catch (err: any) {
-    return res.status(Number(err?.statusCode || 422)).json(sceneActionErrorPayload(err));
+    const payload = sceneActionErrorPayload(err);
+    logger.warn("scene_create_rejected", {
+      ...validationLogBase(req),
+      ...payload,
+    });
+    return res.status(Number(err?.statusCode || 422)).json(payload);
   }
   const row = {
     ...activeScope(req),
@@ -372,6 +480,11 @@ router.post("/", requirePermission("devices.control"), async (req, res) => {
   const { data, error } = await supabaseAdmin.from("consumer_scenes").insert(row as any).select("*").single();
   if (error) return res.status(500).json({ error: error.message });
   await audit(req.user!, "scene.created", data.id, { action_count: actions.length }, req);
+  logger.info("scene_create_completed", {
+    ...validationLogBase(req),
+    scene_id: data.id,
+    action_count: canonicalActions.length,
+  });
   res.status(201).json(data);
 });
 
