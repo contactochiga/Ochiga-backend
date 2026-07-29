@@ -176,6 +176,12 @@
     ,"smoke:conversation-command-target-binding": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
     ,"smoke:home-summary-truth": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
     ,"smoke:freshness-copy-truth": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
+    ,"smoke:conversation-thread-lifecycle": "npm run build && node scripts/conversation-foundation-smoke.mjs"
+    ,"smoke:conversation-thread-authority": "npm run build && node scripts/conversation-foundation-smoke.mjs"
+    ,"smoke:canonical-turn-interpretation": "npm run build && node scripts/conversation-foundation-smoke.mjs"
+    ,"smoke:thread-context-restoration": "npm run build && node scripts/conversation-foundation-smoke.mjs"
+    ,"smoke:live-truth-after-thread-restore": "npm run build && node scripts/conversation-foundation-smoke.mjs"
+    ,"smoke:command-target-binding-v2": "npm run build && node scripts/conversation-foundation-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

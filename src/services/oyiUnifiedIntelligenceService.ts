@@ -190,6 +190,19 @@ function validUuid(value?: string | null) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
 
+function genericThreadTitle(value: unknown) {
+  return /^(oyi conversation|new conversation|chat|conversation)$/i.test(String(value || "").trim());
+}
+
+function cleanThreadPreview(value: unknown) {
+  return String(value || "")
+    .replace(/\b(?:ai|oyi|device|audit|proximity|runtime)\.[a-z0-9_.-]+\b/gi, "event")
+    .replace(/\bInvalid Date\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180) || null;
+}
+
 function humanLabel(value?: unknown) {
   const label = String(value || "").trim();
   if (!label || validUuid(label)) return null;
@@ -2640,16 +2653,65 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
   return threadId;
 }
 
-function threadRow(row: any) {
+async function threadMessageSummary(threadId: string) {
+  const countResult = await supabaseAdmin
+    .from("oyi_conversation_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("thread_id", threadId);
+  const latestResult = await supabaseAdmin
+    .from("oyi_conversation_messages")
+    .select("id,role,content,metadata,created_at")
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(6);
+  if (countResult.error) console.warn("[oyi-thread]", "message_count_failed", { thread_id: threadId, error: countResult.error.message });
+  if (latestResult.error) console.warn("[oyi-thread]", "preview_failed", { thread_id: threadId, error: latestResult.error.message });
+  const latestRows = latestResult.data || [];
+  const previewRow = latestRows.find((message: any) => cleanThreadPreview(message.content));
+  const latestMetadata = latestRows.find((message: any) => message?.metadata)?.metadata || {};
+  return {
+    preview: cleanThreadPreview(previewRow?.content || latestMetadata.preview),
+    message_count: Number(countResult.count || 0),
+    latest_metadata: latestMetadata,
+  };
+}
+
+async function enrichThreadRows(rows: any[]) {
+  return Promise.all((rows || []).map(async (row) => threadRow(row, await threadMessageSummary(String(row.id)))));
+}
+
+function lastOperationalObject(metadata: Record<string, any>) {
+  const object = metadata.last_operational_object || metadata.active_target || metadata.thread_memory_context || {};
+  const type = object.type || object.object_type || null;
+  const id = object.id || object.object_id || object.canonical_id || null;
+  if (!type || !id) return null;
+  return { type: String(type), id: String(id), label: humanLabel(object.label || object.object_name || object.objectName) };
+}
+
+function threadRow(row: any, summary: { preview?: string | null; message_count?: number; latest_metadata?: Record<string, any> } = {}) {
+  const metadata = row.metadata || {};
+  const latestMetadata = summary.latest_metadata || {};
+  const title = row.title && !genericThreadTitle(row.title)
+    ? row.title
+    : humanLabel(metadata.title || metadata.last_intent)
+      || cleanThreadPreview(summary.preview || metadata.preview)
+      || "Oyi conversation";
   return {
     id: row.id,
     surface: row.surface,
     estate_id: row.estate_id,
     home_id: row.home_id,
     module: row.module,
-    title: row.title || "Oyi conversation",
+    title,
+    preview: summary.preview || cleanThreadPreview(metadata.preview),
+    message_count: Number(summary.message_count || metadata.message_count || 0),
+    started_at: row.created_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    last_intent: metadata.last_intent || latestMetadata.intent || latestMetadata.canonical_request_contract?.intent || null,
+    last_scope: metadata.last_scope || latestMetadata.canonical_request_contract?.scope_mode || null,
+    last_operational_object: lastOperationalObject(metadata),
     metadata: row.metadata || {},
   };
 }
@@ -2692,7 +2754,8 @@ export async function listOyiConversationThreads(actor: AuthUser | null, input: 
     async () => {
       const { data, error } = await scopedThreadQuery(actor, input);
       if (error) return { ok: false, error: error.message, threads: [] };
-      return { ok: true, threads: (data || []).map(threadRow), role_policy: getIntelligencePermissionPolicy(actor) };
+      const threads = await enrichThreadRows(data || []);
+      return { ok: true, threads, role_policy: getIntelligencePermissionPolicy(actor) };
     }
   );
 }
@@ -2716,9 +2779,10 @@ export async function getOyiConversationMessages(actor: AuthUser | null, threadI
         .select("id,thread_id,user_id,role,content,cards,sources,suggested_actions,metadata,created_at")
         .eq("thread_id", threadId)
         .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
         .limit(200);
       if (messages.error) return { ok: false, error: messages.error.message, thread: threadRow(thread.data), messages: [] };
-      return { ok: true, thread: threadRow(thread.data), messages: (messages.data || []).map(messageRow), role_policy: getIntelligencePermissionPolicy(actor) };
+      return { ok: true, thread: threadRow(thread.data, await threadMessageSummary(threadId)), messages: (messages.data || []).map(messageRow), role_policy: getIntelligencePermissionPolicy(actor) };
     }
   );
 }
