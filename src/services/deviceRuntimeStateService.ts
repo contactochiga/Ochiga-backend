@@ -195,7 +195,11 @@ function adapterName(device: Record<string, any>) {
 
 function commandConfirmation(state: Record<string, any>, pending: Record<string, any> | null) {
   const command = pending?.command && typeof pending.command === "object" ? pending.command : null;
-  if (!command) return { confirmed: false, comparable: false };
+  if (!command) return { confirmed: false, comparable: false, observed_at: null, newer_than_dispatch: false };
+  const observedAt = providerTimestamp(state) || runtimeMetadata(state).runtime_timestamp || null;
+  const dispatchAt = validTimestamp(pending?.provider_accepted_at) || null;
+  const newerThanDispatch = Boolean(!dispatchAt || !observedAt || new Date(observedAt).getTime() >= new Date(dispatchAt).getTime());
+  if (!newerThanDispatch) return { confirmed: false, comparable: false, observed_at: observedAt, newer_than_dispatch: false };
   const normalized = state?.normalized_state && typeof state.normalized_state === "object" ? state.normalized_state : {};
   const switches = normalized?.switches && typeof normalized.switches === "object" ? normalized.switches : {};
   let comparable = 0;
@@ -207,7 +211,7 @@ function commandConfirmation(state: Record<string, any>, pending: Record<string,
     comparable += 1;
     if (String(actual) === String(expected)) matched += 1;
   }
-  return { confirmed: comparable > 0 && matched === comparable, comparable: comparable > 0 };
+  return { confirmed: comparable > 0 && matched === comparable, comparable: comparable > 0, observed_at: observedAt, newer_than_dispatch: newerThanDispatch };
 }
 
 async function defaultResolveDevice(deviceId: string) {
@@ -524,6 +528,23 @@ export class DeviceRuntimeStateService {
       updated_at: entry.runtime_timestamp,
     });
     const confirmation = commandConfirmation(entry.state, pendingCommand);
+    if (pendingCommand) {
+      logger.info("device_command_confirmation_evidence", {
+        command_execution_id: pendingCommand.command_execution_id || null,
+        device_id: String(device.id),
+        channel_code: Object.keys(pendingCommand.command || {}).find((key) => /^switch_\d+$/i.test(key)) || null,
+        expected: pendingCommand.command || null,
+        observed: entry.state,
+        observation_source: input.source || "provider",
+        provider_timestamp: incomingProviderTimestamp || entry.provider_timestamp || null,
+        runtime_timestamp: entry.runtime_timestamp,
+        command_dispatch_timestamp: pendingCommand.provider_accepted_at || null,
+        newer_than_dispatch: confirmation.newer_than_dispatch,
+        freshness: this.snapshot(entry).freshness,
+        confirmation_result: confirmation.confirmed ? "confirmed" : confirmation.comparable ? "mismatch" : "not_comparable",
+        physical_effect_status: confirmation.confirmed ? "inferred" : "unknown",
+      });
+    }
     const confirmationAttempts = Number(pendingCommand?.confirmation_attempts || 0) + 1;
     if (pendingCommand && confirmation.confirmed) {
       entry.state._oyi_command_confirmation = {
@@ -632,7 +653,14 @@ export class DeviceRuntimeStateService {
     operationalMetrics.increment("oyi_device_runtime_updates_total", { source: input.source || "provider" });
 
     if (pendingCommand && !confirmation.confirmed && confirmationAttempts < 3) {
-      this.scheduleRefresh(entry.device, { priority: "high", reason: "command_confirmation", delayMs: 1_500 });
+      logger.info("device_command_priority_refresh_scheduled", {
+        command_execution_id: pendingCommand.command_execution_id || null,
+        device_id: entry.device_id,
+        channel_code: Object.keys(pendingCommand.command || {}).find((key) => /^switch_\d+$/i.test(key)) || null,
+        delay_ms: 900,
+        attempt: confirmationAttempts + 1,
+      });
+      this.scheduleRefresh(entry.device, { priority: "high", reason: "command_confirmation", delayMs: 900 });
     }
 
     const authorizationRecovered = Boolean(previousProviderError && ["permission_denied", "device_not_linked", "integration_expired", "authentication_failed"].includes(previousProviderError.classification));
@@ -914,6 +942,12 @@ export class DeviceRuntimeStateService {
   scheduleRefresh(device: Record<string, any>, input: { priority?: DeviceRuntimeRefreshPriority; reason?: string; delayMs?: number; markDirty?: boolean } = {}) {
     if (input.markDirty !== false) this.markDirty(String(device.id));
     const run = () => {
+      logger.info("device_command_priority_refresh_joined", {
+        device_id: String(device.id || ""),
+        reason: input.reason || "scheduled",
+        priority: input.priority || "high",
+        in_flight: this.refreshes.has(String(device.id || "")),
+      });
       void this.refresh(device, input.priority || "high", input.reason || "scheduled")
         .catch((error) => logger.warn("device_runtime_scheduled_refresh_failed", { error, device_id: device.id }));
     };

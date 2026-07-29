@@ -449,6 +449,14 @@ export async function initMqttBridge() {
               ? "device.provider.sync"
               : "device.telemetry.received";
 
+        logger.info("device_event_context_enriched", {
+          device_id: String(deviceId),
+          estate_id: device?.estate_id || estateId || null,
+          home_id: device?.home_id || null,
+          room_id: device?.room_id || null,
+          privacy_class: device?.ownership_class === "resident_owned" || device?.home_id ? "resident_device_private" : "building_operational",
+          provider_event_id: providerEventId || null,
+        });
         await emitOperationalDeviceSignal({
           eventType: signalEventType as any,
           source: eventSource,

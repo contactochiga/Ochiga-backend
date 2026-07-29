@@ -44,6 +44,13 @@ function requestIp(req?: Request) {
 }
 
 export async function emitAuditEvent(input: Omit<AuditEventContract, "timestamp"> & { req?: Request }) {
+  const isResidentDeviceAudit = input.resourceType === "device" && /^device\./.test(String(input.action || "")) && Boolean((input as any).homeId);
+  const signalMetadata = {
+    ...(input.metadata || {}),
+    home_id: (input as any).homeId || null,
+    privacy_class: isResidentDeviceAudit ? "resident_device_private" : (input.metadata as any)?.privacy_class || null,
+    projection_policy: isResidentDeviceAudit ? "consumer_private" : (input.metadata as any)?.projection_policy || null,
+  };
   const row = {
     actor_id: input.actorId || null,
     actor_email: input.actorEmail || "",
@@ -56,7 +63,7 @@ export async function emitAuditEvent(input: Omit<AuditEventContract, "timestamp"
     status: input.status || "success",
     ip: input.ip || requestIp(input.req),
     user_agent: input.userAgent || String(input.req?.headers?.["user-agent"] || ""),
-    metadata: input.metadata || {},
+    metadata: signalMetadata,
   };
 
   const { error } = await supabaseAdmin.from("audit_events").insert(row as any);
@@ -64,14 +71,16 @@ export async function emitAuditEvent(input: Omit<AuditEventContract, "timestamp"
     // Keep production actions alive even if audit migration is not applied yet.
     console.warn("[audit] write failed:", error.message);
   }
-  emitSignal(makeBaseSignal({
-    type: "audit.recorded",
-    source: "audit",
-    estateId: input.estateId || undefined,
-    action: input.action,
-    resourceType: input.resourceType,
-    resourceId: input.resourceId,
-    requestedBy: {
+	  emitSignal(makeBaseSignal({
+	    type: "audit.recorded",
+	    source: "audit",
+	    estateId: input.estateId || undefined,
+	    homeId: (input as any).homeId || undefined,
+	    action: input.action,
+	    resourceType: input.resourceType,
+	    resourceId: input.resourceId,
+	    metadata: signalMetadata,
+	    requestedBy: {
       userId: input.actorId || "",
       role: input.actorRole || "",
     },

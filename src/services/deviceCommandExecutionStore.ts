@@ -79,6 +79,25 @@ function dbStatus(status: string | null | undefined) {
   return "pending_confirmation";
 }
 
+const LIFECYCLE_RANK: Record<string, number> = {
+  requested: 10,
+  validated: 20,
+  accepted_for_processing: 30,
+  dispatching: 40,
+  provider_accepted: 50,
+  awaiting_state_confirmation: 60,
+  state_confirmed: 100,
+  provider_rejected: 100,
+  state_mismatch: 100,
+  confirmation_timed_out: 100,
+  failed: 100,
+  cancelled: 100,
+};
+
+function lifecycleRank(status: unknown) {
+  return LIFECYCLE_RANK[String(status || "")] || 0;
+}
+
 function safeLifecycle(status: string, details?: Record<string, any>) {
   return {
     status,
@@ -150,6 +169,17 @@ export async function upsertDeviceCommandExecution(patch: DeviceCommandExecution
   if (!id) return null;
   const existing = await getDeviceCommandExecution(id).catch(() => null);
   const previous = (existing as any)?.metadata?.result || existing || {};
+  const previousStatus = previous.final_status || previous.confirmation_status || previous.provider_status || null;
+  const attemptedStatus = patch.final_status || patch.confirmation_status || patch.provider_status || previousStatus;
+  if (previousStatus && attemptedStatus && lifecycleRank(attemptedStatus) < lifecycleRank(previousStatus)) {
+    logger.warn("device_command_invalid_transition_blocked", {
+      command_execution_id: id,
+      current_state: previousStatus,
+      attempted_transition: attemptedStatus,
+      producer: patch.source || previous.source || "device_command",
+    });
+    return existing;
+  }
   const lifecycle = [
     ...(Array.isArray(previous.lifecycle) ? previous.lifecycle : []),
     ...(Array.isArray(patch.lifecycle) ? patch.lifecycle : patch.final_status ? [safeLifecycle(String(patch.final_status))] : []),

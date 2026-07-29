@@ -11,6 +11,9 @@ const store = read("src/services/deviceCommandExecutionStore.ts");
 const oyiRoutes = read("src/routes/oyiRoutes.ts");
 const tuya = read("src/device/adapters/tuya/TuyaAdapter.ts");
 const conversation = read("src/oyi-core/runtime/canonicalConversationRuntime.ts");
+const bridge = read("src/device/bridge.ts");
+const audit = read("src/core/foundation/audit.ts");
+const policy = read("src/oyi-core/policy/intelligencePolicyResolver.ts");
 
 function check(name, fn) {
   try {
@@ -74,6 +77,39 @@ check("multi-gang channel command identity is preserved", () => {
   assert.match(controller, /target_type:\s*commandTargetType/);
   assert.match(controller, /channel_code:\s*commandChannelCode/);
   assert.match(controller, /device_channel[\s\S]{0,220}missing_channel_code/);
+});
+
+check("command lifecycle transitions are monotonic", () => {
+  assert.match(store, /LIFECYCLE_RANK/);
+  assert.match(store, /device_command_invalid_transition_blocked/);
+  assert.match(store, /lifecycleRank\(attemptedStatus\) < lifecycleRank\(previousStatus\)/);
+});
+
+check("confirmation evidence rejects stale pre-command state", () => {
+  assert.match(runtime, /newer_than_dispatch/);
+  assert.match(runtime, /device_command_confirmation_evidence/);
+  assert.match(runtime, /command_dispatch_timestamp/);
+});
+
+check("command confirmation uses priority refresh observability", () => {
+  assert.match(runtime, /device_command_priority_refresh_scheduled/);
+  assert.match(runtime, /delay_ms:\s*900/);
+  assert.match(runtime, /device_command_priority_refresh_joined/);
+});
+
+check("provider events and resident audits stay home-private", () => {
+  assert.match(bridge, /device_event_context_enriched/);
+  assert.match(audit, /resident_device_private/);
+  assert.match(audit, /homeId/);
+  assert.match(policy, /resident_device_private/);
+  assert.match(policy, /privateConsumer \? \[\] : \["future:executive"/);
+});
+
+check("fast control-state view remains separate from intelligence", () => {
+  const stateController = read("src/controllers/deviceStateController.ts");
+  assert.match(stateController, /view/);
+  assert.match(stateController, /include_intelligence/);
+  assert.match(stateController, /device_runtime_state_read_timing/);
 });
 
 console.log("device-command-truth-smoke passed");

@@ -136,6 +136,12 @@
     ,"smoke:read-only-command-firewall": "node scripts/device-command-truth-smoke.mjs"
     ,"smoke:conversation-command-correlation": "node scripts/device-command-truth-smoke.mjs"
     ,"smoke:optimistic-state-reconciliation": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:command-lifecycle-monotonicity": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:command-confirmation-evidence": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:command-priority-refresh": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:device-event-home-enrichment": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:resident-command-audit-privacy": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:fast-device-control-state": "node scripts/device-command-truth-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
