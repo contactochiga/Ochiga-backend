@@ -142,6 +142,21 @@
     ,"smoke:device-event-home-enrichment": "node scripts/device-command-truth-smoke.mjs"
     ,"smoke:resident-command-audit-privacy": "node scripts/device-command-truth-smoke.mjs"
     ,"smoke:fast-device-control-state": "node scripts/device-command-truth-smoke.mjs"
+    ,"smoke:intelligence-request-contract": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:intent-operation-scope-resolution": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:read-only-firewall-all-domains": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:current-turn-execution-correlation": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:device-status-builder": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:recent-changes-engine": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:fact-deduplication": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:risk-evidence-threshold": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:proximity-not-access-risk": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:report-builders": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:thread-state-v2": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:device-channel-identity": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:single-authoritative-persistence": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:internal-language-filter": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:consumer-facility-scope-privacy": "node scripts/intelligence-authority-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
