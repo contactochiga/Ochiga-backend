@@ -71,6 +71,7 @@ export async function emitAuditEvent(input: Omit<AuditEventContract, "timestamp"
     // Keep production actions alive even if audit migration is not applied yet.
     console.warn("[audit] write failed:", error.message);
   }
+  if (isResidentDeviceAudit) return;
 	  emitSignal(makeBaseSignal({
 	    type: "audit.recorded",
 	    source: "audit",

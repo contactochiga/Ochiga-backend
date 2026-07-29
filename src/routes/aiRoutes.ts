@@ -562,7 +562,7 @@ router.post("/chat", requireAuth, resolveRequestContext, async (req, res) => {
     module: req.oisContext?.module || context.module || null,
     thread_id: req.body?.thread_id || context.thread_id || context.threadId || null,
     context: { ...(context || {}), ...(req.oisContext || {}) },
-    target: req.oisContext?.target || null,
+    target: req.body?.target || context.target || req.oisContext?.target || null,
   });
 
   void recordIntelligenceMemory(req.user, {

@@ -172,6 +172,16 @@ export async function upsertDeviceCommandExecution(patch: DeviceCommandExecution
   const previousStatus = previous.final_status || previous.confirmation_status || previous.provider_status || null;
   const attemptedStatus = patch.final_status || patch.confirmation_status || patch.provider_status || previousStatus;
   if (previousStatus && attemptedStatus && lifecycleRank(attemptedStatus) < lifecycleRank(previousStatus)) {
+    const expectedReplay = String(attemptedStatus) === "requested" && lifecycleRank(previousStatus) >= lifecycleRank("accepted_for_processing");
+    if (expectedReplay) {
+      logger.info("device_command_lifecycle_duplicate_replay_ignored", {
+        command_execution_id: id,
+        current_state: previousStatus,
+        attempted_transition: attemptedStatus,
+        producer: patch.source || previous.source || "device_command",
+      });
+      return existing;
+    }
     logger.warn("device_command_invalid_transition_blocked", {
       command_execution_id: id,
       current_state: previousStatus,

@@ -64,7 +64,7 @@ router.post("/chat", requireAuth, resolveRequestContext, async (req, res) => {
       home_id: req.oisContext?.home_id || null,
       module: req.oisContext?.module || (req.body || {}).module || null,
       context: { ...(req.body?.context || {}), ...(req.oisContext || {}) },
-      target: req.oisContext?.target || null,
+      target: req.body?.target || req.body?.request?.target || req.oisContext?.target || null,
     });
     return res.json(adaptCanonicalToCompatibilityChat(runtime));
   } catch {
@@ -161,7 +161,7 @@ router.post("/runtime/conversation", requireAuth, resolveRequestContext, async (
       module: req.oisContext?.module || (req.body || {}).module || null,
       thread_id: req.body?.thread_id || req.body?.request?.thread_id || null,
       context: { ...(req.body?.request?.context || {}), ...(req.body?.context || {}), ...(req.oisContext || {}) },
-      target: req.oisContext?.target || null,
+      target: req.body?.target || req.body?.request?.target || req.oisContext?.target || null,
     });
     return res.json({ ok: true, response: runtime });
   } catch {

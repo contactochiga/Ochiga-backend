@@ -1,6 +1,7 @@
 import { handleSignal } from "../core/control-plane";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import { runtimeTraceFields } from "../observability/runtimeContext";
+import { logger } from "../observability/logger";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { enrichDeviceProviderState } from "../device/runtime/deviceStateEnrichment";
 
@@ -310,6 +311,18 @@ async function recentCommandContext(deviceId: string, windowMs = 45_000): Promis
   };
 }
 
+async function loadDeviceScopeContext(deviceId: string) {
+  const id = text(deviceId);
+  if (!id) return {};
+  const { data, error } = await supabaseAdmin
+    .from("devices")
+    .select("id,estate_id,building_id,home_id,room_id,ownership_class,projection_policy,visibility_policy,control_policy")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return {};
+  return asRecord(data);
+}
+
 export async function isDuplicateDeviceTransition(input: {
   deviceId: string;
   eventType: string;
@@ -379,18 +392,42 @@ export async function emitOperationalDeviceSignal(input: DeviceOperationalSignal
   const provider = text(input.provider || input.device.provider || input.device.vendor || adapter);
   const externalId = text(input.device.external_id || input.device.metadata?.external_id);
   const enrichedState = enrichedStateSummary(input);
-  const resolvedEstateId = text(input.estateId || input.device.estate_id || input.extraMetadata?.estate_id);
-  const resolvedBuildingId = text(input.device.building_id || input.extraMetadata?.building_id);
-  const resolvedHomeId = text(input.homeId || input.device.home_id || input.extraMetadata?.home_id);
-  const resolvedRoomId = text(input.roomId || input.device.room_id || input.extraMetadata?.room_id);
-  const resolvedOwnershipClass = text(input.device.ownership_class || input.extraMetadata?.ownership_class);
-  const resolvedProjectionPolicy = text(input.device.projection_policy || input.extraMetadata?.projection_policy);
+  const dbScope = (!text(input.homeId || input.device.home_id || input.extraMetadata?.home_id) || !text(input.device.ownership_class || input.extraMetadata?.ownership_class))
+    ? await loadDeviceScopeContext(String(input.device.id || ""))
+    : {};
+  const resolvedEstateId = text(input.estateId || input.device.estate_id || input.extraMetadata?.estate_id || dbScope.estate_id);
+  const resolvedBuildingId = text(input.device.building_id || input.extraMetadata?.building_id || dbScope.building_id);
+  const resolvedHomeId = text(input.homeId || input.device.home_id || input.extraMetadata?.home_id || dbScope.home_id);
+  const resolvedRoomId = text(input.roomId || input.device.room_id || input.extraMetadata?.room_id || dbScope.room_id);
+  const resolvedOwnershipClass = text(input.device.ownership_class || input.extraMetadata?.ownership_class || dbScope.ownership_class);
+  const resolvedProjectionPolicy = text(input.device.projection_policy || input.extraMetadata?.projection_policy || dbScope.projection_policy);
   const capabilities = Array.from(new Set([
     ...deviceCapabilities(input.device),
     ...(Array.isArray(enrichedState.capability_codes) ? enrichedState.capability_codes : []),
   ]));
   const resolvedControlProfile = text(enrichedState.control_profile) || controlProfile(input.device);
-  const domain = privateDeviceDomain(input, observedSource, actor, enrichedState);
+  const domain = privateDeviceDomain({
+    ...input,
+    estateId: resolvedEstateId,
+    homeId: resolvedHomeId,
+    roomId: resolvedRoomId,
+    device: {
+      ...input.device,
+      estate_id: resolvedEstateId,
+      building_id: resolvedBuildingId,
+      home_id: resolvedHomeId,
+      room_id: resolvedRoomId,
+      ownership_class: resolvedOwnershipClass,
+      projection_policy: resolvedProjectionPolicy,
+    },
+  }, observedSource, actor, enrichedState);
+  logger.info("device_event_context_enriched", {
+    device_id: input.device.id,
+    estate_id: resolvedEstateId,
+    home_id: resolvedHomeId,
+    room_id: resolvedRoomId,
+    privacy_class: domain,
+  });
   const runtimeTrace = runtimeTraceFields();
   const commandExecutionId = text(input.extraMetadata?.command_execution_id || input.extraMetadata?.commandExecutionId);
   const lifecycleSignalId =

@@ -157,6 +157,7 @@
     ,"smoke:single-authoritative-persistence": "node scripts/intelligence-authority-smoke.mjs"
     ,"smoke:internal-language-filter": "node scripts/intelligence-authority-smoke.mjs"
     ,"smoke:consumer-facility-scope-privacy": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:full-circle-intelligence-acceptance": "node scripts/intelligence-authority-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
