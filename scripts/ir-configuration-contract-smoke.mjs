@@ -17,9 +17,9 @@ function check(name, fn) {
 }
 
 check("IR commands use discovered key definitions before provider dispatch", () => {
-  assert.match(tuya, /findSupportedIrKey/);
-  assert.match(tuya, /supportedKeys\.length && !supportedDefinition/);
-  assert.match(tuya, /tuya_ir_key_definition_selected/);
+  assert.match(tuya, /resolveVerifiedIrKey/);
+  assert.match(tuya, /tuya_ir_key_match_selected/);
+  assert.match(tuya, /tuya_ir_standard_dispatch_started/);
   assert.match(tuya, /provider_key_id/);
 });
 
@@ -42,6 +42,9 @@ check("missing remote binding has a safe recovery message", () => {
 check("IR classifications survive command execution persistence", () => {
   assert.match(store, /ir_remote_binding_missing/);
   assert.match(store, /ir_key_not_supported/);
+  assert.match(store, /ir_remote_reconciliation_required/);
+  assert.match(store, /ir_key_reconciliation_required/);
+  assert.match(store, /ir_raw_key_metadata_incomplete/);
   assert.match(store, /ir_provider_rejected/);
   assert.match(store, /error\?\.safe_error_message/);
 });

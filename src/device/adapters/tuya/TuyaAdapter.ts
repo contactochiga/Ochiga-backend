@@ -98,6 +98,8 @@ type TuyaIrRemote = {
 };
 
 type TuyaIrKey = {
+  id?: string | number;
+  key_id?: string | number;
   key?: string;
   key_code?: string;
   code?: string;
@@ -248,7 +250,36 @@ type TuyaIrEndpointCompatibility = {
 type TuyaIrRequestOptions = {
   context?: AdapterContext;
   infraredId?: string;
+  remoteId?: string;
   endpointKind?: string;
+};
+
+type CanonicalIrBinding = {
+  infrared_id: string;
+  remote_id: string;
+  remote_index: string | number | null;
+  category_id: string | number | null;
+  category_name: string | null;
+  brand_id: string | number | null;
+  brand_name: string | null;
+  remote_name: string | null;
+  appliance_type: string;
+  provider_version?: string | null;
+  verified_at: string | null;
+  match_strategy: string;
+};
+
+type CanonicalIrKeyBinding = {
+  canonical_action: string;
+  provider_key: string | null;
+  provider_key_id: string | number | null;
+  raw_key: string | null;
+  key_name: string | null;
+  category_id: string | number | null;
+  remote_id: string;
+  verified_at: string | null;
+  match_strategy: string;
+  definition: Record<string, any>;
 };
 
 const irEndpointCompatibilityMemory = new Map<string, TuyaIrEndpointCompatibility>();
@@ -280,18 +311,22 @@ export class TuyaAdapter implements DeviceAdapter {
     return Array.from(new Set(versions));
   }
 
-  private irCompatibilityScope(context?: AdapterContext, infraredId?: string) {
+  private irCompatibilityScope(context?: AdapterContext, infraredId?: string, remoteId?: string, endpointKind?: string) {
     const device = (context as any)?.canonicalDevice || (context as any)?.device || {};
     const providerConnectionId = cleanStr(device?.provider_connection_id || (context as any)?.providerConnectionId);
     const homeId = cleanStr((context as any)?.homeId || device?.home_id);
     const ownerId = cleanStr((context as any)?.userId || device?.owner_user_id || device?.metadata?.oyi?.integration_owner_user_id);
     const region = cleanStr(process.env.TUYA_BASE_URL).replace(/^https?:\/\//, "").split("/")[0] || "tuya";
     const hub = cleanStr(infraredId || device?.parent_external_id || device?.metadata?.ir_appliance?.infrared_id || device?.external_id);
+    const remote = cleanStr(remoteId || device?.metadata?.ir_appliance?.remote_id || device?.metadata?.remote_id || "hub");
+    const endpoint = cleanStr(endpointKind || "generic");
     const scope = providerConnectionId || `${ownerId || "unknown-owner"}:${homeId || "unknown-home"}`;
     return {
-      key: `${region}:${scope}:${hub || "unknown-hub"}`,
+      key: `${region}:${scope}:${hub || "unknown-hub"}:${remote || "hub"}:${endpoint}`,
       providerConnectionId,
       hub,
+      remote,
+      endpoint,
     };
   }
 
@@ -301,8 +336,8 @@ export class TuyaAdapter implements DeviceAdapter {
     return Number.isFinite(expiresAt) && expiresAt > Date.now();
   }
 
-  private async loadIrCompatibility(context?: AdapterContext, infraredId?: string): Promise<TuyaIrEndpointCompatibility | null> {
-    const scope = this.irCompatibilityScope(context, infraredId);
+  private async loadIrCompatibility(context?: AdapterContext, infraredId?: string, remoteId?: string, endpointKind?: string): Promise<TuyaIrEndpointCompatibility | null> {
+    const scope = this.irCompatibilityScope(context, infraredId, remoteId, endpointKind);
     const cached = irEndpointCompatibilityMemory.get(scope.key);
     if (this.isFreshIrCompatibility(cached)) return cached || null;
     if (!scope.providerConnectionId || !scope.hub) return cached || null;
@@ -314,7 +349,9 @@ export class TuyaAdapter implements DeviceAdapter {
         .maybeSingle();
       if (error) throw error;
       const metadata = data?.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, any> : {};
-      const next = metadata?.tuya_ir_endpoint_compatibility?.[scope.hub] || null;
+      const next = metadata?.tuya_ir_endpoint_compatibility?.[scope.key]
+        || metadata?.tuya_ir_endpoint_compatibility?.[scope.hub]
+        || null;
       if (next) {
         irEndpointCompatibilityMemory.set(scope.key, next);
         return next;
@@ -332,9 +369,11 @@ export class TuyaAdapter implements DeviceAdapter {
   private async rememberIrCompatibility(
     context: AdapterContext | undefined,
     infraredId: string | undefined,
+    remoteId: string | undefined,
+    endpointKind: string | undefined,
     patch: Omit<TuyaIrEndpointCompatibility, "last_verified_at" | "expires_at">,
   ) {
-    const scope = this.irCompatibilityScope(context, infraredId);
+    const scope = this.irCompatibilityScope(context, infraredId, remoteId, endpointKind);
     const entry: TuyaIrEndpointCompatibility = {
       ...patch,
       last_verified_at: new Date().toISOString(),
@@ -354,7 +393,7 @@ export class TuyaAdapter implements DeviceAdapter {
         ...metadata,
         tuya_ir_endpoint_compatibility: {
           ...(metadata.tuya_ir_endpoint_compatibility || {}),
-          [scope.hub]: entry,
+          [scope.key]: entry,
         },
       };
       await supabaseAdmin
@@ -372,7 +411,7 @@ export class TuyaAdapter implements DeviceAdapter {
 
   private async orderedIrApiVersions(options?: TuyaIrRequestOptions) {
     const configured = this.irApiVersions();
-    const compatibility = await this.loadIrCompatibility(options?.context, options?.infraredId);
+    const compatibility = await this.loadIrCompatibility(options?.context, options?.infraredId, options?.remoteId, options?.endpointKind);
     if (this.isFreshIrCompatibility(compatibility) && compatibility?.preferred_version) {
       return Array.from(new Set([compatibility.preferred_version, ...configured]));
     }
@@ -387,7 +426,7 @@ export class TuyaAdapter implements DeviceAdapter {
   ): Promise<T> {
     let lastError: unknown = null;
     let v2Incompatibility: { provider_code: string | null; reason: string | null } | null = null;
-    const compatibility = await this.loadIrCompatibility(options?.context, options?.infraredId);
+    const compatibility = await this.loadIrCompatibility(options?.context, options?.infraredId, options?.remoteId, options?.endpointKind);
     const preferenceCacheHit = this.isFreshIrCompatibility(compatibility) && Boolean(compatibility?.preferred_version);
     const versions = preferenceCacheHit && compatibility?.preferred_version
       ? Array.from(new Set([compatibility.preferred_version, ...this.irApiVersions()]))
@@ -443,14 +482,14 @@ export class TuyaAdapter implements DeviceAdapter {
         });
         if (method === "POST" && options?.infraredId) {
           if (version === "v1.0" && v2Incompatibility) {
-            void this.rememberIrCompatibility(options.context, options.infraredId, {
+            void this.rememberIrCompatibility(options.context, options.infraredId, options.remoteId, options.endpointKind, {
               preferred_version: "v1.0",
               v2_compatible: false,
               provider_code: v2Incompatibility.provider_code,
               reason: v2Incompatibility.reason || "v2_incompatible_v1_succeeded",
             });
           } else if (version === "v2.0") {
-            void this.rememberIrCompatibility(options.context, options.infraredId, {
+            void this.rememberIrCompatibility(options.context, options.infraredId, options.remoteId, options.endpointKind, {
               preferred_version: "v2.0",
               v2_compatible: true,
               provider_code: null,
@@ -461,6 +500,17 @@ export class TuyaAdapter implements DeviceAdapter {
         return response;
       } catch (error) {
         lastError = error;
+        const explicitIrCode = cleanStr((error as any)?.code);
+        if ([
+          "IR_PROVIDER_REJECTED",
+          "IR_REMOTE_RECONCILIATION_REQUIRED",
+          "IR_KEY_RECONCILIATION_REQUIRED",
+          "IR_RAW_KEY_METADATA_INCOMPLETE",
+          "IR_REMOTE_BINDING_MISSING",
+          "IR_KEY_NOT_SUPPORTED",
+        ].includes(explicitIrCode)) {
+          throw error;
+        }
         const classified = classifyProviderError(error, { provider: "tuya", operation: path });
         if (version === "v2.0" && classified.provider_code === "20001") {
           v2Incompatibility = {
@@ -874,8 +924,8 @@ export class TuyaAdapter implements DeviceAdapter {
     }
   }
 
-  async listIrRemotes(infraredId: string): Promise<any[]> {
-    const result = await this.requestIr<any>("GET", (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes`);
+  async listIrRemotes(infraredId: string, context?: AdapterContext): Promise<any[]> {
+    const result = await this.requestIr<any>("GET", (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes`, undefined, { context, infraredId, endpointKind: "bound_remotes" });
     const remotes = arrayPayload(result, ["list", "remotes", "result"]);
     logger.debug("tuya_ir_remotes_discovered", {
       infrared_id: infraredId,
@@ -889,7 +939,7 @@ export class TuyaAdapter implements DeviceAdapter {
       "GET",
       (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/keys`,
       undefined,
-      { context, infraredId, endpointKind: "remote_keys" },
+      { context, infraredId, remoteId, endpointKind: "remote_keys" },
     );
     const payload = result && typeof result === "object" && !Array.isArray(result) ? result : {};
     const keys = arrayPayload(result, ["key_list", "keys", "list", "result"]).map((item) => ({
@@ -1057,12 +1107,325 @@ export class TuyaAdapter implements DeviceAdapter {
     return error;
   }
 
+  private irRemoteReconciliationRequired(message = "This TV remote needs to be re-synced with the connected IR controller.") {
+    const error: any = new Error(message);
+    error.statusCode = 424;
+    error.code = "IR_REMOTE_RECONCILIATION_REQUIRED";
+    error.provider_status = "rejected";
+    error.safe_error_message = "This TV remote needs to be re-synced with the connected IR controller.";
+    return error;
+  }
+
+  private irKeyReconciliationRequired(message = "This TV remote key needs to be re-synced with the connected IR controller.") {
+    const error: any = new Error(message);
+    error.statusCode = 422;
+    error.code = "IR_KEY_RECONCILIATION_REQUIRED";
+    error.provider_status = "rejected";
+    error.safe_error_message = "This TV remote key needs to be re-synced with the connected IR controller.";
+    return error;
+  }
+
+  private irRawMetadataIncomplete() {
+    const error: any = new Error("This TV remote key is not fully configured.");
+    error.statusCode = 422;
+    error.code = "IR_RAW_KEY_METADATA_INCOMPLETE";
+    error.provider_status = "rejected";
+    error.safe_error_message = "This TV remote key is not fully configured. Re-sync the TV remote and try again.";
+    return error;
+  }
+
   private missingIrRemoteBindingError() {
     const error: any = new Error("Add or sync an appliance profile before using this remote.");
     error.statusCode = 422;
     error.code = "IR_REMOTE_BINDING_MISSING";
     error.safe_error_message = "This TV remote is not configured for the connected IR controller.";
     return error;
+  }
+
+  private irId(value: any) {
+    return cleanStr(value);
+  }
+
+  private irRemoteId(remote: any) {
+    return this.irId(remote?.remote_id || remote?.id || remote?.profile_id || remote?.provider_profile_id);
+  }
+
+  private irRemoteIndex(remote: any) {
+    const value = remote?.remote_index ?? remote?.index ?? remote?.remoteIndex ?? null;
+    return value == null ? "" : cleanStr(value);
+  }
+
+  private irCategoryId(value: any) {
+    return this.irId(value?.category_id ?? value?.categoryId ?? value?.category ?? "");
+  }
+
+  private irBrandId(value: any) {
+    return this.irId(value?.brand_id ?? value?.brandId ?? "");
+  }
+
+  private irName(value: any) {
+    return this.normalizeRemoteKey(value?.remote_name || value?.name || value?.remoteName || value?.brand_name || "");
+  }
+
+  private uniqueMatch<T>(items: T[], predicate: (item: T) => boolean) {
+    const matches = items.filter(predicate);
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  private providerKeyId(definition: any) {
+    return definition?.key_id ?? definition?.id ?? null;
+  }
+
+  private providerKeyValue(definition: any) {
+    return cleanStr(definition?.key || definition?.key_code || definition?.code || definition?.value);
+  }
+
+  private providerRawKey(definition: any) {
+    return cleanStr(definition?.raw_key || definition?.rawKey || definition?.learned_key || definition?.learnedKey);
+  }
+
+  private canonicalIrAliases(action: string) {
+    const normalized = this.normalizeRemoteKey(action);
+    const aliases: Record<string, string[]> = {
+      power: ["power", "power_toggle", "poweron", "poweroff", "on", "off"],
+      power_toggle: ["power", "power_toggle", "poweron", "poweroff", "on", "off"],
+      up: ["up", "nav_up", "navigate_up", "direction_up"],
+      nav_up: ["up", "nav_up", "navigate_up", "direction_up"],
+      down: ["down", "nav_down", "navigate_down", "direction_down"],
+      nav_down: ["down", "nav_down", "navigate_down", "direction_down"],
+      left: ["left", "nav_left", "navigate_left", "direction_left"],
+      nav_left: ["left", "nav_left", "navigate_left", "direction_left"],
+      right: ["right", "nav_right", "navigate_right", "direction_right"],
+      nav_right: ["right", "nav_right", "navigate_right", "direction_right"],
+      ok: ["ok", "enter", "select"],
+      enter: ["ok", "enter", "select"],
+      select: ["ok", "enter", "select"],
+      volume_up: ["volume_up", "vol_up", "vol+", "volume+"],
+      volume_down: ["volume_down", "vol_down", "vol-", "volume-"],
+      channel_up: ["channel_up", "ch_up", "ch+", "channel+"],
+      channel_down: ["channel_down", "ch_down", "ch-", "channel-"],
+      source: ["source", "input"],
+      input: ["source", "input"],
+      back: ["back", "return"],
+      return: ["back", "return"],
+      home: ["home", "homepage"],
+      homepage: ["home", "homepage"],
+      mute: ["mute"],
+      menu: ["menu"],
+    };
+    return aliases[normalized] || [normalized];
+  }
+
+  private buildCanonicalIrBinding(infraredId: string, appliance: Record<string, any>, remote: Record<string, any>, matchStrategy: string): CanonicalIrBinding {
+    return {
+      infrared_id: infraredId,
+      remote_id: this.irRemoteId(remote),
+      remote_index: remote?.remote_index ?? appliance.remote_index ?? null,
+      category_id: remote?.category_id ?? appliance.category_id ?? null,
+      category_name: cleanStr(remote?.category_name || appliance.category_name) || null,
+      brand_id: remote?.brand_id ?? appliance.brand_id ?? null,
+      brand_name: cleanStr(remote?.brand_name || remote?.brand || appliance.brand_name) || null,
+      remote_name: cleanStr(remote?.remote_name || remote?.name || appliance.remote_name) || null,
+      appliance_type: cleanStr(appliance.appliance_type || remote?.category_name || "television").toLowerCase(),
+      provider_version: cleanStr(remote?.provider_version || remote?.version) || null,
+      verified_at: new Date().toISOString(),
+      match_strategy: matchStrategy,
+    };
+  }
+
+  private async resolveVerifiedIrRemote(infraredId: string, storedRemoteId: string, appliance: Record<string, any>, context: AdapterContext): Promise<CanonicalIrBinding> {
+    logger.info("tuya_ir_binding_reconciliation_started", {
+      canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+      infrared_id: infraredId,
+      stored_remote_id: storedRemoteId || null,
+      remote_index: appliance.remote_index ?? null,
+      category_id: appliance.category_id ?? null,
+      brand_id: appliance.brand_id ?? null,
+    });
+    const remotes = await this.listIrRemotes(infraredId, context);
+    const byRemoteId = storedRemoteId ? this.uniqueMatch(remotes, (remote) => this.irRemoteId(remote) === storedRemoteId) : null;
+    const byIndex = !byRemoteId && appliance.remote_index != null
+      ? this.uniqueMatch(remotes, (remote) => this.irRemoteIndex(remote) === cleanStr(appliance.remote_index))
+      : null;
+    const storedCategory = this.irCategoryId(appliance);
+    const storedBrand = this.irBrandId(appliance);
+    const byCategoryBrand = !byRemoteId && !byIndex && storedCategory && storedBrand
+      ? this.uniqueMatch(remotes, (remote) => this.irCategoryId(remote) === storedCategory && this.irBrandId(remote) === storedBrand)
+      : null;
+    const storedName = this.irName(appliance);
+    const byNameCategory = !byRemoteId && !byIndex && !byCategoryBrand && storedName && storedCategory
+      ? this.uniqueMatch(remotes, (remote) => this.irName(remote) === storedName && this.irCategoryId(remote) === storedCategory)
+      : null;
+    const family = cleanStr(appliance.appliance_type || (context as any)?.device?.metadata?.device_family || "television").toLowerCase();
+    const byUniqueCategory = !byRemoteId && !byIndex && !byCategoryBrand && !byNameCategory && storedCategory
+      ? this.uniqueMatch(remotes, (remote) => this.irCategoryId(remote) === storedCategory)
+      : null;
+    const match = byRemoteId || byIndex || byCategoryBrand || byNameCategory || byUniqueCategory;
+    const strategy = byRemoteId ? "remote_id" : byIndex ? "remote_index" : byCategoryBrand ? "category_brand" : byNameCategory ? "name_category" : byUniqueCategory ? "unique_category" : null;
+    if (!match || !strategy) {
+      logger.warn("tuya_ir_remote_match_failed", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+        infrared_id: infraredId,
+        stored_remote_id: storedRemoteId || null,
+        candidate_count: remotes.length,
+        appliance_type: family,
+        reason: remotes.length ? "ambiguous_or_missing_remote" : "no_bound_remotes",
+      });
+      throw this.irRemoteReconciliationRequired();
+    }
+    const binding = this.buildCanonicalIrBinding(infraredId, appliance, match, strategy);
+    logger.info("tuya_ir_remote_match_selected", {
+      canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+      infrared_id: infraredId,
+      remote_id: binding.remote_id,
+      remote_match_strategy: strategy,
+      remote_index: binding.remote_index,
+      category_id: binding.category_id,
+      brand_id: binding.brand_id,
+    });
+    return binding;
+  }
+
+  private definitionValues(definition: any) {
+    return [
+      this.providerKeyValue(definition),
+      definition?.key_name,
+      definition?.name,
+      definition?.canonical_action,
+      definition?.canonical_key,
+      definition?.action,
+      this.providerRawKey(definition),
+    ].map((value) => this.normalizeRemoteKey(value)).filter(Boolean);
+  }
+
+  private async resolveVerifiedIrKey(
+    infraredId: string,
+    binding: CanonicalIrBinding,
+    command: Record<string, any>,
+    storedDefinition: any,
+    context: AdapterContext,
+  ): Promise<CanonicalIrKeyBinding> {
+    const keys = await this.listIrRemoteKeys(infraredId, binding.remote_id, context);
+    const candidates = this.keyCandidates(command);
+    const canonicalAction = this.remoteCommandKey(command) || this.supportedKeyCode(storedDefinition) || candidates[0] || "";
+    const aliases = Array.from(new Set([
+      ...candidates.map((candidate) => this.normalizeRemoteKey(candidate)).filter(Boolean),
+      ...this.canonicalIrAliases(canonicalAction),
+    ])).filter(Boolean);
+    const storedKeyId = cleanStr(this.providerKeyId(storedDefinition) ?? (command as any).key_id ?? "");
+    const storedProviderKey = this.normalizeRemoteKey(this.providerKeyValue(storedDefinition) || (command as any).provider_key || (command as any).key || "");
+    const storedKeyName = this.normalizeRemoteKey(storedDefinition?.key_name || (command as any).key_name || "");
+
+    const byKeyId = storedKeyId ? this.uniqueMatch(keys, (definition) => cleanStr(this.providerKeyId(definition)) === storedKeyId) : null;
+    const byProviderKey = !byKeyId && storedProviderKey
+      ? this.uniqueMatch(keys, (definition) => this.definitionValues(definition).includes(storedProviderKey))
+      : null;
+    const byKeyName = !byKeyId && !byProviderKey && storedKeyName
+      ? this.uniqueMatch(keys, (definition) => this.definitionValues(definition).includes(storedKeyName))
+      : null;
+    const byAlias = !byKeyId && !byProviderKey && !byKeyName
+      ? this.uniqueMatch(keys, (definition) => this.definitionValues(definition).some((value) => aliases.includes(value)))
+      : null;
+    const match = byKeyId || byProviderKey || byKeyName || byAlias;
+    const strategy = byKeyId ? "key_id" : byProviderKey ? "provider_key" : byKeyName ? "key_name" : byAlias ? "canonical_alias" : null;
+    if (!match || !strategy) {
+      logger.warn("tuya_ir_key_match_failed", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+        infrared_id: infraredId,
+        remote_id: binding.remote_id,
+        canonical_action: canonicalAction || null,
+        stored_key_id: storedKeyId || null,
+        candidate_count: keys.length,
+        reason: keys.length ? "ambiguous_or_missing_key" : "no_remote_keys",
+      });
+      throw this.irKeyReconciliationRequired();
+    }
+    const verified: CanonicalIrKeyBinding = {
+      canonical_action: canonicalAction,
+      provider_key: this.providerKeyValue(match) || null,
+      provider_key_id: this.providerKeyId(match),
+      raw_key: this.providerRawKey(match) || null,
+      key_name: cleanStr(match?.key_name || match?.name) || null,
+      category_id: match?.category_id ?? binding.category_id ?? null,
+      remote_id: binding.remote_id,
+      verified_at: new Date().toISOString(),
+      match_strategy: strategy,
+      definition: match,
+    };
+    logger.info("tuya_ir_key_match_selected", {
+      canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+      infrared_id: infraredId,
+      remote_id: binding.remote_id,
+      canonical_action: verified.canonical_action,
+      provider_key: verified.provider_key,
+      provider_key_id: verified.provider_key_id,
+      key_match_strategy: strategy,
+    });
+    return verified;
+  }
+
+  private async persistIrBindingRepair(context: AdapterContext, binding: CanonicalIrBinding, keyBinding?: CanonicalIrKeyBinding | null) {
+    const device = (context as any)?.device || {};
+    const deviceId = cleanStr(device?.id);
+    if (!deviceId) return;
+    const currentMetadata = device?.metadata && typeof device.metadata === "object" ? device.metadata as Record<string, any> : {};
+    const currentAppliance = currentMetadata.ir_appliance && typeof currentMetadata.ir_appliance === "object" ? currentMetadata.ir_appliance as Record<string, any> : {};
+    const supportedKeys = Array.isArray(currentAppliance.supported_keys) ? currentAppliance.supported_keys : [];
+    const nextKeys = keyBinding
+      ? [
+        ...supportedKeys.filter((entry) => this.normalizeRemoteKey(this.supportedKeyCode(entry)) !== this.normalizeRemoteKey(keyBinding.canonical_action)),
+        {
+          ...keyBinding.definition,
+          canonical_action: keyBinding.canonical_action,
+          key: keyBinding.provider_key,
+          key_id: keyBinding.provider_key_id,
+          raw_key: keyBinding.raw_key,
+          key_name: keyBinding.key_name,
+          category_id: keyBinding.category_id,
+          remote_id: keyBinding.remote_id,
+          verified_at: keyBinding.verified_at,
+        },
+      ]
+      : supportedKeys;
+    const nextMetadata = {
+      ...currentMetadata,
+      ir_appliance: {
+        ...currentAppliance,
+        infrared_id: binding.infrared_id,
+        remote_id: binding.remote_id,
+        remote_index: binding.remote_index,
+        category_id: binding.category_id,
+        category_name: binding.category_name,
+        brand_id: binding.brand_id,
+        brand_name: binding.brand_name,
+        remote_name: binding.remote_name,
+        appliance_type: binding.appliance_type,
+        provider_version: binding.provider_version,
+        verified_at: binding.verified_at,
+        supported_keys: nextKeys,
+      },
+    };
+    try {
+      const { error } = await supabaseAdmin
+        .from("devices")
+        .update({ metadata: nextMetadata, updated_at: new Date().toISOString() } as any)
+        .eq("id", deviceId);
+      if (error) throw error;
+      logger.info("tuya_ir_binding_repaired", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || deviceId,
+        device_id: deviceId,
+        infrared_id: binding.infrared_id,
+        remote_id: binding.remote_id,
+        canonical_action: keyBinding?.canonical_action || null,
+        provider_key_id: keyBinding?.provider_key_id ?? null,
+      });
+    } catch (error) {
+      logger.warn("tuya_ir_binding_repair_failed", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || deviceId,
+        device_id: deviceId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private acEnum(value: any, map: Record<string, number>) {
@@ -1097,17 +1460,24 @@ export class TuyaAdapter implements DeviceAdapter {
     return payload;
   }
 
-  private rawCommandPayload(version: string, rawKey: string, appliance: Record<string, any>, context: AdapterContext) {
-    const def = this.findSupportedIrKey(context, [rawKey]) || {};
+  private rawCommandPayload(version: string, keyBinding: CanonicalIrKeyBinding, binding: CanonicalIrBinding) {
+    const def = keyBinding.definition || {};
     if (version.startsWith("v2")) {
+      const keyId = this.providerKeyId(def) ?? keyBinding.provider_key_id;
+      const categoryId = def.category_id ?? keyBinding.category_id ?? binding.category_id;
+      if (keyId == null || !cleanStr(keyId) || !/^[0-9]+$/.test(cleanStr(keyId)) || categoryId == null || !cleanStr(categoryId)) {
+        throw this.irRawMetadataIncomplete();
+      }
       return {
-        category_id: cleanStr(def.category_id || appliance.category_id),
-        key_id: cleanStr(def.key_id || def.id || def.key || def.code || rawKey),
-        key: cleanStr(def.key || def.raw_key || def.code || rawKey),
+        category_id: cleanStr(categoryId),
+        key_id: cleanStr(keyId),
+        key: this.providerKeyValue(def) || keyBinding.provider_key,
       };
     }
+    const verifiedProviderRawKey = this.providerRawKey(def) || keyBinding.raw_key;
+    if (!verifiedProviderRawKey) throw this.irRawMetadataIncomplete();
     return {
-      raw_key: cleanStr(def.raw_key || def.key_id || def.key || def.code || rawKey),
+      raw_key: verifiedProviderRawKey,
     };
   }
 
@@ -1117,14 +1487,17 @@ export class TuyaAdapter implements DeviceAdapter {
     command: Record<string, any>,
     context: AdapterContext,
   ): Promise<Record<string, any>> {
-    if (!remoteId) throw this.missingIrRemoteBindingError();
+    if (!infraredId) throw this.missingIrRemoteBindingError();
     const startedAt = Date.now();
     const appliance = ((context as any)?.device?.metadata?.ir_appliance || {}) as Record<string, any>;
     const family = cleanStr(appliance.appliance_type || (context as any)?.device?.metadata?.device_family || (context as any)?.device?.type).toLowerCase();
     const rawKey = cleanStr((command as any).raw_key || (command as any).rawKey);
     const supportedKeys = this.supportedIrKeys(context);
-    const supportedDefinition = this.findSupportedIrKey(context, this.keyCandidates(command));
-    const key = cleanStr(this.supportedKeyCode(supportedDefinition) || this.remoteCommandKey(command));
+    const storedDefinition = this.findSupportedIrKey(context, this.keyCandidates(command));
+    const binding = await this.resolveVerifiedIrRemote(infraredId, remoteId, appliance, context);
+    const verifiedKey = await this.resolveVerifiedIrKey(infraredId, binding, command, storedDefinition, context);
+    void this.persistIrBindingRepair(context, binding, verifiedKey);
+    const key = cleanStr(verifiedKey.canonical_action || this.supportedKeyCode(verifiedKey.definition) || this.remoteCommandKey(command));
     const shouldUseAcEndpoint = /^(ac|air_conditioner|climate)$/.test(family) && (
       typeof (command as any).power === "boolean" ||
       typeof (command as any).on === "boolean" ||
@@ -1145,69 +1518,121 @@ export class TuyaAdapter implements DeviceAdapter {
       result = await this.requestIr<any>(
         "POST",
         (version) => fields.length > 1
-          ? `/${version}/infrareds/${encodeURIComponent(infraredId)}/air-conditioners/${encodeURIComponent(remoteId)}/scenes/command`
-          : `/${version}/infrareds/${encodeURIComponent(infraredId)}/air-conditioners/${encodeURIComponent(remoteId)}/command`,
+          ? `/${version}/infrareds/${encodeURIComponent(infraredId)}/air-conditioners/${encodeURIComponent(binding.remote_id)}/scenes/command`
+          : `/${version}/infrareds/${encodeURIComponent(infraredId)}/air-conditioners/${encodeURIComponent(binding.remote_id)}/command`,
         payload,
-        { context, infraredId, endpointKind },
+        { context, infraredId, remoteId: binding.remote_id, endpointKind },
       );
       logger.info("tuya_ir_command_dispatched", {
         canonical_device_id: (context as any)?.canonicalDevice?.id || null,
         infrared_id: infraredId,
-        remote_id: remoteId,
+        remote_id: binding.remote_id,
         endpoint_kind: endpointKind,
         payload,
         response: result,
         latency_ms: Date.now() - startedAt,
       });
     } else if (rawKey) {
+      logger.info("tuya_ir_endpoint_strategy_selected", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+        infrared_id: infraredId,
+        remote_id: binding.remote_id,
+        canonical_action: key,
+        endpoint_kind: "raw_remote_command",
+        reason: "explicit_raw_key_request",
+      });
       result = await this.requestIr<any>(
         "POST",
-        (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/raw/command`,
-        (version: string) => this.rawCommandPayload(version, rawKey, appliance, context),
-        { context, infraredId, endpointKind: "raw_remote_command" },
+        (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(binding.remote_id)}/raw/command`,
+        (version: string) => this.rawCommandPayload(version, verifiedKey, binding),
+        { context, infraredId, remoteId: binding.remote_id, endpointKind: "raw_remote_command" },
       );
       logger.info("tuya_ir_command_dispatched", {
         canonical_device_id: (context as any)?.canonicalDevice?.id || null,
         infrared_id: infraredId,
-        remote_id: remoteId,
+        remote_id: binding.remote_id,
         endpoint_kind: "raw_remote_command",
-        payload: { raw_key: rawKey },
+        payload: { raw_key: Boolean(verifiedKey.raw_key), key_id: verifiedKey.provider_key_id ?? null },
         response: result,
         latency_ms: Date.now() - startedAt,
       });
     } else {
       if (!key) throw this.unsupportedIrCommandError();
-      if (supportedKeys.length && !supportedDefinition) throw this.unsupportedIrCommandError();
+      if (supportedKeys.length && !storedDefinition && !verifiedKey) throw this.unsupportedIrCommandError();
       const standardPayload = {
-        key: cleanStr(supportedDefinition?.key || supportedDefinition?.key_code || supportedDefinition?.code || key),
+        key: cleanStr(verifiedKey.provider_key || key),
       };
       let dispatchedEndpointKind = "remote_command";
-      logger.info("tuya_ir_key_definition_selected", {
+      logger.info("tuya_ir_standard_dispatch_started", {
         canonical_device_id: (context as any)?.canonicalDevice?.id || null,
         infrared_id: infraredId,
-        remote_id: remoteId,
+        remote_id: binding.remote_id,
         canonical_key: key,
         provider_key: standardPayload.key,
-        provider_key_id: cleanStr(supportedDefinition?.key_id || supportedDefinition?.id) || null,
+        provider_key_id: verifiedKey.provider_key_id ?? null,
         endpoint_strategy: "remote_command",
+      });
+      logger.info("tuya_ir_endpoint_strategy_selected", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+        infrared_id: infraredId,
+        remote_id: binding.remote_id,
+        canonical_action: key,
+        endpoint_kind: "remote_command",
+        api_versions: this.irApiVersions(),
       });
       try {
         result = await this.requestIr<any>(
           "POST",
-          (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/command`,
+          (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(binding.remote_id)}/command`,
           standardPayload,
-          { context, infraredId, endpointKind: "remote_command" },
+          { context, infraredId, remoteId: binding.remote_id, endpointKind: "remote_command" },
         );
+        logger.info("tuya_ir_standard_dispatch_accepted", {
+          canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+          infrared_id: infraredId,
+          remote_id: binding.remote_id,
+          canonical_action: key,
+          provider_key: standardPayload.key,
+          provider_key_id: verifiedKey.provider_key_id ?? null,
+        });
       } catch (error) {
+        const explicitCode = cleanStr((error as any)?.code);
+        if ([
+          "IR_PROVIDER_REJECTED",
+          "IR_REMOTE_RECONCILIATION_REQUIRED",
+          "IR_KEY_RECONCILIATION_REQUIRED",
+          "IR_RAW_KEY_METADATA_INCOMPLETE",
+          "IR_REMOTE_BINDING_MISSING",
+          "IR_KEY_NOT_SUPPORTED",
+        ].includes(explicitCode)) {
+          logger.warn("tuya_ir_standard_dispatch_rejected", {
+            canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+            infrared_id: infraredId,
+            remote_id: binding.remote_id,
+            canonical_action: key,
+            code: explicitCode,
+          });
+          throw error;
+        }
         const classified = classifyProviderError(error, { provider: "tuya", operation: "ir_remote_command" });
-        const canTryRawKey = Boolean(supportedDefinition?.key_id || supportedDefinition?.id || supportedDefinition?.key);
-        if (!canTryRawKey || ["permission_denied", "device_not_linked", "integration_expired", "authentication_failed", "rate_limited"].includes(classified.classification)) {
+        const endpointIncompatible = classified.provider_code === "20001" || /compatib|endpoint|not support/i.test(classified.safe_message || (error as any)?.message || "");
+        const canTryRawKey = Boolean(verifiedKey.provider_key_id && /^[0-9]+$/.test(cleanStr(verifiedKey.provider_key_id)) && (verifiedKey.raw_key || verifiedKey.provider_key));
+        if (!endpointIncompatible || !canTryRawKey || ["permission_denied", "device_not_linked", "integration_expired", "authentication_failed", "rate_limited"].includes(classified.classification)) {
+          logger.warn("tuya_ir_standard_dispatch_rejected", {
+            canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+            infrared_id: infraredId,
+            remote_id: binding.remote_id,
+            canonical_action: key,
+            classification: classified.classification,
+            provider_code: classified.provider_code,
+            raw_fallback: false,
+          });
           throw error;
         }
         logger.warn("tuya_ir_standard_command_fallback_to_raw", {
           canonical_device_id: (context as any)?.canonicalDevice?.id || null,
           infrared_id: infraredId,
-          remote_id: remoteId,
+          remote_id: binding.remote_id,
           key,
           provider_code: classified.provider_code,
           safe_message: classified.safe_message,
@@ -1215,16 +1640,16 @@ export class TuyaAdapter implements DeviceAdapter {
         });
         result = await this.requestIr<any>(
           "POST",
-          (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(remoteId)}/raw/command`,
-          (version: string) => this.rawCommandPayload(version, key, appliance, context),
-          { context, infraredId, endpointKind: "raw_remote_command" },
+          (version) => `/${version}/infrareds/${encodeURIComponent(infraredId)}/remotes/${encodeURIComponent(binding.remote_id)}/raw/command`,
+          (version: string) => this.rawCommandPayload(version, verifiedKey, binding),
+          { context, infraredId, remoteId: binding.remote_id, endpointKind: "raw_remote_command" },
         );
         dispatchedEndpointKind = "raw_remote_command";
       }
       logger.info("tuya_ir_command_dispatched", {
         canonical_device_id: (context as any)?.canonicalDevice?.id || null,
         infrared_id: infraredId,
-        remote_id: remoteId,
+        remote_id: binding.remote_id,
         endpoint_kind: dispatchedEndpointKind,
         payload: standardPayload,
         response: result,
@@ -1236,7 +1661,7 @@ export class TuyaAdapter implements DeviceAdapter {
       logger.warn("ir_dispatch_unconfirmed", {
         canonical_device_id: (context as any)?.canonicalDevice?.id || null,
         infrared_id: infraredId,
-        remote_id: remoteId,
+        remote_id: binding.remote_id,
         response: result,
       });
       const error: any = new Error("The connected provider did not confirm this remote command.");
@@ -1252,6 +1677,9 @@ export class TuyaAdapter implements DeviceAdapter {
       accepted: true,
       dispatched: true,
       confirmation_strategy: "provider_ack_only",
+      physical_effect_status: "unknown",
+      remote_id: binding.remote_id,
+      canonical_action: key,
       provider_response: result,
       latency_ms: Date.now() - startedAt,
     };

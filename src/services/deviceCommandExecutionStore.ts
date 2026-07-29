@@ -161,9 +161,17 @@ export function classifyCommandProviderError(error: any, operation = "device_com
     ? "ir_remote_binding_missing"
     : explicitCode === "IR_KEY_NOT_SUPPORTED"
       ? "ir_key_not_supported"
-      : explicitCode === "IR_PROVIDER_REJECTED" || explicitCode === "IR_PROVIDER_DISPATCH_UNCONFIRMED"
-        ? "ir_provider_rejected"
-        : null;
+      : explicitCode === "IR_REMOTE_RECONCILIATION_REQUIRED"
+        ? "ir_remote_reconciliation_required"
+        : explicitCode === "IR_KEY_RECONCILIATION_REQUIRED"
+          ? "ir_key_reconciliation_required"
+          : explicitCode === "IR_RAW_KEY_METADATA_INCOMPLETE"
+            ? "ir_raw_key_metadata_incomplete"
+            : explicitCode === "IR_ENDPOINT_INCOMPATIBLE"
+              ? "ir_endpoint_incompatible"
+              : explicitCode === "IR_PROVIDER_REJECTED" || explicitCode === "IR_PROVIDER_DISPATCH_UNCONFIRMED"
+                ? "ir_provider_rejected"
+                : null;
   return {
     classification: irClassification || classified.classification,
     provider_code: classified.provider_code || error?.code || null,
