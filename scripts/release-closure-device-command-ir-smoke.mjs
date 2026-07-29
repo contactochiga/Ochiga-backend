@@ -49,7 +49,7 @@ assert(/\/air-conditioners\/\$\{encodeURIComponent\(remoteId\)\}\/scenes\/comman
 assert(!/\/remotes\/\$\{encodeURIComponent\(remoteId\)\}\/ac\/command/.test(tuyaAdapter), "Tuya adapter does not use the obsolete generic remote AC command route");
 assert(/category_id/.test(tuyaAdapter) && /key_id/.test(tuyaAdapter) && /raw\/command/.test(tuyaAdapter), "Tuya raw IR commands carry the v2 raw command identity fields");
 assert(/executeIrRemoteCommand/.test(tuyaAdapter), "Tuya adapter routes virtual remote commands through the IR command handler");
-assert(/unsupportedIrCommandError/.test(tuyaAdapter) && /IR_COMMAND_UNSUPPORTED/.test(tuyaAdapter), "Tuya adapter rejects buttons absent from the bound remote catalogue before provider dispatch");
+assert(/unsupportedIrCommandError/.test(tuyaAdapter) && /IR_KEY_NOT_SUPPORTED/.test(tuyaAdapter), "Tuya adapter rejects buttons absent from the bound remote catalogue before provider dispatch");
 assert(/if \(!res\.data\?\.success\)/.test(tuyaClient) && /throw error/.test(tuyaClient) && /tuyaResultAccepted/.test(tuyaAdapter), "Tuya IR command acceptance requires provider success and accepted result");
 assert(/tuya_ir_endpoint_compatibility/.test(tuyaAdapter) && /provider_code.*20001/.test(tuyaAdapter) && /preferred_version: "v1\.0"/.test(tuyaAdapter), "Tuya IR endpoint compatibility remembers v1 after recognized v2 incompatibility");
 assert(/classified\.provider_code === "20001"[\s\S]*fallback: "v1\.0"[\s\S]*continue/.test(tuyaAdapter), "Tuya IR v2 incompatibility code 20001 always falls through to the working v1 endpoint");

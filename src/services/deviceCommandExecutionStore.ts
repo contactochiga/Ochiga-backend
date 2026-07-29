@@ -156,10 +156,18 @@ function emitExecutionUpdate(record: Record<string, any>) {
 
 export function classifyCommandProviderError(error: any, operation = "device_command") {
   const classified = classifyProviderError(error, { provider: "tuya", operation });
+  const explicitCode = compact(error?.code);
+  const irClassification = explicitCode === "IR_REMOTE_BINDING_MISSING"
+    ? "ir_remote_binding_missing"
+    : explicitCode === "IR_KEY_NOT_SUPPORTED"
+      ? "ir_key_not_supported"
+      : explicitCode === "IR_PROVIDER_REJECTED" || explicitCode === "IR_PROVIDER_DISPATCH_UNCONFIRMED"
+        ? "ir_provider_rejected"
+        : null;
   return {
-    classification: classified.classification,
+    classification: irClassification || classified.classification,
     provider_code: classified.provider_code || error?.code || null,
-    safe_message: classified.safe_message || error?.message || "The provider did not complete the command.",
+    safe_message: compact(error?.safe_error_message) || classified.safe_message || error?.message || "The provider did not complete the command.",
     retryable: Boolean(classified.retryable),
   };
 }

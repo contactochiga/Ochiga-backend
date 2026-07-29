@@ -158,6 +158,9 @@
     ,"smoke:internal-language-filter": "node scripts/intelligence-authority-smoke.mjs"
     ,"smoke:consumer-facility-scope-privacy": "node scripts/intelligence-authority-smoke.mjs"
     ,"smoke:full-circle-intelligence-acceptance": "node scripts/intelligence-authority-smoke.mjs"
+    ,"smoke:evidence-presentation": "node scripts/evidence-presentation-smoke.mjs"
+    ,"smoke:exact-target-live-read": "node scripts/exact-target-live-read-smoke.mjs"
+    ,"smoke:ir-configuration-contract": "node scripts/ir-configuration-contract-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

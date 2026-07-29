@@ -416,16 +416,7 @@ export class TuyaAdapter implements DeviceAdapter {
           provider_latency_ms: Date.now() - providerStartedAt,
           response,
         });
-        if (method !== "POST" || tuyaResultAccepted(response)) {
-          logger.info("ir_provider_accepted", {
-            method,
-            version,
-            endpoint: path,
-            endpoint_kind: options?.endpointKind || null,
-            infrared_id: options?.infraredId || null,
-            provider_latency_ms: Date.now() - providerStartedAt,
-          });
-        } else {
+        if (method === "POST" && !tuyaResultAccepted(response)) {
           logger.warn("ir_provider_rejected", {
             method,
             version,
@@ -435,7 +426,21 @@ export class TuyaAdapter implements DeviceAdapter {
             accepted: false,
             provider_response: response,
           });
+          const error: any = new Error("The IR controller rejected this key.");
+          error.statusCode = 424;
+          error.code = "IR_PROVIDER_REJECTED";
+          error.provider_status = "rejected";
+          error.safe_error_message = "The IR controller rejected this key. Re-sync the TV remote configuration.";
+          throw error;
         }
+        logger.info("ir_provider_accepted", {
+          method,
+          version,
+          endpoint: path,
+          endpoint_kind: options?.endpointKind || null,
+          infrared_id: options?.infraredId || null,
+          provider_latency_ms: Date.now() - providerStartedAt,
+        });
         if (method === "POST" && options?.infraredId) {
           if (version === "v1.0" && v2Incompatibility) {
             void this.rememberIrCompatibility(options.context, options.infraredId, {
@@ -976,14 +981,23 @@ export class TuyaAdapter implements DeviceAdapter {
   }
 
   private supportedKeyCode(definition: any) {
-    return cleanStr(definition?.key || definition?.key_code || definition?.code || definition?.value || definition?.name || definition?.key_name || definition?.key_id);
+    return cleanStr(definition?.canonical_action || definition?.canonical_key || definition?.action || definition?.key || definition?.key_code || definition?.code || definition?.value || definition?.name || definition?.key_name);
   }
 
   private findSupportedIrKey(context: AdapterContext, candidates: string[]) {
     const normalized = candidates.map((candidate) => this.normalizeRemoteKey(candidate)).filter(Boolean);
     for (const definition of this.supportedIrKeys(context)) {
-      const code = this.normalizeRemoteKey(this.supportedKeyCode(definition));
-      if (code && normalized.includes(code)) return definition;
+      const values = [
+        this.supportedKeyCode(definition),
+        definition?.key,
+        definition?.key_code,
+        definition?.code,
+        definition?.value,
+        definition?.name,
+        definition?.key_name,
+        definition?.raw_key,
+      ].map((value) => this.normalizeRemoteKey(value)).filter(Boolean);
+      if (values.some((value) => normalized.includes(value))) return definition;
     }
     return null;
   }
@@ -1038,7 +1052,16 @@ export class TuyaAdapter implements DeviceAdapter {
   private unsupportedIrCommandError(message = "This remote does not expose that control.") {
     const error: any = new Error(message);
     error.statusCode = 422;
-    error.code = "IR_COMMAND_UNSUPPORTED";
+    error.code = "IR_KEY_NOT_SUPPORTED";
+    error.safe_error_message = "This TV remote key is not configured for the connected IR controller.";
+    return error;
+  }
+
+  private missingIrRemoteBindingError() {
+    const error: any = new Error("Add or sync an appliance profile before using this remote.");
+    error.statusCode = 422;
+    error.code = "IR_REMOTE_BINDING_MISSING";
+    error.safe_error_message = "This TV remote is not configured for the connected IR controller.";
     return error;
   }
 
@@ -1094,7 +1117,7 @@ export class TuyaAdapter implements DeviceAdapter {
     command: Record<string, any>,
     context: AdapterContext,
   ): Promise<Record<string, any>> {
-    if (!remoteId) throw new Error("Add or sync an appliance profile before using this remote.");
+    if (!remoteId) throw this.missingIrRemoteBindingError();
     const startedAt = Date.now();
     const appliance = ((context as any)?.device?.metadata?.ir_appliance || {}) as Record<string, any>;
     const family = cleanStr(appliance.appliance_type || (context as any)?.device?.metadata?.device_family || (context as any)?.device?.type).toLowerCase();
@@ -1155,8 +1178,19 @@ export class TuyaAdapter implements DeviceAdapter {
     } else {
       if (!key) throw this.unsupportedIrCommandError();
       if (supportedKeys.length && !supportedDefinition) throw this.unsupportedIrCommandError();
-      const standardPayload = { key };
+      const standardPayload = {
+        key: cleanStr(supportedDefinition?.key || supportedDefinition?.key_code || supportedDefinition?.code || key),
+      };
       let dispatchedEndpointKind = "remote_command";
+      logger.info("tuya_ir_key_definition_selected", {
+        canonical_device_id: (context as any)?.canonicalDevice?.id || null,
+        infrared_id: infraredId,
+        remote_id: remoteId,
+        canonical_key: key,
+        provider_key: standardPayload.key,
+        provider_key_id: cleanStr(supportedDefinition?.key_id || supportedDefinition?.id) || null,
+        endpoint_strategy: "remote_command",
+      });
       try {
         result = await this.requestIr<any>(
           "POST",
@@ -1390,9 +1424,7 @@ export class TuyaAdapter implements DeviceAdapter {
     if (remoteId) {
       return this.executeIrRemoteCommand(deviceId, remoteId, command, _context);
     }
-    if (/^(tv_remote|ac_remote|ir_remote|climate)$/i.test(String((command as any)?.type || ""))) {
-      throw new Error("Add or sync an appliance profile before using this remote.");
-    }
+    if (/^(tv_remote|ac_remote|ir_remote|climate)$/i.test(String((command as any)?.type || ""))) throw this.missingIrRemoteBindingError();
     const schema = await this.getDeviceSchema(deviceId);
 
     const commands = this.buildTuyaCommands(schema, command);

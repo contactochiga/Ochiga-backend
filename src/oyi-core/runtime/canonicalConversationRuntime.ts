@@ -12,6 +12,7 @@ import {
 import { buildModuleFacts } from "./moduleFactAdapters";
 import { resolveConversationTarget } from "./conversationTargetResolver";
 import { hydrateCanonicalTarget } from "./canonicalTargetHydrationRegistry";
+import { deviceRuntimeStateService } from "../../services/deviceRuntimeStateService";
 
 export type OperationalObjectType =
   | "estate"
@@ -1436,11 +1437,11 @@ function freshnessLabelFromEvidence(freshness: unknown, truthState: unknown, sou
   const truth = text(truthState).toLowerCase();
   const sourceText = text(source).toLowerCase();
   const age = safeDateLabel(timestamp || freshness, "", "relative");
-  if (freshnessText === "fresh" && (truth === "confirmed" || truth === "observed")) return { prefix: "currently reports", caveat: age ? `Updated ${age}.` : "Updated recently." };
-  if (["stale", "ageing", "cached", "last_confirmed"].includes(freshnessText) || truth === "observed") return { prefix: "the latest available reading shows", caveat: age ? `Last updated ${age}.` : "This is not a live confirmation." };
   if (truth === "inferred" || sourceText === "validated_visible_state") return { prefix: "the app last showed", caveat: age ? `That displayed state was captured ${age}.` : "A live provider reading was not available." };
+  if (freshnessText === "fresh" && (truth === "confirmed" || truth === "observed")) return { prefix: "the latest reading confirms", caveat: age ? `Updated ${age}.` : "Updated recently.", current: true };
+  if (["stale", "ageing", "cached", "last_confirmed"].includes(freshnessText) || truth === "observed") return { prefix: "the last available reading showed", caveat: age ? `Last updated ${age}; this is stale.` : "This is not a live confirmation.", current: false };
   if (["expired", "unknown", "unavailable", "provider_disconnected"].includes(freshnessText) || truth === "unavailable") return { prefix: "does not have a recently confirmed state for", caveat: "Status is not recently confirmed." };
-  return { prefix: "the latest evidence shows", caveat: age ? `Evidence time: ${age}.` : "" };
+  return { prefix: "the latest evidence shows", caveat: age ? `Evidence time: ${age}.` : "", current: false };
 }
 
 function sentence(value: unknown) {
@@ -1477,9 +1478,16 @@ function naturalizeUserCopy(value: unknown) {
     [/\borganization_restricted\b/gi, "restricted"],
     [/\bresident_device_private\b/gi, "home-private"],
     [/\bInvalid Date\b/g, "time unavailable"],
+    [/\bundefined\b/gi, "unavailable"],
+    [/\bnull\b/gi, "unavailable"],
+    [/\bpermitted surface\b/gi, "available in this view"],
+    [/\bFacility projection\b/gi, "building view"],
   ];
   for (const [pattern, replacement] of replacements) next = next.replace(pattern, replacement);
-  return next.replace(/\s+/g, " ").trim();
+  return next
+    .replace(/\b([0-9]{1,2}:[0-9]{2}\s?(?:AM|PM)?)\s*\(\s*\1\s*\)/gi, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function listNames(value: unknown, fallbackPrefix: string) {
@@ -2512,9 +2520,94 @@ function currentScope(input: CanonicalConversationRequest, oisContext: OisContex
   };
 }
 
+function exactTargetLiveReadIntent(contract: IntelligenceRequestContract) {
+  return contract.scope_mode === "exact_target"
+    && contract.operation_class === "read"
+    && ["current_state", "health_check", "diagnosis", "investigation", "evidence"].includes(contract.intent);
+}
+
+function parentDeviceIdForContract(contract: IntelligenceRequestContract, object: OperationalObject | null) {
+  if (object?.object_type === "device_channel") return object.parent_id || object.canonical_id.split(":")[0];
+  if (object?.object_type === "device") return object.canonical_id;
+  if (contract.target.object_type === "device_channel" && contract.target.canonical_id) return contract.target.parent_id || contract.target.canonical_id.split(":")[0];
+  if (contract.target.object_type === "device" && contract.target.canonical_id) return contract.target.canonical_id;
+  return "";
+}
+
+async function requestBoundedLiveEvidence(input: {
+  contract: IntelligenceRequestContract;
+  object: OperationalObject | null;
+  conversationTarget: any;
+  actor: AuthUser | null;
+  oisContext: OisContext | null | undefined;
+  activeContext: Record<string, unknown>;
+  visibleState: Record<string, unknown> | null;
+}) {
+  if (!exactTargetLiveReadIntent(input.contract) || !input.object) return null;
+  const freshness = text(input.object.freshness).toLowerCase();
+  if (freshness === "fresh") return null;
+  const deviceId = parentDeviceIdForContract(input.contract, input.object);
+  if (!deviceId) return null;
+  const startedAt = Date.now();
+  logger.info("conversation_live_evidence_requested", {
+    conversation_request_id: input.contract.conversation_request_id,
+    device_id: deviceId,
+    target_id: input.contract.target.canonical_id,
+    intent: input.contract.intent,
+    existing_freshness: input.object.freshness,
+  });
+  try {
+    const refreshPromise = deviceRuntimeStateService.refresh(deviceId, "high", "conversation_exact_target_live_read");
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800));
+    const refreshed = await Promise.race([refreshPromise, timeoutPromise]);
+    if (!refreshed) {
+      logger.info("conversation_live_evidence_timed_out", {
+        conversation_request_id: input.contract.conversation_request_id,
+        device_id: deviceId,
+        duration_ms: Date.now() - startedAt,
+      });
+      return null;
+    }
+    logger.info("conversation_live_evidence_completed", {
+      conversation_request_id: input.contract.conversation_request_id,
+      device_id: deviceId,
+      source: refreshed.source,
+      freshness: refreshed.freshness,
+      age_ms: refreshed.age_ms,
+      duration_ms: Date.now() - startedAt,
+    });
+    return hydrateCanonicalTarget({
+      actor: input.actor,
+      oisContext: input.oisContext,
+      target: input.conversationTarget,
+      activeContext: input.activeContext,
+      visibleState: input.visibleState,
+    });
+  } catch (error) {
+    logger.info("conversation_live_evidence_timed_out", {
+      conversation_request_id: input.contract.conversation_request_id,
+      device_id: deviceId,
+      reason: error instanceof Error ? error.message : "refresh_failed",
+      duration_ms: Date.now() - startedAt,
+    });
+    return null;
+  }
+}
+
+function truthFromFreshness(freshness: unknown, source?: unknown): IntelligenceFact["truth_state"] {
+  const value = text(freshness).toLowerCase();
+  const sourceText = text(source).toLowerCase();
+  if (sourceText === "validated_visible_state") return "inferred";
+  if (value === "fresh") return "confirmed";
+  if (["stale", "ageing", "cached", "last_confirmed"].includes(value)) return "observed";
+  if (["expired", "unknown", "unavailable", "provider_disconnected"].includes(value)) return "unavailable";
+  return value ? "observed" : "unavailable";
+}
+
 function factFromObject(object: OperationalObject, hydrationFacts: Record<string, unknown>, input: CanonicalConversationRequest, oisContext: OisContext | null | undefined): IntelligenceFact {
   const scope = currentScope(input, oisContext);
   const stateFacts = recordOf(hydrationFacts.state);
+  const truth = truthFromFreshness(object.freshness, recordOf(object.metadata).source);
   const statement = objectStateLine(object);
   return {
     fact_id: `object_state:${object.object_type}:${object.canonical_id}:${object.freshness || "unknown"}`,
@@ -2534,13 +2627,42 @@ function factFromObject(object: OperationalObject, hydrationFacts: Record<string
     observed_at: new Date().toISOString(),
     source_type: "live_state",
     source_id: object.evidence_references[0] || null,
-    truth_state: object.freshness ? "observed" : "unavailable",
-    confidence: object.freshness ? 0.86 : 0.62,
+    truth_state: truth,
+    confidence: truth === "confirmed" ? 0.9 : truth === "observed" ? 0.74 : 0.54,
     freshness: object.freshness || "unknown",
     privacy_class: object.home_id ? "resident_device_private" : "building_operational",
     permissions: object.permissions || [],
     evidence: [{ type: "hydration", facts: hydrationFacts }],
   };
+}
+
+function humanCommandDirection(value: unknown) {
+  const command = recordOf(value);
+  for (const [key, raw] of Object.entries(command)) {
+    if (/^switch_\d+$/i.test(key) || ["switch", "power", "on"].includes(key)) {
+      if (typeof raw === "boolean") return raw ? "On" : "Off";
+    }
+  }
+  return "";
+}
+
+function residentCommandStatement(input: {
+  channel?: string | null;
+  status?: string | null;
+  command?: unknown;
+  safeError?: string | null;
+}) {
+  const channel = text(input.channel);
+  const target = channel ? channel.replace(/^switch_/i, "Channel ") : "Device";
+  const direction = humanCommandDirection(input.command);
+  const status = text(input.status).toLowerCase();
+  const prefix = direction ? `${target} ${direction}` : `${target} command`;
+  if (/state_confirmed|executed|confirmed/.test(status)) return `${prefix} was confirmed.`;
+  if (/provider_rejected|failed|state_mismatch|confirmation_timed_out|timeout/.test(status)) {
+    return `${prefix} did not complete${input.safeError ? `: ${input.safeError}` : ""}.`;
+  }
+  if (/accepted|dispatching|awaiting/.test(status)) return `${prefix} was sent and is waiting for confirmation.`;
+  return `${prefix} was recorded.`;
 }
 
 function dedupeFacts(facts: IntelligenceFact[]) {
@@ -2578,17 +2700,24 @@ async function loadRecentChangeFacts(input: CanonicalConversationRequest, oisCon
       const result = recordOf(recordOf(row.metadata).result);
       const channel = text(result.channel_code);
       if (object?.object_type === "device_channel" && contract.target.channel_code && channel && channel !== contract.target.channel_code) continue;
-      const finalStatus = text(result.final_status || row.execution_status);
+      const finalStatus = text(result.final_status || result.confirmation_status || row.execution_status);
       const label = text(result.device_name || row.device_id) || "Device command";
       const confirmed = /state_confirmed|executed/i.test(finalStatus) || row.verified;
+      const commandValue = result.normalized_command || result.expected_state || null;
+      const statement = residentCommandStatement({
+        channel,
+        status: finalStatus,
+        command: commandValue,
+        safeError: text(result.safe_error_message || row.error_message) || null,
+      });
       facts.push({
         fact_id: `execution:${row.id}`,
         domain: "devices",
         fact_type: "command_execution",
         scope: { estate_id: row.estate_id || scope.estate_id, home_id: row.home_id || scope.home_id, room_id: text(result.room_id) || scope.room_id },
         object: { object_type: channel ? "device_channel" : "device", canonical_id: channel ? `${row.device_id}:${channel}` : String(row.device_id || ""), label: channel ? `${label} ${channel}` : label },
-        statement: `${channel ? `Channel ${channel.replace(/^switch_/i, "")}` : "Device"} command ${confirmed ? "confirmed" : finalStatus || "recorded"} at ${safeDateLabel(row.completed_at || row.requested_at)}.`,
-        value: { status: finalStatus, command: result.normalized_command || result.expected_state || null, channel_code: channel || null },
+        statement,
+        value: { status: finalStatus, command: commandValue, channel_code: channel || null, safe_error_message: text(result.safe_error_message || row.error_message) || null },
         previous_value: result.previous_state || null,
         occurred_at: row.completed_at || row.requested_at || null,
         observed_at: new Date().toISOString(),
@@ -2644,6 +2773,7 @@ async function loadRecentChangeFacts(input: CanonicalConversationRequest, oisCon
   for (const row of recentExecutions.map(recordOf).slice(0, 8)) {
     const summary = text(row.summary || row.result_summary || row.status);
     if (!summary) continue;
+    if (/ai\.|oyi\.system|proximity\.awareness|tool\.requested|tool\.executed|response\.generated|command\.received|audit\.recorded|system event/i.test(summary)) continue;
     facts.push({
       fact_id: `visible_execution:${row.id || row.command_execution_id || summary}`,
       domain: "devices",
@@ -2689,7 +2819,11 @@ function factAppliesToContract(fact: IntelligenceFact, contract: IntelligenceReq
 function isUsefulDeviceActivityFact(fact: IntelligenceFact) {
   const haystack = `${fact.statement} ${fact.fact_type} ${fact.source_id || ""}`.toLowerCase();
   if (/ai\.|oyi\.system|proximity\.awareness|tool\.requested|tool\.executed|response\.generated|command\.received|audit\.recorded/.test(haystack)) return false;
-  return true;
+  if (!safeDateLabel(fact.occurred_at, "")) {
+    return /critical|failed|rejected|confirmed offline|alarm|security/i.test(haystack);
+  }
+  if (/system event/.test(haystack)) return false;
+  return /command|confirmed|changed|connected|disconnected|failed|rejected|scene|automation|offline|online|maintenance|fault|timeout/.test(haystack);
 }
 
 function isFailureFact(fact: IntelligenceFact) {
@@ -2763,6 +2897,25 @@ function stripInternalLanguage(value: string) {
   return next.replace(/\s+/g, " ").trim();
 }
 
+function enforceResidentAnswerQuality(answer: string, fallback: string) {
+  const checks: Array<[string, RegExp]> = [
+    ["raw_uuid", /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}\b/i],
+    ["invalid_date", /\bInvalid Date\b/i],
+    ["undefined_null", /\b(undefined|null)\b/i],
+    ["internal_event_code", /\b(?:ai|oyi|device|audit|proximity|runtime)\.[a-z0-9_.-]+\b/i],
+    ["privacy_policy_term", /\bprivacy_class|resident_device_private|organization_restricted|permitted surface|Facility projection\b/i],
+    ["duplicate_timestamp", /\b([0-9]{1,2}:[0-9]{2}\s?(?:AM|PM)?)\s*\(\s*\1\s*\)/i],
+    ["freshness_contradiction", /cannot claim a live healthy connection[\s\S]{0,220}(controller connection is healthy|is healthy|currently reports)/i],
+  ];
+  for (const [category, pattern] of checks) {
+    if (pattern.test(answer)) {
+      logger.warn("conversation_answer_quality_blocked", { category });
+      return fallback;
+    }
+  }
+  return answer;
+}
+
 function channelSummary(facts: Record<string, unknown>) {
   const channels = recordOf(facts.channels);
   const states = recordOf(channels.switch_states);
@@ -2779,6 +2932,14 @@ function providerHealthLabel(value: unknown) {
   return raw;
 }
 
+function providerHealthSentence(provider: string, evidence: ReturnType<typeof freshnessLabelFromEvidence>) {
+  if (provider === "unknown") return "";
+  if (evidence.current) return `Controller connection is ${provider}.`;
+  if (provider === "healthy") return `The last available controller reading looked healthy, but it is not live evidence.`;
+  if (provider === "unavailable") return `The controller connection was not available in the latest evidence.`;
+  return `Controller connection in the latest evidence: ${provider}.`;
+}
+
 function buildCurrentStateAnswer(object: OperationalObject | null, hydrationFacts: Record<string, unknown>, contract: IntelligenceRequestContract) {
   if (!object) return "I do not have an exact object selected, so I can only answer from the current authorised scope.";
   const stateFacts = recordOf(hydrationFacts.state);
@@ -2790,8 +2951,9 @@ function buildCurrentStateAnswer(object: OperationalObject | null, hydrationFact
   const lines = truth.prefix.includes("for")
     ? [`Oyi ${truth.prefix} ${object.label}.`]
     : [`${object.label} ${truth.prefix} ${state}.`];
-  if (object.health) lines.push(`Health is ${naturalState(object.health)}.`);
-  if (provider !== "unknown") lines.push(`The controller connection is ${provider}.`);
+  if (object.health) lines.push(truth.current ? `Health is ${naturalState(object.health)}.` : `Last health reading: ${naturalState(object.health)}.`);
+  const providerLine = providerHealthSentence(provider, truth);
+  if (providerLine) lines.push(providerLine);
   if (channelLine) lines.push(channelLine.endsWith(".") ? channelLine : `${channelLine}.`);
   if (truth.caveat) lines.push(truth.caveat);
   if (object.object_type === "device_channel" && contract.target.channel_code) lines.push(`This answer is scoped only to ${contract.target.channel_code}; I did not substitute another channel.`);
@@ -2805,12 +2967,18 @@ function buildHealthAnswer(object: OperationalObject | null, hydrationFacts: Rec
   const state = naturalState(object.current_state) || "unknown";
   const channelLine = channelSummary(hydrationFacts);
   const truth = freshnessLabelFromEvidence(stateFacts.freshness || object.freshness, factFromObject(object, hydrationFacts, { message: "", surface: "consumer" } as CanonicalConversationRequest, null).truth_state, recordOf(object.metadata).source, stateFacts.runtime_timestamp || object.freshness);
-  const fresh = text(stateFacts.freshness || object.freshness).toLowerCase() === "fresh";
-  const status = fresh && (provider === "healthy" || /online|available|healthy|connected/i.test(`${object.health || ""} ${stateFacts.availability || ""}`));
+  const status = truth.current && (provider === "healthy" || /online|available|healthy|connected/i.test(`${object.health || ""} ${stateFacts.availability || ""}`));
   const lead = status
     ? `${object.label} is communicating with Oyi from fresh confirmed evidence.`
     : `Oyi cannot claim a live healthy connection for ${object.label} from the current evidence.`;
-  return [lead, `It currently reports ${state}.`, object.health ? `Health is ${naturalState(object.health)}.` : "", provider !== "unknown" ? `The controller connection is ${provider}.` : "", channelLine ? `${channelLine}.` : "", object.freshness ? `Last evidence: ${object.freshness}.` : ""].filter(Boolean).join(" ");
+  return [
+    lead,
+    truth.current ? `It currently reports ${state}.` : `${object.label} ${truth.prefix} ${state}.`,
+    object.health ? (truth.current ? `Health is ${naturalState(object.health)}.` : `Last health reading: ${naturalState(object.health)}.`) : "",
+    providerHealthSentence(provider, truth),
+    channelLine ? `${channelLine}.` : "",
+    truth.caveat,
+  ].filter(Boolean).join(" ");
 }
 
 function buildCapabilityAnswer(object: OperationalObject | null, input: CanonicalConversationRequest) {
@@ -2831,8 +2999,8 @@ function buildRecentChangesAnswer(facts: IntelligenceFact[], contract: Intellige
   }
   const from = contract.temporal_scope.from ? safeDateLabel(contract.temporal_scope.from, "the recent window", "date_time") : "the recent window";
   const items = meaningful.map((fact) => {
-    const at = safeDateLabel(fact.occurred_at);
-    return `• ${fact.statement.replace(/\.$/, "")} (${at})`;
+    const at = safeDateLabel(fact.occurred_at, "");
+    return `• ${fact.statement.replace(/\.$/, "")}${at ? ` (${at})` : ""}`;
   });
   const lead = contract.scope_mode === "exact_target" && contract.target.label ? `For ${contract.target.label} since ${from}:` : `Since ${from}:`;
   return [lead, ...items, "I did not treat proximity alone as suspicious access without denial or mismatch evidence."].join("\n");
@@ -2842,7 +3010,10 @@ function buildFailureHistoryAnswer(facts: IntelligenceFact[], contract: Intellig
   const failures = facts.filter((fact) => factAppliesToContract(fact, contract) && isFailureFact(fact)).slice(0, 8);
   const label = contract.target.label || "the selected device";
   if (!failures.length) return `I do not see confirmed failures for ${label} in the authorised evidence window. Stale, expired, or unknown readings were not counted as failures.`;
-  return [`Failures for ${label}:`, ...failures.map((fact) => `• ${fact.statement.replace(/\.$/, "")} (${safeDateLabel(fact.occurred_at)})`)].join("\n");
+  return [`Failures for ${label}:`, ...failures.map((fact) => {
+    const at = safeDateLabel(fact.occurred_at, "");
+    return `• ${fact.statement.replace(/\.$/, "")}${at ? ` (${at})` : ""}`;
+  })].join("\n");
 }
 
 function buildDiagnosisAnswer(object: OperationalObject | null, hydrationFacts: Record<string, unknown>, facts: IntelligenceFact[], contract: IntelligenceRequestContract) {
@@ -2859,13 +3030,15 @@ function buildDiagnosisAnswer(object: OperationalObject | null, hydrationFacts: 
       ? "Safe next step: reconnect or refresh the controller integration before relying on live state."
       : "Safe next step: use a direct control only if you want to change the state; this diagnosis did not execute anything.";
   return [
-    `Diagnosis for ${object.label}: ${failures.length ? `${failures.length} failure signal${failures.length === 1 ? "" : "s"} found.` : "no confirmed failure is visible."}`,
-    `State evidence: ${object.label} ${freshness.prefix} ${state}.`,
-    provider !== "unknown" ? `Controller connection: ${provider}.` : "",
+    `Finding: ${failures.length ? `${failures.length} confirmed failure item${failures.length === 1 ? "" : "s"} are visible for ${object.label}.` : `No confirmed failure is visible for ${object.label}.`}`,
+    `Supporting evidence: ${freshness.current ? "The latest reading confirms" : freshness.prefix} ${state}.`,
     channelLine ? `Channels: ${channelLine}.` : "",
+    providerHealthSentence(provider, freshness),
+    `Evidence freshness: ${freshness.caveat || "Freshness is not available."}`,
     failures[0] ? `Most relevant issue: ${failures[0].statement.replace(/\.$/, "")}.` : "",
     `Uncertainty: relay or controller state does not independently prove the physical appliance output.`,
     nextStep,
+    "No action was performed.",
   ].filter(Boolean).join(" ");
 }
 
@@ -2875,18 +3048,19 @@ function buildRelationshipsAnswer(object: OperationalObject | null, input: Canon
   const scenes = listNames(input.active_scenes || relationships.active_scenes || relationships.scenes, "scene");
   const automations = listNames(input.active_automations || relationships.active_automations || relationships.automations, "automation");
   const controls = arrayOfStrings(recordOf(hydrationFacts.classification).supported_controls || object.capabilities).slice(0, 6);
-  const channel = contract.target.channel_code ? `Selected channel: ${contract.target.channel_code}.` : "";
+  const selected = recordOf(hydrationFacts.selected_channel);
+  const channel = contract.target.channel_code ? `Selected channel: ${text(recordOf(selected.channel).name || recordOf(selected.channel).label) || contract.target.channel_code.replace(/^switch_/i, "Channel ")}.` : "";
+  const roomName = text(relationships.room_name);
+  const homeLabel = text(relationships.home_name || recordOf(hydrationFacts.identity).home_name);
   const lines = [
     `Relationships for ${object.label}:`,
-    object.parent_id ? `Parent device: ${object.parent_id}.` : "",
+    text(relationships.parent_device_name) ? `Parent hub: ${text(relationships.parent_device_name)}.` : "",
     channel,
-    object.room_id || relationships.room_name ? `Room: ${text(relationships.room_name) || object.room_id}.` : "",
-    object.home_id ? `Home scope: ${object.home_id}.` : "",
-    text(recordOf(object.metadata).provider) ? `Provider: ${text(recordOf(object.metadata).provider)}.` : "",
+    roomName ? `Room: ${roomName}.` : "",
+    homeLabel ? `Home: ${homeLabel}.` : "",
     scenes.length ? `Scenes: ${scenes.slice(0, 4).join(", ")}.` : "Scenes: none linked in the current evidence.",
     automations.length ? `Automations: ${automations.slice(0, 4).join(", ")}.` : "Automations: none linked in the current evidence.",
     controls.length ? `Supported controls: ${controls.join(", ")}.` : "",
-    "Permitted surface: Consumer home context. Facility projection is not included for resident-private devices.",
   ].filter(Boolean);
   return lines.join("\n");
 }
@@ -2896,13 +3070,19 @@ function buildCommandOutcomeAnswer(command: Record<string, unknown> | null) {
   const status = text(command.status);
   const channel = text(command.channel_code);
   const target = channel ? `${channel.replace(/^switch_/i, "Channel ")}` : "the device";
+  const requestedAt = safeDateLabel(command.completed_at || command.requested_at, "", "relative");
+  const when = requestedAt ? ` ${requestedAt}` : "";
   if (/state_confirmed|executed/i.test(status) || command.verified) {
-    return `${target} command was confirmed. Provider status: ${text(command.provider_status) || "recorded"}. State confirmation: ${text(command.confirmation_status) || status}. Physical effect: ${text(command.physical_effect_status) || "not independently sensed"}.`;
+    const physical = text(command.physical_effect_status).toLowerCase() === "confirmed"
+      ? "Oyi has direct physical-effect evidence for the connected appliance."
+      : "The device state was confirmed, but Oyi did not directly observe the connected appliance itself.";
+    return `Your last ${target} command was accepted, and a fresh follow-up reading confirmed the requested device state${when}. ${physical}`;
   }
   if (/provider_rejected|failed|state_mismatch|confirmation_timed_out/i.test(status)) {
     return `${target} command did not complete successfully. ${text(command.safe_error_message) || "Oyi kept the last confirmed state rather than marking the device as changed."}`;
   }
-  return `${target} command is ${status || "recorded"} and has not been confirmed as a physical appliance effect.`;
+  if (/accepted|dispatching|awaiting/.test(status)) return `The controller accepted the ${target} command, but Oyi has not yet confirmed the resulting device state.`;
+  return `${target} command was recorded, but Oyi has not confirmed a resulting device-state change.`;
 }
 
 function buildReportAnswer(facts: IntelligenceFact[], object: OperationalObject | null, contract: IntelligenceRequestContract) {
@@ -2964,6 +3144,11 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     required_sources: contract.evidence_requirements,
     permissions: object?.permissions || [],
     loaders: [contract.answer_builder, object?.source_module || input.module || "scope"],
+  });
+  logger.info("conversation_evidence_plan_built", {
+    conversation_request_id: contract.conversation_request_id,
+    answer_builder: contract.answer_builder,
+    evidence_requirements: contract.evidence_requirements,
   });
   const baseFacts = object ? [factFromObject(object, hydrationFacts, input, oisContext)] : [];
   let facts = baseFacts;
@@ -3032,7 +3217,12 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     matched: false,
     reason: contract.operation_class === "read" || contract.operation_class === "report" || contract.operation_class === "recommend" ? "read_only_current_turn" : "no_execution",
   });
-  const safeAnswer = naturalizeUserCopy(stripInternalLanguage(answer)).replace(/^Done[.,]?\s*/i, "");
+  const safeAnswer = enforceResidentAnswerQuality(
+    naturalizeUserCopy(stripInternalLanguage(answer)).replace(/^Done[.,]?\s*/i, ""),
+    object
+      ? `I checked ${object.label}, but the available evidence is not clean enough to summarize safely. I did not widen to other devices or perform any action.`
+      : "I checked the authorised evidence, but it is not clean enough to summarize safely. I did not perform any action.",
+  );
   return {
     supported: true,
     facts: deduped,
@@ -3309,7 +3499,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     home_id: input.home_id || oisContext?.home_id || null,
     room_id: input.room_id || text(recordOf(input.context).room_id || recordOf(input.context).roomId) || null,
   });
-  const hydration = await hydrateCanonicalTarget({
+  let hydration = await hydrateCanonicalTarget({
     actor,
     oisContext,
     target: targetResolution,
@@ -3364,6 +3554,23 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     temporal_scope: requestContract.temporal_scope,
     builder: requestContract.answer_builder,
   });
+  const refreshedHydration = await requestBoundedLiveEvidence({
+    contract: requestContract,
+    object: resolved.object,
+    conversationTarget: targetResolution,
+    actor,
+    oisContext,
+    activeContext: activeContextRecord,
+    visibleState: Object.keys(visibleStateRecord).length ? visibleStateRecord : null,
+  });
+  if (refreshedHydration?.status === "hydrated") {
+    hydration = refreshedHydration;
+    resolved = {
+      object: hydration.object,
+      source: "page_selection",
+      warnings: [],
+    };
+  }
   const exactTargetRequested = Boolean(explicitCandidate || ["explicit_canonical_target", "selected_subobject", "active_page_object"].includes(targetResolution.source));
   if (exactTargetRequested && !resolved.object) {
     const label = cleanLabel(explicitCandidate?.label || targetResolution.objectName, "the selected item");
