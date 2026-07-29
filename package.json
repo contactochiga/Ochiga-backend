@@ -168,6 +168,14 @@
     ,"smoke:evidence-presentation": "node scripts/evidence-presentation-smoke.mjs"
     ,"smoke:exact-target-live-read": "node scripts/exact-target-live-read-smoke.mjs"
     ,"smoke:ir-configuration-contract": "node scripts/ir-configuration-contract-smoke.mjs"
+    ,"smoke:turn-target-precedence": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
+    ,"smoke:evidence-compatibility": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
+    ,"smoke:proximity-delivery-policy": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
+    ,"smoke:activity-history-curation": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
+    ,"smoke:offline-inventory-truth": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
+    ,"smoke:conversation-command-target-binding": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
+    ,"smoke:home-summary-truth": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
+    ,"smoke:freshness-copy-truth": "node scripts/intelligence-target-evidence-closure-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

@@ -2241,6 +2241,24 @@ function isReadOnlyBroadDeviceIntent(message: string) {
     || /\b(show|list|which)\b[\s\S]{0,40}\bdevices?\b[\s\S]{0,30}\b(offline|unavailable|down|failed)\b/i.test(message);
 }
 
+function isExplicitBroadHomeReadIntent(message: string, scopeHint?: string | null) {
+  const lower = message.toLowerCase();
+  if (text(scopeHint).toLowerCase() === "exact_target") return false;
+  if (isReadOnlyBroadDeviceIntent(message)) return true;
+  if (/\b(this|selected|current)\b[\s\S]{0,20}\b(device|channel|switch|tv|remote|light|socket|plug)\b/i.test(lower)) return false;
+  if (/\bwhat(?:'s| is) happening\b[\s\S]{0,24}\b(home|house|apartment|unit)\b/i.test(lower)) return true;
+  if (/\bwhat changed recently\b/i.test(lower)) return true;
+  if (/\brecent changes\b[\s\S]{0,24}\b(home|house|apartment|unit)\b/i.test(lower)) return true;
+  if (/\b(home|house|apartment|unit)\b[\s\S]{0,24}\b(report|summary|recent|changed|changes|offline|unavailable)\b/i.test(lower)) return true;
+  if (/\b(show|list|check|find)\b[\s\S]{0,24}\b(all|home|house)\b[\s\S]{0,24}\b(devices|changes|activity|issues)\b/i.test(lower)) return true;
+  return false;
+}
+
+function requestedChannelCode(message: string) {
+  const match = message.match(/\b(?:channel|gang|switch)\s*([123])\b/i);
+  return match ? `switch_${match[1]}` : null;
+}
+
 type OperationClass =
   | "read"
   | "report"
@@ -2397,8 +2415,9 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   const targetType = text(object?.object_type || targetResolution.objectType) || null;
   const targetId = text(object?.canonical_id || targetResolution.objectId) || null;
   const parsedChannel = targetType === "device_channel" ? parseDeviceChannelIdentity(targetId) : { parent_id: null, channel_code: null };
-  const explicitBroad = isReadOnlyBroadDeviceIntent(message) || /\b(whole home|all devices|everything|home summary|home report|show offline|what changed recently)\b/i.test(lower);
+  const explicitBroad = isExplicitBroadHomeReadIntent(message, scopeHint) || /\b(whole home|all devices|everything|home summary|home report|show offline)\b/i.test(lower);
   const mutationRequested = isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
+  const requestedChannel = mutationRequested ? requestedChannelCode(message) : null;
   let intent: CanonicalIntent = "general_help";
   let operationClass: OperationClass = mutationRequested ? "execute_mutation" : "read";
   if (["activity_history", "failure_history", "diagnosis", "relationships", "evidence", "current_state", "health_check", "command_outcome", "capability"].includes(hint)) {
@@ -2473,6 +2492,14 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
                 : intent === "device_control" || intent === "scene_execution"
                   ? "canonical_action_execution"
                   : "general";
+  const targetParentId = object?.parent_id || parsedChannel.parent_id;
+  const targetChannelCode = requestedChannel || parsedChannel.channel_code || text(recordOf(object?.metadata).channel_code) || null;
+  const targetCanonicalId = requestedChannel && targetParentId
+    ? `${targetParentId}:${requestedChannel}`
+    : targetId;
+  const targetLabel = requestedChannel && object?.label
+    ? object.label.replace(/Channel\s+[123]/i, requestedChannel.replace(/^switch_/i, "Channel "))
+    : object?.label || text(targetResolution.objectName) || null;
   return {
     conversation_request_id: conversationRequestId,
     thread_id: text(input.thread_id) || null,
@@ -2483,10 +2510,10 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     temporal_scope: temporalScopeFor(message),
     target: {
       object_type: targetType,
-      canonical_id: targetId,
-      parent_id: object?.parent_id || parsedChannel.parent_id,
-      channel_code: parsedChannel.channel_code || text(recordOf(object?.metadata).channel_code) || null,
-      label: object?.label || text(targetResolution.objectName) || null,
+      canonical_id: targetCanonicalId,
+      parent_id: targetParentId,
+      channel_code: targetChannelCode,
+      label: targetLabel,
     },
     mutation: {
       requested: mutationRequested,
@@ -2651,12 +2678,17 @@ function residentCommandStatement(input: {
   status?: string | null;
   command?: unknown;
   safeError?: string | null;
+  confirmationStatus?: string | null;
+  physicalEffectStatus?: string | null;
 }) {
   const channel = text(input.channel);
   const target = channel ? channel.replace(/^switch_/i, "Channel ") : "Device";
   const direction = humanCommandDirection(input.command);
   const status = text(input.status).toLowerCase();
+  const confirmation = text(input.confirmationStatus).toLowerCase();
+  const physical = text(input.physicalEffectStatus).toLowerCase();
   const prefix = direction ? `${target} ${direction}` : `${target} command`;
+  if (confirmation === "not_observable" || physical === "unknown" || physical === "not_observable") return `${prefix} was accepted by the controller; Oyi cannot directly observe the physical response.`;
   if (/state_confirmed|executed|confirmed/.test(status)) return `${prefix} was confirmed.`;
   if (/provider_rejected|failed|state_mismatch|confirmation_timed_out|timeout/.test(status)) {
     return `${prefix} did not complete${input.safeError ? `: ${input.safeError}` : ""}.`;
@@ -2709,6 +2741,8 @@ async function loadRecentChangeFacts(input: CanonicalConversationRequest, oisCon
         status: finalStatus,
         command: commandValue,
         safeError: text(result.safe_error_message || row.error_message) || null,
+        confirmationStatus: text(result.confirmation_status) || null,
+        physicalEffectStatus: text(result.physical_effect_status) || null,
       });
       facts.push({
         fact_id: `execution:${row.id}`,
@@ -2805,15 +2839,25 @@ async function loadRecentChangeFacts(input: CanonicalConversationRequest, oisCon
 }
 
 function factAppliesToContract(fact: IntelligenceFact, contract: IntelligenceRequestContract) {
-  if (contract.scope_mode !== "exact_target" || !contract.target.canonical_id) return true;
+  return evaluateFactCompatibility(fact, contract).compatible;
+}
+
+function evaluateFactCompatibility(fact: IntelligenceFact, contract: IntelligenceRequestContract): { compatible: boolean; reason: string } {
+  if (contract.scope_mode !== "exact_target" || !contract.target.canonical_id) return { compatible: true, reason: "scope_level_fact" };
+  const haystack = `${fact.statement} ${fact.fact_type} ${fact.source_id || ""}`.toLowerCase();
+  if (/ai\.|oyi\.system|proximity\.awareness|tool\.requested|tool\.executed|response\.generated|command\.received|audit\.recorded/.test(haystack)) {
+    return { compatible: false, reason: "internal_or_proximity_noise" };
+  }
   const factId = fact.object?.canonical_id || "";
   const parentId = contract.target.parent_id || contract.target.canonical_id.split(":")[0];
   if (contract.target.object_type === "device_channel" && contract.target.channel_code) {
-    return factId === contract.target.canonical_id
+    const compatible = factId === contract.target.canonical_id
       || (factId === parentId && text(recordOf(fact.value).channel_code) === contract.target.channel_code)
       || (factId.startsWith(`${parentId}:`) && factId.endsWith(`:${contract.target.channel_code}`));
+    return { compatible, reason: compatible ? "exact_channel_match" : "different_channel_or_device" };
   }
-  return factId === contract.target.canonical_id || factId.startsWith(`${contract.target.canonical_id}:`);
+  const compatible = factId === contract.target.canonical_id || factId.startsWith(`${contract.target.canonical_id}:`);
+  return { compatible, reason: compatible ? "exact_device_match" : "different_device" };
 }
 
 function isUsefulDeviceActivityFact(fact: IntelligenceFact) {
@@ -3003,7 +3047,7 @@ function buildRecentChangesAnswer(facts: IntelligenceFact[], contract: Intellige
     return `• ${fact.statement.replace(/\.$/, "")}${at ? ` (${at})` : ""}`;
   });
   const lead = contract.scope_mode === "exact_target" && contract.target.label ? `For ${contract.target.label} since ${from}:` : `Since ${from}:`;
-  return [lead, ...items, "I did not treat proximity alone as suspicious access without denial or mismatch evidence."].join("\n");
+  return [lead, ...items].join("\n");
 }
 
 function buildFailureHistoryAnswer(facts: IntelligenceFact[], contract: IntelligenceRequestContract) {
@@ -3068,10 +3112,15 @@ function buildRelationshipsAnswer(object: OperationalObject | null, input: Canon
 function buildCommandOutcomeAnswer(command: Record<string, unknown> | null) {
   if (!command) return "I do not see an authorised recent command execution for this scope.";
   const status = text(command.status);
+  const confirmation = text(command.confirmation_status).toLowerCase();
+  const physicalStatus = text(command.physical_effect_status).toLowerCase();
   const channel = text(command.channel_code);
   const target = channel ? `${channel.replace(/^switch_/i, "Channel ")}` : "the device";
   const requestedAt = safeDateLabel(command.completed_at || command.requested_at, "", "relative");
   const when = requestedAt ? ` ${requestedAt}` : "";
+  if (confirmation === "not_observable" || physicalStatus === "unknown" || physicalStatus === "not_observable") {
+    return `Your last ${target} command was accepted by the connected controller${when}. Oyi cannot directly observe whether the physical appliance responded.`;
+  }
   if (/state_confirmed|executed/i.test(status) || command.verified) {
     const physical = text(command.physical_effect_status).toLowerCase() === "confirmed"
       ? "Oyi has direct physical-effect evidence for the connected appliance."
@@ -3443,17 +3492,25 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   const threadCandidate = threadObjectCandidate(threadContext);
   const activeContextRecord = recordOf(input.active_intelligence_context || recordOf(input.context).active_intelligence_context || recordOf(recordOf(input.context).runtime_context).active_context || recordOf(input.conversation_context).active_context);
   const selectedSubobjectRecord = recordOf(activeContextRecord.selected_subobject || recordOf(input.conversation_context).selected_subobject);
-  const broadReadOnlyDeviceIntent = isReadOnlyBroadDeviceIntent(input.message || "");
+  const scopeHint = text(input.scope_mode_hint || recordOf(input.conversation_context).scope_mode_hint || recordOf(input.context).scope_mode_hint);
+  const broadReadOnlyDeviceIntent = isExplicitBroadHomeReadIntent(input.message || "", scopeHint);
+  const requestedChannel = requestedChannelCode(input.message || "");
+  const shouldRebindRequestedChannel = Boolean(requestedChannel && isControlRequest(input.message || "") && !broadReadOnlyDeviceIntent);
   if (broadReadOnlyDeviceIntent) {
     logger.info("read_only_command_execution_blocked", {
-      intent: "show_offline_devices",
+      intent: isReadOnlyBroadDeviceIntent(input.message || "") ? "show_offline_devices" : "broad_home_read",
       target: "home_scope",
       attempted_operation: "device_command_context_reuse",
     });
+    logger.info("conversation_inherited_target_cleared", {
+      reason: "explicit_broad_read_turn",
+      previous_target_id: text(recordOf(input.operational_object).canonical_id || input.target?.target_id || selectedSubobjectRecord.canonical_id) || null,
+      scope_hint: scopeHint || null,
+    });
   }
-  const targetResolution = resolveConversationTarget({
+  let targetResolution = resolveConversationTarget({
     query: input.message,
-    explicitTarget: input.target as any,
+    explicitTarget: broadReadOnlyDeviceIntent ? null : input.target as any,
     selectedObject: broadReadOnlyDeviceIntent ? null : Object.keys(selectedSubobjectRecord).length ? selectedSubobjectRecord as any : input.operational_object as any,
     pageObject: !broadReadOnlyDeviceIntent && explicitCandidate ? {
       object_type: explicitCandidate.object_type,
@@ -3479,6 +3536,22 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       active_intelligence_context: activeContextRecord,
     } as any,
   });
+  if (shouldRebindRequestedChannel && requestedChannel && targetResolution.objectType === "device_channel" && targetResolution.objectId) {
+    const parsed = parseDeviceChannelIdentity(targetResolution.objectId);
+    if (parsed.parent_id && parsed.channel_code !== requestedChannel) {
+      targetResolution = {
+        ...targetResolution,
+        objectId: `${parsed.parent_id}:${requestedChannel}`,
+        objectName: text(targetResolution.objectName).replace(/Channel\s+[123]/i, requestedChannel.replace(/^switch_/i, "Channel ")) || targetResolution.objectName,
+      };
+      logger.info("conversation_target_scope_normalized", {
+        reason: "explicit_channel_requested",
+        requested_channel: requestedChannel,
+        previous_channel: parsed.channel_code,
+        resolved_target_id: targetResolution.objectId,
+      });
+    }
+  }
   const visibleStateRecord = recordOf(activeContextRecord.visible_state || recordOf(input.conversation_context).visible_state || recordOf(recordOf(input.operational_object).metadata).visible_state);
   logger.info("conversation_target_resolved", {
     request_id: text(recordOf(input.context).request_id) || null,
@@ -3571,7 +3644,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       warnings: [],
     };
   }
-  const exactTargetRequested = Boolean(explicitCandidate || ["explicit_canonical_target", "selected_subobject", "active_page_object"].includes(targetResolution.source));
+  const exactTargetRequested = !broadReadOnlyDeviceIntent && Boolean(explicitCandidate || ["explicit_canonical_target", "selected_subobject", "active_page_object"].includes(targetResolution.source));
   if (exactTargetRequested && !resolved.object) {
     const label = cleanLabel(explicitCandidate?.label || targetResolution.objectName, "the selected item");
     const answer = `I know you are asking about ${label}, but I could not retrieve its current information in this scope.`;

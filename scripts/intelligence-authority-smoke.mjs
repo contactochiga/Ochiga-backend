@@ -60,7 +60,8 @@ check("recent changes engine loads concrete records and deduplicates facts", () 
 check("risk claims require evidence and proximity alone is not access risk", () => {
   assert.match(runtime, /securityRiskAllowed/);
   assert.match(runtime, /conversation_risk_claim_evaluated/);
-  assert.match(runtime, /proximity signal alone is not evidence of an access problem/);
+  assert.match(runtime, /evaluateFactCompatibility/);
+  assert.match(runtime, /internal_or_proximity_noise/);
   assert.doesNotMatch(runtime, /repeated denial, verification mismatch, or unusual activity/);
 });
 

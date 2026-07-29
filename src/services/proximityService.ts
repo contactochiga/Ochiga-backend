@@ -357,25 +357,28 @@ export async function recordProximityEvent(user: AuthUser, body: any, req?: Requ
     last_event_at: now.toISOString(),
   });
 
-  void emitAuditEvent({
-    actorId: user.id,
-    actorEmail: user.email,
-    actorRole: user.role,
-    action: "proximity.awareness.checked",
-    resourceType: "proximity_awareness",
-    resourceId: user.id,
-    estateId: settings.estate_id || undefined,
-    homeId: settings.home_id || undefined,
-    status: "success",
-    metadata: {
-      state,
-      distance_bucket: distanceBucket(body?.distance_meters),
-      direction,
-      notified: decision.notify,
-      decision_reason: decision.reason,
-    },
-    req,
-  });
+  if (decision.notify) {
+    void emitAuditEvent({
+      actorId: user.id,
+      actorEmail: user.email,
+      actorRole: user.role,
+      action: "proximity.awareness.notified",
+      resourceType: "proximity_awareness",
+      resourceId: user.id,
+      estateId: settings.estate_id || undefined,
+      homeId: settings.home_id || undefined,
+      status: "success",
+      metadata: {
+        state,
+        distance_bucket: distanceBucket(body?.distance_meters),
+        direction,
+        notified: true,
+        decision_reason: decision.reason,
+        delivery_policy: "resident_attention_only",
+      },
+      req,
+    });
+  }
 
   if (decision.notify) {
     await NotificationService.sendToUser(user.id, {
