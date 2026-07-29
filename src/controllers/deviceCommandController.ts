@@ -340,6 +340,47 @@ const irCommandLanes = new Map<string, Promise<void>>();
 const IR_QUEUE_MAX_WAIT_MS = 4_000;
 const IR_QUEUE_LANE_TTL_MS = 30_000;
 const IR_DISPATCH_SPACING_MS = Number(process.env.OYI_IR_DISPATCH_SPACING_MS || 80);
+const IR_REORDER_WINDOW_MS = Number(process.env.OYI_IR_REORDER_WINDOW_MS || 40);
+const IR_MAX_REORDER_BUFFER = Number(process.env.OYI_IR_MAX_REORDER_BUFFER || 20);
+const IR_SEQUENCE_GAP_TIMEOUT_MS = Number(process.env.OYI_IR_SEQUENCE_GAP_TIMEOUT_MS || 80);
+let irArrivalCounter = 0;
+
+type CanonicalIrTapEnvelope = {
+  command_execution_id: string;
+  canonical_device_id: string;
+  provider_connection_id: string | null;
+  infrared_id: string;
+  remote_id: string | null;
+  canonical_action: string;
+  provider_key: string | null;
+  client_sequence: number | null;
+  client_timestamp: string | null;
+  server_received_at: string;
+  idempotency_key: string;
+  source: string;
+};
+
+type IrLaneItem<T = any> = {
+  envelope: CanonicalIrTapEnvelope;
+  arrivalIndex: number;
+  queuedAt: number;
+  task: () => Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: any) => void;
+};
+
+type IrSequenceLaneState = {
+  key: string;
+  queue: IrLaneItem[];
+  running: boolean;
+  timer: NodeJS.Timeout | null;
+  firstQueuedAt: number | null;
+  lastDispatchedSequence: number | null;
+  gapWaitStartedAt: number | null;
+  cleanupTimer: NodeJS.Timeout | null;
+};
+
+const irSequenceLanes = new Map<string, IrSequenceLaneState>();
 
 function pruneCommandAcceptances() {
   const now = Date.now();
@@ -354,6 +395,53 @@ function commandFingerprint(command: Record<string, any>) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+function normalizeIrSequence(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+function canonicalIrAction(command: Record<string, any>) {
+  return String(
+    command?.command_key ||
+    command?.key ||
+    command?.provider_key ||
+    command?.raw_key ||
+    command?.type ||
+    "ir_remote",
+  ).trim();
+}
+
+function canonicalIrTapEnvelope(input: {
+  commandExecutionId: string;
+  canonicalDeviceId: string;
+  providerConnectionId?: string | null;
+  infraredId: string;
+  remoteId?: string | null;
+  command: Record<string, any>;
+  clientSequence?: string | number | null;
+  clientTimestamp?: string | null;
+  idempotencyKey: string;
+  source: string;
+}): CanonicalIrTapEnvelope {
+  return {
+    command_execution_id: input.commandExecutionId,
+    canonical_device_id: input.canonicalDeviceId,
+    provider_connection_id: input.providerConnectionId || null,
+    infrared_id: input.infraredId,
+    remote_id: input.remoteId || null,
+    canonical_action: canonicalIrAction(input.command),
+    provider_key: String(input.command?.provider_key || input.command?.key || "").trim() || null,
+    client_sequence: normalizeIrSequence(input.clientSequence),
+    client_timestamp: input.clientTimestamp || null,
+    server_received_at: new Date().toISOString(),
+    idempotency_key: input.idempotencyKey,
+    source: input.source,
+  };
 }
 
 function irCommandLaneKey(device: any) {
@@ -404,6 +492,187 @@ async function runInIrCommandLane<T>(key: string, task: () => Promise<T>): Promi
     }, IR_QUEUE_LANE_TTL_MS).unref?.();
   }
 }
+
+function irLaneState(key: string) {
+  let state = irSequenceLanes.get(key);
+  if (!state) {
+    state = {
+      key,
+      queue: [],
+      running: false,
+      timer: null,
+      firstQueuedAt: null,
+      lastDispatchedSequence: null,
+      gapWaitStartedAt: null,
+      cleanupTimer: null,
+    };
+    irSequenceLanes.set(key, state);
+  }
+  if (state.cleanupTimer) {
+    clearTimeout(state.cleanupTimer);
+    state.cleanupTimer = null;
+  }
+  return state;
+}
+
+function scheduleIrLaneDrain(state: IrSequenceLaneState, delayMs: number) {
+  if (state.timer) clearTimeout(state.timer);
+  state.timer = setTimeout(() => void drainIrSequenceLane(state), Math.max(0, delayMs));
+  state.timer.unref?.();
+}
+
+function nextIrLaneItem(state: IrSequenceLaneState) {
+  if (!state.queue.length) return null;
+  const hasSequenced = state.queue.some((item) => item.envelope.client_sequence != null);
+  if (!hasSequenced) {
+    return state.queue.reduce((best, item) => item.arrivalIndex < best.arrivalIndex ? item : best, state.queue[0]);
+  }
+  const sequenced = state.queue
+    .filter((item) => item.envelope.client_sequence != null)
+    .sort((a, b) => (a.envelope.client_sequence! - b.envelope.client_sequence!) || (a.arrivalIndex - b.arrivalIndex));
+  const lowest = sequenced[0];
+  const now = Date.now();
+  const elapsed = state.firstQueuedAt == null ? 0 : now - state.firstQueuedAt;
+  const expectedNext = state.lastDispatchedSequence == null ? null : state.lastDispatchedSequence + 1;
+  if (expectedNext != null && lowest.envelope.client_sequence! > expectedNext) {
+    if (!state.gapWaitStartedAt) {
+      state.gapWaitStartedAt = now;
+      logger.info("ir_tap_sequence_gap_waiting", {
+        lane: state.key,
+        expected_sequence: expectedNext,
+        next_available_sequence: lowest.envelope.client_sequence,
+        gap_timeout_ms: IR_SEQUENCE_GAP_TIMEOUT_MS,
+      });
+      return null;
+    }
+    if (now - state.gapWaitStartedAt < IR_SEQUENCE_GAP_TIMEOUT_MS) return null;
+    logger.info("ir_tap_sequence_gap_released", {
+      lane: state.key,
+      expected_sequence: expectedNext,
+      released_sequence: lowest.envelope.client_sequence,
+      gap_wait_ms: now - state.gapWaitStartedAt,
+    });
+  }
+  if (elapsed < IR_REORDER_WINDOW_MS && state.queue.length < IR_MAX_REORDER_BUFFER) return null;
+  return lowest;
+}
+
+async function drainIrSequenceLane(state: IrSequenceLaneState): Promise<void> {
+  if (state.running) return;
+  const item = nextIrLaneItem(state);
+  if (!item) {
+    if (state.queue.length) {
+      const delay = state.gapWaitStartedAt ? IR_SEQUENCE_GAP_TIMEOUT_MS : IR_REORDER_WINDOW_MS;
+      scheduleIrLaneDrain(state, delay);
+    }
+    return;
+  }
+  state.running = true;
+  state.queue = state.queue.filter((entry) => entry !== item);
+  if (item.envelope.client_sequence != null) {
+    const previous = state.lastDispatchedSequence;
+    state.lastDispatchedSequence = item.envelope.client_sequence;
+    state.gapWaitStartedAt = null;
+    if (previous != null && item.envelope.client_sequence !== previous + 1) {
+      logger.info("ir_tap_reordered", {
+        lane: state.key,
+        previous_sequence: previous,
+        dispatched_sequence: item.envelope.client_sequence,
+        arrival_index: item.arrivalIndex,
+      });
+    }
+  }
+  try {
+    const queueWaitMs = Date.now() - item.queuedAt;
+    if (IR_DISPATCH_SPACING_MS > 0) await sleep(IR_DISPATCH_SPACING_MS);
+    logger.info("ir_tap_dispatched", {
+      lane: state.key,
+      command_execution_id: item.envelope.command_execution_id,
+      canonical_device_id: item.envelope.canonical_device_id,
+      infrared_id: item.envelope.infrared_id,
+      remote_id: item.envelope.remote_id,
+      client_sequence: item.envelope.client_sequence,
+      server_arrival_index: item.arrivalIndex,
+      queue_wait_ms: queueWaitMs,
+      reorder_wait_ms: Math.max(0, Date.now() - item.queuedAt - IR_DISPATCH_SPACING_MS),
+    });
+    item.resolve(await item.task());
+  } catch (error) {
+    item.reject(error);
+  } finally {
+    state.running = false;
+    state.firstQueuedAt = state.queue.length ? Math.min(...state.queue.map((entry) => entry.queuedAt)) : null;
+    if (state.queue.length) {
+      scheduleIrLaneDrain(state, 0);
+    } else {
+      state.cleanupTimer = setTimeout(() => {
+        if (!state.running && !state.queue.length) irSequenceLanes.delete(state.key);
+      }, IR_QUEUE_LANE_TTL_MS);
+      state.cleanupTimer.unref?.();
+    }
+  }
+}
+
+function runInSequenceAwareIrCommandLane<T>(key: string, envelope: CanonicalIrTapEnvelope, task: () => Promise<T>): Promise<T> {
+  if (envelope.client_sequence == null) return runInIrCommandLane(key, task);
+  const state = irLaneState(key);
+  const arrivalIndex = ++irArrivalCounter;
+  logger.info("ir_tap_received", {
+    lane: key,
+    command_execution_id: envelope.command_execution_id,
+    canonical_device_id: envelope.canonical_device_id,
+    infrared_id: envelope.infrared_id,
+    remote_id: envelope.remote_id,
+    client_sequence: envelope.client_sequence,
+    server_arrival_index: arrivalIndex,
+  });
+  if (state.queue.length >= IR_MAX_REORDER_BUFFER) {
+    const error: any = new Error("This remote command waited too long and was not sent.");
+    error.statusCode = 429;
+    error.code = "ir_queue_full";
+    return Promise.reject(error);
+  }
+  return new Promise<T>((resolve, reject) => {
+    const item: IrLaneItem<T> = {
+      envelope,
+      arrivalIndex,
+      queuedAt: Date.now(),
+      task,
+      resolve,
+      reject,
+    };
+    state.queue.push(item);
+    state.firstQueuedAt = state.firstQueuedAt == null ? item.queuedAt : Math.min(state.firstQueuedAt, item.queuedAt);
+    logger.info("ir_tap_buffered", {
+      lane: key,
+      command_execution_id: envelope.command_execution_id,
+      client_sequence: envelope.client_sequence,
+      server_arrival_index: arrivalIndex,
+      buffer_size: state.queue.length,
+      reorder_window_ms: IR_REORDER_WINDOW_MS,
+    });
+    scheduleIrLaneDrain(state, IR_REORDER_WINDOW_MS);
+    setTimeout(() => {
+      if (state.queue.includes(item)) {
+        state.queue = state.queue.filter((entry) => entry !== item);
+        const error: any = new Error("This remote command waited too long and was not sent.");
+        error.statusCode = 429;
+        error.code = "ir_queue_expired";
+        reject(error);
+      }
+    }, IR_QUEUE_MAX_WAIT_MS).unref?.();
+  });
+}
+
+export const __testIrSequencedLane = {
+  run: runInSequenceAwareIrCommandLane,
+  envelope: canonicalIrTapEnvelope,
+  reset() {
+    irSequenceLanes.clear();
+    irCommandLanes.clear();
+    irArrivalCounter = 0;
+  },
+};
 
 function commandIdempotencyKey(req: Request, user: AuthUser, rawId: string, command: Record<string, any>, source: CommandSource, replayWindowMs = 5_000) {
   const explicit =
@@ -755,8 +1024,20 @@ export async function executeDeviceCommandForActor(input: {
       truth_state: "provider_dispatching",
       lifecycle: [lifecycleStep("dispatching", "Provider dispatch started")],
     });
-    const providerDispatch = providerAckOnly && irLane
-      ? await runInIrCommandLane(irLane, async () => {
+    const irEnvelope = providerAckOnly && irLane ? canonicalIrTapEnvelope({
+      commandExecutionId: executionId,
+      canonicalDeviceId: deviceRow.id,
+      providerConnectionId: commandDevice?.provider_connection_id || null,
+      infraredId: commandDevice.external_id,
+      remoteId: commandDevice?.metadata?.ir_appliance?.remote_id || commandDevice?.metadata?.remote_id || null,
+      command: normalized,
+      clientSequence: irTapSequence || null,
+      clientTimestamp: clientTapTimestamp,
+      idempotencyKey: commandIdempotencyKey(input.req as Request, user, rawId, normalized, commandSource),
+      source: commandSource,
+    }) : null;
+    const providerDispatch = providerAckOnly && irLane && irEnvelope
+      ? await runInSequenceAwareIrCommandLane(irLane, irEnvelope, async () => {
         logger.info("ir_provider_dispatch_started", {
           canonical_device_id: deviceRow.id,
           infrared_id: commandDevice.external_id,

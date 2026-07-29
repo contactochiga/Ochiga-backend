@@ -15,17 +15,19 @@ function check(name, fn) {
   }
 }
 
-check("IR endpoint compatibility cache is scoped by connection hub remote and endpoint", () => {
-  assert.match(tuya, /irCompatibilityScope\(context\?: AdapterContext, infraredId\?: string, remoteId\?: string, endpointKind\?: string\)/);
+check("IR endpoint compatibility cache is scoped by connection hub remote endpoint and action", () => {
+  assert.match(tuya, /irCompatibilityScope\(context\?: AdapterContext, infraredId\?: string, remoteId\?: string, endpointKind\?: string, canonicalAction\?: string\)/);
+  assert.match(tuya, /const endpoint = `\$\{cleanStr\(endpointKind \|\| "generic"\)\}:\$\{this\.normalizeRemoteKey\(canonicalAction \|\| "strategy"\)\}`/);
   assert.match(tuya, /\$\{region\}:\$\{scope\}:\$\{hub \|\| "unknown-hub"\}:\$\{remote \|\| "hub"\}:\$\{endpoint\}/);
 });
 
 check("request options pass remote id and endpoint kind into compatibility", () => {
-  assert.match(tuya, /loadIrCompatibility\(options\?\.context, options\?\.infraredId, options\?\.remoteId, options\?\.endpointKind\)/);
-  assert.match(tuya, /rememberIrCompatibility\(options\.context, options\.infraredId, options\.remoteId, options\.endpointKind/);
+  assert.match(tuya, /loadIrCompatibility\(options\?\.context, options\?\.infraredId, options\?\.remoteId, options\?\.endpointKind, options\?\.canonicalAction\)/);
+  assert.match(tuya, /rememberIrCompatibility\(options\.context, options\.infraredId, options\.remoteId, options\.endpointKind, options\.canonicalAction/);
   assert.match(tuya, /endpointKind:\s*"remote_keys"/);
   assert.match(tuya, /endpointKind:\s*"remote_command"/);
   assert.match(tuya, /endpointKind:\s*"raw_remote_command"/);
+  assert.match(tuya, /canonicalAction:\s*key/);
 });
 
 check("explicit provider/key/binding errors do not version-fallback through requestIr", () => {

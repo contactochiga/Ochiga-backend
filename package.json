@@ -52,6 +52,8 @@
     "smoke:ir-strict-payload": "node scripts/ir-strict-payload-smoke.mjs",
     "smoke:ir-endpoint-compatibility": "node scripts/ir-endpoint-compatibility-smoke.mjs",
     "smoke:ir-command-truth": "node scripts/ir-command-truth-smoke.mjs",
+    "smoke:ir-sequence-ordering": "npm run build && node scripts/ir-sequence-ordering-behavior-smoke.mjs",
+    "smoke:ir-cache-metadata": "npm run build && node scripts/ir-cache-metadata-behavior-smoke.mjs",
     "smoke:scene-runtime-v2": "node scripts/scene-runtime-v2-smoke.mjs",
     "smoke:release-stabilization": "node scripts/release-stabilization-isolation-smoke.mjs",
     "smoke:service-provisioning": "node scripts/service-provisioning-smoke.mjs",

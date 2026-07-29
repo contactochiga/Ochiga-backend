@@ -30,9 +30,11 @@ check("raw payload is not manufactured from canonical text", () => {
 });
 
 check("raw fallback is limited to endpoint compatibility with verified metadata", () => {
-  assert.match(tuya, /endpointIncompatible/);
+  assert.match(tuya, /classifyTuyaIrError/);
   assert.match(tuya, /provider_code === "20001"/);
-  assert.match(tuya, /canTryRawKey/);
+  assert.match(tuya, /hasVerifiedRawMetadata/);
+  assert.match(tuya, /fallback_permitted/);
+  assert.match(tuya, /rawFallbackPossible/);
   assert.match(tuya, /raw_fallback:\s*false/);
 });
 
