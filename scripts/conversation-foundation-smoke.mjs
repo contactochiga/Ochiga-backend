@@ -43,7 +43,7 @@ check("offline devices is canonical home inventory, not generic current state", 
   const contract = runtime.canonicalIntelligenceContractForTest({ message: "Show offline devices.", object: channel3 });
   assert.equal(contract.intent, "device_availability_inventory");
   assert.equal(contract.operation_class, "report");
-  assert.equal(contract.scope_mode, "explicit_broad_scope");
+  assert.equal(contract.scope_mode, "home_scope");
   assert.equal(contract.answer_builder, "device_availability_inventory");
 });
 
@@ -51,7 +51,7 @@ check("home summary is a canonical home operational summary", () => {
   const contract = runtime.canonicalIntelligenceContractForTest({ message: "What's happening in my home?", object: channel3 });
   assert.equal(contract.intent, "home_operational_summary");
   assert.equal(contract.operation_class, "report");
-  assert.equal(contract.scope_mode, "explicit_broad_scope");
+  assert.equal(contract.scope_mode, "home_scope");
   assert.equal(contract.answer_builder, "home_operational_summary");
 });
 
