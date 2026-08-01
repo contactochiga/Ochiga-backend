@@ -100,8 +100,17 @@ check("thread turn persistence is verified before a saved thread id is returned"
   assert.match(unifiedSource, /cleanupOrphanConversationThread\(threadId\)/);
   assert.match(unifiedSource, /response\.thread_id = null/);
   assert.match(runtimeSource, /verifyCanonicalCurrentTurnPersistence\(threadId, userMessageId, assistantId, contract\.conversation_request_id\)/);
+  assert.match(runtimeSource, /const assistantId = randomUUID\(\)/);
+  assert.match(runtimeSource, /responseIdentifier\(response, contract\.conversation_request_id\)/);
+  assert.match(runtimeSource, /failedStage = "thread_upsert"/);
+  assert.match(runtimeSource, /failedStage = "user_message_insert"/);
+  assert.match(runtimeSource, /failedStage = "assistant_message_insert"/);
+  assert.match(runtimeSource, /failedStage = "current_turn_verification"/);
+  assert.match(runtimeSource, /failedStage = "thread_summary_update"/);
+  assert.match(runtimeSource, /conversation_persistence_stage_completed/);
   assert.match(runtimeSource, /conversation_turn_persist_verified/);
-  assert.match(runtimeSource, /cleanupCanonicalOrphanThread\(threadId\)/);
+  assert.match(runtimeSource, /cleanupCanonicalTurnRows\(\{ threadId, userMessageId, assistantMessageId: assistantId, deleteThread: newlyCreatedThread \}\)/);
+  assert.match(runtimeSource, /conversation_turn_compensation_failed/);
   assert.match(runtimeSource, /thread_id: persistedThreadId \|\| null/);
 });
 
@@ -196,6 +205,19 @@ check("room navigation resolves as a room destination instead of selected device
   assert.equal(turn.resolved_turn.destination.parameters.room_name, "Bedroom 2");
 });
 
+check("room intelligence binds room phrases before inherited context", () => {
+  assert.match(runtimeSource, /function roomPhraseFromMessage/);
+  assert.match(runtimeSource, /resolveRoomForRead/);
+  assert.match(runtimeSource, /current_turn_room_reference/);
+  assert.match(runtimeSource, /contract\.scope_mode === "room_scope" && scope\.room_id/);
+  const roomSummary = runtime.canonicalIntelligenceContractForTest({
+    message: "What is happening in Bedroom 2?",
+    object: { ...channel3, object_type: "room", canonical_id: "room-2", label: "Bedroom 2", parent_id: "home-1", source_module: "rooms" },
+  });
+  assert.equal(roomSummary.scope_mode, "room_scope");
+  assert.equal(roomSummary.intent, "home_operational_summary");
+});
+
 check("resolved turn exposes operation, authority, destination and presentation policy", () => {
   const nav = runtime.canonicalResolvedTurnForTest({ message: "Open devices", object: channel3 });
   assert.equal(nav.resolved_turn.operation, "navigate_module");
@@ -211,6 +233,12 @@ check("resolved turn exposes operation, authority, destination and presentation 
   assert.equal(inventory.presentation_policy.primary, "table");
   assert.equal(inventory.presentation_policy.suppress_equivalent_awareness, true);
   assert.equal(inventory.presentation_policy.suppress_context_chips, true);
+});
+
+check("offline inventory presentation suppresses redundant awareness and source chips", () => {
+  assert.match(runtimeSource, /const suppressAwareness = Boolean\(presentationPolicy\.suppress_equivalent_awareness\) && presentationPolicy\.primary === "table"/);
+  assert.match(runtimeSource, /sources: suppressSources \? \[\] :/);
+  assert.match(runtimeSource, /label: "Open Devices"/);
 });
 
 check("approval and action policy remains separated from read-only presentation", () => {

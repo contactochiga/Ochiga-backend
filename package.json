@@ -212,7 +212,17 @@
     "smoke:named-device-resolution": "npm run build && node scripts/conversation-foundation-smoke.mjs",
     "smoke:natural-control-clarification": "npm run build && node scripts/conversation-foundation-smoke.mjs",
     "smoke:semantic-navigation-handoff": "npm run build && node scripts/conversation-foundation-smoke.mjs",
-    "smoke:current-turn-message-verification": "npm run build && node scripts/conversation-foundation-smoke.mjs"
+    "smoke:current-turn-message-verification": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:production-persistence-forensics": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:public-thread-roundtrip": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:specialist-device-regression": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:named-object-resolution": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:room-intelligence": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:domain-capability-matrix": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:authority-approval-lifecycle": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:runtime-first-device-freshness": "npm run build && node scripts/intelligence-target-evidence-closure-smoke.mjs",
+    "smoke:resident-device-projection": "npm run build && node scripts/device-system-enterprise-smoke.mjs",
+    "smoke:intent-presentation-enforcement": "npm run build && node scripts/conversation-final-correction-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

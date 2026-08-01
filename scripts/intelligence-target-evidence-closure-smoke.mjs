@@ -36,8 +36,9 @@ check("explicit broad home read clears inherited exact target before resolution"
 
 check("scope hints preserve exact drawer quick actions", () => {
   assert.match(runtime, /scopeHint/);
-  assert.match(runtime, /scopeHint\)\.toLowerCase\(\) === "exact_target"/);
+  assert.match(runtime, /scope_mode_hint[\s\S]{0,120}\.toLowerCase\(\)/);
   assert.match(contractBuilder, /scopeHint === "exact_target"/);
+  assert.match(contractBuilder, /!explicitBroad[\s\S]{0,80}"exact_target"/);
 });
 
 check("explicit requested channel rebinding happens before hydration", () => {

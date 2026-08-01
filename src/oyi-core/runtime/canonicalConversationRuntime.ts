@@ -156,6 +156,7 @@ export type CanonicalConversationResponse = {
   sources: Array<Record<string, unknown>>;
   suggested_actions: Array<Record<string, unknown>>;
   awareness?: Record<string, unknown>;
+  presentation_policy?: ConversationPresentationPolicy;
   confirmations: Array<Record<string, unknown>>;
   warnings: string[];
   persistence_saved?: boolean;
@@ -208,6 +209,11 @@ type ConversationBuilderKey =
 type DeviceResolutionResult =
   | { status: "resolved"; device_id: string; channel_code: string | null; label: string; room_id: string | null; confidence: number }
   | { status: "ambiguous"; phrase: string; candidates: Array<{ device_id: string; label: string; room_label: string | null; device_family: string; channel_code: string | null }> }
+  | { status: "not_found"; phrase: string };
+
+type RoomResolutionResult =
+  | { status: "resolved"; room_id: string; label: string; confidence: number }
+  | { status: "ambiguous"; phrase: string; candidates: Array<{ room_id: string; label: string }> }
   | { status: "not_found"; phrase: string };
 
 function text(value: unknown) {
@@ -2404,6 +2410,11 @@ function namedDevicePhraseFromControlMessage(message: string) {
   return phrase.length >= 3 ? phrase : null;
 }
 
+function roomPhraseFromMessage(message: string) {
+  const match = text(message).match(/\b(?:in|inside|for|open|view|show)\s+(?:the\s+)?((?:ochiga(?:'s)?\s+)?(?:bedroom|room|living room|sitting room|kitchen|bathroom|parlor|lounge|office|study|garage|balcony|dining room)\s*[a-z0-9-]*)\b/i);
+  return match?.[1] ? cleanLabel(match[1], "") : "";
+}
+
 function deviceFamilyFromRow(row: Record<string, unknown>) {
   return text(row.category || row.type || recordOf(row.metadata).device_family || recordOf(row.metadata).family || "device");
 }
@@ -2484,6 +2495,48 @@ async function resolveNamedDeviceForRead(actor: AuthUser | null, oisContext: Ois
     };
   } catch (error) {
     logger.warn("conversation_named_device_resolution_failed", { error, phrase, home_id: scope.home_id, actor_id: actor?.id || null });
+    return { status: "not_found", phrase };
+  }
+}
+
+function scoreRoomCandidate(phrase: string, row: Record<string, unknown>) {
+  const normalizedPhrase = normalizeLookupText(phrase).replace(/\bsecond\b/g, "2").replace(/\bfirst\b/g, "1");
+  const name = normalizeLookupText(row.name || recordOf(row.metadata).label).replace(/\bsecond\b/g, "2").replace(/\bfirst\b/g, "1");
+  const aliases = arrayOfStrings(recordOf(row.metadata).aliases).map((item) => normalizeLookupText(item).replace(/\bsecond\b/g, "2").replace(/\bfirst\b/g, "1"));
+  if (!normalizedPhrase || !name) return 0;
+  let score = 0;
+  if (normalizedPhrase === name) score += 1;
+  if (aliases.includes(normalizedPhrase)) score += 0.95;
+  if (name.includes(normalizedPhrase) || normalizedPhrase.includes(name)) score += 0.68;
+  const tokens = normalizedPhrase.split(" ").filter(Boolean);
+  const matchedTokens = tokens.filter((token) => `${name} ${aliases.join(" ")}`.includes(token)).length;
+  if (tokens.length) score += Math.min(0.25, matchedTokens / tokens.length * 0.25);
+  return Math.min(1, score);
+}
+
+async function resolveRoomForRead(actor: AuthUser | null, oisContext: OisContext | null | undefined, input: CanonicalConversationRequest, phrase: string): Promise<RoomResolutionResult> {
+  const scope = currentScope(input, oisContext);
+  if (!scope.home_id) return { status: "not_found", phrase };
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("rooms")
+      .select("id,name,home_id,metadata")
+      .eq("home_id", scope.home_id)
+      .limit(80);
+    if (error) throw error;
+    const candidates = (data || [])
+      .map((row: any) => ({ row, score: scoreRoomCandidate(phrase, row) }))
+      .filter((candidate) => candidate.score >= 0.58)
+      .sort((a, b) => b.score - a.score);
+    if (!candidates.length) return { status: "not_found", phrase };
+    const top = candidates[0];
+    const tied = candidates.filter((candidate) => Math.abs(candidate.score - top.score) < 0.08);
+    if (tied.length > 1) {
+      return { status: "ambiguous", phrase, candidates: tied.slice(0, 5).map((candidate) => ({ room_id: String(candidate.row.id), label: cleanLabel(candidate.row.name, "Room") })) };
+    }
+    return { status: "resolved", room_id: String(top.row.id), label: cleanLabel(top.row.name, "Room"), confidence: top.score };
+  } catch (error) {
+    logger.warn("conversation_room_resolution_failed", { error, phrase, home_id: scope.home_id, actor_id: actor?.id || null });
     return { status: "not_found", phrase };
   }
 }
@@ -2829,6 +2882,27 @@ async function currentThreadTitle(threadId: string) {
 
 function constructBroadScopeObject(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined, contract: IntelligenceRequestContract): OperationalObject | null {
   const scope = currentScope(input, oisContext);
+  if (contract.scope_mode === "room_scope" && scope.room_id) {
+    return {
+      object_type: "room",
+      canonical_id: scope.room_id,
+      label: text(input.room_name || recordOf(input.context).room_name || recordOf(input.context).roomName) || "Room",
+      estate_id: scope.estate_id,
+      building_id: text(recordOf(input.context).building_id || recordOf(input.context).buildingId) || null,
+      home_id: scope.home_id,
+      room_id: scope.room_id,
+      parent_id: scope.home_id,
+      source_module: "rooms",
+      capabilities: ["conversation", "room_summary", "device_inventory"],
+      current_state: null,
+      health: null,
+      permissions: ["read"],
+      relationships: {},
+      evidence_references: [],
+      metadata: { source: "current_turn_room_reference", requested_scope: contract.scope_mode },
+      freshness: null,
+    };
+  }
   if ((contract.scope_mode === "explicit_broad_scope" || contract.scope_mode === "home_scope") && scope.home_id) {
     return {
       object_type: "home",
@@ -3048,6 +3122,15 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   } else if (isReadOnlyBroadDeviceIntent(message)) {
     intent = "device_availability_inventory";
     operationClass = "report";
+  } else if (targetType === "room" && /\bwhat(?:'s| is) happening|needs attention|summary|everything okay\b/i.test(lower)) {
+    intent = "home_operational_summary";
+    operationClass = "report";
+  } else if (targetType === "room" && /\b(show|list|view)\b[\s\S]{0,24}\b(devices?|hardware|lights?|switches?|sockets?)\b/i.test(lower)) {
+    intent = "device_availability_inventory";
+    operationClass = "list";
+  } else if (targetType === "room" && /\bwhat changed|changed recently|recent changes|activity|history\b/i.test(lower)) {
+    intent = "recent_changes";
+    operationClass = "list";
   } else if (explicitBroad && /\bwhat(?:'s| is) happening|needs attention|home summary|home report|everything okay\b/i.test(lower)) {
     intent = "home_operational_summary";
     operationClass = "report";
@@ -3086,6 +3169,8 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   if (!["execute_mutation", "confirm_mutation", "propose_mutation", "compose", "approve", "reject", "cancel", "handoff", "report", "recommend", "navigate", "list", "clarify"].includes(operationClass)) operationClass = "read";
   const scopeMode: ScopeMode = targetAmbiguous || (targetNotFound && mutationRequested)
     ? "clarification"
+    : targetType === "room"
+    ? "room_scope"
     : scopeHint === "exact_target" && targetType && !explicitBroad
     && !semanticOperation
     ? "exact_target"
@@ -3244,7 +3329,9 @@ async function loadHomeDeviceInventoryFacts(input: CanonicalConversationRequest,
 	      : { data: [], error: null };
     if (states.error) throw states.error;
     const stateByDevice = new Map((states.data || []).map((row: any) => [String(row.device_id), row]));
-    return (devices || []).map((device: any): IntelligenceFact => {
+    return (devices || [])
+    .filter((device: any) => !scope.room_id || String(device.room_id || "") === String(scope.room_id))
+    .map((device: any): IntelligenceFact => {
       const stateRow = stateByDevice.get(String(device.id)) as Record<string, unknown> | undefined;
       const status = recordOf(stateRow?.status || device.status);
 	      const normalized = recordOf(status.normalized_state);
@@ -3929,10 +4016,17 @@ function buildReportAnswer(facts: IntelligenceFact[], object: OperationalObject 
   ].join("\n");
 }
 
-function buildDeviceAvailabilityInventoryAnswer(facts: IntelligenceFact[]) {
+function buildDeviceAvailabilityInventoryAnswer(facts: IntelligenceFact[], contract?: IntelligenceRequestContract, message = "") {
   const availabilityFacts = facts.filter((fact) => fact.fact_type === "device_availability");
   if (!availabilityFacts.length) {
-    return "I could not load a current authorised device inventory for this home. I did not use an old selected device as a fallback.";
+    return contract?.scope_mode === "room_scope"
+      ? "I could not load an authorised device inventory for this room. I did not use an old selected device as a fallback."
+      : "I could not load a current authorised device inventory for this home. I did not use an old selected device as a fallback.";
+  }
+  const asksForInventory = contract?.scope_mode === "room_scope" && /\b(show|list|view)\b[\s\S]{0,24}\b(devices?|hardware|lights?|switches?|sockets?)\b/i.test(text(message));
+  if (asksForInventory) {
+    const unavailable = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) !== "online").length;
+    return `${availabilityFacts.length} authorised device${availabilityFacts.length === 1 ? "" : "s"} are listed for this room.${unavailable ? ` ${unavailable} need attention or clearer evidence.` : " None are currently flagged by the available evidence."}`;
   }
   const confirmedOffline = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) === "offline");
   const staleOrExpired = availabilityFacts.filter((fact) => ["stale", "expired"].includes(text(recordOf(fact.value).availability)));
@@ -3952,17 +4046,18 @@ function buildDeviceAvailabilityInventoryAnswer(facts: IntelligenceFact[]) {
   return [`Confirmed offline devices in this home:`, ...lines].join("\n");
 }
 
-function buildHomeOperationalSummaryAnswer(facts: IntelligenceFact[]) {
+function buildHomeOperationalSummaryAnswer(facts: IntelligenceFact[], contract?: IntelligenceRequestContract) {
   const availabilityFacts = facts.filter((fact) => fact.fact_type === "device_availability");
   const recentFacts = facts.filter((fact) => fact.fact_type !== "device_availability");
   const confirmedOffline = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) === "offline").length;
   const notRecent = availabilityFacts.filter((fact) => ["stale", "expired", "unknown"].includes(text(recordOf(fact.value).availability))).length;
   const confirmedOnline = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) === "online").length;
   const attention = recentFacts.filter((fact) => /failed|warning|critical|timeout|unavailable|denied|offline/i.test(`${fact.statement} ${JSON.stringify(fact.value)}`)).slice(0, 5);
+  const scopeLabel = contract?.scope_mode === "room_scope" ? "room" : "home";
   const lines = [
     confirmedOffline || notRecent || attention.length
-      ? `Your home is generally stable, but ${confirmedOffline + notRecent + attention.length} item${confirmedOffline + notRecent + attention.length === 1 ? "" : "s"} need attention or clearer evidence.`
-      : "Everything currently looks stable based on the latest available evidence.",
+      ? `This ${scopeLabel} is generally stable, but ${confirmedOffline + notRecent + attention.length} item${confirmedOffline + notRecent + attention.length === 1 ? "" : "s"} need attention or clearer evidence.`
+      : `Everything currently looks stable in this ${scopeLabel} based on the latest available evidence.`,
     availabilityFacts.length
       ? `Devices: ${confirmedOnline} confirmed online, ${confirmedOffline} confirmed offline, ${notRecent} not recently confirmed.`
       : "Devices: inventory evidence is unavailable right now.",
@@ -3973,7 +4068,7 @@ function buildHomeOperationalSummaryAnswer(facts: IntelligenceFact[]) {
   if (attention.length) {
     lines.push(...attention.map((fact) => `• ${fact.statement.replace(/\.$/, "")}`));
   }
-  lines.push("Oyi did not reuse a selected drawer target or perform any action for this home-scope answer.");
+  lines.push(`Oyi did not reuse a selected drawer target or perform any action for this ${scopeLabel}-scope answer.`);
   return lines.join("\n");
 }
 
@@ -4054,7 +4149,9 @@ function deviceAvailabilityRows(facts: IntelligenceFact[]) {
 
 function tableBlockForContract(contract: IntelligenceRequestContract, facts: IntelligenceFact[]): ConversationTableBlock | null {
   if (contract.intent === "device_availability_inventory") {
-    const rows = deviceAvailabilityRows(facts).filter((row) => row.status !== "online").slice(0, 20);
+    const rows = deviceAvailabilityRows(facts)
+      .filter((row) => contract.scope_mode === "room_scope" || row.status !== "online")
+      .slice(0, 20);
     if (!rows.length) return null;
     return {
       type: "table",
@@ -4446,11 +4543,11 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     displayMode = "list";
   } else if (contract.intent === "device_availability_inventory") {
     facts = dedupeFacts([...facts, ...await loadHomeDeviceInventoryFacts(input, oisContext)]);
-    answer = buildDeviceAvailabilityInventoryAnswer(facts);
+    answer = buildDeviceAvailabilityInventoryAnswer(facts, contract, input.message);
     displayMode = "list";
   } else if (contract.intent === "home_operational_summary") {
     facts = dedupeFacts([...facts, ...await loadHomeDeviceInventoryFacts(input, oisContext), ...await loadRecentChangeFacts(input, oisContext, contract, object)]);
-    answer = buildHomeOperationalSummaryAnswer(facts);
+    answer = buildHomeOperationalSummaryAnswer(facts, contract);
     displayMode = "report";
   } else if (contract.intent === "failure_history") {
     facts = dedupeFacts([...facts, ...await loadRecentChangeFacts(input, oisContext, contract, object)]);
@@ -4513,6 +4610,8 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
   const cards = tableBlock ? [tableBlock] : [];
   const resolvedTurn = resolvedConversationTurnFromContract(input, contract, object);
   const presentationPolicy = presentationPolicyForContract(contract);
+  const suppressAwareness = Boolean(presentationPolicy.suppress_equivalent_awareness) && presentationPolicy.primary === "table";
+  const suppressSources = presentationPolicy.suppress_context_chips || presentationPolicy.primary === "table";
   const awarenessSummary = contract.intent === "recent_changes" || contract.intent === "activity_history"
     ? "Recent meaningful activity was reviewed."
     : contract.intent === "device_availability_inventory"
@@ -4520,7 +4619,7 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
       : contract.intent === "home_operational_summary"
         ? "Home status was reviewed."
         : safeAnswer.split("\n")[0];
-  const awareness = normalizedCopy(awarenessSummary) && normalizedCopy(awarenessSummary) !== normalizedCopy(safeAnswer)
+  const awareness = !suppressAwareness && normalizedCopy(awarenessSummary) && normalizedCopy(awarenessSummary) !== normalizedCopy(safeAnswer)
     ? {
       headline: contract.intent === "recent_changes" ? "Recent changes reviewed" : contract.intent === "report" ? "Report ready" : "Oyi answer grounded",
       summary: awarenessSummary,
@@ -4540,11 +4639,13 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
       display_mode: displayMode,
       confidence: deduped.length ? 0.88 : 0.72,
       execution,
-      sources: deduped.slice(0, 6).map((fact) => ({ id: fact.source_id || fact.fact_id, type: fact.source_type, label: fact.statement, truth_state: fact.truth_state })),
+      sources: suppressSources ? [] : deduped.slice(0, 6).map((fact) => ({ id: fact.source_id || fact.fact_id, type: fact.source_type, label: fact.statement, truth_state: fact.truth_state })),
       cards,
       suggested_actions: contract.intent === "module_navigation" || contract.intent === "domain_list"
         ? (semanticOperationAction(input.message, input.surface)?.allowed ? [semanticOperationAction(input.message, input.surface)?.action].filter(Boolean) as Array<Record<string, unknown>> : [])
-        : object ? contextualObjectActions(object, input).filter((action) => recordOf(action).risk !== "control").slice(0, 4) : [],
+        : contract.intent === "device_availability_inventory"
+          ? [{ type: "navigation", operation_class: "navigate", label: "Open Devices", route: "/devices", destination: { key: "devices.module", parameters: {} } }]
+          : object ? contextualObjectActions(object, input).filter((action) => recordOf(action).risk !== "control").slice(0, 4) : [],
       ...(awareness ? { awareness } : {}),
       canonical_request_contract: contract,
       resolved_turn: resolvedTurn,
@@ -4554,12 +4655,46 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
   };
 }
 
+function safePersistenceError(error: unknown) {
+  const err = recordOf(error);
+  return {
+    error_code: text(err.code || err.status || err.name) || null,
+    error_message: text(err.message) || "Conversation persistence failed",
+    error_details: text(err.details) || null,
+    error_hint: text(err.hint) || null,
+  };
+}
+
+function responseIdentifier(response: Record<string, unknown>, conversationRequestId: string) {
+  return text(response.id) || `oyi-runtime:${conversationRequestId}`;
+}
+
+async function cleanupCanonicalTurnRows(input: { threadId: string; userMessageId: string; assistantMessageId: string; deleteThread: boolean }) {
+  if (!isUuid(input.threadId)) return;
+  try {
+    await supabaseAdmin
+      .from("oyi_conversation_messages")
+      .delete()
+      .eq("thread_id", input.threadId)
+      .in("id", [input.userMessageId, input.assistantMessageId]);
+    if (input.deleteThread) await cleanupCanonicalOrphanThread(input.threadId);
+  } catch (error) {
+    logger.warn("conversation_turn_compensation_failed", {
+      thread_id: input.threadId,
+      user_message_id: input.userMessageId,
+      assistant_message_id: input.assistantMessageId,
+      ...safePersistenceError(error),
+    });
+  }
+}
+
 async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, input: CanonicalConversationRequest, response: Record<string, unknown>, truth: CanonicalTruth, object: OperationalObject | null, contract: IntelligenceRequestContract) {
   const threadId = text(response.thread_id) || text(input.thread_id) || randomUUID();
   const newlyCreatedThread = !isUuid(text(input.thread_id));
   const now = new Date().toISOString();
-  const assistantId = text(response.id).replace(/^oyi-runtime:/, "") || randomUUID();
+  const assistantId = randomUUID();
   const userMessageId = randomUUID();
+  const canonicalResponseId = responseIdentifier(response, contract.conversation_request_id);
   const existingTitle = await currentThreadTitle(threadId);
   const title = existingTitle && !genericThreadTitle(existingTitle) ? existingTitle : titleFromTurn(input.message, contract, object);
   const turnInterpretation = turnInterpretationFromContract(input, contract, {
@@ -4588,13 +4723,35 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
       evidence_count: Array.isArray(response.facts) ? response.facts.length : 0,
     },
   };
+  const threadMetadata = {
+    thread_state_version: 2,
+    active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
+    thread_memory_context: contextLayers.threadMemoryContext,
+    conversation_context_layers: contextLayers,
+    preview: cleanLabel(response.message || response.reply || input.message, "").slice(0, 180),
+    last_intent: contract.intent,
+    last_scope: contract.scope_mode,
+    last_operational_object: object ? { type: object.object_type, id: object.canonical_id, label: object.label } : null,
+    current_turn_execution: null,
+    referenced_historical_execution: recordOf(response.execution).referenced_execution || null,
+    canonical_request_contract: contract,
+    resolved_turn: recordOf(response.resolved_turn),
+    presentation_policy: recordOf(response.presentation_policy),
+    turn_interpretation: turnInterpretation,
+  };
+  let failedStage = "unknown";
   try {
     logger.info("conversation_turn_persist_started", {
       conversation_request_id: contract.conversation_request_id,
       thread_id: threadId,
       user_message_id: userMessageId,
       assistant_message_id: assistantId,
+      response_id: canonicalResponseId,
+      surface: input.surface,
+      intent: contract.intent,
+      builder_key: selectConversationBuilder(contract, object),
     });
+    failedStage = "thread_upsert";
     const threadWrite = await supabaseAdmin.from("oyi_conversation_threads").upsert({
       id: threadId,
       user_id: actor?.id || null,
@@ -4604,73 +4761,65 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
       module: input.module || null,
       title,
       updated_at: now,
-      metadata: {
-        thread_state_version: 2,
-        active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
-        thread_memory_context: contextLayers.threadMemoryContext,
-        conversation_context_layers: contextLayers,
-        preview: cleanLabel(response.message || response.reply || input.message, "").slice(0, 180),
-        last_intent: contract.intent,
-        last_scope: contract.scope_mode,
-        last_operational_object: object ? { type: object.object_type, id: object.canonical_id, label: object.label } : null,
-        current_turn_execution: null,
-        referenced_historical_execution: recordOf(response.execution).referenced_execution || null,
-        canonical_request_contract: contract,
-        resolved_turn: recordOf(response.resolved_turn),
-        presentation_policy: recordOf(response.presentation_policy),
-        turn_interpretation: turnInterpretation,
-      },
+      metadata: threadMetadata,
     } as any);
     if (threadWrite.error) throw threadWrite.error;
-    const messageWrite = await supabaseAdmin.from("oyi_conversation_messages").insert([
-      {
-        id: userMessageId,
-        thread_id: threadId,
-        user_id: actor?.id || null,
-        role: "user",
-        content: input.message,
-        metadata: { surface: input.surface, module: input.module || null, conversation_request_id: contract.conversation_request_id, canonical_request_contract: contract, turn_interpretation: turnInterpretation, conversation_context_layers: contextLayers },
-        created_at: now,
-      },
-      {
-        id: assistantId,
-        thread_id: threadId,
-        user_id: actor?.id || null,
-        role: "assistant",
-        content: cleanLabel(response.message || response.reply, "Oyi reviewed the current operational context."),
-        cards: Array.isArray(response.cards) ? response.cards : [],
-        sources: Array.isArray(response.sources) ? response.sources : [],
-        suggested_actions: Array.isArray(response.suggested_actions) ? response.suggested_actions : [],
-        metadata: {
-          truth,
-          operational_object: object,
-          canonical_response_authoritative: true,
-          single_authoritative_response: true,
-          response_id: assistantId,
-          conversation_request_id: contract.conversation_request_id,
-          canonical_request_contract: contract,
-          resolved_turn: recordOf(response.resolved_turn),
-          presentation_policy: recordOf(response.presentation_policy),
-          warnings: Array.isArray(response.warnings) ? response.warnings : [],
-          persistence_saved: true,
-          turn_interpretation: turnInterpretation,
-          conversation_context_layers: contextLayers,
-          facts: Array.isArray(response.facts) ? response.facts : [],
-        },
-        created_at: new Date(Date.now() + 1).toISOString(),
-      },
-    ] as any);
-    if (messageWrite.error) throw messageWrite.error;
+    logger.info("conversation_persistence_stage_completed", { stage: "thread_upsert", table: "oyi_conversation_threads", thread_id: threadId, conversation_request_id: contract.conversation_request_id });
+
+    failedStage = "user_message_insert";
+    const userWrite = await supabaseAdmin.from("oyi_conversation_messages").insert({
+      id: userMessageId,
+      thread_id: threadId,
+      user_id: actor?.id || null,
+      role: "user",
+      content: input.message,
+      metadata: { surface: input.surface, module: input.module || null, conversation_request_id: contract.conversation_request_id, canonical_request_contract: contract, turn_interpretation: turnInterpretation, conversation_context_layers: contextLayers },
+      created_at: now,
+    } as any);
+    if (userWrite.error) throw userWrite.error;
     logger.info("conversation_turn_user_persisted", {
       conversation_request_id: contract.conversation_request_id,
       thread_id: threadId,
       user_message_id: userMessageId,
     });
+
+    failedStage = "assistant_message_insert";
+    const assistantWrite = await supabaseAdmin.from("oyi_conversation_messages").insert({
+      id: assistantId,
+      thread_id: threadId,
+      user_id: actor?.id || null,
+      role: "assistant",
+      content: cleanLabel(response.message || response.reply, "Oyi reviewed the current operational context."),
+      cards: Array.isArray(response.cards) ? response.cards : [],
+      sources: Array.isArray(response.sources) ? response.sources : [],
+      suggested_actions: Array.isArray(response.suggested_actions) ? response.suggested_actions : [],
+      metadata: {
+        truth,
+        operational_object: object,
+        canonical_response_authoritative: true,
+        single_authoritative_response: true,
+        response_id: canonicalResponseId,
+        assistant_message_id: assistantId,
+        conversation_request_id: contract.conversation_request_id,
+        canonical_request_contract: contract,
+        resolved_turn: recordOf(response.resolved_turn),
+        presentation_policy: recordOf(response.presentation_policy),
+        warnings: Array.isArray(response.warnings) ? response.warnings : [],
+        persistence_saved: true,
+        turn_interpretation: turnInterpretation,
+        conversation_context_layers: contextLayers,
+        facts: Array.isArray(response.facts) ? response.facts : [],
+      },
+      created_at: new Date(Date.now() + 1).toISOString(),
+    } as any);
+    if (assistantWrite.error) throw assistantWrite.error;
     logger.info("conversation_turn_assistant_persisted", {
       conversation_request_id: contract.conversation_request_id,
       thread_id: threadId,
       assistant_message_id: assistantId,
     });
+
+    failedStage = "current_turn_verification";
     const verified = await verifyCanonicalCurrentTurnPersistence(threadId, userMessageId, assistantId, contract.conversation_request_id);
     if (!verified.ok) throw new Error(verified.error || "Conversation turn persistence could not be verified");
     logger.info("conversation_turn_persist_verified", {
@@ -4679,6 +4828,26 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
       user_message_id: userMessageId,
       assistant_message_id: assistantId,
     });
+
+    failedStage = "thread_summary_update";
+    const messageSummary = await verifyCanonicalThreadPersistence(threadId, 2);
+    const summaryWrite = await supabaseAdmin
+      .from("oyi_conversation_threads")
+      .update({
+        title,
+        updated_at: new Date().toISOString(),
+        metadata: {
+          ...threadMetadata,
+          message_count: messageSummary.count,
+          last_user_message_id: userMessageId,
+          last_assistant_message_id: assistantId,
+          last_conversation_request_id: contract.conversation_request_id,
+        },
+      } as any)
+      .eq("id", threadId);
+    if (summaryWrite.error) throw summaryWrite.error;
+    logger.info("conversation_persistence_stage_completed", { stage: "thread_summary_update", table: "oyi_conversation_threads", thread_id: threadId, conversation_request_id: contract.conversation_request_id });
+
     logger.info("conversation_final_answer_selected", {
       response_id: assistantId,
       builder: contract.answer_builder,
@@ -4705,10 +4874,22 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
     });
     return threadId;
   } catch (error) {
-    if (newlyCreatedThread) await cleanupCanonicalOrphanThread(threadId);
+    await cleanupCanonicalTurnRows({ threadId, userMessageId, assistantMessageId: assistantId, deleteThread: newlyCreatedThread });
     (response as any).persistence_warning = "This answer was not saved to conversation history.";
-    logger.warn("conversation_turn_persist_failed", { error, thread_id: threadId, conversation_request_id: contract.conversation_request_id });
-    logger.warn("conversation_authoritative_persist_failed", { error, thread_id: threadId, conversation_request_id: contract.conversation_request_id });
+    logger.warn("conversation_turn_persist_failed", {
+      failed_stage: failedStage,
+      table: failedStage === "thread_upsert" || failedStage === "thread_summary_update" ? "oyi_conversation_threads" : "oyi_conversation_messages",
+      thread_id: threadId,
+      user_message_id: userMessageId,
+      assistant_message_id: assistantId,
+      conversation_request_id: contract.conversation_request_id,
+      actor_id: actor?.id || null,
+      surface: input.surface,
+      intent: contract.intent,
+      builder_key: selectConversationBuilder(contract, object),
+      ...safePersistenceError(error),
+    });
+    logger.warn("conversation_authoritative_persist_failed", { failed_stage: failedStage, thread_id: threadId, conversation_request_id: contract.conversation_request_id, ...safePersistenceError(error) });
     return null;
   }
 }
@@ -5014,6 +5195,41 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       });
     }
   }
+  const roomPhrase = !broadReadOnlyDeviceIntent ? roomPhraseFromMessage(input.message || "") : "";
+  if (roomPhrase && !namedControlPhrase) {
+    const roomResolution = await resolveRoomForRead(actor, oisContext, input, roomPhrase);
+    if (roomResolution.status === "resolved") {
+      targetResolution = {
+        ...targetResolution,
+        objectType: "room",
+        objectId: roomResolution.room_id,
+        objectName: roomResolution.label,
+        source: "current_turn_room_reference",
+        confidence: roomResolution.confidence,
+      } as any;
+      input = { ...input, room_id: roomResolution.room_id, room_name: roomResolution.label };
+      logger.info("conversation_target_bound", {
+        request_id: text(recordOf(input.context).request_id) || null,
+        target_type: "room",
+        target_id: roomResolution.room_id,
+        target_source: "current_turn_room_reference",
+        phrase: roomPhrase,
+        confidence: roomResolution.confidence,
+      });
+    } else if (roomResolution.status === "ambiguous") {
+      targetResolution = {
+        ...targetResolution,
+        objectType: null,
+        objectId: null,
+        objectName: roomPhrase,
+        source: "ambiguous",
+        confidence: 0.52,
+        ambiguous: true,
+        clarificationQuestion: `Which ${roomPhrase} do you mean?`,
+        candidates: roomResolution.candidates.map((candidate) => ({ type: "room", id: candidate.room_id, label: candidate.label })),
+      } as any;
+    }
+  }
   if (broadReadOnlyDeviceIntent && (input.home_id || oisContext?.home_id)) {
     targetResolution = {
       ...targetResolution,
@@ -5233,6 +5449,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       sources: [],
       suggested_actions: [],
       awareness: shaped.awareness,
+      presentation_policy: presentationPolicyForContract(requestContract),
       confirmations: [],
       warnings: responseWarnings,
       persistence_saved: Boolean(persistedThreadId),
@@ -5272,7 +5489,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     });
     return {
       id: text(shapedCanonical.id) || `oyi-runtime:${requestContract.conversation_request_id}`,
-      thread_id: threadId,
+      thread_id: persistedThreadId || null,
       intent: cleanLabel(shapedCanonical.intent, requestContract.intent),
       understood: text(shapedCanonical.understood) || null,
       summary: cleanLabel(shapedCanonical.understood || shapedCanonical.message, "Oyi reviewed the current operational context."),
@@ -5299,6 +5516,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       sources: Array.isArray(shapedCanonical.sources) ? shapedCanonical.sources as Array<Record<string, unknown>> : [],
       suggested_actions: Array.isArray(shapedCanonical.suggested_actions) ? shapedCanonical.suggested_actions as Array<Record<string, unknown>> : [],
       awareness: shapedCanonical.awareness ? recordOf(shapedCanonical.awareness) : undefined,
+      presentation_policy: recordOf(shapedCanonical.presentation_policy) as ConversationPresentationPolicy,
       confirmations: Array.isArray(shapedCanonical.confirmations) ? shapedCanonical.confirmations as Array<Record<string, unknown>> : [],
       warnings: responseWarnings,
       persistence_saved: Boolean(persistedThreadId),
@@ -5331,6 +5549,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         cards: [],
         suggested_actions: contextualObjectActions(resolved.object, input).filter((action) => recordOf(action).risk !== "control").slice(0, 4),
         awareness: { headline: "Exact target retained", summary: answer, severity: "info" },
+        presentation_policy: presentationPolicyForContract(requestContract),
         facts: [],
       };
       const truth = canonicalTruthFor(shapedCanonical, resolved.object);
@@ -5374,6 +5593,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         sources: [],
         suggested_actions: Array.isArray(shapedCanonical.suggested_actions) ? shapedCanonical.suggested_actions as Array<Record<string, unknown>> : [],
         awareness: shapedCanonical.awareness,
+        presentation_policy: recordOf(shapedCanonical.presentation_policy) as ConversationPresentationPolicy,
         confirmations: [],
         warnings: responseWarnings,
         persistence_saved: Boolean(persistedThreadId),
@@ -5424,6 +5644,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     sources: Array.isArray(shapedCompatibility.sources) ? shapedCompatibility.sources as Array<Record<string, unknown>> : [],
     suggested_actions: Array.isArray(shapedCompatibility.suggested_actions) ? shapedCompatibility.suggested_actions as Array<Record<string, unknown>> : [],
     awareness: shapedCompatibility.awareness ? recordOf(shapedCompatibility.awareness) : undefined,
+    presentation_policy: presentationPolicyForContract(requestContract),
     confirmations: Array.isArray(shapedCompatibility.confirmations) ? shapedCompatibility.confirmations as Array<Record<string, unknown>> : [],
     warnings: responseWarnings,
     persistence_saved: Boolean(persistedThreadId),
@@ -5449,6 +5670,7 @@ export function adaptCanonicalToCompatibilityChat(response: CanonicalConversatio
     sources: response.sources,
     suggested_actions: response.suggested_actions,
     awareness: response.awareness,
+    presentation_policy: response.presentation_policy,
     operational_object: response.operational_object,
     truth: response.truth,
     context: response.context,
@@ -5478,6 +5700,7 @@ export function adaptCanonicalToAiChat(response: CanonicalConversationResponse) 
     sources: response.sources,
     suggested_actions: response.suggested_actions,
     awareness: response.awareness || null,
+    presentation_policy: response.presentation_policy,
     thread_id: response.thread_id,
     safe_mode: true,
     requiresConfirmation: response.requiresConfirmation,
