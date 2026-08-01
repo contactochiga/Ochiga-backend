@@ -50,6 +50,7 @@ export type OyiChatInput = {
   active_scenes?: Array<Record<string, unknown>> | null;
   active_automations?: Array<Record<string, unknown>> | null;
   conversation_context?: Record<string, unknown> | null;
+  persist?: boolean;
 };
 
 type ConversationEntity = {
@@ -2870,7 +2871,9 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
             warnings: [...context.warnings, ...(conversation.warning ? [conversation.warning] : [])],
           };
           Object.assign(response, decorateOyiTargets(response));
-          await persistThread(actor, effectiveInput, response, message, conversation.state);
+          if (effectiveInput.persist !== false) {
+            await persistThread(actor, effectiveInput, response, message, conversation.state);
+          }
           return response;
         }
       }
@@ -2909,7 +2912,9 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
       };
       Object.assign(response, decorateOyiTargets(response, operation.conversation_active_entity || response.conversation_active_entity));
       const nextConversationState = conversationStateFromResponse(conversation.state, response, message);
-      response.thread_id = await persistThread(actor, effectiveInput, response, message, nextConversationState);
+      if (effectiveInput.persist !== false) {
+        response.thread_id = await persistThread(actor, effectiveInput, response, message, nextConversationState);
+      }
       console.info("[oyi-chat]", JSON.stringify({
         message,
         domain: response.domain,

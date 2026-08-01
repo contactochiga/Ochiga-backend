@@ -150,6 +150,7 @@ export type CanonicalConversationResponse = {
     module_facts?: Record<string, unknown>;
     request_contract?: IntelligenceRequestContract;
   };
+  resolved_turn?: ResolvedConversationTurn;
   execution: Record<string, unknown>;
   cards: Array<Record<string, unknown>>;
   sources: Array<Record<string, unknown>>;
@@ -157,6 +158,7 @@ export type CanonicalConversationResponse = {
   awareness?: Record<string, unknown>;
   confirmations: Array<Record<string, unknown>>;
   warnings: string[];
+  persistence_saved?: boolean;
   source: "oyi_canonical_runtime";
   safe_mode: true;
   approvalRequired: boolean;
@@ -187,6 +189,27 @@ type ResolvedOperationalObject = {
   warnings: string[];
 };
 
+type ConversationBuilderKey =
+  | "device_status"
+  | "device_activity"
+  | "device_failures"
+  | "device_diagnosis"
+  | "device_relationships"
+  | "device_control"
+  | "home_summary"
+  | "offline_inventory"
+  | "recent_changes"
+  | "domain_list"
+  | "module_navigation"
+  | "object_navigation"
+  | "clarification"
+  | "general_help";
+
+type DeviceResolutionResult =
+  | { status: "resolved"; device_id: string; channel_code: string | null; label: string; room_id: string | null; confidence: number }
+  | { status: "ambiguous"; phrase: string; candidates: Array<{ device_id: string; label: string; room_label: string | null; device_family: string; channel_code: string | null }> }
+  | { status: "not_found"; phrase: string };
+
 function text(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -204,6 +227,10 @@ function arrayOfStrings(value: unknown) {
 function cleanLabel(value: unknown, fallback: string) {
   const next = text(value);
   return next || fallback;
+}
+
+function normalizeLookupText(value: unknown) {
+  return text(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function isUuid(value: unknown) {
@@ -720,7 +747,7 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
         },
         source: "home_scope",
         warnings: [],
-      };
+      } as any;
     }
     if (oisContext?.estate_id) {
       return {
@@ -745,7 +772,7 @@ async function resolveCandidate(actor: AuthUser | null, oisContext: OisContext |
         },
         source: "estate_scope",
         warnings: [],
-      };
+      } as any;
     }
     return { object: null, source: "global_scope", warnings: [] };
   }
@@ -2362,6 +2389,105 @@ function requestedChannelCode(message: string) {
   return match ? `switch_${match[1]}` : null;
 }
 
+function namedDevicePhraseFromControlMessage(message: string) {
+  if (!isControlRequest(message)) return null;
+  if (/\b(it|this|that|this channel|that device|same device|same channel)\b/i.test(message)) return null;
+  if (requestedChannelCode(message) && !/\b(light|switch|socket|tv|ac|fan|lamp|plug|outlet|controller|device)\b/i.test(message)) return null;
+  let phrase = text(message)
+    .replace(/^\s*(please\s+)?(?:turn|switch|power|set)\s+/i, "")
+    .replace(/\b(on|off|up|down)\b/ig, " ")
+    .replace(/\b(the|my|a|an|to)\b/ig, " ")
+    .replace(/[.?!]+$/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!phrase || /^channel\s*[123]$/i.test(phrase)) return null;
+  return phrase.length >= 3 ? phrase : null;
+}
+
+function deviceFamilyFromRow(row: Record<string, unknown>) {
+  return text(row.category || row.type || recordOf(row.metadata).device_family || recordOf(row.metadata).family || "device");
+}
+
+function scoreDeviceCandidate(phrase: string, row: Record<string, unknown>, roomLabel: string | null, channelCode: string | null) {
+  const normalizedPhrase = normalizeLookupText(phrase);
+  const name = normalizeLookupText(row.name || recordOf(row.metadata).display_name || recordOf(row.metadata).label);
+  const aliases = arrayOfStrings(recordOf(row.metadata).aliases).map(normalizeLookupText);
+  const family = normalizeLookupText(deviceFamilyFromRow(row));
+  const room = normalizeLookupText(roomLabel || recordOf(row.metadata).room_name || recordOf(row.metadata).roomName);
+  const channel = normalizeLookupText(channelCode);
+  let score = 0;
+  if (name && normalizedPhrase === name) score += 1;
+  if (aliases.includes(normalizedPhrase)) score += 0.95;
+  if (name && (name.includes(normalizedPhrase) || normalizedPhrase.includes(name))) score += 0.65;
+  if (room && normalizedPhrase.includes(room)) score += 0.35;
+  if (family && normalizedPhrase.includes(family)) score += 0.25;
+  if (/\blight|lamp\b/i.test(normalizedPhrase) && /\blight|switch|socket|plug\b/i.test(family)) score += 0.25;
+  if (/\btv|television\b/i.test(normalizedPhrase) && /\btv|ir|remote\b/i.test(`${family} ${name}`)) score += 0.35;
+  if (channel && normalizedPhrase.includes(channel)) score += 0.2;
+  const tokens = normalizedPhrase.split(" ").filter(Boolean);
+  const haystack = `${name} ${room} ${family} ${aliases.join(" ")}`;
+  const matchedTokens = tokens.filter((token) => haystack.includes(token)).length;
+  if (tokens.length) score += Math.min(0.35, matchedTokens / tokens.length * 0.35);
+  return Math.min(1, score);
+}
+
+async function resolveNamedDeviceForRead(actor: AuthUser | null, oisContext: OisContext | null | undefined, input: CanonicalConversationRequest, phrase: string): Promise<DeviceResolutionResult> {
+  const scope = currentScope(input, oisContext);
+  if (!scope.home_id) return { status: "not_found", phrase };
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("devices")
+      .select("id,name,home_id,room_id,category,type,capabilities,metadata")
+      .eq("home_id", scope.home_id)
+      .limit(100);
+    if (error) throw error;
+    const roomIds = Array.from(new Set((data || []).map((device: any) => text(device.room_id)).filter(Boolean)));
+    const rooms = roomIds.length ? await supabaseAdmin.from("rooms").select("id,name").in("id", roomIds) : { data: [], error: null };
+    const roomById = new Map((rooms.data || []).map((row: any) => [String(row.id), cleanLabel(row.name, "")]));
+    const requestedChannel = requestedChannelCode(input.message);
+    const candidates = (data || [])
+      .map((row: any) => {
+        const roomLabel = roomById.get(String(row.room_id)) || text(recordOf(row.metadata).room_name || recordOf(row.metadata).roomName) || null;
+        const channelCode = requestedChannel || null;
+        return {
+          row,
+          roomLabel,
+          channelCode,
+          score: scoreDeviceCandidate(phrase, row, roomLabel, channelCode),
+        };
+      })
+      .filter((candidate) => candidate.score >= 0.58)
+      .sort((a, b) => b.score - a.score);
+    if (!candidates.length) return { status: "not_found", phrase };
+    const top = candidates[0];
+    const tied = candidates.filter((candidate) => Math.abs(candidate.score - top.score) < 0.08);
+    if (tied.length > 1) {
+      return {
+        status: "ambiguous",
+        phrase,
+        candidates: tied.slice(0, 5).map((candidate) => ({
+          device_id: String(candidate.row.id),
+          label: cleanLabel(candidate.row.name, "Device"),
+          room_label: candidate.roomLabel,
+          device_family: deviceFamilyFromRow(candidate.row),
+          channel_code: candidate.channelCode,
+        })),
+      };
+    }
+    return {
+      status: "resolved",
+      device_id: String(top.row.id),
+      channel_code: top.channelCode,
+      label: cleanLabel(top.row.name, "Device"),
+      room_id: text(top.row.room_id) || null,
+      confidence: top.score,
+    };
+  } catch (error) {
+    logger.warn("conversation_named_device_resolution_failed", { error, phrase, home_id: scope.home_id, actor_id: actor?.id || null });
+    return { status: "not_found", phrase };
+  }
+}
+
 type OperationClass =
   | "read"
   | "report"
@@ -2467,6 +2593,12 @@ export type IntelligenceRequestContract = {
   report_builder: string | null;
   truth_policy: string;
   confidence: number;
+  ambiguity?: {
+    required: boolean;
+    reason: "ambiguous" | "not_found" | null;
+    question: string | null;
+    candidates: Array<Record<string, unknown>>;
+  };
 };
 
 type ConversationOperation =
@@ -2750,6 +2882,8 @@ const SEMANTIC_DESTINATIONS: Record<string, OyiDestinationDefinition> = {
   "rooms.module": { key: "rooms.module", domain: "rooms", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "rooms.read", label: "Rooms" },
   "rooms.detail": { key: "rooms.detail", domain: "rooms", object_type: "room", mode: "detail", supported_surfaces: ["consumer", "facility"], required_parameters: ["room_name"], required_permission: "rooms.read", label: "Room" },
   "community.module": { key: "community.module", domain: "community", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "community.read", label: "Community" },
+  "services.module": { key: "services.module", domain: "services", object_type: null, mode: "module", supported_surfaces: ["consumer"], required_parameters: [], required_permission: "services.read", label: "Services" },
+  "messages.module": { key: "messages.module", domain: "messages", object_type: null, mode: "module", supported_surfaces: ["consumer"], required_parameters: [], required_permission: "messages.read", label: "Messages" },
   "notifications.module": { key: "notifications.module", domain: "notifications", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "notifications.read", label: "Notifications" },
   "security.module": { key: "security.module", domain: "security", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "security.read", label: "Security" },
   "utilities.module": { key: "utilities.module", domain: "utilities", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "utilities.read", label: "Utilities" },
@@ -2769,6 +2903,8 @@ const MODULE_DOMAIN_ALIASES: Array<{ domain: string; destination: string; patter
   { domain: "automations", destination: "automations.module", pattern: /\b(automations?|routines?|schedules?)\b/i },
   { domain: "rooms", destination: "rooms.module", pattern: /\b(rooms?|spaces?)\b/i },
   { domain: "community", destination: "community.module", pattern: /\b(community|announcements?|posts?)\b/i },
+  { domain: "services", destination: "services.module", pattern: /\b(services?|vendors?|providers?)\b/i },
+  { domain: "messages", destination: "messages.module", pattern: /\b(messages?|chat|inbox)\b/i },
   { domain: "notifications", destination: "notifications.module", pattern: /\b(notifications?|alerts?)\b/i },
   { domain: "security", destination: "security.module", pattern: /\b(security)\b/i },
   { domain: "utilities", destination: "utilities.module", pattern: /\b(utilities|power|water|internet|gas)\b/i },
@@ -2782,6 +2918,7 @@ function interpretSemanticOperation(message: string) {
   if (
     isReadOnlyBroadDeviceIntent(message)
     || /\bwhat changed|changed recently|recent changes\b/i.test(lower)
+    || /\b(activity|history|failures?|errors?|diagnose|diagnosis|relationships?|what controls|where.*belong)\b/i.test(lower)
     || /\bwhat(?:'s| is) happening\b[\s\S]{0,24}\b(home|house|apartment|unit)\b/i.test(lower)
       || /\bwhat needs attention|is everything okay|home summary|home report\b/i.test(lower)
   ) {
@@ -2826,6 +2963,8 @@ function routeForSemanticDestination(destinationKey: string, surface: OyiSurface
     "rooms.module": "/rooms",
     "rooms.detail": "/room",
     "community.module": "/community",
+    "services.module": "/services",
+    "messages.module": "/messages",
     "notifications.module": "/notifications",
     "security.module": "/security",
     "utilities.module": "/utilities",
@@ -2893,9 +3032,14 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   const mutationRequested = !semanticCandidate && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
   const requestedChannel = mutationRequested ? requestedChannelCode(message) : null;
   const semanticOperation = !mutationRequested ? semanticCandidate : null;
+  const targetAmbiguous = Boolean(targetResolution.ambiguous);
+  const targetNotFound = Boolean(targetResolution.notFound);
   let intent: CanonicalIntent = "general_help";
   let operationClass: OperationClass = mutationRequested ? "execute_mutation" : "read";
-  if (semanticOperation) {
+  if (targetAmbiguous || (targetNotFound && mutationRequested)) {
+    intent = targetNotFound ? "device_control" : "general_help";
+    operationClass = "clarify";
+  } else if (semanticOperation) {
     intent = semanticOperation.intent;
     operationClass = semanticOperation.operationClass;
   } else if (["activity_history", "failure_history", "diagnosis", "relationships", "evidence", "current_state", "health_check", "command_outcome", "capability", "device_availability_inventory", "home_operational_summary"].includes(hint)) {
@@ -2940,7 +3084,9 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   }
   if (operationHint === "read") operationClass = "read";
   if (!["execute_mutation", "confirm_mutation", "propose_mutation", "compose", "approve", "reject", "cancel", "handoff", "report", "recommend", "navigate", "list", "clarify"].includes(operationClass)) operationClass = "read";
-  const scopeMode: ScopeMode = scopeHint === "exact_target" && targetType && !explicitBroad
+  const scopeMode: ScopeMode = targetAmbiguous || (targetNotFound && mutationRequested)
+    ? "clarification"
+    : scopeHint === "exact_target" && targetType && !explicitBroad
     && !semanticOperation
     ? "exact_target"
     : semanticOperation
@@ -2956,7 +3102,9 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
           : input.estate_id
             ? "estate_scope"
             : "global_scope";
-  const answerBuilder = semanticOperation
+  const answerBuilder = targetAmbiguous || (targetNotFound && mutationRequested)
+    ? "clarification"
+    : semanticOperation
     ? semanticOperation.answerBuilder
     : intent === "report"
     ? "canonical_report_builder"
@@ -3030,6 +3178,16 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     report_builder: intent === "report" || intent === "home_operational_summary" || intent === "device_availability_inventory" ? `${scopeMode}_operational_report` : null,
     truth_policy: operationClass === "execute_mutation" ? "current_turn_execution_required" : "read_only_no_execution",
     confidence: semanticOperation ? 0.92 : Number(targetResolution.confidence) || (explicitBroad ? 0.9 : 0.76),
+    ambiguity: targetAmbiguous || (targetNotFound && mutationRequested)
+      ? {
+        required: true,
+        reason: targetNotFound ? "not_found" : "ambiguous",
+        question: targetNotFound
+          ? `I could not find a device called “${targetLabel || text(targetResolution.objectName) || "that"}” in this home. No command was sent.`
+          : text(targetResolution.clarificationQuestion) || `Which ${targetLabel || "device"} do you mean?`,
+        candidates: Array.isArray(targetResolution.candidates) ? targetResolution.candidates as Array<Record<string, unknown>> : [],
+      }
+      : undefined,
   };
 }
 
@@ -4008,6 +4166,25 @@ function presentationPolicyForContract(contract: IntelligenceRequestContract): C
   return { intent: contract.intent, operation: operationForResolvedTurn(contract), primary: "sentence", allowed_supporting_blocks: ["object_card", "evidence", "navigation_action"], suppress_equivalent_awareness: true, suppress_context_chips: false, evidence_visibility: "collapsed" };
 }
 
+function selectConversationBuilder(contract: IntelligenceRequestContract, object: OperationalObject | null): ConversationBuilderKey | null {
+  const objectType = text(object?.object_type || contract.target.object_type);
+  const exactDevice = contract.scope_mode === "exact_target" && (objectType === "device" || objectType === "device_channel");
+  if (exactDevice && ["current_state", "health_check", "evidence"].includes(contract.intent)) return "device_status";
+  if (exactDevice && ["activity_history", "recent_changes"].includes(contract.intent)) return "device_activity";
+  if (exactDevice && contract.intent === "failure_history") return "device_failures";
+  if (exactDevice && ["diagnosis", "investigation", "explanation"].includes(contract.intent)) return "device_diagnosis";
+  if (exactDevice && contract.intent === "relationships") return "device_relationships";
+  if (exactDevice && contract.intent === "device_control") return "device_control";
+  if (contract.intent === "device_availability_inventory") return "offline_inventory";
+  if (contract.intent === "home_operational_summary") return "home_summary";
+  if (contract.intent === "recent_changes" || contract.intent === "activity_history") return "recent_changes";
+  if (contract.intent === "module_navigation") return "module_navigation";
+  if (contract.intent === "domain_list") return "domain_list";
+  if (contract.scope_mode === "clarification") return "clarification";
+  if (contract.intent === "general_help" || contract.intent === "capability") return "general_help";
+  return null;
+}
+
 function resolvedConversationTurnFromContract(input: CanonicalConversationRequest, contract: IntelligenceRequestContract, object: OperationalObject | null): ResolvedConversationTurn {
   const semantic = semanticOperationAction(input.message, input.surface);
   const destination = semantic?.operation?.destination
@@ -4032,7 +4209,16 @@ function resolvedConversationTurnFromContract(input: CanonicalConversationReques
       channel_code: contract.target.channel_code,
     } : null,
     destination,
-    ambiguity: { required: contract.scope_mode === "clarification", question: null, candidates: [] },
+    ambiguity: {
+      required: contract.scope_mode === "clarification" || Boolean(contract.ambiguity?.required),
+      question: contract.ambiguity?.question || null,
+      candidates: (contract.ambiguity?.candidates || []).map((candidate) => ({
+        type: text(candidate.object_type || candidate.type || "device"),
+        id: text(candidate.device_id || candidate.id),
+        label: cleanLabel(candidate.label, "Device"),
+        detail: text(candidate.room_label || candidate.detail || candidate.device_family) || null,
+      })),
+    },
     authority: {
       allowed: !semantic || semantic.allowed,
       required_permission: semantic?.operation.destination.required_permission || null,
@@ -4123,6 +4309,29 @@ type CanonicalBuiltAnswer = {
 };
 
 async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined, contract: IntelligenceRequestContract, object: OperationalObject | null, hydrationFacts: Record<string, unknown>): Promise<CanonicalBuiltAnswer> {
+  const builderKey = selectConversationBuilder(contract, object);
+  if (builderKey) {
+    logger.info("conversation_builder_selected", {
+      request_id: contract.conversation_request_id,
+      thread_id: contract.thread_id,
+      intent: contract.intent,
+      operation: contract.operation_class,
+      scope: contract.scope_mode,
+      object_type: object?.object_type || contract.target.object_type,
+      object_id: object?.canonical_id || contract.target.canonical_id,
+      builder_key: builderKey,
+    });
+  } else {
+    logger.info("conversation_builder_not_found", {
+      request_id: contract.conversation_request_id,
+      thread_id: contract.thread_id,
+      intent: contract.intent,
+      operation: contract.operation_class,
+      scope: contract.scope_mode,
+      object_type: object?.object_type || contract.target.object_type,
+      object_id: object?.canonical_id || contract.target.canonical_id,
+    });
+  }
   logger.info("conversation_evidence_plan_created", {
     conversation_request_id: contract.conversation_request_id,
     required_sources: contract.evidence_requirements,
@@ -4139,8 +4348,78 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
   let answer = "";
   let displayMode: CanonicalConversationResponse["display_mode"] = "conversation";
   let execution: Record<string, unknown> = { status: "read_only", current_turn_execution: false };
+  if (contract.scope_mode === "clarification" || contract.operation_class === "clarify") {
+    answer = contract.ambiguity?.question || "I need one clarification before I can continue. No action was performed.";
+    displayMode = "detail";
+    execution = { status: "clarification_required", current_turn_execution: false };
+    const shaped = {
+      id: `oyi-runtime:${contract.conversation_request_id}`,
+      thread_id: contract.thread_id || randomUUID(),
+      intent: contract.intent,
+      understood: "Clarification is required before Oyi can continue.",
+      message: answer,
+      reply: answer,
+      display_mode: displayMode,
+      confidence: 0.72,
+      execution,
+      sources: [],
+      cards: [],
+      suggested_actions: [],
+      confirmations: [],
+      canonical_request_contract: contract,
+      resolved_turn: resolvedConversationTurnFromContract(input, contract, object),
+      presentation_policy: presentationPolicyForContract(contract),
+      facts,
+    };
+    return { supported: true, response: shaped, facts };
+  }
   if (contract.operation_class === "execute_mutation") {
-    return { supported: false, response: {}, facts };
+    if (builderKey !== "device_control" || !object || !["device", "device_channel"].includes(object.object_type)) {
+      return { supported: false, response: {}, facts };
+    }
+    const targetLabel = contract.target.label || object.label;
+    const state = text(contract.mutation.command || contract.mutation.desired_state);
+    answer = state
+      ? `I found ${targetLabel}. Please confirm before I send the ${state.toUpperCase()} command. No command was sent yet.`
+      : `I found ${targetLabel}, but I need the exact command before sending anything. No command was sent.`;
+    displayMode = "detail";
+    execution = {
+      status: "pending_confirmation",
+      current_turn_execution: false,
+      target_id: contract.target.canonical_id,
+      channel_code: contract.target.channel_code,
+      command: contract.mutation.command,
+      desired_state: contract.mutation.desired_state,
+    };
+    const shaped = {
+      id: `oyi-runtime:${contract.conversation_request_id}`,
+      thread_id: contract.thread_id || randomUUID(),
+      intent: contract.intent,
+      understood: `Prepared a safe confirmation for ${targetLabel}.`,
+      message: answer,
+      reply: answer,
+      display_mode: displayMode,
+      confidence: 0.82,
+      execution,
+      sources: [],
+      cards: [],
+      suggested_actions: [],
+      confirmations: state ? [{
+        type: "device_command_confirmation",
+        target_id: contract.target.canonical_id,
+        target_type: contract.target.object_type,
+        label: targetLabel,
+        channel_code: contract.target.channel_code,
+        command: contract.mutation.command,
+        desired_state: contract.mutation.desired_state,
+        risk: "device_control",
+      }] : [],
+      canonical_request_contract: contract,
+      resolved_turn: resolvedConversationTurnFromContract(input, contract, object),
+      presentation_policy: presentationPolicyForContract(contract),
+      facts,
+    };
+    return { supported: true, response: shaped, facts };
   }
   logger.info("conversation_read_only_execution_blocked", {
     operation_class: contract.operation_class,
@@ -4215,6 +4494,7 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
   }
   logger.info("conversation_answer_builder_selected", {
     builder: contract.answer_builder,
+    builder_key: builderKey,
     reason: "canonical_supported_intent",
   });
   logger.info("conversation_execution_correlation_checked", {
@@ -4279,6 +4559,7 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
   const newlyCreatedThread = !isUuid(text(input.thread_id));
   const now = new Date().toISOString();
   const assistantId = text(response.id).replace(/^oyi-runtime:/, "") || randomUUID();
+  const userMessageId = randomUUID();
   const existingTitle = await currentThreadTitle(threadId);
   const title = existingTitle && !genericThreadTitle(existingTitle) ? existingTitle : titleFromTurn(input.message, contract, object);
   const turnInterpretation = turnInterpretationFromContract(input, contract, {
@@ -4308,6 +4589,12 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
     },
   };
   try {
+    logger.info("conversation_turn_persist_started", {
+      conversation_request_id: contract.conversation_request_id,
+      thread_id: threadId,
+      user_message_id: userMessageId,
+      assistant_message_id: assistantId,
+    });
     const threadWrite = await supabaseAdmin.from("oyi_conversation_threads").upsert({
       id: threadId,
       user_id: actor?.id || null,
@@ -4337,6 +4624,7 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
     if (threadWrite.error) throw threadWrite.error;
     const messageWrite = await supabaseAdmin.from("oyi_conversation_messages").insert([
       {
+        id: userMessageId,
         thread_id: threadId,
         user_id: actor?.id || null,
         role: "user",
@@ -4363,6 +4651,8 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
           canonical_request_contract: contract,
           resolved_turn: recordOf(response.resolved_turn),
           presentation_policy: recordOf(response.presentation_policy),
+          warnings: Array.isArray(response.warnings) ? response.warnings : [],
+          persistence_saved: true,
           turn_interpretation: turnInterpretation,
           conversation_context_layers: contextLayers,
           facts: Array.isArray(response.facts) ? response.facts : [],
@@ -4371,8 +4661,24 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
       },
     ] as any);
     if (messageWrite.error) throw messageWrite.error;
-    const verified = await verifyCanonicalThreadPersistence(threadId, 2);
+    logger.info("conversation_turn_user_persisted", {
+      conversation_request_id: contract.conversation_request_id,
+      thread_id: threadId,
+      user_message_id: userMessageId,
+    });
+    logger.info("conversation_turn_assistant_persisted", {
+      conversation_request_id: contract.conversation_request_id,
+      thread_id: threadId,
+      assistant_message_id: assistantId,
+    });
+    const verified = await verifyCanonicalCurrentTurnPersistence(threadId, userMessageId, assistantId, contract.conversation_request_id);
     if (!verified.ok) throw new Error(verified.error || "Conversation turn persistence could not be verified");
+    logger.info("conversation_turn_persist_verified", {
+      conversation_request_id: contract.conversation_request_id,
+      thread_id: threadId,
+      user_message_id: userMessageId,
+      assistant_message_id: assistantId,
+    });
     logger.info("conversation_final_answer_selected", {
       response_id: assistantId,
       builder: contract.answer_builder,
@@ -4401,9 +4707,34 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
   } catch (error) {
     if (newlyCreatedThread) await cleanupCanonicalOrphanThread(threadId);
     (response as any).persistence_warning = "This answer was not saved to conversation history.";
+    logger.warn("conversation_turn_persist_failed", { error, thread_id: threadId, conversation_request_id: contract.conversation_request_id });
     logger.warn("conversation_authoritative_persist_failed", { error, thread_id: threadId, conversation_request_id: contract.conversation_request_id });
     return null;
   }
+}
+
+async function verifyCanonicalCurrentTurnPersistence(threadId: string, userMessageId: string, assistantMessageId: string, conversationRequestId: string) {
+  const result = await supabaseAdmin
+    .from("oyi_conversation_messages")
+    .select("id,thread_id,role,metadata")
+    .in("id", [userMessageId, assistantMessageId]);
+  if (result.error) return { ok: false, count: 0, error: result.error.message };
+  const rows = Array.isArray(result.data) ? result.data : [];
+  const byId = new Map(rows.map((row: any) => [String(row.id), row]));
+  const user = byId.get(userMessageId) as any;
+  const assistant = byId.get(assistantMessageId) as any;
+  const matchesRequest = (row: any) => text(recordOf(row?.metadata).conversation_request_id) === conversationRequestId;
+  const ok = Boolean(
+    user
+    && assistant
+    && user.thread_id === threadId
+    && assistant.thread_id === threadId
+    && user.role === "user"
+    && assistant.role === "assistant"
+    && matchesRequest(user)
+    && matchesRequest(assistant)
+  );
+  return { ok, count: rows.length, error: ok ? null : "Current conversation turn messages were not persisted with matching request ids" };
 }
 
 async function verifyCanonicalThreadPersistence(threadId: string, minimumMessages = 2) {
@@ -4493,6 +4824,7 @@ function compatibilityInputFromCanonical(input: CanonicalConversationRequest, op
       canonical_operational_object: operationalObject,
       canonical_truth_requested: true,
     },
+    persist: false,
   };
 }
 
@@ -4616,12 +4948,69 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         ...targetResolution,
         objectId: `${parsed.parent_id}:${requestedChannel}`,
         objectName: text(targetResolution.objectName).replace(/Channel\s+[123]/i, requestedChannel.replace(/^switch_/i, "Channel ")) || targetResolution.objectName,
-      };
+      } as any;
       logger.info("conversation_target_scope_normalized", {
         reason: "explicit_channel_requested",
         requested_channel: requestedChannel,
         previous_channel: parsed.channel_code,
         resolved_target_id: targetResolution.objectId,
+      });
+    }
+  }
+  const namedControlPhrase = namedDevicePhraseFromControlMessage(input.message || "");
+  if (namedControlPhrase && !broadReadOnlyDeviceIntent) {
+    const namedResolution = await resolveNamedDeviceForRead(actor, oisContext, input, namedControlPhrase);
+    if (namedResolution.status === "resolved") {
+      targetResolution = {
+        ...targetResolution,
+        objectType: namedResolution.channel_code ? "device_channel" : "device",
+        objectId: namedResolution.channel_code ? `${namedResolution.device_id}:${namedResolution.channel_code}` : namedResolution.device_id,
+        objectName: namedResolution.label,
+        source: "resolved_named_reference",
+        confidence: namedResolution.confidence,
+      } as any;
+      logger.info("conversation_target_bound", {
+        request_id: text(recordOf(input.context).request_id) || null,
+        target_type: targetResolution.objectType,
+        target_id: targetResolution.objectId,
+        target_source: "current_turn_named_device",
+        phrase: namedControlPhrase,
+        confidence: namedResolution.confidence,
+      });
+    } else if (namedResolution.status === "ambiguous") {
+      const ambiguousTargetResolution: any = {
+        ...targetResolution,
+        objectType: null,
+        objectId: null,
+        objectName: namedControlPhrase,
+        source: "ambiguous",
+        confidence: 0.52,
+        ambiguous: true,
+        clarificationQuestion: `Which ${namedControlPhrase} do you mean?`,
+        candidates: namedResolution.candidates,
+      };
+      targetResolution = ambiguousTargetResolution;
+      logger.info("conversation_target_bound", {
+        request_id: text(recordOf(input.context).request_id) || null,
+        target_source: "current_turn_named_device_ambiguous",
+        phrase: namedControlPhrase,
+        candidates: namedResolution.candidates.length,
+      });
+    } else {
+      const missingTargetResolution: any = {
+        ...targetResolution,
+        objectType: null,
+        objectId: null,
+        objectName: namedControlPhrase,
+        source: "resolved_named_reference",
+        confidence: 0.5,
+        notFound: true,
+      };
+      targetResolution = missingTargetResolution;
+      logger.info("conversation_target_bound", {
+        request_id: text(recordOf(input.context).request_id) || null,
+        target_source: "current_turn_named_device_not_found",
+        phrase: namedControlPhrase,
       });
     }
   }
@@ -4811,9 +5200,14 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       },
     };
     const truth = canonicalTruthFor(shaped, null);
+    const persistedThreadId = await persistCanonicalAuthoritativeMessages(actor, input, shaped, truth, null, requestContract);
+    const responseWarnings = [
+      ...resolved.warnings,
+      ...(!persistedThreadId ? ["This answer was not saved to conversation history."] : []),
+    ];
     return {
       id: shaped.id,
-      thread_id: shaped.thread_id,
+      thread_id: persistedThreadId || null,
       intent: shaped.intent,
       understood: shaped.understood,
       summary: shaped.message,
@@ -4829,17 +5223,19 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         home_id: input.home_id || oisContext?.home_id || null,
         module: input.module || oisContext?.module || null,
         context_source: resolved.source,
-        warnings: resolved.warnings,
+        warnings: responseWarnings,
         target_resolution: { ...targetResolution, hydrationStatus: hydration.status, hydrationSource: hydration.source, hydrationReason: hydration.reason, scopeWidened: false },
         module_facts: moduleFacts,
       },
+      resolved_turn: resolvedConversationTurnFromContract(input, requestContract, null),
       execution: {},
       cards: [],
       sources: [],
       suggested_actions: [],
       awareness: shaped.awareness,
       confirmations: [],
-      warnings: resolved.warnings,
+      warnings: responseWarnings,
+      persistence_saved: Boolean(persistedThreadId),
       source: "oyi_canonical_runtime",
       safe_mode: true,
       approvalRequired: false,
@@ -4897,17 +5293,19 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         module_facts: moduleFacts,
         request_contract: requestContract,
       },
+      resolved_turn: recordOf(shapedCanonical.resolved_turn) as ResolvedConversationTurn,
       execution: recordOf(shapedCanonical.execution),
       cards: Array.isArray(shapedCanonical.cards) ? shapedCanonical.cards as Array<Record<string, unknown>> : [],
       sources: Array.isArray(shapedCanonical.sources) ? shapedCanonical.sources as Array<Record<string, unknown>> : [],
       suggested_actions: Array.isArray(shapedCanonical.suggested_actions) ? shapedCanonical.suggested_actions as Array<Record<string, unknown>> : [],
       awareness: shapedCanonical.awareness ? recordOf(shapedCanonical.awareness) : undefined,
-      confirmations: [],
+      confirmations: Array.isArray(shapedCanonical.confirmations) ? shapedCanonical.confirmations as Array<Record<string, unknown>> : [],
       warnings: responseWarnings,
+      persistence_saved: Boolean(persistedThreadId),
       source: "oyi_canonical_runtime",
       safe_mode: true,
-      approvalRequired: false,
-      requiresConfirmation: false,
+      approvalRequired: Boolean(shapedCanonical.approvalRequired || shapedCanonical.requiresConfirmation || (Array.isArray(shapedCanonical.confirmations) && shapedCanonical.confirmations.length)),
+      requiresConfirmation: Boolean(shapedCanonical.requiresConfirmation || shapedCanonical.approvalRequired || (Array.isArray(shapedCanonical.confirmations) && shapedCanonical.confirmations.length)),
     };
   }
   if (requestContract.operation_class === "read" || requestContract.operation_class === "report" || requestContract.operation_class === "recommend") {
@@ -4970,6 +5368,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
           module_facts: moduleFacts,
           request_contract: requestContract,
         },
+        resolved_turn: resolvedConversationTurnFromContract(input, requestContract, resolved.object),
         execution: { status: "read_only", current_turn_execution: false },
         cards: [],
         sources: [],
@@ -4977,6 +5376,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         awareness: shapedCanonical.awareness,
         confirmations: [],
         warnings: responseWarnings,
+        persistence_saved: Boolean(persistedThreadId),
         source: "oyi_canonical_runtime",
         safe_mode: true,
         approvalRequired: false,
@@ -4989,10 +5389,16 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   const shapedCompatibility = shapeObjectConversation(input, compatibility, resolved.object);
   const truth = canonicalTruthFor(shapedCompatibility, resolved.object);
   const threadId = text(shapedCompatibility.thread_id) || text(input.thread_id) || randomUUID();
-  await persistCanonicalShapedAssistantMessage(threadId, shapedCompatibility, truth, resolved.object);
+  const persistedThreadId = await persistCanonicalAuthoritativeMessages(actor, input, { ...shapedCompatibility, thread_id: threadId }, truth, resolved.object, requestContract);
+  const responseWarnings = [
+    ...resolved.warnings,
+    ...(targetResolution.ambiguous && targetResolution.clarificationQuestion ? [targetResolution.clarificationQuestion] : []),
+    ...(threadContext.warning ? [threadContext.warning] : []),
+    ...(!persistedThreadId ? ["This answer was not saved to conversation history."] : []),
+  ];
   return {
     id: text(shapedCompatibility.id) || `oyi-runtime:${randomUUID()}`,
-    thread_id: threadId,
+    thread_id: persistedThreadId || null,
     intent: cleanLabel(shapedCompatibility.intent, "information"),
     understood: text(shapedCompatibility.understood) || null,
     summary: cleanLabel(shapedCompatibility.understood || shapedCompatibility.message, "Oyi reviewed the current operational context."),
@@ -5008,25 +5414,19 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       home_id: input.home_id || oisContext?.home_id || null,
       module: input.module || oisContext?.module || null,
       context_source: resolved.source,
-      warnings: [
-        ...resolved.warnings,
-        ...(targetResolution.ambiguous && targetResolution.clarificationQuestion ? [targetResolution.clarificationQuestion] : []),
-        ...(threadContext.warning ? [threadContext.warning] : []),
-      ],
+      warnings: responseWarnings,
       target_resolution: { ...targetResolution, hydrationStatus: hydration.status, hydrationSource: hydration.source, hydrationTruthState: hydration.truth_state, hydrationReason: hydration.reason, scopeWidened: false },
       module_facts: moduleFacts,
     },
+    resolved_turn: recordOf(shapedCompatibility.resolved_turn) as ResolvedConversationTurn,
     execution: recordOf(shapedCompatibility.execution),
     cards: Array.isArray(shapedCompatibility.cards) ? shapedCompatibility.cards as Array<Record<string, unknown>> : [],
     sources: Array.isArray(shapedCompatibility.sources) ? shapedCompatibility.sources as Array<Record<string, unknown>> : [],
     suggested_actions: Array.isArray(shapedCompatibility.suggested_actions) ? shapedCompatibility.suggested_actions as Array<Record<string, unknown>> : [],
     awareness: shapedCompatibility.awareness ? recordOf(shapedCompatibility.awareness) : undefined,
     confirmations: Array.isArray(shapedCompatibility.confirmations) ? shapedCompatibility.confirmations as Array<Record<string, unknown>> : [],
-    warnings: [
-      ...resolved.warnings,
-      ...(targetResolution.ambiguous && targetResolution.clarificationQuestion ? [targetResolution.clarificationQuestion] : []),
-      ...(threadContext.warning ? [threadContext.warning] : []),
-    ],
+    warnings: responseWarnings,
+    persistence_saved: Boolean(persistedThreadId),
     source: "oyi_canonical_runtime",
     safe_mode: true,
     approvalRequired: Boolean(shapedCompatibility.approvalRequired || shapedCompatibility.requiresConfirmation || recordOf(shapedCompatibility.execution).status === "pending_confirmation"),
@@ -5056,6 +5456,7 @@ export function adaptCanonicalToCompatibilityChat(response: CanonicalConversatio
     approvalRequired: response.approvalRequired,
     requiresConfirmation: response.requiresConfirmation,
     warnings: response.warnings,
+    persistence_saved: response.persistence_saved,
     safe_mode: true,
   };
 }
@@ -5084,5 +5485,8 @@ export function adaptCanonicalToAiChat(response: CanonicalConversationResponse) 
     truth: response.truth,
     operational_object: response.operational_object,
     context: response.context,
+    warnings: response.warnings,
+    persistence_saved: response.persistence_saved,
+    resolved_turn: response.resolved_turn,
   };
 }

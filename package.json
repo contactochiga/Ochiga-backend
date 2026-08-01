@@ -204,7 +204,15 @@
     "smoke:authority-lifecycle": "npm run build && node scripts/conversation-foundation-smoke.mjs",
     "smoke:presentation-policy": "npm run build && node scripts/conversation-foundation-smoke.mjs",
     "smoke:approval-action-separation": "npm run build && node scripts/conversation-foundation-smoke.mjs",
-    "smoke:conversation-time-truth": "npm run build && node scripts/conversation-foundation-smoke.mjs"
+    "smoke:conversation-time-truth": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:public-conversation-turn-persistence": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:public-thread-history-roundtrip": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:runtime-branch-persistence-convergence": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:exact-device-builder-regression": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:named-device-resolution": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:natural-control-clarification": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:semantic-navigation-handoff": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:current-turn-message-verification": "npm run build && node scripts/conversation-foundation-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

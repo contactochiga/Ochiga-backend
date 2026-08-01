@@ -99,9 +99,19 @@ check("thread turn persistence is verified before a saved thread id is returned"
   assert.match(unifiedSource, /verifyThreadTurnPersistence\(threadId, 2\)/);
   assert.match(unifiedSource, /cleanupOrphanConversationThread\(threadId\)/);
   assert.match(unifiedSource, /response\.thread_id = null/);
-  assert.match(runtimeSource, /verifyCanonicalThreadPersistence\(threadId, 2\)/);
+  assert.match(runtimeSource, /verifyCanonicalCurrentTurnPersistence\(threadId, userMessageId, assistantId, contract\.conversation_request_id\)/);
+  assert.match(runtimeSource, /conversation_turn_persist_verified/);
   assert.match(runtimeSource, /cleanupCanonicalOrphanThread\(threadId\)/);
   assert.match(runtimeSource, /thread_id: persistedThreadId \|\| null/);
+});
+
+check("canonical runtime is the only persistence owner for compatibility fallback", () => {
+  assert.match(unifiedSource, /persist\?: boolean/);
+  assert.match(unifiedSource, /effectiveInput\.persist !== false/);
+  assert.match(runtimeSource, /persist: false/);
+  assert.match(runtimeSource, /runOyiUnifiedChat\(actor, compatibilityInput\)/);
+  assert.match(runtimeSource, /persistCanonicalAuthoritativeMessages\(actor, input, \{ \.\.\.shapedCompatibility/);
+  assert.doesNotMatch(runtimeSource, /await persistCanonicalShapedAssistantMessage\(threadId, shapedCompatibility/);
 });
 
 check("thread continuation does not force generic titles", () => {
@@ -128,6 +138,39 @@ check("module navigation and domain list operations override inherited exact tar
   assert.equal(openVisitor.intent, "module_navigation");
   assert.equal(openVisitor.operation_class, "navigate");
   assert.equal(openVisitor.scope_mode, "home_scope");
+});
+
+check("builder registry routes exact device requests to specialist builders", () => {
+  const activity = runtime.canonicalIntelligenceContractForTest({ message: "Show activity for this selected device", object: channel3 });
+  assert.equal(activity.intent, "activity_history");
+  assert.equal(activity.scope_mode, "exact_target");
+  assert.equal(activity.answer_builder, "recent_changes");
+  assert.match(runtimeSource, /type ConversationBuilderKey/);
+  assert.match(runtimeSource, /function selectConversationBuilder/);
+  assert.match(runtimeSource, /conversation_builder_selected/);
+  assert.match(runtimeSource, /device_activity/);
+
+  const failures = runtime.canonicalIntelligenceContractForTest({ message: "Show failures for this selected device", object: channel3 });
+  assert.equal(failures.intent, "failure_history");
+  assert.equal(failures.answer_builder, "failure_history");
+
+  const diagnosis = runtime.canonicalIntelligenceContractForTest({ message: "Diagnose this selected device", object: channel3 });
+  assert.equal(diagnosis.intent, "diagnosis");
+  assert.equal(diagnosis.answer_builder, "device_diagnosis");
+
+  const relationships = runtime.canonicalIntelligenceContractForTest({ message: "View relationships for this selected device", object: channel3 });
+  assert.equal(relationships.intent, "relationships");
+  assert.equal(relationships.answer_builder, "device_relationships");
+});
+
+check("named device resolution and clarification lifecycle are first-class", () => {
+  assert.match(runtimeSource, /type DeviceResolutionResult/);
+  assert.match(runtimeSource, /function namedDevicePhraseFromControlMessage/);
+  assert.match(runtimeSource, /resolveNamedDeviceForRead/);
+  assert.match(runtimeSource, /current_turn_named_device_ambiguous/);
+  assert.match(runtimeSource, /current_turn_named_device_not_found/);
+  assert.match(runtimeSource, /operationClass = "clarify"/);
+  assert.match(runtimeSource, /resolved_turn: resolvedConversationTurnFromContract/);
 });
 
 check("semantic destination registry is canonical and surface-routed", () => {
