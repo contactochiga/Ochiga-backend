@@ -129,7 +129,7 @@ export type CanonicalConversationRequest = {
 
 export type CanonicalConversationResponse = {
   id: string;
-  thread_id: string;
+  thread_id: string | null;
   intent: string;
   understood: string | null;
   summary: string;
@@ -1511,13 +1511,25 @@ function safeDateLabel(value: unknown, fallback = "time unavailable", mode: "tim
   const parsed = Date.parse(raw);
   if (!Number.isFinite(parsed)) return fallback;
   const date = new Date(parsed);
+  const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
   if (mode === "relative") {
     const ageMs = Date.now() - parsed;
     if (ageMs >= 0 && ageMs < 60_000) return "just now";
     if (ageMs >= 0 && ageMs < 60 * 60_000) return `${Math.max(1, Math.round(ageMs / 60_000))} min ago`;
     if (ageMs >= 0 && ageMs < 24 * 60 * 60_000) return `${Math.max(1, Math.round(ageMs / (60 * 60_000)))} hr ago`;
   }
-  return mode === "date_time" ? date.toLocaleString() : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (mode === "date_time") {
+    if (parsed >= startOfToday.getTime()) return `Today, ${time}`;
+    if (parsed >= startOfYesterday.getTime() && parsed < startOfToday.getTime()) return `Yesterday, ${time}`;
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return date.toLocaleString([], sameYear
+      ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }
+      : { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+  return time;
 }
 
 function freshnessLabelFromEvidence(freshness: unknown, truthState: unknown, source: unknown, timestamp?: unknown) {
@@ -2354,9 +2366,16 @@ type OperationClass =
   | "read"
   | "report"
   | "recommend"
+  | "list"
+  | "navigate"
   | "propose_mutation"
   | "confirm_mutation"
   | "execute_mutation"
+  | "compose"
+  | "approve"
+  | "reject"
+  | "cancel"
+  | "handoff"
   | "continue_workflow"
   | "clarify";
 
@@ -2392,7 +2411,9 @@ type CanonicalIntent =
   | "notification_operation"
   | "configuration_operation"
   | "general_help"
-  | "command_outcome";
+  | "command_outcome"
+  | "module_navigation"
+  | "domain_list";
 
 type ScopeMode =
   | "exact_target"
@@ -2445,6 +2466,62 @@ export type IntelligenceRequestContract = {
   answer_builder: string;
   report_builder: string | null;
   truth_policy: string;
+  confidence: number;
+};
+
+type ConversationOperation =
+  | "inform"
+  | "inspect"
+  | "list"
+  | "navigate_module"
+  | "navigate_object"
+  | "compose"
+  | "control"
+  | "approve"
+  | "reject"
+  | "cancel"
+  | "handoff"
+  | "clarify";
+
+type ConversationPresentationPolicy = {
+  intent: string;
+  operation: string;
+  primary: "sentence" | "status" | "table" | "object_card" | "clarification" | "approval" | "handoff" | "error";
+  allowed_supporting_blocks: string[];
+  suppress_equivalent_awareness: boolean;
+  suppress_context_chips: boolean;
+  evidence_visibility: "hidden" | "collapsed" | "visible";
+};
+
+type ResolvedConversationTurn = {
+  rawMessage: string;
+  intent: string;
+  operation: ConversationOperation;
+  scope: "exact_object" | "room" | "home" | "building" | "module" | "thread_reference" | "ambiguous";
+  domain: string | null;
+  object: {
+    type: string;
+    id: string;
+    label: string | null;
+    parent_id?: string | null;
+    room_id?: string | null;
+    channel_code?: string | null;
+  } | null;
+  destination: { key: string; parameters: Record<string, string> } | null;
+  ambiguity: {
+    required: boolean;
+    question: string | null;
+    candidates: Array<{ type: string; id: string; label: string; detail?: string | null }>;
+  };
+  authority: {
+    allowed: boolean;
+    required_permission: string | null;
+    confirmation_required: boolean;
+    secure_review_required: boolean;
+    denial_reason: string | null;
+  };
+  presentation: { mode: ConversationPresentationPolicy["primary"] };
+  temporal_scope: TurnInterpretation["temporalScope"];
   confidence: number;
 };
 
@@ -2644,6 +2721,163 @@ function constructBroadScopeObject(input: CanonicalConversationRequest, oisConte
   return null;
 }
 
+type OyiDestinationDefinition = {
+  key: string;
+  domain: string;
+  object_type: string | null;
+  mode: "module" | "list" | "detail" | "drawer" | "live_view" | "review" | "approval";
+  supported_surfaces: OyiSurface[];
+  required_parameters: string[];
+  required_permission: string | null;
+  label: string;
+};
+
+const SEMANTIC_DESTINATIONS: Record<string, OyiDestinationDefinition> = {
+  "devices.module": { key: "devices.module", domain: "devices", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "devices.read", label: "Devices" },
+  "devices.detail": { key: "devices.detail", domain: "devices", object_type: "device", mode: "detail", supported_surfaces: ["consumer", "facility"], required_parameters: ["device_id"], required_permission: "devices.read", label: "Device details" },
+  "devices.channel": { key: "devices.channel", domain: "devices", object_type: "device_channel", mode: "detail", supported_surfaces: ["consumer"], required_parameters: ["device_id", "channel_code"], required_permission: "devices.read", label: "Device channel" },
+  "visitors.module": { key: "visitors.module", domain: "visitors", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "visitors.read", label: "Visitors" },
+  "visitors.detail": { key: "visitors.detail", domain: "visitors", object_type: "visitor", mode: "detail", supported_surfaces: ["consumer", "facility"], required_parameters: ["visitor_id"], required_permission: "visitors.read", label: "Visitor details" },
+  "wallet.summary": { key: "wallet.summary", domain: "wallet", object_type: "wallet", mode: "module", supported_surfaces: ["consumer"], required_parameters: [], required_permission: "wallet.read", label: "Wallet" },
+  "wallet.transaction": { key: "wallet.transaction", domain: "transactions", object_type: "transaction", mode: "detail", supported_surfaces: ["consumer"], required_parameters: ["transaction_id"], required_permission: "wallet.read", label: "Transaction" },
+  "wallet.review": { key: "wallet.review", domain: "wallet", object_type: "wallet", mode: "review", supported_surfaces: ["consumer"], required_parameters: [], required_permission: "wallet.review", label: "Wallet review" },
+  "maintenance.module": { key: "maintenance.module", domain: "maintenance", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "maintenance.read", label: "Maintenance" },
+  "maintenance.detail": { key: "maintenance.detail", domain: "maintenance", object_type: "maintenance_request", mode: "detail", supported_surfaces: ["consumer", "facility"], required_parameters: ["request_id"], required_permission: "maintenance.read", label: "Maintenance request" },
+  "scenes.module": { key: "scenes.module", domain: "scenes", object_type: null, mode: "module", supported_surfaces: ["consumer"], required_parameters: [], required_permission: "scenes.read", label: "Scenes" },
+  "scenes.detail": { key: "scenes.detail", domain: "scenes", object_type: "scene", mode: "detail", supported_surfaces: ["consumer"], required_parameters: ["scene_id"], required_permission: "scenes.read", label: "Scene" },
+  "automations.module": { key: "automations.module", domain: "automations", object_type: null, mode: "module", supported_surfaces: ["consumer"], required_parameters: [], required_permission: "automations.read", label: "Automations" },
+  "automations.detail": { key: "automations.detail", domain: "automations", object_type: "automation", mode: "detail", supported_surfaces: ["consumer"], required_parameters: ["automation_id"], required_permission: "automations.read", label: "Automation" },
+  "rooms.module": { key: "rooms.module", domain: "rooms", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "rooms.read", label: "Rooms" },
+  "rooms.detail": { key: "rooms.detail", domain: "rooms", object_type: "room", mode: "detail", supported_surfaces: ["consumer", "facility"], required_parameters: ["room_name"], required_permission: "rooms.read", label: "Room" },
+  "community.module": { key: "community.module", domain: "community", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "community.read", label: "Community" },
+  "notifications.module": { key: "notifications.module", domain: "notifications", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "notifications.read", label: "Notifications" },
+  "security.module": { key: "security.module", domain: "security", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "security.read", label: "Security" },
+  "utilities.module": { key: "utilities.module", domain: "utilities", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "utilities.read", label: "Utilities" },
+  "cameras.module": { key: "cameras.module", domain: "cameras", object_type: null, mode: "module", supported_surfaces: ["consumer", "facility"], required_parameters: [], required_permission: "cameras.read", label: "Cameras" },
+  "camera.private_live_view": { key: "camera.private_live_view", domain: "cameras", object_type: "camera", mode: "live_view", supported_surfaces: ["consumer"], required_parameters: ["camera_id"], required_permission: "cameras.private.read", label: "Camera live view" },
+  "camera.shared_live_view": { key: "camera.shared_live_view", domain: "cameras", object_type: "camera", mode: "live_view", supported_surfaces: ["facility"], required_parameters: ["camera_id"], required_permission: "cameras.shared.read", label: "Shared camera live view" },
+  "incident.detail": { key: "incident.detail", domain: "incidents", object_type: "operational_incident", mode: "detail", supported_surfaces: ["consumer", "facility"], required_parameters: ["incident_id"], required_permission: "incidents.read", label: "Incident" },
+  "digital_twin.object": { key: "digital_twin.object", domain: "digital_twin", object_type: "twin_node", mode: "detail", supported_surfaces: ["facility"], required_parameters: ["node_id"], required_permission: "digital_twin.read", label: "Digital twin object" },
+};
+
+const MODULE_DOMAIN_ALIASES: Array<{ domain: string; destination: string; pattern: RegExp }> = [
+  { domain: "devices", destination: "devices.module", pattern: /\b(devices?|hardware|switches?|sockets?|lights?)\b/i },
+  { domain: "visitors", destination: "visitors.module", pattern: /\b(visitors?|guests?|access requests?|passes?)\b/i },
+  { domain: "wallet", destination: "wallet.summary", pattern: /\b(wallet|balance|dues|payments?|transactions?)\b/i },
+  { domain: "maintenance", destination: "maintenance.module", pattern: /\b(maintenance|repairs?|tickets?|requests?)\b/i },
+  { domain: "scenes", destination: "scenes.module", pattern: /\b(scenes?)\b/i },
+  { domain: "automations", destination: "automations.module", pattern: /\b(automations?|routines?|schedules?)\b/i },
+  { domain: "rooms", destination: "rooms.module", pattern: /\b(rooms?|spaces?)\b/i },
+  { domain: "community", destination: "community.module", pattern: /\b(community|announcements?|posts?)\b/i },
+  { domain: "notifications", destination: "notifications.module", pattern: /\b(notifications?|alerts?)\b/i },
+  { domain: "security", destination: "security.module", pattern: /\b(security)\b/i },
+  { domain: "utilities", destination: "utilities.module", pattern: /\b(utilities|power|water|internet|gas)\b/i },
+  { domain: "cameras", destination: "cameras.module", pattern: /\b(cameras?|cctv)\b/i },
+];
+
+function interpretSemanticOperation(message: string) {
+  const lower = message.toLowerCase();
+  const verb = lower.match(/^\s*(open|go to|take me to|show|list|view)\b/i)?.[1] || "";
+  if (!verb) return null;
+  if (
+    isReadOnlyBroadDeviceIntent(message)
+    || /\bwhat changed|changed recently|recent changes\b/i.test(lower)
+    || /\bwhat(?:'s| is) happening\b[\s\S]{0,24}\b(home|house|apartment|unit)\b/i.test(lower)
+      || /\bwhat needs attention|is everything okay|home summary|home report\b/i.test(lower)
+  ) {
+    return null;
+  }
+  const roomMatch = message.match(/^\s*(open|go to|take me to|view)\s+(?:the\s+)?((?:bedroom|room|living room|kitchen|bathroom|parlor|lounge|office|study|garage|balcony|dining room)\s*[a-z0-9-]*)\b/i);
+  if (roomMatch) {
+    const roomName = cleanLabel(roomMatch[2], "");
+    return {
+      intent: "module_navigation" as CanonicalIntent,
+      operationClass: "navigate" as OperationClass,
+      scopeMode: "room_scope" as ScopeMode,
+      answerBuilder: "semantic_navigation",
+      domain: "rooms",
+      destination: SEMANTIC_DESTINATIONS["rooms.detail"],
+      parameters: { room_name: roomName },
+    };
+  }
+  const matched = MODULE_DOMAIN_ALIASES.find((entry) => entry.pattern.test(message));
+  if (!matched) return null;
+  const destination = SEMANTIC_DESTINATIONS[matched.destination];
+  const operationClass: OperationClass = /^open|go to|take me to$/i.test(verb) ? "navigate" : "list";
+  return {
+    intent: operationClass === "navigate" ? "module_navigation" as CanonicalIntent : "domain_list" as CanonicalIntent,
+    operationClass,
+    scopeMode: "home_scope" as ScopeMode,
+    answerBuilder: operationClass === "navigate" ? "semantic_navigation" : "domain_list",
+    domain: matched.domain,
+    destination,
+    parameters: {},
+  };
+}
+
+function routeForSemanticDestination(destinationKey: string, surface: OyiSurface) {
+  const consumerRoutes: Record<string, string> = {
+    "devices.module": "/devices",
+    "visitors.module": "/visitors",
+    "wallet.summary": "/wallet",
+    "maintenance.module": "/maintenance",
+    "scenes.module": "/scenes",
+    "automations.module": "/scenes?tab=automations",
+    "rooms.module": "/rooms",
+    "rooms.detail": "/room",
+    "community.module": "/community",
+    "notifications.module": "/notifications",
+    "security.module": "/security",
+    "utilities.module": "/utilities",
+    "cameras.module": "/security?tab=cameras",
+  };
+  const facilityRoutes: Record<string, string> = {
+    "devices.module": "/devices",
+    "visitors.module": "/visitors",
+    "maintenance.module": "/maintenance",
+    "rooms.module": "/estate",
+    "rooms.detail": "/estate",
+    "community.module": "/community",
+    "notifications.module": "/notifications",
+    "security.module": "/security",
+    "utilities.module": "/utilities",
+    "cameras.module": "/cameras",
+  };
+  return (surface === "facility" ? facilityRoutes : consumerRoutes)[destinationKey] || "/";
+}
+
+function routeWithSemanticParameters(route: string, parameters: Record<string, string>) {
+  const entries = Object.entries(parameters).filter(([, value]) => text(value));
+  if (!entries.length) return route;
+  const separator = route.includes("?") ? "&" : "?";
+  return `${route}${separator}${entries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&")}`;
+}
+
+function semanticOperationAction(message: string, surface: OyiSurface) {
+  const operation = interpretSemanticOperation(message);
+  if (!operation?.destination) return null;
+  const allowed = operation.destination.supported_surfaces.includes(surface);
+  const route = routeWithSemanticParameters(routeForSemanticDestination(operation.destination.key, surface), recordOf(operation.parameters) as Record<string, string>);
+  return {
+    operation,
+    allowed,
+    route,
+    action: {
+      type: operation.operationClass === "navigate" ? "navigation" : "open_module",
+      label: operation.operationClass === "navigate" ? `Open ${operation.destination.label}` : `View ${operation.destination.label}`,
+      route,
+      destination: {
+        key: operation.destination.key,
+        domain: operation.destination.domain,
+        mode: operation.destination.mode,
+        parameters: recordOf(operation.parameters),
+      },
+      operation_class: operation.operationClass,
+      risk: "read",
+    },
+  };
+}
+
 function resolveIntentContract(input: CanonicalConversationRequest, object: OperationalObject | null, targetResolution: Record<string, unknown>): IntelligenceRequestContract {
   const message = text(input.message);
   const lower = message.toLowerCase();
@@ -2655,11 +2889,16 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   const targetId = text(object?.canonical_id || targetResolution.objectId) || null;
   const parsedChannel = targetType === "device_channel" ? parseDeviceChannelIdentity(targetId) : { parent_id: null, channel_code: null };
   const explicitBroad = isExplicitBroadHomeReadIntent(message, scopeHint) || /\b(whole home|all devices|everything|home summary|home report|show offline)\b/i.test(lower);
-  const mutationRequested = isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
+  const semanticCandidate = interpretSemanticOperation(message);
+  const mutationRequested = !semanticCandidate && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
   const requestedChannel = mutationRequested ? requestedChannelCode(message) : null;
+  const semanticOperation = !mutationRequested ? semanticCandidate : null;
   let intent: CanonicalIntent = "general_help";
   let operationClass: OperationClass = mutationRequested ? "execute_mutation" : "read";
-  if (["activity_history", "failure_history", "diagnosis", "relationships", "evidence", "current_state", "health_check", "command_outcome", "capability", "device_availability_inventory", "home_operational_summary"].includes(hint)) {
+  if (semanticOperation) {
+    intent = semanticOperation.intent;
+    operationClass = semanticOperation.operationClass;
+  } else if (["activity_history", "failure_history", "diagnosis", "relationships", "evidence", "current_state", "health_check", "command_outcome", "capability", "device_availability_inventory", "home_operational_summary"].includes(hint)) {
     intent = hint as CanonicalIntent;
     operationClass = "read";
   } else if (isReadOnlyBroadDeviceIntent(message)) {
@@ -2700,9 +2939,12 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     intent = "device_control";
   }
   if (operationHint === "read") operationClass = "read";
-  if (operationClass !== "execute_mutation" && operationClass !== "report" && operationClass !== "recommend") operationClass = "read";
+  if (!["execute_mutation", "confirm_mutation", "propose_mutation", "compose", "approve", "reject", "cancel", "handoff", "report", "recommend", "navigate", "list", "clarify"].includes(operationClass)) operationClass = "read";
   const scopeMode: ScopeMode = scopeHint === "exact_target" && targetType && !explicitBroad
+    && !semanticOperation
     ? "exact_target"
+    : semanticOperation
+    ? semanticOperation.scopeMode
     : explicitBroad
     ? "home_scope"
     : targetType
@@ -2714,7 +2956,9 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
           : input.estate_id
             ? "estate_scope"
             : "global_scope";
-  const answerBuilder = intent === "report"
+  const answerBuilder = semanticOperation
+    ? semanticOperation.answerBuilder
+    : intent === "report"
     ? "canonical_report_builder"
     : intent === "home_operational_summary"
       ? "home_operational_summary"
@@ -2785,7 +3029,7 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     answer_builder: answerBuilder,
     report_builder: intent === "report" || intent === "home_operational_summary" || intent === "device_availability_inventory" ? `${scopeMode}_operational_report` : null,
     truth_policy: operationClass === "execute_mutation" ? "current_turn_execution_required" : "read_only_no_execution",
-    confidence: Number(targetResolution.confidence) || (explicitBroad ? 0.9 : 0.76),
+    confidence: semanticOperation ? 0.92 : Number(targetResolution.confidence) || (explicitBroad ? 0.9 : 0.76),
   };
 }
 
@@ -3705,6 +3949,103 @@ function tableBlockForContract(contract: IntelligenceRequestContract, facts: Int
   return null;
 }
 
+function operationForResolvedTurn(contract: IntelligenceRequestContract): ConversationOperation {
+  if (contract.operation_class === "navigate") return contract.target.object_type ? "navigate_object" : "navigate_module";
+  if (contract.operation_class === "list") return "list";
+  if (contract.operation_class === "execute_mutation" || contract.operation_class === "confirm_mutation") return "control";
+  if (contract.operation_class === "propose_mutation" || contract.operation_class === "compose") return "compose";
+  if (contract.operation_class === "approve") return "approve";
+  if (contract.operation_class === "reject") return "reject";
+  if (contract.operation_class === "handoff") return "handoff";
+  if (contract.scope_mode === "clarification") return "clarify";
+  if (contract.intent === "device_availability_inventory" || contract.intent === "recent_changes" || contract.intent === "activity_history" || contract.intent === "failure_history") return "list";
+  if (contract.intent === "current_state" || contract.intent === "health_check" || contract.intent === "diagnosis" || contract.intent === "relationships" || contract.intent === "evidence") return "inspect";
+  return "inform";
+}
+
+function scopeForResolvedTurn(contract: IntelligenceRequestContract): ResolvedConversationTurn["scope"] {
+  if (contract.scope_mode === "exact_target") return "exact_object";
+  if (contract.scope_mode === "room_scope") return "room";
+  if (contract.scope_mode === "home_scope" || contract.scope_mode === "explicit_broad_scope") return "home";
+  if (contract.scope_mode === "building_scope" || contract.scope_mode === "estate_scope") return "building";
+  if (contract.scope_mode === "thread_scope") return "thread_reference";
+  if (contract.scope_mode === "clarification") return "ambiguous";
+  if (contract.intent === "module_navigation" || contract.intent === "domain_list") return "module";
+  return "home";
+}
+
+function domainForResolvedTurn(contract: IntelligenceRequestContract, object: OperationalObject | null, semantic?: ReturnType<typeof semanticOperationAction> | null) {
+  if (semantic?.operation?.domain) return semantic.operation.domain;
+  const module = text(object?.source_module).toLowerCase();
+  if (module) return module;
+  const targetType = text(contract.target.object_type).toLowerCase();
+  if (/device|switch|camera/.test(targetType)) return "devices";
+  if (/room/.test(targetType)) return "rooms";
+  if (/visitor|access/.test(targetType)) return "visitors";
+  if (/maintenance/.test(targetType)) return "maintenance";
+  if (/wallet|transaction/.test(targetType)) return "wallet";
+  if (/incident/.test(targetType)) return "incidents";
+  if (contract.intent === "device_availability_inventory") return "devices";
+  return null;
+}
+
+function presentationPolicyForContract(contract: IntelligenceRequestContract): ConversationPresentationPolicy {
+  if (contract.scope_mode === "clarification") {
+    return { intent: contract.intent, operation: operationForResolvedTurn(contract), primary: "clarification", allowed_supporting_blocks: ["clarification"], suppress_equivalent_awareness: true, suppress_context_chips: true, evidence_visibility: "hidden" };
+  }
+  if (contract.operation_class === "execute_mutation" || contract.operation_class === "confirm_mutation") {
+    return { intent: contract.intent, operation: operationForResolvedTurn(contract), primary: "approval", allowed_supporting_blocks: ["approval", "command_result"], suppress_equivalent_awareness: true, suppress_context_chips: true, evidence_visibility: "collapsed" };
+  }
+  if (contract.intent === "device_availability_inventory" || contract.intent === "recent_changes" || contract.intent === "activity_history" || contract.intent === "failure_history") {
+    return { intent: contract.intent, operation: operationForResolvedTurn(contract), primary: "table", allowed_supporting_blocks: ["table", "navigation_action"], suppress_equivalent_awareness: true, suppress_context_chips: true, evidence_visibility: "collapsed" };
+  }
+  if (contract.intent === "module_navigation" || contract.intent === "domain_list") {
+    return { intent: contract.intent, operation: operationForResolvedTurn(contract), primary: "sentence", allowed_supporting_blocks: ["navigation_action"], suppress_equivalent_awareness: true, suppress_context_chips: true, evidence_visibility: "hidden" };
+  }
+  if (contract.intent === "current_state" || contract.intent === "health_check") {
+    return { intent: contract.intent, operation: operationForResolvedTurn(contract), primary: "status", allowed_supporting_blocks: ["status", "evidence"], suppress_equivalent_awareness: true, suppress_context_chips: false, evidence_visibility: "collapsed" };
+  }
+  return { intent: contract.intent, operation: operationForResolvedTurn(contract), primary: "sentence", allowed_supporting_blocks: ["object_card", "evidence", "navigation_action"], suppress_equivalent_awareness: true, suppress_context_chips: false, evidence_visibility: "collapsed" };
+}
+
+function resolvedConversationTurnFromContract(input: CanonicalConversationRequest, contract: IntelligenceRequestContract, object: OperationalObject | null): ResolvedConversationTurn {
+  const semantic = semanticOperationAction(input.message, input.surface);
+  const destination = semantic?.operation?.destination
+    ? { key: semantic.operation.destination.key, parameters: recordOf(semantic.operation.parameters) as Record<string, string> }
+    : null;
+  const presentation = presentationPolicyForContract(contract);
+  const operation = semantic && contract.operation_class === "navigate"
+    ? semantic.operation.destination.mode === "module" ? "navigate_module" : "navigate_object"
+    : operationForResolvedTurn(contract);
+  return {
+    rawMessage: text(input.message),
+    intent: contract.intent,
+    operation,
+    scope: destination && contract.operation_class === "navigate" && semantic?.operation.destination.mode === "detail" ? "room" : scopeForResolvedTurn(contract),
+    domain: domainForResolvedTurn(contract, object, semantic),
+    object: contract.target.canonical_id && contract.target.object_type ? {
+      type: contract.target.object_type,
+      id: contract.target.canonical_id,
+      label: contract.target.label,
+      parent_id: contract.target.parent_id,
+      room_id: object?.room_id || null,
+      channel_code: contract.target.channel_code,
+    } : null,
+    destination,
+    ambiguity: { required: contract.scope_mode === "clarification", question: null, candidates: [] },
+    authority: {
+      allowed: !semantic || semantic.allowed,
+      required_permission: semantic?.operation.destination.required_permission || null,
+      confirmation_required: contract.mutation.requested || contract.mutation.confirmed,
+      secure_review_required: /wallet|access|credential|payment|financial/i.test(`${contract.intent} ${contract.target.object_type || ""}`),
+      denial_reason: semantic && !semantic.allowed ? "destination_not_available_on_surface" : null,
+    },
+    presentation: { mode: presentation.primary },
+    temporal_scope: contract.temporal_scope,
+    confidence: contract.confidence,
+  };
+}
+
 function normalizedCopy(value: unknown) {
   return text(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -3734,6 +4075,29 @@ export function canonicalRecentChangesAnswerForTest(input: { facts: Intelligence
 export function canonicalConversationTableBlockForTest(input: { facts: IntelligenceFact[]; message?: string }) {
   const contract = canonicalIntelligenceContractForTest({ message: input.message || "What changed recently?" });
   return tableBlockForContract(contract, dedupeFacts(input.facts));
+}
+
+export function canonicalResolvedTurnForTest(input: { message: string; object?: OperationalObject | null; surface?: OyiSurface; request?: Partial<CanonicalConversationRequest> }) {
+  const request = {
+    message: input.message,
+    surface: input.surface || "consumer",
+    ...(input.request || {}),
+  } as CanonicalConversationRequest;
+  const contract = resolveIntentContract(request, input.object || null, {
+    objectType: input.object?.object_type || null,
+    objectId: input.object?.canonical_id || null,
+    objectName: input.object?.label || null,
+    confidence: input.object ? 0.9 : 0.72,
+  });
+  return {
+    contract,
+    resolved_turn: resolvedConversationTurnFromContract(request, contract, input.object || null),
+    presentation_policy: presentationPolicyForContract(contract),
+  };
+}
+
+export function canonicalTimeLabelForTest(value: unknown, mode: "time" | "date_time" | "relative" = "date_time") {
+  return safeDateLabel(value, "Time unavailable", mode);
 }
 
 export function canonicalDeviceAvailabilityAnswerForTest(input: { facts: IntelligenceFact[]; message?: string }) {
@@ -3783,7 +4147,21 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     intent: contract.intent,
     target: contract.target,
   });
-  if (contract.intent === "recent_changes" || contract.intent === "activity_history") {
+  if (contract.intent === "module_navigation" || contract.intent === "domain_list") {
+    const semantic = semanticOperationAction(input.message, input.surface);
+    if (!semantic) return { supported: false, response: {}, facts };
+    if (!semantic.allowed) {
+      answer = `${semantic.operation.destination.label} is not available on this surface. I did not navigate or perform any action.`;
+      displayMode = "conversation";
+      execution = { status: "denied", current_turn_execution: false, destination: semantic.operation.destination.key };
+    } else {
+      answer = contract.intent === "module_navigation"
+        ? `Opening ${semantic.operation.destination.label}.`
+        : `Here is the ${semantic.operation.destination.label} workspace.`;
+      displayMode = "conversation";
+      execution = { status: "navigation_ready", current_turn_execution: false, destination: semantic.operation.destination.key, route: semantic.route };
+    }
+  } else if (contract.intent === "recent_changes" || contract.intent === "activity_history") {
     facts = dedupeFacts([...facts, ...await loadRecentChangeFacts(input, oisContext, contract, object)]);
     answer = buildRecentChangesAnswer(facts, contract);
     displayMode = "list";
@@ -3843,7 +4221,7 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     conversation_request_id: contract.conversation_request_id,
     execution_id: text(recordOf(execution.referenced_execution).id) || null,
     matched: false,
-    reason: contract.operation_class === "read" || contract.operation_class === "report" || contract.operation_class === "recommend" ? "read_only_current_turn" : "no_execution",
+    reason: ["read", "report", "recommend", "navigate", "list"].includes(contract.operation_class) ? "read_only_current_turn" : "no_execution",
   });
   const safeAnswer = enforceResidentAnswerQuality(
     naturalizeUserCopy(stripInternalLanguage(answer)).replace(/^Done[.,]?\s*/i, ""),
@@ -3853,6 +4231,8 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
   );
   const tableBlock = tableBlockForContract(contract, deduped);
   const cards = tableBlock ? [tableBlock] : [];
+  const resolvedTurn = resolvedConversationTurnFromContract(input, contract, object);
+  const presentationPolicy = presentationPolicyForContract(contract);
   const awarenessSummary = contract.intent === "recent_changes" || contract.intent === "activity_history"
     ? "Recent meaningful activity was reviewed."
     : contract.intent === "device_availability_inventory"
@@ -3882,9 +4262,13 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
       execution,
       sources: deduped.slice(0, 6).map((fact) => ({ id: fact.source_id || fact.fact_id, type: fact.source_type, label: fact.statement, truth_state: fact.truth_state })),
       cards,
-      suggested_actions: object ? contextualObjectActions(object, input).filter((action) => recordOf(action).risk !== "control").slice(0, 4) : [],
+      suggested_actions: contract.intent === "module_navigation" || contract.intent === "domain_list"
+        ? (semanticOperationAction(input.message, input.surface)?.allowed ? [semanticOperationAction(input.message, input.surface)?.action].filter(Boolean) as Array<Record<string, unknown>> : [])
+        : object ? contextualObjectActions(object, input).filter((action) => recordOf(action).risk !== "control").slice(0, 4) : [],
       ...(awareness ? { awareness } : {}),
       canonical_request_contract: contract,
+      resolved_turn: resolvedTurn,
+      presentation_policy: presentationPolicy,
       facts: deduped,
     },
   };
@@ -3892,6 +4276,7 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
 
 async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, input: CanonicalConversationRequest, response: Record<string, unknown>, truth: CanonicalTruth, object: OperationalObject | null, contract: IntelligenceRequestContract) {
   const threadId = text(response.thread_id) || text(input.thread_id) || randomUUID();
+  const newlyCreatedThread = !isUuid(text(input.thread_id));
   const now = new Date().toISOString();
   const assistantId = text(response.id).replace(/^oyi-runtime:/, "") || randomUUID();
   const existingTitle = await currentThreadTitle(threadId);
@@ -3923,7 +4308,7 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
     },
   };
   try {
-    await supabaseAdmin.from("oyi_conversation_threads").upsert({
+    const threadWrite = await supabaseAdmin.from("oyi_conversation_threads").upsert({
       id: threadId,
       user_id: actor?.id || null,
       surface: input.surface,
@@ -3944,10 +4329,13 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
         current_turn_execution: null,
         referenced_historical_execution: recordOf(response.execution).referenced_execution || null,
         canonical_request_contract: contract,
+        resolved_turn: recordOf(response.resolved_turn),
+        presentation_policy: recordOf(response.presentation_policy),
         turn_interpretation: turnInterpretation,
       },
     } as any);
-    await supabaseAdmin.from("oyi_conversation_messages").insert([
+    if (threadWrite.error) throw threadWrite.error;
+    const messageWrite = await supabaseAdmin.from("oyi_conversation_messages").insert([
       {
         thread_id: threadId,
         user_id: actor?.id || null,
@@ -3973,6 +4361,8 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
           response_id: assistantId,
           conversation_request_id: contract.conversation_request_id,
           canonical_request_contract: contract,
+          resolved_turn: recordOf(response.resolved_turn),
+          presentation_policy: recordOf(response.presentation_policy),
           turn_interpretation: turnInterpretation,
           conversation_context_layers: contextLayers,
           facts: Array.isArray(response.facts) ? response.facts : [],
@@ -3980,6 +4370,9 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
         created_at: new Date(Date.now() + 1).toISOString(),
       },
     ] as any);
+    if (messageWrite.error) throw messageWrite.error;
+    const verified = await verifyCanonicalThreadPersistence(threadId, 2);
+    if (!verified.ok) throw new Error(verified.error || "Conversation turn persistence could not be verified");
     logger.info("conversation_final_answer_selected", {
       response_id: assistantId,
       builder: contract.answer_builder,
@@ -4004,9 +4397,31 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
       target_id: contract.target.canonical_id,
       confidence: contract.confidence,
     });
+    return threadId;
   } catch (error) {
+    if (newlyCreatedThread) await cleanupCanonicalOrphanThread(threadId);
+    (response as any).persistence_warning = "This answer was not saved to conversation history.";
     logger.warn("conversation_authoritative_persist_failed", { error, thread_id: threadId, conversation_request_id: contract.conversation_request_id });
+    return null;
   }
+}
+
+async function verifyCanonicalThreadPersistence(threadId: string, minimumMessages = 2) {
+  const countResult = await supabaseAdmin
+    .from("oyi_conversation_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("thread_id", threadId);
+  if (countResult.error) return { ok: false, count: 0, error: countResult.error.message };
+  const count = Number(countResult.count || 0);
+  return { ok: count >= minimumMessages, count, error: count >= minimumMessages ? null : "Conversation messages were not persisted" };
+}
+
+async function cleanupCanonicalOrphanThread(threadId: string) {
+  if (!isUuid(threadId)) return;
+  const summary = await verifyCanonicalThreadPersistence(threadId, 1);
+  if (summary.count > 0) return;
+  const { error } = await supabaseAdmin.from("oyi_conversation_threads").delete().eq("id", threadId);
+  if (error) logger.warn("conversation_orphan_thread_cleanup_failed", { thread_id: threadId, error });
 }
 
 function shapeObjectConversation(input: CanonicalConversationRequest, response: Record<string, unknown>, object: OperationalObject | null) {
@@ -4436,10 +4851,16 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     const shapedCanonical = canonicalBuilt.response;
     const truth = canonicalTruthFor(shapedCanonical, resolved.object);
     const threadId = text(shapedCanonical.thread_id) || text(input.thread_id) || randomUUID();
-    await persistCanonicalAuthoritativeMessages(actor, input, { ...shapedCanonical, thread_id: threadId }, truth, resolved.object, requestContract);
+    const persistedThreadId = await persistCanonicalAuthoritativeMessages(actor, input, { ...shapedCanonical, thread_id: threadId }, truth, resolved.object, requestContract);
+    const responseWarnings = [
+      ...resolved.warnings,
+      ...(targetResolution.ambiguous && targetResolution.clarificationQuestion ? [targetResolution.clarificationQuestion] : []),
+      ...(threadContext.warning ? [threadContext.warning] : []),
+      ...(!persistedThreadId ? ["This answer was not saved to conversation history."] : []),
+    ];
     logger.info("conversation_final_answer_selected", {
       conversation_request_id: requestContract.conversation_request_id,
-      thread_id: threadId,
+      thread_id: persistedThreadId || null,
       operation_class: requestContract.operation_class,
       intent: requestContract.intent,
       scope_mode: requestContract.scope_mode,
@@ -4471,11 +4892,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         home_id: input.home_id || oisContext?.home_id || null,
         module: input.module || oisContext?.module || null,
         context_source: resolved.source,
-        warnings: [
-          ...resolved.warnings,
-          ...(targetResolution.ambiguous && targetResolution.clarificationQuestion ? [targetResolution.clarificationQuestion] : []),
-          ...(threadContext.warning ? [threadContext.warning] : []),
-        ],
+        warnings: responseWarnings,
         target_resolution: { ...targetResolution, hydrationStatus: hydration.status, hydrationSource: hydration.source, hydrationTruthState: hydration.truth_state, hydrationReason: hydration.reason, scopeWidened: false },
         module_facts: moduleFacts,
         request_contract: requestContract,
@@ -4486,11 +4903,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       suggested_actions: Array.isArray(shapedCanonical.suggested_actions) ? shapedCanonical.suggested_actions as Array<Record<string, unknown>> : [],
       awareness: shapedCanonical.awareness ? recordOf(shapedCanonical.awareness) : undefined,
       confirmations: [],
-      warnings: [
-        ...resolved.warnings,
-        ...(targetResolution.ambiguous && targetResolution.clarificationQuestion ? [targetResolution.clarificationQuestion] : []),
-        ...(threadContext.warning ? [threadContext.warning] : []),
-      ],
+      warnings: responseWarnings,
       source: "oyi_canonical_runtime",
       safe_mode: true,
       approvalRequired: false,
@@ -4524,7 +4937,11 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       };
       const truth = canonicalTruthFor(shapedCanonical, resolved.object);
       const threadId = text(shapedCanonical.thread_id) || text(input.thread_id) || randomUUID();
-      await persistCanonicalAuthoritativeMessages(actor, input, { ...shapedCanonical, thread_id: threadId }, truth, resolved.object, requestContract);
+      const persistedThreadId = await persistCanonicalAuthoritativeMessages(actor, input, { ...shapedCanonical, thread_id: threadId }, truth, resolved.object, requestContract);
+      const responseWarnings = [
+        ...resolved.warnings,
+        ...(!persistedThreadId ? ["This answer was not saved to conversation history."] : []),
+      ];
       logger.info("conversation_inventory_fallback_blocked", {
         target_id: requestContract.target.canonical_id,
         targeted_intent: requestContract.intent,
@@ -4532,7 +4949,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       });
       return {
         id: text(shapedCanonical.id),
-        thread_id: threadId,
+        thread_id: persistedThreadId || null,
         intent: requestContract.intent,
         understood: text(shapedCanonical.understood),
         summary: answer,
@@ -4548,7 +4965,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
           home_id: input.home_id || oisContext?.home_id || null,
           module: input.module || oisContext?.module || null,
           context_source: resolved.source,
-          warnings: resolved.warnings,
+          warnings: responseWarnings,
           target_resolution: { ...targetResolution, hydrationStatus: hydration.status, hydrationSource: hydration.source, hydrationTruthState: hydration.truth_state, hydrationReason: hydration.reason, scopeWidened: false },
           module_facts: moduleFacts,
           request_contract: requestContract,
@@ -4559,7 +4976,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         suggested_actions: Array.isArray(shapedCanonical.suggested_actions) ? shapedCanonical.suggested_actions as Array<Record<string, unknown>> : [],
         awareness: shapedCanonical.awareness,
         confirmations: [],
-        warnings: resolved.warnings,
+        warnings: responseWarnings,
         source: "oyi_canonical_runtime",
         safe_mode: true,
         approvalRequired: false,

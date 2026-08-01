@@ -2579,6 +2579,7 @@ export function buildOyiAwarenessScenarioForTest(input: {
 async function persistThread(actor: AuthUser | null, input: OyiChatInput, response: any, userMessage: string, conversationState: ConversationState) {
   const now = new Date().toISOString();
   const threadId = validUuid(input.thread_id) ? String(input.thread_id) : randomUUID();
+  const newlyCreatedThread = !validUuid(input.thread_id);
   const activeEntity = response?.conversation_active_entity || conversationState.active_entity || explicitOperationalObjectEntity(input);
   const entityDetails = recordOf(activeEntity?.details);
   const sourceMetadata = {
@@ -2594,7 +2595,7 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
     task_state: conversationState.conversation_state || null,
   };
   try {
-    await supabaseAdmin.from("oyi_conversation_threads").upsert({
+    const threadWrite = await supabaseAdmin.from("oyi_conversation_threads").upsert({
       id: threadId,
       user_id: actor?.id || null,
       surface: safeSurface(input.surface),
@@ -2615,7 +2616,8 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
         },
       },
     } as any);
-    await supabaseAdmin.from("oyi_conversation_messages").insert([
+    if (threadWrite.error) throw threadWrite.error;
+    const messageWrite = await supabaseAdmin.from("oyi_conversation_messages").insert([
       {
         thread_id: threadId,
         user_id: actor?.id || null,
@@ -2647,10 +2649,22 @@ async function persistThread(actor: AuthUser | null, input: OyiChatInput, respon
         created_at: new Date(Date.now() + 1).toISOString(),
       },
     ] as any);
+    if (messageWrite.error) throw messageWrite.error;
+    const verification = await verifyThreadTurnPersistence(threadId, 2);
+    if (!verification.ok) throw new Error(verification.error || "Conversation turn persistence could not be verified");
+    response.persistence_verified = true;
+    return threadId;
   } catch (err: any) {
+    if (newlyCreatedThread) await cleanupOrphanConversationThread(threadId);
     response.persistence_warning = err?.message || "Conversation storage unavailable";
+    response.thread_id = null;
+    console.warn("[oyi-thread]", "turn_persistence_failed", {
+      thread_id: threadId,
+      newly_created_thread: newlyCreatedThread,
+      error: response.persistence_warning,
+    });
   }
-  return threadId;
+  return null;
 }
 
 async function threadMessageSummary(threadId: string) {
@@ -2675,6 +2689,26 @@ async function threadMessageSummary(threadId: string) {
     message_count: Number(countResult.count || 0),
     latest_metadata: latestMetadata,
   };
+}
+
+async function verifyThreadTurnPersistence(threadId: string, minimumMessages = 2) {
+  const countResult = await supabaseAdmin
+    .from("oyi_conversation_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("thread_id", threadId);
+  if (countResult.error) return { ok: false, count: 0, error: countResult.error.message };
+  const count = Number(countResult.count || 0);
+  return { ok: count >= minimumMessages, count, error: count >= minimumMessages ? null : "Conversation messages were not persisted" };
+}
+
+async function cleanupOrphanConversationThread(threadId: string) {
+  const summary = await threadMessageSummary(threadId);
+  if (summary.message_count > 0) return;
+  const { error } = await supabaseAdmin
+    .from("oyi_conversation_threads")
+    .delete()
+    .eq("id", threadId);
+  if (error) console.warn("[oyi-thread]", "orphan_cleanup_failed", { thread_id: threadId, error: error.message });
 }
 
 async function enrichThreadRows(rows: any[]) {
@@ -2754,7 +2788,7 @@ export async function listOyiConversationThreads(actor: AuthUser | null, input: 
     async () => {
       const { data, error } = await scopedThreadQuery(actor, input);
       if (error) return { ok: false, error: error.message, threads: [] };
-      const threads = await enrichThreadRows(data || []);
+      const threads = (await enrichThreadRows(data || [])).filter((thread) => Number(thread.message_count || 0) > 0);
       return { ok: true, threads, role_policy: getIntelligencePermissionPolicy(actor) };
     }
   );
