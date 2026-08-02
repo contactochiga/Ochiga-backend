@@ -3,8 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
+process.env.SUPABASE_URL ||= "https://example.supabase.co";
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
 const runtime = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
 const proximity = fs.readFileSync(path.join(root, "src/services/proximityService.ts"), "utf8");
+const runtimeModule = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
 
 function section(name, source, start, end) {
   return source.match(new RegExp(`${start}[\\s\\S]*?${end}`))?.[0] || "";
@@ -25,13 +28,26 @@ const contractBuilder = section("contract", runtime, "function resolveIntentCont
 const activityBuilder = section("activity", runtime, "function buildRecentChangesAnswer", "function buildFailureHistoryAnswer");
 const commandBuilder = section("command", runtime, "function buildCommandOutcomeAnswer", "function buildReportAnswer");
 
+const channel3 = {
+  object_type: "device_channel",
+  canonical_id: "11111111-1111-4111-8111-111111111111:switch_3",
+  label: "Channel 3",
+  home_id: "home-1",
+  room_id: "room-1",
+  parent_id: "11111111-1111-4111-8111-111111111111",
+  source: "page_selection",
+};
+
 check("explicit broad home read clears inherited exact target before resolution", () => {
   assert.match(runtime, /function isExplicitBroadHomeReadIntent/);
-  assert.match(runConversation, /explicitTarget: broadReadOnlyDeviceIntent \? null : input\.target/);
-  assert.match(runConversation, /selectedObject: broadReadOnlyDeviceIntent \? null/);
-  assert.match(runConversation, /threadTarget: broadReadOnlyDeviceIntent \? null/);
+  assert.match(runConversation, /explicitTarget: inheritedExactTargetAllowed \? input\.target as any : null/);
+  assert.match(runConversation, /selectedObject: inheritedExactTargetAllowed \?/);
+  assert.match(runConversation, /threadTarget: inheritedExactTargetAllowed && threadCandidate \?/);
   assert.match(runConversation, /conversation_inherited_target_cleared/);
-  assert.match(runConversation, /const exactTargetRequested = !broadReadOnlyDeviceIntent/);
+  assert.match(runConversation, /const exactTargetRequested = !Boolean/);
+  assert.equal(runtimeModule.canonicalInheritedTargetEligibilityForTest({ message: "Show offline devices", object: channel3 }), false);
+  assert.equal(runtimeModule.canonicalInheritedTargetEligibilityForTest({ message: "What's happening in my home?", object: channel3 }), false);
+  assert.equal(runtimeModule.canonicalInheritedTargetEligibilityForTest({ message: "Is this channel on?", object: channel3 }), true);
 });
 
 check("scope hints preserve exact drawer quick actions", () => {

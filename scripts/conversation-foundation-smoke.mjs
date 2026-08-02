@@ -149,6 +149,19 @@ check("module navigation and domain list operations override inherited exact tar
   assert.equal(openVisitor.scope_mode, "home_scope");
 });
 
+check("current-turn authority rejects stale inherited targets for global, room and show/list turns", () => {
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What can you do?", object: channel3 }), false);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What should I check first?", object: channel3 }), false);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What is happening in Bedroom 2?", object: channel3 }), false);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "Show offline devices", object: channel3 }), false);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "Is this channel on?", object: channel3 }), true);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({
+    message: "Show activity for this selected device",
+    object: channel3,
+    request: { scope_mode_hint: "exact_target", intent_hint: "activity_history" },
+  }), true);
+});
+
 check("builder registry routes exact device requests to specialist builders", () => {
   const activity = runtime.canonicalIntelligenceContractForTest({ message: "Show activity for this selected device", object: channel3 });
   assert.equal(activity.intent, "activity_history");
@@ -224,15 +237,59 @@ check("resolved turn exposes operation, authority, destination and presentation 
   assert.equal(nav.resolved_turn.domain, "devices");
   assert.equal(nav.resolved_turn.destination.key, "devices.module");
   assert.equal(nav.resolved_turn.authority.allowed, true);
-  assert.equal(nav.presentation_policy.primary, "sentence");
-  assert.deepEqual(nav.presentation_policy.allowed_supporting_blocks, ["navigation_action"]);
+  assert.equal(nav.presentation_policy.primary, "navigation_transition");
+  assert.equal(nav.presentation_policy.auto_navigation, true);
+  assert.deepEqual(nav.presentation_policy.allowed_supporting_blocks, ["navigation_action", "handoff"]);
 
   const inventory = runtime.canonicalResolvedTurnForTest({ message: "Show offline devices.", object: channel3 });
   assert.equal(inventory.resolved_turn.operation, "list");
   assert.equal(inventory.resolved_turn.scope, "home");
   assert.equal(inventory.presentation_policy.primary, "table");
+  assert.equal(inventory.presentation_policy.auto_navigation, false);
   assert.equal(inventory.presentation_policy.suppress_equivalent_awareness, true);
   assert.equal(inventory.presentation_policy.suppress_context_chips, true);
+});
+
+check("structured table blocks persist snapshot metadata for historical and inventory answers", () => {
+  const inventory = runtime.canonicalConversationTableBlockForTest({
+    message: "Show offline devices.",
+    facts: [{
+      id: "device-1",
+      fact_id: "availability-1",
+      fact_type: "device_availability",
+      statement: "Bedroom switch is stale",
+      value: { availability: "stale", device_family: "switch", room_name: "Bedroom 2" },
+      object: { object_type: "device", canonical_id: "device-1", label: "Bedroom switch" },
+      scope: { device_id: "device-1", device_name: "Bedroom switch", room_name: "Bedroom 2" },
+      observed_at: new Date().toISOString(),
+      occurred_at: new Date().toISOString(),
+      freshness: "stale",
+      confidence: 0.9,
+      truth_state: "observed",
+    }],
+  });
+  assert.equal(inventory.type, "table");
+  assert.equal(inventory.snapshot.snapshot_mode, "current_state_snapshot");
+  assert.equal(inventory.snapshot.scope, "home_scope");
+
+  const changes = runtime.canonicalConversationTableBlockForTest({
+    message: "What changed recently?",
+    facts: [{
+      id: "change-1",
+      fact_id: "change-1",
+      fact_type: "device_command",
+      statement: "Switch changed",
+      value: { result: "confirmed", action: "Turned off" },
+      object: { object_type: "device", canonical_id: "device-1", label: "Bedroom switch" },
+      scope: { device_id: "device-1", device_name: "Bedroom switch", room_name: "Bedroom 2" },
+      observed_at: new Date().toISOString(),
+      occurred_at: new Date().toISOString(),
+      freshness: "fresh",
+      confidence: 0.9,
+      truth_state: "confirmed",
+    }],
+  });
+  assert.equal(changes.snapshot.snapshot_mode, "historical");
 });
 
 check("offline inventory presentation suppresses redundant awareness and source chips", () => {

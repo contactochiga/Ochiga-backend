@@ -74,7 +74,8 @@ check("current home scope wins over inherited exact channel", () => {
   });
   assert.equal(contract.intent, "home_operational_summary");
   assert.equal(contract.scope_mode, "home_scope");
-  assert.match(source, /!broadReadOnlyDeviceIntent && targetResolution\.objectType !== "home"/);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What's happening in my home?", object: channel3 }), false);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "Is this channel on?", object: channel3 }), true);
   assert.match(source, /object_type: "home"/);
 });
 

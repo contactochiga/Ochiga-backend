@@ -222,7 +222,19 @@
     "smoke:authority-approval-lifecycle": "npm run build && node scripts/conversation-foundation-smoke.mjs",
     "smoke:runtime-first-device-freshness": "npm run build && node scripts/intelligence-target-evidence-closure-smoke.mjs",
     "smoke:resident-device-projection": "npm run build && node scripts/device-system-enterprise-smoke.mjs",
-    "smoke:intent-presentation-enforcement": "npm run build && node scripts/conversation-final-correction-smoke.mjs"
+    "smoke:intent-presentation-enforcement": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:current-turn-authority": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:show-open-operation-discipline": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:room-intelligence-closure": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:room-evidence-isolation": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:resident-event-identity-enrichment": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:named-device-semantic-resolution": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:runtime-first-room-inventory": "npm run build && node scripts/intelligence-target-evidence-closure-smoke.mjs",
+    "smoke:authoritative-presentation-policy": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:structured-snapshot-persistence": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:domain-operation-matrix": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:navigation-handoff-contract": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:approval-clarification-separation": "npm run build && node scripts/conversation-foundation-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
