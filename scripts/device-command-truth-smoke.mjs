@@ -68,7 +68,10 @@ check("IR false result is not logged as acknowledged success", () => {
 check("read-only offline-device intent blocks stale command context reuse", () => {
   assert.match(conversation, /isReadOnlyBroadDeviceIntent/);
   assert.match(conversation, /read_only_command_execution_blocked/);
-  assert.match(conversation, /broadReadOnlyDeviceIntent \? null :/);
+  assert.match(conversation, /conversation_current_turn_authority_resolved/);
+  assert.match(conversation, /inheritedExactTargetAllowed \? input\.target as any : null/);
+  assert.match(conversation, /object_type:\s*inheritedExactTargetAllowed \? explicitCandidate\?\.object_type \|\| null : null/);
+  assert.match(conversation, /conversation_explicit_scope_applied/);
 });
 
 check("multi-gang channel command identity is preserved", () => {

@@ -79,6 +79,54 @@ check("current home scope wins over inherited exact channel", () => {
   assert.match(source, /object_type: "home"/);
 });
 
+check("global and non-device turns reject stale inherited device context", () => {
+  for (const message of [
+    "What can you do?",
+    "What can u do?",
+    "What should I check first?",
+    "What should I cheek first?",
+    "How much have I spent on utilities this month?",
+    "Show wallet history.",
+    "Open utility details.",
+  ]) {
+    const authority = runtime.canonicalCurrentTurnAuthorityForTest({ message, object: channel3, request: { home_id: "home-1" } });
+    assert.equal(authority.mayUseInheritedExactTarget, false, message);
+    assert.ok(authority.rejectionReason, message);
+  }
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "Is it on?", object: channel3 }), true);
+});
+
+check("wallet and utility prompts select inline domain builders", () => {
+  const wallet = runtime.canonicalResolvedTurnForTest({ message: "Show wallet histry.", object: channel3, request: { home_id: "home-1" } });
+  assert.equal(wallet.contract.intent, "wallet_operation");
+  assert.equal(wallet.contract.answer_builder, "wallet_history");
+  assert.equal(wallet.resolved_turn.domain, "wallet");
+  assert.equal(wallet.presentation_policy.primary, "table");
+
+  const utilities = runtime.canonicalResolvedTurnForTest({ message: "How much have I spent on utilities this month?", object: channel3, request: { home_id: "home-1" } });
+  assert.equal(utilities.contract.intent, "wallet_operation");
+  assert.equal(utilities.contract.answer_builder, "utility_spending");
+  assert.equal(utilities.resolved_turn.domain, "utilities");
+  assert.equal(utilities.contract.temporal_scope.mode, "custom");
+
+  const openUtility = runtime.canonicalResolvedTurnForTest({ message: "Open utility details.", object: channel3, request: { home_id: "home-1" } });
+  assert.equal(openUtility.contract.intent, "module_navigation");
+  assert.equal(openUtility.resolved_turn.destination.key, "utilities.module");
+  assert.notEqual(openUtility.resolved_turn.domain, "devices");
+});
+
+check("room prompts are room-scoped and room tables are titled by room", () => {
+  const roomObject = { ...channel3, object_type: "room", canonical_id: "room-2", label: "Bedroom 2", parent_id: "home-1", source_module: "rooms" };
+  const summary = runtime.canonicalResolvedTurnForTest({ message: "What's happening in Bedroom 2?", object: roomObject, request: { home_id: "home-1", room_id: "room-2", room_name: "Bedroom 2" } });
+  assert.equal(summary.contract.intent, "home_operational_summary");
+  assert.equal(summary.contract.scope_mode, "room_scope");
+  assert.equal(summary.resolved_turn.scope, "room");
+
+  const roomFact = { ...baseFact, scope: { ...baseFact.scope, room_id: "room-2" }, value: { ...baseFact.value, room_name: "Bedroom 2" } };
+  const table = runtime.canonicalConversationTableBlockForTest({ facts: [roomFact], message: "What changed recently in Bedroom 2?", object: roomObject, request: { home_id: "home-1", room_id: "room-2", room_name: "Bedroom 2" } });
+  assert.equal(table.title, "Recent Bedroom 2 changes");
+});
+
 check("offline inventory is not exact-channel current state", () => {
   const contract = runtime.canonicalIntelligenceContractForTest({
     message: "Show offline devices.",
@@ -124,6 +172,58 @@ check("offline inventory distinguishes expired from offline", () => {
   const table = runtime.canonicalConversationTableBlockForTest({ facts: [offline, expired], message: "Show offline devices." });
   assert.equal(table.type, "table");
   assert.deepEqual(table.rows.map((row) => row.status), ["offline", "expired"]);
+});
+
+check("wallet and utility table blocks use one canonical table title", () => {
+  const walletFact = {
+    ...baseFact,
+    fact_id: "wallet-1",
+    fact_type: "wallet_transaction",
+    domain: "wallet",
+    object: { object_type: "transaction", canonical_id: "tx-1", label: "Electricity top-up" },
+    value: { description: "Electricity top-up", type: "electricity", direction: "debit", amount: 30000, status: "completed", category: "electricity" },
+    occurred_at: new Date().toISOString(),
+  };
+  const walletTable = runtime.canonicalConversationTableBlockForTest({ facts: [walletFact], message: "Show wallet history." });
+  assert.equal(walletTable.title, "Wallet history");
+  assert.equal(walletTable.rows[0].amount, "-₦30,000");
+  const utilityTable = runtime.canonicalConversationTableBlockForTest({ facts: [walletFact], message: "How much have I spent on utilities this month?" });
+  assert.equal(utilityTable.title, "Utility spending");
+  assert.equal(utilityTable.rows[0].category, "Electricity");
+});
+
+check("clarification continuation preserves pending device operation", () => {
+  const pending = {
+    clarification_id: "clarify-1",
+    thread_id: "thread-1",
+    original_user_message: "Turn off living room light.",
+    operation: "execute_mutation",
+    domain: "devices",
+    requested_action: "off",
+    requested_state: "off",
+    requested_phrase: "living room light",
+    candidate_ids: ["dev-1", "dev-2"],
+    candidates: [
+      { device_id: "dev-1", label: "3Gang living room", room_label: "Living Room" },
+      { device_id: "dev-2", label: "Living room lamp", room_label: "Living Room", channel_code: "switch_1" },
+    ],
+    selected_candidate_id: null,
+    unresolved_fields: ["target"],
+    created_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+  };
+  const response = runtime.canonicalClarificationContinuationForTest({ message: "3Gang living room.", pending });
+  assert.ok(response);
+  assert.match(response.message, /Which channel should I turn off|Confirm to turn off/i);
+  assert.equal(response.execution.current_turn_execution, false);
+});
+
+check("resident device projection avoids raw Device and Air labels", () => {
+  const tv = { ...baseFact, fact_id: "tv", fact_type: "device_availability", object: { object_type: "device", canonical_id: "tv", label: "TV" }, value: { availability: "expired", device_family: "ir_tv", room_name: "Bedroom", is_virtual: true, parent_device_name: "Smart IR Hub" } };
+  const unnamed = { ...baseFact, fact_id: "air", fact_type: "device_availability", object: { object_type: "device", canonical_id: "air", label: "Air" }, value: { availability: "unknown", device_family: "ac", room_name: "Bedroom", is_virtual: true } };
+  const table = runtime.canonicalConversationTableBlockForTest({ facts: [tv, unnamed], message: "Show offline devices." });
+  assert.match(table.rows[0].name, /controlled through Smart IR Hub/);
+  assert.notEqual(table.rows[1].name, "Air");
 });
 
 check("semantic dedupe and table persistence hooks exist", () => {

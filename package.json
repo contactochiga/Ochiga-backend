@@ -234,7 +234,18 @@
     "smoke:structured-snapshot-persistence": "npm run build && node scripts/conversation-foundation-smoke.mjs",
     "smoke:domain-operation-matrix": "npm run build && node scripts/conversation-foundation-smoke.mjs",
     "smoke:navigation-handoff-contract": "npm run build && node scripts/conversation-foundation-smoke.mjs",
-    "smoke:approval-clarification-separation": "npm run build && node scripts/conversation-foundation-smoke.mjs"
+    "smoke:approval-clarification-separation": "npm run build && node scripts/conversation-foundation-smoke.mjs",
+    "smoke:global-turn-authority": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:device-resolution-domain-gating": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:room-summary-closure": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:room-recent-change-isolation": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:clarification-pending-operation": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:wallet-history-inline": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:utility-spending-aggregation": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:utility-navigation-classification": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:domain-specific-unavailable-responses": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:resident-device-projection-quality": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:time-and-snapshot-standard": "npm run build && node scripts/conversation-final-correction-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

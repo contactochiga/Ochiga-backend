@@ -200,6 +200,9 @@ type ConversationBuilderKey =
   | "home_summary"
   | "offline_inventory"
   | "recent_changes"
+  | "wallet_history"
+  | "wallet_summary"
+  | "utility_spending"
   | "domain_list"
   | "module_navigation"
   | "object_navigation"
@@ -215,6 +218,34 @@ type RoomResolutionResult =
   | { status: "resolved"; room_id: string; label: string; confidence: number }
   | { status: "ambiguous"; phrase: string; candidates: Array<{ room_id: string; label: string }> }
   | { status: "not_found"; phrase: string };
+
+type CurrentTurnAuthorityDecision = {
+  operation: string;
+  domain: string | null;
+  scope: ScopeMode;
+  explicitRoomPhrase: string | null;
+  explicitObjectPhrase: string | null;
+  temporalScope: string | null;
+  mayUseInheritedExactTarget: boolean;
+  rejectionReason: string | null;
+};
+
+type PendingClarification = {
+  clarification_id: string;
+  thread_id: string;
+  original_user_message: string;
+  operation: string;
+  domain: string;
+  requested_action: string | null;
+  requested_state: string | null;
+  requested_phrase: string | null;
+  candidate_ids: string[];
+  candidates: Array<Record<string, unknown>>;
+  selected_candidate_id: string | null;
+  unresolved_fields: string[];
+  created_at: string;
+  expires_at: string | null;
+};
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -2391,19 +2422,217 @@ function isExplicitBroadHomeReadIntent(message: string, scopeHint?: string | nul
 }
 
 function currentTurnExplicitlyGlobal(message: string) {
-  return /\b(what can you do|help me understand oyi|^help\b|what should i check first\??$|what needs attention overall|is everything okay at home)\b/i.test(text(message));
+  const normalized = normalizeLookupText(message);
+  return /\b(what can you do|what can u do|help me understand oyi|^help\b|what should i (?:check|cheek) first\??$|what needs attention overall|is everything okay at home)\b/i.test(text(message))
+    || ["what can you do", "what can u do", "what should i check first", "what should i cheek first"].includes(normalized);
 }
 
 function currentTurnHasExplicitDomain(message: string) {
-  return MODULE_DOMAIN_ALIASES.some((entry) => entry.pattern.test(message));
+  return Boolean(domainForCurrentTurn(message));
+}
+
+function domainForCurrentTurn(message: string) {
+  const lower = text(message).toLowerCase();
+  if (/\b(wallet|balance|dues|payments?|transactions?|histry|history)\b/i.test(lower) && /\b(wallet|transactions?|payments?|balance|dues|histry|history)\b/i.test(lower)) return "wallet";
+  if (/\b(utilities|utility|electricity|power|water|internet|gas)\b/i.test(lower)) return "utilities";
+  const matched = MODULE_DOMAIN_ALIASES.find((entry) => entry.pattern.test(message));
+  return matched?.domain || null;
+}
+
+function operationForCurrentTurn(message: string) {
+  const lower = text(message).toLowerCase();
+  if (/^\s*(open|go to|take me to)\b/i.test(lower)) return "navigate";
+  if (/\bhow much\b[\s\S]{0,50}\b(spent|spend|paid|pay)\b/i.test(lower)) return "summarize";
+  if (/\bwhat should i (?:check|cheek) first\b|\bwhat needs attention\b/i.test(lower)) return "recommend";
+  if (/\bwhat can (?:you|u) do\b|\bcapabilit|^help\b/i.test(lower)) return "inform";
+  if (/\b(show|list|view)\b/i.test(lower)) return "list";
+  if (/\bwhat(?:'s| is) happening|summary|everything okay\b/i.test(lower)) return "summarize";
+  if (isControlRequest(message)) return "execute";
+  return "inform";
+}
+
+function currentTurnAllowsDeviceResolution(message: string) {
+  const lower = text(message).toLowerCase();
+  const domain = domainForCurrentTurn(message);
+  if (domain && domain !== "devices") return false;
+  if (currentTurnExplicitlyGlobal(message)) return false;
+  if (roomPhraseFromMessage(message)) return false;
+  if (/\b(wallet|transactions?|utilities|utility|electricity|water|internet|services?|visitors?|maintenance|scenes?|automations?)\b/i.test(lower)) return false;
+  return isControlRequest(message)
+    || /\b(device|channel|switch|socket|plug|light|lamp|tv|remote|ac|fan)\b/i.test(lower)
+    || currentTurnReferencesInheritedTarget(message);
+}
+
+function resolveCurrentTurnAuthorityDecision(input: CanonicalConversationRequest, inherited: ObjectCandidate | null, options: { roomPhrase: string; broadReadOnlyDeviceIntent: boolean; semanticOperation: ReturnType<typeof interpretSemanticOperation> | null }): CurrentTurnAuthorityDecision {
+  const message = text(input.message);
+  const domain = domainForCurrentTurn(message);
+  const operation = options.semanticOperation?.operationClass || operationForCurrentTurn(message);
+  const explicitRoomPhrase = options.roomPhrase || null;
+  const explicitObjectPhrase = namedDevicePhraseFromControlMessage(message);
+  let scope: ScopeMode = "global_scope";
+  if (options.broadReadOnlyDeviceIntent || domain === "utilities" || domain === "wallet" || currentTurnExplicitlyGlobal(message)) scope = "home_scope";
+  if (explicitRoomPhrase) scope = "room_scope";
+  if (options.semanticOperation?.scopeMode) scope = options.semanticOperation.scopeMode;
+  const inheritedType = inherited?.object_type || null;
+  const explicitChannelReplacement = Boolean(requestedChannelCode(message) && isControlRequest(message) && inherited && ["device", "device_channel"].includes(inherited.object_type));
+  const hasBlockingCurrentTurnSemantics = Boolean(options.broadReadOnlyDeviceIntent || explicitRoomPhrase || options.semanticOperation || currentTurnExplicitlyGlobal(message) || (domain && domain !== "devices"));
+  const mayUseInheritedExactTarget = Boolean(
+    inherited
+      && ["device", "device_channel"].includes(inherited.object_type)
+      && !hasBlockingCurrentTurnSemantics
+      && (currentTurnReferencesInheritedTarget(message) || explicitChannelReplacement),
+  );
+  return {
+    operation,
+    domain,
+    scope,
+    explicitRoomPhrase,
+    explicitObjectPhrase,
+    temporalScope: temporalScopeFor(message).mode,
+    mayUseInheritedExactTarget,
+    rejectionReason: inheritedType && !mayUseInheritedExactTarget
+      ? hasBlockingCurrentTurnSemantics
+        ? domain && domain !== "devices" ? `explicit_${domain}_domain` : explicitRoomPhrase ? "explicit_room_scope" : options.semanticOperation ? "explicit_domain_or_navigation" : "global_or_home_turn"
+        : "not_referential"
+      : null,
+  };
 }
 
 function currentTurnReferencesInheritedTarget(message: string) {
   return /\b(it|this|that|same one|same device|same channel|this device|this channel|selected device|selected channel|current device|current channel|its)\b/i.test(text(message));
 }
 
+function pendingClarificationFromThread(context: Awaited<ReturnType<typeof loadOyiConversationContext>>): PendingClarification | null {
+  const workflow = recordOf(context.state.active_workflow);
+  const pending = recordOf(workflow.pending_clarification || workflow.clarification);
+  if (!Object.keys(pending).length) return null;
+  const expires = text(pending.expires_at);
+  if (expires && Date.parse(expires) < Date.now()) return null;
+  const candidates = Array.isArray(pending.candidates) ? pending.candidates.map(recordOf) : [];
+  return {
+    clarification_id: text(pending.clarification_id) || randomUUID(),
+    thread_id: text(pending.thread_id),
+    original_user_message: text(pending.original_user_message),
+    operation: text(pending.operation) || "clarify",
+    domain: text(pending.domain) || "devices",
+    requested_action: text(pending.requested_action) || null,
+    requested_state: text(pending.requested_state) || null,
+    requested_phrase: text(pending.requested_phrase) || null,
+    candidate_ids: Array.isArray(pending.candidate_ids) ? pending.candidate_ids.map(text).filter(Boolean) : candidates.map((candidate) => text(candidate.device_id || candidate.id)).filter(Boolean),
+    candidates,
+    selected_candidate_id: text(pending.selected_candidate_id) || null,
+    unresolved_fields: Array.isArray(pending.unresolved_fields) ? pending.unresolved_fields.map(text).filter(Boolean) : [],
+    created_at: text(pending.created_at) || new Date().toISOString(),
+    expires_at: expires || null,
+  };
+}
+
+function userCancelledClarification(message: string) {
+  return /^(never mind|cancel|stop|forget it|no)$/i.test(text(message));
+}
+
+function matchPendingClarificationCandidate(pending: PendingClarification, message: string) {
+  const normalized = normalizeLookupText(message);
+  if (!normalized) return null;
+  return pending.candidates.find((candidate) => {
+    const id = normalizeLookupText(candidate.device_id || candidate.id);
+    const label = normalizeLookupText(candidate.label || candidate.title || candidate.name);
+    const room = normalizeLookupText(candidate.room_label || candidate.room || candidate.detail);
+    const channel = normalizeLookupText(candidate.channel_code);
+    return normalized === id
+      || (label && (normalized === label || label.includes(normalized) || normalized.includes(label)))
+      || (room && label && normalized.includes(room) && normalized.split(" ").some((token) => label.includes(token)))
+      || (channel && normalized.includes(channel));
+  }) || null;
+}
+
+function pendingClarificationWorkflow(contract: IntelligenceRequestContract): PendingClarification | null {
+  if (contract.scope_mode !== "clarification" || !contract.ambiguity?.required) return null;
+  return {
+    clarification_id: randomUUID(),
+    thread_id: contract.thread_id || "",
+    original_user_message: "",
+    operation: contract.operation_class,
+    domain: contract.intent === "device_control" ? "devices" : domainForResolvedTurn(contract, null) || "devices",
+    requested_action: text(contract.mutation.command) || null,
+    requested_state: text(contract.mutation.desired_state) || null,
+    requested_phrase: text(contract.target.label) || null,
+    candidate_ids: (contract.ambiguity.candidates || []).map((candidate) => text(candidate.device_id || candidate.id)).filter(Boolean),
+    candidates: contract.ambiguity.candidates || [],
+    selected_candidate_id: null,
+    unresolved_fields: ["target"],
+    created_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+  };
+}
+
+function buildClarificationContinuationResponse(input: CanonicalConversationRequest, pending: PendingClarification, selected: Record<string, unknown>) {
+  const label = cleanLabel(selected.label || selected.title || selected.name, "the selected device");
+  const channel = text(selected.channel_code);
+  const state = text(pending.requested_state || requestedPowerState(pending.original_user_message) || requestedPowerState(input.message));
+  const needsChannel = pending.domain === "devices" && !channel && /light|switch|gang/i.test(`${pending.requested_phrase} ${label}`) && !/\bchannel\s*[123]\b/i.test(label);
+  const actionText = state === "on" ? "turn on" : state === "off" ? "turn off" : text(pending.requested_action) || "continue";
+  const question = needsChannel ? `Which channel should I ${actionText} on ${label}?` : `I found ${label}${channel ? `, ${channel.replace(/^switch_/i, "Channel ")}` : ""}. Confirm to ${actionText}.`;
+  return {
+    id: `oyi-runtime:${randomUUID()}`,
+    thread_id: text(input.thread_id) || pending.thread_id || randomUUID(),
+    intent: "device_control",
+    understood: `Resolved clarification for ${label}.`,
+    message: question,
+    reply: question,
+    display_mode: "detail" as const,
+    confidence: 0.8,
+    execution: {
+      status: needsChannel ? "clarification_required" : "pending_confirmation",
+      current_turn_execution: false,
+      pending_clarification: needsChannel ? { ...pending, selected_candidate_id: text(selected.device_id || selected.id), unresolved_fields: ["channel"] } : null,
+      target_id: text(selected.device_id || selected.id),
+      channel_code: channel || null,
+      desired_state: state || null,
+    },
+    sources: [],
+    cards: [],
+    suggested_actions: needsChannel ? [
+      { type: "clarification_choice", label: "Channel 1", value: "switch_1" },
+      { type: "clarification_choice", label: "Channel 2", value: "switch_2" },
+      { type: "clarification_choice", label: "Channel 3", value: "switch_3" },
+    ] : [],
+    confirmations: needsChannel ? [] : [{
+      type: "device_command_confirmation",
+      target_id: text(selected.device_id || selected.id),
+      target_type: channel ? "device_channel" : "device",
+      label,
+      channel_code: channel || null,
+      command: state || null,
+      desired_state: state || null,
+      risk: "device_control",
+    }],
+    canonical_request_contract: null,
+    resolved_turn: {
+      rawMessage: text(input.message),
+      intent: "device_control",
+      operation: needsChannel ? "clarify" : "control",
+      scope: needsChannel ? "ambiguous" : "exact_object",
+      domain: "devices",
+      object: { type: channel ? "device_channel" : "device", id: text(selected.device_id || selected.id), label, channel_code: channel || null },
+      destination: null,
+      ambiguity: { required: needsChannel, question, candidates: [] },
+      authority: { allowed: true, required_permission: "devices.control", confirmation_required: !needsChannel, secure_review_required: false, denial_reason: null },
+      presentation: { mode: needsChannel ? "clarification" : "approval" },
+      temporal_scope: temporalScopeFor(input.message),
+      confidence: 0.8,
+    },
+    presentation_policy: needsChannel
+      ? { intent: "device_control", operation: "clarify", primary: "clarification", allowed_supporting_blocks: ["clarification"], allowed_action_types: ["clarification_choice"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "hidden", snapshot_mode: "none", auto_navigation: false }
+      : { intent: "device_control", operation: "control", primary: "approval", allowed_supporting_blocks: ["approval", "command_result"], allowed_action_types: ["approval", "cancel"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "collapsed", snapshot_mode: "none", auto_navigation: false },
+    facts: [],
+  };
+}
+
 function canInheritedExactTargetSatisfyCurrentTurn(input: CanonicalConversationRequest, inherited: ObjectCandidate | null, options: { roomPhrase: string; broadReadOnlyDeviceIntent: boolean; semanticOperation: ReturnType<typeof interpretSemanticOperation> | null }) {
   if (!inherited || !["device", "device_channel"].includes(inherited.object_type)) return false;
+  const authority = resolveCurrentTurnAuthorityDecision(input, inherited, options);
+  if (!authority.mayUseInheritedExactTarget) return false;
   const message = text(input.message);
   const scopeHint = text(input.scope_mode_hint || recordOf(input.conversation_context).scope_mode_hint || recordOf(input.context).scope_mode_hint).toLowerCase();
   const intentHint = text(input.intent_hint || recordOf(input.conversation_context).intent_hint || recordOf(input.context).intent_hint).toLowerCase();
@@ -2423,6 +2652,20 @@ export function canonicalInheritedTargetEligibilityForTest(input: { message: str
   return canInheritedExactTargetSatisfyCurrentTurn(request, input.object as ObjectCandidate | null, {
     roomPhrase: roomPhraseFromMessage(input.message),
     broadReadOnlyDeviceIntent: isReadOnlyBroadDeviceIntent(input.message),
+    semanticOperation: interpretSemanticOperation(input.message),
+  });
+}
+
+export function canonicalCurrentTurnAuthorityForTest(input: { message: string; object?: Record<string, unknown> | null; request?: Partial<CanonicalConversationRequest> }) {
+  const request = {
+    message: input.message,
+    surface: "consumer",
+    ...(input.request || {}),
+  } as CanonicalConversationRequest;
+  const roomPhrase = roomPhraseFromMessage(input.message);
+  return resolveCurrentTurnAuthorityDecision(request, input.object as ObjectCandidate | null, {
+    roomPhrase,
+    broadReadOnlyDeviceIntent: isExplicitBroadHomeReadIntent(input.message, text(input.request?.scope_mode_hint)),
     semanticOperation: interpretSemanticOperation(input.message),
   });
 }
@@ -2829,6 +3072,10 @@ function parseDeviceChannelIdentity(canonicalId: string | null | undefined) {
 
 function temporalScopeFor(message: string): IntelligenceRequestContract["temporal_scope"] {
   const now = new Date();
+  if (/\b(this|current)\s+month\b/i.test(message)) {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { mode: "custom", from: start.toISOString(), to: now.toISOString() };
+  }
   if (/\byesterday\b/i.test(message)) {
     const end = new Date(now);
     end.setHours(0, 0, 0, 0);
@@ -3024,7 +3271,7 @@ const MODULE_DOMAIN_ALIASES: Array<{ domain: string; destination: string; patter
   { domain: "messages", destination: "messages.module", pattern: /\b(messages?|chat|inbox)\b/i },
   { domain: "notifications", destination: "notifications.module", pattern: /\b(notifications?|alerts?)\b/i },
   { domain: "security", destination: "security.module", pattern: /\b(security)\b/i },
-  { domain: "utilities", destination: "utilities.module", pattern: /\b(utilities|power|water|internet|gas)\b/i },
+  { domain: "utilities", destination: "utilities.module", pattern: /\b(utilities|utility|power|water|internet|gas|electricity)\b/i },
   { domain: "cameras", destination: "cameras.module", pattern: /\b(cameras?|cctv)\b/i },
 ];
 
@@ -3157,6 +3404,12 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   if (targetAmbiguous || (targetNotFound && mutationRequested)) {
     intent = targetNotFound ? "device_control" : "general_help";
     operationClass = "clarify";
+  } else if (/\bhow much\b[\s\S]{0,60}\b(spent|spend|paid|pay)\b[\s\S]{0,60}\b(utilities|utility|electricity|power|water|internet|gas)\b/i.test(lower)) {
+    intent = "wallet_operation";
+    operationClass = "report";
+  } else if (/\b(show|list|view)\b[\s\S]{0,30}\b(wallet|transaction|transactions|histry|history)\b/i.test(lower) || /\b(show|list|view)\s+wallet\s+history\b/i.test(lower)) {
+    intent = /\bhistory|histry|transactions?\b/i.test(lower) ? "wallet_operation" : "domain_list";
+    operationClass = "list";
   } else if (semanticOperation) {
     intent = semanticOperation.intent;
     operationClass = semanticOperation.operationClass;
@@ -3213,6 +3466,10 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   if (!["execute_mutation", "confirm_mutation", "propose_mutation", "compose", "approve", "reject", "cancel", "handoff", "report", "recommend", "navigate", "list", "clarify"].includes(operationClass)) operationClass = "read";
   const scopeMode: ScopeMode = targetAmbiguous || (targetNotFound && mutationRequested)
     ? "clarification"
+    : intent === "wallet_operation"
+    ? "home_scope"
+    : targetType === "home"
+    ? "home_scope"
     : targetType === "room"
     ? "room_scope"
     : scopeHint === "exact_target" && targetType && !explicitBroad
@@ -3233,6 +3490,10 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
             : "global_scope";
   const answerBuilder = targetAmbiguous || (targetNotFound && mutationRequested)
     ? "clarification"
+    : intent === "wallet_operation" && /\butilities|utility|electricity|power|water|internet|gas\b/i.test(lower)
+    ? "utility_spending"
+    : intent === "wallet_operation"
+    ? "wallet_history"
     : semanticOperation
     ? semanticOperation.answerBuilder
     : intent === "report"
@@ -3397,7 +3658,10 @@ async function loadHomeDeviceInventoryFacts(input: CanonicalConversationRequest,
 	          availability,
 	          online: onlineValue ?? null,
 	          category: device.category || null,
-	          type: device.type || null,
+          type: device.type || null,
+          is_virtual: Boolean(device.is_virtual),
+          parent_device_id: device.parent_device_id || null,
+          parent_device_name: recordOf(device.metadata).parent_device_name || recordOf(device.metadata).parentDeviceName || null,
           device_family: device.category || device.type || "device",
           room_name: roomName,
           provider_health: providerHealth || null,
@@ -3419,6 +3683,59 @@ async function loadHomeDeviceInventoryFacts(input: CanonicalConversationRequest,
     });
   } catch (error) {
     logger.warn("conversation_home_device_inventory_load_failed", { error, home_id: scope.home_id, estate_id: scope.estate_id });
+    return [];
+  }
+}
+
+async function loadWalletTransactionFacts(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined, contract: IntelligenceRequestContract) {
+  const scope = currentScope(input, oisContext);
+  if (!scope.home_id) return [];
+  try {
+    const fromIso = contract.temporal_scope.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabaseAdmin
+      .from("wallet_transactions")
+      .select("id,wallet_id,home_id,user_id,direction,type,amount,reference,status,metadata,created_at,updated_at")
+      .eq("home_id", scope.home_id)
+      .gte("created_at", fromIso)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return (Array.isArray(data) ? data : []).map((row: any): IntelligenceFact => {
+      const metadata = recordOf(row.metadata);
+      const category = text(metadata.category || metadata.service_category || row.type || "wallet");
+      const description = cleanLabel(metadata.description || metadata.service_name || metadata.title || row.reference || row.type, "Wallet transaction");
+      return {
+        fact_id: `wallet-transaction:${row.id}`,
+        domain: /electricity|water|internet|utility|power|gas/i.test(`${category} ${description}`) ? "utilities" : "wallet",
+        fact_type: "wallet_transaction",
+        scope: { estate_id: scope.estate_id, home_id: row.home_id || scope.home_id, room_id: null },
+        object: { object_type: "transaction", canonical_id: String(row.id), label: description },
+        statement: `${description}: ${row.direction || "transaction"} ${row.amount || 0}.`,
+        value: {
+          date: row.created_at || row.updated_at || null,
+          description,
+          type: text(row.type || category) || "transaction",
+          direction: text(row.direction) || null,
+          amount: Number(row.amount || 0),
+          status: text(row.status) || "recorded",
+          category,
+          reference: text(row.reference) || null,
+        },
+        previous_value: null,
+        occurred_at: row.created_at || row.updated_at || null,
+        observed_at: new Date().toISOString(),
+        source_type: "database",
+        source_id: String(row.id),
+        truth_state: "confirmed",
+        confidence: 0.9,
+        freshness: row.created_at || "historical",
+        privacy_class: "resident_home_private",
+        permissions: ["wallet.read"],
+        evidence: [{ type: "wallet_transactions", id: row.id, status: row.status || null }],
+      };
+    });
+  } catch (error) {
+    logger.warn("conversation_wallet_transaction_load_failed", { error, home_id: scope.home_id, estate_id: scope.estate_id });
     return [];
   }
 }
@@ -3965,9 +4282,9 @@ function buildHealthAnswer(object: OperationalObject | null, hydrationFacts: Rec
 }
 
 function buildCapabilityAnswer(object: OperationalObject | null, input: CanonicalConversationRequest) {
-  if (!object) return input.surface === "facility"
+  if (!object || object.object_type === "home" || currentTurnExplicitlyGlobal(input.message)) return input.surface === "facility"
     ? "I can answer authorised building operations questions, generate reports, investigate incidents, and prepare safe actions when policy allows."
-    : "I can answer home questions, explain device state, report recent changes, inspect scenes and automations, and prepare safe actions when you explicitly ask.";
+    : "I can help you understand and control authorised devices, review rooms and recent activity, manage visitors and maintenance, check wallet and utility information, and prepare scenes or automations safely.";
   return objectCapabilityLine(object);
 }
 
@@ -4181,12 +4498,13 @@ function groupRecentChangeRows(facts: IntelligenceFact[]) {
       action,
       result,
       occurred_at: safeDateLabel(latest, "Time unavailable", "relative"),
+      sort_at: latest || null,
       truth_state: fact.truth_state,
       device_family: text(recordOf(fact.value).device_family || recordOf(fact.value).category) || "device",
       count: 1,
     });
   }
-  return Array.from(grouped.values()).sort((a, b) => Date.parse(String(b.occurred_at || "")) - Date.parse(String(a.occurred_at || "")));
+  return Array.from(grouped.values()).sort((a, b) => Date.parse(String(b.sort_at || "")) - Date.parse(String(a.sort_at || "")));
 }
 
 function deviceAvailabilityRows(facts: IntelligenceFact[]) {
@@ -4197,6 +4515,16 @@ function deviceAvailabilityRows(facts: IntelligenceFact[]) {
       const status = text(value.availability) || "unknown";
       const when = safeDateLabel(fact.occurred_at, "", "relative");
       const room = residentSafeLabel(value.room_name, "");
+      const family = text(value.device_family || value.category || value.type) || "device";
+      const rawName = residentSafeLabel(fact.object?.label, "");
+      const isVirtual = Boolean(value.is_virtual || value.presentation_type === "virtual_appliance" || /ir.*(tv|ac|remote)|virtual/i.test(`${family} ${rawName}`));
+      const parentName = residentSafeLabel(value.parent_device_name || value.physical_device_name, "");
+      const displayName = rawName && !/^(device|air)$/i.test(rawName)
+        ? isVirtual && parentName && !rawName.includes("—") ? `${rawName} — controlled through ${parentName}` : rawName
+        : /tv/i.test(family) ? "TV — controlled through Smart IR Hub"
+          : /ac|air|climate/i.test(family) ? "AC — controlled through Smart IR Hub"
+            : /ir|hub|remote/i.test(family) ? "Smart IR Hub"
+              : "Unnamed smart device";
       const explanation = status === "offline"
         ? "Fresh evidence reports this device offline."
         : status === "online"
@@ -4208,14 +4536,70 @@ function deviceAvailabilityRows(facts: IntelligenceFact[]) {
               : "Oyi does not have enough evidence to confirm availability.";
       return {
         device_id: fact.object?.canonical_id || "",
-        name: residentSafeLabel(fact.object?.label, "Device"),
+        name: displayName,
         room: room || null,
-        device_family: text(value.device_family || value.category || value.type) || "device",
+        device_family: family,
         status,
         last_observed_at: when || null,
         explanation,
       };
     });
+}
+
+function walletTransactionRows(facts: IntelligenceFact[]) {
+  return facts
+    .filter((fact) => fact.fact_type === "wallet_transaction")
+    .map((fact) => {
+      const value = recordOf(fact.value);
+      const amount = Number(value.amount || 0);
+      const direction = text(value.direction).toLowerCase();
+      const sign = direction === "debit" ? "-" : direction === "credit" ? "+" : "";
+      return {
+        transaction_id: fact.object?.canonical_id || fact.fact_id,
+        date: safeDateLabel(fact.occurred_at, "Time unavailable", "date_time"),
+        description: residentSafeLabel(value.description || fact.object?.label, "Wallet transaction"),
+        type: cleanLabel(value.type, "transaction"),
+        amount: `${sign}₦${Math.abs(amount).toLocaleString()}`,
+        status: cleanLabel(value.status, "recorded"),
+      };
+    });
+}
+
+function utilitySpendingRows(facts: IntelligenceFact[]) {
+  const utilities = facts.filter((fact) => {
+    const value = recordOf(fact.value);
+    return fact.domain === "utilities" || /electricity|water|internet|utility|power|gas/i.test(`${value.category} ${value.description} ${value.type}`);
+  });
+  const totals = new Map<string, number>();
+  for (const fact of utilities) {
+    const value = recordOf(fact.value);
+    if (text(value.direction).toLowerCase() === "credit") continue;
+    const rawCategory = text(value.category || value.type || value.description) || "Utilities";
+    const category = /electricity|power/i.test(rawCategory) ? "Electricity"
+      : /water/i.test(rawCategory) ? "Water"
+        : /internet|data/i.test(rawCategory) ? "Internet"
+          : /gas/i.test(rawCategory) ? "Gas"
+            : "Utilities";
+    totals.set(category, (totals.get(category) || 0) + Math.abs(Number(value.amount || 0)));
+  }
+  return Array.from(totals.entries()).map(([category, amount]) => ({
+    category,
+    amount: `₦${amount.toLocaleString()}`,
+    status: "confirmed",
+  }));
+}
+
+function buildWalletHistoryAnswer(facts: IntelligenceFact[]) {
+  const rows = walletTransactionRows(facts);
+  if (!rows.length) return "I do not see any wallet transactions in the selected period.";
+  return `${rows.length} wallet transaction${rows.length === 1 ? "" : "s"} are available for the selected period. I did not navigate away or perform a financial action.`;
+}
+
+function buildUtilitySpendingAnswer(facts: IntelligenceFact[]) {
+  const rows = utilitySpendingRows(facts);
+  if (!rows.length) return "I could not confirm utility spending for the selected period from the available wallet and service records.";
+  const total = rows.reduce((sum, row) => sum + Number(String(row.amount).replace(/[^0-9.-]+/g, "")), 0);
+  return `You spent ₦${total.toLocaleString()} on confirmed utility transactions in the selected period. I did not perform any wallet, payment, or vending action.`;
 }
 
 function tableBlockForContract(contract: IntelligenceRequestContract, facts: IntelligenceFact[]): ConversationTableBlock | null {
@@ -4287,6 +4671,40 @@ function tableBlockForContract(contract: IntelligenceRequestContract, facts: Int
       rows,
     };
   }
+  if (contract.intent === "wallet_operation" && contract.answer_builder === "wallet_history") {
+    const rows = walletTransactionRows(facts).slice(0, 20);
+    if (!rows.length) return null;
+    return {
+      type: "table",
+      title: "Wallet history",
+      compact: true,
+      snapshot,
+      columns: [
+        { key: "date", label: "Date" },
+        { key: "description", label: "Description" },
+        { key: "type", label: "Type" },
+        { key: "amount", label: "Amount" },
+        { key: "status", label: "Status" },
+      ],
+      rows,
+    };
+  }
+  if (contract.intent === "wallet_operation" && contract.answer_builder === "utility_spending") {
+    const rows = utilitySpendingRows(facts);
+    if (!rows.length) return null;
+    return {
+      type: "table",
+      title: "Utility spending",
+      compact: true,
+      snapshot,
+      columns: [
+        { key: "category", label: "Utility" },
+        { key: "amount", label: "Amount" },
+        { key: "status", label: "Evidence" },
+      ],
+      rows,
+    };
+  }
   return null;
 }
 
@@ -4299,6 +4717,7 @@ function operationForResolvedTurn(contract: IntelligenceRequestContract): Conver
   if (contract.operation_class === "reject") return "reject";
   if (contract.operation_class === "handoff") return "handoff";
   if (contract.scope_mode === "clarification") return "clarify";
+  if (contract.intent === "wallet_operation") return "list";
   if (contract.intent === "device_availability_inventory" || contract.intent === "recent_changes" || contract.intent === "activity_history" || contract.intent === "failure_history") return "list";
   if (contract.intent === "current_state" || contract.intent === "health_check" || contract.intent === "diagnosis" || contract.intent === "relationships" || contract.intent === "evidence") return "inspect";
   return "inform";
@@ -4326,6 +4745,8 @@ function domainForResolvedTurn(contract: IntelligenceRequestContract, object: Op
   if (/maintenance/.test(targetType)) return "maintenance";
   if (/wallet|transaction/.test(targetType)) return "wallet";
   if (/incident/.test(targetType)) return "incidents";
+  if (contract.intent === "wallet_operation" && contract.answer_builder === "utility_spending") return "utilities";
+  if (contract.intent === "wallet_operation") return "wallet";
   if (contract.intent === "device_availability_inventory") return "devices";
   return null;
 }
@@ -4341,11 +4762,14 @@ function presentationPolicyForContract(contract: IntelligenceRequestContract): C
   if (contract.operation_class === "execute_mutation" || contract.operation_class === "confirm_mutation") {
     return { ...base, primary: "approval", allowed_supporting_blocks: ["approval", "command_result"], allowed_action_types: ["approval", "cancel"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "collapsed", snapshot_mode: "none", auto_navigation: false };
   }
-  if (contract.intent === "device_availability_inventory" || contract.intent === "recent_changes" || contract.intent === "activity_history" || contract.intent === "failure_history") {
+  if (contract.intent === "device_availability_inventory" || contract.intent === "recent_changes" || contract.intent === "activity_history" || contract.intent === "failure_history" || contract.intent === "wallet_operation") {
     return { ...base, primary: "table", allowed_supporting_blocks: ["table", "navigation_action"], allowed_action_types: ["navigation"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "collapsed", snapshot_mode: contract.intent === "device_availability_inventory" ? "current_state_snapshot" : "historical", auto_navigation: false };
   }
   if (contract.intent === "module_navigation") {
     return { ...base, primary: "navigation_transition", allowed_supporting_blocks: ["navigation_action", "handoff"], allowed_action_types: ["navigation", "stay"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "hidden", snapshot_mode: "none", auto_navigation: true };
+  }
+  if ((contract.intent === "capability" || contract.intent === "general_help") && (contract.scope_mode === "home_scope" || contract.scope_mode === "global_scope")) {
+    return { ...base, primary: "text", allowed_supporting_blocks: ["navigation_action"], allowed_action_types: ["navigation"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "hidden", snapshot_mode: "none", auto_navigation: false };
   }
   if (contract.intent === "domain_list") {
     return { ...base, primary: "text", allowed_supporting_blocks: ["navigation_action"], allowed_action_types: ["navigation"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "collapsed", snapshot_mode: "historical", auto_navigation: false };
@@ -4368,6 +4792,9 @@ function selectConversationBuilder(contract: IntelligenceRequestContract, object
   if (contract.intent === "device_availability_inventory") return "offline_inventory";
   if (contract.intent === "home_operational_summary") return "home_summary";
   if (contract.intent === "recent_changes" || contract.intent === "activity_history") return "recent_changes";
+  if (contract.intent === "wallet_operation" && contract.answer_builder === "wallet_history") return "wallet_history";
+  if (contract.intent === "wallet_operation" && contract.answer_builder === "utility_spending") return "utility_spending";
+  if (contract.intent === "wallet_operation") return "wallet_summary";
   if (contract.intent === "module_navigation") return "module_navigation";
   if (contract.intent === "domain_list") return "domain_list";
   if (contract.scope_mode === "clarification") return "clarification";
@@ -4433,14 +4860,43 @@ function residentSafeLabel(value: unknown, fallback: string) {
 }
 
 export function canonicalIntelligenceContractForTest(input: { message: string; object?: OperationalObject | null; request?: Partial<CanonicalConversationRequest> }) {
-  return resolveIntentContract({
+  const request = {
     message: input.message,
     surface: "consumer",
     ...(input.request || {}),
-  } as CanonicalConversationRequest, input.object || null, {
-    objectType: input.object?.object_type || null,
-    objectId: input.object?.canonical_id || null,
-    objectName: input.object?.label || null,
+  } as CanonicalConversationRequest;
+  const authority = resolveCurrentTurnAuthorityDecision(request, input.object as ObjectCandidate | null, {
+    roomPhrase: roomPhraseFromMessage(input.message),
+    broadReadOnlyDeviceIntent: isExplicitBroadHomeReadIntent(input.message, text(input.request?.scope_mode_hint)),
+    semanticOperation: interpretSemanticOperation(input.message),
+  });
+  const object = authority.mayUseInheritedExactTarget || !["device", "device_channel"].includes(text(input.object?.object_type))
+    ? input.object || null
+    : authority.scope === "home_scope" && input.request?.home_id
+      ? {
+        object_type: "home",
+        canonical_id: input.request.home_id,
+        label: "Home",
+        estate_id: input.request.estate_id || null,
+        building_id: null,
+        home_id: input.request.home_id,
+        room_id: null,
+        parent_id: null,
+        source_module: "home",
+        capabilities: ["conversation"],
+        current_state: null,
+        health: null,
+        permissions: ["read"],
+        relationships: {},
+        evidence_references: [],
+        metadata: {},
+        freshness: null,
+      } as OperationalObject
+      : null;
+  return resolveIntentContract(request, object, {
+    objectType: object?.object_type || null,
+    objectId: object?.canonical_id || null,
+    objectName: object?.label || null,
   });
 }
 
@@ -4454,8 +4910,8 @@ export function canonicalRecentChangesAnswerForTest(input: { facts: Intelligence
   return buildRecentChangesAnswer(dedupeFacts(input.facts), contract);
 }
 
-export function canonicalConversationTableBlockForTest(input: { facts: IntelligenceFact[]; message?: string }) {
-  const contract = canonicalIntelligenceContractForTest({ message: input.message || "What changed recently?" });
+export function canonicalConversationTableBlockForTest(input: { facts: IntelligenceFact[]; message?: string; object?: OperationalObject | null; request?: Partial<CanonicalConversationRequest> }) {
+  const contract = canonicalIntelligenceContractForTest({ message: input.message || "What changed recently?", object: input.object || null, request: input.request });
   return tableBlockForContract(contract, dedupeFacts(input.facts));
 }
 
@@ -4465,21 +4921,23 @@ export function canonicalResolvedTurnForTest(input: { message: string; object?: 
     surface: input.surface || "consumer",
     ...(input.request || {}),
   } as CanonicalConversationRequest;
-  const contract = resolveIntentContract(request, input.object || null, {
-    objectType: input.object?.object_type || null,
-    objectId: input.object?.canonical_id || null,
-    objectName: input.object?.label || null,
-    confidence: input.object ? 0.9 : 0.72,
-  });
+  const contract = canonicalIntelligenceContractForTest({ message: input.message, object: input.object || null, request });
+  const object = contract.target.object_type === input.object?.object_type && contract.target.canonical_id === input.object?.canonical_id ? input.object || null : null;
   return {
     contract,
-    resolved_turn: resolvedConversationTurnFromContract(request, contract, input.object || null),
+    resolved_turn: resolvedConversationTurnFromContract(request, contract, object),
     presentation_policy: presentationPolicyForContract(contract),
   };
 }
 
 export function canonicalTimeLabelForTest(value: unknown, mode: "time" | "date_time" | "relative" = "date_time") {
   return safeDateLabel(value, "Time unavailable", mode);
+}
+
+export function canonicalClarificationContinuationForTest(input: { message: string; pending: PendingClarification }) {
+  const selected = matchPendingClarificationCandidate(input.pending, input.message);
+  if (!selected) return null;
+  return buildClarificationContinuationResponse({ message: input.message, surface: "consumer", thread_id: input.pending.thread_id } as CanonicalConversationRequest, input.pending, selected);
 }
 
 export function canonicalDeviceAvailabilityAnswerForTest(input: { facts: IntelligenceFact[]; message?: string }) {
@@ -4493,7 +4951,16 @@ export function canonicalReportAnswerForTest(input: { facts: IntelligenceFact[];
 }
 
 function buildRecommendationAnswer(object: OperationalObject | null, facts: IntelligenceFact[]) {
-  if (object) return recommendationFor(object, { message: "recommend", surface: "consumer" } as CanonicalConversationRequest);
+  if (object && !["home", "room"].includes(object.object_type)) return recommendationFor(object, { message: "recommend", surface: "consumer" } as CanonicalConversationRequest);
+  const availability = facts.filter((fact) => fact.fact_type === "device_availability");
+  const notRecent = availability
+    .filter((fact) => ["stale", "expired", "unknown", "provider_disconnected", "offline"].includes(text(recordOf(fact.value).availability)))
+    .slice(0, 3);
+  if (notRecent.length) {
+    const names = notRecent.map((fact) => cleanLabel(fact.object?.label, "device")).join(", ");
+    const scope = object?.object_type === "room" ? ` in ${object.label}` : "";
+    return `Start with ${names}${scope}. These have the clearest availability or freshness concern in the authorised evidence.`;
+  }
   const failures = facts.filter((fact) => /failed|unavailable|timeout|warning|critical/i.test(`${fact.statement} ${JSON.stringify(fact.value)}`));
   return failures.length ? "I recommend checking the unresolved item with the freshest failed evidence first." : "No immediate action is required from the evidence I can see.";
 }
@@ -4547,7 +5014,9 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
   if (contract.scope_mode === "clarification" || contract.operation_class === "clarify") {
     answer = contract.ambiguity?.question || "I need one clarification before I can continue. No action was performed.";
     displayMode = "detail";
-    execution = { status: "clarification_required", current_turn_execution: false };
+    const pendingClarification = pendingClarificationWorkflow(contract);
+    if (pendingClarification) pendingClarification.original_user_message = input.message;
+    execution = { status: "clarification_required", current_turn_execution: false, pending_clarification: pendingClarification };
     const shaped = {
       id: `oyi-runtime:${contract.conversation_request_id}`,
       thread_id: contract.thread_id || randomUUID(),
@@ -4560,7 +5029,11 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
       execution,
       sources: [],
       cards: [],
-      suggested_actions: [],
+      suggested_actions: (contract.ambiguity?.candidates || []).map((candidate) => ({
+        type: "clarification_choice",
+        label: cleanLabel(candidate.label || candidate.title || candidate.name, "Choice"),
+        value: text(candidate.device_id || candidate.id),
+      })),
       confirmations: [],
       canonical_request_contract: contract,
       resolved_turn: resolvedConversationTurnFromContract(input, contract, object),
@@ -4648,6 +5121,14 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     facts = dedupeFacts([...facts, ...await loadHomeDeviceInventoryFacts(input, oisContext), ...await loadRecentChangeFacts(input, oisContext, contract, object)]);
     answer = buildHomeOperationalSummaryAnswer(facts, contract);
     displayMode = "report";
+  } else if (contract.intent === "wallet_operation" && contract.answer_builder === "wallet_history") {
+    facts = dedupeFacts([...facts, ...await loadWalletTransactionFacts(input, oisContext, contract)]);
+    answer = buildWalletHistoryAnswer(facts);
+    displayMode = "list";
+  } else if (contract.intent === "wallet_operation" && contract.answer_builder === "utility_spending") {
+    facts = dedupeFacts([...facts, ...await loadWalletTransactionFacts(input, oisContext, contract)]);
+    answer = buildUtilitySpendingAnswer(facts);
+    displayMode = "list";
   } else if (contract.intent === "failure_history") {
     facts = dedupeFacts([...facts, ...await loadRecentChangeFacts(input, oisContext, contract, object)]);
     answer = buildFailureHistoryAnswer(facts, contract);
@@ -4674,7 +5155,7 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
   } else if (contract.intent === "capability") {
     answer = buildCapabilityAnswer(object, input);
   } else if (contract.intent === "recommendation") {
-    facts = dedupeFacts([...facts, ...await loadRecentChangeFacts(input, oisContext, contract, object)]);
+    facts = dedupeFacts([...facts, ...await loadHomeDeviceInventoryFacts(input, oisContext), ...await loadRecentChangeFacts(input, oisContext, contract, object)]);
     answer = buildRecommendationAnswer(object, facts);
     displayMode = "detail";
   } else {
@@ -4825,6 +5306,14 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
+    conversation_state: {
+      version: 1,
+      entities: [],
+      active_list: [],
+      last_displayed_records: [],
+      active_workflow: recordOf(response.execution).pending_clarification ? { pending_clarification: recordOf(response.execution).pending_clarification } : null,
+      conversation_state: recordOf(response.execution).pending_clarification ? "confirming" : "idle",
+    },
     thread_memory_context: contextLayers.threadMemoryContext,
     conversation_context_layers: contextLayers,
     preview: cleanLabel(response.message || response.reply || input.message, "").slice(0, 180),
@@ -5155,6 +5644,94 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     thread_id: input.thread_id || null,
     message: input.message,
   } as OyiChatInput);
+  const pendingClarification = pendingClarificationFromThread(threadContext);
+  if (pendingClarification) {
+    if (userCancelledClarification(input.message)) {
+      const answer = "Cancelled. No command was sent.";
+      const contract = resolveIntentContract(input, null, { objectType: null, objectId: null, objectName: null, confidence: 0.8 });
+      const shaped = {
+        id: `oyi-runtime:${contract.conversation_request_id}`,
+        thread_id: text(input.thread_id) || randomUUID(),
+        intent: "clarification_cancelled",
+        understood: "Pending clarification cancelled.",
+        message: answer,
+        reply: answer,
+        display_mode: "conversation" as const,
+        confidence: 0.8,
+        execution: { status: "cancelled", current_turn_execution: false, pending_clarification: null },
+        cards: [],
+        sources: [],
+        suggested_actions: [],
+        confirmations: [],
+        resolved_turn: resolvedConversationTurnFromContract(input, contract, null),
+        presentation_policy: presentationPolicyForContract(contract),
+        facts: [],
+      };
+      const truth = canonicalTruthFor(shaped, null);
+      const persistedThreadId = await persistCanonicalAuthoritativeMessages(actor, input, shaped, truth, null, contract);
+      return {
+        id: shaped.id,
+        thread_id: persistedThreadId || null,
+        intent: shaped.intent,
+        understood: shaped.understood,
+        summary: answer,
+        answer,
+        reply: answer,
+        message: answer,
+        display_mode: "conversation",
+        truth,
+        operational_object: null,
+        context: { surface: input.surface, estate_id: input.estate_id || oisContext?.estate_id || null, home_id: input.home_id || oisContext?.home_id || null, module: input.module || oisContext?.module || null, context_source: "thread_state", warnings: [] },
+        resolved_turn: recordOf(shaped.resolved_turn) as ResolvedConversationTurn,
+        execution: shaped.execution,
+        cards: [],
+        sources: [],
+        suggested_actions: [],
+        presentation_policy: recordOf(shaped.presentation_policy) as ConversationPresentationPolicy,
+        confirmations: [],
+        warnings: persistedThreadId ? [] : ["This answer was not saved to conversation history."],
+        persistence_saved: Boolean(persistedThreadId),
+        source: "oyi_canonical_runtime",
+        safe_mode: true,
+        approvalRequired: false,
+        requiresConfirmation: false,
+      };
+    }
+    const selectedCandidate = matchPendingClarificationCandidate(pendingClarification, input.message);
+    if (selectedCandidate) {
+      const contract = resolveIntentContract(input, null, { objectType: "device", objectId: text(selectedCandidate.device_id || selectedCandidate.id), objectName: text(selectedCandidate.label || selectedCandidate.title || selectedCandidate.name), confidence: 0.82 });
+      const shaped = buildClarificationContinuationResponse(input, pendingClarification, selectedCandidate);
+      const truth = canonicalTruthFor(shaped, null);
+      const persistedThreadId = await persistCanonicalAuthoritativeMessages(actor, input, shaped, truth, null, contract);
+      return {
+        id: shaped.id,
+        thread_id: persistedThreadId || null,
+        intent: shaped.intent,
+        understood: shaped.understood,
+        summary: shaped.message,
+        answer: shaped.message,
+        reply: shaped.reply,
+        message: shaped.message,
+        display_mode: "detail",
+        truth,
+        operational_object: null,
+        context: { surface: input.surface, estate_id: input.estate_id || oisContext?.estate_id || null, home_id: input.home_id || oisContext?.home_id || null, module: input.module || oisContext?.module || null, context_source: "thread_state", warnings: [] },
+        resolved_turn: recordOf(shaped.resolved_turn) as ResolvedConversationTurn,
+        execution: shaped.execution,
+        cards: shaped.cards,
+        sources: shaped.sources,
+        suggested_actions: shaped.suggested_actions,
+        presentation_policy: recordOf(shaped.presentation_policy) as ConversationPresentationPolicy,
+        confirmations: shaped.confirmations,
+        warnings: persistedThreadId ? [] : ["This answer was not saved to conversation history."],
+        persistence_saved: Boolean(persistedThreadId),
+        source: "oyi_canonical_runtime",
+        safe_mode: true,
+        approvalRequired: Boolean(shaped.confirmations.length),
+        requiresConfirmation: Boolean(shaped.confirmations.length),
+      };
+    }
+  }
   const explicitCandidate = explicitObjectCandidate(input);
   const threadCandidate = threadObjectCandidate(threadContext);
   const activeContextRecord = recordOf(input.active_intelligence_context || recordOf(input.context).active_intelligence_context || recordOf(recordOf(input.context).runtime_context).active_context || recordOf(input.conversation_context).active_context);
@@ -5164,7 +5741,12 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   const initialRoomPhrase = !broadReadOnlyDeviceIntent ? roomPhraseFromMessage(input.message || "") : "";
   const initialSemanticOperation = interpretSemanticOperation(input.message || "");
   const inheritedCandidate = explicitCandidate || threadCandidate;
-  const inheritedExactTargetAllowed = canInheritedExactTargetSatisfyCurrentTurn(input, inheritedCandidate, {
+  const currentTurnAuthority = resolveCurrentTurnAuthorityDecision(input, inheritedCandidate, {
+    roomPhrase: initialRoomPhrase,
+    broadReadOnlyDeviceIntent,
+    semanticOperation: initialSemanticOperation,
+  });
+  const inheritedExactTargetAllowed = currentTurnAuthority.mayUseInheritedExactTarget && canInheritedExactTargetSatisfyCurrentTurn(input, inheritedCandidate, {
     roomPhrase: initialRoomPhrase,
     broadReadOnlyDeviceIntent,
     semanticOperation: initialSemanticOperation,
@@ -5189,6 +5771,20 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       target_source: threadCandidate.source,
     });
   }
+  logger.info("conversation_current_turn_authority_resolved", {
+    request_id: text(recordOf(input.context).request_id) || null,
+    thread_id: input.thread_id || null,
+    operation: currentTurnAuthority.operation,
+    domain: currentTurnAuthority.domain,
+    scope: currentTurnAuthority.scope,
+    explicit_room_phrase: currentTurnAuthority.explicitRoomPhrase,
+    explicit_object_phrase: currentTurnAuthority.explicitObjectPhrase,
+    temporal_scope: currentTurnAuthority.temporalScope,
+    inherited_object_type: inheritedCandidate?.object_type || null,
+    inherited_object_id: inheritedCandidate?.canonical_id || null,
+    may_use_inherited_exact_target: currentTurnAuthority.mayUseInheritedExactTarget,
+    rejection_reason: currentTurnAuthority.rejectionReason,
+  });
   if (broadReadOnlyDeviceIntent) {
     logger.info("read_only_command_execution_blocked", {
       intent: isReadOnlyBroadDeviceIntent(input.message || "") ? "show_offline_devices" : "broad_home_read",
@@ -5238,9 +5834,9 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       building_id: text(recordOf(input.context).building_id || recordOf(input.context).buildingId) || null,
       home_id: input.home_id || oisContext?.home_id || null,
       room_id: input.room_id || text(recordOf(input.context).room_id || recordOf(input.context).roomId) || null,
-      object_type: explicitCandidate?.object_type || null,
-      object_id: explicitCandidate?.canonical_id || null,
-      object_name: explicitCandidate?.label || null,
+      object_type: inheritedExactTargetAllowed ? explicitCandidate?.object_type || null : null,
+      object_id: inheritedExactTargetAllowed ? explicitCandidate?.canonical_id || null : null,
+      object_name: inheritedExactTargetAllowed ? explicitCandidate?.label || null : null,
       active_intelligence_context: activeContextRecord,
     } as any,
   });
@@ -5260,7 +5856,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       });
     }
   }
-  const namedControlPhrase = namedDevicePhraseFromControlMessage(input.message || "");
+  const namedControlPhrase = currentTurnAllowsDeviceResolution(input.message || "") ? namedDevicePhraseFromControlMessage(input.message || "") : null;
   if (namedControlPhrase && !broadReadOnlyDeviceIntent) {
     const namedResolution = await resolveNamedDeviceForRead(actor, oisContext, input, namedControlPhrase);
     if (namedResolution.status === "resolved") {
@@ -5352,7 +5948,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       } as any;
     }
   }
-  if (broadReadOnlyDeviceIntent && (input.home_id || oisContext?.home_id)) {
+  if ((broadReadOnlyDeviceIntent || currentTurnAuthority.scope === "home_scope") && (input.home_id || oisContext?.home_id)) {
     targetResolution = {
       ...targetResolution,
       objectType: "home",
