@@ -4,11 +4,17 @@ import { resolveRequestContext } from "../middleware/contextResolver";
 import { getOyiConversationMessages, getOyiUnifiedAwareness, listOyiConversationThreads } from "../services/oyiUnifiedIntelligenceService";
 import { oyiCoreRuntime } from "../oyi-core/service";
 import { executionLedger, type ExecutionLedgerScope } from "../oyi-core/runtime/executionLedger";
-import { adaptCanonicalToCompatibilityChat, runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
+import { adaptCanonicalToCompatibilityChat } from "../oyi-core/runtime/canonicalConversationRuntime";
+import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
+import { mapOyiRouteBodyToConversationRequest } from "../oyi-core/api/ConversationRequestMapper";
 import { operationalMetrics } from "../observability/metrics";
 import { normalizeIntelligenceContextEnvelope } from "../oyi-core/contracts/intelligenceContextEnvelope";
 import { canonicalIntelligenceStore } from "../oyi-core/persistence/canonicalIntelligenceStore";
 import { getDeviceCommandExecution } from "../services/deviceCommandExecutionStore";
+import { supabaseAdmin } from "../supabase/supabaseClient";
+import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
+import { classifyFreshness } from "../oyi-core/contracts/freshness";
+import { observationPolicyForDevice } from "../oyi-core/domains/devices/deviceObservationPolicy";
 
 const router = Router();
 
@@ -56,15 +62,10 @@ router.get("/awareness", requireAuth, resolveRequestContext, async (req, res) =>
 router.post("/chat", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     observeCompatibilityRoute("/oyi/chat", req.oisContext?.surface);
-    const runtime = await runCanonicalConversation(req.user || null, req.oisContext || null, {
-      ...(req.body || {}),
-      message: String(req.body?.message || req.body?.prompt || "").trim(),
-      surface: req.oisContext?.surface as any,
-      estate_id: req.oisContext?.estate_id || null,
-      home_id: req.oisContext?.home_id || null,
-      module: req.oisContext?.module || (req.body || {}).module || null,
-      context: { ...(req.body?.context || {}), ...(req.oisContext || {}) },
-      target: req.body?.target || req.body?.request?.target || req.oisContext?.target || null,
+    const runtime = await conversationOrchestrator.run({
+      actor: req.user || null,
+      oisContext: req.oisContext || null,
+      input: mapOyiRouteBodyToConversationRequest(req.body || {}, req.oisContext || null, "chat"),
     });
     return res.json(adaptCanonicalToCompatibilityChat(runtime));
   } catch {
@@ -152,20 +153,85 @@ router.post("/runtime/outbox/process", requireAuth, resolveRequestContext, async
 
 router.post("/runtime/conversation", requireAuth, resolveRequestContext, async (req, res) => {
   try {
-    const runtime = await runCanonicalConversation(req.user || null, req.oisContext || null, {
-      ...(req.body || {}),
-      message: String(req.body?.request?.query || req.body?.message || req.body?.prompt || "").trim(),
-      surface: req.oisContext?.surface as any,
-      estate_id: req.oisContext?.estate_id || null,
-      home_id: req.oisContext?.home_id || null,
-      module: req.oisContext?.module || (req.body || {}).module || null,
-      thread_id: req.body?.thread_id || req.body?.request?.thread_id || null,
-      context: { ...(req.body?.request?.context || {}), ...(req.body?.context || {}), ...(req.oisContext || {}) },
-      target: req.body?.target || req.body?.request?.target || req.oisContext?.target || null,
+    const runtime = await conversationOrchestrator.run({
+      actor: req.user || null,
+      oisContext: req.oisContext || null,
+      input: mapOyiRouteBodyToConversationRequest(req.body || {}, req.oisContext || null, "runtime"),
     });
     return res.json({ ok: true, response: runtime });
   } catch {
     return res.status(500).json({ ok: false, error: "Unable to run canonical Oyi runtime conversation" });
+  }
+});
+
+router.get("/runtime/internal/device-runtime-audit", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    if (!Array.isArray(req.user?.permissions) || !req.user.permissions.includes("system.admin")) {
+      return res.status(403).json({ ok: false, error: "Permission denied" });
+    }
+    const homeId = req.query.homeId ? String(req.query.homeId) : req.oisContext?.home_id || null;
+    let query = supabaseAdmin.from("devices").select("*").limit(5_000);
+    if (homeId) query = query.eq("home_id", homeId);
+    const { data, error } = await query;
+    if (error) throw error;
+    const devices = data || [];
+    const rows = devices.map((device: any) => {
+      const runtime = deviceRuntimeStateService.get(String(device.id || ""));
+      const policy = observationPolicyForDevice(device, runtime as any);
+      const observedAt = String(runtime?.provider_timestamp || runtime?.runtime_timestamp || runtime?.last_refresh || "") || null;
+      const conversationFreshness = classifyFreshness(policy, observedAt);
+      const physical = !device.is_virtual && !device.parent_device_id;
+      const runtimeEligible = Boolean(device.id && (device.provider || device.adapter || device.vendor || device.is_virtual));
+      const schedulerEligible = runtimeEligible && policy.mode !== "unobservable" && policy.mode !== "disabled";
+      return {
+        device_id: device.id,
+        name: device.name || device.label || device.display_name || "Unnamed smart device",
+        home_id: device.home_id || null,
+        room_id: device.room_id || null,
+        physical_or_virtual: physical ? "physical" : device.is_virtual ? "virtual" : "child_or_derived",
+        provider: device.provider || device.vendor || null,
+        adapter: device.adapter || null,
+        external_id_present: Boolean(device.external_id || device.provider_device_id || device.tuya_device_id),
+        registered: Boolean(device.id),
+        runtime_eligible: runtimeEligible,
+        scheduler_eligible: schedulerEligible,
+        refresh_class: runtime?.refresh_class || policy.mode,
+        last_refresh_attempt: null,
+        last_successful_refresh: runtime?.last_successful_refresh || null,
+        provider_observation_timestamp: runtime?.provider_timestamp || null,
+        persisted_snapshot_timestamp: runtime?.runtime_timestamp || null,
+        conversation_freshness: conversationFreshness,
+        exclusion_reason: runtimeEligible ? null : "missing_provider_or_adapter",
+        suppression_reason: runtime?.provider_warning || runtime?.provider_error?.classification || null,
+        parent_device: device.parent_device_id || null,
+      };
+    });
+    const totals = rows.reduce((acc: Record<string, number>, row: any) => {
+      acc.registry_count += 1;
+      if (row.physical_or_virtual === "physical") acc.physical_count += 1;
+      if (row.physical_or_virtual === "virtual") acc.virtual_count += 1;
+      if (row.runtime_eligible) acc.runtime_eligible_count += 1;
+      if (row.scheduler_eligible) acc.scheduler_eligible_count += 1;
+      if (deviceRuntimeStateService.has(String(row.device_id))) acc.cached_count += 1;
+      acc[`${row.conversation_freshness}_count`] = (acc[`${row.conversation_freshness}_count`] || 0) + 1;
+      return acc;
+    }, {
+      registry_count: 0,
+      physical_count: 0,
+      virtual_count: 0,
+      runtime_eligible_count: 0,
+      scheduler_eligible_count: 0,
+      cached_count: 0,
+      fresh_count: 0,
+      stale_count: 0,
+      expired_count: 0,
+      unknown_count: 0,
+      unobservable_count: 0,
+      provider_disconnected_count: 0,
+    });
+    return res.json({ ok: true, totals, devices: rows });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load device runtime audit" });
   }
 });
 
