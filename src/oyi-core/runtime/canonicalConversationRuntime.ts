@@ -13,6 +13,9 @@ import { buildModuleFacts } from "./moduleFactAdapters";
 import { resolveConversationTarget } from "./conversationTargetResolver";
 import { hydrateCanonicalTarget } from "./canonicalTargetHydrationRegistry";
 import { deviceRuntimeStateService } from "../../services/deviceRuntimeStateService";
+import { normalizeUserTurn, type NormalizedUserTurn, type OyiDomain } from "./languageUnderstanding";
+import { capabilityKeyForTurn, decideAuthorityForTurn, getDomainCapability, type AuthorityDecision } from "./domainCapabilityRegistry";
+import { createWorkflow, type CanonicalTarget, type OyiWorkflow } from "./conversationWorkflowRuntime";
 
 export type OperationalObjectType =
   | "estate"
@@ -2995,6 +2998,32 @@ type ResolvedConversationTurn = {
   confidence: number;
 };
 
+type ResolvedOyiTurn = {
+  request_id: string;
+  thread_id: string;
+  operation: string;
+  domain: string | null;
+  capability_key: string;
+  scope: {
+    estate_id: string | null;
+    building_id: string | null;
+    home_id: string | null;
+    room_id: string | null;
+  };
+  target: CanonicalTarget | null;
+  target_source:
+    | "current_turn"
+    | "active_workflow"
+    | "valid_reference"
+    | "page_context"
+    | "thread_memory"
+    | "authorised_fallback";
+  temporal_scope: IntelligenceRequestContract["temporal_scope"] | null;
+  authority: AuthorityDecision;
+  workflow_id: string | null;
+  presentation_policy: ConversationPresentationPolicy;
+};
+
 export type TurnInterpretation = {
   rawMessage: string;
   intent: CanonicalIntent;
@@ -4802,6 +4831,79 @@ function selectConversationBuilder(contract: IntelligenceRequestContract, object
   return null;
 }
 
+function targetSourceForResolvedOyiTurn(source: unknown): ResolvedOyiTurn["target_source"] {
+  const raw = text(source);
+  if (raw === "current_turn_room_reference" || raw === "resolved_named_reference" || raw === "home_scope") return "current_turn";
+  if (raw === "thread_state") return "thread_memory";
+  if (raw === "page_selection" || raw === "active_page_object" || raw === "selected_subobject") return "page_context";
+  if (raw === "clarification" || raw === "ambiguous") return "active_workflow";
+  if (raw === "global_scope" || raw === "estate_scope") return "authorised_fallback";
+  return "valid_reference";
+}
+
+function canonicalTargetFromContract(contract: IntelligenceRequestContract, object: OperationalObject | null): CanonicalTarget | null {
+  const objectType = text(contract.target.object_type || object?.object_type);
+  const canonicalId = text(contract.target.canonical_id || object?.canonical_id);
+  if (!objectType || !canonicalId) return null;
+  return {
+    object_type: objectType,
+    canonical_id: canonicalId,
+    label: text(contract.target.label || object?.label) || null,
+    parent_id: text(contract.target.parent_id || object?.parent_id) || null,
+    channel_code: text(contract.target.channel_code || recordOf(object?.metadata).channel_code) || null,
+  };
+}
+
+function resolvedOyiTurnFromContract(input: CanonicalConversationRequest, normalizedTurn: NormalizedUserTurn, contract: IntelligenceRequestContract, object: OperationalObject | null, options: { targetSource: unknown; workflowId?: string | null }): ResolvedOyiTurn {
+  const semanticDomain = normalizedTurn.domain || (domainForResolvedTurn(contract, object, semanticOperationAction(input.message || "", input.surface)) as OyiDomain | null);
+  const capabilityKey = capabilityKeyForTurn({ ...normalizedTurn, domain: semanticDomain || normalizedTurn.domain || "global" });
+  return {
+    request_id: contract.conversation_request_id,
+    thread_id: text(contract.thread_id) || text(input.thread_id) || "",
+    operation: normalizedTurn.operation,
+    domain: semanticDomain,
+    capability_key: capabilityKey,
+    scope: {
+      estate_id: input.estate_id || null,
+      building_id: text(recordOf(input.context).building_id || recordOf(input.context).buildingId) || null,
+      home_id: input.home_id || null,
+      room_id: input.room_id || object?.room_id || null,
+    },
+    target: canonicalTargetFromContract(contract, object),
+    target_source: targetSourceForResolvedOyiTurn(options.targetSource),
+    temporal_scope: contract.temporal_scope || null,
+    authority: decideAuthorityForTurn({ ...normalizedTurn, domain: semanticDomain || normalizedTurn.domain || "global" }),
+    workflow_id: options.workflowId || null,
+    presentation_policy: presentationPolicyForContract(contract),
+  };
+}
+
+function workflowForResolvedTurn(input: CanonicalConversationRequest, normalizedTurn: NormalizedUserTurn, contract: IntelligenceRequestContract, object: OperationalObject | null, resolvedTurn: ResolvedOyiTurn): OyiWorkflow {
+  const unresolvedInputs = contract.scope_mode === "clarification"
+    ? ["target"]
+    : contract.operation_class === "compose"
+      ? ["review_details"]
+      : contract.operation_class === "execute_mutation" && !contract.mutation.confirmed
+        ? ["approval"]
+        : [];
+  return createWorkflow({
+    thread_id: resolvedTurn.thread_id || text(input.thread_id) || randomUUID(),
+    request_id: contract.conversation_request_id,
+    capability_key: resolvedTurn.capability_key,
+    domain: (resolvedTurn.domain || normalizedTurn.domain || "global") as OyiDomain,
+    operation: normalizedTurn.operation,
+    target: canonicalTargetFromContract(contract, object),
+    unresolved_inputs: unresolvedInputs,
+    authority_decision: resolvedTurn.authority,
+    proposed_action: contract.mutation.requested ? {
+      command: contract.mutation.command,
+      desired_state: contract.mutation.desired_state,
+      risk_class: contract.mutation.risk_class,
+    } : null,
+    ttl_ms: unresolvedInputs.length ? 30 * 60 * 1000 : null,
+  });
+}
+
 function resolvedConversationTurnFromContract(input: CanonicalConversationRequest, contract: IntelligenceRequestContract, object: OperationalObject | null): ResolvedConversationTurn {
   const semantic = semanticOperationAction(input.message, input.surface);
   const destination = semantic?.operation?.destination
@@ -5303,6 +5405,11 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
       evidence_count: Array.isArray(response.facts) ? response.facts.length : 0,
     },
   };
+  const executionRecord = recordOf(response.execution);
+  const normalizedTurnMetadata = recordOf(executionRecord.normalized_turn);
+  const resolvedOyiTurnMetadata = recordOf(executionRecord.resolved_oyi_turn);
+  const workflowMetadata = recordOf(executionRecord.workflow);
+  const actionMetadata = recordOf(executionRecord.action);
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
@@ -5311,8 +5418,14 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
       entities: [],
       active_list: [],
       last_displayed_records: [],
-      active_workflow: recordOf(response.execution).pending_clarification ? { pending_clarification: recordOf(response.execution).pending_clarification } : null,
-      conversation_state: recordOf(response.execution).pending_clarification ? "confirming" : "idle",
+      active_workflow: Object.keys(workflowMetadata).length
+        ? workflowMetadata
+        : executionRecord.pending_clarification
+          ? { pending_clarification: recordOf(executionRecord.pending_clarification) }
+          : null,
+      conversation_state: Object.keys(workflowMetadata).length
+        ? text(workflowMetadata.status) || "active"
+        : executionRecord.pending_clarification ? "confirming" : "idle",
     },
     thread_memory_context: contextLayers.threadMemoryContext,
     conversation_context_layers: contextLayers,
@@ -5324,6 +5437,10 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
     referenced_historical_execution: recordOf(response.execution).referenced_execution || null,
     canonical_request_contract: contract,
     resolved_turn: recordOf(response.resolved_turn),
+    resolved_oyi_turn: resolvedOyiTurnMetadata,
+    normalized_turn: normalizedTurnMetadata,
+    workflow: workflowMetadata,
+    action: actionMetadata,
     presentation_policy: recordOf(response.presentation_policy),
     turn_interpretation: turnInterpretation,
   };
@@ -5361,7 +5478,18 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
       user_id: actor?.id || null,
       role: "user",
       content: input.message,
-      metadata: { surface: input.surface, module: input.module || null, conversation_request_id: contract.conversation_request_id, canonical_request_contract: contract, turn_interpretation: turnInterpretation, conversation_context_layers: contextLayers },
+      metadata: {
+        surface: input.surface,
+        module: input.module || null,
+        conversation_request_id: contract.conversation_request_id,
+        canonical_request_contract: contract,
+        normalized_turn: normalizedTurnMetadata,
+        resolved_oyi_turn: resolvedOyiTurnMetadata,
+        workflow: workflowMetadata,
+        action: actionMetadata,
+        turn_interpretation: turnInterpretation,
+        conversation_context_layers: contextLayers,
+      },
       created_at: now,
     } as any);
     if (userWrite.error) throw userWrite.error;
@@ -5391,6 +5519,10 @@ async function persistCanonicalAuthoritativeMessages(actor: AuthUser | null, inp
         conversation_request_id: contract.conversation_request_id,
         canonical_request_contract: contract,
         resolved_turn: recordOf(response.resolved_turn),
+        resolved_oyi_turn: resolvedOyiTurnMetadata,
+        normalized_turn: normalizedTurnMetadata,
+        workflow: workflowMetadata,
+        action: actionMetadata,
         presentation_policy: recordOf(response.presentation_policy),
         warnings: Array.isArray(response.warnings) ? response.warnings : [],
         persistence_saved: true,
@@ -5637,6 +5769,17 @@ async function persistCanonicalShapedAssistantMessage(threadId: string, response
 
 export async function runCanonicalConversation(actor: AuthUser | null, oisContext: OisContext | null | undefined, input: CanonicalConversationRequest): Promise<CanonicalConversationResponse> {
   input = sanitizeConversationInputTargets(input);
+  const normalizedTurn = normalizeUserTurn(input.message);
+  logger.info("oyi_turn_normalized", {
+    request_id: text(recordOf(input.context).request_id) || null,
+    thread_id: input.thread_id || null,
+    domain: normalizedTurn.domain,
+    operation: normalizedTurn.operation,
+    correction_count: normalizedTurn.corrections.length,
+    entity_count: normalizedTurn.entities.length,
+    reference_count: normalizedTurn.references.length,
+    mutation_intent: normalizedTurn.mutation_intent,
+  });
   const threadContext = await loadOyiConversationContext(actor, {
     surface: input.surface,
     estate_id: input.estate_id || oisContext?.estate_id || null,
@@ -6005,6 +6148,64 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
   }
   const requestContract = resolveIntentContract(input, resolved.object, targetResolution as any);
   const turnInterpretation = turnInterpretationFromContract(input, requestContract, targetResolution as any, resolved.source);
+  const resolvedOyiTurn = resolvedOyiTurnFromContract(input, normalizedTurn, requestContract, resolved.object, { targetSource: targetResolution.source || resolved.source });
+  const activeWorkflow = workflowForResolvedTurn(input, normalizedTurn, requestContract, resolved.object, resolvedOyiTurn);
+  const domainCapability = getDomainCapability((resolvedOyiTurn.domain || normalizedTurn.domain || "global") as OyiDomain);
+  const builderForTurn = selectConversationBuilder(requestContract, resolved.object);
+  logger.info("oyi_turn_resolved", {
+    request_id: resolvedOyiTurn.request_id,
+    thread_id: resolvedOyiTurn.thread_id,
+    domain: resolvedOyiTurn.domain,
+    operation: resolvedOyiTurn.operation,
+    capability_key: resolvedOyiTurn.capability_key,
+    target_type: resolvedOyiTurn.target?.object_type || null,
+    target_id: resolvedOyiTurn.target?.canonical_id || null,
+    target_source: resolvedOyiTurn.target_source,
+  });
+  logger.info("oyi_target_authority_decided", {
+    request_id: resolvedOyiTurn.request_id,
+    thread_id: resolvedOyiTurn.thread_id,
+    domain: resolvedOyiTurn.domain,
+    operation: resolvedOyiTurn.operation,
+    authority_result: resolvedOyiTurn.authority.allowed ? "allowed" : "denied",
+    tier: resolvedOyiTurn.authority.tier,
+    approval_required: resolvedOyiTurn.authority.approval_required,
+    secure_review_required: resolvedOyiTurn.authority.secure_review_required,
+  });
+  if (domainCapability) {
+    logger.info("oyi_capability_selected", {
+      request_id: resolvedOyiTurn.request_id,
+      thread_id: resolvedOyiTurn.thread_id,
+      domain: domainCapability.domain,
+      operation: resolvedOyiTurn.operation,
+      capability_key: resolvedOyiTurn.capability_key,
+      builder_key: builderForTurn,
+    });
+  } else {
+    logger.info("oyi_capability_missing", {
+      request_id: resolvedOyiTurn.request_id,
+      thread_id: resolvedOyiTurn.thread_id,
+      domain: resolvedOyiTurn.domain,
+      operation: resolvedOyiTurn.operation,
+      capability_key: resolvedOyiTurn.capability_key,
+    });
+  }
+  logger.info("oyi_workflow_created", {
+    request_id: activeWorkflow.request_id,
+    thread_id: activeWorkflow.thread_id,
+    workflow_id: activeWorkflow.workflow_id,
+    domain: activeWorkflow.domain,
+    operation: activeWorkflow.operation,
+    status: activeWorkflow.status,
+    target_type: activeWorkflow.target?.object_type || null,
+  });
+  logger.info("oyi_presentation_policy_applied", {
+    request_id: resolvedOyiTurn.request_id,
+    thread_id: resolvedOyiTurn.thread_id,
+    domain: resolvedOyiTurn.domain,
+    operation: resolvedOyiTurn.operation,
+    primary: resolvedOyiTurn.presentation_policy.primary,
+  });
   logger.info("conversation_turn_interpreted", {
     request_id: requestContract.conversation_request_id,
     correlation_id: text(recordOf(input.context).correlation_id) || null,
@@ -6165,7 +6366,11 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         module_facts: moduleFacts,
       },
       resolved_turn: resolvedConversationTurnFromContract(input, requestContract, null),
-      execution: {},
+      execution: {
+        normalized_turn: normalizedTurn,
+        resolved_oyi_turn: resolvedOyiTurn,
+        workflow: activeWorkflow,
+      },
       cards: [],
       sources: [],
       suggested_actions: [],
@@ -6232,7 +6437,12 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         request_contract: requestContract,
       },
       resolved_turn: recordOf(shapedCanonical.resolved_turn) as ResolvedConversationTurn,
-      execution: recordOf(shapedCanonical.execution),
+      execution: {
+        ...recordOf(shapedCanonical.execution),
+        normalized_turn: normalizedTurn,
+        resolved_oyi_turn: resolvedOyiTurn,
+        workflow: activeWorkflow,
+      },
       cards: Array.isArray(shapedCanonical.cards) ? shapedCanonical.cards as Array<Record<string, unknown>> : [],
       sources: Array.isArray(shapedCanonical.sources) ? shapedCanonical.sources as Array<Record<string, unknown>> : [],
       suggested_actions: Array.isArray(shapedCanonical.suggested_actions) ? shapedCanonical.suggested_actions as Array<Record<string, unknown>> : [],
@@ -6265,7 +6475,7 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
         reply: answer,
         display_mode: "detail",
         confidence: 0.7,
-        execution: { status: "read_only", current_turn_execution: false },
+        execution: { status: "read_only", current_turn_execution: false, normalized_turn: normalizedTurn, resolved_oyi_turn: resolvedOyiTurn, workflow: activeWorkflow },
         sources: [],
         cards: [],
         suggested_actions: contextualObjectActions(resolved.object, input).filter((action) => recordOf(action).risk !== "control").slice(0, 4),
@@ -6360,7 +6570,12 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
       module_facts: moduleFacts,
     },
     resolved_turn: recordOf(shapedCompatibility.resolved_turn) as ResolvedConversationTurn,
-    execution: recordOf(shapedCompatibility.execution),
+    execution: {
+      ...recordOf(shapedCompatibility.execution),
+      normalized_turn: normalizedTurn,
+      resolved_oyi_turn: resolvedOyiTurn,
+      workflow: activeWorkflow,
+    },
     cards: Array.isArray(shapedCompatibility.cards) ? shapedCompatibility.cards as Array<Record<string, unknown>> : [],
     sources: Array.isArray(shapedCompatibility.sources) ? shapedCompatibility.sources as Array<Record<string, unknown>> : [],
     suggested_actions: Array.isArray(shapedCompatibility.suggested_actions) ? shapedCompatibility.suggested_actions as Array<Record<string, unknown>> : [],
