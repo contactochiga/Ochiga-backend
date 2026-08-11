@@ -47,6 +47,7 @@ export type CanonicalIntent =
   | "wallet_operation"
   | "service_operation"
   | "community_operation"
+  | "message_operation"
   | "notification_operation"
   | "configuration_operation"
   | "general_help"
@@ -190,9 +191,9 @@ const MODULE_DOMAIN_ALIASES: Array<{ domain: string; destination: string; patter
   { domain: "scenes", destination: "scenes.module", pattern: /\b(scenes?)\b/i },
   { domain: "automations", destination: "automations.module", pattern: /\b(automations?|routines?|schedules?)\b/i },
   { domain: "rooms", destination: "rooms.module", pattern: /\b(rooms?|spaces?)\b/i },
-  { domain: "community", destination: "community.module", pattern: /\b(community|announcements?|posts?)\b/i },
+  { domain: "community", destination: "community.module", pattern: /\b(community|announcements?|building announce(?:d)?|management updates?|residents group|posts?)\b/i },
   { domain: "services", destination: "services.module", pattern: /\b(services?|vendors?|providers?)\b/i },
-  { domain: "messages", destination: "messages.module", pattern: /\b(messages?|chat|inbox)\b/i },
+  { domain: "messages", destination: "messages.module", pattern: /\b(messages?|chat|inbox|dm|direct messages?)\b/i },
   { domain: "notifications", destination: "notifications.module", pattern: /\b(notifications?|alerts?)\b/i },
   { domain: "security", destination: "security.module", pattern: /\b(security)\b/i },
   { domain: "utilities", destination: "utilities.module", pattern: /\b(utilities|utility|power|water|internet|gas|electricity)\b/i },
@@ -229,6 +230,8 @@ export function currentTurnExplicitlyGlobal(message: string) {
 export function domainForCurrentTurn(message: string) {
   const lower = text(message).toLowerCase();
   if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair|broken|not working)\b/i.test(lower)) return "maintenance";
+  if (/\b(community|announcements?|building announce(?:d)?|management updates?|residents group|community posts?|post this to the community|tell (?:the )?residents|notify (?:the )?residents)\b/i.test(lower)) return "community";
+  if (/\b(tell me what|what did|what was the last|latest message|unread messages?|reply\b|send a message|message from|direct message|inbox|dm)\b/i.test(lower)) return "messages";
   if (/\b(wallet|balance|dues|payments?|transactions?|histry|history)\b/i.test(lower) && /\b(wallet|transactions?|payments?|balance|dues|histry|history)\b/i.test(lower)) return "wallet";
   if (/\b(utilities|utility|electricity|power|water|internet|gas)\b/i.test(lower)) return "utilities";
   if (/\b(visitors?|visiting|guests?|visitor access|guest access|access pass|gate pass|access code|invite\b|arrived|arrival|came in|come in|allowed in|give .* access|revoke .* access|extend .* access|(?:extend|revoke|cancel|approve|deny|reject)\b[\s\S]{0,24}\bcode)\b/i.test(lower)) return "visitors";
@@ -264,7 +267,7 @@ export function currentTurnAllowsDeviceResolution(message: string, options: {
   if (domain && domain !== "devices") return false;
   if (currentTurnExplicitlyGlobal(message)) return false;
   if (options.roomPhraseFromMessage(message)) return false;
-  if (/\b(wallet|transactions?|utilities|utility|electricity|water|internet|services?|visitors?|maintenance|scenes?|automations?)\b/i.test(lower)) return false;
+  if (/\b(wallet|transactions?|utilities|utility|electricity|water|internet|services?|visitors?|maintenance|messages?|community|announcements?|posts?|scenes?|automations?)\b/i.test(lower)) return false;
   return options.isControlRequest(message)
     || /\b(device|channel|switch|socket|plug|light|lamp|tv|remote|ac|fan)\b/i.test(lower)
     || options.currentTurnReferencesInheritedTarget(message);

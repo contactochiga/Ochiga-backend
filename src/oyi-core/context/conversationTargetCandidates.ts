@@ -7,6 +7,7 @@ import type {
 } from "../runtime/canonicalConversationRuntime";
 import type { IntelligenceRequestContract } from "../interpretation/conversationIntentRouting";
 import type { ConversationObjectCandidate } from "./conversationObjectHydration";
+import { isCommunityMessageThreadRecord } from "../domains/community/communityEvidence";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -116,6 +117,7 @@ const CONVERSATION_CONTAINER_OBJECT_TYPES = new Set([
 export function isConversationContainerObject(value: unknown): boolean {
   const record = recordOf(value);
   const rawType = text(record.object_type || record.type || record.target_type || record.entity_type).toLowerCase();
+  if (isCommunityMessageThreadRecord(record)) return false;
   if (CONVERSATION_CONTAINER_OBJECT_TYPES.has(rawType)) return true;
   const label = text(record.label || record.title || record.name).toLowerCase();
   return Boolean(label) && /^(message thread|conversation thread|chat thread)$/.test(label);
@@ -211,7 +213,7 @@ function routeContextCandidates(contextRecord: Record<string, unknown>): RouteCa
     { object_type: "wallet", id: text(contextRecord.wallet_id || contextRecord.walletId), label: text(contextRecord.wallet_label || contextRecord.wallet_name) || null, source_module: text(contextRecord.module) || "wallet", metadata: {} },
     { object_type: "service_account", id: text(contextRecord.service_id || contextRecord.serviceId || contextRecord.service_account_id || contextRecord.serviceAccountId), label: text(contextRecord.service_label || contextRecord.service_name) || null, source_module: text(contextRecord.module) || "services", metadata: {} },
     { object_type: "notification", id: text(contextRecord.notification_id || contextRecord.notificationId), label: text(contextRecord.notification_title) || null, source_module: text(contextRecord.module) || "notifications", metadata: {} },
-    { object_type: "message_thread", id: text(contextRecord.conversation_id || contextRecord.thread_id || contextRecord.threadId || contextRecord.message_thread_id), label: text(contextRecord.thread_title || contextRecord.conversation_title) || null, source_module: text(contextRecord.module) || "messages", metadata: {} },
+    { object_type: "message_thread", id: text(contextRecord.message_thread_id || contextRecord.messageThreadId || contextRecord.dm_thread_id || contextRecord.dmThreadId || contextRecord.community_thread_id || contextRecord.communityThreadId), label: text(contextRecord.thread_title || contextRecord.message_thread_title || contextRecord.community_thread_title) || null, source_module: text(contextRecord.module) || "messages", metadata: { message_thread_id: text(contextRecord.message_thread_id || contextRecord.messageThreadId || contextRecord.dm_thread_id || contextRecord.dmThreadId || contextRecord.community_thread_id || contextRecord.communityThreadId) } },
     { object_type: "community_post", id: text(contextRecord.post_id || contextRecord.postId || contextRecord.community_post_id), label: text(contextRecord.post_title) || null, source_module: text(contextRecord.module) || "community", metadata: {} },
     { object_type: "camera", id: text(contextRecord.camera_id || contextRecord.cameraId), label: text(contextRecord.camera_name || contextRecord.cameraName) || null, source_module: text(contextRecord.module) || "cameras", metadata: {} },
     { object_type: "infrastructure_asset", id: text(contextRecord.infrastructure_id || contextRecord.infrastructureId || contextRecord.asset_id || contextRecord.assetId), label: text(contextRecord.infrastructure_name || contextRecord.asset_name || contextRecord.assetName) || null, source_module: text(contextRecord.module) || "infrastructure", metadata: {} },

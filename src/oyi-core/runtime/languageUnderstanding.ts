@@ -122,12 +122,12 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\b(security|alarm|alert|gate|access denied|unusual access|incident|front door)\b/i.test(text)) return "security";
   if (/\b(access|unlock|lock|door|pin|card|fingerprint)\b/i.test(text)) return "access";
   if (/\bmaintenance|repair|technician|request|issue|overdue\b/i.test(text)) return "maintenance";
+  if (/\bcommunity|notice|management update|building announce(?:d)?|announcement|residents group|tell (?:the )?residents|notify (?:the )?residents|post|comment\b/i.test(text)) return "community";
+  if (/\bmessage|messages|reply|thread|inbox|security message|tell me what|latest message|direct message|dm\b/i.test(text)) return "messages";
   if (/\butility|utilities|electricity|water|internet|gas|meter|token|tariff|dues|waste|solar|battery\b/i.test(text)) return "utilities";
   if (/\bwallet|balance|fund\b/i.test(text)) return "wallet";
   if (/\btransaction|receipt|ledger|spending|spent|paid\b/i.test(text)) return "transactions";
   if (/\bservice|services|cleaning request|cleaning booking|book cleaning|request a technician\b/i.test(text)) return "services";
-  if (/\bcommunity|notice|management update|post|comment\b/i.test(text)) return "community";
-  if (/\bmessage|messages|reply|thread|inbox|security message\b/i.test(text)) return "messages";
   if (/\bscene|scenes\b/i.test(text)) return "scenes";
   if (/\bautomation|automations|schedule|trigger\b/i.test(text)) return "automations";
   if (/\bcamera|cameras|motion|clip|live view|front-door\b/i.test(text)) return "cameras";

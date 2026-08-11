@@ -119,6 +119,15 @@ import {
   serviceObjectVoice,
   serviceRecommendation,
 } from "../domains/services/serviceConversationAnswers";
+import {
+  communityConfirmationReply,
+  communityContextualActions,
+  buildCommunityReadAnswer,
+  communityObjectProfile,
+  communityObjectVoice,
+  communityRecommendation,
+} from "../domains/community/communityConversationAnswers";
+import { communityRecordsFromContext } from "../domains/community/communityEvidence";
 import { buildSurfaceCapabilityAnswer } from "../policy/surfaceConversationPolicy";
 
 export { resolveContextSourceForTest } from "../context/conversationObjectHydration";
@@ -306,7 +315,7 @@ type CurrentTurnAuthorityDecision = {
   rejectionReason: string | null;
 };
 
-const INHERITABLE_EXACT_TARGET_TYPES = new Set(["device", "device_channel", "maintenance_request", "visitor", "access_pass", "operational_incident", "access_point", "service_account", "meter"]);
+const INHERITABLE_EXACT_TARGET_TYPES = new Set(["device", "device_channel", "maintenance_request", "visitor", "access_pass", "operational_incident", "access_point", "service_account", "meter", "message_thread", "community_post"]);
 
 type PendingClarification = {
   clarification_id: string;
@@ -588,16 +597,8 @@ function objectPersonality(object: OperationalObject) {
       diagnostics: ["trigger", "conditions", "last run", "affected objects"],
       actions: ["enable", "disable", "edit", "show history"],
     },
-    message_thread: {
-      role: "I track this conversation thread, participants, messages, and operational follow-up.",
-      diagnostics: ["participants", "latest message", "status", "linked records"],
-      actions: ["reply", "resolve", "open record"],
-    },
-    community_post: {
-      role: "I track this community item, audience, responses, and follow-up state.",
-      diagnostics: ["audience", "responses", "status"],
-      actions: ["summarize", "reply", "review activity"],
-    },
+    message_thread: communityObjectProfile("message_thread"),
+    community_post: communityObjectProfile("community_post"),
     notification: {
       role: "I track this notification's event, read state, deep link, and evidence.",
       diagnostics: ["event", "delivery", "read state"],
@@ -642,6 +643,9 @@ function objectVoice(object: OperationalObject) {
   };
   if (type === "service_account" || type === "meter") return {
     ...serviceObjectVoice(),
+  };
+  if (type === "message_thread" || type === "community_post") return {
+    ...communityObjectVoice(type),
   };
   if (type === "camera" || type === "access_point" || type === "operational_incident") return {
     ...securityObjectVoice(type),
@@ -944,6 +948,7 @@ function recommendationFor(object: OperationalObject, input: CanonicalConversati
   if (object.object_type === "service_account" || object.object_type === "meter") return serviceRecommendation();
   if (object.object_type === "visitor" || object.object_type === "access_pass") return visitorRecommendation();
   if (object.object_type === "access_point" || object.object_type === "camera" || object.object_type === "operational_incident") return securityRecommendation(object);
+  if (object.object_type === "message_thread" || object.object_type === "community_post") return communityRecommendation(object);
   if (object.object_type === "room" || object.object_type === "zone") return "I recommend checking active devices before changing the whole room.";
   return objectVoice(object).next;
 }
@@ -1060,6 +1065,9 @@ function contextualConfirmationReply(object: OperationalObject, response: Record
   if (object.object_type === "access_point" || object.object_type === "camera" || object.object_type === "operational_incident") {
     return securityConfirmationReply(object, response);
   }
+  if (object.object_type === "message_thread" || object.object_type === "community_post") {
+    return communityConfirmationReply(object, response);
+  }
   return summary ? `${naturalizeUserCopy(summary)} Would you like me to continue?` : `I can do that for ${object.label}. Should I continue?`;
 }
 
@@ -1138,6 +1146,8 @@ function contextualObjectActions(object: OperationalObject, input: CanonicalConv
     actions.push(...securityContextualActions(object));
   } else if (object.object_type === "access_point" || object.object_type === "operational_incident") {
     actions.push(...securityContextualActions(object));
+  } else if (object.object_type === "message_thread" || object.object_type === "community_post") {
+    actions.push(...communityContextualActions(object));
   } else if (object.object_type === "scene") {
     add("Run Scene", "Run this scene", "control");
     add("Devices", "What devices do you control?");
@@ -1174,6 +1184,10 @@ function resolveCurrentTurnAuthorityDecision(input: CanonicalConversationRequest
         ? "security"
       : inheritedType === "service_account" || inheritedType === "meter"
         ? "services"
+      : inheritedType === "message_thread"
+        ? "messages"
+      : inheritedType === "community_post"
+        ? "community"
       : inheritedType === "device" || inheritedType === "device_channel"
         ? "devices"
         : null;
@@ -1412,7 +1426,7 @@ type ConversationOperation =
 type ConversationPresentationPolicy = {
   intent: string;
   operation: string;
-  primary: "sentence" | "text" | "status" | "table" | "summary_card" | "object_card" | "clarification" | "approval" | "navigation_transition" | "handoff" | "error";
+  primary: "sentence" | "text" | "status" | "table" | "summary_card" | "object_card" | "clarification" | "review" | "approval" | "navigation_transition" | "handoff" | "error";
   allowed_supporting_blocks: string[];
   allowed_action_types: string[];
   suppress_awareness: boolean;
@@ -1583,7 +1597,22 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   const serviceActionRequested = serviceTargetContext
     && /\b(book|schedule|request|cancel|reschedule|approve|modify|change|create|submit)\b/i.test(lower)
     && !(/\brequest\b/i.test(lower) && serviceStatusQuestion && !/\b(book|schedule|request a|create|submit|cancel|reschedule|approve|modify|change)\b/i.test(lower));
-  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && !visitorReadRequested && !visitorActionRequested && !securityReadRequested && !securityActionRequested && !serviceReadRequested && !serviceActionRequested && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
+  const messageTargetContext = currentTurnDomain === "messages" || targetType === "message_thread";
+  const communityTargetContext = currentTurnDomain === "community" || targetType === "community_post";
+  const messageReadRequested = messageTargetContext
+    && (/\b(tell me what|what did|what was|latest message|last message|unread|read|show|list|view|summari[sz]e|did anyone reply)\b/i.test(lower)
+      || /\b(message|messages|inbox|thread|dm|direct message)\b/i.test(lower))
+    && !(/\b(send|reply|draft|compose|post|tell)\b/i.test(lower) && !/\btell me\b/i.test(lower));
+  const messageActionRequested = messageTargetContext
+    && /\b(send|reply|draft|compose|message)\b/i.test(lower)
+    && !/\b(tell me what|show|list|view|unread|latest|last message)\b/i.test(lower);
+  const communityReadRequested = communityTargetContext
+    && /\b(what(?: else)? did|what was|show|list|view|latest|announcements?|notices?|management updates?|community|residents group|posts?|summari[sz]e)\b/i.test(lower)
+    && !/\b(send|reply|draft|compose|post this|tell residents|notify residents)\b/i.test(lower);
+  const communityActionRequested = communityTargetContext
+    && /\b(reply|draft|compose|post this|post to|tell (?:the )?residents|notify (?:the )?residents|announce)\b/i.test(lower)
+    && !/\b(tell me what|what(?: else)? did|what was|show|list|view|latest)\b/i.test(lower);
+  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && !visitorReadRequested && !visitorActionRequested && !securityReadRequested && !securityActionRequested && !serviceReadRequested && !serviceActionRequested && !messageReadRequested && !messageActionRequested && !communityReadRequested && !communityActionRequested && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
   const requestedChannel = mutationRequested ? requestedChannelCode(message) : null;
   const semanticOperation = !mutationRequested ? semanticCandidate : null;
   const targetAmbiguous = Boolean(targetResolution.ambiguous);
@@ -1622,6 +1651,18 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     operationClass = "list";
   } else if (serviceActionRequested) {
     intent = "service_operation";
+    operationClass = "compose";
+  } else if (messageReadRequested) {
+    intent = "domain_list";
+    operationClass = "list";
+  } else if (messageActionRequested) {
+    intent = "message_operation";
+    operationClass = "compose";
+  } else if (communityReadRequested) {
+    intent = "domain_list";
+    operationClass = "list";
+  } else if (communityActionRequested) {
+    intent = "community_operation";
     operationClass = "compose";
   } else if (semanticOperation) {
     intent = semanticOperation.intent;
@@ -1746,9 +1787,9 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     : object?.label || text(targetResolution.objectName) || null;
   const semanticBroadTarget = Boolean(semanticOperation && semanticOperation.scopeMode === "home_scope" && semanticOperation.operationClass === "list");
   const domainBroadTarget = Boolean(
-    ["maintenance", "visitors", "security", "services"].includes(currentTurnDomain || "")
+    ["maintenance", "visitors", "security", "services", "messages", "community"].includes(currentTurnDomain || "")
     && ["list", "report"].includes(operationClass)
-    && /\b(all|any|show|list|unresolved|open|expected|pending|alerts?|incidents?|issues?|requests?|services?|bookings?)\b/i.test(lower),
+    && /\b(all|any|show|list|unresolved|open|expected|pending|alerts?|incidents?|issues?|requests?|services?|bookings?|messages?|threads?|announce(?:d)?|announcements?|notices?|community|posts?|residents group)\b/i.test(lower),
   );
   const retainedTargetType = semanticBroadTarget || domainBroadTarget ? null : targetType;
   return {
@@ -2001,7 +2042,7 @@ function scopeForResolvedTurn(contract: IntelligenceRequestContract): ResolvedCo
 
 function domainForResolvedTurn(contract: IntelligenceRequestContract, object: OperationalObject | null, semantic?: ReturnType<typeof semanticOperationAction> | null, message = "") {
   const currentTurnDomain = domainForCurrentTurn(message);
-  if (["maintenance", "visitors", "security", "services"].includes(currentTurnDomain || "")) return currentTurnDomain;
+  if (["maintenance", "visitors", "security", "services", "community", "messages", "notifications"].includes(currentTurnDomain || "")) return currentTurnDomain;
   if (semantic?.operation?.domain) return semantic.operation.domain;
   const module = text(object?.source_module).toLowerCase();
   const targetType = text(contract.target.object_type).toLowerCase();
@@ -2018,6 +2059,9 @@ function domainForResolvedTurn(contract: IntelligenceRequestContract, object: Op
   if (contract.intent === "visitor_operation" || contract.intent === "access_operation") return "visitors";
   if (contract.intent === "security_operation") return "security";
   if (contract.intent === "service_operation") return "services";
+  if (contract.intent === "community_operation") return "community";
+  if (contract.intent === "message_operation") return "messages";
+  if (contract.intent === "notification_operation") return "notifications";
   if (contract.intent === "domain_list") return domainForCurrentTurn(message);
   if (contract.intent === "device_availability_inventory") return "devices";
   return null;
@@ -2033,6 +2077,9 @@ function presentationPolicyForContract(contract: IntelligenceRequestContract): C
   }
   if (contract.operation_class === "execute_mutation" || contract.operation_class === "confirm_mutation") {
     return { ...base, primary: "approval", allowed_supporting_blocks: ["approval", "command_result"], allowed_action_types: ["approval", "cancel"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "collapsed", snapshot_mode: "none", auto_navigation: false };
+  }
+  if ((contract.intent === "message_operation" || contract.intent === "community_operation") && contract.operation_class === "compose") {
+    return { ...base, primary: "review", allowed_supporting_blocks: ["review", "navigation_action"], allowed_action_types: ["edit", "cancel", "approval"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "collapsed", snapshot_mode: "none", auto_navigation: false };
   }
   if (contract.intent === "device_availability_inventory" || contract.intent === "recent_changes" || contract.intent === "activity_history" || contract.intent === "failure_history" || contract.intent === "wallet_operation") {
     return { ...base, primary: "table", allowed_supporting_blocks: ["table", "navigation_action"], allowed_action_types: ["navigation"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "collapsed", snapshot_mode: contract.intent === "device_availability_inventory" ? "current_state_snapshot" : "historical", auto_navigation: false };
@@ -2421,7 +2468,20 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     intent: contract.intent,
     target: contract.target,
   });
-  if (contract.intent === "module_navigation" || contract.intent === "domain_list") {
+  if ((contract.intent === "message_operation" || contract.intent === "community_operation") && contract.operation_class === "compose") {
+    const domain = contract.intent === "message_operation" ? "messages" : "community";
+    answer = domain === "messages"
+      ? "I can prepare a message draft, but I will not send it until you review and confirm it."
+      : "I can prepare a community post or reply draft, but I will not publish it until you review and confirm it.";
+    displayMode = "detail";
+    execution = { status: "review_required", current_turn_execution: false, domain, community_thread_boundary: "oyi_conversation_thread_not_reused" };
+  } else if (contract.intent === "domain_list" && ["community", "messages"].includes(domainForCurrentTurn(input.message) || "")) {
+    const domain = domainForCurrentTurn(input.message) === "messages" ? "messages" : "community";
+    const records = communityRecordsFromContext(object, input);
+    answer = buildCommunityReadAnswer(records, { domain, broad: !contract.target.canonical_id });
+    displayMode = "list";
+    execution = { status: "read_only", current_turn_execution: false, domain, community_thread_boundary: "oyi_conversation_thread_not_reused" };
+  } else if (contract.intent === "module_navigation" || contract.intent === "domain_list") {
     const semantic = semanticOperationAction(input.message, input.surface);
     if (!semantic) return { supported: false, response: {}, facts };
     if (!semantic.allowed) {
