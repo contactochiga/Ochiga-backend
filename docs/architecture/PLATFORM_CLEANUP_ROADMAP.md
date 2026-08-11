@@ -318,3 +318,21 @@ Must not change:
 
 - Runtime semantics except as covered by tests.
 
+## Implementation Progress — 2026-08-11
+
+Completed or in progress on working branches:
+
+- Active Consumer repository ambiguity resolved locally by excluding nested active repositories from the parent workspace without deleting the stale checkout.
+- Phase 1 boundary contract implemented in Backend code with a release smoke.
+- Office extracted into a new private standalone repository and validated independently.
+- Edge cleaned toward an Edge-only runtime and validated independently.
+- Website lead/deployment server routes submit canonical Office CRM intake envelopes while preserving email/fallback behavior.
+- First conversation monolith responsibility extracted into a dedicated presentation module.
+
+Remaining before broad production adoption:
+
+- apply additive Office CRM schema in a controlled environment;
+- wire optional Office material-event publishing into Backend/Oyi Core;
+- continue conversation modularization through focused responsibility migrations;
+- rotate/replace credentials listed in each rotation checklist;
+- run full cross-repository release validation after branch review.

@@ -200,3 +200,14 @@ After extraction:
 - High: Office operational projection tables duplicate canonical Backend concepts.
 - Medium: digital-twin demo routes may be mistaken for active architecture.
 
+## Implementation Update — 2026-08-11
+
+The first extraction pass has been executed on working branches:
+
+- New private Office repository: `contactochiga/ochiga-office`.
+- Office received the CRM/lead-agent runtime, public Office assets, prompt packs, knowledge base, CRM schema, Office validation scripts and Office deployment config.
+- Edge retained camera/runtime scripts, heartbeat/outbox responsibilities, local event normalization and Edge-specific release validation.
+- Edge validation now fails if Office entry points reappear.
+- Office validation now fails if Edge runtime assets reappear.
+
+No Office code should be reintroduced into `oyi-edge-agent`; future Office/Edge interaction should happen through explicit contracts/events, not source imports.

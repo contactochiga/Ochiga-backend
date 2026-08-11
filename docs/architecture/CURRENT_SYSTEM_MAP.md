@@ -111,3 +111,14 @@ Edge/Office has a separate SQL schema in `db/lead-agents-schema.sql`, with:
 
 See `PLATFORM_CLEANUP_ROADMAP.md` for full command results. Core outcome: all safe baseline checks run during this audit passed, with warnings called out rather than hidden.
 
+## Implementation Update — 2026-08-11
+
+Phase 1 boundary contracts are now represented in code by `src/contracts/platformBoundaries.ts` and guarded by `npm run smoke:platform-boundary-contract`.
+
+Current source-of-truth decisions now enforced by contract:
+
+- Ochiga Backend remains canonical for operational/building/platform state, Oyi Core intelligence and the canonical conversation runtime.
+- Ochiga Office is the canonical owner for corporate CRM/commercial intake and relationship state.
+- Oyi Edge Agent is scoped to local building runtime responsibilities: camera/device runtime, heartbeat, outbox, offline/local execution and Backend connectivity.
+- Public website intake targets the Office CRM intake contract; email remains notification/fallback, not the CRM database.
+- Consumer and Facility continue to consume Backend APIs; neither frontend becomes a canonical backend.

@@ -220,3 +220,18 @@ Do not do yet:
 - Remove email.
 - Change website UI during concurrent Claude work.
 
+## Implementation Update — 2026-08-11
+
+Office now exposes a protected canonical CRM intake route:
+
+- `POST /api/office/intake`
+- Authenticated by existing Office API-key/session permission checks.
+- Accepts a canonical envelope with request/idempotency/source/contact/organization/payload/consent/campaign fields.
+- Creates the existing lead record, stores intake metadata, appends an intake timeline activity and returns duplicate-safe responses for repeated idempotency keys.
+
+The Ochiga website server routes now build the same envelope and submit it to Office before sending email notifications:
+
+- `/api/leads`
+- `/api/deployments`
+
+If Office is unavailable, email/fallback handling remains; the website does not need to know the Office database schema.
