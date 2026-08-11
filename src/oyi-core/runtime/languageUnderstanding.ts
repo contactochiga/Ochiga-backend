@@ -116,6 +116,7 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\bwhat can you do\b|\bhelp\b|\bcapabilit/i.test(text)) return "global";
   if (/\bhome|house|everything|what should i check|needs attention|changed today\b/i.test(text)) return "home";
   if (/\b(room|bedroom|living room|kitchen|bathroom|space)\b/i.test(text)) return "rooms";
+  if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair|broken|not working)\b/i.test(text)) return "maintenance";
   if (/\b(device|switch|light|socket|plug|tv|ac|air conditioner|camera status|offline devices|hardware|channel)\b/i.test(text)) return "devices";
   if (/\b(visitor|guest|pass)\b/i.test(text)) return "visitors";
   if (/\b(security|alarm|alert|gate|access denied|unusual access|incident|front door)\b/i.test(text)) return "security";
@@ -124,7 +125,7 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\butility|utilities|electricity|water|internet|gas|meter|token|tariff|dues|waste|solar|battery\b/i.test(text)) return "utilities";
   if (/\bwallet|balance|fund\b/i.test(text)) return "wallet";
   if (/\btransaction|receipt|ledger|spending|spent|paid\b/i.test(text)) return "transactions";
-  if (/\bservice|services\b/i.test(text)) return "services";
+  if (/\bservice|services|cleaning request|cleaning booking|book cleaning|request a technician\b/i.test(text)) return "services";
   if (/\bcommunity|notice|management update|post|comment\b/i.test(text)) return "community";
   if (/\bmessage|messages|reply|thread|inbox|security message\b/i.test(text)) return "messages";
   if (/\bscene|scenes\b/i.test(text)) return "scenes";

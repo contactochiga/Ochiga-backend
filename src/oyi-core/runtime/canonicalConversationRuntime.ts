@@ -112,6 +112,13 @@ import {
   securityRecommendation,
 } from "../domains/security/securityConversationAnswers";
 import { securityRiskAllowed } from "../domains/security/securityEvidence";
+import {
+  serviceConfirmationReply,
+  serviceContextualActions,
+  serviceObjectProfile,
+  serviceObjectVoice,
+  serviceRecommendation,
+} from "../domains/services/serviceConversationAnswers";
 import { buildSurfaceCapabilityAnswer } from "../policy/surfaceConversationPolicy";
 
 export { resolveContextSourceForTest } from "../context/conversationObjectHydration";
@@ -299,7 +306,7 @@ type CurrentTurnAuthorityDecision = {
   rejectionReason: string | null;
 };
 
-const INHERITABLE_EXACT_TARGET_TYPES = new Set(["device", "device_channel", "maintenance_request", "visitor", "access_pass", "operational_incident", "access_point"]);
+const INHERITABLE_EXACT_TARGET_TYPES = new Set(["device", "device_channel", "maintenance_request", "visitor", "access_pass", "operational_incident", "access_point", "service_account", "meter"]);
 
 type PendingClarification = {
   clarification_id: string;
@@ -557,11 +564,7 @@ function objectPersonality(object: OperationalObject) {
       diagnostics: ["payment status", "receipt", "ledger", "confirmation"],
       actions: ["verify", "show receipt", "explain status"],
     },
-    service_account: {
-      role: "I track this service account's provider, tariff, billing, vending readiness, and transactions.",
-      diagnostics: ["tariff", "billing", "provider readiness", "transactions"],
-      actions: ["check vending", "show tariff", "show transactions", "report issue"],
-    },
+    service_account: serviceObjectProfile("service_account"),
     infrastructure_asset: {
       role: "I track this asset's health, dependencies, incidents, services, and operational impact.",
       diagnostics: ["health", "dependencies", "incidents", "affected homes"],
@@ -574,11 +577,7 @@ function objectPersonality(object: OperationalObject) {
       actions: ["show location", "review inspection", "check coverage"],
     },
     camera: securityObjectProfile("camera"),
-    meter: {
-      role: "I track this meter's service binding, readings, tariff context, and settlement evidence.",
-      diagnostics: ["readings", "service", "tariff", "last update"],
-      actions: ["show readings", "check service", "review transactions"],
-    },
+    meter: serviceObjectProfile("meter"),
     scene: {
       role: "I coordinate the devices and conditions attached to this scene.",
       diagnostics: ["included devices", "last run", "failures", "schedule"],
@@ -642,9 +641,7 @@ function objectVoice(object: OperationalObject) {
     ...maintenanceObjectVoice(),
   };
   if (type === "service_account" || type === "meter") return {
-    healthy: "The service record is available.",
-    unavailable: "I can’t verify this service right now.",
-    next: "Would you like tariff, billing, or recent transactions?",
+    ...serviceObjectVoice(),
   };
   if (type === "camera" || type === "access_point" || type === "operational_incident") return {
     ...securityObjectVoice(type),
@@ -944,7 +941,7 @@ function recommendationFor(object: OperationalObject, input: CanonicalConversati
   }
   if (object.object_type === "maintenance_request") return maintenanceRecommendation();
   if (object.object_type === "wallet" || object.object_type === "transaction") return "I recommend checking the receipt or recent transactions next.";
-  if (object.object_type === "service_account" || object.object_type === "meter") return "I recommend checking tariff, billing, and vending readiness next.";
+  if (object.object_type === "service_account" || object.object_type === "meter") return serviceRecommendation();
   if (object.object_type === "visitor" || object.object_type === "access_pass") return visitorRecommendation();
   if (object.object_type === "access_point" || object.object_type === "camera" || object.object_type === "operational_incident") return securityRecommendation(object);
   if (object.object_type === "room" || object.object_type === "zone") return "I recommend checking active devices before changing the whole room.";
@@ -1057,6 +1054,9 @@ function contextualConfirmationReply(object: OperationalObject, response: Record
   if (object.object_type === "maintenance_request") {
     return maintenanceConfirmationReply(object, response);
   }
+  if (object.object_type === "service_account" || object.object_type === "meter") {
+    return serviceConfirmationReply(object, response);
+  }
   if (object.object_type === "access_point" || object.object_type === "camera" || object.object_type === "operational_incident") {
     return securityConfirmationReply(object, response);
   }
@@ -1133,9 +1133,7 @@ function contextualObjectActions(object: OperationalObject, input: CanonicalConv
     add("Receipt", "Show receipt");
     add("History", "Show transactions");
   } else if (object.object_type === "service_account" || object.object_type === "meter") {
-    add("Tariff", "What is my tariff?");
-    add("Vending", "Can I buy electricity?");
-    add("Transactions", "Show the last transaction");
+    actions.push(...serviceContextualActions(object));
   } else if (object.object_type === "camera") {
     actions.push(...securityContextualActions(object));
   } else if (object.object_type === "access_point" || object.object_type === "operational_incident") {
@@ -1174,6 +1172,8 @@ function resolveCurrentTurnAuthorityDecision(input: CanonicalConversationRequest
       ? "maintenance"
       : inheritedType === "operational_incident" || inheritedType === "access_point"
         ? "security"
+      : inheritedType === "service_account" || inheritedType === "meter"
+        ? "services"
       : inheritedType === "device" || inheritedType === "device_channel"
         ? "devices"
         : null;
@@ -1574,7 +1574,16 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     && !/\b(lock|unlock|disable|enable|acknowledge|acknowledged|escalate|assign|resolve|close|turn on|turn off)\b/i.test(lower);
   const securityActionRequested = currentTurnDomain === "security"
     && /\b(lock|unlock|disable|enable|acknowledge|escalate|assign|resolve|close|turn on|turn off)\b/i.test(lower);
-  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && !visitorReadRequested && !visitorActionRequested && !securityReadRequested && !securityActionRequested && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
+  const serviceStatusQuestion = /\b(status|has|is|are|when|what|which|show|list|view|available|active|history|provider|technician|coming)\b/i.test(lower);
+  const serviceTargetContext = currentTurnDomain === "services" || targetType === "service_account" || targetType === "meter";
+  const serviceReadRequested = serviceTargetContext
+    && /\b(what|which|when|show|list|view|status|has|is|are|available|active|requests?|bookings?|scheduled|history|provider|technician|coming)\b/i.test(lower)
+    && !(/\b(book|schedule|request|cancel|reschedule|approve|modify|change|create|submit)\b/i.test(lower)
+      && !(/\brequest\b/i.test(lower) && serviceStatusQuestion && !/\b(book|schedule|request a|create|submit|cancel|reschedule|approve|modify|change)\b/i.test(lower)));
+  const serviceActionRequested = serviceTargetContext
+    && /\b(book|schedule|request|cancel|reschedule|approve|modify|change|create|submit)\b/i.test(lower)
+    && !(/\brequest\b/i.test(lower) && serviceStatusQuestion && !/\b(book|schedule|request a|create|submit|cancel|reschedule|approve|modify|change)\b/i.test(lower));
+  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && !visitorReadRequested && !visitorActionRequested && !securityReadRequested && !securityActionRequested && !serviceReadRequested && !serviceActionRequested && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
   const requestedChannel = mutationRequested ? requestedChannelCode(message) : null;
   const semanticOperation = !mutationRequested ? semanticCandidate : null;
   const targetAmbiguous = Boolean(targetResolution.ambiguous);
@@ -1607,6 +1616,12 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     operationClass = "list";
   } else if (securityActionRequested) {
     intent = "security_operation";
+    operationClass = "compose";
+  } else if (serviceReadRequested) {
+    intent = "domain_list";
+    operationClass = "list";
+  } else if (serviceActionRequested) {
+    intent = "service_operation";
     operationClass = "compose";
   } else if (semanticOperation) {
     intent = semanticOperation.intent;
@@ -1731,9 +1746,9 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     : object?.label || text(targetResolution.objectName) || null;
   const semanticBroadTarget = Boolean(semanticOperation && semanticOperation.scopeMode === "home_scope" && semanticOperation.operationClass === "list");
   const domainBroadTarget = Boolean(
-    ["maintenance", "visitors", "security"].includes(currentTurnDomain || "")
+    ["maintenance", "visitors", "security", "services"].includes(currentTurnDomain || "")
     && ["list", "report"].includes(operationClass)
-    && /\b(all|any|show|list|unresolved|open|expected|pending|alerts?|incidents?|issues?|requests?)\b/i.test(lower),
+    && /\b(all|any|show|list|unresolved|open|expected|pending|alerts?|incidents?|issues?|requests?|services?|bookings?)\b/i.test(lower),
   );
   const retainedTargetType = semanticBroadTarget || domainBroadTarget ? null : targetType;
   return {
@@ -1986,7 +2001,7 @@ function scopeForResolvedTurn(contract: IntelligenceRequestContract): ResolvedCo
 
 function domainForResolvedTurn(contract: IntelligenceRequestContract, object: OperationalObject | null, semantic?: ReturnType<typeof semanticOperationAction> | null, message = "") {
   const currentTurnDomain = domainForCurrentTurn(message);
-  if (currentTurnDomain === "security") return "security";
+  if (["maintenance", "visitors", "security", "services"].includes(currentTurnDomain || "")) return currentTurnDomain;
   if (semantic?.operation?.domain) return semantic.operation.domain;
   const module = text(object?.source_module).toLowerCase();
   const targetType = text(contract.target.object_type).toLowerCase();
@@ -2002,6 +2017,7 @@ function domainForResolvedTurn(contract: IntelligenceRequestContract, object: Op
   if (contract.intent === "maintenance_operation") return "maintenance";
   if (contract.intent === "visitor_operation" || contract.intent === "access_operation") return "visitors";
   if (contract.intent === "security_operation") return "security";
+  if (contract.intent === "service_operation") return "services";
   if (contract.intent === "domain_list") return domainForCurrentTurn(message);
   if (contract.intent === "device_availability_inventory") return "devices";
   return null;

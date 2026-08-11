@@ -249,6 +249,7 @@
     "smoke:maintenance-domain-extraction": "npm run build && node scripts/maintenance-domain-extraction-smoke.mjs",
     "smoke:visitor-domain-extraction": "npm run build && node scripts/visitor-domain-extraction-smoke.mjs",
     "smoke:security-domain-extraction": "npm run build && node scripts/security-domain-extraction-smoke.mjs",
+    "smoke:service-domain-extraction": "npm run build && node scripts/service-domain-extraction-smoke.mjs",
     "smoke:domain-specific-unavailable-responses": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
     "smoke:resident-device-projection-quality": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
     "smoke:time-and-snapshot-standard": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
