@@ -4,9 +4,10 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
 import { runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
 import type { AuthUser } from "../middleware/auth";
-import type { CorporateOyiCoreRequest } from "../contracts/corporateIntelligence";
+import type { CorporateBusinessUnit, CorporateOyiCoreRequest, OfficeInternalOyiCoreRequest } from "../contracts/corporateIntelligence";
 import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLICY } from "../contracts/corporateIntelligence";
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
+import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
 
 const router = Router();
 
@@ -103,6 +104,62 @@ const publicCorporateActor: AuthUser = {
   permissions: [],
   permission_scopes: [],
 };
+
+function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInternalOyiCoreRequest {
+  const staff = recordOf(body.staff);
+  const page = recordOf(body.page_context);
+  const crm = recordOf(body.crm_context);
+  const portfolio = recordOf(body.portfolio_context);
+  const support = recordOf(body.support_context);
+  return {
+    request_id: safeText(body.request_id, requestId),
+    message: safeText(body.message),
+    office_session_id: safeText(body.office_session_id || body.session_id, `office_session_${requestId}`),
+    conversation_thread_id: safeText(body.conversation_thread_id || body.thread_id) || null,
+    staff: {
+      staff_id: safeText(staff.staff_id || staff.id) || null,
+      email: safeText(staff.email) || null,
+      role: safeText(staff.role, "ochiga_staff"),
+      permissions: Array.isArray(staff.permissions) ? staff.permissions.map((item: any) => safeText(item)).filter(Boolean) : [],
+    },
+    page_context: {
+      page: safeText(page.page || body.page) || null,
+      selected_type: safeText(page.selected_type || body.selected_type) || null,
+      selected_id: safeText(page.selected_id || body.selected_id) || null,
+    },
+    business_unit: safeText(body.business_unit, "corporate") as CorporateBusinessUnit,
+    capability_context: Array.isArray(body.capability_context) ? body.capability_context.map((item: any) => safeText(item)).filter(Boolean) : [],
+    crm_context: Object.keys(crm).length ? {
+      contact_ref: safeText(crm.contact_ref) || null,
+      organization_ref: safeText(crm.organization_ref) || null,
+      lead_ref: safeText(crm.lead_ref) || null,
+      opportunity_ref: safeText(crm.opportunity_ref) || null,
+      safe_summary: safeText(crm.safe_summary).slice(0, 800) || null,
+    } : null,
+    portfolio_context: Object.keys(portfolio).length ? {
+      portfolio_ref: safeText(portfolio.portfolio_ref) || null,
+      backend_building_ref: safeText(portfolio.backend_building_ref) || null,
+      safe_summary: safeText(portfolio.safe_summary).slice(0, 800) || null,
+    } : null,
+    support_context: Object.keys(support).length ? {
+      support_case_ref: safeText(support.support_case_ref) || null,
+      safe_summary: safeText(support.safe_summary).slice(0, 800) || null,
+    } : null,
+    requested_capability: safeText(body.requested_capability) || null,
+    knowledge_context: knowledgeContext(body.knowledge_context),
+    metadata: recordOf(body.metadata),
+  };
+}
+
+function officeInternalActor(request: OfficeInternalOyiCoreRequest): AuthUser {
+  return {
+    id: request.staff.staff_id || `office-staff-${request.request_id}`,
+    email: request.staff.email || "office-internal@ochiga.local",
+    role: "ochiga_staff" as any,
+    permissions: request.staff.permissions,
+    permission_scopes: request.staff.permissions,
+  };
+}
 
 function toNumber(value: any, fallback = 0) {
   const numeric = Number(value);
@@ -278,6 +335,89 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
       thread_id: response.conversation_thread_id,
       business_unit: response.business_unit,
       agent_role: response.recommended_agent_role,
+      tool_proposal_count: response.tool_proposals.length,
+    },
+    req,
+  });
+  return res.status(200).json(response);
+});
+
+router.post("/conversation/internal", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const requestId = safeText(req.headers["x-request-id"], crypto.randomUUID());
+  const internalRequest = normalizeOfficeInternalRequest(req.body || {}, requestId);
+  if (!internalRequest.message) {
+    return res.status(400).json({ ok: false, error: "message is required", request_id: requestId });
+  }
+  if (deniedOfficeInternalOperationalRequest({ message: internalRequest.message, permissions: internalRequest.staff.permissions })) {
+    void emitAuditEvent({
+      actorId: internalRequest.staff.staff_id || "office-internal",
+      actorRole: internalRequest.staff.role,
+      action: "office.internal_conversation.denied",
+      resourceType: "office_session",
+      resourceId: internalRequest.office_session_id,
+      status: "denied",
+      metadata: { request_id: requestId, reason: "operational_action_requires_facility_or_consumer_authorization" },
+      req,
+    });
+    return res.status(403).json({
+      ok: false,
+      error: "office_internal_operational_capability_blocked",
+      request_id: requestId,
+      office_session_id: internalRequest.office_session_id,
+      message: "Office Internal intelligence cannot bypass Facility or Consumer operational authorization for deep building actions.",
+    });
+  }
+
+  const actor = officeInternalActor(internalRequest);
+  const canonical = await runCanonicalConversation(actor, {
+    surface: "office_internal" as any,
+    estate_id: null,
+    home_id: null,
+    module: "office_internal",
+    role: internalRequest.staff.role,
+  } as any, {
+    message: internalRequest.message,
+    surface: "office_internal" as any,
+    role: internalRequest.staff.role,
+    module: "office_internal",
+    thread_id: internalRequest.conversation_thread_id,
+    context: {
+      request_id: internalRequest.request_id,
+      office_session_id: internalRequest.office_session_id,
+      staff: internalRequest.staff,
+      page_context: internalRequest.page_context,
+      business_unit: internalRequest.business_unit,
+      crm_context: internalRequest.crm_context,
+      portfolio_context: internalRequest.portfolio_context,
+      support_context: internalRequest.support_context,
+      contract_version: CORPORATE_INTELLIGENCE_CONTRACT_VERSION,
+    },
+    conversation_context: {
+      office_session_id: internalRequest.office_session_id,
+      business_unit: internalRequest.business_unit,
+      selected_type: internalRequest.page_context.selected_type,
+      selected_id: internalRequest.page_context.selected_id,
+      crm_safe_summary: internalRequest.crm_context?.safe_summary || null,
+      portfolio_safe_summary: internalRequest.portfolio_context?.safe_summary || null,
+      support_safe_summary: internalRequest.support_context?.safe_summary || null,
+    },
+    intent_hint: "office_internal_conversation",
+    operation_class_hint: "read",
+    scope_mode_hint: "global",
+  } as any);
+  const response = buildOfficeInternalResponse(internalRequest, canonical);
+  void emitAuditEvent({
+    actorId: actor.id,
+    actorRole: internalRequest.staff.role,
+    action: "office.internal_conversation.completed",
+    resourceType: "office_session",
+    resourceId: internalRequest.office_session_id,
+    status: "success",
+    metadata: {
+      request_id: requestId,
+      thread_id: response.conversation_thread_id,
+      business_unit: response.business_domain,
+      attention_signal: response.attention_signal,
       tool_proposal_count: response.tool_proposals.length,
     },
     req,

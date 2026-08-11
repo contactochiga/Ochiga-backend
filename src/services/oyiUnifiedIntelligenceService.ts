@@ -22,7 +22,7 @@ import { oyiCoreRuntime } from "../oyi-core/service";
 // This service stays in place only to preserve older /oyi/awareness and
 // /oyi/chat payload contracts while the remaining clients complete cutover.
 
-export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge" | "public_corporate";
+export type OyiSurface = "consumer" | "facility" | "office" | "watch" | "edge" | "public_corporate" | "office_internal";
 export type AwarenessSeverity = "normal" | "info" | "attention" | "warning" | "critical";
 
 export type OyiChatInput = {
@@ -129,7 +129,7 @@ type CompatibilityChatResponse = {
   awareness?: AwarenessResult;
 };
 
-const SURFACES: OyiSurface[] = ["consumer", "facility", "office", "watch", "edge", "public_corporate"];
+const SURFACES: OyiSurface[] = ["consumer", "facility", "office", "watch", "edge", "public_corporate", "office_internal"];
 const SUMMARY_BY_SURFACE: Record<OyiSurface, IntelligenceSummaryType> = {
   consumer: "consumer",
   facility: "facility",
@@ -137,6 +137,7 @@ const SUMMARY_BY_SURFACE: Record<OyiSurface, IntelligenceSummaryType> = {
   watch: "watch",
   edge: "edge",
   public_corporate: "office",
+  office_internal: "office",
 };
 
 const ROUTES: Record<string, Record<string, string>> = {

@@ -103,9 +103,11 @@ export type CorporateOyiCoreRequest = {
   engagement_mode: PublicIntelligenceMode;
   handoff_state: PublicCorporateSession["handoff_state"];
   requested_capability: PublicCorporateCapability | null;
-  knowledge_context: Array<{ id: string; title: string; excerpt: string; source: string }>;
+  knowledge_context: CorporateKnowledgeReference[];
   metadata: Record<string, unknown>;
 };
+
+export type CorporateKnowledgeReference = { id: string; title: string; excerpt: string; source: string };
 
 export type CorporateCommercialSignal =
   | "none"
@@ -116,7 +118,8 @@ export type CorporateCommercialSignal =
   | "handoff";
 
 export type CorporateToolProposal = {
-  tool: "crm.update_journey" | "crm.create_or_update_lead" | "crm.create_opportunity" | "office.create_followup_task" | "office.request_handoff";
+  proposal_id?: string;
+  tool: "crm.update_journey" | "crm.create_or_update_lead" | "crm.create_opportunity" | "office.create_followup_task" | "office.prepare_commercial_document" | "office.request_handoff";
   governance: "office_validates_before_execution";
   reason: string;
   parameters: Record<string, unknown>;
@@ -331,3 +334,60 @@ export function assertOpaquePublicReference(ref: string | null | undefined) {
   if (/^(lead|contact|opportunity|crm|form)-[a-z0-9_-]+$/i.test(value)) return false;
   return /^pubctx_[a-z0-9_-]{12,}$/i.test(value);
 }
+
+export type OfficeInternalOyiCoreRequest = {
+  request_id: string;
+  message: string;
+  office_session_id: string;
+  conversation_thread_id: string | null;
+  staff: {
+    staff_id: string | null;
+    email: string | null;
+    role: string;
+    permissions: string[];
+  };
+  page_context: {
+    page: string | null;
+    selected_type: string | null;
+    selected_id: string | null;
+  };
+  business_unit: CorporateBusinessUnit;
+  capability_context: string[];
+  crm_context: {
+    contact_ref: string | null;
+    organization_ref: string | null;
+    lead_ref: string | null;
+    opportunity_ref: string | null;
+    safe_summary: string | null;
+  } | null;
+  portfolio_context: {
+    portfolio_ref: string | null;
+    backend_building_ref: string | null;
+    safe_summary: string | null;
+  } | null;
+  support_context: {
+    support_case_ref: string | null;
+    safe_summary: string | null;
+  } | null;
+  requested_capability: string | null;
+  knowledge_context: CorporateKnowledgeReference[];
+  metadata: Record<string, unknown>;
+};
+
+export type OfficeInternalOyiCoreResponse = {
+  ok: true;
+  contract_version: typeof CORPORATE_INTELLIGENCE_CONTRACT_VERSION;
+  source: "oyi_core";
+  surface: "office_internal";
+  request_id: string;
+  office_session_id: string;
+  conversation_thread_id: string;
+  answer: string;
+  understood_intent: string;
+  business_domain: CorporateBusinessUnit;
+  suggested_next_action: string | null;
+  attention_signal: "none" | "follow_up" | "support" | "project" | "portfolio" | "private" | "partnership" | "handoff";
+  tool_proposals: CorporateToolProposal[];
+  knowledge_references: CorporateKnowledgeReference[];
+  safe_metadata: Record<string, unknown>;
+};
