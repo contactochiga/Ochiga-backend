@@ -327,7 +327,8 @@ Completed or in progress on working branches:
 - Office extracted into a new private standalone repository and validated independently.
 - Edge cleaned toward an Edge-only runtime and validated independently.
 - Website lead/deployment server routes submit canonical Office CRM intake envelopes while preserving email/fallback behavior.
-- First conversation monolith responsibility extracted into a dedicated presentation module.
+- Conversation monolith responsibilities for time/freshness labels and structured answer/table presentation extracted into dedicated presentation modules.
+- Office deployment cutover is prepared with a deployment config validator and approval-gated cutover plan.
 
 Remaining before broad production adoption:
 

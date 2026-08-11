@@ -183,12 +183,12 @@ Do not move files into this shape in one jump. Use adapters and strangler migrat
 The first behavior extraction has started without introducing a second runtime:
 
 - Presentation time/freshness helpers moved from `src/oyi-core/runtime/canonicalConversationRuntime.ts` into `src/oyi-core/presentation/timeFreshness.ts`.
-- `canonicalConversationRuntime.ts` now delegates that responsibility and dropped from 6,651 lines at audit time to 6,613 lines after the extraction.
+- Structured answer/table presentation helpers moved into `src/oyi-core/presentation/conversationAnswerPresentation.ts`.
+- `canonicalConversationRuntime.ts` now delegates those responsibilities and dropped from 6,651 lines at audit time to 6,262 lines after the extraction.
 - The new platform boundary contract records that conversation remains a Backend-owned canonical runtime while responsibilities migrate into modules.
 
 Next safe conversation extractions should target:
 
-- presentation policy/block construction;
 - destination/navigation mapping;
 - clarification/workflow persistence helpers;
 - domain capability selection;

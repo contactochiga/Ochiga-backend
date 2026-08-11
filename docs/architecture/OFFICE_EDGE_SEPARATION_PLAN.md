@@ -209,5 +209,6 @@ The first extraction pass has been executed on working branches:
 - Edge retained camera/runtime scripts, heartbeat/outbox responsibilities, local event normalization and Edge-specific release validation.
 - Edge validation now fails if Office entry points reappear.
 - Office validation now fails if Edge runtime assets reappear.
+- Office deployment config validation now verifies the standalone Office start command, fail-closed API-key auth, protected secret configuration and intake route registration.
 
 No Office code should be reintroduced into `oyi-edge-agent`; future Office/Edge interaction should happen through explicit contracts/events, not source imports.
