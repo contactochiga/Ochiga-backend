@@ -85,6 +85,15 @@ import {
   loadLatestCommandFact,
   loadRecentDeviceChangeFacts as loadRecentChangeFacts,
 } from "../domains/devices/deviceEvidence";
+import {
+  maintenanceConfirmationReply,
+  maintenanceContextualActions,
+  maintenanceLinkedIssueSummary,
+  maintenanceObjectProfile,
+  maintenanceObjectVoice,
+  maintenanceRecommendation,
+} from "../domains/maintenance/maintenanceConversationAnswers";
+import { unresolvedMaintenanceRecordsForContext } from "../domains/maintenance/maintenanceEvidence";
 import { buildUtilitySpendingAnswer } from "../domains/utilities/utilityConversationAnswers";
 import { loadUtilitySpendingFacts } from "../domains/utilities/utilityEvidence";
 import { loadWalletTransactionFacts } from "../domains/wallet/walletEvidence";
@@ -274,6 +283,8 @@ type CurrentTurnAuthorityDecision = {
   mayUseInheritedExactTarget: boolean;
   rejectionReason: string | null;
 };
+
+const INHERITABLE_EXACT_TARGET_TYPES = new Set(["device", "device_channel", "maintenance_request"]);
 
 type PendingClarification = {
   clarification_id: string;
@@ -528,11 +539,7 @@ function objectPersonality(object: OperationalObject) {
       diagnostics: ["validity", "usage", "holder", "security"],
       actions: ["extend", "cancel", "review usage"],
     },
-    maintenance_request: {
-      role: "I track this maintenance request through issue, assignee, delay, escalation, and closure.",
-      diagnostics: ["status", "assignee", "delay", "related incidents"],
-      actions: ["assign", "escalate", "review history", "close"],
-    },
+    maintenance_request: maintenanceObjectProfile(),
     wallet: {
       role: "I track this wallet's balance, funding, charges, receipts, and payment safety.",
       diagnostics: ["balance", "last payment", "receipts", "outstanding charges"],
@@ -639,9 +646,7 @@ function objectVoice(object: OperationalObject) {
     next: "Would you like access history or the current pass status?",
   };
   if (type === "maintenance_request") return {
-    healthy: "The request is still trackable.",
-    unavailable: "I can’t verify the maintenance record right now.",
-    next: "Would you like the assignee, history, or escalation options?",
+    ...maintenanceObjectVoice(),
   };
   if (type === "service_account" || type === "meter") return {
     healthy: "The service record is available.",
@@ -872,12 +877,6 @@ function spatialAreaAggregation(input: CanonicalConversationRequest, object: Ope
   const rooms = Array.isArray(relationships.rooms) ? relationships.rooms.map(recordOf) : [];
   const devices = Array.isArray(relationships.devices) ? relationships.devices.map(recordOf) : [];
   const cameras = Array.isArray(relationships.cameras) ? relationships.cameras.map(recordOf) : [];
-  const maintenanceSource = Array.isArray(relationships.maintenance_requests)
-    ? relationships.maintenance_requests
-    : Array.isArray(relationships.maintenance)
-      ? relationships.maintenance
-      : [];
-  const maintenance = maintenanceSource.map(recordOf);
 
   if (/occupied/.test(message)) {
     const occupied = rooms.filter((room) => /occupied|active|present/i.test(text(room.occupancy || room.status || room.state)));
@@ -895,9 +894,8 @@ function spatialAreaAggregation(input: CanonicalConversationRequest, object: Ope
     return `I don’t see confirmed offline areas in ${object.label}.`;
   }
   if (/maintenance|unresolved|fault|issue/.test(message)) {
-    const unresolved = maintenance.filter((item) => !/closed|resolved|completed/i.test(text(item.status)));
-    if (unresolved.length) return `${unresolved.length} unresolved ${unresolved.length === 1 ? "maintenance item is" : "maintenance items are"} linked to ${object.label}.`;
-    return `I don’t see unresolved maintenance linked to ${object.label}.`;
+    const unresolved = unresolvedMaintenanceRecordsForContext(object, input);
+    return maintenanceLinkedIssueSummary(object, unresolved.length);
   }
   return "";
 }
@@ -953,7 +951,7 @@ function recommendationFor(object: OperationalObject, input: CanonicalConversati
   if ((object.object_type === "device" || object.object_type === "device_channel") && /\b(off|inactive)\b/.test(state)) {
     return "Would you like to check health, view history, or create a schedule?";
   }
-  if (object.object_type === "maintenance_request") return "I recommend checking the assignee and escalation path next.";
+  if (object.object_type === "maintenance_request") return maintenanceRecommendation();
   if (object.object_type === "wallet" || object.object_type === "transaction") return "I recommend checking the receipt or recent transactions next.";
   if (object.object_type === "service_account" || object.object_type === "meter") return "I recommend checking tariff, billing, and vending readiness next.";
   if (object.object_type === "visitor" || object.object_type === "access_pass") return "I recommend reviewing access history before making changes.";
@@ -1067,9 +1065,7 @@ function contextualConfirmationReply(object: OperationalObject, response: Record
       : `This changes access for ${object.label}. Should I continue?`;
   }
   if (object.object_type === "maintenance_request") {
-    return summary
-      ? `${naturalizeUserCopy(summary)} Should I update this request?`
-      : `This will update ${object.label}. Should I continue?`;
+    return maintenanceConfirmationReply(object, response);
   }
   return summary ? `${naturalizeUserCopy(summary)} Would you like me to continue?` : `I can do that for ${object.label}. Should I continue?`;
 }
@@ -1141,10 +1137,7 @@ function contextualObjectActions(object: OperationalObject, input: CanonicalConv
     add("Extend", "Extend access by 30 minutes", "approval");
     add("History", "Has this visitor been here before?");
   } else if (object.object_type === "maintenance_request") {
-    add("Status", "Why is this delayed?");
-    add("Assignee", "Who is handling it?");
-    add("Escalate", "Escalate it", "approval");
-    add("History", "Show history");
+    actions.push(...maintenanceContextualActions(object));
   } else if (object.object_type === "wallet" || object.object_type === "transaction") {
     add("Status", object.object_type === "transaction" ? "Did this payment enter?" : "Show balance");
     add("Receipt", "Show receipt");
@@ -1189,7 +1182,7 @@ function resolveCurrentTurnAuthorityDecision(input: CanonicalConversationRequest
   const hasBlockingCurrentTurnSemantics = Boolean(options.broadReadOnlyDeviceIntent || explicitRoomPhrase || options.semanticOperation || currentTurnExplicitlyGlobal(message) || (domain && domain !== "devices"));
   const mayUseInheritedExactTarget = Boolean(
     inherited
-      && ["device", "device_channel"].includes(inherited.object_type)
+      && INHERITABLE_EXACT_TARGET_TYPES.has(inherited.object_type)
       && !hasBlockingCurrentTurnSemantics
       && (currentTurnReferencesInheritedTarget(message) || explicitChannelReplacement),
   );
@@ -1361,7 +1354,7 @@ function buildClarificationContinuationResponse(input: CanonicalConversationRequ
 }
 
 function canInheritedExactTargetSatisfyCurrentTurn(input: CanonicalConversationRequest, inherited: ObjectCandidate | null, options: { roomPhrase: string; broadReadOnlyDeviceIntent: boolean; semanticOperation: ReturnType<typeof interpretSemanticOperation> | null }) {
-  if (!inherited || !["device", "device_channel"].includes(inherited.object_type)) return false;
+  if (!inherited || !INHERITABLE_EXACT_TARGET_TYPES.has(inherited.object_type)) return false;
   const authority = resolveCurrentTurnAuthorityDecision(input, inherited, options);
   if (!authority.mayUseInheritedExactTarget) return false;
   const message = text(input.message);
@@ -1564,7 +1557,13 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   const parsedChannel = targetType === "device_channel" ? parseDeviceChannelIdentity(targetId) : { parent_id: null, channel_code: null };
   const explicitBroad = isExplicitBroadHomeReadIntent(message, scopeHint) || /\b(whole home|all devices|everything|home summary|home report|show offline)\b/i.test(lower);
   const semanticCandidate = interpretSemanticOperation(message);
-  const mutationRequested = !semanticCandidate && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
+  const currentTurnDomain = domainForCurrentTurn(message);
+  const maintenanceReadRequested = currentTurnDomain === "maintenance"
+    && /\b(what|show|list|view|status|has|who|history|open|closed|resolved|overdue|issues?|requests?|tickets?)\b/i.test(lower)
+    && !/\b(create|report|raise|log|assign|escalate|close|cancel|reopen|update)\b/i.test(lower);
+  const maintenanceActionRequested = currentTurnDomain === "maintenance"
+    && /\b(create|report|raise|log|assign|escalate|close|cancel|reopen|update)\b/i.test(lower);
+  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
   const requestedChannel = mutationRequested ? requestedChannelCode(message) : null;
   const semanticOperation = !mutationRequested ? semanticCandidate : null;
   const targetAmbiguous = Boolean(targetResolution.ambiguous);
@@ -1583,6 +1582,12 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   } else if (semanticOperation) {
     intent = semanticOperation.intent;
     operationClass = semanticOperation.operationClass;
+  } else if (maintenanceReadRequested) {
+    intent = "domain_list";
+    operationClass = "list";
+  } else if (maintenanceActionRequested) {
+    intent = "maintenance_operation";
+    operationClass = "compose";
   } else if (["activity_history", "failure_history", "diagnosis", "relationships", "evidence", "current_state", "health_check", "command_outcome", "capability", "device_availability_inventory", "home_operational_summary"].includes(hint)) {
     intent = hint as CanonicalIntent;
     operationClass = "read";
@@ -1959,7 +1964,7 @@ function scopeForResolvedTurn(contract: IntelligenceRequestContract): ResolvedCo
   return "home";
 }
 
-function domainForResolvedTurn(contract: IntelligenceRequestContract, object: OperationalObject | null, semantic?: ReturnType<typeof semanticOperationAction> | null) {
+function domainForResolvedTurn(contract: IntelligenceRequestContract, object: OperationalObject | null, semantic?: ReturnType<typeof semanticOperationAction> | null, message = "") {
   if (semantic?.operation?.domain) return semantic.operation.domain;
   const module = text(object?.source_module).toLowerCase();
   if (module) return module;
@@ -1972,6 +1977,8 @@ function domainForResolvedTurn(contract: IntelligenceRequestContract, object: Op
   if (/incident/.test(targetType)) return "incidents";
   if (contract.intent === "wallet_operation" && contract.answer_builder === "utility_spending") return "utilities";
   if (contract.intent === "wallet_operation") return "wallet";
+  if (contract.intent === "maintenance_operation") return "maintenance";
+  if (contract.intent === "domain_list") return domainForCurrentTurn(message);
   if (contract.intent === "device_availability_inventory") return "devices";
   return null;
 }
@@ -2114,7 +2121,7 @@ function resolvedConversationTurnFromContract(input: CanonicalConversationReques
     intent: contract.intent,
     operation,
     scope: destination && contract.operation_class === "navigate" && semantic?.operation.destination.mode === "detail" ? "room" : scopeForResolvedTurn(contract),
-    domain: domainForResolvedTurn(contract, object, semantic),
+    domain: domainForResolvedTurn(contract, object, semantic, input.message),
     object: contract.target.canonical_id && contract.target.object_type ? {
       type: contract.target.object_type,
       id: contract.target.canonical_id,
