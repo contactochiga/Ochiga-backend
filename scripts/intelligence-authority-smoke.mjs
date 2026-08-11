@@ -14,6 +14,8 @@ const utilityAnswers = read("src/oyi-core/domains/utilities/utilityConversationA
 const utilityEvidence = read("src/oyi-core/domains/utilities/utilityEvidence.ts");
 const walletEvidence = read("src/oyi-core/domains/wallet/walletEvidence.ts");
 const securityEvidence = read("src/oyi-core/domains/security/securityEvidence.ts");
+const reportAnswers = read("src/oyi-core/domains/reports/reportConversationAnswers.ts");
+const reportEvidence = read("src/oyi-core/domains/reports/reportEvidence.ts");
 const surfacePolicy = read("src/oyi-core/policy/surfaceConversationPolicy.ts");
 const timeFreshness = read("src/oyi-core/presentation/timeFreshness.ts");
 const answerPresentation = read("src/oyi-core/presentation/conversationAnswerPresentation.ts");
@@ -89,10 +91,12 @@ check("internal compatibility language is filtered from final user copy", () => 
 
 check("report builder exposes deterministic report sections", () => {
   assert.match(runtime, /canonicalReportAnswerForTest/);
-  assert.match(answerPresentation, /Period:/);
-  assert.match(answerPresentation, /Summary:/);
-  assert.match(answerPresentation, /Unresolved items:/);
-  assert.match(answerPresentation, /Limitations:/);
+  assert.match(reportAnswers, /Period:/);
+  assert.match(reportAnswers, /Summary:/);
+  assert.match(reportAnswers, /Unresolved items:/);
+  assert.match(reportAnswers, /Limitations:/);
+  assert.match(reportEvidence, /loadReportEvidence/);
+  assert.doesNotMatch(answerPresentation, /export function buildReportAnswer/);
 });
 
 check("single authoritative persistence is canonical for supported builders", () => {

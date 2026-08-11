@@ -1,6 +1,5 @@
 import type {
   IntelligenceFact,
-  OperationalObject,
 } from "../runtime/canonicalConversationRuntime";
 import type { IntelligenceRequestContract } from "../interpretation/conversationIntentRouting";
 import { utilitySpendingRows } from "../domains/utilities/utilityConversationAnswers";
@@ -203,20 +202,6 @@ export function buildCommandOutcomeAnswer(command: Record<string, unknown> | nul
   }
   if (/accepted|dispatching|awaiting/.test(status)) return `The controller accepted the ${target} command, but Oyi has not yet confirmed the resulting device state.`;
   return `${target} command was recorded, but Oyi has not confirmed a resulting device-state change.`;
-}
-
-export function buildReportAnswer(facts: IntelligenceFact[], object: OperationalObject | null, contract: IntelligenceRequestContract) {
-  const changes = facts.slice(0, 6);
-  const title = object ? `${object.label} report` : contract.scope_mode === "building_scope" ? "Building operational report" : "Home operational report";
-  const unresolved = facts.filter((fact) => /failed|unavailable|warning|critical|timeout|denied/i.test(`${fact.statement} ${JSON.stringify(fact.value)}`));
-  return [
-    `${title}`,
-    `Period: ${contract.temporal_scope.from || "current"} to ${contract.temporal_scope.to || new Date().toISOString()}.`,
-    `Summary: ${changes.length ? `${changes.length} meaningful evidence item${changes.length === 1 ? "" : "s"} found.` : "No meaningful changes found."}`,
-    `Unresolved items: ${unresolved.length}.`,
-    changes.length ? `Key changes:\n${changes.map((fact) => `• ${fact.statement}`).join("\n")}` : "Key changes: none recorded.",
-    "Limitations: Oyi reports only authorised records and does not infer physical appliance effects without separate sensing.",
-  ].join("\n");
 }
 
 export function buildDeviceAvailabilityInventoryAnswer(facts: IntelligenceFact[], contract?: IntelligenceRequestContract, message = "") {

@@ -21,7 +21,7 @@ function check(name, fn) {
 const healthBuilder = deviceAnswers.match(/function buildDeviceHealthAnswer[\s\S]*?export function buildDeviceFailureHistoryAnswer/)?.[0] || "";
 const activityBuilder = deviceEvidence.match(/function loadRecentDeviceChangeFacts[\s\S]*?export async function loadLatestCommandFact/)?.[0] || "";
 const relationshipBuilder = deviceAnswers.match(/function buildDeviceRelationshipsAnswer[\s\S]*?export function buildDeviceControlProposal/)?.[0] || "";
-const commandBuilder = answerPresentation.match(/function buildCommandOutcomeAnswer[\s\S]*?export function buildReportAnswer/)?.[0] || "";
+const commandBuilder = answerPresentation.match(/function buildCommandOutcomeAnswer[\s\S]*?export function buildDeviceAvailabilityInventoryAnswer/)?.[0] || "";
 
 check("stale evidence cannot produce unqualified current health", () => {
   assert.match(deviceEvidence, /truthFromFreshness/);

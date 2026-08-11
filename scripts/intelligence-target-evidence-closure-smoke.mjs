@@ -32,7 +32,7 @@ function check(name, fn) {
 const runConversation = section("run", runtime, "export async function runCanonicalConversation", "export function adaptCanonicalToCompatibilityChat");
 const contractBuilder = section("contract", runtime, "function resolveIntentContract", "function currentScope");
 const activityBuilder = section("activity", deviceEvidence, "function loadRecentDeviceChangeFacts", "export async function loadLatestCommandFact");
-const commandBuilder = section("command", answerPresentation, "function buildCommandOutcomeAnswer", "export function buildReportAnswer");
+const commandBuilder = section("command", answerPresentation, "function buildCommandOutcomeAnswer", "export function buildDeviceAvailabilityInventoryAnswer");
 
 const channel3 = {
   object_type: "device_channel",

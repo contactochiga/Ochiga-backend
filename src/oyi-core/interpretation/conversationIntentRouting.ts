@@ -230,6 +230,7 @@ export function currentTurnExplicitlyGlobal(message: string) {
 export function domainForCurrentTurn(message: string) {
   const lower = text(message).toLowerCase();
   if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair|broken|not working)\b/i.test(lower)) return "maintenance";
+  if (/\b(report|analytics?|trend|trends|comparison|compare|performance summary)\b/i.test(lower)) return "reports";
   if (/\b(community|announcements?|building announce(?:d)?|management updates?|residents group|community posts?|post this to the community|tell (?:the )?residents|notify (?:the )?residents)\b/i.test(lower)) return "community";
   if (/\b(tell me what|what did|what was the last|latest message|unread messages?|reply\b|send a message|message from|direct message|inbox|dm)\b/i.test(lower)) return "messages";
   if (/\b(scenes?|movie mode|good night|bedtime scene)\b/i.test(lower)) return "scenes";

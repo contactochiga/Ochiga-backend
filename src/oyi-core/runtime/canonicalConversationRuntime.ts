@@ -31,7 +31,6 @@ import {
   buildDeviceAvailabilityInventoryAnswer,
   buildHomeOperationalSummaryAnswer,
   buildRecentChangesAnswer,
-  buildReportAnswer,
   buildWalletHistoryAnswer,
   tableBlockForContract,
   type ConversationTableBlock,
@@ -138,6 +137,8 @@ import {
   sceneAutomationRecommendation,
 } from "../domains/automations/sceneAutomationConversationAnswers";
 import { sceneAutomationRecordsFromContext } from "../domains/automations/sceneAutomationEvidence";
+import { buildReportAnswer } from "../domains/reports/reportConversationAnswers";
+import { isBroadReportRequest, loadReportEvidence } from "../domains/reports/reportEvidence";
 import { buildSurfaceCapabilityAnswer } from "../policy/surfaceConversationPolicy";
 
 export { resolveContextSourceForTest } from "../context/conversationObjectHydration";
@@ -1200,8 +1201,9 @@ function resolveCurrentTurnAuthorityDecision(input: CanonicalConversationRequest
         : null;
   const referentialTurn = currentTurnReferencesInheritedTarget(message);
   const explicitChannelReplacement = Boolean(requestedChannelCode(message) && isControlRequest(message) && inherited && ["device", "device_channel"].includes(inherited.object_type));
-  const domainBlocksInherited = Boolean(domain && domain !== "devices" && !(referentialTurn && domain === inheritedDomain));
-  const hasBlockingCurrentTurnSemantics = Boolean(options.broadReadOnlyDeviceIntent || explicitRoomPhrase || options.semanticOperation || currentTurnExplicitlyGlobal(message) || domainBlocksInherited);
+  const domainBlocksInherited = Boolean(domain && domain !== "devices" && !(referentialTurn && (domain === inheritedDomain || domain === "reports")));
+  const semanticBlocksInherited = Boolean(options.semanticOperation && !(domain === "reports" && referentialTurn));
+  const hasBlockingCurrentTurnSemantics = Boolean(options.broadReadOnlyDeviceIntent || explicitRoomPhrase || semanticBlocksInherited || currentTurnExplicitlyGlobal(message) || domainBlocksInherited);
   const mayUseInheritedExactTarget = Boolean(
     inherited
       && INHERITABLE_EXACT_TARGET_TYPES.has(inherited.object_type)
@@ -1225,7 +1227,7 @@ function resolveCurrentTurnAuthorityDecision(input: CanonicalConversationRequest
 }
 
 function currentTurnReferencesInheritedTarget(message: string) {
-  return /\b(it|this|that|same one|same device|same channel|this device|this channel|selected device|selected channel|current device|current channel|its|he|she|they|him|her|that visitor|this visitor|that pass|this pass)\b/i.test(text(message));
+  return /\b(it|this|that|same one|same device|same channel|same meter|same request|this device|this channel|this meter|this request|this incident|this service|selected device|selected channel|selected meter|current device|current channel|current meter|its|he|she|they|him|her|that visitor|this visitor|that pass|this pass)\b/i.test(text(message));
 }
 
 function interpretSemanticOperation(message: string) {
@@ -1580,6 +1582,8 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   const explicitBroad = isExplicitBroadHomeReadIntent(message, scopeHint) || /\b(whole home|all devices|everything|home summary|home report|show offline)\b/i.test(lower);
   const semanticCandidate = interpretSemanticOperation(message);
   const currentTurnDomain = domainForCurrentTurn(message);
+  const reportBroadTarget = isBroadReportRequest(message, currentTurnDomain);
+  const reportExactTarget = currentTurnDomain === "reports" && !reportBroadTarget && /\b(report|analytics?|trend|compare|comparison|performance)\b/i.test(lower);
   const maintenanceReadRequested = currentTurnDomain === "maintenance"
     && /\b(what|show|list|view|status|has|who|history|open|closed|resolved|overdue|issues?|requests?|tickets?)\b/i.test(lower)
     && !/\b(create|report|raise|log|assign|escalate|close|cancel|reopen|update)\b/i.test(lower);
@@ -1640,7 +1644,7 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   const automationDraftFromTemporalDeviceRequest = !currentTurnDomain
     && scheduledAutomationLanguage
     && /\b(turn|switch|set|make)\b/i.test(lower);
-  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && !visitorReadRequested && !visitorActionRequested && !securityReadRequested && !securityActionRequested && !serviceReadRequested && !serviceActionRequested && !messageReadRequested && !messageActionRequested && !communityReadRequested && !communityActionRequested && !sceneReadRequested && !sceneActionRequested && !sceneDraftRequested && !automationReadRequested && !automationActionRequested && !automationDraftFromTemporalDeviceRequest && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
+  const mutationRequested = !semanticCandidate && !reportBroadTarget && !reportExactTarget && !maintenanceReadRequested && !visitorReadRequested && !visitorActionRequested && !securityReadRequested && !securityActionRequested && !serviceReadRequested && !serviceActionRequested && !messageReadRequested && !messageActionRequested && !communityReadRequested && !communityActionRequested && !sceneReadRequested && !sceneActionRequested && !sceneDraftRequested && !automationReadRequested && !automationActionRequested && !automationDraftFromTemporalDeviceRequest && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
   const requestedChannel = mutationRequested ? requestedChannelCode(message) : null;
   const semanticOperation = !mutationRequested ? semanticCandidate : null;
   const targetAmbiguous = Boolean(targetResolution.ambiguous);
@@ -1650,6 +1654,9 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   if (targetAmbiguous || (targetNotFound && mutationRequested)) {
     intent = targetNotFound ? "device_control" : "general_help";
     operationClass = "clarify";
+  } else if (reportBroadTarget || reportExactTarget) {
+    intent = "report";
+    operationClass = "report";
   } else if (/\bhow much\b[\s\S]{0,60}\b(spent|spend|paid|pay)\b[\s\S]{0,60}\b(utilities|utility|electricity|power|water|internet|gas)\b/i.test(lower)) {
     intent = "wallet_operation";
     operationClass = "report";
@@ -1763,6 +1770,12 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     ? "clarification"
     : intent === "wallet_operation"
     ? "home_scope"
+    : reportBroadTarget
+    ? input.surface === "facility" || recordOf(input.context).building_id || /\b(building|facility|estate|portfolio)\b/i.test(lower)
+      ? input.estate_id && !recordOf(input.context).building_id && /\bestate|portfolio\b/i.test(lower)
+        ? "estate_scope"
+        : "building_scope"
+      : "home_scope"
     : targetType === "home"
     ? "home_scope"
     : targetType === "room"
@@ -1828,11 +1841,12 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     : object?.label || text(targetResolution.objectName) || null;
   const semanticBroadTarget = Boolean(semanticOperation && semanticOperation.scopeMode === "home_scope" && semanticOperation.operationClass === "list");
   const domainBroadTarget = Boolean(
-    ["maintenance", "visitors", "security", "services", "messages", "community", "scenes", "automations"].includes(currentTurnDomain || "")
+    ["maintenance", "visitors", "security", "services", "messages", "community", "scenes", "automations", "reports"].includes(currentTurnDomain || "")
+    && !reportExactTarget
     && ["list", "report"].includes(operationClass)
-    && /\b(all|any|show|list|unresolved|open|expected|pending|alerts?|incidents?|issues?|requests?|services?|bookings?|messages?|threads?|announce(?:d)?|announcements?|notices?|community|posts?|residents group|scenes?|automations?|routines?|schedules?)\b/i.test(lower),
+    && /\b(all|any|show|list|unresolved|open|expected|pending|alerts?|incidents?|issues?|requests?|services?|bookings?|messages?|threads?|announce(?:d)?|announcements?|notices?|community|posts?|residents group|scenes?|automations?|routines?|schedules?|reports?|analytics?|trends?|comparison|performance)\b/i.test(lower),
   );
-  const retainedTargetType = semanticBroadTarget || domainBroadTarget ? null : targetType;
+  const retainedTargetType = semanticBroadTarget || domainBroadTarget || reportBroadTarget ? null : targetType;
   return {
     conversation_request_id: conversationRequestId,
     thread_id: text(input.thread_id) || null,
@@ -2083,7 +2097,7 @@ function scopeForResolvedTurn(contract: IntelligenceRequestContract): ResolvedCo
 
 function domainForResolvedTurn(contract: IntelligenceRequestContract, object: OperationalObject | null, semantic?: ReturnType<typeof semanticOperationAction> | null, message = "") {
   const currentTurnDomain = domainForCurrentTurn(message);
-  if (["maintenance", "visitors", "security", "services", "community", "messages", "notifications", "scenes", "automations"].includes(currentTurnDomain || "")) return currentTurnDomain;
+  if (["maintenance", "visitors", "security", "services", "community", "messages", "notifications", "scenes", "automations", "reports"].includes(currentTurnDomain || "")) return currentTurnDomain;
   if (semantic?.operation?.domain) return semantic.operation.domain;
   const module = text(object?.source_module).toLowerCase();
   const targetType = text(contract.target.object_type).toLowerCase();
@@ -2105,6 +2119,7 @@ function domainForResolvedTurn(contract: IntelligenceRequestContract, object: Op
   if (contract.intent === "notification_operation") return "notifications";
   if (contract.intent === "scene_execution") return "scenes";
   if (contract.intent === "automation_operation") return "automations";
+  if (contract.intent === "report") return "reports";
   if (contract.intent === "domain_list") return domainForCurrentTurn(message);
   if (contract.intent === "device_availability_inventory") return "devices";
   return null;
@@ -2382,7 +2397,7 @@ export function canonicalDeviceAvailabilityAnswerForTest(input: { facts: Intelli
 
 export function canonicalReportAnswerForTest(input: { facts: IntelligenceFact[]; object?: OperationalObject | null; message?: string }) {
   const contract = canonicalIntelligenceContractForTest({ message: input.message || "Generate today's home report", object: input.object || null });
-  return buildReportAnswer(dedupeFacts(input.facts), input.object || null, contract);
+  return buildReportAnswer(dedupeFacts(input.facts), input.object || null, contract, input.message || "Generate today's home report");
 }
 
 function buildRecommendationAnswer(object: OperationalObject | null, facts: IntelligenceFact[]) {
@@ -2578,8 +2593,11 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     answer = buildCommandOutcomeAnswer(command);
     execution = { status: "read_only", referenced_execution: command, current_turn_execution: false };
   } else if (contract.intent === "report") {
-    facts = dedupeFacts([...facts, ...await loadRecentChangeFacts(input, oisContext, contract, object)]);
-    answer = buildReportAnswer(facts, object, contract);
+    facts = await loadReportEvidence(input, oisContext, contract, object, facts, {
+      loadRecentChangeFacts,
+      dedupeFacts,
+    });
+    answer = buildReportAnswer(facts, object, contract, input.message);
     displayMode = "report";
   } else if (contract.intent === "health_check") {
     answer = buildDeviceHealthAnswer(object, hydrationFacts, { factFromObject });
