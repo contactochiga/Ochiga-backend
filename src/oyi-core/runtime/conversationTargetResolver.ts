@@ -3,7 +3,7 @@ import type { AuthUser } from "../../middleware/auth";
 import type { OisContext } from "../../types/oisContext";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import { logger } from "../../observability/logger";
-import type { CanonicalConversationRequest } from "./canonicalConversationRuntime";
+import type { CanonicalConversationRequest } from "../contracts/canonicalConversation";
 
 export type ResolvedConversationTarget = {
   objectType: string | null;

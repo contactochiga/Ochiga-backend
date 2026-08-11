@@ -2,7 +2,7 @@ import type {
   CanonicalConversationRequest,
   IntelligenceFact,
   OperationalObject,
-} from "../../runtime/canonicalConversationRuntime";
+} from "../../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 
 export type ReportEvidenceLoaders = {

@@ -4,7 +4,7 @@ import type {
   CanonicalConversationRequest,
   OperationalObject,
   OperationalObjectType,
-} from "../runtime/canonicalConversationRuntime";
+} from "../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../interpretation/conversationIntentRouting";
 import type { ConversationObjectCandidate } from "./conversationObjectHydration";
 import { isCommunityMessageThreadRecord } from "../domains/community/communityEvidence";

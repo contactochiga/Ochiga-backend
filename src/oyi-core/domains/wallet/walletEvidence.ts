@@ -4,7 +4,7 @@ import type { OisContext } from "../../../types/oisContext";
 import type {
   CanonicalConversationRequest,
   IntelligenceFact,
-} from "../../runtime/canonicalConversationRuntime";
+} from "../../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 
 function text(value: unknown) {

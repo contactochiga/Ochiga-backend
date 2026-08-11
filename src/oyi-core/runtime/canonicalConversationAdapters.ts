@@ -1,0 +1,60 @@
+import type { CanonicalConversationResponse } from "../contracts/canonicalConversation";
+
+export function adaptCanonicalToCompatibilityChat(response: CanonicalConversationResponse) {
+  return {
+    ok: true,
+    id: response.id,
+    thread_id: response.thread_id,
+    message: response.message,
+    reply: response.reply,
+    intent: response.intent,
+    understood: response.understood,
+    execution: response.execution,
+    display_mode: response.display_mode,
+    cards: response.cards,
+    sources: response.sources,
+    suggested_actions: response.suggested_actions,
+    awareness: response.awareness,
+    presentation_policy: response.presentation_policy,
+    operational_object: response.operational_object,
+    truth: response.truth,
+    context: response.context,
+    confirmations: response.confirmations,
+    approvalRequired: response.approvalRequired,
+    requiresConfirmation: response.requiresConfirmation,
+    warnings: response.warnings,
+    persistence_saved: response.persistence_saved,
+    safe_mode: true,
+  };
+}
+
+export function adaptCanonicalToAiChat(response: CanonicalConversationResponse) {
+  return {
+    message: response.reply,
+    reply: response.reply,
+    intent: response.intent,
+    understood: response.understood,
+    execution: response.execution,
+    display_mode: response.display_mode,
+    panel: null,
+    deviceId: response.operational_object?.object_type === "device" ? response.operational_object.canonical_id : null,
+    actions: [],
+    tools: [],
+    confirmations: response.confirmations,
+    cards: response.cards,
+    sources: response.sources,
+    suggested_actions: response.suggested_actions,
+    awareness: response.awareness || null,
+    presentation_policy: response.presentation_policy,
+    thread_id: response.thread_id,
+    safe_mode: true,
+    requiresConfirmation: response.requiresConfirmation,
+    approvalRequired: response.approvalRequired,
+    truth: response.truth,
+    operational_object: response.operational_object,
+    context: response.context,
+    warnings: response.warnings,
+    persistence_saved: response.persistence_saved,
+    resolved_turn: response.resolved_turn,
+  };
+}

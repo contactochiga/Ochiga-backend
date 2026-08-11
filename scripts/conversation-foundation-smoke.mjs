@@ -4,6 +4,8 @@ import path from "node:path";
 
 const root = process.cwd();
 const runtimeSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
+const canonicalContractsSource = fs.readFileSync(path.join(root, "src/oyi-core/contracts/canonicalConversation.ts"), "utf8");
+const currentTurnAuthoritySource = fs.readFileSync(path.join(root, "src/oyi-core/context/currentTurnAuthority.ts"), "utf8");
 const intentRoutingSource = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
 const targetResolverSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/conversationTargetResolver.ts"), "utf8");
 const targetCandidatesSource = fs.readFileSync(path.join(root, "src/oyi-core/context/conversationTargetCandidates.ts"), "utf8");
@@ -188,7 +190,7 @@ check("builder registry routes exact device requests to specialist builders", ()
   assert.equal(activity.intent, "activity_history");
   assert.equal(activity.scope_mode, "exact_target");
   assert.equal(activity.answer_builder, "recent_changes");
-  assert.match(runtimeSource, /type ConversationBuilderKey/);
+  assert.match(canonicalContractsSource, /type ConversationBuilderKey/);
   assert.match(runtimeSource, /function selectConversationBuilder/);
   assert.match(runtimeSource, /conversation_builder_selected/);
   assert.match(runtimeSource, /device_activity/);
@@ -225,8 +227,8 @@ check("semantic destination registry is canonical and surface-routed", () => {
   assert.match(intentRoutingSource, /camera\.private_live_view/);
   assert.match(intentRoutingSource, /digital_twin\.object/);
   assert.match(intentRoutingSource, /function routeForSemanticDestination/);
-  assert.match(runtimeSource, /interpretSemanticOperationForRouting/);
-  assert.match(runtimeSource, /semanticOperationActionForRouting/);
+  assert.match(currentTurnAuthoritySource, /interpretSemanticOperationForRouting/);
+  assert.match(currentTurnAuthoritySource, /semanticOperationActionForRouting/);
   assert.match(runtimeSource, /semanticOperationAction/);
 });
 

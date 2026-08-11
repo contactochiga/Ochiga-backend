@@ -9,7 +9,7 @@ import type {
   IntelligenceFact,
   OperationalObject,
   TruthState,
-} from "../../runtime/canonicalConversationRuntime";
+} from "../../contracts/canonicalConversation";
 import type { OisContext } from "../../../types/oisContext";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 

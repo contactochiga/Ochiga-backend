@@ -1,7 +1,7 @@
 import type {
   IntelligenceFact,
   OperationalObject,
-} from "../../runtime/canonicalConversationRuntime";
+} from "../../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 import { reportEvidenceProfile, reportGenerationRequested } from "./reportEvidence";
 

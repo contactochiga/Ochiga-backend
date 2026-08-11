@@ -7,7 +7,7 @@ import {
 import type {
   OperationalObject,
   OperationalObjectType,
-} from "../runtime/canonicalConversationRuntime";
+} from "../contracts/canonicalConversation";
 import type { ResolvedConversationTarget } from "../runtime/conversationTargetResolver";
 
 export type ConversationObjectCandidate = {

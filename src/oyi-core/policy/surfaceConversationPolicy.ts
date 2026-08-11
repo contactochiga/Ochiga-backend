@@ -1,7 +1,7 @@
 import type {
   CanonicalConversationRequest,
   OperationalObject,
-} from "../runtime/canonicalConversationRuntime";
+} from "../contracts/canonicalConversation";
 import { currentTurnExplicitlyGlobal } from "../interpretation/conversationIntentRouting";
 
 export function globalCapabilityAnswerForSurface(surface: CanonicalConversationRequest["surface"]) {

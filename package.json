@@ -253,6 +253,7 @@
     "smoke:community-domain-extraction": "npm run build && node scripts/community-domain-extraction-smoke.mjs",
     "smoke:scene-automation-domain-extraction": "npm run build && node scripts/scene-automation-domain-extraction-smoke.mjs",
     "smoke:report-analytics-domain-extraction": "npm run build && node scripts/report-analytics-domain-extraction-smoke.mjs",
+    "smoke:canonical-runtime-structure": "npm run build && node scripts/canonical-runtime-structure-smoke.mjs",
     "smoke:domain-specific-unavailable-responses": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
     "smoke:resident-device-projection-quality": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
     "smoke:time-and-snapshot-standard": "npm run build && node scripts/conversation-final-correction-smoke.mjs",

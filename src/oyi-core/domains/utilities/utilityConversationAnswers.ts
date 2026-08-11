@@ -1,4 +1,4 @@
-import type { IntelligenceFact } from "../../runtime/canonicalConversationRuntime";
+import type { IntelligenceFact } from "../../contracts/canonicalConversation";
 
 function text(value: unknown) {
   return value === undefined || value === null ? "" : String(value).trim();

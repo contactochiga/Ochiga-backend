@@ -1,6 +1,6 @@
 import type { AuthUser } from "../../middleware/auth";
 import type { OisContext } from "../../types/oisContext";
-import type { CanonicalConversationRequest } from "../runtime/canonicalConversationRuntime";
+import type { CanonicalConversationRequest } from "../contracts/canonicalConversation";
 
 export function mapOyiRouteBodyToConversationRequest(body: any, oisContext: OisContext | null | undefined, mode: "chat" | "runtime"): CanonicalConversationRequest {
   return {

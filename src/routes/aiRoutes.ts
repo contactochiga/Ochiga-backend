@@ -7,7 +7,8 @@ import { resolveRequestContext } from "../middleware/contextResolver";
 import { routeAiCommand, listAiLedger, listAiConfirmations, updateAiConfirmation, type ProposedAiTool } from "../ai/commandRouter";
 import { AI_TOOL_REGISTRY } from "../ai/toolRegistry";
 import { getLatestMaintenanceContext, recordIntelligenceMemory } from "../services/intelligenceMemoryService";
-import { adaptCanonicalToAiChat, runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
+import { adaptCanonicalToAiChat } from "../oyi-core/runtime/canonicalConversationAdapters";
+import { runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
 import { operationalMetrics } from "../observability/metrics";
 
 const router = Router();

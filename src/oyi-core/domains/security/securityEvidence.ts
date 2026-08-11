@@ -3,7 +3,7 @@ import type {
   CanonicalConversationRequest,
   IntelligenceFact,
   OperationalObject,
-} from "../../runtime/canonicalConversationRuntime";
+} from "../../contracts/canonicalConversation";
 
 function text(value: unknown) {
   return String(value ?? "").trim();

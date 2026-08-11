@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import type { AuthUser } from "../../middleware/auth";
 import type { OisContext } from "../../types/oisContext";
-import type { CanonicalConversationRequest } from "../runtime/canonicalConversationRuntime";
+import type { CanonicalConversationRequest } from "../contracts/canonicalConversation";
 import type { AuthorityDecision } from "../contracts/authority";
 import type { PresentationPolicy } from "../contracts/presentation";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";

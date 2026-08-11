@@ -4,7 +4,7 @@ import { resolveRequestContext } from "../middleware/contextResolver";
 import { getOyiConversationMessages, getOyiUnifiedAwareness, listOyiConversationThreads } from "../services/oyiUnifiedIntelligenceService";
 import { oyiCoreRuntime } from "../oyi-core/service";
 import { executionLedger, type ExecutionLedgerScope } from "../oyi-core/runtime/executionLedger";
-import { adaptCanonicalToCompatibilityChat } from "../oyi-core/runtime/canonicalConversationRuntime";
+import { adaptCanonicalToCompatibilityChat } from "../oyi-core/runtime/canonicalConversationAdapters";
 import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
 import { mapOyiRouteBodyToConversationRequest } from "../oyi-core/api/ConversationRequestMapper";
 import { operationalMetrics } from "../observability/metrics";

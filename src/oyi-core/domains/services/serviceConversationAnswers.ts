@@ -1,7 +1,7 @@
 import type {
   OperationalObject,
   OperationalObjectType,
-} from "../../runtime/canonicalConversationRuntime";
+} from "../../contracts/canonicalConversation";
 
 function text(value: unknown) {
   return String(value ?? "").trim();

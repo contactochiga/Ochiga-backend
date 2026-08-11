@@ -1,6 +1,6 @@
 import type {
   IntelligenceFact,
-} from "../runtime/canonicalConversationRuntime";
+} from "../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../interpretation/conversationIntentRouting";
 import { utilitySpendingRows } from "../domains/utilities/utilityConversationAnswers";
 import { safeDateLabel } from "./timeFreshness";

@@ -1,6 +1,6 @@
 import type { AuthUser } from "../../middleware/auth";
 import type { OisContext } from "../../types/oisContext";
-import type { CanonicalConversationRequest, CanonicalConversationResponse } from "../runtime/canonicalConversationRuntime";
+import type { CanonicalConversationRequest, CanonicalConversationResponse } from "../contracts/canonicalConversation";
 import { runCanonicalConversation } from "../runtime/canonicalConversationRuntime";
 import { incrementLegacyFallback } from "../observability/ConversationMetrics";
 import { logger } from "../../observability/logger";

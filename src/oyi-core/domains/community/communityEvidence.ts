@@ -1,4 +1,4 @@
-import type { CanonicalConversationRequest, OperationalObject } from "../../runtime/canonicalConversationRuntime";
+import type { CanonicalConversationRequest, OperationalObject } from "../../contracts/canonicalConversation";
 
 function text(value: unknown) {
   return String(value ?? "").trim();

@@ -1,6 +1,6 @@
 import type { AuthUser } from "../../middleware/auth";
 import type { OisContext } from "../../types/oisContext";
-import type { CanonicalConversationRequest, CanonicalConversationResponse } from "../runtime/canonicalConversationRuntime";
+import type { CanonicalConversationRequest, CanonicalConversationResponse } from "../contracts/canonicalConversation";
 
 export type CanonicalConversationRequestContext = {
   actor: AuthUser | null;

@@ -3,7 +3,7 @@ import type { OisContext } from "../../types/oisContext";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import { logger } from "../../observability/logger";
 import { hydrateCanonicalDevicePanel } from "../../services/canonicalDevicePanelHydrationService";
-import type { OperationalObject, OperationalObjectType, TruthState } from "./canonicalConversationRuntime";
+import type { OperationalObject, OperationalObjectType, TruthState } from "../contracts/canonicalConversation";
 import type { ResolvedConversationTarget } from "./conversationTargetResolver";
 
 export type HydrationStatus =

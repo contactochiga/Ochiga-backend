@@ -2,7 +2,7 @@ import type { OisContext } from "../../../types/oisContext";
 import type {
   CanonicalConversationRequest,
   IntelligenceFact,
-} from "../../runtime/canonicalConversationRuntime";
+} from "../../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 import { loadWalletTransactionFacts } from "../wallet/walletEvidence";
 

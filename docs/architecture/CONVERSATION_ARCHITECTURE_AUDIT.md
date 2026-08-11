@@ -193,3 +193,66 @@ Next safe conversation extractions should target:
 - clarification/workflow persistence helpers;
 - domain capability selection;
 - target/context authority decisions.
+
+## Structural Cleanup Update — 2026-08-11
+
+The canonical runtime remains the single Oyi Core conversation path. No second runtime or V2 compatibility engine was introduced.
+
+Current active route shape:
+
+1. Public route maps the incoming request into `CanonicalConversationRequest`.
+2. `runCanonicalConversation` remains the lifecycle spine.
+3. Context candidates are assembled by `src/oyi-core/context/conversationTargetCandidates.ts`.
+4. Target resolution remains in `src/oyi-core/runtime/conversationTargetResolver.ts`.
+5. Object hydration is owned by `src/oyi-core/context/conversationObjectHydration.ts` and `src/oyi-core/runtime/canonicalTargetHydrationRegistry.ts`.
+6. Surface hydration policy lives in `src/oyi-core/policy/surfaceConversationPolicy.ts`.
+7. Domain facts and answer behavior live in first-class domain modules.
+8. Canonical conversation messages are still persisted once by the canonical runtime path.
+9. Thin caller adapters live in `src/oyi-core/runtime/canonicalConversationAdapters.ts`.
+
+Contracts moved out of the runtime:
+
+- `src/oyi-core/contracts/canonicalConversation.ts` now owns canonical request, response, truth, operational object, resolved turn, presentation policy, pending clarification and intelligence fact contracts.
+- Extracted domain/context/presentation modules now import canonical conversation types from contracts rather than from `canonicalConversationRuntime.ts`.
+- `canonicalConversationRuntime.ts` consumes those contracts instead of acting as the public type system.
+
+Authority/context ownership:
+
+- Current-turn authority, inherited-target eligibility, current-turn control detection and referential-target checks now live in `src/oyi-core/context/currentTurnAuthority.ts`.
+- The runtime still enforces the authority decision during lifecycle orchestration, but no longer owns the decision implementation block.
+
+Compatibility ownership:
+
+- `src/oyi-core/runtime/canonicalConversationAdapters.ts` owns active response adapters for `/ai` and `/oyi` callers.
+- The adapters are intentionally thin: they do not run interpretation, target resolution, evidence loading, execution or persistence.
+- Active callers are `src/routes/aiRoutes.ts` and `src/routes/oyiRoutes.ts`.
+
+Domain ownership after extraction:
+
+- Devices: `src/oyi-core/domains/devices/*`
+- Wallet: `src/oyi-core/domains/wallet/*`
+- Utilities: `src/oyi-core/domains/utilities/*`
+- Maintenance: `src/oyi-core/domains/maintenance/*`
+- Visitors/Access: `src/oyi-core/domains/visitors/*`
+- Security: `src/oyi-core/domains/security/*`
+- Services: `src/oyi-core/domains/services/*`
+- Community/Messages: `src/oyi-core/domains/community/*`
+- Scenes/Automations: `src/oyi-core/domains/automations/*`
+- Reports/Analytics: `src/oyi-core/domains/reports/*`
+
+The current runtime still legitimately coordinates the lifecycle, but the remaining cleanup debt is now narrower:
+
+- Generic object/personality/fallback presentation still needs a dedicated presentation or fallback owner.
+- Spatial reasoning still needs a context/domain owner.
+- Clarification continuation should move fully into workflow modules.
+- Builder selection and presentation policy should move into registry/presentation owners.
+- Persistence/finalization should become a dedicated persistence owner invoked by the runtime.
+- Test-only helper exports should move to test-support seams where practical.
+
+The intended final runtime responsibility remains:
+
+`request → normalize/interpret → assemble context → assemble candidates → resolve target → hydrate object → decide authority → load authorized evidence → select capability → invoke domain/workflow → finalize response/action → persist canonical turn → adapt response`.
+
+Structural guardrail:
+
+- `npm run smoke:canonical-runtime-structure` verifies canonical contracts no longer originate in the runtime, extracted modules do not type-import from the runtime, and compatibility adapters remain thin.

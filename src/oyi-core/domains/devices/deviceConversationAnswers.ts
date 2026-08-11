@@ -3,7 +3,7 @@ import type {
   CanonicalConversationResponse,
   IntelligenceFact,
   OperationalObject,
-} from "../../runtime/canonicalConversationRuntime";
+} from "../../contracts/canonicalConversation";
 import type { OisContext } from "../../../types/oisContext";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 import { freshnessLabelFromEvidence, safeDateLabel } from "../../presentation/timeFreshness";
