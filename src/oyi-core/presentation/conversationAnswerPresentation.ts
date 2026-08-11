@@ -1,8 +1,8 @@
 import type {
   IntelligenceFact,
-  IntelligenceRequestContract,
   OperationalObject,
 } from "../runtime/canonicalConversationRuntime";
+import type { IntelligenceRequestContract } from "../interpretation/conversationIntentRouting";
 import { safeDateLabel } from "./timeFreshness";
 
 export type ConversationTableBlock = {

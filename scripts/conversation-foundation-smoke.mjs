@@ -4,6 +4,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const runtimeSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
+const intentRoutingSource = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
 const unifiedSource = fs.readFileSync(path.join(root, "src/services/oyiUnifiedIntelligenceService.ts"), "utf8");
 process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
@@ -196,14 +197,16 @@ check("named device resolution and clarification lifecycle are first-class", () 
 });
 
 check("semantic destination registry is canonical and surface-routed", () => {
-  assert.match(runtimeSource, /const SEMANTIC_DESTINATIONS/);
-  assert.match(runtimeSource, /devices\.module/);
-  assert.match(runtimeSource, /devices\.detail/);
-  assert.match(runtimeSource, /rooms\.detail/);
-  assert.match(runtimeSource, /wallet\.summary/);
-  assert.match(runtimeSource, /camera\.private_live_view/);
-  assert.match(runtimeSource, /digital_twin\.object/);
-  assert.match(runtimeSource, /function routeForSemanticDestination/);
+  assert.match(intentRoutingSource, /const SEMANTIC_DESTINATIONS/);
+  assert.match(intentRoutingSource, /devices\.module/);
+  assert.match(intentRoutingSource, /devices\.detail/);
+  assert.match(intentRoutingSource, /rooms\.detail/);
+  assert.match(intentRoutingSource, /wallet\.summary/);
+  assert.match(intentRoutingSource, /camera\.private_live_view/);
+  assert.match(intentRoutingSource, /digital_twin\.object/);
+  assert.match(intentRoutingSource, /function routeForSemanticDestination/);
+  assert.match(runtimeSource, /interpretSemanticOperationForRouting/);
+  assert.match(runtimeSource, /semanticOperationActionForRouting/);
   assert.match(runtimeSource, /semanticOperationAction/);
 });
 
