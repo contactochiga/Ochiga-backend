@@ -478,6 +478,10 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
   const id = text(request.target.objectId);
   const scope = activeScope(request);
   const config: Partial<Record<OperationalObjectType, { table: string; select: string; label: string; module: string }>> = {
+    estate: { table: "estates", select: "id,name,updated_at", label: "Estate", module: "estate" },
+    home: { table: "homes", select: "id,name,estate_id,updated_at", label: "Home", module: "homes" },
+    building: { table: "estate_buildings", select: "id,name,estate_id,building_ref,block,floors,unit_count,building_type,status,metadata,updated_at", label: "Building", module: "estate" },
+    zone: { table: "estate_zones", select: "id,name,estate_id,zone_ref,zone_type,parent_zone_ref,description,metadata,updated_at", label: "Zone", module: "estate" },
     room: { table: "rooms", select: "id,name,home_id,updated_at", label: "Room", module: "spaces" },
     scene: { table: "consumer_scenes", select: "id,name,estate_id,home_id,enabled,updated_at,actions", label: "Scene", module: "scenes" },
     automation: { table: "consumer_automations", select: "id,name,estate_id,home_id,enabled,next_run_at,last_run_status,updated_at,actions,trigger", label: "Automation", module: "automations" },
@@ -487,6 +491,7 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
     access_pass: { table: "visitor_access", select: "id,visitor_name,estate_id,home_id,status,updated_at,purpose,expires_at", label: "Access pass", module: "visitors" },
     service_account: { table: "home_service_accounts", select: "id,estate_id,home_id,service_key,provider,status,account_ref,meter_id,updated_at", label: "Service account", module: "services" },
     community_post: { table: "community_posts", select: "id,title,estate_id,updated_at", label: "Community post", module: "community" },
+    message_thread: { table: "dm_threads", select: "id,estate_id,updated_at", label: "Message thread", module: "messages" },
     notification: { table: "notifications", select: "id,title,body,user_id,estate_id,home_id,read,created_at,metadata", label: "Notification", module: "notifications" },
     operational_incident: { table: "operational_incidents", select: "id,title,estate_id,home_id,status,severity,updated_at,current_summary", label: "Incident", module: "incidents" },
     infrastructure_asset: { table: "facility_assets", select: "id,name,estate_id,building_id,status,health_status,updated_at,metadata", label: "Infrastructure asset", module: "infrastructure" },

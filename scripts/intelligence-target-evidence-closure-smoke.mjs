@@ -8,6 +8,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
 const runtime = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
 const intentRouting = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
 const targetResolver = fs.readFileSync(path.join(root, "src/oyi-core/runtime/conversationTargetResolver.ts"), "utf8");
+const targetHydration = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalTargetHydrationRegistry.ts"), "utf8");
+const objectHydration = fs.readFileSync(path.join(root, "src/oyi-core/context/conversationObjectHydration.ts"), "utf8");
 const deviceEvidence = fs.readFileSync(path.join(root, "src/oyi-core/domains/devices/deviceEvidence.ts"), "utf8");
 const answerPresentation = fs.readFileSync(path.join(root, "src/oyi-core/presentation/conversationAnswerPresentation.ts"), "utf8");
 const proximity = fs.readFileSync(path.join(root, "src/services/proximityService.ts"), "utf8");
@@ -98,6 +100,17 @@ check("home summary and offline inventory remain read-only", () => {
   assert.match(runtime, /read_only_command_execution_blocked/);
   assert.match(runtime, /show_offline_devices/);
   assert.match(runtime, /read_only_no_execution/);
+});
+
+check("object hydration uses shared registry plus surface policy", () => {
+  assert.match(objectHydration, /hydrateCanonicalTarget/);
+  assert.match(objectHydration, /hydrationPolicyForSurface/);
+  assert.match(objectHydration, /canUseVisibleStateFallback \? input\.visibleState : null/);
+  assert.match(targetHydration, /estate: \{ table: "estates"/);
+  assert.match(targetHydration, /home: \{ table: "homes"/);
+  assert.match(targetHydration, /building: \{ table: "estate_buildings"/);
+  assert.match(targetHydration, /zone: \{ table: "estate_zones"/);
+  assert.doesNotMatch(runConversation, /async function resolveCandidate/);
 });
 
 console.log("intelligence-target-evidence-closure-smoke passed");

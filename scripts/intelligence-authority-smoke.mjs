@@ -6,6 +6,7 @@ const read = (file) => fs.readFileSync(file, "utf8");
 const runtime = read("src/oyi-core/runtime/canonicalConversationRuntime.ts");
 const intentRouting = read("src/oyi-core/interpretation/conversationIntentRouting.ts");
 const targetResolver = read("src/oyi-core/runtime/conversationTargetResolver.ts");
+const objectHydration = read("src/oyi-core/context/conversationObjectHydration.ts");
 const deviceAnswers = read("src/oyi-core/domains/devices/deviceConversationAnswers.ts");
 const deviceEvidence = read("src/oyi-core/domains/devices/deviceEvidence.ts");
 const surfacePolicy = read("src/oyi-core/policy/surfaceConversationPolicy.ts");
@@ -114,6 +115,17 @@ check("named device and room lookup live in the canonical target resolver", () =
   assert.match(targetResolver, /conversation_room_resolution_failed/);
   assert.doesNotMatch(runtime, /async function resolveNamedDeviceForRead/);
   assert.doesNotMatch(runtime, /async function resolveRoomForRead/);
+});
+
+check("object hydration fallback and surface policy live outside the canonical runtime", () => {
+  assert.match(objectHydration, /hydrateOperationalObjectCandidate/);
+  assert.match(objectHydration, /hydrationPolicyForSurface/);
+  assert.match(objectHydration, /surface: "facility"/);
+  assert.match(objectHydration, /surface: "consumer"/);
+  assert.match(objectHydration, /canUseVisibleStateFallback/);
+  assert.match(runtime, /hydrateOperationalObjectCandidate/);
+  assert.doesNotMatch(runtime, /async function resolveCandidate/);
+  assert.doesNotMatch(runtime, /function resolveContextSourceForTest/);
 });
 
 check("exact-target read builders cover activity, failures, diagnosis and relationships", () => {
