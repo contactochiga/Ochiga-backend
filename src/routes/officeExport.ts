@@ -2,6 +2,11 @@ import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
+import { runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
+import type { AuthUser } from "../middleware/auth";
+import type { CorporateOyiCoreRequest } from "../contracts/corporateIntelligence";
+import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLICY } from "../contracts/corporateIntelligence";
+import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
 
 const router = Router();
 
@@ -33,6 +38,71 @@ function requireOfficeExportKey(req: Request, res: Response, next: NextFunction)
 
   return next();
 }
+
+function safeText(value: any, fallback = "") {
+  const result = String(value ?? "").trim();
+  return result || fallback;
+}
+
+function recordOf(value: any): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function knowledgeContext(value: any): CorporateOyiCoreRequest["knowledge_context"] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 8).map((item, index) => {
+    const row = recordOf(item);
+    return {
+      id: safeText(row.id, `knowledge_${index + 1}`),
+      title: safeText(row.title, "Corporate knowledge"),
+      excerpt: safeText(row.excerpt).slice(0, 800),
+      source: safeText(row.source, "office"),
+    };
+  });
+}
+
+function normalizeCorporateConversationRequest(body: any, requestId: string): CorporateOyiCoreRequest {
+  const source = recordOf(body.source);
+  const crm = recordOf(body.crm_context);
+  return {
+    request_id: safeText(body.request_id, requestId),
+    message: safeText(body.message),
+    public_session_id: safeText(body.public_session_id || body.session_id, `public_session_${requestId}`),
+    conversation_thread_id: safeText(body.conversation_thread_id || body.thread_id) || null,
+    public_identity: safeText(body.public_identity, PUBLIC_CORPORATE_SURFACE_POLICY.public_identity),
+    agent_role: safeText(body.agent_role, "oma") === "osa" ? "osa" : "oma",
+    business_unit: safeText(body.business_unit, "corporate") as CorporateOyiCoreRequest["business_unit"],
+    inquiry_type: safeText(body.inquiry_type, "general_enquiry") as CorporateOyiCoreRequest["inquiry_type"],
+    source: {
+      source_site: safeText(source.source_site || body.source_site, "ochiga_website") as CorporateOyiCoreRequest["source"]["source_site"],
+      source_page: safeText(source.source_page || body.source_page),
+      source_form: safeText(source.source_form || body.source_form) || null,
+      source_channel: safeText(source.source_channel || body.source_channel, "website") as CorporateOyiCoreRequest["source"]["source_channel"],
+      campaign: recordOf(source.campaign || body.campaign),
+    },
+    visitor_state: safeText(body.visitor_state, crm.contact_ref || crm.lead_ref ? "known" : "anonymous") === "known" ? "known" : "anonymous",
+    crm_context: {
+      contact_ref: safeText(crm.contact_ref) || null,
+      opportunity_ref: safeText(crm.opportunity_ref) || null,
+      lead_ref: safeText(crm.lead_ref) || null,
+      safe_summary: safeText(crm.safe_summary).slice(0, 800) || null,
+    },
+    form_context_ref: safeText(body.form_context_ref) || null,
+    engagement_mode: safeText(body.engagement_mode, "text_conversation") as CorporateOyiCoreRequest["engagement_mode"],
+    handoff_state: safeText(body.handoff_state, "none") as CorporateOyiCoreRequest["handoff_state"],
+    requested_capability: safeText(body.requested_capability) as CorporateOyiCoreRequest["requested_capability"] || null,
+    knowledge_context: knowledgeContext(body.knowledge_context),
+    metadata: recordOf(body.metadata),
+  };
+}
+
+const publicCorporateActor: AuthUser = {
+  id: "office-public-intelligence",
+  email: "public-intelligence@ochiga.local",
+  role: "guest",
+  permissions: [],
+  permission_scopes: [],
+};
 
 function toNumber(value: any, fallback = 0) {
   const numeric = Number(value);
@@ -131,6 +201,89 @@ function makePackage(estate: Row, nowIso: string) {
     updated_at: estate.updated_at || nowIso,
   };
 }
+
+router.post("/conversation/corporate", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const requestId = safeText(req.headers["x-request-id"], crypto.randomUUID());
+  const corporateRequest = normalizeCorporateConversationRequest(req.body || {}, requestId);
+  if (!corporateRequest.message) {
+    return res.status(400).json({ ok: false, error: "message is required", request_id: requestId });
+  }
+  if (deniedPublicCorporateOperationalRequest({ message: corporateRequest.message })) {
+    void emitAuditEvent({
+      actorId: publicCorporateActor.id,
+      actorRole: "guest",
+      action: "office.public_conversation.denied",
+      resourceType: "public_session",
+      resourceId: corporateRequest.public_session_id,
+      status: "denied",
+      metadata: { request_id: requestId, reason: "public_operational_capability_blocked" },
+      req,
+    });
+    return res.status(403).json({
+      ok: false,
+      error: "public_capability_blocked",
+      request_id: requestId,
+      public_session_id: corporateRequest.public_session_id,
+      message: "Corporate/Public intelligence cannot access or control private resident, Facility, device, visitor, wallet, security or operational systems.",
+    });
+  }
+
+  const canonical = await runCanonicalConversation(publicCorporateActor, {
+    surface: "public_corporate" as any,
+    estate_id: null,
+    home_id: null,
+    module: "corporate_public",
+    role: corporateRequest.agent_role,
+  } as any, {
+    message: corporateRequest.message,
+    surface: "public_corporate",
+    role: corporateRequest.agent_role,
+    module: "corporate_public",
+    thread_id: corporateRequest.conversation_thread_id,
+    context: {
+      request_id: corporateRequest.request_id,
+      public_session_id: corporateRequest.public_session_id,
+      public_identity: corporateRequest.public_identity,
+      agent_role: corporateRequest.agent_role,
+      business_unit: corporateRequest.business_unit,
+      inquiry_type: corporateRequest.inquiry_type,
+      source: corporateRequest.source,
+      crm_context: corporateRequest.crm_context,
+      form_context_ref: corporateRequest.form_context_ref,
+      engagement_mode: corporateRequest.engagement_mode,
+      surface_policy: PUBLIC_CORPORATE_SURFACE_POLICY,
+      contract_version: CORPORATE_INTELLIGENCE_CONTRACT_VERSION,
+    },
+    conversation_context: {
+      public_session_id: corporateRequest.public_session_id,
+      business_unit: corporateRequest.business_unit,
+      inquiry_type: corporateRequest.inquiry_type,
+      agent_role: corporateRequest.agent_role,
+      crm_safe_summary: corporateRequest.crm_context.safe_summary,
+    },
+    intent_hint: "corporate_public_conversation",
+    operation_class_hint: "read",
+    scope_mode_hint: "global",
+  });
+  const response = buildCorporatePublicResponse(corporateRequest, canonical);
+  void emitAuditEvent({
+    actorId: publicCorporateActor.id,
+    actorRole: "guest",
+    action: "office.public_conversation.completed",
+    resourceType: "public_session",
+    resourceId: corporateRequest.public_session_id,
+    status: "success",
+    metadata: {
+      request_id: requestId,
+      thread_id: response.conversation_thread_id,
+      business_unit: response.business_unit,
+      agent_role: response.recommended_agent_role,
+      tool_proposal_count: response.tool_proposals.length,
+    },
+    req,
+  });
+  return res.status(200).json(response);
+});
 
 function groupBuildings(homes: Row[], devices: Row[], nowIso: string) {
   const groups = new Map<string, Row>();

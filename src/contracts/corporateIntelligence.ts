@@ -82,6 +82,72 @@ export type PublicCorporateSession = {
   last_activity_at: string;
 };
 
+export type CorporateOyiCoreRequest = {
+  request_id: string;
+  message: string;
+  public_session_id: string;
+  conversation_thread_id: string | null;
+  public_identity: string;
+  agent_role: CorporateAgentRole;
+  business_unit: CorporateBusinessUnit;
+  inquiry_type: CorporateInquiryType;
+  source: CorporateSourceContext;
+  visitor_state: "anonymous" | "known";
+  crm_context: {
+    contact_ref: string | null;
+    opportunity_ref: string | null;
+    lead_ref: string | null;
+    safe_summary: string | null;
+  };
+  form_context_ref: string | null;
+  engagement_mode: PublicIntelligenceMode;
+  handoff_state: PublicCorporateSession["handoff_state"];
+  requested_capability: PublicCorporateCapability | null;
+  knowledge_context: Array<{ id: string; title: string; excerpt: string; source: string }>;
+  metadata: Record<string, unknown>;
+};
+
+export type CorporateCommercialSignal =
+  | "none"
+  | "education"
+  | "commercial_interest"
+  | "qualification"
+  | "proposal"
+  | "handoff";
+
+export type CorporateToolProposal = {
+  tool: "crm.update_journey" | "crm.create_or_update_lead" | "crm.create_opportunity" | "office.create_followup_task" | "office.request_handoff";
+  governance: "office_validates_before_execution";
+  reason: string;
+  parameters: Record<string, unknown>;
+};
+
+export type CorporateOyiCoreResponse = {
+  ok: boolean;
+  request_id: string;
+  public_session_id: string;
+  conversation_thread_id: string | null;
+  public_identity: string;
+  answer: string;
+  understood_intent: string;
+  business_unit: CorporateBusinessUnit;
+  inquiry_type: CorporateInquiryType;
+  recommended_agent_role: CorporateAgentRole;
+  commercial_signal: CorporateCommercialSignal;
+  qualification_signal: "unknown" | "low" | "medium" | "high";
+  suggested_next_action: string | null;
+  tool_proposals: CorporateToolProposal[];
+  handoff_recommended: boolean;
+  knowledge_references: Array<{ id: string; title: string; source: string }>;
+  canonical: {
+    response_id: string;
+    thread_id: string | null;
+    persistence_saved: boolean | null;
+    source: "oyi_canonical_runtime";
+  };
+  safe_metadata: Record<string, unknown>;
+};
+
 export type CorporateMaterialEventType =
   | "lead_created"
   | "lead_qualified"

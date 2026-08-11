@@ -11,6 +11,7 @@
     "smoke:ecosystem": "node scripts/ecosystem-smoke.mjs",
     "smoke:platform-boundary-contract": "npm run build && node scripts/platform-boundary-contract-smoke.mjs",
     "smoke:corporate-intelligence-contract": "npm run build && node scripts/corporate-intelligence-contract-smoke.mjs",
+    "smoke:corporate-public-integration": "npm run build && node scripts/corporate-public-integration-smoke.mjs",
     "smoke:invite-onboarding": "node scripts/invite-first-onboarding-smoke.mjs",
     "build": "tsc -p .",
     "smoke:watch": "npm run build && node scripts/watch-hardening-smoke.mjs",
