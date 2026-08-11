@@ -5,6 +5,7 @@ import path from "node:path";
 const root = process.cwd();
 const runtimeSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
 const intentRoutingSource = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
+const contextLayersSource = fs.readFileSync(path.join(root, "src/oyi-core/context/conversationContextLayers.ts"), "utf8");
 const unifiedSource = fs.readFileSync(path.join(root, "src/services/oyiUnifiedIntelligenceService.ts"), "utf8");
 process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
@@ -73,8 +74,9 @@ check("explicit channel replacement overrides inherited selected channel", () =>
 });
 
 check("turn interpretation and context layers are persisted", () => {
-  assert.match(runtimeSource, /export type TurnInterpretation/);
-  assert.match(runtimeSource, /export type ConversationContextLayers/);
+  assert.match(contextLayersSource, /export type TurnInterpretation/);
+  assert.match(contextLayersSource, /export type ConversationContextLayers/);
+  assert.match(contextLayersSource, /function turnInterpretationFromContract/);
   assert.match(runtimeSource, /turn_interpretation: turnInterpretation/);
   assert.match(runtimeSource, /conversation_context_layers: contextLayers/);
   assert.match(runtimeSource, /conversation_turn_interpreted/);
