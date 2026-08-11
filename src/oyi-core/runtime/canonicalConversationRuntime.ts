@@ -97,6 +97,13 @@ import { unresolvedMaintenanceRecordsForContext } from "../domains/maintenance/m
 import { buildUtilitySpendingAnswer } from "../domains/utilities/utilityConversationAnswers";
 import { loadUtilitySpendingFacts } from "../domains/utilities/utilityEvidence";
 import { loadWalletTransactionFacts } from "../domains/wallet/walletEvidence";
+import {
+  visitorConfirmationReply,
+  visitorContextualActions,
+  visitorObjectProfile,
+  visitorObjectVoice,
+  visitorRecommendation,
+} from "../domains/visitors/visitorConversationAnswers";
 import { buildSurfaceCapabilityAnswer } from "../policy/surfaceConversationPolicy";
 
 export { resolveContextSourceForTest } from "../context/conversationObjectHydration";
@@ -284,7 +291,7 @@ type CurrentTurnAuthorityDecision = {
   rejectionReason: string | null;
 };
 
-const INHERITABLE_EXACT_TARGET_TYPES = new Set(["device", "device_channel", "maintenance_request"]);
+const INHERITABLE_EXACT_TARGET_TYPES = new Set(["device", "device_channel", "maintenance_request", "visitor", "access_pass"]);
 
 type PendingClarification = {
   clarification_id: string;
@@ -529,16 +536,8 @@ function objectPersonality(object: OperationalObject) {
       diagnostics: ["rooms", "maintenance", "security", "infrastructure"],
       actions: ["show affected rooms", "check maintenance", "review security"],
     },
-    visitor: {
-      role: "I track this visitor's identity, access state, arrival history, and safe approval path.",
-      diagnostics: ["identity", "access status", "arrival history", "approval state"],
-      actions: ["approve", "extend", "deny", "review history"],
-    },
-    access_pass: {
-      role: "I track this access pass, its holder, validity, usage, and security state.",
-      diagnostics: ["validity", "usage", "holder", "security"],
-      actions: ["extend", "cancel", "review usage"],
-    },
+    visitor: visitorObjectProfile("visitor"),
+    access_pass: visitorObjectProfile("access_pass"),
     maintenance_request: maintenanceObjectProfile(),
     wallet: {
       role: "I track this wallet's balance, funding, charges, receipts, and payment safety.",
@@ -641,9 +640,7 @@ function objectVoice(object: OperationalObject) {
     next: "Would you like recent transactions or a receipt?",
   };
   if (type === "visitor" || type === "access_pass") return {
-    healthy: "No unusual access activity is visible.",
-    unavailable: "I can’t verify the access record right now.",
-    next: "Would you like access history or the current pass status?",
+    ...visitorObjectVoice(),
   };
   if (type === "maintenance_request") return {
     ...maintenanceObjectVoice(),
@@ -954,7 +951,7 @@ function recommendationFor(object: OperationalObject, input: CanonicalConversati
   if (object.object_type === "maintenance_request") return maintenanceRecommendation();
   if (object.object_type === "wallet" || object.object_type === "transaction") return "I recommend checking the receipt or recent transactions next.";
   if (object.object_type === "service_account" || object.object_type === "meter") return "I recommend checking tariff, billing, and vending readiness next.";
-  if (object.object_type === "visitor" || object.object_type === "access_pass") return "I recommend reviewing access history before making changes.";
+  if (object.object_type === "visitor" || object.object_type === "access_pass") return visitorRecommendation();
   if (object.object_type === "room" || object.object_type === "zone") return "I recommend checking active devices before changing the whole room.";
   return objectVoice(object).next;
 }
@@ -1060,9 +1057,7 @@ function contextualConfirmationReply(object: OperationalObject, response: Record
       : `This affects the financial record for ${object.label}. Should I continue?`;
   }
   if (object.object_type === "visitor" || object.object_type === "access_pass") {
-    return summary
-      ? `${naturalizeUserCopy(summary)} Should I apply that access change?`
-      : `This changes access for ${object.label}. Should I continue?`;
+    return visitorConfirmationReply(object, response);
   }
   if (object.object_type === "maintenance_request") {
     return maintenanceConfirmationReply(object, response);
@@ -1132,10 +1127,7 @@ function contextualObjectActions(object: OperationalObject, input: CanonicalConv
     add("Occupancy", "Is it occupied?");
     add("Activity", "What happened here today?");
   } else if (object.object_type === "visitor" || object.object_type === "access_pass") {
-    add("Status", "Who is this?");
-    add("Approve", "Approve this visitor", "approval");
-    add("Extend", "Extend access by 30 minutes", "approval");
-    add("History", "Has this visitor been here before?");
+    actions.push(...visitorContextualActions(object));
   } else if (object.object_type === "maintenance_request") {
     actions.push(...maintenanceContextualActions(object));
   } else if (object.object_type === "wallet" || object.object_type === "transaction") {
@@ -1178,13 +1170,22 @@ function resolveCurrentTurnAuthorityDecision(input: CanonicalConversationRequest
   if (explicitRoomPhrase) scope = "room_scope";
   if (options.semanticOperation?.scopeMode) scope = options.semanticOperation.scopeMode;
   const inheritedType = inherited?.object_type || null;
+  const inheritedDomain = inheritedType === "visitor" || inheritedType === "access_pass"
+    ? "visitors"
+    : inheritedType === "maintenance_request"
+      ? "maintenance"
+      : inheritedType === "device" || inheritedType === "device_channel"
+        ? "devices"
+        : null;
+  const referentialTurn = currentTurnReferencesInheritedTarget(message);
   const explicitChannelReplacement = Boolean(requestedChannelCode(message) && isControlRequest(message) && inherited && ["device", "device_channel"].includes(inherited.object_type));
-  const hasBlockingCurrentTurnSemantics = Boolean(options.broadReadOnlyDeviceIntent || explicitRoomPhrase || options.semanticOperation || currentTurnExplicitlyGlobal(message) || (domain && domain !== "devices"));
+  const domainBlocksInherited = Boolean(domain && domain !== "devices" && !(referentialTurn && domain === inheritedDomain));
+  const hasBlockingCurrentTurnSemantics = Boolean(options.broadReadOnlyDeviceIntent || explicitRoomPhrase || options.semanticOperation || currentTurnExplicitlyGlobal(message) || domainBlocksInherited);
   const mayUseInheritedExactTarget = Boolean(
     inherited
       && INHERITABLE_EXACT_TARGET_TYPES.has(inherited.object_type)
       && !hasBlockingCurrentTurnSemantics
-      && (currentTurnReferencesInheritedTarget(message) || explicitChannelReplacement),
+      && (referentialTurn || explicitChannelReplacement),
   );
   return {
     operation,
@@ -1203,7 +1204,7 @@ function resolveCurrentTurnAuthorityDecision(input: CanonicalConversationRequest
 }
 
 function currentTurnReferencesInheritedTarget(message: string) {
-  return /\b(it|this|that|same one|same device|same channel|this device|this channel|selected device|selected channel|current device|current channel|its)\b/i.test(text(message));
+  return /\b(it|this|that|same one|same device|same channel|this device|this channel|selected device|selected channel|current device|current channel|its|he|she|they|him|her|that visitor|this visitor|that pass|this pass)\b/i.test(text(message));
 }
 
 function interpretSemanticOperation(message: string) {
@@ -1563,7 +1564,12 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     && !/\b(create|report|raise|log|assign|escalate|close|cancel|reopen|update)\b/i.test(lower);
   const maintenanceActionRequested = currentTurnDomain === "maintenance"
     && /\b(create|report|raise|log|assign|escalate|close|cancel|reopen|update)\b/i.test(lower);
-  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
+  const visitorReadRequested = currentTurnDomain === "visitors"
+    && /\b(who|what|when|has|is|can|show|list|view|status|history|expected|pending|arrived|arrival|came in|come in|valid|expired|currently)\b/i.test(lower)
+    && !/\b(create|invite|add|approve|deny|reject|revoke|cancel|extend|give|grant|allow|remove)\b/i.test(lower);
+  const visitorActionRequested = currentTurnDomain === "visitors"
+    && /\b(create|invite|add|approve|deny|reject|revoke|cancel|extend|give|grant|allow|remove)\b/i.test(lower);
+  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && !visitorReadRequested && !visitorActionRequested && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
   const requestedChannel = mutationRequested ? requestedChannelCode(message) : null;
   const semanticOperation = !mutationRequested ? semanticCandidate : null;
   const targetAmbiguous = Boolean(targetResolution.ambiguous);
@@ -1587,6 +1593,12 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     operationClass = "list";
   } else if (maintenanceActionRequested) {
     intent = "maintenance_operation";
+    operationClass = "compose";
+  } else if (visitorReadRequested) {
+    intent = "domain_list";
+    operationClass = "list";
+  } else if (visitorActionRequested) {
+    intent = "visitor_operation";
     operationClass = "compose";
   } else if (["activity_history", "failure_history", "diagnosis", "relationships", "evidence", "current_state", "health_check", "command_outcome", "capability", "device_availability_inventory", "home_operational_summary"].includes(hint)) {
     intent = hint as CanonicalIntent;
@@ -1647,11 +1659,11 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     ? "home_scope"
     : targetType === "room"
     ? "room_scope"
+    : semanticOperation
+    ? semanticOperation.scopeMode
     : scopeHint === "exact_target" && targetType && !explicitBroad
     && !semanticOperation
     ? "exact_target"
-    : semanticOperation
-    ? semanticOperation.scopeMode
     : explicitBroad
     ? "home_scope"
     : targetType
@@ -1706,6 +1718,8 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   const targetLabel = requestedChannel && object?.label
     ? object.label.replace(/Channel\s+[123]/i, requestedChannel.replace(/^switch_/i, "Channel "))
     : object?.label || text(targetResolution.objectName) || null;
+  const semanticBroadTarget = Boolean(semanticOperation && semanticOperation.scopeMode === "home_scope" && semanticOperation.operationClass === "list");
+  const retainedTargetType = semanticBroadTarget ? null : targetType;
   return {
     conversation_request_id: conversationRequestId,
     thread_id: text(input.thread_id) || null,
@@ -1715,11 +1729,11 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     scope_mode: scopeMode,
     temporal_scope: temporalScopeFor(message),
     target: {
-      object_type: targetType,
-      canonical_id: targetCanonicalId,
-      parent_id: targetParentId,
-      channel_code: targetChannelCode,
-      label: targetLabel,
+      object_type: retainedTargetType,
+      canonical_id: retainedTargetType ? targetCanonicalId : null,
+      parent_id: retainedTargetType ? targetParentId : null,
+      channel_code: retainedTargetType ? targetChannelCode : null,
+      label: retainedTargetType ? targetLabel : null,
     },
     mutation: {
       requested: mutationRequested,
@@ -1978,6 +1992,7 @@ function domainForResolvedTurn(contract: IntelligenceRequestContract, object: Op
   if (contract.intent === "wallet_operation" && contract.answer_builder === "utility_spending") return "utilities";
   if (contract.intent === "wallet_operation") return "wallet";
   if (contract.intent === "maintenance_operation") return "maintenance";
+  if (contract.intent === "visitor_operation" || contract.intent === "access_operation") return "visitors";
   if (contract.intent === "domain_list") return domainForCurrentTurn(message);
   if (contract.intent === "device_availability_inventory") return "devices";
   return null;

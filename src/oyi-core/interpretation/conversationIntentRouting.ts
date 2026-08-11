@@ -229,6 +229,7 @@ export function domainForCurrentTurn(message: string) {
   const lower = text(message).toLowerCase();
   if (/\b(wallet|balance|dues|payments?|transactions?|histry|history)\b/i.test(lower) && /\b(wallet|transactions?|payments?|balance|dues|histry|history)\b/i.test(lower)) return "wallet";
   if (/\b(utilities|utility|electricity|power|water|internet|gas)\b/i.test(lower)) return "utilities";
+  if (/\b(visitors?|visiting|guests?|visitor access|guest access|access pass|gate pass|access code|invite\b|arrived|arrival|came in|come in|allowed in|give .* access|revoke .* access|extend .* access|(?:extend|revoke|cancel|approve|deny|reject)\b[\s\S]{0,24}\bcode)\b/i.test(lower)) return "visitors";
   if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair)\b/i.test(lower)) return "maintenance";
   const matched = MODULE_DOMAIN_ALIASES.find((entry) => entry.pattern.test(message));
   return matched?.domain || null;
