@@ -7,6 +7,7 @@ process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
 const runtime = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
 const intentRouting = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
+const deviceEvidence = fs.readFileSync(path.join(root, "src/oyi-core/domains/devices/deviceEvidence.ts"), "utf8");
 const answerPresentation = fs.readFileSync(path.join(root, "src/oyi-core/presentation/conversationAnswerPresentation.ts"), "utf8");
 const proximity = fs.readFileSync(path.join(root, "src/services/proximityService.ts"), "utf8");
 const runtimeModule = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
@@ -27,7 +28,7 @@ function check(name, fn) {
 
 const runConversation = section("run", runtime, "export async function runCanonicalConversation", "export function adaptCanonicalToCompatibilityChat");
 const contractBuilder = section("contract", runtime, "function resolveIntentContract", "function currentScope");
-const activityBuilder = section("activity", runtime, "function loadRecentChangeFacts", "function factAppliesToContract");
+const activityBuilder = section("activity", deviceEvidence, "function loadRecentDeviceChangeFacts", "export async function loadLatestCommandFact");
 const commandBuilder = section("command", answerPresentation, "function buildCommandOutcomeAnswer", "export function buildReportAnswer");
 
 const channel3 = {
@@ -76,12 +77,12 @@ check("exact-target evidence compatibility rejects proximity and internal events
 check("activity answer does not render proximity disclaimer or system event noise", () => {
   assert.doesNotMatch(activityBuilder, /proximity alone/i);
   assert.doesNotMatch(activityBuilder, /system event/i);
-  assert.match(runtime, /isUsefulDeviceActivityFact/);
+  assert.match(deviceEvidence, /isResidentVisibleOperationalFact/);
 });
 
 check("IR command history remains provider-ack-only", () => {
-  assert.match(runtime, /confirmationStatus/);
-  assert.match(runtime, /physicalEffectStatus/);
+  assert.match(deviceEvidence, /confirmationStatus/);
+  assert.match(deviceEvidence, /physicalEffectStatus/);
   assert.match(commandBuilder, /cannot directly observe whether the physical appliance responded/);
   assert.doesNotMatch(commandBuilder, /waiting for confirmation[\s\S]{0,120}not_observable/);
 });

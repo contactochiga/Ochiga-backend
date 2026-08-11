@@ -5,6 +5,7 @@ import path from "node:path";
 const root = process.cwd();
 const runtime = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
 const deviceAnswers = fs.readFileSync(path.join(root, "src/oyi-core/domains/devices/deviceConversationAnswers.ts"), "utf8");
+const deviceEvidence = fs.readFileSync(path.join(root, "src/oyi-core/domains/devices/deviceEvidence.ts"), "utf8");
 const answerPresentation = fs.readFileSync(path.join(root, "src/oyi-core/presentation/conversationAnswerPresentation.ts"), "utf8");
 
 function check(name, fn) {
@@ -18,12 +19,12 @@ function check(name, fn) {
 }
 
 const healthBuilder = deviceAnswers.match(/function buildDeviceHealthAnswer[\s\S]*?export function buildDeviceFailureHistoryAnswer/)?.[0] || "";
-const activityBuilder = runtime.match(/function loadRecentChangeFacts[\s\S]*?function factAppliesToContract/)?.[0] || "";
+const activityBuilder = deviceEvidence.match(/function loadRecentDeviceChangeFacts[\s\S]*?export async function loadLatestCommandFact/)?.[0] || "";
 const relationshipBuilder = deviceAnswers.match(/function buildDeviceRelationshipsAnswer[\s\S]*?export function buildDeviceControlProposal/)?.[0] || "";
 const commandBuilder = answerPresentation.match(/function buildCommandOutcomeAnswer[\s\S]*?export function buildReportAnswer/)?.[0] || "";
 
 check("stale evidence cannot produce unqualified current health", () => {
-  assert.match(runtime, /truthFromFreshness/);
+  assert.match(deviceEvidence, /truthFromFreshness/);
   assert.match(deviceAnswers, /providerHealthSentence/);
   assert.match(healthBuilder, /truth\.current/);
   assert.doesNotMatch(healthBuilder, /The controller connection is \$\{provider\}/);
@@ -31,7 +32,7 @@ check("stale evidence cannot produce unqualified current health", () => {
 
 check("device activity excludes internal noise and duplicate timestamps", () => {
   assert.match(runtime, /isUsefulDeviceActivityFact/);
-  assert.match(runtime, /proximity\\\.awareness|tool\\\.requested|response\\\.generated|audit\\\.recorded/);
+  assert.match(deviceEvidence, /proximity\\\.awareness|tool\\\.requested|response\\\.generated|audit\\\.recorded/);
   assert.match(answerPresentation, /safeDateLabel\(fact\.occurred_at,\s*""\)/);
   assert.doesNotMatch(activityBuilder, /system event/);
   assert.match(answerPresentation, /safeDateLabel\(fact\.occurred_at,\s*""\)/);

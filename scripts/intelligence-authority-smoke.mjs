@@ -6,6 +6,8 @@ const read = (file) => fs.readFileSync(file, "utf8");
 const runtime = read("src/oyi-core/runtime/canonicalConversationRuntime.ts");
 const intentRouting = read("src/oyi-core/interpretation/conversationIntentRouting.ts");
 const deviceAnswers = read("src/oyi-core/domains/devices/deviceConversationAnswers.ts");
+const deviceEvidence = read("src/oyi-core/domains/devices/deviceEvidence.ts");
+const surfacePolicy = read("src/oyi-core/policy/surfaceConversationPolicy.ts");
 const timeFreshness = read("src/oyi-core/presentation/timeFreshness.ts");
 const answerPresentation = read("src/oyi-core/presentation/conversationAnswerPresentation.ts");
 const routes = read("src/routes/oyiRoutes.ts");
@@ -56,10 +58,10 @@ check("current-turn execution correlation prevents stale execution leakage", () 
 
 check("recent changes engine loads concrete records and deduplicates facts", () => {
   assert.match(runtime, /loadRecentChangeFacts/);
-  assert.match(runtime, /ai_execution_ledger/);
-  assert.match(runtime, /audit_events/);
+  assert.match(deviceEvidence, /ai_execution_ledger/);
+  assert.match(deviceEvidence, /audit_events/);
   assert.match(runtime, /dedupeFacts/);
-  assert.match(runtime, /conversation_fact_deduplicated/);
+  assert.match(deviceEvidence, /conversation_fact_deduplicated/);
 });
 
 check("risk claims require evidence and proximity alone is not access risk", () => {
@@ -115,8 +117,8 @@ check("exact-target read builders cover activity, failures, diagnosis and relati
 });
 
 check("device channel activity is filtered by exact command channel", () => {
-  assert.match(runtime, /object\?\.object_type === "device_channel"/);
-  assert.match(runtime, /channel !== contract\.target\.channel_code/);
+  assert.match(deviceEvidence, /object\?\.object_type === "device_channel"/);
+  assert.match(deviceEvidence, /channel !== contract\.target\.channel_code/);
   assert.match(runtime, /factAppliesToContract/);
 });
 
@@ -124,7 +126,14 @@ check("safe date and internal language firewall prevent Invalid Date and interna
   assert.match(timeFreshness, /function safeDateLabel/);
   assert.match(runtime, /Invalid Date/);
   assert.match(runtime, /ai\\\.\[a-z0-9_/);
-  assert.doesNotMatch(runtime.match(/function loadRecentChangeFacts[\s\S]*?function factAppliesToContract/)?.[0] || "", /new Date\([^)]*\)\.toLocale/);
+  assert.doesNotMatch(deviceEvidence.match(/function loadRecentDeviceChangeFacts[\s\S]*?export async function loadLatestCommandFact/)?.[0] || "", /new Date\([^)]*\)\.toLocale/);
+});
+
+check("surface capability policy is outside the canonical runtime", () => {
+  assert.match(surfacePolicy, /globalCapabilityAnswerForSurface/);
+  assert.match(surfacePolicy, /surface === "facility"/);
+  assert.match(surfacePolicy, /control authorised devices/);
+  assert.match(runtime, /buildSurfaceCapabilityAnswer/);
 });
 
 check("expected command lifecycle replay is idempotent without warning noise", () => {
