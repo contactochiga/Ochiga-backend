@@ -7,6 +7,7 @@ process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
 
 const source = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
+const targetCandidatesSource = fs.readFileSync(path.join(root, "src/oyi-core/context/conversationTargetCandidates.ts"), "utf8");
 const runtime = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
 
 function check(name, fn) {
@@ -63,7 +64,7 @@ const baseFact = {
 check("conversation containers are rejected before operational hydration", () => {
   assert.equal(runtime.isConversationContainerObject({ object_type: "message_thread", canonical_id: "thread-1" }), true);
   assert.equal(runtime.isConversationContainerObject({ target_type: "message", target_id: "thread-1" }), true);
-  assert.match(source, /conversation_container_removed_from_target_resolution/);
+  assert.match(targetCandidatesSource, /conversation_container_removed_from_target_resolution/);
 });
 
 check("current home scope wins over inherited exact channel", () => {
@@ -76,7 +77,7 @@ check("current home scope wins over inherited exact channel", () => {
   assert.equal(contract.scope_mode, "home_scope");
   assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What's happening in my home?", object: channel3 }), false);
   assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "Is this channel on?", object: channel3 }), true);
-  assert.match(source, /object_type: "home"/);
+  assert.match(targetCandidatesSource, /object_type: "home"/);
 });
 
 check("global and non-device turns reject stale inherited device context", () => {

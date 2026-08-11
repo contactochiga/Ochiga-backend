@@ -6,6 +6,7 @@ const root = process.cwd();
 const runtimeSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
 const intentRoutingSource = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
 const targetResolverSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/conversationTargetResolver.ts"), "utf8");
+const targetCandidatesSource = fs.readFileSync(path.join(root, "src/oyi-core/context/conversationTargetCandidates.ts"), "utf8");
 const contextLayersSource = fs.readFileSync(path.join(root, "src/oyi-core/context/conversationContextLayers.ts"), "utf8");
 const unifiedSource = fs.readFileSync(path.join(root, "src/services/oyiUnifiedIntelligenceService.ts"), "utf8");
 process.env.SUPABASE_URL ||= "https://example.supabase.co";
@@ -84,10 +85,23 @@ check("turn interpretation and context layers are persisted", () => {
 });
 
 check("broad turns construct a canonical home object instead of no exact object", () => {
-  assert.match(runtimeSource, /function constructBroadScopeObject/);
-  assert.match(runtimeSource, /object_type: "home"/);
-  assert.match(runtimeSource, /source: "current_turn_explicit_scope"/);
+  assert.match(targetCandidatesSource, /function constructBroadScopeObject/);
+  assert.match(targetCandidatesSource, /object_type: "home"/);
+  assert.match(targetCandidatesSource, /source: "current_turn_explicit_scope"/);
   assert.match(runtimeSource, /conversation_explicit_scope_applied/);
+  assert.doesNotMatch(runtimeSource, /function constructBroadScopeObject/);
+});
+
+check("target candidate assembly is outside resolution and hydration", () => {
+  assert.match(targetCandidatesSource, /function explicitObjectCandidate/);
+  assert.match(targetCandidatesSource, /function threadObjectCandidate/);
+  assert.match(targetCandidatesSource, /function sanitizeConversationInputTargets/);
+  assert.match(targetCandidatesSource, /function routeContextCandidates/);
+  assert.match(targetCandidatesSource, /function constructBroadScopeObject/);
+  assert.doesNotMatch(runtimeSource, /function explicitObjectCandidate/);
+  assert.doesNotMatch(runtimeSource, /function threadObjectCandidate/);
+  assert.match(runtimeSource, /resolveConversationTarget/);
+  assert.match(runtimeSource, /hydrateCanonicalTarget/);
 });
 
 check("thread list returns preview, message count, stable ordering and last scope", () => {
@@ -157,8 +171,11 @@ check("current-turn authority rejects stale inherited targets for global, room a
   assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What can you do?", object: channel3 }), false);
   assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What should I check first?", object: channel3 }), false);
   assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What is happening in Bedroom 2?", object: channel3 }), false);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What is happening in the living room?", object: { ...channel3, label: "Living Room TV" } }), false);
   assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "Show offline devices", object: channel3 }), false);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What devices are offline?", object: { ...channel3, label: "Living Room Light" } }), false);
   assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "Is this channel on?", object: channel3 }), true);
+  assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({ message: "What about that one?", object: channel3 }), true);
   assert.equal(runtime.canonicalInheritedTargetEligibilityForTest({
     message: "Show activity for this selected device",
     object: channel3,
@@ -228,7 +245,7 @@ check("room intelligence binds room phrases before inherited context", () => {
   assert.match(targetResolverSource, /function roomPhraseFromMessage/);
   assert.match(targetResolverSource, /resolveRoomForRead/);
   assert.match(runtimeSource, /current_turn_room_reference/);
-  assert.match(runtimeSource, /contract\.scope_mode === "room_scope" && scope\.room_id/);
+  assert.match(targetCandidatesSource, /contract\.scope_mode === "room_scope" && scope\.room_id/);
   const roomSummary = runtime.canonicalIntelligenceContractForTest({
     message: "What is happening in Bedroom 2?",
     object: { ...channel3, object_type: "room", canonical_id: "room-2", label: "Bedroom 2", parent_id: "home-1", source_module: "rooms" },

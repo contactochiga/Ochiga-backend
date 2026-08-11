@@ -6,9 +6,11 @@ const read = (file) => fs.readFileSync(file, "utf8");
 const runtime = read("src/oyi-core/runtime/canonicalConversationRuntime.ts");
 const intentRouting = read("src/oyi-core/interpretation/conversationIntentRouting.ts");
 const targetResolver = read("src/oyi-core/runtime/conversationTargetResolver.ts");
+const targetCandidates = read("src/oyi-core/context/conversationTargetCandidates.ts");
 const objectHydration = read("src/oyi-core/context/conversationObjectHydration.ts");
 const deviceAnswers = read("src/oyi-core/domains/devices/deviceConversationAnswers.ts");
 const deviceEvidence = read("src/oyi-core/domains/devices/deviceEvidence.ts");
+const walletEvidence = read("src/oyi-core/domains/wallet/walletEvidence.ts");
 const surfacePolicy = read("src/oyi-core/policy/surfaceConversationPolicy.ts");
 const timeFreshness = read("src/oyi-core/presentation/timeFreshness.ts");
 const answerPresentation = read("src/oyi-core/presentation/conversationAnswerPresentation.ts");
@@ -126,6 +128,26 @@ check("object hydration fallback and surface policy live outside the canonical r
   assert.match(runtime, /hydrateOperationalObjectCandidate/);
   assert.doesNotMatch(runtime, /async function resolveCandidate/);
   assert.doesNotMatch(runtime, /function resolveContextSourceForTest/);
+});
+
+check("target candidate assembly lives outside the canonical runtime", () => {
+  assert.match(targetCandidates, /explicitObjectCandidate/);
+  assert.match(targetCandidates, /threadObjectCandidate/);
+  assert.match(targetCandidates, /sanitizeConversationInputTargets/);
+  assert.match(targetCandidates, /constructBroadScopeObject/);
+  assert.match(targetCandidates, /conversation_container_removed_from_target_resolution/);
+  assert.doesNotMatch(runtime, /function explicitObjectCandidate/);
+  assert.doesNotMatch(runtime, /function threadObjectCandidate/);
+  assert.doesNotMatch(runtime, /function sanitizeConversationInputTargets/);
+  assert.doesNotMatch(runtime, /function constructBroadScopeObject/);
+});
+
+check("wallet transaction facts live in the wallet domain", () => {
+  assert.match(walletEvidence, /loadWalletTransactionFacts/);
+  assert.match(walletEvidence, /wallet_transactions/);
+  assert.match(walletEvidence, /resident_home_private/);
+  assert.match(runtime, /loadWalletTransactionFacts/);
+  assert.doesNotMatch(runtime, /async function loadWalletTransactionFacts/);
 });
 
 check("exact-target read builders cover activity, failures, diagnosis and relationships", () => {
