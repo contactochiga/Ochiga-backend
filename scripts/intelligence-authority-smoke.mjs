@@ -4,8 +4,13 @@ import assert from "assert";
 const read = (file) => fs.readFileSync(file, "utf8");
 
 const runtime = read("src/oyi-core/runtime/canonicalConversationRuntime.ts");
+const intentRouting = read("src/oyi-core/interpretation/conversationIntentRouting.ts");
+const deviceAnswers = read("src/oyi-core/domains/devices/deviceConversationAnswers.ts");
+const timeFreshness = read("src/oyi-core/presentation/timeFreshness.ts");
+const answerPresentation = read("src/oyi-core/presentation/conversationAnswerPresentation.ts");
 const routes = read("src/routes/oyiRoutes.ts");
 const aiRoutes = read("src/routes/aiRoutes.ts");
+const requestMapper = read("src/oyi-core/api/ConversationRequestMapper.ts");
 const lifecycleStore = read("src/services/deviceCommandExecutionStore.ts");
 const deviceSignals = read("src/services/deviceOperationalSignalService.ts");
 const audit = read("src/core/foundation/audit.ts");
@@ -21,10 +26,10 @@ function check(name, fn) {
 }
 
 check("canonical request contract owns operation, intent, scope and builder", () => {
-  assert.match(runtime, /export type IntelligenceRequestContract/);
-  assert.match(runtime, /operation_class/);
-  assert.match(runtime, /scope_mode/);
-  assert.match(runtime, /answer_builder/);
+  assert.match(intentRouting, /export type IntelligenceRequestContract/);
+  assert.match(intentRouting, /operation_class/);
+  assert.match(intentRouting, /scope_mode/);
+  assert.match(intentRouting, /answer_builder/);
   assert.match(runtime, /conversation_request_contract_resolved/);
 });
 
@@ -38,8 +43,8 @@ check("read-only firewall runs before legacy compatibility can answer", () => {
 
 check("device health answer does not use mutation completion language", () => {
   assert.match(runtime, /canonicalDeviceHealthAnswerForTest/);
-  assert.match(runtime, /buildHealthAnswer/);
-  assert.doesNotMatch(runtime.match(/function buildHealthAnswer[\s\S]*?function buildCapabilityAnswer/)?.[0] || "", /Done\.|Everything responded normally/);
+  assert.match(deviceAnswers, /buildDeviceHealthAnswer/);
+  assert.doesNotMatch(deviceAnswers.match(/function buildDeviceHealthAnswer[\s\S]*?export function buildDeviceFailureHistoryAnswer/)?.[0] || "", /Done\.|Everything responded normally/);
 });
 
 check("current-turn execution correlation prevents stale execution leakage", () => {
@@ -74,10 +79,10 @@ check("internal compatibility language is filtered from final user copy", () => 
 
 check("report builder exposes deterministic report sections", () => {
   assert.match(runtime, /canonicalReportAnswerForTest/);
-  assert.match(runtime, /Period:/);
-  assert.match(runtime, /Summary:/);
-  assert.match(runtime, /Unresolved items:/);
-  assert.match(runtime, /Limitations:/);
+  assert.match(answerPresentation, /Period:/);
+  assert.match(answerPresentation, /Summary:/);
+  assert.match(answerPresentation, /Unresolved items:/);
+  assert.match(answerPresentation, /Limitations:/);
 });
 
 check("single authoritative persistence is canonical for supported builders", () => {
@@ -87,18 +92,23 @@ check("single authoritative persistence is canonical for supported builders", ()
 });
 
 check("compatibility routes still delegate into canonical runtime", () => {
-  assert.match(routes, /runCanonicalConversation/);
+  assert.match(routes, /conversationOrchestrator\.run/);
+  assert.match(routes, /adaptCanonicalToCompatibilityChat/);
   assert.doesNotMatch(routes, /runOyiUnifiedChat\(/);
 });
 
 check("runtime routes preserve submitted canonical target instead of overwriting it", () => {
-  assert.match(routes, /req\.body\?\.target \|\| req\.body\?\.request\?\.target \|\| req\.oisContext\?\.target/);
+  assert.match(routes, /mapOyiRouteBodyToConversationRequest/);
+  assert.match(requestMapper, /body\?\.target \|\| body\?\.request\?\.target \|\| oisContext\?\.target/);
   assert.match(aiRoutes, /req\.body\?\.target \|\| context\.target \|\| req\.oisContext\?\.target/);
 });
 
 check("exact-target read builders cover activity, failures, diagnosis and relationships", () => {
-  for (const token of ["failure_history", "diagnosis", "relationships", "buildFailureHistoryAnswer", "buildDiagnosisAnswer", "buildRelationshipsAnswer"]) {
+  for (const token of ["failure_history", "diagnosis", "relationships"]) {
     assert.match(runtime, new RegExp(token));
+  }
+  for (const token of ["buildDeviceFailureHistoryAnswer", "buildDeviceDiagnosisAnswer", "buildDeviceRelationshipsAnswer"]) {
+    assert.match(deviceAnswers, new RegExp(token));
   }
   assert.match(runtime, /exact_target_read_authority/);
   assert.match(runtime, /conversation_inventory_fallback_blocked/);
@@ -111,10 +121,10 @@ check("device channel activity is filtered by exact command channel", () => {
 });
 
 check("safe date and internal language firewall prevent Invalid Date and internal event names", () => {
-  assert.match(runtime, /function safeDateLabel/);
+  assert.match(timeFreshness, /function safeDateLabel/);
   assert.match(runtime, /Invalid Date/);
   assert.match(runtime, /ai\\\.\[a-z0-9_/);
-  assert.doesNotMatch(runtime.match(/function buildRecentChangesAnswer[\s\S]*?function buildFailureHistoryAnswer/)?.[0] || "", /new Date\([^)]*\)\.toLocale/);
+  assert.doesNotMatch(runtime.match(/function loadRecentChangeFacts[\s\S]*?function factAppliesToContract/)?.[0] || "", /new Date\([^)]*\)\.toLocale/);
 });
 
 check("expected command lifecycle replay is idempotent without warning noise", () => {

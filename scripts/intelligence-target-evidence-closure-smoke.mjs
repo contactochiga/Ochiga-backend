@@ -6,6 +6,8 @@ const root = process.cwd();
 process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
 const runtime = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
+const intentRouting = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
+const answerPresentation = fs.readFileSync(path.join(root, "src/oyi-core/presentation/conversationAnswerPresentation.ts"), "utf8");
 const proximity = fs.readFileSync(path.join(root, "src/services/proximityService.ts"), "utf8");
 const runtimeModule = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
 
@@ -25,8 +27,8 @@ function check(name, fn) {
 
 const runConversation = section("run", runtime, "export async function runCanonicalConversation", "export function adaptCanonicalToCompatibilityChat");
 const contractBuilder = section("contract", runtime, "function resolveIntentContract", "function currentScope");
-const activityBuilder = section("activity", runtime, "function buildRecentChangesAnswer", "function buildFailureHistoryAnswer");
-const commandBuilder = section("command", runtime, "function buildCommandOutcomeAnswer", "function buildReportAnswer");
+const activityBuilder = section("activity", runtime, "function loadRecentChangeFacts", "function factAppliesToContract");
+const commandBuilder = section("command", answerPresentation, "function buildCommandOutcomeAnswer", "export function buildReportAnswer");
 
 const channel3 = {
   object_type: "device_channel",
@@ -39,7 +41,7 @@ const channel3 = {
 };
 
 check("explicit broad home read clears inherited exact target before resolution", () => {
-  assert.match(runtime, /function isExplicitBroadHomeReadIntent/);
+  assert.match(intentRouting, /function isExplicitBroadHomeReadIntent/);
   assert.match(runConversation, /explicitTarget: inheritedExactTargetAllowed \? input\.target as any : null/);
   assert.match(runConversation, /selectedObject: inheritedExactTargetAllowed \?/);
   assert.match(runConversation, /threadTarget: inheritedExactTargetAllowed && threadCandidate \?/);
