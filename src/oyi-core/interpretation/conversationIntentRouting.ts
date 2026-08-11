@@ -232,6 +232,8 @@ export function domainForCurrentTurn(message: string) {
   if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair|broken|not working)\b/i.test(lower)) return "maintenance";
   if (/\b(community|announcements?|building announce(?:d)?|management updates?|residents group|community posts?|post this to the community|tell (?:the )?residents|notify (?:the )?residents)\b/i.test(lower)) return "community";
   if (/\b(tell me what|what did|what was the last|latest message|unread messages?|reply\b|send a message|message from|direct message|inbox|dm)\b/i.test(lower)) return "messages";
+  if (/\b(scenes?|movie mode|good night|bedtime scene)\b/i.test(lower)) return "scenes";
+  if (/\b(automations?|routines?|schedules?|every\s+(?:night|morning|day|weekday)|at\s+midnight|when i leave|when i arrive|turn .* every night|make .* turn off)\b/i.test(lower)) return "automations";
   if (/\b(wallet|balance|dues|payments?|transactions?|histry|history)\b/i.test(lower) && /\b(wallet|transactions?|payments?|balance|dues|histry|history)\b/i.test(lower)) return "wallet";
   if (/\b(utilities|utility|electricity|power|water|internet|gas)\b/i.test(lower)) return "utilities";
   if (/\b(visitors?|visiting|guests?|visitor access|guest access|access pass|gate pass|access code|invite\b|arrived|arrival|came in|come in|allowed in|give .* access|revoke .* access|extend .* access|(?:extend|revoke|cancel|approve|deny|reject)\b[\s\S]{0,24}\bcode)\b/i.test(lower)) return "visitors";

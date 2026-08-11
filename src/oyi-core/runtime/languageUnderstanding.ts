@@ -117,6 +117,8 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\bhome|house|everything|what should i check|needs attention|changed today\b/i.test(text)) return "home";
   if (/\b(room|bedroom|living room|kitchen|bathroom|space)\b/i.test(text)) return "rooms";
   if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair|broken|not working)\b/i.test(text)) return "maintenance";
+  if (/\b(scenes?|movie mode|good night|bedtime scene)\b/i.test(text)) return "scenes";
+  if (/\b(automations?|routines?|schedules?|every\s+(?:night|morning|day|weekday)|at\s+midnight|when i leave|when i arrive|turn .* every night|make .* turn off)\b/i.test(text)) return "automations";
   if (/\b(device|switch|light|socket|plug|tv|ac|air conditioner|camera status|offline devices|hardware|channel)\b/i.test(text)) return "devices";
   if (/\b(visitor|guest|pass)\b/i.test(text)) return "visitors";
   if (/\b(security|alarm|alert|gate|access denied|unusual access|incident|front door)\b/i.test(text)) return "security";

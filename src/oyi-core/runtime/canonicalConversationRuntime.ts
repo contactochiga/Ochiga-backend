@@ -128,6 +128,16 @@ import {
   communityRecommendation,
 } from "../domains/community/communityConversationAnswers";
 import { communityRecordsFromContext } from "../domains/community/communityEvidence";
+import {
+  buildSceneAutomationReadAnswer,
+  buildSceneAutomationReviewAnswer,
+  sceneAutomationConfirmationReply,
+  sceneAutomationContextualActions,
+  sceneAutomationObjectProfile,
+  sceneAutomationObjectVoice,
+  sceneAutomationRecommendation,
+} from "../domains/automations/sceneAutomationConversationAnswers";
+import { sceneAutomationRecordsFromContext } from "../domains/automations/sceneAutomationEvidence";
 import { buildSurfaceCapabilityAnswer } from "../policy/surfaceConversationPolicy";
 
 export { resolveContextSourceForTest } from "../context/conversationObjectHydration";
@@ -315,7 +325,7 @@ type CurrentTurnAuthorityDecision = {
   rejectionReason: string | null;
 };
 
-const INHERITABLE_EXACT_TARGET_TYPES = new Set(["device", "device_channel", "maintenance_request", "visitor", "access_pass", "operational_incident", "access_point", "service_account", "meter", "message_thread", "community_post"]);
+const INHERITABLE_EXACT_TARGET_TYPES = new Set(["device", "device_channel", "maintenance_request", "visitor", "access_pass", "operational_incident", "access_point", "service_account", "meter", "message_thread", "community_post", "scene", "automation"]);
 
 type PendingClarification = {
   clarification_id: string;
@@ -587,16 +597,8 @@ function objectPersonality(object: OperationalObject) {
     },
     camera: securityObjectProfile("camera"),
     meter: serviceObjectProfile("meter"),
-    scene: {
-      role: "I coordinate the devices and conditions attached to this scene.",
-      diagnostics: ["included devices", "last run", "failures", "schedule"],
-      actions: ["run", "edit", "show devices"],
-    },
-    automation: {
-      role: "I track this automation's trigger, conditions, actions, and last execution.",
-      diagnostics: ["trigger", "conditions", "last run", "affected objects"],
-      actions: ["enable", "disable", "edit", "show history"],
-    },
+    scene: sceneAutomationObjectProfile("scene"),
+    automation: sceneAutomationObjectProfile("automation"),
     message_thread: communityObjectProfile("message_thread"),
     community_post: communityObjectProfile("community_post"),
     notification: {
@@ -646,6 +648,9 @@ function objectVoice(object: OperationalObject) {
   };
   if (type === "message_thread" || type === "community_post") return {
     ...communityObjectVoice(type),
+  };
+  if (type === "scene" || type === "automation") return {
+    ...sceneAutomationObjectVoice(type),
   };
   if (type === "camera" || type === "access_point" || type === "operational_incident") return {
     ...securityObjectVoice(type),
@@ -949,6 +954,7 @@ function recommendationFor(object: OperationalObject, input: CanonicalConversati
   if (object.object_type === "visitor" || object.object_type === "access_pass") return visitorRecommendation();
   if (object.object_type === "access_point" || object.object_type === "camera" || object.object_type === "operational_incident") return securityRecommendation(object);
   if (object.object_type === "message_thread" || object.object_type === "community_post") return communityRecommendation(object);
+  if (object.object_type === "scene" || object.object_type === "automation") return sceneAutomationRecommendation(object);
   if (object.object_type === "room" || object.object_type === "zone") return "I recommend checking active devices before changing the whole room.";
   return objectVoice(object).next;
 }
@@ -1068,6 +1074,9 @@ function contextualConfirmationReply(object: OperationalObject, response: Record
   if (object.object_type === "message_thread" || object.object_type === "community_post") {
     return communityConfirmationReply(object, response);
   }
+  if (object.object_type === "scene" || object.object_type === "automation") {
+    return sceneAutomationConfirmationReply(object, response);
+  }
   return summary ? `${naturalizeUserCopy(summary)} Would you like me to continue?` : `I can do that for ${object.label}. Should I continue?`;
 }
 
@@ -1148,14 +1157,8 @@ function contextualObjectActions(object: OperationalObject, input: CanonicalConv
     actions.push(...securityContextualActions(object));
   } else if (object.object_type === "message_thread" || object.object_type === "community_post") {
     actions.push(...communityContextualActions(object));
-  } else if (object.object_type === "scene") {
-    add("Run Scene", "Run this scene", "control");
-    add("Devices", "What devices do you control?");
-    add("History", "When did this last run?");
-  } else if (object.object_type === "automation") {
-    add("Status", "Is this automation active?");
-    add("History", "Show recent runs");
-    add("Edit", "Change this automation", "approval");
+  } else if (object.object_type === "scene" || object.object_type === "automation") {
+    actions.push(...sceneAutomationContextualActions(object));
   } else {
     add("Status", "What is happening?");
     add("Activity", "Show activity");
@@ -1188,6 +1191,10 @@ function resolveCurrentTurnAuthorityDecision(input: CanonicalConversationRequest
         ? "messages"
       : inheritedType === "community_post"
         ? "community"
+      : inheritedType === "scene"
+        ? "scenes"
+      : inheritedType === "automation"
+        ? "automations"
       : inheritedType === "device" || inheritedType === "device_channel"
         ? "devices"
         : null;
@@ -1612,7 +1619,28 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   const communityActionRequested = communityTargetContext
     && /\b(reply|draft|compose|post this|post to|tell (?:the )?residents|notify (?:the )?residents|announce)\b/i.test(lower)
     && !/\b(tell me what|what(?: else)? did|what was|show|list|view|latest)\b/i.test(lower);
-  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && !visitorReadRequested && !visitorActionRequested && !securityReadRequested && !securityActionRequested && !serviceReadRequested && !serviceActionRequested && !messageReadRequested && !messageActionRequested && !communityReadRequested && !communityActionRequested && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
+  const sceneTargetContext = currentTurnDomain === "scenes" || targetType === "scene";
+  const automationTargetContext = currentTurnDomain === "automations" || targetType === "automation";
+  const scheduledAutomationLanguage = /\b(at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?|midnight|every\s+(?:night|morning|day|weekday)|when i leave|when i arrive|daily|schedule)\b/i.test(lower);
+  const sceneReadRequested = sceneTargetContext
+    && /\b(what|which|show|list|view|status|history|last run|devices?|controls?|what(?:'s| is) in|details?)\b/i.test(lower)
+    && !/\b(run|activate|start|create|make|edit|update|delete|remove)\b/i.test(lower);
+  const sceneActionRequested = sceneTargetContext
+    && /\b(run|activate|start)\b/i.test(lower)
+    && !/\b(what|which|show|list|view|history|last run|what(?:'s| is) in)\b/i.test(lower);
+  const sceneDraftRequested = sceneTargetContext
+    && /\b(create|make|draft|prepare|edit|update|delete|remove)\b/i.test(lower);
+  const automationReadRequested = automationTargetContext
+    && /\b(what|why|when|which|show|list|view|status|history|last run|active|enabled|disabled|triggers?|conditions?|actions?|details?)\b/i.test(lower)
+    && !/\b(create|make|draft|prepare|edit|update|delete|remove|enable|disable|pause|resume|turn (?:it|that|this).*(?:on|off))\b/i.test(lower);
+  const automationActionRequested = automationTargetContext
+    && (/\b(create|make|draft|prepare|edit|update|delete|remove|enable|disable|pause|resume)\b/i.test(lower)
+      || /\bturn\s+(?:it|that|this|the)?\s*(?:routine|automation)?\s*(?:back\s+)?(?:on|off)\b/i.test(lower)
+      || (scheduledAutomationLanguage && /\b(turn|switch|set|make)\b/i.test(lower)));
+  const automationDraftFromTemporalDeviceRequest = !currentTurnDomain
+    && scheduledAutomationLanguage
+    && /\b(turn|switch|set|make)\b/i.test(lower);
+  const mutationRequested = !semanticCandidate && !maintenanceReadRequested && !visitorReadRequested && !visitorActionRequested && !securityReadRequested && !securityActionRequested && !serviceReadRequested && !serviceActionRequested && !messageReadRequested && !messageActionRequested && !communityReadRequested && !communityActionRequested && !sceneReadRequested && !sceneActionRequested && !sceneDraftRequested && !automationReadRequested && !automationActionRequested && !automationDraftFromTemporalDeviceRequest && isControlRequest(message) && !/\b(what happened|why|is|show|list|history|report|recommend|what can|changed|status|working|healthy|evidence|did that work|last command)\b/i.test(lower);
   const requestedChannel = mutationRequested ? requestedChannelCode(message) : null;
   const semanticOperation = !mutationRequested ? semanticCandidate : null;
   const targetAmbiguous = Boolean(targetResolution.ambiguous);
@@ -1664,6 +1692,21 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
   } else if (communityActionRequested) {
     intent = "community_operation";
     operationClass = "compose";
+  } else if (sceneReadRequested) {
+    intent = "domain_list";
+    operationClass = "list";
+  } else if (sceneActionRequested) {
+    intent = "scene_execution";
+    operationClass = "compose";
+  } else if (sceneDraftRequested) {
+    intent = "scene_execution";
+    operationClass = "compose";
+  } else if (automationReadRequested) {
+    intent = "domain_list";
+    operationClass = "list";
+  } else if (automationActionRequested || automationDraftFromTemporalDeviceRequest) {
+    intent = "automation_operation";
+    operationClass = "compose";
   } else if (semanticOperation) {
     intent = semanticOperation.intent;
     operationClass = semanticOperation.operationClass;
@@ -1711,8 +1754,6 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     intent = /\bworking|healthy|health\b/i.test(lower) ? "health_check" : "current_state";
   } else if (/\bwhat can|help|capabilit|controls this|what controls|relationship|scene|automation\b/i.test(lower)) {
     intent = /\bwhat can|help|capabilit\b/i.test(lower) ? "capability" : "capability";
-  } else if (mutationRequested && /\brun\b.*\bscene\b/i.test(lower)) {
-    intent = "scene_execution";
   } else if (mutationRequested) {
     intent = "device_control";
   }
@@ -1787,9 +1828,9 @@ function resolveIntentContract(input: CanonicalConversationRequest, object: Oper
     : object?.label || text(targetResolution.objectName) || null;
   const semanticBroadTarget = Boolean(semanticOperation && semanticOperation.scopeMode === "home_scope" && semanticOperation.operationClass === "list");
   const domainBroadTarget = Boolean(
-    ["maintenance", "visitors", "security", "services", "messages", "community"].includes(currentTurnDomain || "")
+    ["maintenance", "visitors", "security", "services", "messages", "community", "scenes", "automations"].includes(currentTurnDomain || "")
     && ["list", "report"].includes(operationClass)
-    && /\b(all|any|show|list|unresolved|open|expected|pending|alerts?|incidents?|issues?|requests?|services?|bookings?|messages?|threads?|announce(?:d)?|announcements?|notices?|community|posts?|residents group)\b/i.test(lower),
+    && /\b(all|any|show|list|unresolved|open|expected|pending|alerts?|incidents?|issues?|requests?|services?|bookings?|messages?|threads?|announce(?:d)?|announcements?|notices?|community|posts?|residents group|scenes?|automations?|routines?|schedules?)\b/i.test(lower),
   );
   const retainedTargetType = semanticBroadTarget || domainBroadTarget ? null : targetType;
   return {
@@ -2042,7 +2083,7 @@ function scopeForResolvedTurn(contract: IntelligenceRequestContract): ResolvedCo
 
 function domainForResolvedTurn(contract: IntelligenceRequestContract, object: OperationalObject | null, semantic?: ReturnType<typeof semanticOperationAction> | null, message = "") {
   const currentTurnDomain = domainForCurrentTurn(message);
-  if (["maintenance", "visitors", "security", "services", "community", "messages", "notifications"].includes(currentTurnDomain || "")) return currentTurnDomain;
+  if (["maintenance", "visitors", "security", "services", "community", "messages", "notifications", "scenes", "automations"].includes(currentTurnDomain || "")) return currentTurnDomain;
   if (semantic?.operation?.domain) return semantic.operation.domain;
   const module = text(object?.source_module).toLowerCase();
   const targetType = text(contract.target.object_type).toLowerCase();
@@ -2062,6 +2103,8 @@ function domainForResolvedTurn(contract: IntelligenceRequestContract, object: Op
   if (contract.intent === "community_operation") return "community";
   if (contract.intent === "message_operation") return "messages";
   if (contract.intent === "notification_operation") return "notifications";
+  if (contract.intent === "scene_execution") return "scenes";
+  if (contract.intent === "automation_operation") return "automations";
   if (contract.intent === "domain_list") return domainForCurrentTurn(message);
   if (contract.intent === "device_availability_inventory") return "devices";
   return null;
@@ -2078,7 +2121,7 @@ function presentationPolicyForContract(contract: IntelligenceRequestContract): C
   if (contract.operation_class === "execute_mutation" || contract.operation_class === "confirm_mutation") {
     return { ...base, primary: "approval", allowed_supporting_blocks: ["approval", "command_result"], allowed_action_types: ["approval", "cancel"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "collapsed", snapshot_mode: "none", auto_navigation: false };
   }
-  if ((contract.intent === "message_operation" || contract.intent === "community_operation") && contract.operation_class === "compose") {
+  if ((contract.intent === "message_operation" || contract.intent === "community_operation" || contract.intent === "scene_execution" || contract.intent === "automation_operation") && contract.operation_class === "compose") {
     return { ...base, primary: "review", allowed_supporting_blocks: ["review", "navigation_action"], allowed_action_types: ["edit", "cancel", "approval"], suppress_awareness: true, suppress_equivalent_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, evidence_visibility: "collapsed", snapshot_mode: "none", auto_navigation: false };
   }
   if (contract.intent === "device_availability_inventory" || contract.intent === "recent_changes" || contract.intent === "activity_history" || contract.intent === "failure_history" || contract.intent === "wallet_operation") {
@@ -2468,13 +2511,24 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     intent: contract.intent,
     target: contract.target,
   });
-  if ((contract.intent === "message_operation" || contract.intent === "community_operation") && contract.operation_class === "compose") {
+  if ((contract.intent === "scene_execution" || contract.intent === "automation_operation") && contract.operation_class === "compose") {
+    const domain = contract.intent === "scene_execution" ? "scenes" : "automations";
+    answer = buildSceneAutomationReviewAnswer(contract.intent, domain);
+    displayMode = "detail";
+    execution = { status: "review_required", current_turn_execution: false, domain, execution_boundary: "conversation_review_only" };
+  } else if ((contract.intent === "message_operation" || contract.intent === "community_operation") && contract.operation_class === "compose") {
     const domain = contract.intent === "message_operation" ? "messages" : "community";
     answer = domain === "messages"
       ? "I can prepare a message draft, but I will not send it until you review and confirm it."
       : "I can prepare a community post or reply draft, but I will not publish it until you review and confirm it.";
     displayMode = "detail";
     execution = { status: "review_required", current_turn_execution: false, domain, community_thread_boundary: "oyi_conversation_thread_not_reused" };
+  } else if (contract.intent === "domain_list" && ["scenes", "automations"].includes(domainForCurrentTurn(input.message) || "")) {
+    const domain = domainForCurrentTurn(input.message) === "automations" ? "automations" : "scenes";
+    const records = sceneAutomationRecordsFromContext(object, input);
+    answer = buildSceneAutomationReadAnswer(records, domain);
+    displayMode = "list";
+    execution = { status: "read_only", current_turn_execution: false, domain, execution_boundary: "no_scene_or_automation_execution" };
   } else if (contract.intent === "domain_list" && ["community", "messages"].includes(domainForCurrentTurn(input.message) || "")) {
     const domain = domainForCurrentTurn(input.message) === "messages" ? "messages" : "community";
     const records = communityRecordsFromContext(object, input);
