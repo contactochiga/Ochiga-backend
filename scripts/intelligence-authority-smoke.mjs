@@ -13,6 +13,7 @@ const deviceEvidence = read("src/oyi-core/domains/devices/deviceEvidence.ts");
 const utilityAnswers = read("src/oyi-core/domains/utilities/utilityConversationAnswers.ts");
 const utilityEvidence = read("src/oyi-core/domains/utilities/utilityEvidence.ts");
 const walletEvidence = read("src/oyi-core/domains/wallet/walletEvidence.ts");
+const securityEvidence = read("src/oyi-core/domains/security/securityEvidence.ts");
 const surfacePolicy = read("src/oyi-core/policy/surfaceConversationPolicy.ts");
 const timeFreshness = read("src/oyi-core/presentation/timeFreshness.ts");
 const answerPresentation = read("src/oyi-core/presentation/conversationAnswerPresentation.ts");
@@ -72,7 +73,8 @@ check("recent changes engine loads concrete records and deduplicates facts", () 
 
 check("risk claims require evidence and proximity alone is not access risk", () => {
   assert.match(runtime, /securityRiskAllowed/);
-  assert.match(runtime, /conversation_risk_claim_evaluated/);
+  assert.match(securityEvidence, /securityRiskAllowed/);
+  assert.match(securityEvidence, /conversation_risk_claim_evaluated/);
   assert.match(runtime, /evaluateFactCompatibility/);
   assert.match(runtime, /internal_or_proximity_noise/);
   assert.doesNotMatch(runtime, /repeated denial, verification mismatch, or unusual activity/);

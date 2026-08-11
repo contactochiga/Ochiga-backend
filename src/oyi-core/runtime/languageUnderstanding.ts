@@ -19,6 +19,7 @@ export type OyiDomain =
   | "devices"
   | "visitors"
   | "access"
+  | "security"
   | "maintenance"
   | "wallet"
   | "transactions"
@@ -117,6 +118,7 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\b(room|bedroom|living room|kitchen|bathroom|space)\b/i.test(text)) return "rooms";
   if (/\b(device|switch|light|socket|plug|tv|ac|air conditioner|camera status|offline devices|hardware|channel)\b/i.test(text)) return "devices";
   if (/\b(visitor|guest|pass)\b/i.test(text)) return "visitors";
+  if (/\b(security|alarm|alert|gate|access denied|unusual access|incident|front door)\b/i.test(text)) return "security";
   if (/\b(access|unlock|lock|door|pin|card|fingerprint)\b/i.test(text)) return "access";
   if (/\bmaintenance|repair|technician|request|issue|overdue\b/i.test(text)) return "maintenance";
   if (/\butility|utilities|electricity|water|internet|gas|meter|token|tariff|dues|waste|solar|battery\b/i.test(text)) return "utilities";
