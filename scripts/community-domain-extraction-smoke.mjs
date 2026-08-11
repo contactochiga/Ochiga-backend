@@ -9,13 +9,14 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 const runtimeSource = read("src/oyi-core/runtime/canonicalConversationRuntime.ts");
+const persistenceSource = read("src/oyi-core/persistence/canonicalConversationPersistence.ts");
 const communityAnswers = read("src/oyi-core/domains/community/communityConversationAnswers.ts");
 const communityEvidence = read("src/oyi-core/domains/community/communityEvidence.ts");
 const targetCandidates = read("src/oyi-core/context/conversationTargetCandidates.ts");
 const hydrationRegistry = read("src/oyi-core/runtime/canonicalTargetHydrationRegistry.ts");
 const domainRegistry = read("src/oyi-core/runtime/domainCapabilityRegistry.ts");
 const messagesController = read("src/controllers/messagesController.ts");
-const runtime = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
+const runtime = await import(path.join(root, "dist/oyi-core/testing/canonicalConversationTestSupport.js"));
 
 function check(name, fn) {
   try {
@@ -121,7 +122,8 @@ check("Oyi conversation threads remain distinct from Community message threads",
   assert.equal(runtime.isConversationContainerObject({ object_type: "conversation_thread", canonical_id: "oyi-thread-1" }), true);
   assert.equal(runtime.isConversationContainerObject({ object_type: "message_thread", canonical_id: "thread-1" }), true);
   assert.equal(runtime.isConversationContainerObject({ object_type: "message_thread", canonical_id: "dm-thread-1", source_module: "messages", message_thread_id: "dm-thread-1" }), false);
-  assert.match(runtimeSource, /oyi_conversation_messages/);
+  assert.match(persistenceSource, /oyi_conversation_messages/);
+  assert.doesNotMatch(runtimeSource, /oyi_conversation_messages/);
   assert.match(communityEvidence, /dm_threads/);
   assert.match(communityEvidence, /dm_messages/);
   assert.match(communityEvidence, /community_posts/);

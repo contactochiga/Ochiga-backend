@@ -16,7 +16,7 @@ const walletEvidence = read("src/oyi-core/domains/wallet/walletEvidence.ts");
 const targetCandidates = read("src/oyi-core/context/conversationTargetCandidates.ts");
 const hydrationRegistry = read("src/oyi-core/runtime/canonicalTargetHydrationRegistry.ts");
 const servicesController = read("src/controllers/servicesController.ts");
-const runtime = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
+const runtime = await import(path.join(root, "dist/oyi-core/testing/canonicalConversationTestSupport.js"));
 
 function check(name, fn) {
   try {

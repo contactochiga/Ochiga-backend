@@ -10,6 +10,7 @@ const language = await import(path.join(root, "dist/oyi-core/runtime/languageUnd
 const registry = await import(path.join(root, "dist/oyi-core/runtime/domainCapabilityRegistry.js"));
 const workflow = await import(path.join(root, "dist/oyi-core/runtime/conversationWorkflowRuntime.js"));
 const runtimeSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
+const persistenceSource = fs.readFileSync(path.join(root, "src/oyi-core/persistence/canonicalConversationPersistence.ts"), "utf8");
 
 function check(name, fn) {
   try {
@@ -132,13 +133,17 @@ check("canonical runtime persists normalized turn workflow action and resolved t
     "oyi_capability_selected",
     "oyi_workflow_created",
     "oyi_presentation_policy_applied",
+    "persistCanonicalAuthoritativeMessages",
+  ]) {
+    assert.match(runtimeSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  for (const token of [
     "normalized_turn: normalizedTurnMetadata",
     "resolved_oyi_turn: resolvedOyiTurnMetadata",
     "workflow: workflowMetadata",
     "action: actionMetadata",
-    "persistCanonicalAuthoritativeMessages",
   ]) {
-    assert.match(runtimeSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(persistenceSource, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 });
 

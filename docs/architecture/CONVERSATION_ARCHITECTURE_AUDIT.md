@@ -240,19 +240,36 @@ Domain ownership after extraction:
 - Scenes/Automations: `src/oyi-core/domains/automations/*`
 - Reports/Analytics: `src/oyi-core/domains/reports/*`
 
-The current runtime still legitimately coordinates the lifecycle, but the remaining cleanup debt is now narrower:
+Final structural cleanup ownership:
 
-- Generic object/personality/fallback presentation still needs a dedicated presentation or fallback owner.
-- Spatial reasoning still needs a context/domain owner.
-- Clarification continuation should move fully into workflow modules.
-- Builder selection and presentation policy should move into registry/presentation owners.
-- Persistence/finalization should become a dedicated persistence owner invoked by the runtime.
-- Test-only helper exports should move to test-support seams where practical.
+- Contracts: `src/oyi-core/contracts/canonicalConversation.ts`.
+- Context and candidate assembly: `src/oyi-core/context/conversationContextLayers.ts` and `src/oyi-core/context/conversationTargetCandidates.ts`.
+- Authority and inheritance: `src/oyi-core/context/currentTurnAuthority.ts`.
+- Target resolution: `src/oyi-core/runtime/conversationTargetResolver.ts`.
+- Hydration: `src/oyi-core/context/conversationObjectHydration.ts` and `src/oyi-core/runtime/canonicalTargetHydrationRegistry.ts`.
+- Surface policy: `src/oyi-core/policy/surfaceConversationPolicy.ts`.
+- Domain evidence and behavior: `src/oyi-core/domains/<domain>/*`.
+- Clarification/workflows: `src/oyi-core/workflows/conversationClarification.ts` plus the existing workflow runtime/state machine.
+- Presentation/fallback/spatial reasoning: `src/oyi-core/presentation/conversationAnswerPresentation.ts`, `src/oyi-core/presentation/objectFallbackPresentation.ts`, and `src/oyi-core/presentation/timeFreshness.ts`.
+- Builder selection, resolved-turn projection and presentation policy: `src/oyi-core/runtime/canonicalTurnResolution.ts`.
+- Persistence/finalization: `src/oyi-core/persistence/canonicalConversationPersistence.ts` and `src/oyi-core/persistence/canonicalConversationTruth.ts`.
+- Compatibility: `src/oyi-core/runtime/canonicalConversationAdapters.ts`.
+- Test-support seams: `src/oyi-core/testing/canonicalConversationTestSupport.ts`.
+- Canonical lifecycle spine: `src/oyi-core/runtime/canonicalConversationRuntime.ts`.
 
-The intended final runtime responsibility remains:
+The final runtime responsibility is:
 
 `request → normalize/interpret → assemble context → assemble candidates → resolve target → hydrate object → decide authority → load authorized evidence → select capability → invoke domain/workflow → finalize response/action → persist canonical turn → adapt response`.
 
 Structural guardrail:
 
-- `npm run smoke:canonical-runtime-structure` verifies canonical contracts no longer originate in the runtime, extracted modules do not type-import from the runtime, and compatibility adapters remain thin.
+- `npm run smoke:canonical-runtime-structure` verifies canonical contracts no longer originate in the runtime, extracted modules do not type-import from the runtime, compatibility adapters remain thin, persistence internals are outside the runtime, fallback/spatial/clarification/selection implementations are externally owned, and test-only helpers no longer export from the runtime.
+
+Extension pattern:
+
+1. Add or update canonical contracts only in `contracts` when the public shape changes.
+2. Add target/context rules through `context` and `conversationTargetResolver`, not inside the runtime.
+3. Add evidence and answer/action behavior under `domains/<domain>`.
+4. Add presentation blocks through presentation modules and policy selection through `canonicalTurnResolution`.
+5. Let `runCanonicalConversation` orchestrate the lifecycle and call the single persistence owner.
+6. Keep compatibility adapters thin: caller shape in, canonical request out, canonical response adapted back.

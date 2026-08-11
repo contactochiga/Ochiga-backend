@@ -4,6 +4,8 @@ import path from "node:path";
 
 const root = process.cwd();
 const runtimeSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
+const persistenceSource = fs.readFileSync(path.join(root, "src/oyi-core/persistence/canonicalConversationPersistence.ts"), "utf8");
+const turnResolutionSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalTurnResolution.ts"), "utf8");
 const canonicalContractsSource = fs.readFileSync(path.join(root, "src/oyi-core/contracts/canonicalConversation.ts"), "utf8");
 const currentTurnAuthoritySource = fs.readFileSync(path.join(root, "src/oyi-core/context/currentTurnAuthority.ts"), "utf8");
 const intentRoutingSource = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
@@ -13,7 +15,7 @@ const contextLayersSource = fs.readFileSync(path.join(root, "src/oyi-core/contex
 const unifiedSource = fs.readFileSync(path.join(root, "src/services/oyiUnifiedIntelligenceService.ts"), "utf8");
 process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
-const runtime = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
+const runtime = await import(path.join(root, "dist/oyi-core/testing/canonicalConversationTestSupport.js"));
 
 function check(name, fn) {
   try {
@@ -81,8 +83,8 @@ check("turn interpretation and context layers are persisted", () => {
   assert.match(contextLayersSource, /export type TurnInterpretation/);
   assert.match(contextLayersSource, /export type ConversationContextLayers/);
   assert.match(contextLayersSource, /function turnInterpretationFromContract/);
-  assert.match(runtimeSource, /turn_interpretation: turnInterpretation/);
-  assert.match(runtimeSource, /conversation_context_layers: contextLayers/);
+  assert.match(persistenceSource, /turn_interpretation: turnInterpretation/);
+  assert.match(persistenceSource, /conversation_context_layers: contextLayers/);
   assert.match(runtimeSource, /conversation_turn_interpreted/);
 });
 
@@ -119,18 +121,18 @@ check("thread turn persistence is verified before a saved thread id is returned"
   assert.match(unifiedSource, /verifyThreadTurnPersistence\(threadId, 2\)/);
   assert.match(unifiedSource, /cleanupOrphanConversationThread\(threadId\)/);
   assert.match(unifiedSource, /response\.thread_id = null/);
-  assert.match(runtimeSource, /verifyCanonicalCurrentTurnPersistence\(threadId, userMessageId, assistantId, contract\.conversation_request_id\)/);
-  assert.match(runtimeSource, /const assistantId = randomUUID\(\)/);
-  assert.match(runtimeSource, /responseIdentifier\(response, contract\.conversation_request_id\)/);
-  assert.match(runtimeSource, /failedStage = "thread_upsert"/);
-  assert.match(runtimeSource, /failedStage = "user_message_insert"/);
-  assert.match(runtimeSource, /failedStage = "assistant_message_insert"/);
-  assert.match(runtimeSource, /failedStage = "current_turn_verification"/);
-  assert.match(runtimeSource, /failedStage = "thread_summary_update"/);
-  assert.match(runtimeSource, /conversation_persistence_stage_completed/);
-  assert.match(runtimeSource, /conversation_turn_persist_verified/);
-  assert.match(runtimeSource, /cleanupCanonicalTurnRows\(\{ threadId, userMessageId, assistantMessageId: assistantId, deleteThread: newlyCreatedThread \}\)/);
-  assert.match(runtimeSource, /conversation_turn_compensation_failed/);
+  assert.match(persistenceSource, /verifyCanonicalCurrentTurnPersistence\(threadId, userMessageId, assistantId, contract\.conversation_request_id\)/);
+  assert.match(persistenceSource, /const assistantId = randomUUID\(\)/);
+  assert.match(persistenceSource, /responseIdentifier\(response, contract\.conversation_request_id\)/);
+  assert.match(persistenceSource, /failedStage = "thread_upsert"/);
+  assert.match(persistenceSource, /failedStage = "user_message_insert"/);
+  assert.match(persistenceSource, /failedStage = "assistant_message_insert"/);
+  assert.match(persistenceSource, /failedStage = "current_turn_verification"/);
+  assert.match(persistenceSource, /failedStage = "thread_summary_update"/);
+  assert.match(persistenceSource, /conversation_persistence_stage_completed/);
+  assert.match(persistenceSource, /conversation_turn_persist_verified/);
+  assert.match(persistenceSource, /cleanupCanonicalTurnRows\(\{ threadId, userMessageId, assistantMessageId: assistantId, deleteThread: newlyCreatedThread \}\)/);
+  assert.match(persistenceSource, /conversation_turn_compensation_failed/);
   assert.match(runtimeSource, /thread_id: persistedThreadId \|\| null/);
 });
 
@@ -144,10 +146,10 @@ check("canonical runtime is the only persistence owner for compatibility fallbac
 });
 
 check("thread continuation does not force generic titles", () => {
-  assert.match(runtimeSource, /currentThreadTitle/);
-  assert.match(runtimeSource, /genericThreadTitle/);
-  assert.match(runtimeSource, /titleFromTurn/);
-  assert.match(runtimeSource, /conversation_thread_continued/);
+  assert.match(persistenceSource, /currentThreadTitle/);
+  assert.match(persistenceSource, /genericThreadTitle/);
+  assert.match(persistenceSource, /titleFromTurn/);
+  assert.match(persistenceSource, /conversation_thread_continued/);
 });
 
 check("module navigation and domain list operations override inherited exact targets", () => {
@@ -191,9 +193,9 @@ check("builder registry routes exact device requests to specialist builders", ()
   assert.equal(activity.scope_mode, "exact_target");
   assert.equal(activity.answer_builder, "recent_changes");
   assert.match(canonicalContractsSource, /type ConversationBuilderKey/);
-  assert.match(runtimeSource, /function selectConversationBuilder/);
+  assert.match(turnResolutionSource, /function selectConversationBuilder/);
   assert.match(runtimeSource, /conversation_builder_selected/);
-  assert.match(runtimeSource, /device_activity/);
+  assert.match(turnResolutionSource, /device_activity/);
 
   const failures = runtime.canonicalIntelligenceContractForTest({ message: "Show failures for this selected device", object: channel3 });
   assert.equal(failures.intent, "failure_history");
@@ -214,7 +216,7 @@ check("named device resolution and clarification lifecycle are first-class", () 
   assert.match(targetResolverSource, /resolveNamedDeviceForRead/);
   assert.match(runtimeSource, /current_turn_named_device_ambiguous/);
   assert.match(runtimeSource, /current_turn_named_device_not_found/);
-  assert.match(runtimeSource, /operationClass = "clarify"/);
+  assert.match(turnResolutionSource, /operationClass = "clarify"/);
   assert.match(runtimeSource, /resolved_turn: resolvedConversationTurnFromContract/);
 });
 
@@ -229,7 +231,7 @@ check("semantic destination registry is canonical and surface-routed", () => {
   assert.match(intentRoutingSource, /function routeForSemanticDestination/);
   assert.match(currentTurnAuthoritySource, /interpretSemanticOperationForRouting/);
   assert.match(currentTurnAuthoritySource, /semanticOperationActionForRouting/);
-  assert.match(runtimeSource, /semanticOperationAction/);
+  assert.match(turnResolutionSource, /semanticOperationAction/);
 });
 
 check("room navigation resolves as a room destination instead of selected device fallback", () => {

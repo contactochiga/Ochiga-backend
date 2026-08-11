@@ -4,6 +4,10 @@ import assert from "assert";
 const read = (file) => fs.readFileSync(file, "utf8");
 
 const runtime = read("src/oyi-core/runtime/canonicalConversationRuntime.ts");
+const turnResolution = read("src/oyi-core/runtime/canonicalTurnResolution.ts");
+const fallbackPresentation = read("src/oyi-core/presentation/objectFallbackPresentation.ts");
+const persistence = read("src/oyi-core/persistence/canonicalConversationPersistence.ts");
+const testSupport = read("src/oyi-core/testing/canonicalConversationTestSupport.ts");
 const intentRouting = read("src/oyi-core/interpretation/conversationIntentRouting.ts");
 const targetResolver = read("src/oyi-core/runtime/conversationTargetResolver.ts");
 const targetCandidates = read("src/oyi-core/context/conversationTargetCandidates.ts");
@@ -49,11 +53,11 @@ check("read-only firewall runs before legacy compatibility can answer", () => {
   const legacyIndex = runtime.indexOf("const compatibility = await runOyiUnifiedChat");
   assert.ok(buildIndex > 0 && legacyIndex > buildIndex, "canonical builder must precede legacy chat");
   assert.match(runtime, /conversation_read_only_execution_blocked/);
-  assert.match(runtime, /read_only_no_execution/);
+  assert.match(turnResolution, /read_only_no_execution/);
 });
 
 check("device health answer does not use mutation completion language", () => {
-  assert.match(runtime, /canonicalDeviceHealthAnswerForTest/);
+  assert.match(testSupport, /canonicalDeviceHealthAnswerForTest/);
   assert.match(deviceAnswers, /buildDeviceHealthAnswer/);
   assert.doesNotMatch(deviceAnswers.match(/function buildDeviceHealthAnswer[\s\S]*?export function buildDeviceFailureHistoryAnswer/)?.[0] || "", /Done\.|Everything responded normally/);
 });
@@ -74,23 +78,23 @@ check("recent changes engine loads concrete records and deduplicates facts", () 
 });
 
 check("risk claims require evidence and proximity alone is not access risk", () => {
-  assert.match(runtime, /securityRiskAllowed/);
+  assert.match(turnResolution, /securityRiskAllowed/);
   assert.match(securityEvidence, /securityRiskAllowed/);
   assert.match(securityEvidence, /conversation_risk_claim_evaluated/);
-  assert.match(runtime, /evaluateFactCompatibility/);
-  assert.match(runtime, /internal_or_proximity_noise/);
+  assert.match(turnResolution, /evaluateFactCompatibility/);
+  assert.match(turnResolution, /internal_or_proximity_noise/);
   assert.doesNotMatch(runtime, /repeated denial, verification mismatch, or unusual activity/);
 });
 
 check("internal compatibility language is filtered from final user copy", () => {
-  assert.match(runtime, /stripInternalLanguage/);
-  assert.match(runtime, /conversation_internal_language_blocked/);
-  assert.match(runtime, /compatibility awareness/);
-  assert.match(runtime, /execution ledger/);
+  assert.match(turnResolution, /stripInternalLanguage/);
+  assert.match(turnResolution, /conversation_internal_language_blocked/);
+  assert.match(turnResolution, /compatibility awareness/);
+  assert.match(turnResolution, /execution ledger/);
 });
 
 check("report builder exposes deterministic report sections", () => {
-  assert.match(runtime, /canonicalReportAnswerForTest/);
+  assert.match(testSupport, /canonicalReportAnswerForTest/);
   assert.match(reportAnswers, /Period:/);
   assert.match(reportAnswers, /Summary:/);
   assert.match(reportAnswers, /Unresolved items:/);
@@ -101,7 +105,7 @@ check("report builder exposes deterministic report sections", () => {
 
 check("single authoritative persistence is canonical for supported builders", () => {
   assert.match(runtime, /persistCanonicalAuthoritativeMessages/);
-  assert.match(runtime, /single_authoritative_response/);
+  assert.match(persistence, /single_authoritative_response/);
   assert.match(runtime, /conversation_final_answer_selected/);
 });
 
@@ -189,8 +193,8 @@ check("device channel activity is filtered by exact command channel", () => {
 
 check("safe date and internal language firewall prevent Invalid Date and internal event names", () => {
   assert.match(timeFreshness, /function safeDateLabel/);
-  assert.match(runtime, /Invalid Date/);
-  assert.match(runtime, /ai\\\.\[a-z0-9_/);
+  assert.match(turnResolution, /Invalid Date/);
+  assert.match(turnResolution, /internal_event_code/);
   assert.doesNotMatch(deviceEvidence.match(/function loadRecentDeviceChangeFacts[\s\S]*?export async function loadLatestCommandFact/)?.[0] || "", /new Date\([^)]*\)\.toLocale/);
 });
 

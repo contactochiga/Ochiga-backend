@@ -8,7 +8,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
 
 const source = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
 const targetCandidatesSource = fs.readFileSync(path.join(root, "src/oyi-core/context/conversationTargetCandidates.ts"), "utf8");
-const runtime = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
+const persistenceSource = fs.readFileSync(path.join(root, "src/oyi-core/persistence/canonicalConversationPersistence.ts"), "utf8");
+const runtime = await import(path.join(root, "dist/oyi-core/testing/canonicalConversationTestSupport.js"));
 
 function check(name, fn) {
   try {
@@ -230,7 +231,7 @@ check("resident device projection avoids raw Device and Air labels", () => {
 check("semantic dedupe and table persistence hooks exist", () => {
   assert.match(source, /normalizedCopy/);
   assert.match(source, /tableBlockForContract/);
-  assert.match(source, /cards: Array\.isArray\(response\.cards\) \? response\.cards : \[\]/);
+  assert.match(persistenceSource, /cards: Array\.isArray\(response\.cards\) \? response\.cards : \[\]/);
   assert.doesNotMatch(source, /summary: safeAnswer, items: deduped\.slice/);
 });
 

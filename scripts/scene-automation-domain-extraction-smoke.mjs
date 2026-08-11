@@ -16,7 +16,7 @@ const hydrationRegistry = read("src/oyi-core/runtime/canonicalTargetHydrationReg
 const scenesRoute = read("src/routes/scenes.ts");
 const batchService = read("src/services/residentActionBatchExecutionService.ts");
 const capabilityRegistry = read("src/oyi-core/runtime/domainCapabilityRegistry.ts");
-const runtime = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
+const runtime = await import(path.join(root, "dist/oyi-core/testing/canonicalConversationTestSupport.js"));
 
 function check(name, fn) {
   try {

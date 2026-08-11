@@ -19,7 +19,7 @@ const capabilityRegistry = read("src/oyi-core/runtime/domainCapabilityRegistry.t
 const targetCandidates = read("src/oyi-core/context/conversationTargetCandidates.ts");
 const targetResolver = read("src/oyi-core/runtime/conversationTargetResolver.ts");
 const objectHydration = read("src/oyi-core/context/conversationObjectHydration.ts");
-const runtime = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
+const runtime = await import(path.join(root, "dist/oyi-core/testing/canonicalConversationTestSupport.js"));
 
 function check(name, fn) {
   try {

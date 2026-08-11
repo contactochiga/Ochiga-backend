@@ -12,7 +12,7 @@ const runtimeSource = read("src/oyi-core/runtime/canonicalConversationRuntime.ts
 const maintenanceAnswers = read("src/oyi-core/domains/maintenance/maintenanceConversationAnswers.ts");
 const maintenanceEvidence = read("src/oyi-core/domains/maintenance/maintenanceEvidence.ts");
 const targetCandidates = read("src/oyi-core/context/conversationTargetCandidates.ts");
-const runtime = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
+const runtime = await import(path.join(root, "dist/oyi-core/testing/canonicalConversationTestSupport.js"));
 
 function check(name, fn) {
   try {

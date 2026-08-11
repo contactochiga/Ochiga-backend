@@ -10,6 +10,12 @@ const runtimePath = "src/oyi-core/runtime/canonicalConversationRuntime.ts";
 const runtime = read(runtimePath);
 const contracts = read("src/oyi-core/contracts/canonicalConversation.ts");
 const adapters = read("src/oyi-core/runtime/canonicalConversationAdapters.ts");
+const persistence = read("src/oyi-core/persistence/canonicalConversationPersistence.ts");
+const truth = read("src/oyi-core/persistence/canonicalConversationTruth.ts");
+const fallbackPresentation = read("src/oyi-core/presentation/objectFallbackPresentation.ts");
+const clarification = read("src/oyi-core/workflows/conversationClarification.ts");
+const turnResolution = read("src/oyi-core/runtime/canonicalTurnResolution.ts");
+const testSupport = read("src/oyi-core/testing/canonicalConversationTestSupport.ts");
 
 const sourceFiles = [];
 function collect(dir) {
@@ -45,5 +51,28 @@ assert.doesNotMatch(runtime, /export function adaptCanonicalToAiChat/);
 assert.match(runtime, /runCanonicalConversation/);
 assert.match(runtime, /persistCanonicalAuthoritativeMessages/);
 assert.match(runtime, /resolveCurrentTurnAuthorityDecision/);
+assert.doesNotMatch(runtime, /supabaseAdmin|oyi_conversation_threads|oyi_conversation_messages|thread_upsert|assistant_message_insert|user_message_insert|current_turn_verification/);
+assert.match(persistence, /persistCanonicalConversationTurn/);
+assert.match(persistence, /oyi_conversation_threads/);
+assert.match(persistence, /oyi_conversation_messages/);
+assert.match(truth, /canonicalTruthFor/);
+
+assert.doesNotMatch(runtime, /function objectPersonality|function spatialReasoningReply|export function shapeObjectConversation/);
+assert.match(fallbackPresentation, /function objectPersonality/);
+assert.match(fallbackPresentation, /function spatialReasoningReply/);
+assert.match(fallbackPresentation, /export function shapeObjectConversation/);
+
+assert.doesNotMatch(runtime, /function pendingClarificationFromThread|function matchPendingClarificationCandidate|function buildClarificationContinuationResponse/);
+assert.match(clarification, /pendingClarificationFromThread/);
+assert.match(clarification, /matchPendingClarificationCandidate/);
+assert.match(clarification, /buildClarificationContinuationResponse/);
+
+assert.doesNotMatch(runtime, /function selectConversationBuilder|function presentationPolicyForContract|function resolveIntentContract/);
+assert.match(turnResolution, /function selectConversationBuilder/);
+assert.match(turnResolution, /function presentationPolicyForContract/);
+assert.match(turnResolution, /function resolveIntentContract/);
+
+assert.doesNotMatch(runtime, /export function canonical[A-Za-z]+ForTest|export \{ resolveContextSourceForTest/);
+assert.match(testSupport, /canonicalResolvedTurnForTest/);
 
 console.log("canonical-runtime-structure-smoke: ok");

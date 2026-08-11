@@ -16,7 +16,7 @@ const targetCandidates = read("src/oyi-core/context/conversationTargetCandidates
 const hydrationRegistry = read("src/oyi-core/runtime/canonicalTargetHydrationRegistry.ts");
 const capabilityRegistry = read("src/oyi-core/runtime/domainCapabilityRegistry.ts");
 const cameraStreamController = read("src/controllers/cameraStreamController.ts");
-const runtime = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
+const runtime = await import(path.join(root, "dist/oyi-core/testing/canonicalConversationTestSupport.js"));
 
 function check(name, fn) {
   try {

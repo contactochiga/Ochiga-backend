@@ -6,6 +6,7 @@ const root = process.cwd();
 process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
 const runtime = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
+const turnResolution = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalTurnResolution.ts"), "utf8");
 const currentTurnAuthority = fs.readFileSync(path.join(root, "src/oyi-core/context/currentTurnAuthority.ts"), "utf8");
 const intentRouting = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
 const targetResolver = fs.readFileSync(path.join(root, "src/oyi-core/runtime/conversationTargetResolver.ts"), "utf8");
@@ -14,7 +15,7 @@ const objectHydration = fs.readFileSync(path.join(root, "src/oyi-core/context/co
 const deviceEvidence = fs.readFileSync(path.join(root, "src/oyi-core/domains/devices/deviceEvidence.ts"), "utf8");
 const answerPresentation = fs.readFileSync(path.join(root, "src/oyi-core/presentation/conversationAnswerPresentation.ts"), "utf8");
 const proximity = fs.readFileSync(path.join(root, "src/services/proximityService.ts"), "utf8");
-const runtimeModule = await import(path.join(root, "dist/oyi-core/runtime/canonicalConversationRuntime.js"));
+const runtimeModule = await import(path.join(root, "dist/oyi-core/testing/canonicalConversationTestSupport.js"));
 
 function section(name, source, start, end) {
   return source.match(new RegExp(`${start}[\\s\\S]*?${end}`))?.[0] || "";
@@ -31,7 +32,7 @@ function check(name, fn) {
 }
 
 const runConversation = runtime.slice(runtime.indexOf("export async function runCanonicalConversation"));
-const contractBuilder = section("contract", runtime, "function resolveIntentContract", "function currentScope");
+const contractBuilder = section("contract", turnResolution, "export function resolveIntentContract", "export function operationForResolvedTurn");
 const activityBuilder = section("activity", deviceEvidence, "function loadRecentDeviceChangeFacts", "export async function loadLatestCommandFact");
 const commandBuilder = section("command", answerPresentation, "function buildCommandOutcomeAnswer", "export function buildDeviceAvailabilityInventoryAnswer");
 
@@ -60,8 +61,8 @@ check("explicit broad home read clears inherited exact target before resolution"
 });
 
 check("scope hints preserve exact drawer quick actions", () => {
-  assert.match(runtime, /scopeHint/);
-  assert.match(runtime, /scope_mode_hint[\s\S]{0,120}\.toLowerCase\(\)/);
+  assert.match(turnResolution, /scopeHint/);
+  assert.match(turnResolution, /scope_mode_hint[\s\S]{0,160}\.toLowerCase\(\)/);
   assert.match(contractBuilder, /scopeHint === "exact_target"/);
   assert.match(contractBuilder, /!explicitBroad[\s\S]{0,80}"exact_target"/);
 });
@@ -74,10 +75,10 @@ check("explicit requested channel rebinding happens before hydration", () => {
 });
 
 check("exact-target evidence compatibility rejects proximity and internal events", () => {
-  assert.match(runtime, /function evaluateFactCompatibility/);
-  assert.match(runtime, /internal_or_proximity_noise/);
-  assert.match(runtime, /different_channel_or_device/);
-  assert.match(runtime, /exact_channel_match/);
+  assert.match(turnResolution, /function evaluateFactCompatibility/);
+  assert.match(turnResolution, /internal_or_proximity_noise/);
+  assert.match(turnResolution, /different_channel_or_device/);
+  assert.match(turnResolution, /exact_channel_match/);
 });
 
 check("activity answer does not render proximity disclaimer or system event noise", () => {
@@ -102,7 +103,7 @@ check("routine proximity checks do not emit audit intelligence", () => {
 check("home summary and offline inventory remain read-only", () => {
   assert.match(runtime, /read_only_command_execution_blocked/);
   assert.match(runtime, /show_offline_devices/);
-  assert.match(runtime, /read_only_no_execution/);
+  assert.match(turnResolution, /read_only_no_execution/);
 });
 
 check("object hydration uses shared registry plus surface policy", () => {

@@ -4,6 +4,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const runtime = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
+const turnResolution = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalTurnResolution.ts"), "utf8");
 const deviceAnswers = fs.readFileSync(path.join(root, "src/oyi-core/domains/devices/deviceConversationAnswers.ts"), "utf8");
 const deviceEvidence = fs.readFileSync(path.join(root, "src/oyi-core/domains/devices/deviceEvidence.ts"), "utf8");
 const answerPresentation = fs.readFileSync(path.join(root, "src/oyi-core/presentation/conversationAnswerPresentation.ts"), "utf8");
@@ -31,7 +32,8 @@ check("stale evidence cannot produce unqualified current health", () => {
 });
 
 check("device activity excludes internal noise and duplicate timestamps", () => {
-  assert.match(runtime, /isUsefulDeviceActivityFact/);
+  assert.match(turnResolution, /isUsefulDeviceActivityFact/);
+  assert.doesNotMatch(runtime, /function isUsefulDeviceActivityFact/);
   assert.match(deviceEvidence, /proximity\\\.awareness|tool\\\.requested|response\\\.generated|audit\\\.recorded/);
   assert.match(answerPresentation, /safeDateLabel\(fact\.occurred_at,\s*""\)/);
   assert.doesNotMatch(activityBuilder, /system event/);
@@ -51,10 +53,10 @@ check("command outcome uses natural truth wording instead of raw lifecycle enums
 });
 
 check("answer quality gate blocks leaked internal language before persistence", () => {
-  assert.match(runtime, /enforceResidentAnswerQuality/);
-  assert.match(runtime, /conversation_answer_quality_blocked/);
+  assert.match(turnResolution, /enforceResidentAnswerQuality/);
+  assert.match(turnResolution, /conversation_answer_quality_blocked/);
   for (const token of ["raw_uuid", "invalid_date", "internal_event_code", "privacy_policy_term", "freshness_contradiction"]) {
-    assert.match(runtime, new RegExp(token));
+    assert.match(turnResolution, new RegExp(token));
   }
 });
 
