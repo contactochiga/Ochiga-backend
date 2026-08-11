@@ -7,6 +7,7 @@ process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "dummy-service-role-key";
 const runtime = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
 const intentRouting = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
+const targetResolver = fs.readFileSync(path.join(root, "src/oyi-core/runtime/conversationTargetResolver.ts"), "utf8");
 const deviceEvidence = fs.readFileSync(path.join(root, "src/oyi-core/domains/devices/deviceEvidence.ts"), "utf8");
 const answerPresentation = fs.readFileSync(path.join(root, "src/oyi-core/presentation/conversationAnswerPresentation.ts"), "utf8");
 const proximity = fs.readFileSync(path.join(root, "src/services/proximityService.ts"), "utf8");
@@ -61,7 +62,7 @@ check("scope hints preserve exact drawer quick actions", () => {
 });
 
 check("explicit requested channel rebinding happens before hydration", () => {
-  assert.match(runtime, /function requestedChannelCode/);
+  assert.match(targetResolver, /function requestedChannelCode/);
   assert.match(runConversation, /conversation_target_scope_normalized/);
   assert.match(contractBuilder, /requestedChannel && targetParentId/);
   assert.match(contractBuilder, /`\$\{targetParentId\}:\$\{requestedChannel\}`/);

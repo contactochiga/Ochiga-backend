@@ -5,6 +5,7 @@ const read = (file) => fs.readFileSync(file, "utf8");
 
 const runtime = read("src/oyi-core/runtime/canonicalConversationRuntime.ts");
 const intentRouting = read("src/oyi-core/interpretation/conversationIntentRouting.ts");
+const targetResolver = read("src/oyi-core/runtime/conversationTargetResolver.ts");
 const deviceAnswers = read("src/oyi-core/domains/devices/deviceConversationAnswers.ts");
 const deviceEvidence = read("src/oyi-core/domains/devices/deviceEvidence.ts");
 const surfacePolicy = read("src/oyi-core/policy/surfaceConversationPolicy.ts");
@@ -103,6 +104,16 @@ check("runtime routes preserve submitted canonical target instead of overwriting
   assert.match(routes, /mapOyiRouteBodyToConversationRequest/);
   assert.match(requestMapper, /body\?\.target \|\| body\?\.request\?\.target \|\| oisContext\?\.target/);
   assert.match(aiRoutes, /req\.body\?\.target \|\| context\.target \|\| req\.oisContext\?\.target/);
+});
+
+check("named device and room lookup live in the canonical target resolver", () => {
+  assert.match(targetResolver, /resolveNamedDeviceForRead/);
+  assert.match(targetResolver, /resolveRoomForRead/);
+  assert.match(targetResolver, /requestedChannelCode/);
+  assert.match(targetResolver, /conversation_named_device_resolution_failed/);
+  assert.match(targetResolver, /conversation_room_resolution_failed/);
+  assert.doesNotMatch(runtime, /async function resolveNamedDeviceForRead/);
+  assert.doesNotMatch(runtime, /async function resolveRoomForRead/);
 });
 
 check("exact-target read builders cover activity, failures, diagnosis and relationships", () => {

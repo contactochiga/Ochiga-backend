@@ -5,6 +5,7 @@ import path from "node:path";
 const root = process.cwd();
 const runtimeSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/canonicalConversationRuntime.ts"), "utf8");
 const intentRoutingSource = fs.readFileSync(path.join(root, "src/oyi-core/interpretation/conversationIntentRouting.ts"), "utf8");
+const targetResolverSource = fs.readFileSync(path.join(root, "src/oyi-core/runtime/conversationTargetResolver.ts"), "utf8");
 const contextLayersSource = fs.readFileSync(path.join(root, "src/oyi-core/context/conversationContextLayers.ts"), "utf8");
 const unifiedSource = fs.readFileSync(path.join(root, "src/services/oyiUnifiedIntelligenceService.ts"), "utf8");
 process.env.SUPABASE_URL ||= "https://example.supabase.co";
@@ -189,9 +190,9 @@ check("builder registry routes exact device requests to specialist builders", ()
 });
 
 check("named device resolution and clarification lifecycle are first-class", () => {
-  assert.match(runtimeSource, /type DeviceResolutionResult/);
-  assert.match(runtimeSource, /function namedDevicePhraseFromControlMessage/);
-  assert.match(runtimeSource, /resolveNamedDeviceForRead/);
+  assert.match(targetResolverSource, /type DeviceResolutionResult/);
+  assert.match(targetResolverSource, /function namedDevicePhraseFromControlMessage/);
+  assert.match(targetResolverSource, /resolveNamedDeviceForRead/);
   assert.match(runtimeSource, /current_turn_named_device_ambiguous/);
   assert.match(runtimeSource, /current_turn_named_device_not_found/);
   assert.match(runtimeSource, /operationClass = "clarify"/);
@@ -224,8 +225,8 @@ check("room navigation resolves as a room destination instead of selected device
 });
 
 check("room intelligence binds room phrases before inherited context", () => {
-  assert.match(runtimeSource, /function roomPhraseFromMessage/);
-  assert.match(runtimeSource, /resolveRoomForRead/);
+  assert.match(targetResolverSource, /function roomPhraseFromMessage/);
+  assert.match(targetResolverSource, /resolveRoomForRead/);
   assert.match(runtimeSource, /current_turn_room_reference/);
   assert.match(runtimeSource, /contract\.scope_mode === "room_scope" && scope\.room_id/);
   const roomSummary = runtime.canonicalIntelligenceContractForTest({
