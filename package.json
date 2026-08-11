@@ -245,6 +245,7 @@
     "smoke:wallet-history-inline": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
     "smoke:utility-spending-aggregation": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
     "smoke:utility-navigation-classification": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
+    "smoke:utility-domain-extraction": "npm run build && node scripts/utility-domain-extraction-smoke.mjs",
     "smoke:domain-specific-unavailable-responses": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
     "smoke:resident-device-projection-quality": "npm run build && node scripts/conversation-final-correction-smoke.mjs",
     "smoke:time-and-snapshot-standard": "npm run build && node scripts/conversation-final-correction-smoke.mjs",

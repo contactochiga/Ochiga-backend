@@ -3,6 +3,7 @@ import type {
   OperationalObject,
 } from "../runtime/canonicalConversationRuntime";
 import type { IntelligenceRequestContract } from "../interpretation/conversationIntentRouting";
+import { utilitySpendingRows } from "../domains/utilities/utilityConversationAnswers";
 import { safeDateLabel } from "./timeFreshness";
 
 export type ConversationTableBlock = {
@@ -164,30 +165,6 @@ function walletTransactionRows(facts: IntelligenceFact[]) {
     });
 }
 
-function utilitySpendingRows(facts: IntelligenceFact[]) {
-  const utilities = facts.filter((fact) => {
-    const value = recordOf(fact.value);
-    return fact.domain === "utilities" || /electricity|water|internet|utility|power|gas/i.test(`${value.category} ${value.description} ${value.type}`);
-  });
-  const totals = new Map<string, number>();
-  for (const fact of utilities) {
-    const value = recordOf(fact.value);
-    if (text(value.direction).toLowerCase() === "credit") continue;
-    const rawCategory = text(value.category || value.type || value.description) || "Utilities";
-    const category = /electricity|power/i.test(rawCategory) ? "Electricity"
-      : /water/i.test(rawCategory) ? "Water"
-        : /internet|data/i.test(rawCategory) ? "Internet"
-          : /gas/i.test(rawCategory) ? "Gas"
-            : "Utilities";
-    totals.set(category, (totals.get(category) || 0) + Math.abs(Number(value.amount || 0)));
-  }
-  return Array.from(totals.entries()).map(([category, amount]) => ({
-    category,
-    amount: `₦${amount.toLocaleString()}`,
-    status: "confirmed",
-  }));
-}
-
 export function buildRecentChangesAnswer(facts: IntelligenceFact[], contract: IntelligenceRequestContract, predicates: PresentationFactPredicates) {
   const meaningfulFacts = recentChangeRows(facts, contract, predicates).filter((fact) => safeDateLabel(fact.occurred_at, "")).slice(0, 12);
   const meaningful = groupRecentChangeRows(meaningfulFacts).slice(0, 12);
@@ -302,13 +279,6 @@ export function buildWalletHistoryAnswer(facts: IntelligenceFact[]) {
   const rows = walletTransactionRows(facts);
   if (!rows.length) return "I do not see any wallet transactions in the selected period.";
   return `${rows.length} wallet transaction${rows.length === 1 ? "" : "s"} are available for the selected period. I did not navigate away or perform a financial action.`;
-}
-
-export function buildUtilitySpendingAnswer(facts: IntelligenceFact[]) {
-  const rows = utilitySpendingRows(facts);
-  if (!rows.length) return "I could not confirm utility spending for the selected period from the available wallet and service records.";
-  const total = rows.reduce((sum, row) => sum + Number(String(row.amount).replace(/[^0-9.-]+/g, "")), 0);
-  return `You spent ₦${total.toLocaleString()} on confirmed utility transactions in the selected period. I did not perform any wallet, payment, or vending action.`;
 }
 
 export function tableBlockForContract(contract: IntelligenceRequestContract, facts: IntelligenceFact[], predicates: PresentationFactPredicates): ConversationTableBlock | null {

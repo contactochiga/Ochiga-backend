@@ -32,7 +32,6 @@ import {
   buildHomeOperationalSummaryAnswer,
   buildRecentChangesAnswer,
   buildReportAnswer,
-  buildUtilitySpendingAnswer,
   buildWalletHistoryAnswer,
   tableBlockForContract,
   type ConversationTableBlock,
@@ -86,6 +85,8 @@ import {
   loadLatestCommandFact,
   loadRecentDeviceChangeFacts as loadRecentChangeFacts,
 } from "../domains/devices/deviceEvidence";
+import { buildUtilitySpendingAnswer } from "../domains/utilities/utilityConversationAnswers";
+import { loadUtilitySpendingFacts } from "../domains/utilities/utilityEvidence";
 import { loadWalletTransactionFacts } from "../domains/wallet/walletEvidence";
 import { buildSurfaceCapabilityAnswer } from "../policy/surfaceConversationPolicy";
 
@@ -2404,7 +2405,7 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     answer = buildWalletHistoryAnswer(facts);
     displayMode = "list";
   } else if (contract.intent === "wallet_operation" && contract.answer_builder === "utility_spending") {
-    facts = dedupeFacts([...facts, ...await loadWalletTransactionFacts(input, oisContext, contract)]);
+    facts = dedupeFacts([...facts, ...await loadUtilitySpendingFacts(input, oisContext, contract)]);
     answer = buildUtilitySpendingAnswer(facts);
     displayMode = "list";
   } else if (contract.intent === "failure_history") {

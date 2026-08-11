@@ -10,6 +10,8 @@ const targetCandidates = read("src/oyi-core/context/conversationTargetCandidates
 const objectHydration = read("src/oyi-core/context/conversationObjectHydration.ts");
 const deviceAnswers = read("src/oyi-core/domains/devices/deviceConversationAnswers.ts");
 const deviceEvidence = read("src/oyi-core/domains/devices/deviceEvidence.ts");
+const utilityAnswers = read("src/oyi-core/domains/utilities/utilityConversationAnswers.ts");
+const utilityEvidence = read("src/oyi-core/domains/utilities/utilityEvidence.ts");
 const walletEvidence = read("src/oyi-core/domains/wallet/walletEvidence.ts");
 const surfacePolicy = read("src/oyi-core/policy/surfaceConversationPolicy.ts");
 const timeFreshness = read("src/oyi-core/presentation/timeFreshness.ts");
@@ -148,6 +150,18 @@ check("wallet transaction facts live in the wallet domain", () => {
   assert.match(walletEvidence, /resident_home_private/);
   assert.match(runtime, /loadWalletTransactionFacts/);
   assert.doesNotMatch(runtime, /async function loadWalletTransactionFacts/);
+});
+
+check("utility spending facts and answers live in the utilities domain", () => {
+  assert.match(utilityEvidence, /loadUtilitySpendingFacts/);
+  assert.match(utilityEvidence, /loadWalletTransactionFacts/);
+  assert.match(utilityEvidence, /utilities\.read/);
+  assert.match(utilityAnswers, /buildUtilitySpendingAnswer/);
+  assert.match(utilityAnswers, /utilitySpendingRows/);
+  assert.match(runtime, /loadUtilitySpendingFacts/);
+  assert.doesNotMatch(runtime, /loadWalletTransactionFacts\(input, oisContext, contract\)\]\);\n\s+answer = buildUtilitySpendingAnswer/);
+  assert.doesNotMatch(answerPresentation, /function utilitySpendingRows/);
+  assert.doesNotMatch(answerPresentation, /export function buildUtilitySpendingAnswer/);
 });
 
 check("exact-target read builders cover activity, failures, diagnosis and relationships", () => {
