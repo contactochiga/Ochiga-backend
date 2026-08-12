@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
 import { createClient } from "@supabase/supabase-js";
+import { classifySupabaseSchemaError, supabaseAuthFailureMessage } from "./supabase-schema-error-classification.mjs";
 
 function readEnvFile() {
   const full = path.join(process.cwd(), ".env");
@@ -63,13 +64,15 @@ async function ensureColumn(table, column) {
   }
   if (error) {
     const message = String(error.message || "");
-    if (/invalid api key/i.test(message) || /jwt/i.test(message) || /not authenticated/i.test(message)) {
+    if (classifySupabaseSchemaError(error) === "supabase_auth") {
       try {
         cliColumnCheck(table, column);
         return;
       } catch (cliError) {
-        console.error(`FAIL required column missing or unavailable: ${table}.${column}`);
-        console.error(`  ${message}`);
+        for (const line of supabaseAuthFailureMessage(table, column)) {
+          console.error(line);
+        }
+        if (message) console.error(`  Supabase client error: ${message}`);
         process.exit(1);
       }
     }
