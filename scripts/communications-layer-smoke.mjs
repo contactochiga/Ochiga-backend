@@ -24,6 +24,7 @@ process.env.SUPABASE_URL ||= "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-service-role-key";
 process.env.SUPABASE_ANON_KEY ||= "test-anon-key";
 process.env.APP_JWT_SECRET ||= "test-jwt-secret";
+process.env.OYI_COMMUNICATIONS_DISABLE_PERSISTENCE = "true";
 
 await check("Community Live compatibility wrapper delegates to shared communications service", () => {
   assert.match(communityAdapter, /CommunicationsLiveService/);
@@ -70,6 +71,8 @@ await check("Generic communications signaling requires signed session tokens", (
   }
   assert.match(server, /registerGenericCommunicationSocketHandlers/);
   assert.match(routes, /signaling_token: signCommunicationToken/);
+  assert.match(routes, /participant_id/);
+  assert.match(routes, /role/);
   assert.match(socketHandlers, /verifyCommunicationToken/);
   assert.match(socketHandlers, /signalingToken/);
   assert.match(socketHandlers, /session\.surface === "community"/);
@@ -98,6 +101,9 @@ await check("Office/Public communications APIs are exposed without caller-suppli
   assert.match(routes, /router\.post\("\/support\/session", requireAuth, requirePermission\("support\.assign"\)/);
   assert.doesNotMatch(routes, /body\.permissions|actor\.permissions|permission_scopes:\s*permissions/);
   assert.match(app, /app\.use\("\/communications", communicationsRoutes\)/);
+  assert.match(routes, /microphone_consent/);
+  assert.match(routes, /camera_consent/);
+  assert.match(routes, /visual_analysis_consent/);
 });
 
 await check("Shared communications session runtime supports non-community surfaces without DB migrations", async () => {

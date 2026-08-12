@@ -4,6 +4,8 @@ import {
   CommunicationChatMessage,
   CommunicationEvent,
   CommunicationGuestRequest,
+  CommunicationHandoffRequest,
+  CommunicationParticipant,
   CommunicationSession,
   CommunicationSessionCreateInput,
   CommunicationStatus,
@@ -17,14 +19,20 @@ type PersistedSession = {
   scope_id: string;
   estate_id?: string | null;
   home_id?: string | null;
+  owner_type?: string | null;
   owner_id?: string | null;
+  public_session_id?: string | null;
+  oyi_thread_id?: string | null;
+  office_context_ref?: string | null;
   status: CommunicationStatus;
   media_mode: CommunicationSession["media_mode"];
   viewer_count: number;
   started_at?: string | null;
   ended_at?: string | null;
+  last_activity_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 type RuntimeSession = {
@@ -41,15 +49,26 @@ type RuntimeSession = {
 const persisted = new Map<string, PersistedSession>();
 const runtime = new Map<string, RuntimeSession>();
 const events: CommunicationEvent[] = [];
+const participants = new Map<string, CommunicationParticipant>();
+const handoffs = new Map<string, CommunicationHandoffRequest>();
 let initPromise: Promise<void> | null = null;
 
 function nowIso() {
   return new Date().toISOString();
 }
 
+function persistenceDisabled() {
+  return process.env.OYI_COMMUNICATIONS_DISABLE_PERSISTENCE === "true";
+}
+
 function isMissingLiveTable(error: any) {
   const msg = String(error?.message || error || "").toLowerCase();
   return msg.includes("community_live_sessions") && msg.includes("could not find");
+}
+
+function isMissingCommunicationsTable(error: any) {
+  const msg = String(error?.message || error || "").toLowerCase();
+  return msg.includes("communications_") && msg.includes("could not find");
 }
 
 function runtimeSession(sessionId: string) {
@@ -90,7 +109,11 @@ function serialize(sessionId: string): CommunicationSession | null {
     scope_id: row.scope_id,
     estate_id: row.estate_id || null,
     home_id: row.home_id || null,
+    owner_type: row.owner_type || null,
     owner_id: row.owner_id || null,
+    public_session_id: row.public_session_id || null,
+    oyi_thread_id: row.oyi_thread_id || null,
+    office_context_ref: row.office_context_ref || null,
     status,
     media_mode: row.media_mode,
     viewer_count: viewerCount,
@@ -98,6 +121,8 @@ function serialize(sessionId: string): CommunicationSession | null {
     ended_at: row.ended_at || null,
     created_at: row.created_at || null,
     updated_at: row.updated_at || null,
+    last_activity_at: row.last_activity_at || row.updated_at || null,
+    metadata: row.metadata || {},
     is_live: status === "live",
     has_guest: Boolean(session?.guestSocketId),
     guest_user_id: session?.guestUserId || null,
@@ -120,6 +145,7 @@ function communityPatch(row: PersistedSession) {
 }
 
 async function persistCommunitySession(row: PersistedSession) {
+  if (persistenceDisabled()) return row;
   if (row.surface !== "community" || row.scope_type !== "community_post") return row;
   const { data, error } = await supabaseAdmin
     .from("community_live_sessions")
@@ -151,6 +177,74 @@ async function persistCommunitySession(row: PersistedSession) {
   return row;
 }
 
+function canonicalSessionPatch(row: PersistedSession) {
+  return {
+    id: row.session_id,
+    surface: row.surface,
+    purpose: row.purpose,
+    media_mode: row.media_mode,
+    scope_type: row.scope_type,
+    scope_id: row.scope_id,
+    owner_type: row.owner_type || null,
+    owner_id: row.owner_id || null,
+    public_session_id: row.public_session_id || null,
+    oyi_thread_id: row.oyi_thread_id || null,
+    office_context_ref: row.office_context_ref || null,
+    estate_id: row.estate_id || null,
+    home_id: row.home_id || null,
+    status: row.status,
+    started_at: row.started_at || null,
+    ended_at: row.ended_at || null,
+    last_activity_at: row.last_activity_at || row.updated_at || nowIso(),
+    metadata: row.metadata || {},
+  };
+}
+
+function fromCanonicalSession(row: any): PersistedSession | null {
+  if (!row?.id) return null;
+  return {
+    session_id: String(row.id),
+    surface: row.surface,
+    purpose: String(row.purpose || "communication"),
+    scope_type: row.scope_type,
+    scope_id: String(row.scope_id || row.id),
+    estate_id: row.estate_id || null,
+    home_id: row.home_id || null,
+    owner_type: row.owner_type || null,
+    owner_id: row.owner_id || null,
+    public_session_id: row.public_session_id || null,
+    oyi_thread_id: row.oyi_thread_id || null,
+    office_context_ref: row.office_context_ref || null,
+    status: (row.status || "starting") as CommunicationStatus,
+    media_mode: row.media_mode || "audio_video",
+    viewer_count: 0,
+    started_at: row.started_at || null,
+    ended_at: row.ended_at || null,
+    last_activity_at: row.last_activity_at || row.updated_at || null,
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null,
+    metadata: row.metadata || {},
+  };
+}
+
+async function persistCanonicalSession(row: PersistedSession) {
+  if (persistenceDisabled()) return row;
+  const { data, error } = await supabaseAdmin
+    .from("communications_sessions")
+    .upsert(canonicalSessionPatch(row), { onConflict: "id" })
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    if (!isMissingCommunicationsTable(error)) {
+      console.warn("communications session persist failed:", error);
+    }
+    return row;
+  }
+
+  return fromCanonicalSession(data) || row;
+}
+
 async function upsertPersisted(sessionId: string, patch: Partial<PersistedSession>) {
   const key = String(sessionId || "");
   const previous = persisted.get(key);
@@ -163,7 +257,11 @@ async function upsertPersisted(sessionId: string, patch: Partial<PersistedSessio
     scope_id: String(patch.scope_id || previous?.scope_id || key),
     estate_id: patch.estate_id !== undefined ? patch.estate_id : previous?.estate_id || null,
     home_id: patch.home_id !== undefined ? patch.home_id : previous?.home_id || null,
+    owner_type: patch.owner_type !== undefined ? patch.owner_type : previous?.owner_type || null,
     owner_id: patch.owner_id !== undefined ? patch.owner_id : previous?.owner_id || null,
+    public_session_id: patch.public_session_id !== undefined ? patch.public_session_id : previous?.public_session_id || null,
+    oyi_thread_id: patch.oyi_thread_id !== undefined ? patch.oyi_thread_id : previous?.oyi_thread_id || null,
+    office_context_ref: patch.office_context_ref !== undefined ? patch.office_context_ref : previous?.office_context_ref || null,
     status: (patch.status || previous?.status || "starting") as CommunicationStatus,
     media_mode: patch.media_mode || previous?.media_mode || "audio_video",
     viewer_count: Number(
@@ -174,13 +272,33 @@ async function upsertPersisted(sessionId: string, patch: Partial<PersistedSessio
     ),
     started_at: patch.started_at !== undefined ? patch.started_at : previous?.started_at || null,
     ended_at: patch.ended_at !== undefined ? patch.ended_at : previous?.ended_at || null,
+    last_activity_at: patch.last_activity_at || patch.updated_at || nowIso(),
     created_at: previous?.created_at || patch.created_at || nowIso(),
     updated_at: patch.updated_at || nowIso(),
+    metadata: { ...(previous?.metadata || {}), ...(patch.metadata || {}) },
   };
 
-  const persistedRow = await persistCommunitySession(next);
+  const canonicalRow = await persistCanonicalSession(next);
+  const persistedRow = await persistCommunitySession(canonicalRow);
   persisted.set(key, persistedRow);
   return persistedRow;
+}
+
+async function persistEvent(event: CommunicationEvent) {
+  if (persistenceDisabled()) return;
+  const { error } = await supabaseAdmin.from("communications_events").insert({
+    id: event.event_id,
+    session_id: event.session_id,
+    event_type: event.event_type.replace(/\./g, "_"),
+    actor_type: event.actor_role || null,
+    actor_id: event.actor_id || null,
+    participant_id: event.target_id || null,
+    created_at: event.created_at,
+    metadata: event.metadata || {},
+  });
+  if (error && !isMissingCommunicationsTable(error)) {
+    console.warn("communications event persist failed:", error);
+  }
 }
 
 function recordEvent(event: Omit<CommunicationEvent, "event_id" | "created_at">) {
@@ -191,11 +309,39 @@ function recordEvent(event: Omit<CommunicationEvent, "event_id" | "created_at">)
   };
   events.push(next);
   if (events.length > 500) events.splice(0, events.length - 500);
+  void persistEvent(next);
+  return next;
+}
+
+async function persistParticipant(participant: CommunicationParticipant) {
+  const id = participant.participant_id || `${participant.session_id}:${participant.role}:${participant.user_id || participant.public_session_id || participant.socket_id || randomBytes(4).toString("hex")}`;
+  const next = { ...participant, participant_id: id };
+  participants.set(id, next);
+  if (persistenceDisabled()) return next;
+  const { error } = await supabaseAdmin.from("communications_participants").upsert({
+    id,
+    session_id: next.session_id,
+    participant_type: next.participant_type || next.role,
+    user_id: next.user_id || null,
+    public_session_id: next.public_session_id || null,
+    role: next.role,
+    state: next.state || "joined",
+    permissions: next.permissions || [],
+    joined_at: next.joined_at || null,
+    left_at: next.left_at || null,
+    invited_at: next.invited_at || null,
+    accepted_at: next.accepted_at || null,
+    metadata: next.metadata || {},
+  }, { onConflict: "id" });
+  if (error && !isMissingCommunicationsTable(error)) {
+    console.warn("communications participant persist failed:", error);
+  }
   return next;
 }
 
 export class CommunicationsLiveService {
   static async init() {
+    if (persistenceDisabled()) return;
     if (!initPromise) {
       initPromise = (async () => {
         const { data, error } = await supabaseAdmin
@@ -231,10 +377,39 @@ export class CommunicationsLiveService {
           });
           runtimeSession(postId);
         }
+
+        const { data: canonicalRows, error: canonicalError } = await supabaseAdmin
+          .from("communications_sessions")
+          .select("*")
+          .in("status", ["starting", "live"]);
+
+        if (canonicalError) {
+          if (!isMissingCommunicationsTable(canonicalError)) {
+            console.warn("communications session init failed:", canonicalError);
+          }
+          return;
+        }
+
+        for (const row of canonicalRows || []) {
+          const session = fromCanonicalSession(row);
+          if (!session?.session_id) continue;
+          persisted.set(session.session_id, session);
+          runtimeSession(session.session_id);
+        }
       })();
     }
 
     await initPromise;
+  }
+
+  static async reloadForTest() {
+    initPromise = null;
+    persisted.clear();
+    runtime.clear();
+    participants.clear();
+    handoffs.clear();
+    events.splice(0, events.length);
+    await this.init();
   }
 
   static get(sessionId: string) {
@@ -243,6 +418,15 @@ export class CommunicationsLiveService {
 
   static listEvents(sessionId: string) {
     return events.filter((event) => event.session_id === sessionId);
+  }
+
+  static listParticipants(sessionId: string) {
+    return Array.from(participants.values()).filter((participant) => participant.session_id === sessionId);
+  }
+
+  static listHandoffs(sessionId?: string) {
+    const rows = Array.from(handoffs.values());
+    return sessionId ? rows.filter((handoff) => handoff.communications_session_id === sessionId) : rows;
   }
 
   static getPendingRequests(sessionId: string) {
@@ -299,13 +483,21 @@ export class CommunicationsLiveService {
       scope_id: String(input.scopeId),
       estate_id: input.estateId || null,
       home_id: input.homeId || null,
+      owner_type: input.ownerType || (input.surface === "office_public" ? "public_session" : "user"),
       owner_id: input.ownerId || null,
+      public_session_id: input.publicSessionId || null,
+      oyi_thread_id: input.oyiThreadId || null,
+      office_context_ref: input.officeContextRef || null,
       status: "starting",
       media_mode: input.mediaMode || "audio_video",
       viewer_count: 0,
       started_at: nowIso(),
       ended_at: null,
       updated_at: nowIso(),
+      metadata: {
+        ...(input.metadata || {}),
+        consent: input.consent || { microphone: false, camera: false, visual_analysis: false },
+      },
     });
 
     recordEvent({
@@ -315,6 +507,34 @@ export class CommunicationsLiveService {
       actor_id: input.ownerId || null,
       metadata: { scope_type: input.scopeType, scope_id: input.scopeId, purpose: input.purpose },
     });
+
+    await persistParticipant({
+      session_id: input.sessionId,
+      participant_type: input.surface === "office_public" ? "visitor" : "system",
+      role: input.surface === "office_public" ? "visitor" : "host",
+      state: "waiting",
+      user_id: input.surface === "office_public" ? null : input.ownerId || null,
+      public_session_id: input.publicSessionId || (input.surface === "office_public" ? input.scopeId : null),
+      display_name: input.surface === "office_public" ? "Visitor" : "Session owner",
+      permissions: [],
+      invited_at: nowIso(),
+      metadata: { oyi_thread_id: input.oyiThreadId || null },
+    });
+
+    if (input.oyiThreadId || input.surface === "office_public") {
+      await persistParticipant({
+        session_id: input.sessionId,
+        participant_type: "oyi",
+        role: "oyi",
+        state: "joined",
+        user_id: null,
+        public_session_id: input.publicSessionId || null,
+        display_name: "Oyi",
+        permissions: ["intelligence.respond"],
+        joined_at: nowIso(),
+        metadata: { oyi_thread_id: input.oyiThreadId || null, state: "active" },
+      });
+    }
 
     return serialize(input.sessionId);
   }
@@ -336,6 +556,16 @@ export class CommunicationsLiveService {
       actor_id: actorId || row.owner_id || null,
       metadata: { role: "host", socket_id: socketId },
     });
+    void persistParticipant({
+      session_id: sessionId,
+      socket_id: socketId,
+      participant_type: "staff",
+      role: "host",
+      state: "joined",
+      user_id: actorId || row.owner_id || null,
+      display_name: "Host",
+      joined_at: nowIso(),
+    });
     return serialize(sessionId);
   }
 
@@ -354,6 +584,17 @@ export class CommunicationsLiveService {
       event_type: "participant.joined",
       actor_id: actorId || null,
       metadata: { role: "viewer", socket_id: socketId },
+    });
+    void persistParticipant({
+      session_id: sessionId,
+      socket_id: socketId,
+      participant_type: row.surface === "office_public" ? "visitor" : "system",
+      role: row.surface === "office_public" ? "visitor" : "viewer",
+      state: "joined",
+      user_id: actorId || null,
+      public_session_id: row.public_session_id || null,
+      display_name: "Participant",
+      joined_at: nowIso(),
     });
     return serialize(sessionId);
   }
@@ -557,7 +798,198 @@ export class CommunicationsLiveService {
       event_type: "session.ended",
       actor_id: actorId || null,
     });
+    for (const participant of Array.from(participants.values()).filter((item) => item.session_id === sessionId && item.state !== "left")) {
+      void persistParticipant({
+        ...participant,
+        state: "left",
+        left_at: nowIso(),
+      });
+    }
     return serialize(sessionId);
+  }
+
+  static async inviteParticipant(input: {
+    sessionId: string;
+    participantType: CommunicationParticipant["participant_type"];
+    role: CommunicationParticipant["role"];
+    userId?: string | null;
+    publicSessionId?: string | null;
+    displayName?: string | null;
+    permissions?: string[];
+    metadata?: Record<string, unknown>;
+  }) {
+    const session = persisted.get(String(input.sessionId || ""));
+    if (!session) return null;
+    const participant = await persistParticipant({
+      session_id: input.sessionId,
+      participant_type: input.participantType,
+      role: input.role,
+      state: "invited",
+      user_id: input.userId || null,
+      public_session_id: input.publicSessionId || null,
+      display_name: input.displayName || null,
+      permissions: input.permissions || [],
+      invited_at: nowIso(),
+      metadata: input.metadata || {},
+    });
+    recordEvent({
+      session_id: input.sessionId,
+      surface: session.surface,
+      event_type: "participant.invited",
+      actor_id: input.userId || null,
+      target_id: participant.participant_id || null,
+      metadata: { role: input.role, participant_type: input.participantType },
+    });
+    return participant;
+  }
+
+  static async requestHandoff(input: {
+    sessionId: string;
+    publicSessionId?: string | null;
+    oyiThreadId?: string | null;
+    officeContextRef?: string | null;
+    businessUnit?: string | null;
+    requestedCapability?: string | null;
+    reason?: string | null;
+    priority?: CommunicationHandoffRequest["priority"];
+    fallbackAction?: CommunicationHandoffRequest["fallback_action"];
+    metadata?: Record<string, unknown>;
+  }) {
+    const session = persisted.get(String(input.sessionId || ""));
+    if (!session) return null;
+    const handoff: CommunicationHandoffRequest = {
+      handoff_id: `handoff_${randomBytes(12).toString("hex")}`,
+      communications_session_id: input.sessionId,
+      public_session_id: input.publicSessionId || session.public_session_id || null,
+      oyi_thread_id: input.oyiThreadId || session.oyi_thread_id || null,
+      office_context_ref: input.officeContextRef || session.office_context_ref || null,
+      business_unit: String(input.businessUnit || "corporate"),
+      requested_capability: String(input.requestedCapability || "corporate.office_desk"),
+      reason: String(input.reason || "Visitor requested human assistance."),
+      priority: input.priority || "normal",
+      status: "requested",
+      requested_at: nowIso(),
+      fallback_action: input.fallbackAction || "continue_with_oyi",
+      metadata: input.metadata || {},
+    };
+    handoffs.set(handoff.handoff_id, handoff);
+    await this.persistHandoff(handoff);
+    recordEvent({
+      session_id: input.sessionId,
+      surface: session.surface,
+      event_type: "handoff.requested",
+      metadata: {
+        handoff_id: handoff.handoff_id,
+        business_unit: handoff.business_unit,
+        requested_capability: handoff.requested_capability,
+      },
+    });
+    return handoff;
+  }
+
+  static async assignHandoff(handoffId: string, staffId: string | null) {
+    const current = handoffs.get(String(handoffId || ""));
+    if (!current) return null;
+    const next: CommunicationHandoffRequest = {
+      ...current,
+      status: staffId ? "offered" : "timed_out",
+      assigned_staff_id: staffId || null,
+      timed_out_at: staffId ? current.timed_out_at || null : nowIso(),
+    };
+    handoffs.set(next.handoff_id, next);
+    await this.persistHandoff(next);
+    const session = persisted.get(next.communications_session_id);
+    if (session) {
+      recordEvent({
+        session_id: next.communications_session_id,
+        surface: session.surface,
+        event_type: staffId ? "handoff.assigned" : "handoff.timed_out",
+        target_id: staffId || null,
+        metadata: { handoff_id: next.handoff_id, fallback_action: next.fallback_action || null },
+      });
+    }
+    return next;
+  }
+
+  static async acceptHandoff(handoffId: string, staffId: string) {
+    const current = handoffs.get(String(handoffId || ""));
+    if (!current || current.assigned_staff_id !== staffId) return null;
+    const next: CommunicationHandoffRequest = {
+      ...current,
+      status: "accepted",
+      accepted_at: nowIso(),
+    };
+    handoffs.set(next.handoff_id, next);
+    await this.persistHandoff(next);
+    await this.inviteParticipant({
+      sessionId: next.communications_session_id,
+      participantType: "staff",
+      role: "staff",
+      userId: staffId,
+      displayName: "Ochiga staff",
+      permissions: ["communications.join"],
+      metadata: { handoff_id: next.handoff_id },
+    });
+    const session = persisted.get(next.communications_session_id);
+    if (session) {
+      recordEvent({
+        session_id: next.communications_session_id,
+        surface: session.surface,
+        event_type: "handoff.accepted",
+        actor_id: staffId,
+        metadata: { handoff_id: next.handoff_id },
+      });
+    }
+    return next;
+  }
+
+  static async declineHandoff(handoffId: string, staffId: string) {
+    const current = handoffs.get(String(handoffId || ""));
+    if (!current || current.assigned_staff_id !== staffId) return null;
+    const next: CommunicationHandoffRequest = {
+      ...current,
+      status: "declined",
+      declined_at: nowIso(),
+    };
+    handoffs.set(next.handoff_id, next);
+    await this.persistHandoff(next);
+    const session = persisted.get(next.communications_session_id);
+    if (session) {
+      recordEvent({
+        session_id: next.communications_session_id,
+        surface: session.surface,
+        event_type: "handoff.declined",
+        actor_id: staffId,
+        metadata: { handoff_id: next.handoff_id },
+      });
+    }
+    return next;
+  }
+
+  static async persistHandoff(handoff: CommunicationHandoffRequest) {
+    if (persistenceDisabled()) return;
+    const { error } = await supabaseAdmin.from("communications_handoffs").upsert({
+      id: handoff.handoff_id,
+      communications_session_id: handoff.communications_session_id,
+      public_session_id: handoff.public_session_id || null,
+      oyi_thread_id: handoff.oyi_thread_id || null,
+      office_context_ref: handoff.office_context_ref || null,
+      business_unit: handoff.business_unit,
+      requested_capability: handoff.requested_capability,
+      reason: handoff.reason,
+      priority: handoff.priority,
+      status: handoff.status,
+      requested_at: handoff.requested_at,
+      assigned_staff_id: handoff.assigned_staff_id || null,
+      accepted_at: handoff.accepted_at || null,
+      declined_at: handoff.declined_at || null,
+      timed_out_at: handoff.timed_out_at || null,
+      fallback_action: handoff.fallback_action || null,
+      metadata: handoff.metadata || {},
+    }, { onConflict: "id" });
+    if (error && !isMissingCommunicationsTable(error)) {
+      console.warn("communications handoff persist failed:", error);
+    }
   }
 
   static async detachSocket(socketId: string) {

@@ -9,7 +9,7 @@ import { emitAuditEvent } from "../core/foundation";
 
 const router = Router();
 
-const MEDIA_MODES = new Set<CommunicationMediaMode>(["voice", "video", "audio_video"]);
+const MEDIA_MODES = new Set<CommunicationMediaMode>(["chat", "voice", "video", "audio_video"]);
 const SCOPE_TYPES = new Set<CommunicationScopeType>(["office_public_session", "office_internal_session", "support_thread"]);
 
 function timingSafeEqual(a: string, b: string) {
@@ -50,7 +50,7 @@ function scopeType(value: any, fallback: CommunicationScopeType): CommunicationS
   return SCOPE_TYPES.has(raw) ? raw : fallback;
 }
 
-function responseFor(session: any, surface: CommunicationSurface) {
+function responseFor(session: any, surface: CommunicationSurface, role = "participant", participantId?: string | null) {
   return {
     ok: true,
     contract: "oyi_communications.session.v1",
@@ -58,7 +58,7 @@ function responseFor(session: any, surface: CommunicationSurface) {
     provider: "browser_webrtc_socketio_signaling",
     twilio_usage: "network_traversal_only",
     session,
-    signaling_token: signCommunicationToken(session),
+    signaling_token: signCommunicationToken(session, role, participantId),
     rtc_config: null as any,
     policy: communicationSurfacePolicySummary(surface),
   };
@@ -72,7 +72,7 @@ function base64url(value: string | Buffer) {
   return Buffer.from(value).toString("base64url");
 }
 
-function signCommunicationToken(session: any) {
+function signCommunicationToken(session: any, role = "participant", participantId?: string | null) {
   const secret = signingSecret();
   if (!secret || !session?.session_id || !session?.surface) return null;
   const payload = {
@@ -80,6 +80,8 @@ function signCommunicationToken(session: any) {
     surface: String(session.surface),
     scope_type: String(session.scope_type || ""),
     scope_id: String(session.scope_id || ""),
+    participant_id: String(participantId || session.public_session_id || session.owner_id || "participant"),
+    role,
     exp: Math.floor(Date.now() / 1000) + 60 * 60,
   };
   const encoded = base64url(JSON.stringify(payload));
@@ -104,8 +106,24 @@ async function createSession(req: Request, res: Response, surface: Communication
     scopeId,
     estateId: safeText(body.estate_id || body.estateId) || null,
     homeId: safeText(body.home_id || body.homeId) || null,
+    ownerType: surface === "office_public" ? "public_session" : "user",
     ownerId,
+    publicSessionId: safeText(body.public_session_id || body.publicSessionId) || (surface === "office_public" ? scopeId : null),
+    oyiThreadId: safeText(body.oyi_thread_id || body.oyiThreadId || body.conversation_thread_id || body.thread_id) || null,
+    officeContextRef: safeText(body.office_context_ref || body.officeContextRef) || null,
     mediaMode: mediaMode(body.media_mode || body.mediaMode),
+    consent: {
+      microphone: Boolean(body.consent?.microphone || body.microphone_consent),
+      camera: Boolean(body.consent?.camera || body.camera_consent),
+      visual_analysis: Boolean(body.consent?.visual_analysis || body.visual_analysis_consent),
+    },
+    metadata: {
+      customer_journey: {
+        public_session_id: safeText(body.public_session_id || body.publicSessionId) || null,
+        oyi_thread_id: safeText(body.oyi_thread_id || body.oyiThreadId || body.conversation_thread_id || body.thread_id) || null,
+        office_context_ref: safeText(body.office_context_ref || body.officeContextRef) || null,
+      },
+    },
   });
   const payload = responseFor(session, surface);
   payload.rtc_config = await getCommunicationRtcConfig();
@@ -129,6 +147,8 @@ async function readSession(req: Request, res: Response, surface: CommunicationSu
     ...responseFor(session, surface),
     rtc_config: await getCommunicationRtcConfig(),
     events: CommunicationsLiveService.listEvents(session.session_id),
+    participants: CommunicationsLiveService.listParticipants(session.session_id),
+    handoffs: CommunicationsLiveService.listHandoffs(session.session_id),
   });
 }
 
@@ -142,6 +162,95 @@ async function stopSession(req: Request, res: Response, surface: CommunicationSu
   });
 }
 
+async function requestHandoff(req: Request, res: Response, surface: CommunicationSurface) {
+  const session = CommunicationsLiveService.get(String(req.params.sessionId || ""));
+  if (!session || session.surface !== surface) return res.status(404).json({ error: "Communication session not found" });
+  const body = req.body || {};
+  const handoff = await CommunicationsLiveService.requestHandoff({
+    sessionId: session.session_id,
+    publicSessionId: safeText(body.public_session_id || body.publicSessionId) || session.public_session_id || null,
+    oyiThreadId: safeText(body.oyi_thread_id || body.oyiThreadId || body.conversation_thread_id || body.thread_id) || session.oyi_thread_id || null,
+    officeContextRef: safeText(body.office_context_ref || body.officeContextRef) || session.office_context_ref || null,
+    businessUnit: safeText(body.business_unit || body.businessUnit, "corporate"),
+    requestedCapability: safeText(body.requested_capability || body.requestedCapability, "corporate.office_desk"),
+    reason: safeText(body.reason, "Visitor requested human assistance."),
+    priority: safeText(body.priority, "normal") as any,
+    fallbackAction: safeText(body.fallback_action || body.fallbackAction, "continue_with_oyi") as any,
+    metadata: {
+      source: safeText(body.source, "visitor_or_oyi"),
+      media_mode: session.media_mode,
+      safe_context_summary: safeText(body.safe_context_summary || body.context_summary).slice(0, 1000),
+    },
+  });
+  return res.json({
+    ok: true,
+    contract: "oyi_communications.handoff.v1",
+    surface,
+    handoff,
+    session,
+  });
+}
+
+async function acceptHandoff(req: Request, res: Response, surface: CommunicationSurface) {
+  const body = req.body || {};
+  const staffId = safeText(body.staff_id || body.staffId || req.user?.id);
+  const handoff = await CommunicationsLiveService.acceptHandoff(String(req.params.handoffId || ""), staffId);
+  if (!handoff) return res.status(404).json({ error: "Handoff not found or not assigned to staff member" });
+  const session = CommunicationsLiveService.get(handoff.communications_session_id);
+  if (!session || session.surface !== surface) return res.status(404).json({ error: "Communication session not found" });
+  return res.json({
+    ok: true,
+    contract: "oyi_communications.handoff.v1",
+    surface,
+    handoff,
+    session,
+    participants: CommunicationsLiveService.listParticipants(session.session_id),
+    signaling_token: signCommunicationToken(session, "staff", staffId),
+  });
+}
+
+async function declineHandoff(req: Request, res: Response, surface: CommunicationSurface) {
+  const staffId = safeText(req.body?.staff_id || req.body?.staffId || req.user?.id);
+  const handoff = await CommunicationsLiveService.declineHandoff(String(req.params.handoffId || ""), staffId);
+  if (!handoff) return res.status(404).json({ error: "Handoff not found or not assigned to staff member" });
+  const session = CommunicationsLiveService.get(handoff.communications_session_id);
+  if (!session || session.surface !== surface) return res.status(404).json({ error: "Communication session not found" });
+  return res.json({
+    ok: true,
+    contract: "oyi_communications.handoff.v1",
+    surface,
+    handoff,
+    session,
+  });
+}
+
+async function assignHandoff(req: Request, res: Response, surface: CommunicationSurface) {
+  const staffId = safeText(req.body?.staff_id || req.body?.staffId) || null;
+  const handoff = await CommunicationsLiveService.assignHandoff(String(req.params.handoffId || ""), staffId);
+  if (!handoff) return res.status(404).json({ error: "Handoff not found" });
+  const session = CommunicationsLiveService.get(handoff.communications_session_id);
+  if (!session || session.surface !== surface) return res.status(404).json({ error: "Communication session not found" });
+  return res.json({
+    ok: true,
+    contract: "oyi_communications.handoff.v1",
+    surface,
+    handoff,
+    session,
+  });
+}
+
+function handoffQueue(surface: CommunicationSurface) {
+  return {
+    ok: true,
+    contract: "oyi_communications.handoff_queue.v1",
+    surface,
+    handoffs: CommunicationsLiveService.listHandoffs().filter((handoff) => {
+      const session = CommunicationsLiveService.get(handoff.communications_session_id);
+      return session?.surface === surface && ["requested", "routing", "offered"].includes(handoff.status);
+    }),
+  };
+}
+
 router.post("/office-public/session", requireOfficeCommunicationKey, async (req, res) => {
   const ownerId = safeText(req.body?.public_session_id || req.body?.session_id, `office-public-${crypto.randomUUID()}`);
   return createSession(req, res, "office_public", "office_public_session", ownerId);
@@ -153,6 +262,21 @@ router.get("/office-public/session/:sessionId", requireOfficeCommunicationKey, a
 
 router.post("/office-public/session/:sessionId/end", requireOfficeCommunicationKey, async (req, res) => {
   return stopSession(req, res, "office_public", safeText(req.body?.public_session_id, "office-public"));
+});
+
+router.post("/office-public/session/:sessionId/handoff", requireOfficeCommunicationKey, async (req, res) => {
+  return requestHandoff(req, res, "office_public");
+});
+
+router.get("/office-public/session/:sessionId/handoff", requireOfficeCommunicationKey, async (req, res) => {
+  const session = CommunicationsLiveService.get(String(req.params.sessionId || ""));
+  if (!session || session.surface !== "office_public") return res.status(404).json({ error: "Communication session not found" });
+  return res.json({ ok: true, contract: "oyi_communications.handoff.v1", surface: "office_public", handoffs: CommunicationsLiveService.listHandoffs(session.session_id) });
+});
+
+router.post("/office-public/session/:sessionId/callback", requireOfficeCommunicationKey, async (req, res) => {
+  req.body = { ...(req.body || {}), fallback_action: "request_callback", reason: safeText(req.body?.reason, "Visitor requested callback.") };
+  return requestHandoff(req, res, "office_public");
 });
 
 router.get("/office-public/rtc-config", requireOfficeCommunicationKey, async (_req, res) => {
@@ -179,6 +303,26 @@ router.post("/office-internal/session/:sessionId/end", requireAuth, requirePermi
   return stopSession(req, res, "office_internal", String(req.user?.id || "office-internal"));
 });
 
+router.post("/office-internal/session/:sessionId/handoff", requireAuth, requirePermission("office.manage"), async (req, res) => {
+  return requestHandoff(req, res, "office_internal");
+});
+
+router.get("/office-internal/handoffs", requireAuth, requirePermission("office.read"), async (_req, res) => {
+  return res.json(handoffQueue("office_internal"));
+});
+
+router.post("/office-internal/handoffs/:handoffId/assign", requireAuth, requirePermission("office.manage"), async (req, res) => {
+  return assignHandoff(req, res, "office_internal");
+});
+
+router.post("/office-internal/handoffs/:handoffId/accept", requireAuth, requirePermission("office.manage"), async (req, res) => {
+  return acceptHandoff(req, res, "office_internal");
+});
+
+router.post("/office-internal/handoffs/:handoffId/decline", requireAuth, requirePermission("office.manage"), async (req, res) => {
+  return declineHandoff(req, res, "office_internal");
+});
+
 router.get("/office-internal/rtc-config", requireAuth, requirePermission("office.read"), async (_req, res) => {
   return res.json({
     ok: true,
@@ -201,6 +345,26 @@ router.get("/support/session/:sessionId", requireAuth, requirePermission("suppor
 
 router.post("/support/session/:sessionId/end", requireAuth, requirePermission("support.assign"), async (req, res) => {
   return stopSession(req, res, "support", String(req.user?.id || "support"));
+});
+
+router.post("/support/session/:sessionId/handoff", requireAuth, requirePermission("support.assign"), async (req, res) => {
+  return requestHandoff(req, res, "support");
+});
+
+router.get("/support/handoffs", requireAuth, requirePermission("support.read"), async (_req, res) => {
+  return res.json(handoffQueue("support"));
+});
+
+router.post("/support/handoffs/:handoffId/assign", requireAuth, requirePermission("support.assign"), async (req, res) => {
+  return assignHandoff(req, res, "support");
+});
+
+router.post("/support/handoffs/:handoffId/accept", requireAuth, requirePermission("support.assign"), async (req, res) => {
+  return acceptHandoff(req, res, "support");
+});
+
+router.post("/support/handoffs/:handoffId/decline", requireAuth, requirePermission("support.assign"), async (req, res) => {
+  return declineHandoff(req, res, "support");
 });
 
 router.get("/support/rtc-config", requireAuth, requirePermission("support.read"), async (_req, res) => {
