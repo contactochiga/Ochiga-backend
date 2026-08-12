@@ -79,6 +79,10 @@ export type CommunicationEventType =
   | "guest.removed"
   | "signal.relayed"
   | "chat.sent"
+  | "voice.transcribed"
+  | "voice.responded"
+  | "visual.observed"
+  | "oyi.responded"
   | "permission.denied";
 
 export type CommunicationEvent = {

@@ -1061,4 +1061,36 @@ export class CommunicationsLiveService {
 
     return impacted;
   }
+
+  static async recordOyiMediaTurn(input: {
+    sessionId: string;
+    eventType: "voice.transcribed" | "voice.responded" | "visual.observed" | "oyi.responded";
+    actorId?: string | null;
+    actorRole?: string | null;
+    oyiThreadId?: string | null;
+    metadata?: Record<string, unknown>;
+  }) {
+    const session = persisted.get(String(input.sessionId || ""));
+    if (!session) return null;
+    const row = await upsertPersisted(session.session_id, {
+      oyi_thread_id: input.oyiThreadId || session.oyi_thread_id || null,
+      updated_at: nowIso(),
+      last_activity_at: nowIso(),
+      metadata: {
+        media_turn: {
+          last_event_type: input.eventType,
+          oyi_thread_id: input.oyiThreadId || session.oyi_thread_id || null,
+        },
+      },
+    });
+    recordEvent({
+      session_id: row.session_id,
+      surface: row.surface,
+      event_type: input.eventType,
+      actor_id: input.actorId || null,
+      actor_role: input.actorRole || null,
+      metadata: input.metadata || {},
+    });
+    return row;
+  }
 }

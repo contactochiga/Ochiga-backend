@@ -15,6 +15,7 @@
     "smoke:office-internal-surface": "npm run build && node scripts/office-internal-surface-smoke.mjs",
     "smoke:communications-layer": "npm run build && node scripts/communications-layer-smoke.mjs",
     "smoke:communications-handoff": "npm run build && node scripts/communications-durability-handoff-smoke.mjs",
+    "smoke:communications-speech-visual": "npm run build && node scripts/communications-speech-visual-smoke.mjs",
     "smoke:invite-onboarding": "node scripts/invite-first-onboarding-smoke.mjs",
     "build": "tsc -p .",
     "smoke:watch": "npm run build && node scripts/watch-hardening-smoke.mjs",

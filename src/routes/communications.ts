@@ -5,6 +5,15 @@ import { CommunicationsLiveService } from "../services/communications/communicat
 import { getCommunicationRtcConfig } from "../services/communications/communicationsRtcConfig";
 import { communicationSurfacePolicySummary } from "../services/communications/communicationsPolicy";
 import type { CommunicationMediaMode, CommunicationScopeType, CommunicationSurface } from "../services/communications/communicationContracts";
+import type { CommunicationConsent } from "../services/communications/communicationContracts";
+import {
+  analyzeCommunicationFrame,
+  assertMicrophoneConsent,
+  assertVisualConsent,
+  synthesizeOyiSpeech,
+  transcribeCommunicationAudio,
+} from "../services/communications/communicationsMediaAdapters";
+import { CommunicationOyiTurnError, runOyiCommunicationTurn } from "../services/communications/communicationsOyiTurnService";
 import { emitAuditEvent } from "../core/foundation";
 
 const router = Router();
@@ -251,6 +260,274 @@ function handoffQueue(surface: CommunicationSurface) {
   };
 }
 
+function sessionConsent(session: any): CommunicationConsent {
+  const consent = session?.metadata?.consent && typeof session.metadata.consent === "object" ? session.metadata.consent : {};
+  return {
+    microphone: Boolean(consent.microphone),
+    camera: Boolean(consent.camera),
+    visual_analysis: Boolean(consent.visual_analysis),
+  };
+}
+
+function safeCrmContext(body: any) {
+  const crm = body && typeof body.crm_context === "object" && !Array.isArray(body.crm_context) ? body.crm_context : {};
+  return {
+    contact_ref: safeText(crm.contact_ref) || null,
+    organization_ref: safeText(crm.organization_ref) || null,
+    lead_ref: safeText(crm.lead_ref) || null,
+    opportunity_ref: safeText(crm.opportunity_ref) || null,
+    safe_summary: safeText(crm.safe_summary).slice(0, 800) || null,
+  };
+}
+
+async function voiceTurn(req: Request, res: Response, surface: CommunicationSurface) {
+  const session = CommunicationsLiveService.get(String(req.params.sessionId || ""));
+  if (!session || session.surface !== surface) return res.status(404).json({ error: "Communication session not found" });
+  const body = req.body || {};
+  const requestId = safeText(req.headers["x-request-id"], crypto.randomUUID());
+  try {
+    assertMicrophoneConsent(sessionConsent(session), Boolean(body.consent?.microphone || body.microphone_consent));
+  } catch (error: any) {
+    return res.status(403).json({ ok: false, error: error.message, request_id: requestId });
+  }
+
+  let transcript;
+  try {
+    transcript = await transcribeCommunicationAudio({
+      audio_data_url: safeText(body.audio_data_url || body.audioDataUrl),
+      filename: safeText(body.filename) || null,
+    });
+  } catch (error: any) {
+    return res.status(422).json({
+      ok: false,
+      contract: "oyi_communications.voice_turn.v1",
+      error: "speech_transcription_failed",
+      detail: safeText(error?.message, "speech_transcription_failed"),
+      request_id: requestId,
+      canonical_turn_created: false,
+    });
+  }
+
+  await CommunicationsLiveService.recordOyiMediaTurn({
+    sessionId: session.session_id,
+    eventType: "voice.transcribed",
+    actorId: safeText(body.participant_id || body.participantId || req.user?.id) || session.public_session_id || session.owner_id || null,
+    actorRole: surface === "office_public" ? "visitor" : safeText(req.user?.role, "staff"),
+    oyiThreadId: safeText(body.oyi_thread_id || body.oyiThreadId || body.conversation_thread_id || body.thread_id) || session.oyi_thread_id || null,
+    metadata: {
+      request_id: requestId,
+      transcript_length: transcript.transcript.length,
+      language: transcript.language,
+      provider: transcript.provider,
+      temporary_audio_deleted: true,
+    },
+  });
+
+  let turn;
+  try {
+    turn = await runOyiCommunicationTurn({
+      surface,
+      message: transcript.transcript,
+      communications_session_id: session.session_id,
+      public_session_id: safeText(body.public_session_id || body.publicSessionId) || session.public_session_id || null,
+      office_session_id: safeText(body.office_session_id || body.officeSessionId) || session.scope_id || null,
+      oyi_thread_id: safeText(body.oyi_thread_id || body.oyiThreadId || body.conversation_thread_id || body.thread_id) || session.oyi_thread_id || null,
+      business_unit: safeText(body.business_unit || body.businessUnit, "corporate"),
+      inquiry_type: safeText(body.inquiry_type || body.inquiryType, "general_enquiry"),
+      agent_role: safeText(body.agent_role || body.agentRole, "oma"),
+      engagement_mode: safeText(body.engagement_mode || body.engagementMode, "voice_conversation"),
+      source: body.source,
+      crm_context: safeCrmContext(body),
+      actor: req.user || null,
+      staff: body.staff,
+      request_id: requestId,
+    });
+  } catch (error: any) {
+    const status = error instanceof CommunicationOyiTurnError ? error.status : 500;
+    return res.status(status).json({
+      ok: false,
+      contract: "oyi_communications.voice_turn.v1",
+      error: error instanceof CommunicationOyiTurnError ? error.code : "oyi_core_turn_failed",
+      message: safeText(error?.message, "Oyi could not safely answer that voice turn."),
+      request_id: requestId,
+      canonical_turn_created: false,
+    });
+  }
+
+  let audio: Awaited<ReturnType<typeof synthesizeOyiSpeech>> | null = null;
+  let audioError: string | null = null;
+  try {
+    audio = await synthesizeOyiSpeech({ text: turn.response_text });
+  } catch (error: any) {
+    audioError = safeText(error?.message, "speech_synthesis_failed");
+  }
+
+  await CommunicationsLiveService.recordOyiMediaTurn({
+    sessionId: session.session_id,
+    eventType: "oyi.responded",
+    actorId: "oyi",
+    actorRole: "oyi",
+    oyiThreadId: turn.oyi_thread_id,
+    metadata: {
+      request_id: requestId,
+      oyi_thread_id: turn.oyi_thread_id,
+      audio_available: Boolean(audio),
+      tts_error: audioError,
+    },
+  });
+
+  return res.json({
+    ok: true,
+    contract: "oyi_communications.voice_turn.v1",
+    surface,
+    communications_session_id: session.session_id,
+    public_session_id: session.public_session_id,
+    oyi_thread_id: turn.oyi_thread_id,
+    transcript,
+    response_text: turn.response_text,
+    canonical_response: {
+      id: turn.canonical.id,
+      intent: turn.canonical.intent,
+      thread_id: turn.canonical.thread_id,
+      safe_mode: turn.canonical.safe_mode,
+      approval_required: turn.canonical.approvalRequired,
+      requires_confirmation: turn.canonical.requiresConfirmation,
+    },
+    audio,
+    audio_unavailable: !audio,
+    audio_error: audioError,
+    turn_state: audio ? "oyi_speaking" : "text_fallback",
+  });
+}
+
+async function visualObservationTurn(req: Request, res: Response, surface: CommunicationSurface) {
+  const session = CommunicationsLiveService.get(String(req.params.sessionId || ""));
+  if (!session || session.surface !== surface) return res.status(404).json({ error: "Communication session not found" });
+  const body = req.body || {};
+  const requestId = safeText(req.headers["x-request-id"], crypto.randomUUID());
+  try {
+    assertVisualConsent(
+      sessionConsent(session),
+      Boolean(body.consent?.camera || body.camera_consent),
+      Boolean(body.consent?.visual_analysis || body.visual_analysis_consent)
+    );
+  } catch (error: any) {
+    return res.status(403).json({ ok: false, error: error.message, request_id: requestId });
+  }
+
+  let observation;
+  try {
+    observation = await analyzeCommunicationFrame({
+      image_data_url: safeText(body.image_data_url || body.frame_data_url || body.imageDataUrl || body.frameDataUrl),
+      prompt: safeText(body.prompt || body.message) || null,
+      surface,
+      communications_session_id: session.session_id,
+      source_participant_id: safeText(body.participant_id || body.participantId, session.public_session_id || session.owner_id || "participant"),
+    });
+  } catch (error: any) {
+    return res.status(422).json({
+      ok: false,
+      contract: "oyi_communications.visual_observation.v1",
+      error: "visual_analysis_failed",
+      detail: safeText(error?.message, "visual_analysis_failed"),
+      request_id: requestId,
+      canonical_turn_created: false,
+      frame_retention: "ephemeral",
+    });
+  }
+
+  await CommunicationsLiveService.recordOyiMediaTurn({
+    sessionId: session.session_id,
+    eventType: "visual.observed",
+    actorId: safeText(body.participant_id || body.participantId || req.user?.id) || session.public_session_id || session.owner_id || null,
+    actorRole: surface === "office_public" ? "visitor" : safeText(req.user?.role, "staff"),
+    oyiThreadId: safeText(body.oyi_thread_id || body.oyiThreadId || body.conversation_thread_id || body.thread_id) || session.oyi_thread_id || null,
+    metadata: {
+      request_id: requestId,
+      observation_id: observation.observation_id,
+      frame_retention: observation.frame_retention,
+      provider: observation.provider,
+    },
+  });
+
+  const prompt = safeText(body.prompt || body.message, "Please help me understand what I am showing you.");
+  const visualMessage = [
+    prompt,
+    "",
+    "Authorized visual observation from this communications session:",
+    `Summary: ${observation.summary}`,
+    observation.visible_objects.length ? `Visible objects: ${observation.visible_objects.join(", ")}` : "",
+    observation.visible_text.length ? `Visible text: ${observation.visible_text.join("; ")}` : "",
+    observation.uncertainty ? `Uncertainty: ${observation.uncertainty}` : "",
+  ].filter(Boolean).join("\n");
+
+  let turn;
+  try {
+    turn = await runOyiCommunicationTurn({
+      surface,
+      message: visualMessage,
+      communications_session_id: session.session_id,
+      public_session_id: safeText(body.public_session_id || body.publicSessionId) || session.public_session_id || null,
+      office_session_id: safeText(body.office_session_id || body.officeSessionId) || session.scope_id || null,
+      oyi_thread_id: safeText(body.oyi_thread_id || body.oyiThreadId || body.conversation_thread_id || body.thread_id) || session.oyi_thread_id || null,
+      business_unit: safeText(body.business_unit || body.businessUnit, "corporate"),
+      inquiry_type: safeText(body.inquiry_type || body.inquiryType, "general_enquiry"),
+      agent_role: safeText(body.agent_role || body.agentRole, "oma"),
+      engagement_mode: safeText(body.engagement_mode || body.engagementMode, "video_conversation"),
+      source: body.source,
+      crm_context: safeCrmContext(body),
+      visual_observation: observation,
+      actor: req.user || null,
+      staff: body.staff,
+      request_id: requestId,
+    });
+  } catch (error: any) {
+    const status = error instanceof CommunicationOyiTurnError ? error.status : 500;
+    return res.status(status).json({
+      ok: false,
+      contract: "oyi_communications.visual_observation.v1",
+      error: error instanceof CommunicationOyiTurnError ? error.code : "oyi_core_turn_failed",
+      message: safeText(error?.message, "Oyi could not safely answer that visual turn."),
+      request_id: requestId,
+      canonical_turn_created: false,
+      frame_retention: "ephemeral",
+    });
+  }
+
+  await CommunicationsLiveService.recordOyiMediaTurn({
+    sessionId: session.session_id,
+    eventType: "oyi.responded",
+    actorId: "oyi",
+    actorRole: "oyi",
+    oyiThreadId: turn.oyi_thread_id,
+    metadata: {
+      request_id: requestId,
+      oyi_thread_id: turn.oyi_thread_id,
+      visual_observation_id: observation.observation_id,
+    },
+  });
+
+  return res.json({
+    ok: true,
+    contract: "oyi_communications.visual_observation.v1",
+    surface,
+    communications_session_id: session.session_id,
+    public_session_id: session.public_session_id,
+    oyi_thread_id: turn.oyi_thread_id,
+    observation,
+    response_text: turn.response_text,
+    canonical_response: {
+      id: turn.canonical.id,
+      intent: turn.canonical.intent,
+      thread_id: turn.canonical.thread_id,
+      safe_mode: turn.canonical.safe_mode,
+      approval_required: turn.canonical.approvalRequired,
+      requires_confirmation: turn.canonical.requiresConfirmation,
+    },
+    frame_retention: "ephemeral",
+  });
+}
+
 router.post("/office-public/session", requireOfficeCommunicationKey, async (req, res) => {
   const ownerId = safeText(req.body?.public_session_id || req.body?.session_id, `office-public-${crypto.randomUUID()}`);
   return createSession(req, res, "office_public", "office_public_session", ownerId);
@@ -279,6 +556,14 @@ router.post("/office-public/session/:sessionId/callback", requireOfficeCommunica
   return requestHandoff(req, res, "office_public");
 });
 
+router.post("/office-public/session/:sessionId/voice-turn", requireOfficeCommunicationKey, async (req, res) => {
+  return voiceTurn(req, res, "office_public");
+});
+
+router.post("/office-public/session/:sessionId/visual-observation", requireOfficeCommunicationKey, async (req, res) => {
+  return visualObservationTurn(req, res, "office_public");
+});
+
 router.get("/office-public/rtc-config", requireOfficeCommunicationKey, async (_req, res) => {
   return res.json({
     ok: true,
@@ -305,6 +590,14 @@ router.post("/office-internal/session/:sessionId/end", requireAuth, requirePermi
 
 router.post("/office-internal/session/:sessionId/handoff", requireAuth, requirePermission("office.manage"), async (req, res) => {
   return requestHandoff(req, res, "office_internal");
+});
+
+router.post("/office-internal/session/:sessionId/voice-turn", requireAuth, requirePermission("office.read"), async (req, res) => {
+  return voiceTurn(req, res, "office_internal");
+});
+
+router.post("/office-internal/session/:sessionId/visual-observation", requireAuth, requirePermission("office.read"), async (req, res) => {
+  return visualObservationTurn(req, res, "office_internal");
 });
 
 router.get("/office-internal/handoffs", requireAuth, requirePermission("office.read"), async (_req, res) => {
@@ -349,6 +642,14 @@ router.post("/support/session/:sessionId/end", requireAuth, requirePermission("s
 
 router.post("/support/session/:sessionId/handoff", requireAuth, requirePermission("support.assign"), async (req, res) => {
   return requestHandoff(req, res, "support");
+});
+
+router.post("/support/session/:sessionId/voice-turn", requireAuth, requirePermission("support.read"), async (req, res) => {
+  return voiceTurn(req, res, "support");
+});
+
+router.post("/support/session/:sessionId/visual-observation", requireAuth, requirePermission("support.read"), async (req, res) => {
+  return visualObservationTurn(req, res, "support");
 });
 
 router.get("/support/handoffs", requireAuth, requirePermission("support.read"), async (_req, res) => {
