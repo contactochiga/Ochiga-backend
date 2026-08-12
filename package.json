@@ -14,6 +14,7 @@
     "smoke:corporate-public-integration": "npm run build && node scripts/corporate-public-integration-smoke.mjs",
     "smoke:office-internal-surface": "npm run build && node scripts/office-internal-surface-smoke.mjs",
     "smoke:office-export-auth-compat": "npm run build && node scripts/office-export-auth-compat-smoke.mjs",
+    "smoke:communications-office-auth-compat": "npm run build && node scripts/communications-office-auth-compat-smoke.mjs",
     "smoke:communications-layer": "npm run build && node scripts/communications-layer-smoke.mjs",
     "smoke:communications-handoff": "npm run build && node scripts/communications-durability-handoff-smoke.mjs",
     "smoke:communications-speech-visual": "npm run build && node scripts/communications-speech-visual-smoke.mjs",

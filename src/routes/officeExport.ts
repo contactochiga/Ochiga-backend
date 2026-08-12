@@ -1,9 +1,13 @@
 import { Router, Request, Response, NextFunction } from "express";
-import crypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
 import { runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
 import type { AuthUser } from "../middleware/auth";
+import {
+  officeCredentialTimingSafeEqual,
+  resolveOfficeCredential,
+  resolveOfficeSyncKey,
+} from "../middleware/officeCredential";
 import type { CorporateBusinessUnit, CorporateOyiCoreRequest, OfficeInternalOyiCoreRequest } from "../contracts/corporateIntelligence";
 import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLICY } from "../contracts/corporateIntelligence";
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
@@ -13,33 +17,14 @@ const router = Router();
 
 type Row = Record<string, any>;
 
-function timingSafeEqual(a: string, b: string) {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  if (left.length !== right.length) return false;
-  return crypto.timingSafeEqual(left, right);
-}
-
-function extractBearer(req: Request) {
-  const auth = req.headers.authorization || "";
-  const match = String(auth).match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || "";
-}
-
 export function requireOfficeExportKey(req: Request, res: Response, next: NextFunction) {
-  const expected = process.env.OFFICE_SYNC_API_KEY || process.env.OFFICE_EXPORT_API_KEY || "";
+  const expected = resolveOfficeSyncKey();
   if (!expected) {
     return res.status(503).json({ error: "OFFICE_SYNC_API_KEY is not configured" });
   }
 
-  // Accepted credential sources, in order: legacy x-api-key, the Office
-  // gateway's own header name (x-office-api-key — see
-  // ochiga-office/src/lead-agents/oyi-core-gateway.js), then Bearer.
-  // Additive only: neither existing path is narrowed or removed.
-  const provided = String(
-    req.headers["x-api-key"] || req.headers["x-office-api-key"] || extractBearer(req) || ""
-  ).trim();
-  if (!provided || !timingSafeEqual(provided, expected)) {
+  const provided = resolveOfficeCredential(req);
+  if (!provided || !officeCredentialTimingSafeEqual(provided, expected)) {
     return res.status(401).json({ error: "Invalid office sync key" });
   }
 

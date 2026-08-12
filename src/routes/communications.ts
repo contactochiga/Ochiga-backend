@@ -1,6 +1,11 @@
 import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { requireAuth, requirePermission } from "../middleware/auth";
+import {
+  officeCredentialTimingSafeEqual,
+  resolveOfficeCredential,
+  resolveOfficeSyncKey,
+} from "../middleware/officeCredential";
 import { CommunicationsLiveService } from "../services/communications/communicationsLiveService";
 import { getCommunicationRtcConfig } from "../services/communications/communicationsRtcConfig";
 import { communicationSurfacePolicySummary } from "../services/communications/communicationsPolicy";
@@ -21,24 +26,11 @@ const router = Router();
 const MEDIA_MODES = new Set<CommunicationMediaMode>(["chat", "voice", "video", "audio_video"]);
 const SCOPE_TYPES = new Set<CommunicationScopeType>(["office_public_session", "office_internal_session", "support_thread"]);
 
-function timingSafeEqual(a: string, b: string) {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  if (left.length !== right.length) return false;
-  return crypto.timingSafeEqual(left, right);
-}
-
-function extractBearer(req: Request) {
-  const auth = req.headers.authorization || "";
-  const match = String(auth).match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || "";
-}
-
-function requireOfficeCommunicationKey(req: Request, res: Response, next: NextFunction) {
-  const expected = process.env.OFFICE_SYNC_API_KEY || process.env.OFFICE_EXPORT_API_KEY || "";
+export function requireOfficeCommunicationKey(req: Request, res: Response, next: NextFunction) {
+  const expected = resolveOfficeSyncKey();
   if (!expected) return res.status(503).json({ error: "OFFICE_SYNC_API_KEY is not configured" });
-  const provided = String(req.headers["x-api-key"] || extractBearer(req) || "").trim();
-  if (!provided || !timingSafeEqual(provided, expected)) {
+  const provided = resolveOfficeCredential(req);
+  if (!provided || !officeCredentialTimingSafeEqual(provided, expected)) {
     return res.status(401).json({ error: "Invalid office communications key" });
   }
   return next();
