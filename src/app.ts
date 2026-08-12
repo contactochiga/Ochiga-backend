@@ -39,6 +39,7 @@ import roomsRoutes from "./routes/rooms";
 import geoRoutes from "./routes/geo";
 import proximityRoutes from "./routes/proximityRoutes";
 import officeExportRoutes from "./routes/officeExport";
+import communicationsRoutes from "./routes/communications";
 
 // ✅ OTP routes (email verification)
 import otpRoutes from "./routes/otp.routes";
@@ -226,6 +227,7 @@ app.use("/api/proximity", proximityRoutes);
 app.use("/facility", facilityRoutes);
 app.use("/signals", signalIngressRateLimit, signalRoutes);
 app.use("/office", officeExportRoutes);
+app.use("/communications", communicationsRoutes);
 
 // ✅ EXTRA SAFE: force CORP on camera endpoints (m3u8 + ts)
 app.use("/cameras", (_req, res, next) => {
