@@ -26,13 +26,19 @@ function extractBearer(req: Request) {
   return match?.[1]?.trim() || "";
 }
 
-function requireOfficeExportKey(req: Request, res: Response, next: NextFunction) {
+export function requireOfficeExportKey(req: Request, res: Response, next: NextFunction) {
   const expected = process.env.OFFICE_SYNC_API_KEY || process.env.OFFICE_EXPORT_API_KEY || "";
   if (!expected) {
     return res.status(503).json({ error: "OFFICE_SYNC_API_KEY is not configured" });
   }
 
-  const provided = String(req.headers["x-api-key"] || extractBearer(req) || "").trim();
+  // Accepted credential sources, in order: legacy x-api-key, the Office
+  // gateway's own header name (x-office-api-key — see
+  // ochiga-office/src/lead-agents/oyi-core-gateway.js), then Bearer.
+  // Additive only: neither existing path is narrowed or removed.
+  const provided = String(
+    req.headers["x-api-key"] || req.headers["x-office-api-key"] || extractBearer(req) || ""
+  ).trim();
   if (!provided || !timingSafeEqual(provided, expected)) {
     return res.status(401).json({ error: "Invalid office sync key" });
   }
