@@ -50,8 +50,8 @@ function targetFrom(value: any, source: ResolvedConversationTarget["source"], co
 }
 
 export type DeviceResolutionResult =
-  | { status: "resolved"; device_id: string; channel_code: string | null; label: string; room_id: string | null; confidence: number }
-  | { status: "ambiguous"; phrase: string; candidates: Array<{ device_id: string; label: string; room_label: string | null; device_family: string; channel_code: string | null }> }
+  | { status: "resolved"; device_id: string; channel_code: string | null; label: string; room_id: string | null; confidence: number; channel_definitions?: Array<{ code: string; label: string }> }
+  | { status: "ambiguous"; phrase: string; candidates: Array<{ device_id: string; label: string; room_label: string | null; device_family: string; channel_code: string | null; channel_definitions?: Array<{ code: string; label: string }> }> }
   | { status: "not_found"; phrase: string };
 
 export type RoomResolutionResult =
@@ -78,6 +78,10 @@ function normalizeLookupText(value: unknown) {
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/(\d+)\s*(gang|g)/g, "$1 gang")
+    .replace(/\b(one|first)\b/g, "1")
+    .replace(/\b(two|second)\b/g, "2")
+    .replace(/\b(three|third)\b/g, "3")
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -92,17 +96,26 @@ function currentScope(input: CanonicalConversationRequest, oisContext: OisContex
 }
 
 export function requestedChannelCode(message: string) {
-  const match = message.match(/\b(?:channel|gang|switch)\s*([123])\b/i);
-  return match ? `switch_${match[1]}` : null;
+  const match = message.match(/\b(?:channel|gang|switch)\s*(1|2|3|one|two|three|first|second|third)\b/i)
+    || message.match(/\b(first|second|third)\s+(?:channel|gang|switch)\b/i);
+  if (!match) return null;
+  const raw = String(match[1]).toLowerCase();
+  const number = raw === "one" || raw === "first" ? "1" : raw === "two" || raw === "second" ? "2" : raw === "three" || raw === "third" ? "3" : raw;
+  return `switch_${number}`;
 }
 
 export function namedDevicePhraseFromControlMessage(message: string, options: { isControlRequest: (message: string) => boolean }) {
   if (!options.isControlRequest(message)) return null;
   if (/\b(it|this|that|this channel|that device|same device|same channel)\b/i.test(message)) return null;
-  if (requestedChannelCode(message) && !/\b(light|switch|socket|tv|ac|fan|lamp|plug|outlet|controller|device)\b/i.test(message)) return null;
+  const withoutChannel = text(message)
+    .replace(/\b(?:channel|gang|switch)\s*(?:1|2|3|one|two|three|first|second|third)\b/ig, " ")
+    .replace(/\b(?:first|second|third)\s+(?:channel|gang|switch)\b/ig, " ");
+  if (requestedChannelCode(message) && !normalizeLookupText(withoutChannel).replace(/\b(turn|switch|power|set|on|off|the|my|a|an|to|please)\b/g, " ").trim()) return null;
   const phrase = text(message)
     .replace(/^\s*(please\s+)?(?:turn|switch|power|set)\s+/i, "")
     .replace(/\b(on|off|up|down)\b/ig, " ")
+    .replace(/\b(?:channel|gang|switch)\s*(?:1|2|3|one|two|three|first|second|third)\b/ig, " ")
+    .replace(/\b(?:first|second|third)\s+(?:channel|gang|switch)\b/ig, " ")
     .replace(/\b(the|my|a|an|to)\b/ig, " ")
     .replace(/[.?!]+$/g, " ")
     .replace(/\s+/g, " ")
@@ -118,6 +131,20 @@ export function roomPhraseFromMessage(message: string) {
 
 function deviceFamilyFromRow(row: Record<string, unknown>) {
   return text(row.category || row.type || recordOf(row.metadata).device_family || recordOf(row.metadata).family || "device");
+}
+
+function channelDefinitionsFromRow(row: Record<string, unknown>) {
+  const metadata = recordOf(row.metadata);
+  const direct = Array.isArray(metadata.channel_definitions) ? metadata.channel_definitions : [];
+  const codes = new Map<string, { code: string; label: string }>();
+  for (const item of direct.map(recordOf)) {
+    const code = text(item.code || item.channel_code || item.key);
+    if (/^switch_\d+$/i.test(code)) codes.set(code, { code, label: cleanLabel(item.label || item.name || code.replace(/^switch_/i, "Channel "), code) });
+  }
+  for (const capability of arrayOfStrings(row.capabilities).filter((item) => /^switch_\d+$/i.test(item))) {
+    if (!codes.has(capability)) codes.set(capability, { code: capability, label: capability.replace(/^switch_/i, "Channel ") });
+  }
+  return Array.from(codes.values()).sort((a, b) => a.code.localeCompare(b.code));
 }
 
 function scoreDeviceCandidate(phrase: string, row: Record<string, unknown>, roomLabel: string | null, channelCode: string | null) {
@@ -188,6 +215,7 @@ export async function resolveNamedDeviceForRead(
           room_label: candidate.roomLabel,
           device_family: deviceFamilyFromRow(candidate.row),
           channel_code: candidate.channelCode,
+          channel_definitions: channelDefinitionsFromRow(candidate.row),
         })),
       };
     }
@@ -198,6 +226,7 @@ export async function resolveNamedDeviceForRead(
       label: cleanLabel(top.row.name, "Device"),
       room_id: text(top.row.room_id) || null,
       confidence: top.score,
+      channel_definitions: channelDefinitionsFromRow(top.row),
     };
   } catch (error) {
     logger.warn("conversation_named_device_resolution_failed", { error, phrase, home_id: scope.home_id, actor_id: actor?.id || null });

@@ -10,7 +10,7 @@ import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
 import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
 import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
-import { buildDeviceActionCapabilities } from "../capabilities/DeviceActionCapabilityModules";
+import { buildDeviceActionCapabilities, continueDeviceActionWorkflow } from "../capabilities/DeviceActionCapabilityModules";
 import { buildPhaseBReadCapabilities } from "../capabilities/ReadCapabilityModules";
 import type { CapabilityModule } from "../contracts/capability";
 import { persistCanonicalConversationTurn } from "../persistence/canonicalConversationPersistence";
@@ -116,6 +116,44 @@ function isConfirmationText(message: unknown) {
 
 function isCancellationText(message: unknown) {
   return /^(cancel|never mind|nevermind|don't do it|do not do it|stop)$/i.test(String(message ?? "").trim());
+}
+
+function isContinueText(message: unknown) {
+  return /^(continue|what were we doing|resume|show pending|show me the pending action)$/i.test(String(message ?? "").trim());
+}
+
+async function pendingWorkflowStatusResult(workflow: OyiWorkflow): Promise<DomainResult | null> {
+  if (workflow.status !== "awaiting_approval" || !workflow.action_id) return null;
+  const action = await actionService.get(workflow.action_id);
+  if (!action || action.status !== "awaiting_confirmation") return null;
+  const label = action.target.label || workflow.target?.label || "the selected device";
+  const channel = action.target.channel_code ? ` ${action.target.channel_code.replace(/^switch_/i, "Channel ")}` : "";
+  const desired = action.requested_state === true ? "turn on" : action.requested_state === false ? "turn off" : "control";
+  return {
+    status: "awaiting_confirmation",
+    answer: `The pending action is: ${desired}${channel} on ${label}. Please confirm or cancel.`,
+    actions: [
+      { action_type: "approval", label: "Confirm", workflow_id: workflow.workflow_id, action_id: action.action_id },
+      { action_type: "cancel", label: "Cancel", workflow_id: workflow.workflow_id, action_id: action.action_id },
+    ],
+    presentation_policy: { primary: "approval", allowed_supporting_blocks: ["text", "approval"], allowed_action_types: ["approval", "cancel"], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+    metadata: {
+      workflow_id: workflow.workflow_id,
+      action_id: action.action_id,
+      confirmations: [{
+        type: "device_command_confirmation",
+        workflow_id: workflow.workflow_id,
+        action_id: action.action_id,
+        target_id: action.target.canonical_id,
+        target_type: action.target.object_type,
+        label,
+        channel_code: action.target.channel_code || null,
+        command: action.requested_operation,
+        desired_state: action.requested_state,
+        risk: "device_control",
+      }],
+    },
+  };
 }
 
 async function durableWorkflowContinuationResult(context: CanonicalConversationRequestContext, workflow: OyiWorkflow, capability: CapabilityModule): Promise<DomainResult | null> {
@@ -304,13 +342,21 @@ export class ConversationOrchestrator {
       authority_result: resolvedTurn.authority.allowed ? "allowed" : "denied",
       tier: resolvedTurn.authority.tier,
     });
-    if (activeWorkflow && (isConfirmationText(context.input.message) || isCancellationText(context.input.message))) {
+    if (activeWorkflow) {
       const workflowCapability = capabilityRegistry.get(activeWorkflow.capability_key);
       if (workflowCapability) {
-        const continuation = await durableWorkflowContinuationResult(context, activeWorkflow, workflowCapability);
+        let continuation: DomainResult | null = null;
+        const workflowContext = { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "durable_workflow_continuation") };
+        if (activeWorkflow.status === "awaiting_clarification") {
+          continuation = await continueDeviceActionWorkflow(workflowContext, activeWorkflow);
+        } else if (isConfirmationText(context.input.message) || isCancellationText(context.input.message)) {
+          continuation = await durableWorkflowContinuationResult(context, activeWorkflow, workflowCapability);
+        } else if (isContinueText(context.input.message)) {
+          continuation = await pendingWorkflowStatusResult(activeWorkflow);
+        }
         if (continuation) {
           let response = capabilityDomainResultToConversationResponse({
-            context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "durable_workflow_continuation") },
+            context: workflowContext,
             capability: workflowCapability,
             result: continuation,
             evidence: [],

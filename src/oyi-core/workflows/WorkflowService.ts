@@ -133,6 +133,26 @@ export class WorkflowService {
     return saved;
   }
 
+  async update(workflow: OyiWorkflow, patch: Partial<OyiWorkflow>) {
+    const next: OyiWorkflow = {
+      ...workflow,
+      ...patch,
+      revision: workflow.revision + 1,
+      updated_at: nowIso(),
+    };
+    const saved = await this.repository.save(next, { expectedRevision: workflow.revision });
+    logger.info("oyi_workflow_input_saved", {
+      thread_id: saved.thread_id,
+      workflow_id: saved.workflow_id,
+      capability_key: saved.capability_key,
+      domain: saved.domain,
+      status: saved.status,
+      revision: saved.revision,
+      updated_fields: Object.keys(patch).filter((key) => key !== "metadata" && key !== "evidence"),
+    });
+    return saved;
+  }
+
   async cancel(workflow: OyiWorkflow, reason = "user_cancelled") {
     const next = await this.transition(workflow, "cancelled", {
       evidence: workflow.evidence.concat([{ type: "workflow_cancelled", reason, observed_at: nowIso() }]),
