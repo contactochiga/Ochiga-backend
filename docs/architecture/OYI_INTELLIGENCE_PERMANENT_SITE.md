@@ -62,6 +62,10 @@ Maintenance, Visitors, Security, Services, Community, Messages, Scenes, Automati
 - Device power/channel control is the first action capability integrated with the durable path.
 - Device execution still goes through the existing device command pipeline and `ai_execution_ledger`; Oyi conversation actions do not call providers directly.
 - Confirmation/cancellation turns restore active workflow state before creating any new action.
+- Phase C correction makes workflow continuation first-class before ordinary capability routing: pending target/channel clarifications cannot fall through to device availability reads.
+- Device action commands now extract exact named device, requested state and requested channel in one turn when all evidence is present.
+- Pending workflow continuation is typed by missing input; target, channel, confirmation and cancellation replies are not interpreted by one generic fallback parser.
+- Unrelated reads can still be served while a workflow remains pending, preserving durable continuation for the next compatible reply.
 - Automated validation uses a fake device adapter and stops before physical execution.
 
 ## Not Completed In This Slice

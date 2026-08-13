@@ -65,6 +65,11 @@ Terminal actions are non-reusable.
 Devices are the first action domain wired to durable conversation actions:
 
 - `devices.power.control` creates a durable workflow/action and requires explicit confirmation.
+- Device action entry reuses the canonical named-device resolver before asking for clarification.
+- Room phrases constrain device lookup; they do not become room-level physical actions.
+- Multi-gang channel expressions such as `channel 2`, `switch two` and `second channel` are extracted and validated against the selected device's channel definitions.
+- If a workflow is awaiting clarification, typed target/channel continuation is evaluated before ordinary capability routing.
+- Clearly unrelated requests, such as wallet history while channel clarification is pending, may be answered without cancelling the pending workflow.
 - Confirmation restores the active workflow from backend state and binds to `workflow_id`, `action_id`, target, requested state and revision.
 - Execution uses the existing `executeDeviceCommandForActor(...)` device command pipeline.
 - The durable action records orchestration truth; `ai_execution_ledger` remains the existing device execution truth.
