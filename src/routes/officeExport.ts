@@ -903,11 +903,11 @@ router.get("/portfolio/projection", requireOfficeExportKey, async (req: Request,
   const buildingIdFilter = safeText(req.query.building_id as string) || null;
 
   const [estatesResult, homesResult, devicesResult, maintenanceResult, incidentsResult] = await Promise.all([
-    safeSelectWithStatus("estates", "id,name,address,location,status,subscription_status,membership_status,created_at,updated_at"),
-    safeSelectWithStatus("homes", "id,estate_id,building,block,wing,cluster,residents_count,users_count,created_at,updated_at"),
-    safeSelectWithStatus("devices", "id,estate_id,building_id,home_id,building,block,status,online,updated_at"),
-    safeSelectWithStatus("maintenance_requests", "id,estate_id,building_id,status,priority,severity,updated_at"),
-    safeSelectWithStatus("incidents", "id,estate_id,building_id,status,priority,severity,updated_at"),
+    safeSelectWithStatus("estates"),
+    safeSelectWithStatus("homes"),
+    safeSelectWithStatus("devices"),
+    safeSelectWithStatus("maintenance_requests"),
+    safeSelectWithStatus("incidents"),
   ]);
 
   const estates = estatesResult.rows;
