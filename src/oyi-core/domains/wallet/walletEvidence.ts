@@ -20,6 +20,26 @@ function cleanLabel(value: unknown, fallback: string) {
   return next || fallback;
 }
 
+function isInternalReference(value: unknown) {
+  const raw = text(value);
+  return !raw
+    || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)
+    || /^[a-z]+_[a-z0-9]{8,}$/i.test(raw)
+    || /^[0-9a-f-]{18,}$/i.test(raw);
+}
+
+export function residentWalletDescription(row: Record<string, unknown>) {
+  const metadata = recordOf(row.metadata);
+  const preferred = [metadata.description, metadata.service_name, metadata.title].find((item) => !isInternalReference(item));
+  if (preferred) return cleanLabel(preferred, "Wallet transaction");
+  const type = text(row.type || metadata.category || metadata.service_category).toLowerCase();
+  if (/electricity|power/.test(type)) return "Electricity purchase";
+  if (/water/.test(type)) return "Water payment";
+  if (/internet|data/.test(type)) return "Internet payment";
+  if (/fund|top.?up|credit/.test(type)) return "Wallet funding";
+  return "Wallet transaction";
+}
+
 function currentScope(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
   return {
     estate_id: input.estate_id || oisContext?.estate_id || null,
@@ -48,7 +68,7 @@ export async function loadWalletTransactionFacts(
     return (Array.isArray(data) ? data : []).map((row: any): IntelligenceFact => {
       const metadata = recordOf(row.metadata);
       const category = text(metadata.category || metadata.service_category || row.type || "wallet");
-      const description = cleanLabel(metadata.description || metadata.service_name || metadata.title || row.reference || row.type, "Wallet transaction");
+      const description = residentWalletDescription(row);
       return {
         fact_id: `wallet-transaction:${row.id}`,
         domain: /electricity|water|internet|utility|power|gas/i.test(`${category} ${description}`) ? "utilities" : "wallet",

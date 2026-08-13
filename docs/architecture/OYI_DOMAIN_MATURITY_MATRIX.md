@@ -1,27 +1,29 @@
 # Oyi Domain Maturity Matrix
 
-Status: Phase A checklist.
+Status: Phase B capability rollout matrix.
+
+Phase B separates vocabulary from production ownership. `enabled` means resolver, authority, evidence requirements, evidence loading, read handler, structured result status and presentation policy are all present and tested. `implemented`, `shadow` and `declared` capabilities are not advertised to end users as available.
 
 | Domain | Direct Evidence | Read | Detail | History | Explain | Compare | Recommend | Draft | Clarification | Approval | Execution | Verification | Home Contributor | Room Contributor | Prediction | Anomaly | Outcome | Legacy Dependency | Production Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| devices | Mature | Yes | Yes | Partial | Partial | Partial | Partial | Partial | Yes | Yes | Existing command path | Strong | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Active |
+| devices | Mature | Enabled read capabilities | Yes | Enabled activity/failures | Enabled diagnosis | Partial | Partial | Partial | Yes | Yes | Existing command path | Strong | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Phase B enabled for reads |
 | rooms | Partial | Partial | Partial | Partial | Partial | No | Partial | No | Yes | No | No | No | Pending | Pending | No | No | No | Medium | Active with gaps |
 | home | Partial | Partial | Partial | Partial | Partial | No | Partial | No | No | No | No | No | Pending aggregator | N/A | No | Partial | No | Medium | Active with gaps |
-| maintenance | Module exists | Yes | Partial | Partial | Partial | No | Partial | Draft path pending | Yes | Pending | Pending | Pending | Pending | Pending | No | Partial | No | Medium | Active with gaps |
-| visitors | Module exists | Yes | Partial | Partial | Partial | No | Partial | Draft path pending | Yes | Pending | Pending | Pending | Pending | No | No | Partial | No | Medium | Active with gaps |
+| maintenance | Context-backed module | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Draft path pending | Yes | Pending | Pending | Pending | Pending | Pending | No | Partial | No | Medium | Legacy fallback measured |
+| visitors | Context-backed module | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Draft path pending | Yes | Pending | Pending | Pending | Pending | No | No | Partial | No | Medium | Legacy fallback measured |
 | access | Partial | Partial | Partial | Partial | Partial | No | No | Pending | Yes | Pending | Sensitive | Pending | No | No | No | Partial | No | Medium | Restricted |
-| wallet | Partial | Yes | Partial | Yes | Partial | Partial | No | Financial execution disabled | Yes | Required | Disabled | Pending | Pending | No | No | Partial | No | Medium | Restricted |
+| wallet | Partial | Enabled transaction read | Partial | Enabled transactions | Partial | Partial | No | Financial execution disabled | Yes | Required | Disabled | Pending | Pending | No | No | Partial | No | Medium | Phase B enabled for consumer transaction reads |
 | transactions | Partial | Yes | Partial | Yes | Partial | Partial | No | No | No | No | No | No | Pending | No | No | Partial | No | Medium | Active |
-| utilities | Module exists | Yes | Partial | Partial | Partial | Partial | Partial | Financial execution disabled | Yes | Required | Disabled | Pending | Pending | Pending | Pending | Pending | No | Medium | Active with gaps |
-| services | Module exists | Yes | Partial | Partial | Partial | No | Partial | Pending | Yes | Pending | Pending | Pending | Pending | No | No | No | No | Medium | Active with gaps |
-| security | Module exists | Yes | Partial | Partial | Partial | No | Partial | Pending | Yes | Required | Restricted | Pending | Pending | Pending | No | Yes | No | Medium | Restricted |
-| community | Module exists | Yes | Partial | Partial | Partial | No | No | Draft pending | Yes | Required for send | Pending | Pending | Pending | No | No | Partial | No | Medium | Active with privacy boundary |
-| messages | Partial | Partial | Partial | Partial | Partial | No | No | Draft pending | Yes | Required for send | Pending | Pending | Pending | No | No | Partial | No | Medium | Active with privacy boundary |
-| scenes | Module exists | Yes | Partial | Partial | Partial | No | Partial | Pending compiler | Yes | Required | Existing route path | Partial | Pending | Pending | No | Partial | No | Medium | Restricted |
-| automations | Module exists | Yes | Partial | Partial | Partial | No | Partial | Pending compiler | Yes | Required | Existing route path | Partial | Pending | Pending | No | Partial | No | Medium | Restricted |
+| utilities | Wallet-backed spending evidence | Enabled spending read | Partial | Partial | Partial | Partial | Partial | Financial execution disabled | Yes | Required | Disabled | Pending | Pending | Pending | Pending | Pending | No | Medium | Phase B enabled for consumer spending reads |
+| services | Module exists | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Pending | Yes | Pending | Pending | Pending | Pending | No | No | No | No | Medium | Legacy fallback measured |
+| security | Module exists | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Pending | Yes | Required | Restricted | Pending | Pending | Pending | No | Yes | No | Medium | Legacy fallback measured |
+| community | Module exists | Implemented, not enabled | Partial | Partial | Partial | No | No | Draft pending | Yes | Required for send | Pending | Pending | Pending | No | No | Partial | No | Medium | Legacy fallback measured |
+| messages | Partial | Implemented, not enabled | Partial | Partial | Partial | No | No | Draft pending | Yes | Required for send | Pending | Pending | Pending | No | No | Partial | No | Medium | Legacy fallback measured |
+| scenes | Module exists | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Pending compiler | Yes | Required | Existing route path | Partial | Pending | Pending | No | Partial | No | Medium | Legacy fallback measured |
+| automations | Module exists | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Pending compiler | Yes | Required | Existing route path | Partial | Pending | Pending | No | Partial | No | Medium | Legacy fallback measured |
 | cameras | Partial | Partial | Partial | Partial | Partial | No | Partial | No | Yes | Secure handoff | Restricted | Pending | Pending | Pending | No | Partial | No | Medium | Restricted |
 | notifications | Partial | Yes | Partial | Partial | Partial | No | No | No | No | No | Existing delivery policy | Partial | Pending | No | No | Partial | No | Medium | Active |
 | incidents | Partial | Yes | Partial | Partial | Partial | No | Partial | Pending | Yes | Pending | Pending | Pending | Pending | Pending | No | Yes | No | Medium | Active with gaps |
-| reports | Module exists | Yes | Partial | Yes | Partial | Yes | No | No | Yes | No | No | No | Consumes contributors later | Consumes contributors later | No | Partial | No | Medium | Active with gaps |
+| reports | Module exists | Shadow | Partial | Yes | Partial | Yes | No | No | Yes | No | No | No | Consumes contributors later | Consumes contributors later | No | Partial | No | Medium | Shadow, not advertised |
 
 This matrix is intentionally conservative. A domain should move to production-complete only after direct evidence, authority, workflow/action, verification and tests are proven.

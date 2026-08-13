@@ -1,6 +1,6 @@
 # Oyi Intelligence Permanent-Site Architecture
 
-Status: Phase A foundation ready for review.
+Status: Phase B executable read-capability foundation.
 
 ## Target Lifecycle
 
@@ -29,6 +29,24 @@ Request -> normalize / interpret -> assemble context -> assemble candidates -> r
 - Required conversation trace event vocabulary.
 - Domain maturity matrix.
 
+## Phase B Implemented
+
+- `CapabilityService` evaluates capability rollout, surface, actor, permissions and scope before evidence loading.
+- Enabled read capabilities now route through registry-owned handlers before legacy fallback.
+- `What can you do?` is generated from `CapabilityService.listForActor(...)` and only advertises enabled, authorised capabilities.
+- Internal/admin capability introspection is available at `GET /oyi/runtime/internal/capabilities`.
+- Structured production traces are emitted for capability resolution, authority, evidence loading, handler completion and legacy fallback.
+- Enabled read outcomes preserve distinct `answered`, `empty`, `unavailable`, `unsupported` and `permission_restricted` states.
+
+## Phase B Enabled Scope
+
+- Devices: status, availability, activity, failures, diagnosis, relationships and capabilities.
+- Wallet: consumer home transaction history.
+- Utilities: consumer home utility spending derived from wallet/service transaction evidence.
+- Global: capability/help advertising from the registry.
+
+Maintenance, Visitors, Security, Services, Community, Messages, Scenes, Automations, Reports, Home and Rooms remain registered below enabled until direct evidence ownership is complete.
+
 ## Not Completed In This Slice
 
 - Durable conversation workflow/action persistence migrations.
@@ -52,4 +70,4 @@ To add or mature a domain:
 
 ## Production Enablement
 
-This is a foundation slice only. No production deploy, migration, physical action, financial action, access mutation or message send is included.
+Phase B is intended for production observation of read-only capability routing. It does not include production migrations, physical actions, financial mutations, access mutations, message send, scene execution, automation execution, Home aggregation, Room aggregation, forecasting or learning.
