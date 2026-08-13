@@ -31,20 +31,10 @@ export function buildCapabilityAdvertisingResult(input: {
   return {
     status: "answered",
     answer: [
-      "Here is what I can safely do for you from the enabled capability registry right now:",
+      "Here is what I can safely help with right now:",
       ...lines,
       "I’ll only offer actions and information that are available and authorised for your home.",
     ].join("\n"),
-    blocks: [{
-      type: "capability_list",
-      capabilities: capabilities.map((capability) => ({
-        key: capability.key,
-        domain: capability.domain,
-        operations: capability.operations,
-        rollout_status: capability.rollout_status,
-        risk_class: capability.risk_class,
-      })),
-    }],
     presentation_policy: { primary: "list", allowed_supporting_blocks: ["text", "list"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
     metadata: { capabilities },
   };

@@ -10,6 +10,7 @@ const DEVICE_PATTERN = /\b([A-Za-z0-9' -]+?(?:light|switch|socket|plug|tv|air co
 function deviceOperation(text: string): SemanticOperation | null {
   if (/\bturn\s+on|switch\s+on\b/i.test(text)) return "device.power.on";
   if (/\bturn\s+off|switch\s+off\b/i.test(text)) return "device.power.off";
+  if (/\bdevices?\b.*\b(offline|online|available|availability|unavailable|down)\b|\b(offline|online|available|availability|unavailable|down)\b.*\bdevices?\b/i.test(text)) return "device.availability";
   if (/\bshow\b.*\bactivity\b/i.test(text)) return "device.activity";
   if (/\bshow\b.*\b(failures|failed|faults)\b/i.test(text)) return "device.failures";
   if (/\bdiagnose|why\b/i.test(text)) return "device.diagnosis";
@@ -34,7 +35,7 @@ function domainFor(text: string, normalizedDomain: OyiDomain | null, operation: 
   if (operation.startsWith("device.")) return "devices";
   if (operation.startsWith("wallet.")) return "wallet";
   if (operation.startsWith("utilities.")) return "utilities";
-  if (/\b(light|switch|socket|plug|tv|air conditioner|ac|channel\s*\d+)\b/i.test(text)) return "devices";
+  if (/\b(devices?|light|switch|socket|plug|tv|air conditioner|ac|channel\s*\d+)\b/i.test(text)) return "devices";
   return normalizedDomain;
 }
 

@@ -59,13 +59,13 @@ function intentForCapability(capability: CapabilityModule, turn: ResolvedTurn): 
   if (capability.key === "devices.diagnosis.read") return "diagnosis";
   if (capability.key === "devices.relationships.read") return "relationships";
   if (capability.domain === "wallet") return "wallet_operation";
-  if (capability.domain === "utilities") return "wallet_operation";
+  if (capability.key === "utilities.spending.read") return "wallet_operation";
   return turn.operation === "list" ? "information" : "current_state";
 }
 
 function operationClassForCapability(capability: CapabilityModule, turn: ResolvedTurn): OperationClass {
   if (capability.key === "global.capabilities.read") return "list";
-  if (capability.domain === "utilities") return "report";
+  if (capability.key === "utilities.spending.read") return "report";
   return turn.operation === "list" ? "list" : "read";
 }
 
@@ -78,7 +78,7 @@ function builderKeyForCapability(capability: CapabilityModule): ConversationBuil
   if (capability.key === "devices.failures.read") return "device_failures";
   if (capability.key === "devices.diagnosis.read") return "device_diagnosis";
   if (capability.key === "devices.relationships.read") return "device_relationships";
-  return "device_status";
+  return "general_help";
 }
 
 function evidenceRequirementsForCapability(capability: CapabilityModule): IntelligenceRequestContract["evidence_requirements"] {
@@ -93,6 +93,32 @@ function evidenceRequirementsForCapability(capability: CapabilityModule): Intell
     provider_state: capability.domain === "devices",
     financial_ledger: capability.domain === "wallet" || capability.domain === "utilities",
     access_records: capability.domain === "visitors" || capability.domain === "security",
+  };
+}
+
+function fallbackAnswerForCapability(capability: CapabilityModule, reason: string) {
+  if (capability.key === "utilities.active.read") {
+    return "I can’t confirm your active utility services from the available evidence right now. You can review connected services in Utilities.";
+  }
+  if (reason === "capability_disabled") return `That ${capability.domain} capability is not available from this surface right now.`;
+  if (reason === "capability_declared") return `I understand this as a ${capability.domain} request, but that capability is not available in this release yet.`;
+  return `I understand this as a ${capability.domain} request, but I can’t confirm it from an enabled capability yet.`;
+}
+
+function nonEnabledCapabilityResult(capability: CapabilityModule, reason: string): DomainResult {
+  return {
+    status: capability.rolloutStatus === "disabled" ? "unsupported" : "unavailable",
+    answer: fallbackAnswerForCapability(capability, reason),
+    actions: capability.key === "utilities.active.read"
+      ? [{ label: "Open Utilities", route: "/utilities", action_type: "navigation", capability_key: capability.key }]
+      : [],
+    presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: ["navigation"], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+    metadata: {
+      capability_key: capability.key,
+      rollout_status: capability.rolloutStatus,
+      fallback_reason: reason,
+      fallback_owner: "canonical_capability_fallback",
+    },
   };
 }
 
@@ -122,7 +148,7 @@ function requestContractForCapability(context: CanonicalConversationRequestConte
     },
     evidence_requirements: evidenceRequirementsForCapability(capability),
     answer_builder: builderKey,
-    report_builder: capability.domain === "utilities" ? capability.key : null,
+    report_builder: capability.key === "utilities.spending.read" ? capability.key : null,
     truth_policy: "evidence_required",
     confidence: turn.semantic_frame.confidence || 0.86,
   };
@@ -197,15 +223,16 @@ export class ConversationOrchestrator {
     });
     const selection = boolFlag("OYI_ORCHESTRATOR_V2_ENABLED", true)
       ? capabilityService.resolve({ ...context, resolvedTurn })
-      : { capability: null, rollout_status: "disabled" as const, authority: null, legacy_fallback_reason: "orchestrator_v2_disabled" };
+      : { capability: null, matched_capability: null, rollout_status: "disabled" as const, authority: null, legacy_fallback_reason: "orchestrator_v2_disabled" };
     const capability = selection.capability;
+    const matchedCapability = selection.matched_capability;
     logger.info("oyi_capability_resolved", {
       request_id: tracer.requestId,
       correlation_id: tracer.correlationId,
       thread_id: context.input.thread_id || null,
       actor_id: context.actor?.id || null,
       surface: context.input.surface,
-      capability_key: capability?.key || null,
+      capability_key: capability?.key || matchedCapability?.key || null,
       domain: resolvedTurn.domain,
       rollout_status: selection.rollout_status,
       target_type: resolvedTurn.target?.object_type || null,
@@ -215,7 +242,7 @@ export class ConversationOrchestrator {
     tracer.stage("capability_selected", {
       domain: resolvedTurn.domain,
       operation: resolvedTurn.operation,
-      capability_key: capability?.key || "legacy",
+      capability_key: capability?.key || matchedCapability?.key || "legacy",
       rollout_status: selection.rollout_status || "legacy_fallback",
     });
 
@@ -228,11 +255,12 @@ export class ConversationOrchestrator {
         thread_id: context.input.thread_id || null,
         actor_id: context.actor?.id || null,
         surface: context.input.surface,
-        capability_key: capability?.key || null,
+        capability_key: capability?.key || matchedCapability?.key || null,
         domain: resolvedTurn.domain,
         rollout_status: selection.rollout_status,
         target_type: resolvedTurn.target?.object_type || null,
         legacy_fallback_reason: reason,
+        fallback_owner: "legacy_conversation_adapter",
       });
       return legacyConversationAdapter.run(context.actor, context.oisContext, context.input, reason);
     };
@@ -307,6 +335,40 @@ export class ConversationOrchestrator {
           response = await legacyFallback();
         }
       }
+    } else if (matchedCapability && selection.legacy_fallback_reason?.startsWith("capability_")) {
+      const reason = selection.legacy_fallback_reason;
+      logger.info("oyi_capability_not_enabled", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        actor_id: context.actor?.id || null,
+        surface: context.input.surface,
+        capability_key: matchedCapability.key,
+        domain: matchedCapability.domain,
+        rollout_status: matchedCapability.rolloutStatus,
+        fallback_reason: reason,
+        fallback_owner: "canonical_capability_fallback",
+      });
+      logger.info("oyi_capability_legacy_fallback", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        actor_id: context.actor?.id || null,
+        surface: context.input.surface,
+        capability_key: matchedCapability.key,
+        domain: matchedCapability.domain,
+        rollout_status: matchedCapability.rolloutStatus,
+        target_type: resolvedTurn.target?.object_type || null,
+        legacy_fallback_reason: reason,
+        fallback_owner: "canonical_capability_fallback",
+      });
+      response = capabilityDomainResultToConversationResponse({
+        context: { ...context, resolvedTurn, legacyFallback },
+        capability: matchedCapability,
+        result: nonEnabledCapabilityResult(matchedCapability, reason),
+        evidence: [],
+      });
+      capabilityOwnsResponse = matchedCapability;
     } else {
       response = await legacyFallback();
     }
@@ -325,7 +387,7 @@ export class ConversationOrchestrator {
         runtime_id: tracer.runtimeId,
         semantic_frame: frame,
         resolved_turn: resolvedTurn,
-        capability_key: capability?.key || "legacy",
+        capability_key: capability?.key || matchedCapability?.key || "legacy",
         capability_rollout_status: selection.rollout_status,
         capability_authority: selection.authority,
         legacy_fallback_used: !capability || Boolean(selection.legacy_fallback_reason),
@@ -334,7 +396,7 @@ export class ConversationOrchestrator {
     if (capabilityOwnsResponse) {
       response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityOwnsResponse);
     }
-    tracer.stage("response_composed", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, capability_key: capability?.key || "legacy" });
+    tracer.stage("response_composed", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, capability_key: capability?.key || matchedCapability?.key || "legacy" });
     tracer.stage("persistence_completed", { thread_id: response.thread_id || null, persistence_saved: response.persistence_saved === false ? "false" : "true" });
     tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
     return response;

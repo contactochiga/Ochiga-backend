@@ -154,7 +154,6 @@ function walletTransactionRows(facts: IntelligenceFact[]) {
       const direction = text(value.direction).toLowerCase();
       const sign = direction === "debit" ? "-" : direction === "credit" ? "+" : "";
       return {
-        transaction_id: fact.object?.canonical_id || fact.fact_id,
         date: safeDateLabel(fact.occurred_at, "Time unavailable", "date_time"),
         description: residentSafeLabel(value.description || fact.object?.label, "Wallet transaction"),
         type: cleanLabel(value.type, "transaction"),

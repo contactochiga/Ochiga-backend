@@ -222,12 +222,12 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
     readModule({
       key: "devices.availability.read",
       domain: "devices",
-      operations: ["list", "summarize"],
+      operations: ["list", "summarize", "device.availability"],
       supportedSurfaces: ["consumer", "facility"],
       permissions: ["devices.read"],
       scopeRequirements: homeScope,
       evidenceRequirements: deviceEvidence,
-      supports: (frame) => frame.domain === "devices" && /\boffline|online|available|availability|devices?\b/i.test(frame.normalizedText),
+      supports: (frame) => frame.domain === "devices" && (frame.operation === "device.availability" || /\boffline|online|available|availability|devices?\b/i.test(frame.normalizedText)),
       collect: deviceInventoryEvidence,
       answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);

@@ -88,6 +88,7 @@
     "smoke:oyi-intelligence-permanent-site-foundation": "npm run build && node scripts/oyi-intelligence-permanent-site-foundation-smoke.mjs",
     "smoke:oyi-capability-phase-b": "npm run build && node scripts/oyi-capability-phase-b-smoke.mjs",
     "smoke:oyi-capability-phase-b-correction": "npm run build && node scripts/oyi-capability-phase-b-correction-smoke.mjs",
+    "smoke:oyi-capability-phase-b-final": "npm run build && node scripts/oyi-capability-phase-b-final-smoke.mjs",
     "smoke:wallet-funding": "node scripts/wallet-funding-smoke.mjs",
     "smoke:wallet-webhook-idempotency": "node scripts/wallet-webhook-idempotency-smoke.mjs",
     "smoke:wallet-receipt": "node scripts/wallet-receipt-smoke.mjs",
