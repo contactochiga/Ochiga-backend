@@ -15,8 +15,17 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService";
 import { classifyFreshness } from "../oyi-core/contracts/freshness";
 import { observationPolicyForDevice } from "../oyi-core/domains/devices/deviceObservationPolicy";
+import { capabilityRegistry } from "../oyi-core/capabilities/CapabilityRegistry";
+import { buildPhaseBReadCapabilities } from "../oyi-core/capabilities/ReadCapabilityModules";
 
 const router = Router();
+let capabilityIntrospectionRegistered = false;
+
+function ensureCapabilityIntrospectionRegistered() {
+  if (capabilityIntrospectionRegistered) return;
+  for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
+  capabilityIntrospectionRegistered = true;
+}
 
 function observeCompatibilityRoute(route: string, surface: string | null | undefined) {
   operationalMetrics.increment("oyi_compatibility_route_calls_total", {
@@ -161,6 +170,44 @@ router.post("/runtime/conversation", requireAuth, resolveRequestContext, async (
     return res.json({ ok: true, response: runtime });
   } catch {
     return res.status(500).json({ ok: false, error: "Unable to run canonical Oyi runtime conversation" });
+  }
+});
+
+router.get("/runtime/internal/capabilities", requireAuth, resolveRequestContext, async (req, res) => {
+  try {
+    if (!Array.isArray(req.user?.permissions) || !req.user.permissions.includes("system.admin")) {
+      return res.status(403).json({ ok: false, error: "Permission denied" });
+    }
+    ensureCapabilityIntrospectionRegistered();
+    const domain = req.query.domain ? String(req.query.domain) : "";
+    const surface = req.query.surface ? String(req.query.surface) : "";
+    const rolloutStatus = req.query.rollout_status ? String(req.query.rollout_status) : "";
+    const capabilities = capabilityRegistry.all()
+      .filter((capability) => !domain || capability.domain === domain)
+      .filter((capability) => !rolloutStatus || capability.rolloutStatus === rolloutStatus)
+      .filter((capability) => !surface || !capability.supported_surfaces?.length || capability.supported_surfaces.includes(surface as any))
+      .map((capability) => ({
+        key: capability.key,
+        domain: capability.domain,
+        rollout_status: capability.rolloutStatus,
+        supported_surfaces: capability.supported_surfaces || [],
+        operations: capability.operations || [],
+        risk_class: capability.risk_class || "read",
+        confirmation_policy: capability.confirmation_policy || "none",
+        handler_availability: {
+          resolver: typeof capability.resolve === "function",
+          evidence_loader: typeof capability.collectEvidence === "function",
+          read_handler: typeof capability.buildReadResponse === "function",
+          draft_handler: typeof capability.createDraft === "function",
+          execute_handler: typeof capability.execute === "function",
+          verify_handler: typeof capability.verify === "function",
+        },
+        evidence_requirement_count: capability.evidence_requirements?.length || 0,
+        presentation_policy: capability.presentation_policy || null,
+      }));
+    return res.json({ ok: true, count: capabilities.length, capabilities });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to inspect Oyi capabilities" });
   }
 });
 

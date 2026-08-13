@@ -1,11 +1,14 @@
 import type { CanonicalConversationRequestContext, ConversationRunResult } from "../contracts/conversation";
+import type { DomainResult } from "../contracts/domainResult";
 import { parseSemanticFrame } from "../interpretation/SemanticFrameParser";
 import { ConversationTracer } from "../observability/ConversationTracer";
 import { legacyConversationAdapter } from "../legacy/LegacyConversationAdapter";
-import { deviceDomainAdapter } from "../domains/devices/DeviceDomainAdapter";
 import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
+import { capabilityService } from "../capabilities/CapabilityService";
+import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
+import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
+import { buildPhaseBReadCapabilities } from "../capabilities/ReadCapabilityModules";
 import { resolveTurnAuthority } from "./TurnAuthorityResolver";
-import { selectCapability } from "./CapabilityRouter";
 import { assertNoUnverifiedGenericSuccess } from "../presentation/FallbackFirewall";
 import { logger } from "../../observability/logger";
 
@@ -19,7 +22,7 @@ function boolFlag(name: string, fallback = true) {
 
 function ensureRegistered() {
   if (registered) return;
-  capabilityRegistry.register(deviceDomainAdapter);
+  for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
   registered = true;
 }
 
@@ -56,34 +59,114 @@ export class ConversationOrchestrator {
       authority_result: resolvedTurn.authority.allowed ? "allowed" : "denied",
       tier: resolvedTurn.authority.tier,
     });
-    const capability = boolFlag("OYI_ORCHESTRATOR_V2_ENABLED", true) && boolFlag("OYI_DEVICE_ADAPTER_V2_ENABLED", true)
-      ? selectCapability({ ...context, resolvedTurn })
-      : null;
+    const selection = boolFlag("OYI_ORCHESTRATOR_V2_ENABLED", true)
+      ? capabilityService.resolve({ ...context, resolvedTurn })
+      : { capability: null, rollout_status: "disabled" as const, authority: null, legacy_fallback_reason: "orchestrator_v2_disabled" };
+    const capability = selection.capability;
+    logger.info("oyi_capability_resolved", {
+      request_id: tracer.requestId,
+      correlation_id: tracer.correlationId,
+      thread_id: context.input.thread_id || null,
+      actor_id: context.actor?.id || null,
+      surface: context.input.surface,
+      capability_key: capability?.key || null,
+      domain: resolvedTurn.domain,
+      rollout_status: selection.rollout_status,
+      target_type: resolvedTurn.target?.object_type || null,
+      authority_allowed: selection.authority?.allowed ?? null,
+      legacy_fallback_reason: selection.legacy_fallback_reason,
+    });
     tracer.stage("capability_selected", {
       domain: resolvedTurn.domain,
       operation: resolvedTurn.operation,
       capability_key: capability?.key || "legacy",
-      rollout_status: capability?.rolloutStatus || "legacy_fallback",
+      rollout_status: selection.rollout_status || "legacy_fallback",
     });
 
     const legacyFallback = async () => {
-      tracer.stage("legacy_fallback_used", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason: capability ? "device_adapter_delegates_to_legacy_specialist" : "unimplemented_capability" });
-      return legacyConversationAdapter.run(context.actor, context.oisContext, context.input, capability ? "device_adapter_delegates_to_legacy_specialist" : "unimplemented_capability");
+      const reason = selection.legacy_fallback_reason || "unimplemented_capability";
+      tracer.stage("legacy_fallback_used", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason });
+      logger.info("oyi_capability_legacy_fallback", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        actor_id: context.actor?.id || null,
+        surface: context.input.surface,
+        capability_key: capability?.key || null,
+        domain: resolvedTurn.domain,
+        rollout_status: selection.rollout_status,
+        target_type: resolvedTurn.target?.object_type || null,
+        legacy_fallback_reason: reason,
+      });
+      return legacyConversationAdapter.run(context.actor, context.oisContext, context.input, reason);
     };
 
     let response: ConversationRunResult;
     if (capability) {
       const capabilityContext = { ...context, resolvedTurn, legacyFallback };
-      const resolution = await capability.resolve(capabilityContext);
-      if (resolution.supported && capability.buildReadResponse) {
-        tracer.stage("evidence_planned", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, capability_key: capability.key });
-        const evidence = await capability.collectEvidence(capabilityContext);
-        tracer.stage("evidence_loaded", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, capability_key: capability.key, evidence_count: evidence.length });
-        response = await capability.buildReadResponse(capabilityContext, evidence) as ConversationRunResult;
-      } else if (resolution.supported && capability.createDraft) {
-        response = await capability.createDraft(capabilityContext) as ConversationRunResult;
+      if (selection.authority && !selection.authority.allowed) {
+        const result: DomainResult = {
+          status: "permission_restricted",
+          answer: "You are not authorised to use that Oyi capability from this surface or scope.",
+          presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+          metadata: { reason: selection.authority.reason, required_permissions: selection.authority.required_permissions },
+        };
+        response = capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result, evidence: [] });
       } else {
-        response = await legacyFallback();
+        const resolution = await capability.resolve(capabilityContext);
+        if (resolution.supported && capability.buildReadResponse) {
+          tracer.stage("evidence_planned", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, capability_key: capability.key });
+          const evidence = await capability.collectEvidence(capabilityContext);
+          const evidenceAuthority = capabilityService.assertEvidenceAllowed(capability, evidence, {
+            actor: context.actor,
+            oisContext: context.oisContext,
+            surface: context.input.surface,
+            scope: selection.authority?.scope || resolvedTurn.scope,
+          });
+          tracer.stage("evidence_loaded", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, capability_key: capability.key, evidence_count: evidence.length });
+          logger.info("oyi_capability_evidence_loaded", {
+            request_id: tracer.requestId,
+            correlation_id: tracer.correlationId,
+            thread_id: context.input.thread_id || null,
+            actor_id: context.actor?.id || null,
+            surface: context.input.surface,
+            capability_key: capability.key,
+            domain: capability.domain,
+            rollout_status: capability.rolloutStatus,
+            target_type: resolvedTurn.target?.object_type || null,
+            authority_allowed: evidenceAuthority.allowed,
+            evidence_count: evidence.length,
+            reason: evidenceAuthority.reason,
+          });
+          const result = evidenceAuthority.allowed
+            ? capability.key === "global.capabilities.read"
+              ? buildCapabilityAdvertisingResult({ service: capabilityService, context })
+              : await capability.buildReadResponse(capabilityContext, evidence) as DomainResult
+            : {
+              status: "permission_restricted",
+              answer: "The evidence for that capability is restricted for this surface or scope.",
+              presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+              metadata: { reason: evidenceAuthority.reason },
+            } as DomainResult;
+          response = capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result, evidence });
+          logger.info("oyi_capability_handler_completed", {
+            request_id: tracer.requestId,
+            correlation_id: tracer.correlationId,
+            thread_id: context.input.thread_id || null,
+            actor_id: context.actor?.id || null,
+            surface: context.input.surface,
+            capability_key: capability.key,
+            domain: capability.domain,
+            rollout_status: capability.rolloutStatus,
+            target_type: resolvedTurn.target?.object_type || null,
+            evidence_count: evidence.length,
+            result_type: result.status,
+          });
+        } else if (resolution.supported && capability.createDraft) {
+          response = await capability.createDraft(capabilityContext) as ConversationRunResult;
+        } else {
+          response = await legacyFallback();
+        }
       }
     } else {
       response = await legacyFallback();
@@ -104,7 +187,9 @@ export class ConversationOrchestrator {
         semantic_frame: frame,
         resolved_turn: resolvedTurn,
         capability_key: capability?.key || "legacy",
-        legacy_fallback_used: !capability || capability.key === "devices.adapter",
+        capability_rollout_status: selection.rollout_status,
+        capability_authority: selection.authority,
+        legacy_fallback_used: !capability || Boolean(selection.legacy_fallback_reason),
       },
     };
     tracer.stage("response_composed", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, capability_key: capability?.key || "legacy" });
