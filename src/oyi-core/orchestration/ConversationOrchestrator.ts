@@ -122,6 +122,13 @@ function isContinueText(message: unknown) {
   return /^(continue|what were we doing|resume|show pending|show me the pending action)$/i.test(String(message ?? "").trim());
 }
 
+function explicitWorkflowReference(context: CanonicalConversationRequestContext) {
+  const requestContext = context.input.context && typeof context.input.context === "object" ? context.input.context as Record<string, any> : {};
+  const activeWorkflow = requestContext.active_workflow && typeof requestContext.active_workflow === "object" ? requestContext.active_workflow as Record<string, any> : {};
+  const pendingWorkflow = requestContext.pending_workflow && typeof requestContext.pending_workflow === "object" ? requestContext.pending_workflow as Record<string, any> : {};
+  return String(context.input.workflow_id || requestContext.workflow_id || activeWorkflow.workflow_id || pendingWorkflow.workflow_id || "").trim() || null;
+}
+
 function isDeviceActionFrame(frame: ReturnType<typeof parseSemanticFrame>) {
   return frame.domain === "devices" && (frame.operation === "device.power.on" || frame.operation === "device.power.off");
 }
@@ -346,7 +353,8 @@ export class ConversationOrchestrator {
         semantic_operation: frame.operation,
       });
     }
-    const activeWorkflow = await workflowService.restoreActive({ threadId: context.input.thread_id || null, actorId: context.actor?.id || null }).catch((error) => {
+    const referencedWorkflowId = explicitWorkflowReference(context);
+    let activeWorkflow = await workflowService.restoreActive({ threadId: context.input.thread_id || null, actorId: context.actor?.id || null }).catch((error) => {
       logger.warn("oyi_workflow_restore_failed", {
         request_id: tracer.requestId,
         correlation_id: tracer.correlationId,
@@ -359,11 +367,37 @@ export class ConversationOrchestrator {
       });
       return null;
     });
+    let workflowRestoreStrategy = activeWorkflow ? "thread" : "none";
+    if (!activeWorkflow && referencedWorkflowId && context.input.thread_id) {
+      activeWorkflow = await workflowService.restoreReferenced({
+        workflowId: referencedWorkflowId,
+        threadId: context.input.thread_id,
+        actorId: context.actor?.id || null,
+        surface: context.input.surface,
+        estateId: context.input.estate_id || context.oisContext?.estate_id || null,
+        homeId: context.input.home_id || context.oisContext?.home_id || null,
+      }).catch((error) => {
+        logger.warn("oyi_workflow_restore_failed", {
+          request_id: tracer.requestId,
+          correlation_id: tracer.correlationId,
+          thread_id: context.input.thread_id || null,
+          actor_id: context.actor?.id || null,
+          workflow_id: referencedWorkflowId,
+          failure_stage: "workflow_reference_restore",
+          error_class: safeErrorClass(error),
+          safe_error_code: safeErrorCode(error),
+          error: (error as any)?.message || String(error),
+        });
+        return null;
+      });
+      workflowRestoreStrategy = activeWorkflow ? "explicit_workflow_reference" : "none";
+    }
     if (isDeviceActionFrame(frame) || activeWorkflow?.capability_key === "devices.power.control") {
       deviceActionOrchestratorTrace("oyi_device_action_workflow_restored", context, null, tracer, {
         semantic_operation: frame.operation,
         workflow_id: activeWorkflow?.workflow_id || null,
         workflow_status: activeWorkflow?.status || "not_restored",
+        restore_strategy: workflowRestoreStrategy,
       });
     }
     tracer.stage("workflow_restored", { workflow_id: activeWorkflow?.workflow_id || null, status: activeWorkflow?.status || "not_restored" });

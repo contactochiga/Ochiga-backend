@@ -81,6 +81,16 @@ export class WorkflowService {
   async restoreActive(input: { threadId?: string | null; actorId?: string | null }) {
     if (!input.threadId) return null;
     const workflow = await this.repository.getActive(input.threadId, input.actorId);
+    if (workflow?.expires_at && new Date(workflow.expires_at).getTime() <= Date.now()) {
+      await this.expire(workflow).catch((error) => {
+        logger.warn("oyi_workflow_expire_failed", {
+          thread_id: input.threadId,
+          workflow_id: workflow.workflow_id,
+          error: (error as any)?.message || String(error),
+        });
+      });
+      return null;
+    }
     if (workflow) {
       logger.info("oyi_workflow_restored", {
         thread_id: input.threadId,
@@ -91,6 +101,55 @@ export class WorkflowService {
         revision: workflow.revision,
       });
     }
+    return workflow;
+  }
+
+  async restoreReferenced(input: {
+    workflowId?: string | null;
+    threadId?: string | null;
+    actorId?: string | null;
+    surface?: string | null;
+    estateId?: string | null;
+    homeId?: string | null;
+  }) {
+    if (!input.workflowId) return null;
+    const workflow = await this.repository.get(input.workflowId);
+    if (!workflow) return null;
+    const deniedReason = !input.threadId || workflow.thread_id !== input.threadId
+      ? "thread_mismatch"
+      : !input.actorId || workflow.actor_id !== input.actorId
+      ? "actor_mismatch"
+      : input.surface && workflow.surface !== input.surface
+        ? "surface_mismatch"
+        : input.homeId && workflow.target?.home_id && workflow.target.home_id !== input.homeId
+          ? "home_mismatch"
+          : input.estateId && workflow.target?.estate_id && workflow.target.estate_id !== input.estateId
+            ? "estate_mismatch"
+            : isTerminalWorkflowStatus(workflow.status)
+              ? "terminal_workflow"
+              : workflow.expires_at && new Date(workflow.expires_at).getTime() <= Date.now()
+                ? "expired_workflow"
+                : null;
+    if (deniedReason) {
+      logger.info("oyi_workflow_reference_rejected", {
+        workflow_id: workflow.workflow_id,
+        thread_id: workflow.thread_id,
+        actor_id: input.actorId || null,
+        surface: input.surface || null,
+        status: workflow.status,
+        reason: deniedReason,
+      });
+      return null;
+    }
+    logger.info("oyi_workflow_restored", {
+      thread_id: workflow.thread_id,
+      workflow_id: workflow.workflow_id,
+      capability_key: workflow.capability_key,
+      domain: workflow.domain,
+      status: workflow.status,
+      revision: workflow.revision,
+      restore_strategy: "explicit_workflow_reference",
+    });
     return workflow;
   }
 

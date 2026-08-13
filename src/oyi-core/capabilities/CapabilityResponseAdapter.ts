@@ -24,6 +24,19 @@ function displayModeFor(result: DomainResult): CanonicalConversationResponse["di
   return "conversation";
 }
 
+function workflowStatusFor(result: DomainResult) {
+  if (typeof result.metadata?.workflow_status === "string" && result.metadata.workflow_status.length > 0) {
+    return result.metadata.workflow_status;
+  }
+  if (result.status === "draft" && typeof result.metadata?.missing_input === "string") {
+    return "awaiting_clarification";
+  }
+  if (result.status === "awaiting_confirmation") {
+    return "awaiting_approval";
+  }
+  return result.status;
+}
+
 function sourceLabelFor(evidence: OyiEvidence, capability: CapabilityModule) {
   if (capability.key === "wallet.transactions.read") return "Wallet transactions";
   if (capability.key === "utilities.spending.read") return "Utility records";
@@ -80,6 +93,18 @@ export function capabilityDomainResultToConversationResponse(input: {
       capability_key: input.capability.key,
     }
     : null;
+  const workflowMetadata = input.result.metadata?.workflow_id
+    ? {
+      workflow_id: input.result.metadata.workflow_id,
+      action_id: input.result.metadata.action_id || null,
+      status: workflowStatusFor(input.result),
+      capability_key: input.capability.key,
+      missing_input: input.result.metadata.missing_input || null,
+      target_id: input.result.metadata.target_id || null,
+      channel_code: input.result.metadata.channel_code || null,
+      desired_state: input.result.metadata.desired_state || null,
+    }
+    : null;
   return {
     id: randomUUID(),
     thread_id: input.context.input.thread_id || null,
@@ -130,6 +155,7 @@ export function capabilityDomainResultToConversationResponse(input: {
       capability_result: input.result.status,
       workflow_id: input.result.metadata?.workflow_id || null,
       action_id: input.result.metadata?.action_id || null,
+      workflow: workflowMetadata,
       failure_stage: typeof input.result.metadata?.failure_stage === "string" ? input.result.metadata.failure_stage : null,
       safe_error_code: typeof input.result.metadata?.safe_error_code === "string" ? input.result.metadata.safe_error_code : null,
     },

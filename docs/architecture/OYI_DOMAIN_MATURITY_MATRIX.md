@@ -16,6 +16,8 @@ Phase C runtime correction: device action preparation now emits staged productio
 
 Phase C final multi-gang correction: independently controllable multi-channel devices cannot reach confirmation without an explicit valid channel. Channel candidates are loaded from device metadata/capabilities, persisted with the workflow, and confirmation binds the canonical channel code plus requested state.
 
+Phase C reload correction: pending channel clarification and pending confirmation survive Consumer reload through canonical thread restoration. Thread APIs expose safe `active_workflow` metadata, and continuation is accepted only for the same authenticated actor/surface/scope/thread workflow, never by broad actor/home guessing.
+
 | Domain | Direct Evidence | Read | Detail | History | Explain | Compare | Recommend | Draft | Clarification | Approval | Execution | Verification | Home Contributor | Room Contributor | Prediction | Anomaly | Outcome | Legacy Dependency | Production Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | devices | Mature | Enabled read capabilities | Yes | Enabled activity/failures | Enabled diagnosis | Partial | Partial | Durable power/channel draft | Durable explicit confirmation | Durable approval | Existing command path via durable action | Existing command verification | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Phase C device-first durable action path |

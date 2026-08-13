@@ -93,3 +93,16 @@ Device action preparation is now traced as an explicit staged path:
 - request failed
 
 Preparation failures return structured safe results instead of collapsing into a generic runtime outage. Target failures remain target-specific, workflow persistence failures report that the pending workflow could not be safely saved, and action persistence failures report that the pending action could not be safely saved. In all preparation failure states, no provider command is sent.
+
+## Reload Durability
+
+Pending governed workflow state is server-durable. A Consumer reload must restore the canonical conversation thread and carry its normalized `active_workflow` summary back into the next turn. The backend treats that summary as a continuity hint only: it reloads the authoritative workflow by `workflow_id`, validates the same authenticated actor, surface, estate/home scope and canonical `thread_id`, and rejects terminal or expired workflows.
+
+The runtime must not restore physical-action workflows by broad actor/home scope because a short continuation such as `Channel 1` could otherwise bind to the wrong pending action. The safe restore path is:
+
+1. restore exact active workflow for the canonical `thread_id`;
+2. if needed, restore explicit `workflow_id` only when it belongs to the same restored thread;
+3. evaluate typed workflow continuation before ordinary capability routing;
+4. keep cancellation, expiry and confirmation bound to the durable workflow/action record.
+
+The regression smoke `smoke:oyi-workflow-action-phase-c-reload` verifies that `Turn off 3Gang Living room -> reload -> Channel 1` reaches exact Channel 1 confirmation with no provider execution, that cancelled workflows do not revive, expired workflows fail safely, and `Continue` at pending confirmation remains non-executing.

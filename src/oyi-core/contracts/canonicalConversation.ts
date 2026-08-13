@@ -202,6 +202,7 @@ export type CanonicalConversationRequest = {
   active_automations?: Array<Record<string, unknown>> | null;
   active_intelligence_context?: Record<string, unknown> | null;
   conversation_context?: Record<string, unknown> | null;
+  workflow_id?: string | null;
   intent_hint?: string | null;
   operation_class_hint?: string | null;
   scope_mode_hint?: string | null;

@@ -3,6 +3,10 @@ import type { OisContext } from "../../types/oisContext";
 import type { CanonicalConversationRequest } from "../contracts/canonicalConversation";
 
 export function mapOyiRouteBodyToConversationRequest(body: any, oisContext: OisContext | null | undefined, mode: "chat" | "runtime"): CanonicalConversationRequest {
+  const context = mode === "runtime"
+    ? { ...(body?.request?.context || {}), ...(body?.context || {}), ...(oisContext || {}) }
+    : { ...(body?.context || {}), ...(oisContext || {}) };
+  const activeWorkflow = (context as any)?.active_workflow || (context as any)?.pending_workflow || {};
   return {
     ...(body || {}),
     message: String(mode === "runtime" ? body?.request?.query || body?.message || body?.prompt || "" : body?.message || body?.prompt || "").trim(),
@@ -11,9 +15,8 @@ export function mapOyiRouteBodyToConversationRequest(body: any, oisContext: OisC
     home_id: oisContext?.home_id || null,
     module: oisContext?.module || body?.module || null,
     thread_id: body?.thread_id || body?.request?.thread_id || null,
-    context: mode === "runtime"
-      ? { ...(body?.request?.context || {}), ...(body?.context || {}), ...(oisContext || {}) }
-      : { ...(body?.context || {}), ...(oisContext || {}) },
+    workflow_id: body?.workflow_id || body?.request?.workflow_id || activeWorkflow?.workflow_id || (context as any)?.workflow_id || null,
+    context,
     target: body?.target || body?.request?.target || oisContext?.target || null,
   };
 }

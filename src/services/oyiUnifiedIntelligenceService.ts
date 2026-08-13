@@ -2677,7 +2677,7 @@ async function threadMessageSummary(threadId: string) {
     .eq("thread_id", threadId);
   const latestResult = await supabaseAdmin
     .from("oyi_conversation_messages")
-    .select("id,role,content,metadata,created_at")
+    .select("id,role,content,metadata,suggested_actions,created_at")
     .eq("thread_id", threadId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
@@ -2687,10 +2687,12 @@ async function threadMessageSummary(threadId: string) {
   const latestRows = latestResult.data || [];
   const previewRow = latestRows.find((message: any) => cleanThreadPreview(message.content));
   const latestMetadata = latestRows.find((message: any) => message?.metadata)?.metadata || {};
+  const latestActions = latestRows.flatMap((message: any) => Array.isArray(message?.suggested_actions) ? message.suggested_actions : []);
   return {
     preview: cleanThreadPreview(previewRow?.content || latestMetadata.preview),
     message_count: Number(countResult.count || 0),
     latest_metadata: latestMetadata,
+    latest_actions: latestActions,
   };
 }
 
@@ -2726,7 +2728,30 @@ function lastOperationalObject(metadata: Record<string, any>) {
   return { type: String(type), id: String(id), label: humanLabel(object.label || object.object_name || object.objectName) };
 }
 
-function threadRow(row: any, summary: { preview?: string | null; message_count?: number; latest_metadata?: Record<string, any> } = {}) {
+function activeWorkflowForThread(metadata: Record<string, any>, summary: { latest_metadata?: Record<string, any>; latest_actions?: Array<Record<string, any>> } = {}) {
+  const stateWorkflow = metadata.conversation_state?.active_workflow && typeof metadata.conversation_state.active_workflow === "object"
+    ? metadata.conversation_state.active_workflow
+    : {};
+  const directWorkflow = metadata.workflow && typeof metadata.workflow === "object" ? metadata.workflow : {};
+  const latestWorkflow = summary.latest_metadata?.workflow && typeof summary.latest_metadata.workflow === "object" ? summary.latest_metadata.workflow : {};
+  const actionWorkflow = (summary.latest_actions || []).find((action: any) => action?.workflow_id) || {};
+  const workflow = { ...stateWorkflow, ...directWorkflow, ...latestWorkflow, ...actionWorkflow };
+  const workflowId = workflow.workflow_id ? String(workflow.workflow_id) : "";
+  if (!workflowId) return null;
+  const status = String(workflow.status || workflow.workflow_status || "").trim();
+  if (/^(answered|completed|failed|cancelled|expired|superseded)$/i.test(status)) return null;
+  return {
+    workflow_id: workflowId,
+    action_id: workflow.action_id ? String(workflow.action_id) : null,
+    status: status || null,
+    capability_key: workflow.capability_key ? String(workflow.capability_key) : null,
+    missing_input: workflow.missing_input ? String(workflow.missing_input) : null,
+    target_id: workflow.target_id ? String(workflow.target_id) : null,
+    channel_code: workflow.channel_code ? String(workflow.channel_code) : null,
+  };
+}
+
+function threadRow(row: any, summary: { preview?: string | null; message_count?: number; latest_metadata?: Record<string, any>; latest_actions?: Array<Record<string, any>> } = {}) {
   const metadata = row.metadata || {};
   const latestMetadata = summary.latest_metadata || {};
   const title = row.title && !genericThreadTitle(row.title)
@@ -2749,6 +2774,7 @@ function threadRow(row: any, summary: { preview?: string | null; message_count?:
     last_intent: metadata.last_intent || latestMetadata.intent || latestMetadata.canonical_request_contract?.intent || null,
     last_scope: metadata.last_scope || latestMetadata.canonical_request_contract?.scope_mode || null,
     last_operational_object: lastOperationalObject(metadata),
+    active_workflow: activeWorkflowForThread(metadata, summary),
     metadata: row.metadata || {},
   };
 }
