@@ -87,6 +87,38 @@ function normalizeLookupText(value: unknown) {
     .trim();
 }
 
+const CHANNEL_TOKEN_PATTERN = "\\d+|one|two|three|four|five|six|seven|eight|nine|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth";
+const CHANNEL_REFERENCE_PATTERN = new RegExp(`\\b(?:channel|gang|switch)\\s*(${CHANNEL_TOKEN_PATTERN})\\b`, "i");
+const CHANNEL_REFERENCE_GLOBAL_PATTERN = new RegExp(`\\b(?:channel|gang|switch)\\s*(?:${CHANNEL_TOKEN_PATTERN})\\b`, "ig");
+const CHANNEL_PREFIX_PATTERN = new RegExp(`\\b(${CHANNEL_TOKEN_PATTERN})\\s+(?:channel|gang|switch)\\b`, "i");
+const CHANNEL_PREFIX_GLOBAL_PATTERN = new RegExp(`\\b(?:${CHANNEL_TOKEN_PATTERN})\\s+(?:channel|gang|switch)\\b`, "ig");
+
+function channelNumberFromToken(value: unknown) {
+  const raw = text(value).toLowerCase();
+  const words: Record<string, string> = {
+    one: "1",
+    first: "1",
+    two: "2",
+    second: "2",
+    three: "3",
+    third: "3",
+    four: "4",
+    fourth: "4",
+    five: "5",
+    fifth: "5",
+    six: "6",
+    sixth: "6",
+    seven: "7",
+    seventh: "7",
+    eight: "8",
+    eighth: "8",
+    nine: "9",
+    ninth: "9",
+  };
+  const number = words[raw] || raw;
+  return /^\d+$/.test(number) && Number(number) > 0 ? number : "";
+}
+
 function currentScope(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
   return {
     estate_id: input.estate_id || oisContext?.estate_id || null,
@@ -96,11 +128,11 @@ function currentScope(input: CanonicalConversationRequest, oisContext: OisContex
 }
 
 export function requestedChannelCode(message: string) {
-  const match = message.match(/\b(?:channel|gang|switch)\s*(1|2|3|one|two|three|first|second|third)\b/i)
-    || message.match(/\b(first|second|third)\s+(?:channel|gang|switch)\b/i);
+  const match = message.match(CHANNEL_REFERENCE_PATTERN)
+    || message.match(CHANNEL_PREFIX_PATTERN);
   if (!match) return null;
-  const raw = String(match[1]).toLowerCase();
-  const number = raw === "one" || raw === "first" ? "1" : raw === "two" || raw === "second" ? "2" : raw === "three" || raw === "third" ? "3" : raw;
+  const number = channelNumberFromToken(match[1]);
+  if (!number) return null;
   return `switch_${number}`;
 }
 
@@ -108,19 +140,19 @@ export function namedDevicePhraseFromControlMessage(message: string, options: { 
   if (!options.isControlRequest(message)) return null;
   if (/\b(it|this|that|this channel|that device|same device|same channel)\b/i.test(message)) return null;
   const withoutChannel = text(message)
-    .replace(/\b(?:channel|gang|switch)\s*(?:1|2|3|one|two|three|first|second|third)\b/ig, " ")
-    .replace(/\b(?:first|second|third)\s+(?:channel|gang|switch)\b/ig, " ");
+    .replace(CHANNEL_REFERENCE_GLOBAL_PATTERN, " ")
+    .replace(CHANNEL_PREFIX_GLOBAL_PATTERN, " ");
   if (requestedChannelCode(message) && !normalizeLookupText(withoutChannel).replace(/\b(turn|switch|power|set|on|off|the|my|a|an|to|please)\b/g, " ").trim()) return null;
   const phrase = text(message)
     .replace(/^\s*(please\s+)?(?:turn|switch|power|set)\s+/i, "")
     .replace(/\b(on|off|up|down)\b/ig, " ")
-    .replace(/\b(?:channel|gang|switch)\s*(?:1|2|3|one|two|three|first|second|third)\b/ig, " ")
-    .replace(/\b(?:first|second|third)\s+(?:channel|gang|switch)\b/ig, " ")
+    .replace(CHANNEL_REFERENCE_GLOBAL_PATTERN, " ")
+    .replace(CHANNEL_PREFIX_GLOBAL_PATTERN, " ")
     .replace(/\b(the|my|a|an|to)\b/ig, " ")
     .replace(/[.?!]+$/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!phrase || /^channel\s*[123]$/i.test(phrase)) return null;
+  if (!phrase || /^channel\s*\d+$/i.test(phrase)) return null;
   return phrase.length >= 3 ? phrase : null;
 }
 

@@ -395,10 +395,10 @@ export class ConversationOrchestrator {
       if (workflowCapability) {
         let continuation: DomainResult | null = null;
         const workflowContext = { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "durable_workflow_continuation") };
-        if (activeWorkflow.status === "awaiting_clarification") {
-          continuation = await continueDeviceActionWorkflow(workflowContext, activeWorkflow);
-        } else if (isConfirmationText(context.input.message) || isCancellationText(context.input.message)) {
+        if (isConfirmationText(context.input.message) || isCancellationText(context.input.message)) {
           continuation = await durableWorkflowContinuationResult(context, activeWorkflow, workflowCapability);
+        } else if (activeWorkflow.status === "awaiting_clarification") {
+          continuation = await continueDeviceActionWorkflow(workflowContext, activeWorkflow);
         } else if (isContinueText(context.input.message)) {
           continuation = await pendingWorkflowStatusResult(activeWorkflow);
         }

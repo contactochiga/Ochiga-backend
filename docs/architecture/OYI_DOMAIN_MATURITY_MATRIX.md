@@ -14,6 +14,8 @@ Phase C correction: device action target resolution now uses the canonical named
 
 Phase C runtime correction: device action preparation now emits staged production traces, reports workflow/action persistence failures as safe structured outcomes, and no longer depends on a hard workflow/action foreign-key ordering against conversation thread persistence.
 
+Phase C final multi-gang correction: independently controllable multi-channel devices cannot reach confirmation without an explicit valid channel. Channel candidates are loaded from device metadata/capabilities, persisted with the workflow, and confirmation binds the canonical channel code plus requested state.
+
 | Domain | Direct Evidence | Read | Detail | History | Explain | Compare | Recommend | Draft | Clarification | Approval | Execution | Verification | Home Contributor | Room Contributor | Prediction | Anomaly | Outcome | Legacy Dependency | Production Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | devices | Mature | Enabled read capabilities | Yes | Enabled activity/failures | Enabled diagnosis | Partial | Partial | Durable power/channel draft | Durable explicit confirmation | Durable approval | Existing command path via durable action | Existing command verification | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Phase C device-first durable action path |

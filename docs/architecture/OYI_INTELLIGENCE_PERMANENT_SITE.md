@@ -69,6 +69,7 @@ Maintenance, Visitors, Security, Services, Community, Messages, Scenes, Automati
 - Device action preparation now has stage-level production tracing from capability resolution through target resolution, durable workflow persistence, durable action persistence and confirmation response composition.
 - Workflow/action thread references are treated as restoration/trace references rather than hard ordering dependencies on canonical conversation thread persistence.
 - Preparation failures are localized as `target_resolution`, `workflow_persistence`, `action_persistence` or `action_preparation`, and all failure responses preserve the no-execution boundary.
+- Final Phase C multi-gang correction enforces: multi-channel target plus unspecified channel means durable channel clarification; exact target plus explicit valid channel means exact durable confirmation. Oyi must not silently default to Channel 1 or all channels.
 - Automated validation uses a fake device adapter and stops before physical execution.
 
 ## Not Completed In This Slice
@@ -94,4 +95,4 @@ To add or mature a domain:
 
 ## Production Enablement
 
-Phase C introduces production migrations for durable conversation workflow/action state and a device-first explicit-confirmation action path. The production runtime correction adds a migration that relaxes workflow/action `thread_id` foreign keys so action preparation can occur before canonical turn persistence upserts the conversation thread, while preserving the `thread_id` value for trace and restoration. It does not include automated physical acceptance, financial mutations, access mutations, message send, scene execution, automation execution, Home aggregation, Room aggregation, forecasting or learning.
+Phase C introduces production migrations for durable conversation workflow/action state and a device-first explicit-confirmation action path. The production runtime correction adds a migration that relaxes workflow/action `thread_id` foreign keys so action preparation can occur before canonical turn persistence upserts the conversation thread, while preserving the `thread_id` value for trace and restoration. The final multi-gang correction requires explicit channel binding before confirmation for independently controllable multi-channel devices and does not require a new database migration. It does not include automated physical acceptance, financial mutations, access mutations, message send, scene execution, automation execution, Home aggregation, Room aggregation, forecasting or learning.

@@ -207,7 +207,10 @@ async function ensureWorkflow(context: CapabilityContext, existing: OyiWorkflow 
 async function resolveTargetForAction(context: CapabilityContext, workflow: OyiWorkflow | null) {
   let target = context.resolvedTurn.target || workflow?.target || null;
   let channelDefinitions = channelDefinitionsFromValue(workflow?.metadata?.channel_definitions);
-  const requestedChannel = requestedChannelCode(context.input.message || "") || target?.channel_code || null;
+  const requestedChannelInput = requestedChannelCode(context.input.message || "");
+  const restoredWorkflowChannel = workflow?.target?.channel_code || null;
+  const explicitChannelTarget = target?.object_type === "device_channel" ? target.channel_code || null : null;
+  const requestedChannel = requestedChannelInput || restoredWorkflowChannel || explicitChannelTarget || null;
   const namedPhrase = namedDevicePhraseFromControlMessage(context.input.message || "", { isControlRequest })
     || (!target && !requestedChannel ? text(context.input.message) : null);
   deviceActionTrace("oyi_device_action_target_resolution_started", context, {
@@ -215,6 +218,7 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
     target_type: target?.object_type || null,
     target_id: target?.canonical_id || null,
     target_label: target?.label || null,
+    requested_channel_input: requestedChannelInput,
     requested_channel: requestedChannel,
     phrase: namedPhrase || null,
   });
@@ -227,6 +231,7 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
       candidate_match_strategy: "canonical_named_device_resolver",
       resolved_device_id: resolution.status === "resolved" ? resolution.device_id : null,
       resolved_device_label: resolution.status === "resolved" ? resolution.label : null,
+      requested_channel_input: requestedChannelInput,
       requested_channel: requestedChannel,
     });
     if (resolution.status === "resolved") {
@@ -249,9 +254,10 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
     target_type: target?.object_type || null,
     target_id: target?.canonical_id || null,
     target_label: target?.label || null,
+    requested_channel_input: requestedChannelInput,
     requested_channel: requestedChannel,
   });
-  return { target, requestedChannel, channelDefinitions, candidates: null, phrase: namedPhrase };
+  return { target, requestedChannel, requestedChannelInput, channelDefinitions, candidates: null, phrase: namedPhrase };
 }
 
 export async function createOrContinueDeviceActionDraft(context: CapabilityContext, workflow: OyiWorkflow | null = null, options: { requested?: unknown } = {}): Promise<DomainResult> {
@@ -352,6 +358,7 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
     });
   }
   const validChannels = new Set(channelDefinitions.map((item) => item.code));
+  const explicitOrRestoredChannel = resolved.requestedChannelInput || workflow?.target?.channel_code || null;
   if (resolved.requestedChannel && validChannels.size && !validChannels.has(resolved.requestedChannel)) {
     let nextWorkflow: OyiWorkflow;
     try {
@@ -366,7 +373,7 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
         target: resolved.target,
         unresolved_inputs: ["channel"],
         proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
-        metadata: { ...(workflow?.metadata || {}), required_input: "channel", channel_definitions: channelDefinitions },
+        metadata: { ...(workflow?.metadata || {}), required_input: "channel", missing_input: "channel", channel_definitions: channelDefinitions },
       }, "awaiting_clarification");
       deviceActionTrace("oyi_device_action_workflow_created", context, {
         workflow_id: nextWorkflow.workflow_id,
@@ -395,7 +402,7 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
       metadata: { invalid_channel: resolved.requestedChannel },
     });
   }
-  if (!resolved.requestedChannel && channelDefinitions.length > 1) {
+  if (!explicitOrRestoredChannel && channelDefinitions.length > 1) {
     let nextWorkflow: OyiWorkflow;
     try {
       deviceActionTrace("oyi_device_action_workflow_create_started", context, {
@@ -403,17 +410,22 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
         target_type: resolved.target.object_type,
         target_id: resolved.target.canonical_id,
         target_label: resolved.target.label || null,
+        requested_channel_input: resolved.requestedChannelInput || null,
+        resolved_channel_code: null,
       });
       nextWorkflow = await ensureWorkflow(context, workflow, {
         target: resolved.target,
         unresolved_inputs: ["channel"],
         proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
-        metadata: { ...(workflow?.metadata || {}), required_input: "channel", channel_definitions: channelDefinitions },
+        metadata: { ...(workflow?.metadata || {}), required_input: "channel", missing_input: "channel", channel_definitions: channelDefinitions },
       }, "awaiting_clarification");
       deviceActionTrace("oyi_device_action_workflow_created", context, {
         workflow_id: nextWorkflow.workflow_id,
         workflow_status: nextWorkflow.status,
         revision: nextWorkflow.revision,
+        missing_input: "channel",
+        requested_channel_input: resolved.requestedChannelInput || null,
+        resolved_channel_code: null,
       });
     } catch (error) {
       deviceActionTrace("oyi_device_action_workflow_create_failed", context, {
@@ -430,10 +442,10 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
     }
     return clarificationResult({
       workflow: nextWorkflow,
-      answer: `Which channel should I ${actionText(requested)} on ${resolved.target.label || "that device"}?`,
+      answer: `Which channel on ${resolved.target.label || "that device"} should I ${actionText(requested)}?`,
       missing: "channel",
       actions: channelDefinitions.map((item) => ({ action_type: "clarification_choice", label: item.label, value: item.code })),
-      metadata: { target_id: resolved.target.canonical_id },
+      metadata: { target_id: resolved.target.canonical_id, channel_definitions: channelDefinitions },
     });
   }
 
