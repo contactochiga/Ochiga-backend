@@ -31,6 +31,82 @@ function text(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function safeErrorCode(error: unknown) {
+  const value = error as any;
+  return String(value?.code || value?.safe_error_code || value?.name || "internal_runtime_failure");
+}
+
+function safeErrorClass(error: unknown) {
+  const value = error as any;
+  return String(value?.name || value?.constructor?.name || "Error");
+}
+
+function safeErrorMessage(error: unknown) {
+  const value = error as any;
+  return String(value?.message || error || "Unknown device action runtime failure");
+}
+
+function deviceActionTrace(event: string, context: CapabilityContext, fields: Record<string, unknown> = {}) {
+  logger.info(event, {
+    request_id: context.resolvedTurn.request_id,
+    correlation_id: context.resolvedTurn.correlation_id,
+    thread_id: context.input.thread_id || null,
+    actor_id: context.actor?.id || null,
+    surface: context.input.surface,
+    semantic_operation: context.resolvedTurn.semantic_frame.operation,
+    capability_key: "devices.power.control",
+    ...fields,
+  });
+}
+
+function deviceActionFailureResult(input: {
+  stage: string;
+  error: unknown;
+  workflow?: OyiWorkflow | null;
+  actionId?: string | null;
+  target?: CanonicalTarget | null;
+  channelCode?: string | null;
+}): DomainResult {
+  const safeCode = safeErrorCode(input.error);
+  const targetLabel = input.target?.label || null;
+  const answer =
+    input.stage === "target_resolution"
+      ? "I couldn't find that device in your home. Please choose one of your available devices."
+      : input.stage === "channel_validation"
+        ? targetLabel
+          ? `I couldn't validate that channel on ${targetLabel}. Please choose a valid channel for that device.`
+          : "I couldn't validate that channel. Please choose a valid channel for the selected device."
+        : input.stage === "workflow_persistence"
+          ? "I understood the device command, but I could not safely save the pending workflow. I did not send any command."
+          : input.stage === "action_persistence"
+            ? "I understood the device command, but I could not safely save the pending action. I did not send any command."
+            : "I could not safely prepare that device command. I did not send any command.";
+  return {
+    status: "unavailable",
+    answer,
+    presentation_policy: {
+      primary: "text",
+      allowed_supporting_blocks: ["text"],
+      allowed_action_types: [],
+      suppress_awareness: true,
+      suppress_context_chips: true,
+      suppress_duplicate_status: true,
+      snapshot_mode: "none",
+      auto_navigation: false,
+    },
+    metadata: {
+      failure_stage: input.stage,
+      safe_error_code: safeCode,
+      workflow_id: input.workflow?.workflow_id || null,
+      action_id: input.actionId || null,
+      target_type: input.target?.object_type || null,
+      target_id: input.target?.canonical_id || null,
+      target_label: targetLabel,
+      channel_code: input.channelCode || input.target?.channel_code || null,
+    },
+  };
+}
+
 function isControlRequest(message: string) {
   return /\b(turn|switch|power|set)\b[\s\S]{0,80}\b(on|off)\b|\b(on|off)\b[\s\S]{0,80}\b(light|switch|socket|plug|device|gang)\b/i.test(message);
 }
@@ -134,12 +210,17 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
   const requestedChannel = requestedChannelCode(context.input.message || "") || target?.channel_code || null;
   const namedPhrase = namedDevicePhraseFromControlMessage(context.input.message || "", { isControlRequest })
     || (!target && !requestedChannel ? text(context.input.message) : null);
+  deviceActionTrace("oyi_device_action_target_resolution_started", context, {
+    workflow_id: workflow?.workflow_id || null,
+    target_type: target?.object_type || null,
+    target_id: target?.canonical_id || null,
+    target_label: target?.label || null,
+    requested_channel: requestedChannel,
+    phrase: namedPhrase || null,
+  });
   if (!target && namedPhrase) {
     const resolution = await resolveNamedDeviceForRead(context.actor, context.oisContext, context.input, namedPhrase);
-    logger.info("oyi_device_action_target_resolution", {
-      request_id: context.resolvedTurn.request_id,
-      thread_id: context.input.thread_id || null,
-      capability_key: "devices.power.control",
+    deviceActionTrace(resolution.status === "resolved" ? "oyi_device_action_target_resolved" : "oyi_device_action_target_resolution_failed", context, {
       phrase: namedPhrase,
       result: resolution.status,
       device_candidate_count: resolution.status === "ambiguous" ? resolution.candidates.length : resolution.status === "resolved" ? 1 : 0,
@@ -162,18 +243,66 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
     }
     if (resolution.status === "ambiguous") return { target: null, requestedChannel, channelDefinitions, candidates: resolution.candidates, phrase: namedPhrase };
   }
+  deviceActionTrace(target ? "oyi_device_action_target_resolved" : "oyi_device_action_target_resolution_failed", context, {
+    workflow_id: workflow?.workflow_id || null,
+    result: target ? "resolved_existing_target" : "target_missing",
+    target_type: target?.object_type || null,
+    target_id: target?.canonical_id || null,
+    target_label: target?.label || null,
+    requested_channel: requestedChannel,
+  });
   return { target, requestedChannel, channelDefinitions, candidates: null, phrase: namedPhrase };
 }
 
 export async function createOrContinueDeviceActionDraft(context: CapabilityContext, workflow: OyiWorkflow | null = null, options: { requested?: unknown } = {}): Promise<DomainResult> {
+  deviceActionTrace("oyi_device_action_request_started", context, {
+    workflow_id: workflow?.workflow_id || null,
+    workflow_status: workflow?.status || null,
+  });
   const requested = options.requested ?? desiredState(context.resolvedTurn.semantic_frame) ?? workflow?.proposed_action?.requested_state ?? null;
-  const resolved = await resolveTargetForAction(context, workflow);
+  let resolved: Awaited<ReturnType<typeof resolveTargetForAction>>;
+  try {
+    resolved = await resolveTargetForAction(context, workflow);
+  } catch (error) {
+    deviceActionTrace("oyi_device_action_request_failed", context, {
+      workflow_id: workflow?.workflow_id || null,
+      failure_stage: "target_resolution",
+      error_class: safeErrorClass(error),
+      safe_error_code: safeErrorCode(error),
+      error_message: safeErrorMessage(error),
+    });
+    return deviceActionFailureResult({ stage: "target_resolution", error, workflow });
+  }
   if (resolved.candidates) {
-    const nextWorkflow = await ensureWorkflow(context, workflow, {
-      unresolved_inputs: ["target"],
-      proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
-      metadata: { ...(workflow?.metadata || {}), required_input: "target", candidate_version: 1, candidates: resolved.candidates },
-    }, "awaiting_clarification");
+    let nextWorkflow: OyiWorkflow;
+    try {
+      deviceActionTrace("oyi_device_action_workflow_create_started", context, {
+        workflow_id: workflow?.workflow_id || null,
+        target_type: null,
+        target_id: null,
+        target_label: null,
+        failure_stage: null,
+      });
+      nextWorkflow = await ensureWorkflow(context, workflow, {
+        unresolved_inputs: ["target"],
+        proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
+        metadata: { ...(workflow?.metadata || {}), required_input: "target", candidate_version: 1, candidates: resolved.candidates },
+      }, "awaiting_clarification");
+      deviceActionTrace("oyi_device_action_workflow_created", context, {
+        workflow_id: nextWorkflow.workflow_id,
+        workflow_status: nextWorkflow.status,
+        revision: nextWorkflow.revision,
+      });
+    } catch (error) {
+      deviceActionTrace("oyi_device_action_workflow_create_failed", context, {
+        workflow_id: workflow?.workflow_id || null,
+        failure_stage: "workflow_persistence",
+        error_class: safeErrorClass(error),
+        safe_error_code: safeErrorCode(error),
+        error_message: safeErrorMessage(error),
+      });
+      return deviceActionFailureResult({ stage: "workflow_persistence", error, workflow });
+    }
     return clarificationResult({
       workflow: nextWorkflow,
       answer: `Which ${resolved.phrase || "device"} should I use?`,
@@ -183,11 +312,32 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
     });
   }
   if (!resolved.target) {
-    const nextWorkflow = await ensureWorkflow(context, workflow, {
-      unresolved_inputs: ["target"],
-      proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
-      metadata: { ...(workflow?.metadata || {}), semantic_operation: context.resolvedTurn.semantic_frame.operation, required_input: "target", candidate_version: 1 },
-    }, "awaiting_clarification");
+    let nextWorkflow: OyiWorkflow;
+    try {
+      deviceActionTrace("oyi_device_action_workflow_create_started", context, {
+        workflow_id: workflow?.workflow_id || null,
+        failure_stage: null,
+      });
+      nextWorkflow = await ensureWorkflow(context, workflow, {
+        unresolved_inputs: ["target"],
+        proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
+        metadata: { ...(workflow?.metadata || {}), semantic_operation: context.resolvedTurn.semantic_frame.operation, required_input: "target", candidate_version: 1 },
+      }, "awaiting_clarification");
+      deviceActionTrace("oyi_device_action_workflow_created", context, {
+        workflow_id: nextWorkflow.workflow_id,
+        workflow_status: nextWorkflow.status,
+        revision: nextWorkflow.revision,
+      });
+    } catch (error) {
+      deviceActionTrace("oyi_device_action_workflow_create_failed", context, {
+        workflow_id: workflow?.workflow_id || null,
+        failure_stage: "workflow_persistence",
+        error_class: safeErrorClass(error),
+        safe_error_code: safeErrorCode(error),
+        error_message: safeErrorMessage(error),
+      });
+      return deviceActionFailureResult({ stage: "workflow_persistence", error, workflow });
+    }
     return clarificationResult({
       workflow: nextWorkflow,
       answer: "I can prepare that device command, but I need the exact device first. Which device should I use?",
@@ -203,12 +353,40 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
   }
   const validChannels = new Set(channelDefinitions.map((item) => item.code));
   if (resolved.requestedChannel && validChannels.size && !validChannels.has(resolved.requestedChannel)) {
-    const nextWorkflow = await ensureWorkflow(context, workflow, {
-      target: resolved.target,
-      unresolved_inputs: ["channel"],
-      proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
-      metadata: { ...(workflow?.metadata || {}), required_input: "channel", channel_definitions: channelDefinitions },
-    }, "awaiting_clarification");
+    let nextWorkflow: OyiWorkflow;
+    try {
+      deviceActionTrace("oyi_device_action_workflow_create_started", context, {
+        workflow_id: workflow?.workflow_id || null,
+        target_type: resolved.target.object_type,
+        target_id: resolved.target.canonical_id,
+        target_label: resolved.target.label || null,
+        channel_code: resolved.requestedChannel,
+      });
+      nextWorkflow = await ensureWorkflow(context, workflow, {
+        target: resolved.target,
+        unresolved_inputs: ["channel"],
+        proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
+        metadata: { ...(workflow?.metadata || {}), required_input: "channel", channel_definitions: channelDefinitions },
+      }, "awaiting_clarification");
+      deviceActionTrace("oyi_device_action_workflow_created", context, {
+        workflow_id: nextWorkflow.workflow_id,
+        workflow_status: nextWorkflow.status,
+        revision: nextWorkflow.revision,
+      });
+    } catch (error) {
+      deviceActionTrace("oyi_device_action_workflow_create_failed", context, {
+        workflow_id: workflow?.workflow_id || null,
+        target_type: resolved.target.object_type,
+        target_id: resolved.target.canonical_id,
+        target_label: resolved.target.label || null,
+        channel_code: resolved.requestedChannel,
+        failure_stage: "workflow_persistence",
+        error_class: safeErrorClass(error),
+        safe_error_code: safeErrorCode(error),
+        error_message: safeErrorMessage(error),
+      });
+      return deviceActionFailureResult({ stage: "workflow_persistence", error, workflow, target: resolved.target, channelCode: resolved.requestedChannel });
+    }
     return clarificationResult({
       workflow: nextWorkflow,
       answer: `${resolved.target.label || "That device"} has ${channelDefinitions.map((item) => item.label).join(", ")}. Which one should I use?`,
@@ -218,12 +396,38 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
     });
   }
   if (!resolved.requestedChannel && channelDefinitions.length > 1) {
-    const nextWorkflow = await ensureWorkflow(context, workflow, {
-      target: resolved.target,
-      unresolved_inputs: ["channel"],
-      proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
-      metadata: { ...(workflow?.metadata || {}), required_input: "channel", channel_definitions: channelDefinitions },
-    }, "awaiting_clarification");
+    let nextWorkflow: OyiWorkflow;
+    try {
+      deviceActionTrace("oyi_device_action_workflow_create_started", context, {
+        workflow_id: workflow?.workflow_id || null,
+        target_type: resolved.target.object_type,
+        target_id: resolved.target.canonical_id,
+        target_label: resolved.target.label || null,
+      });
+      nextWorkflow = await ensureWorkflow(context, workflow, {
+        target: resolved.target,
+        unresolved_inputs: ["channel"],
+        proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
+        metadata: { ...(workflow?.metadata || {}), required_input: "channel", channel_definitions: channelDefinitions },
+      }, "awaiting_clarification");
+      deviceActionTrace("oyi_device_action_workflow_created", context, {
+        workflow_id: nextWorkflow.workflow_id,
+        workflow_status: nextWorkflow.status,
+        revision: nextWorkflow.revision,
+      });
+    } catch (error) {
+      deviceActionTrace("oyi_device_action_workflow_create_failed", context, {
+        workflow_id: workflow?.workflow_id || null,
+        target_type: resolved.target.object_type,
+        target_id: resolved.target.canonical_id,
+        target_label: resolved.target.label || null,
+        failure_stage: "workflow_persistence",
+        error_class: safeErrorClass(error),
+        safe_error_code: safeErrorCode(error),
+        error_message: safeErrorMessage(error),
+      });
+      return deviceActionFailureResult({ stage: "workflow_persistence", error, workflow, target: resolved.target });
+    }
     return clarificationResult({
       workflow: nextWorkflow,
       answer: `Which channel should I ${actionText(requested)} on ${resolved.target.label || "that device"}?`,
@@ -234,26 +438,108 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
   }
 
   const finalTarget = targetWithChannel(resolved.target, resolved.requestedChannel || resolved.target.channel_code || null);
-  let nextWorkflow = await ensureWorkflow(context, workflow, {
-    target: finalTarget,
-    unresolved_inputs: [],
-    proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
-    metadata: { ...(workflow?.metadata || {}), channel_definitions: channelDefinitions },
-  }, "awaiting_approval");
-  if (nextWorkflow.status === "awaiting_clarification") nextWorkflow = await workflowService.transition(nextWorkflow, "ready_for_review");
-  if (nextWorkflow.status === "ready_for_review") nextWorkflow = await workflowService.transition(nextWorkflow, "awaiting_approval");
+  let nextWorkflow: OyiWorkflow;
+  try {
+    deviceActionTrace("oyi_device_action_workflow_create_started", context, {
+      workflow_id: workflow?.workflow_id || null,
+      target_type: finalTarget.object_type,
+      target_id: finalTarget.canonical_id,
+      target_label: resolved.target.label || finalTarget.label || null,
+      channel_code: finalTarget.channel_code || null,
+    });
+    nextWorkflow = await ensureWorkflow(context, workflow, {
+      target: finalTarget,
+      unresolved_inputs: [],
+      proposed_action: { ...(workflow?.proposed_action || {}), requested_state: requested, operation: context.resolvedTurn.semantic_frame.operation },
+      metadata: { ...(workflow?.metadata || {}), channel_definitions: channelDefinitions },
+    }, "awaiting_approval");
+    if (nextWorkflow.status === "awaiting_clarification") nextWorkflow = await workflowService.transition(nextWorkflow, "ready_for_review");
+    if (nextWorkflow.status === "ready_for_review") nextWorkflow = await workflowService.transition(nextWorkflow, "awaiting_approval");
+    deviceActionTrace("oyi_device_action_workflow_created", context, {
+      workflow_id: nextWorkflow.workflow_id,
+      workflow_status: nextWorkflow.status,
+      revision: nextWorkflow.revision,
+      target_type: finalTarget.object_type,
+      target_id: finalTarget.canonical_id,
+      channel_code: finalTarget.channel_code || null,
+    });
+  } catch (error) {
+    deviceActionTrace("oyi_device_action_workflow_create_failed", context, {
+      workflow_id: workflow?.workflow_id || null,
+      target_type: finalTarget.object_type,
+      target_id: finalTarget.canonical_id,
+      target_label: resolved.target.label || finalTarget.label || null,
+      channel_code: finalTarget.channel_code || null,
+      failure_stage: "workflow_persistence",
+      error_class: safeErrorClass(error),
+      safe_error_code: safeErrorCode(error),
+      error_message: safeErrorMessage(error),
+    });
+    return deviceActionFailureResult({ stage: "workflow_persistence", error, workflow, target: finalTarget, channelCode: finalTarget.channel_code || null });
+  }
 
-  const action = await actionService.create({
-    workflow: nextWorkflow,
-    actorId: context.actor?.id || null,
-    target: finalTarget,
-    requestedOperation: context.resolvedTurn.semantic_frame.operation,
-    requestedState: requested,
-  });
-  await workflowService.attachAction(nextWorkflow, action.action_id);
+  let action: Awaited<ReturnType<typeof actionService.create>>;
+  try {
+    deviceActionTrace("oyi_device_action_action_create_started", context, {
+      workflow_id: nextWorkflow.workflow_id,
+      target_type: finalTarget.object_type,
+      target_id: finalTarget.canonical_id,
+      target_label: resolved.target.label || finalTarget.label || null,
+      channel_code: finalTarget.channel_code || null,
+      requested_operation: context.resolvedTurn.semantic_frame.operation,
+      requested_state: requested,
+    });
+    action = await actionService.create({
+      workflow: nextWorkflow,
+      actorId: context.actor?.id || null,
+      target: finalTarget,
+      requestedOperation: context.resolvedTurn.semantic_frame.operation,
+      requestedState: requested,
+    });
+    deviceActionTrace("oyi_device_action_action_created", context, {
+      workflow_id: nextWorkflow.workflow_id,
+      action_id: action.action_id,
+      action_status: action.status,
+      target_type: action.target.object_type,
+      target_id: action.target.canonical_id,
+      target_label: action.target.label || null,
+      channel_code: action.target.channel_code || null,
+      revision: action.revision,
+    });
+    await workflowService.attachAction(nextWorkflow, action.action_id);
+  } catch (error) {
+    deviceActionTrace("oyi_device_action_action_create_failed", context, {
+      workflow_id: nextWorkflow.workflow_id,
+      target_type: finalTarget.object_type,
+      target_id: finalTarget.canonical_id,
+      target_label: resolved.target.label || finalTarget.label || null,
+      channel_code: finalTarget.channel_code || null,
+      failure_stage: "action_persistence",
+      error_class: safeErrorClass(error),
+      safe_error_code: safeErrorCode(error),
+      error_message: safeErrorMessage(error),
+    });
+    return deviceActionFailureResult({ stage: "action_persistence", error, workflow: nextWorkflow, target: finalTarget, channelCode: finalTarget.channel_code || null });
+  }
   const deviceLabel = resolved.target.label || finalTarget.label || "the selected device";
   const channelText = finalTarget.channel_code ? ` ${channelLabel(finalTarget.channel_code)}` : "";
   const answer = `Please confirm: ${actionText(requested)}${channelText} on ${deviceLabel}. No command was sent yet.`;
+  deviceActionTrace("oyi_device_action_confirmation_response_started", context, {
+    workflow_id: nextWorkflow.workflow_id,
+    action_id: action.action_id,
+    target_type: finalTarget.object_type,
+    target_id: finalTarget.canonical_id,
+    target_label: deviceLabel,
+    channel_code: finalTarget.channel_code || null,
+  });
+  deviceActionTrace("oyi_device_action_confirmation_response_completed", context, {
+    workflow_id: nextWorkflow.workflow_id,
+    action_id: action.action_id,
+    target_type: finalTarget.object_type,
+    target_id: finalTarget.canonical_id,
+    target_label: deviceLabel,
+    channel_code: finalTarget.channel_code || null,
+  });
   return {
     status: "awaiting_confirmation",
     answer,

@@ -66,6 +66,9 @@ Maintenance, Visitors, Security, Services, Community, Messages, Scenes, Automati
 - Device action commands now extract exact named device, requested state and requested channel in one turn when all evidence is present.
 - Pending workflow continuation is typed by missing input; target, channel, confirmation and cancellation replies are not interpreted by one generic fallback parser.
 - Unrelated reads can still be served while a workflow remains pending, preserving durable continuation for the next compatible reply.
+- Device action preparation now has stage-level production tracing from capability resolution through target resolution, durable workflow persistence, durable action persistence and confirmation response composition.
+- Workflow/action thread references are treated as restoration/trace references rather than hard ordering dependencies on canonical conversation thread persistence.
+- Preparation failures are localized as `target_resolution`, `workflow_persistence`, `action_persistence` or `action_preparation`, and all failure responses preserve the no-execution boundary.
 - Automated validation uses a fake device adapter and stops before physical execution.
 
 ## Not Completed In This Slice
@@ -91,4 +94,4 @@ To add or mature a domain:
 
 ## Production Enablement
 
-Phase C introduces production migrations for durable conversation workflow/action state and a device-first explicit-confirmation action path. It does not include automated physical acceptance, financial mutations, access mutations, message send, scene execution, automation execution, Home aggregation, Room aggregation, forecasting or learning.
+Phase C introduces production migrations for durable conversation workflow/action state and a device-first explicit-confirmation action path. The production runtime correction adds a migration that relaxes workflow/action `thread_id` foreign keys so action preparation can occur before canonical turn persistence upserts the conversation thread, while preserving the `thread_id` value for trace and restoration. It does not include automated physical acceptance, financial mutations, access mutations, message send, scene execution, automation execution, Home aggregation, Room aggregation, forecasting or learning.

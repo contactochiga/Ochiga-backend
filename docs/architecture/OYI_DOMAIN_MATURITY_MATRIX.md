@@ -12,6 +12,8 @@ Phase C adds durable conversation workflow/action persistence and device-first e
 
 Phase C correction: device action target resolution now uses the canonical named-device resolver before clarification, extracts channel/state/device from complete commands, and evaluates pending workflow clarification before ordinary read capability routing.
 
+Phase C runtime correction: device action preparation now emits staged production traces, reports workflow/action persistence failures as safe structured outcomes, and no longer depends on a hard workflow/action foreign-key ordering against conversation thread persistence.
+
 | Domain | Direct Evidence | Read | Detail | History | Explain | Compare | Recommend | Draft | Clarification | Approval | Execution | Verification | Home Contributor | Room Contributor | Prediction | Anomaly | Outcome | Legacy Dependency | Production Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | devices | Mature | Enabled read capabilities | Yes | Enabled activity/failures | Enabled diagnosis | Partial | Partial | Durable power/channel draft | Durable explicit confirmation | Durable approval | Existing command path via durable action | Existing command verification | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Phase C device-first durable action path |

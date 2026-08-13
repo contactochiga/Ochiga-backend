@@ -122,6 +122,33 @@ function isContinueText(message: unknown) {
   return /^(continue|what were we doing|resume|show pending|show me the pending action)$/i.test(String(message ?? "").trim());
 }
 
+function isDeviceActionFrame(frame: ReturnType<typeof parseSemanticFrame>) {
+  return frame.domain === "devices" && (frame.operation === "device.power.on" || frame.operation === "device.power.off");
+}
+
+function safeErrorCode(error: unknown) {
+  const value = error as any;
+  return String(value?.code || value?.safe_error_code || value?.name || "internal_runtime_failure");
+}
+
+function safeErrorClass(error: unknown) {
+  const value = error as any;
+  return String(value?.name || value?.constructor?.name || "Error");
+}
+
+function deviceActionOrchestratorTrace(event: string, context: CanonicalConversationRequestContext, turn: ResolvedTurn | null, tracer: ConversationTracer, fields: Record<string, unknown> = {}) {
+  logger.info(event, {
+    request_id: turn?.request_id || tracer.requestId,
+    correlation_id: turn?.correlation_id || tracer.correlationId,
+    thread_id: context.input.thread_id || null,
+    actor_id: context.actor?.id || null,
+    surface: context.input.surface,
+    semantic_operation: turn?.semantic_frame.operation || null,
+    capability_key: "devices.power.control",
+    ...fields,
+  });
+}
+
 async function pendingWorkflowStatusResult(workflow: OyiWorkflow): Promise<DomainResult | null> {
   if (workflow.status !== "awaiting_approval" || !workflow.action_id) return null;
   const action = await actionService.get(workflow.action_id);
@@ -314,10 +341,31 @@ export class ConversationOrchestrator {
     });
     tracer.stage("request_received", { surface: context.input.surface, thread_id: context.input.thread_id || null });
     tracer.stage("turn_normalized", { domain: frame.domain, operation: frame.operation, correction_count: frame.corrections.length });
+    if (isDeviceActionFrame(frame)) {
+      deviceActionOrchestratorTrace("oyi_device_action_workflow_restore_started", context, null, tracer, {
+        semantic_operation: frame.operation,
+      });
+    }
     const activeWorkflow = await workflowService.restoreActive({ threadId: context.input.thread_id || null, actorId: context.actor?.id || null }).catch((error) => {
-      logger.warn("oyi_workflow_restore_failed", { thread_id: context.input.thread_id || null, actor_id: context.actor?.id || null, error: (error as any)?.message || String(error) });
+      logger.warn("oyi_workflow_restore_failed", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        actor_id: context.actor?.id || null,
+        failure_stage: "workflow_restore",
+        error_class: safeErrorClass(error),
+        safe_error_code: safeErrorCode(error),
+        error: (error as any)?.message || String(error),
+      });
       return null;
     });
+    if (isDeviceActionFrame(frame) || activeWorkflow?.capability_key === "devices.power.control") {
+      deviceActionOrchestratorTrace("oyi_device_action_workflow_restored", context, null, tracer, {
+        semantic_operation: frame.operation,
+        workflow_id: activeWorkflow?.workflow_id || null,
+        workflow_status: activeWorkflow?.status || "not_restored",
+      });
+    }
     tracer.stage("workflow_restored", { workflow_id: activeWorkflow?.workflow_id || null, status: activeWorkflow?.status || "not_restored" });
     const resolvedTurn = resolveTurnAuthority({
       actor: context.actor,
@@ -429,6 +477,16 @@ export class ConversationOrchestrator {
     let capabilityOwnsResponse: CapabilityModule | null = null;
     if (capability) {
       const capabilityContext = { ...context, resolvedTurn, legacyFallback };
+      if (capability.key === "devices.power.control") {
+        deviceActionOrchestratorTrace("oyi_device_action_capability_resolved", context, resolvedTurn, tracer, {
+          rollout_status: capability.rolloutStatus,
+          authority_allowed: selection.authority?.allowed ?? null,
+          target_type: resolvedTurn.target?.object_type || null,
+          target_id: resolvedTurn.target?.canonical_id || null,
+          target_label: resolvedTurn.target?.label || null,
+          channel_code: resolvedTurn.target?.channel_code || null,
+        });
+      }
       if (selection.authority && !selection.authority.allowed) {
         const result: DomainResult = {
           status: "permission_restricted",
@@ -490,7 +548,35 @@ export class ConversationOrchestrator {
             result_type: result.status,
           });
         } else if (resolution.supported && capability.createDraft) {
-          const draft = await capability.createDraft(capabilityContext);
+          let draft: DomainResult | ConversationRunResult;
+          try {
+            draft = await capability.createDraft(capabilityContext);
+          } catch (error) {
+            logger.error("oyi_device_action_request_failed", {
+              request_id: tracer.requestId,
+              correlation_id: tracer.correlationId,
+              thread_id: context.input.thread_id || null,
+              actor_id: context.actor?.id || null,
+              surface: context.input.surface,
+              semantic_operation: resolvedTurn.semantic_frame.operation,
+              capability_key: capability.key,
+              target_type: resolvedTurn.target?.object_type || null,
+              target_id: resolvedTurn.target?.canonical_id || null,
+              target_label: resolvedTurn.target?.label || null,
+              channel_code: resolvedTurn.target?.channel_code || null,
+              failure_stage: "action_preparation",
+              error_class: safeErrorClass(error),
+              safe_error_code: safeErrorCode(error),
+              error_message: (error as any)?.message || String(error),
+            });
+            const result: DomainResult = {
+              status: "unavailable",
+              answer: "I could not safely prepare that device command. I did not send any command.",
+              presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+              metadata: { failure_stage: "action_preparation", safe_error_code: safeErrorCode(error) },
+            };
+            draft = result;
+          }
           response = typeof (draft as any).answer === "string" && !(draft as any).reply
             ? capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result: draft as DomainResult, evidence: [] })
             : draft as ConversationRunResult;

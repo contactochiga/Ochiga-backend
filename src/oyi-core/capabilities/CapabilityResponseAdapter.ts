@@ -130,6 +130,8 @@ export function capabilityDomainResultToConversationResponse(input: {
       capability_result: input.result.status,
       workflow_id: input.result.metadata?.workflow_id || null,
       action_id: input.result.metadata?.action_id || null,
+      failure_stage: typeof input.result.metadata?.failure_stage === "string" ? input.result.metadata.failure_stage : null,
+      safe_error_code: typeof input.result.metadata?.safe_error_code === "string" ? input.result.metadata.safe_error_code : null,
     },
     cards: Array.isArray(input.result.blocks) ? input.result.blocks : [],
     sources,

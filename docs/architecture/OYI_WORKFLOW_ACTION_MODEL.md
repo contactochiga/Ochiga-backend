@@ -32,7 +32,7 @@ Conversation workflow/action state is durable backend state, not UI memory:
 - `oyi_action_events` stores safe action audit events.
 - `oyi_action_evidence` stores evidence references for action verification.
 
-These tables are separate from `oyi_conversation_threads/messages`, which remain canonical chat history, and separate from operational `ochiga_workflows`, which remain organisational workflow state.
+These tables are separate from `oyi_conversation_threads/messages`, which remain canonical chat history, and separate from operational `ochiga_workflows`, which remain organisational workflow state. `thread_id` is a trace/restoration reference on workflow/action rows, but it is not a hard foreign-key dependency because action preparation can safely occur before canonical turn finalization upserts the conversation thread.
 
 ## Action Lifecycle
 
@@ -74,3 +74,18 @@ Devices are the first action domain wired to durable conversation actions:
 - Execution uses the existing `executeDeviceCommandForActor(...)` device command pipeline.
 - The durable action records orchestration truth; `ai_execution_ledger` remains the existing device execution truth.
 - Automated tests use fake adapters and do not send physical commands.
+
+## Runtime Failure Localization
+
+Device action preparation is now traced as an explicit staged path:
+
+- request started
+- capability resolved
+- workflow restore started/restored
+- target resolution started/resolved/failed
+- workflow create started/created/failed
+- action create started/created/failed
+- confirmation response started/completed
+- request failed
+
+Preparation failures return structured safe results instead of collapsing into a generic runtime outage. Target failures remain target-specific, workflow persistence failures report that the pending workflow could not be safely saved, and action persistence failures report that the pending action could not be safely saved. In all preparation failure states, no provider command is sent.
