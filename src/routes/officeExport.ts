@@ -871,4 +871,190 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
   });
 });
 
+// ---------------------------------------------------------------
+// Safe Office Portfolio projection — the ONLY Facility/Consumer data
+// source Ochiga Office's Portfolio module should read from. Unlike
+// /office/export (a broad raw dump used for internal sync tooling),
+// this route computes and returns AGGREGATE COUNTS ONLY, per estate
+// and per building: homes, occupied homes, connected devices, devices
+// online, open major escalations, and a generic last-activity signal.
+// It never returns wallet balances, camera counts, resident/member
+// identities, visitor records, community posts, or any other
+// Facility/Consumer internal — those fields are simply never selected
+// or computed here, so there is nothing sensitive to accidentally leak
+// downstream. Office's own office_portfolio_entries table remains the
+// corporate identity/relationship record; this endpoint supplies only
+// the live operational numbers layered on top of it.
+// ---------------------------------------------------------------
+function isOpenEscalation(row: Row) {
+  const status = String(row.status || "open").toLowerCase();
+  if (!["open", "in_progress", "pending"].includes(status)) return false;
+  const priority = String(row.priority || row.severity || "").toLowerCase();
+  return ["high", "critical", "urgent"].includes(priority);
+}
+
+function buildingKey(estateId: string, block: string) {
+  return `oyi_building_${estateId}_${String(block || "main").toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+}
+
+router.get("/portfolio/projection", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const nowIso = new Date().toISOString();
+  const estateIdFilter = safeText(req.query.estate_id as string) || null;
+  const buildingIdFilter = safeText(req.query.building_id as string) || null;
+
+  const [estatesResult, homesResult, devicesResult, maintenanceResult, incidentsResult] = await Promise.all([
+    safeSelectWithStatus("estates", "id,name,address,location,status,subscription_status,membership_status,created_at,updated_at"),
+    safeSelectWithStatus("homes", "id,estate_id,building,block,wing,cluster,residents_count,users_count,created_at,updated_at"),
+    safeSelectWithStatus("devices", "id,estate_id,building_id,home_id,building,block,status,online,updated_at"),
+    safeSelectWithStatus("maintenance_requests", "id,estate_id,building_id,status,priority,severity,updated_at"),
+    safeSelectWithStatus("incidents", "id,estate_id,building_id,status,priority,severity,updated_at"),
+  ]);
+
+  const estates = estatesResult.rows;
+  const homes = homesResult.rows;
+  const devices = devicesResult.rows;
+  const escalationRows = [...maintenanceResult.rows, ...incidentsResult.rows];
+
+  const buildingMap = new Map<string, Row>();
+  for (const home of homes) {
+    const estateId = String(home.estate_id || "");
+    if (!estateId) continue;
+    const block = String(home.building || home.block || home.wing || home.cluster || "Main Block").trim();
+    const id = buildingKey(estateId, block);
+    if (!buildingMap.has(id)) {
+      buildingMap.set(id, {
+        id,
+        estate_id: estateId,
+        name: block || "Main Block",
+        homes_total: 0,
+        homes_active: 0,
+        devices_total: 0,
+        devices_online: 0,
+        devices_reporting: 0,
+      });
+    }
+    const b = buildingMap.get(id)!;
+    b.homes_total += 1;
+    if (toNumber(home.residents_count || home.users_count) > 0) b.homes_active += 1;
+  }
+  for (const device of devices) {
+    const estateId = String(device.estate_id || "");
+    if (!estateId) continue;
+    const home = homes.find((h) => String(h.id) === String(device.home_id));
+    const block = String(device.building || device.block || home?.building || home?.block || "Main Block").trim();
+    const id = buildingKey(estateId, block);
+    if (!buildingMap.has(id)) {
+      buildingMap.set(id, {
+        id,
+        estate_id: estateId,
+        name: block || "Main Block",
+        homes_total: 0,
+        homes_active: 0,
+        devices_total: 0,
+        devices_online: 0,
+        devices_reporting: 0,
+      });
+    }
+    const b = buildingMap.get(id)!;
+    b.devices_total += 1;
+    b.devices_reporting += 1;
+    const status = String(device.status || (device.online ? "online" : "offline")).toLowerCase();
+    if (status === "online") b.devices_online += 1;
+  }
+
+  function escalationsFor(estateId: string, id: string | null) {
+    return escalationRows.filter((row) => {
+      if (String(row.estate_id || "") !== estateId) return false;
+      if (id && row.building_id && String(row.building_id) !== id) return false;
+      return isOpenEscalation(row);
+    }).length;
+  }
+
+  function lastActivityFor(estateId: string, buildingId: string | null) {
+    const scoped = [
+      ...homes.filter((h) => String(h.estate_id) === estateId),
+      ...devices.filter((d) => String(d.estate_id) === estateId && (!buildingId || true)),
+      ...escalationRows.filter((r) => String(r.estate_id) === estateId),
+    ];
+    let latest: string | null = null;
+    let label = "No recent activity recorded";
+    for (const row of scoped) {
+      const ts = String(row.updated_at || row.created_at || "");
+      if (ts && (!latest || ts > latest)) {
+        latest = ts;
+        label = row.residents_count !== undefined || row.users_count !== undefined
+          ? "Home activity recorded"
+          : row.priority !== undefined || row.severity !== undefined
+          ? "Support/maintenance activity recorded"
+          : "Device activity recorded";
+      }
+    }
+    return { last_activity_at: latest, last_activity_label: latest ? label : "No recent activity recorded" };
+  }
+
+  const officeEstates = estates
+    .filter((estate) => !estateIdFilter || String(estate.id) === estateIdFilter)
+    .map((estate) => {
+      const estateId = String(estate.id);
+      const estateHomes = homes.filter((h) => String(h.estate_id) === estateId);
+      const estateDevices = devices.filter((d) => String(d.estate_id) === estateId);
+      const activity = lastActivityFor(estateId, null);
+      return {
+        id: estateId,
+        name: estate.name || "Unnamed Estate",
+        location: estate.address || estate.location || "",
+        status: estate.status || estate.membership_status || "active",
+        subscription_status: estate.subscription_status || "unknown",
+        homes_total: estateHomes.length,
+        homes_active: estateHomes.filter((h) => toNumber(h.residents_count || h.users_count) > 0).length,
+        devices_total: estateDevices.length,
+        devices_online: estateDevices.filter((d) => String(d.status || (d.online ? "online" : "offline")).toLowerCase() === "online").length,
+        major_open_escalations: escalationsFor(estateId, null),
+        last_activity_at: activity.last_activity_at,
+        last_activity_label: activity.last_activity_label,
+        updated_at: estate.updated_at || nowIso,
+      };
+    });
+
+  const officeBuildings = Array.from(buildingMap.values())
+    .filter((b) => !estateIdFilter || b.estate_id === estateIdFilter)
+    .filter((b) => !buildingIdFilter || b.id === buildingIdFilter)
+    .map((b) => {
+      const activity = lastActivityFor(b.estate_id, b.id);
+      return {
+        id: b.id,
+        estate_id: b.estate_id,
+        name: b.name,
+        homes_total: b.homes_total,
+        homes_active: b.homes_active,
+        devices_total: b.devices_total,
+        devices_online: b.devices_reporting ? b.devices_online : null,
+        major_open_escalations: escalationsFor(b.estate_id, b.id),
+        last_activity_at: activity.last_activity_at,
+        last_activity_label: activity.last_activity_label,
+        updated_at: nowIso,
+      };
+    });
+
+  void emitAuditEvent({
+    actorId: "office_portfolio_projection",
+    actorEmail: "office-sync@ochiga.local",
+    actorRole: "system",
+    action: "office.portfolio_projection.accessed",
+    resourceType: "office_portfolio_projection",
+    resourceId: estateIdFilter || buildingIdFilter || "all",
+    status: "success",
+    metadata: { estate_count: officeEstates.length, building_count: officeBuildings.length },
+    req,
+  } as any);
+
+  return res.json({
+    source: "oyi-os",
+    contract_version: CONTRACT_VERSION,
+    generated_at: nowIso,
+    estates: officeEstates,
+    buildings: officeBuildings,
+  });
+});
+
 export default router;
