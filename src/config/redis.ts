@@ -10,6 +10,7 @@ import { runtimeHealthRegistry } from "../observability/runtimeHealth";
  * redis://:password@host:port
  */
 const REDIS_URL = process.env.REDIS_URL;
+const REDIS_RECONNECT_DISABLED = String(process.env.OYI_REDIS_RECONNECT_DISABLED || "").toLowerCase() === "true";
 
 if (!REDIS_URL) {
   throw new Error("❌ Missing env var: REDIS_URL");
@@ -17,6 +18,11 @@ if (!REDIS_URL) {
 
 export const redis = createClient({
   url: REDIS_URL,
+  socket: REDIS_RECONNECT_DISABLED
+    ? {
+      reconnectStrategy: () => false,
+    }
+    : undefined,
 });
 
 /* -----------------------
@@ -36,6 +42,9 @@ redis.on("error", (err) => {
   operationalMetrics.increment("oyi_provider_failures_total", { provider: "redis" });
   runtimeHealthRegistry.markQueue("offline", err.message);
   logger.error("redis_error", { error: err });
+  if (REDIS_RECONNECT_DISABLED) {
+    redis.disconnect().catch(() => undefined);
+  }
 });
 
 export default redis;

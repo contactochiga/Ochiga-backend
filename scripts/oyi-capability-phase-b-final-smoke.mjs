@@ -229,3 +229,4 @@ await check("device availability keeps offline evidence path", async () => {
 });
 
 console.log("oyi capability phase-b final smoke passed");
+process.exit(0);

@@ -2,6 +2,9 @@ import { randomUUID } from "crypto";
 import type { OyiWorkflow, WorkflowStatus } from "../contracts/workflow";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { assertWorkflowTransition, isTerminalWorkflowStatus } from "./WorkflowStateMachine";
+import type { WorkflowRepository } from "./WorkflowRepository";
+import { InMemoryWorkflowRepository, SupabaseWorkflowRepository } from "./WorkflowRepository";
+import { logger } from "../../observability/logger";
 
 function nowIso() {
   return new Date().toISOString();
@@ -13,6 +16,8 @@ export function createWorkflowForTurn(turn: ResolvedTurn, status: WorkflowStatus
     workflow_id: randomUUID(),
     thread_id: turn.thread_id || randomUUID(),
     request_id: turn.request_id,
+    actor_id: turn.actor?.id || null,
+    surface: String((turn.context as any)?.surface || "consumer"),
     capability_key: turn.capability_key,
     domain: (turn.domain || "global") as OyiWorkflow["domain"],
     operation: turn.operation,
@@ -24,15 +29,139 @@ export function createWorkflowForTurn(turn: ResolvedTurn, status: WorkflowStatus
     proposed_action: null,
     execution_record: null,
     evidence: [],
+    metadata: {},
+    action_id: null,
     revision: 1,
     created_at: now,
     updated_at: now,
     expires_at: null,
+    completed_at: null,
+    cancelled_at: null,
+    superseded_at: null,
   };
 }
 
 export function transitionWorkflow(workflow: OyiWorkflow, status: WorkflowStatus): OyiWorkflow {
   if (isTerminalWorkflowStatus(workflow.status)) return workflow;
   assertWorkflowTransition(workflow.status, status);
-  return { ...workflow, status, revision: workflow.revision + 1, updated_at: nowIso() };
+  const now = nowIso();
+  return {
+    ...workflow,
+    status,
+    revision: workflow.revision + 1,
+    updated_at: now,
+    completed_at: status === "completed" || status === "answered" ? now : workflow.completed_at,
+    cancelled_at: status === "cancelled" ? now : workflow.cancelled_at,
+    superseded_at: status === "superseded" ? now : workflow.superseded_at,
+  };
+}
+
+export class WorkflowService {
+  constructor(private readonly repository: WorkflowRepository) {}
+
+  async create(turn: ResolvedTurn, status: WorkflowStatus = "collecting_inputs", patch: Partial<OyiWorkflow> = {}) {
+    const workflow = { ...createWorkflowForTurn(turn, status), ...patch, revision: patch.revision || 1 };
+    const saved = await this.repository.save(workflow);
+    logger.info("oyi_workflow_created", {
+      request_id: saved.request_id,
+      thread_id: saved.thread_id,
+      workflow_id: saved.workflow_id,
+      capability_key: saved.capability_key,
+      domain: saved.domain,
+      status: saved.status,
+      revision: saved.revision,
+    });
+    return saved;
+  }
+
+  async get(workflowId: string) {
+    return this.repository.get(workflowId);
+  }
+
+  async restoreActive(input: { threadId?: string | null; actorId?: string | null }) {
+    if (!input.threadId) return null;
+    const workflow = await this.repository.getActive(input.threadId, input.actorId);
+    if (workflow) {
+      logger.info("oyi_workflow_restored", {
+        thread_id: input.threadId,
+        workflow_id: workflow.workflow_id,
+        capability_key: workflow.capability_key,
+        domain: workflow.domain,
+        status: workflow.status,
+        revision: workflow.revision,
+      });
+    }
+    return workflow;
+  }
+
+  async saveInput(workflow: OyiWorkflow, input: { input_key: string; value: unknown; source?: string; validated?: boolean }) {
+    await this.repository.saveInput?.(workflow.workflow_id, {
+      input_key: input.input_key,
+      value: input.value,
+      source: input.source || "user",
+      validated: Boolean(input.validated),
+    });
+    const next: OyiWorkflow = {
+      ...workflow,
+      inputs: { ...workflow.inputs, [input.input_key]: { value: input.value, source: input.source || "user", validated: Boolean(input.validated) } },
+      revision: workflow.revision + 1,
+      updated_at: nowIso(),
+    };
+    const saved = await this.repository.save(next, { expectedRevision: workflow.revision });
+    logger.info("oyi_workflow_input_saved", {
+      thread_id: saved.thread_id,
+      workflow_id: saved.workflow_id,
+      input_key: input.input_key,
+      status: saved.status,
+      revision: saved.revision,
+    });
+    return saved;
+  }
+
+  async transition(workflow: OyiWorkflow, status: WorkflowStatus, patch: Partial<OyiWorkflow> = {}) {
+    const transitioned = { ...transitionWorkflow(workflow, status), ...patch };
+    const saved = await this.repository.save(transitioned, { expectedRevision: workflow.revision });
+    logger.info("oyi_workflow_transitioned", {
+      thread_id: saved.thread_id,
+      workflow_id: saved.workflow_id,
+      capability_key: saved.capability_key,
+      domain: saved.domain,
+      from_status: workflow.status,
+      to_status: saved.status,
+      revision: saved.revision,
+    });
+    return saved;
+  }
+
+  async cancel(workflow: OyiWorkflow, reason = "user_cancelled") {
+    const next = await this.transition(workflow, "cancelled", {
+      evidence: workflow.evidence.concat([{ type: "workflow_cancelled", reason, observed_at: nowIso() }]),
+    });
+    logger.info("oyi_workflow_cancelled", { workflow_id: next.workflow_id, reason, revision: next.revision });
+    return next;
+  }
+
+  async expire(workflow: OyiWorkflow) {
+    const next = await this.transition(workflow, "expired");
+    logger.info("oyi_workflow_expired", { workflow_id: next.workflow_id, revision: next.revision });
+    return next;
+  }
+
+  async supersede(workflow: OyiWorkflow, reason = "new_request") {
+    const next = await this.transition(workflow, "superseded", {
+      evidence: workflow.evidence.concat([{ type: "workflow_superseded", reason, observed_at: nowIso() }]),
+    });
+    logger.info("oyi_workflow_superseded", { workflow_id: next.workflow_id, reason, revision: next.revision });
+    return next;
+  }
+
+  async attachAction(workflow: OyiWorkflow, actionId: string) {
+    const next = { ...workflow, action_id: actionId, revision: workflow.revision + 1, updated_at: nowIso() };
+    return this.repository.save(next, { expectedRevision: workflow.revision });
+  }
+}
+
+export function createDefaultWorkflowService() {
+  const useMemory = /^(1|true|yes)$/i.test(String(process.env.OYI_WORKFLOW_MEMORY_REPOSITORY || ""));
+  return new WorkflowService(useMemory ? new InMemoryWorkflowRepository() : new SupabaseWorkflowRepository());
 }

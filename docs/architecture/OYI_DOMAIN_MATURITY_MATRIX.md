@@ -1,6 +1,6 @@
 # Oyi Domain Maturity Matrix
 
-Status: Phase B capability rollout matrix.
+Status: Phase C capability/workflow rollout matrix.
 
 Phase B separates vocabulary from production ownership. `enabled` means resolver, authority, evidence requirements, evidence loading, read handler, structured result status and presentation policy are all present and tested. `implemented`, `shadow` and `declared` capabilities are not advertised to end users as available.
 
@@ -8,9 +8,11 @@ Phase B correction: enabled read capabilities also persist through canonical Oyi
 
 Phase B final correction: resolved-but-not-enabled capabilities return safe canonical fallback responses instead of generic runtime failure wording. Capability advertising presentation no longer emits unrelated Home update artifacts, and source metadata is deduplicated into useful resident-facing labels.
 
+Phase C adds durable conversation workflow/action persistence and device-first explicit-confirmation action orchestration. Device execution still uses the existing command pipeline; no other sensitive action domains are migrated in this phase.
+
 | Domain | Direct Evidence | Read | Detail | History | Explain | Compare | Recommend | Draft | Clarification | Approval | Execution | Verification | Home Contributor | Room Contributor | Prediction | Anomaly | Outcome | Legacy Dependency | Production Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| devices | Mature | Enabled read capabilities | Yes | Enabled activity/failures | Enabled diagnosis | Partial | Partial | Partial | Yes | Yes | Existing command path | Strong | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Phase B enabled for reads |
+| devices | Mature | Enabled read capabilities | Yes | Enabled activity/failures | Enabled diagnosis | Partial | Partial | Durable power/channel draft | Durable explicit confirmation | Durable approval | Existing command path via durable action | Existing command verification | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Phase C device-first durable action path |
 | rooms | Partial | Partial | Partial | Partial | Partial | No | Partial | No | Yes | No | No | No | Pending | Pending | No | No | No | Medium | Active with gaps |
 | home | Partial | Partial | Partial | Partial | Partial | No | Partial | No | No | No | No | No | Pending aggregator | N/A | No | Partial | No | Medium | Active with gaps |
 | maintenance | Context-backed module | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Draft path pending | Yes | Pending | Pending | Pending | Pending | Pending | No | Partial | No | Medium | Legacy fallback measured |

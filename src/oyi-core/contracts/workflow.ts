@@ -25,6 +25,8 @@ export type OyiWorkflow = {
   workflow_id: string;
   thread_id: string;
   request_id: string;
+  actor_id: string | null;
+  surface: string;
   capability_key: string;
   domain: OyiDomain;
   operation: OyiOperation | string;
@@ -36,8 +38,13 @@ export type OyiWorkflow = {
   proposed_action: Record<string, unknown> | null;
   execution_record: Record<string, unknown> | null;
   evidence: Array<Record<string, unknown>>;
+  metadata: Record<string, unknown>;
+  action_id: string | null;
   revision: number;
   created_at: string;
   updated_at: string;
   expires_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  superseded_at: string | null;
 };

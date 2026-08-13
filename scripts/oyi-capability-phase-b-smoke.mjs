@@ -219,3 +219,4 @@ await check("internal capability introspection route is admin protected", () => 
 });
 
 console.log("oyi capability phase-b smoke passed");
+process.exit(0);

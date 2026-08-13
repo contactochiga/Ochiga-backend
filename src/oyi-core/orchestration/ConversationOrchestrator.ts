@@ -10,12 +10,16 @@ import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
 import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
 import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
+import { buildDeviceActionCapabilities } from "../capabilities/DeviceActionCapabilityModules";
 import { buildPhaseBReadCapabilities } from "../capabilities/ReadCapabilityModules";
 import type { CapabilityModule } from "../contracts/capability";
 import { persistCanonicalConversationTurn } from "../persistence/canonicalConversationPersistence";
 import { resolveTurnAuthority } from "./TurnAuthorityResolver";
 import { assertNoUnverifiedGenericSuccess } from "../presentation/FallbackFirewall";
 import { logger } from "../../observability/logger";
+import { actionService, workflowService } from "../workflows/defaultWorkflowActionServices";
+import { DeviceConversationActionAdapter } from "../domains/devices/deviceActionAdapter";
+import type { OyiWorkflow } from "../contracts/workflow";
 
 let registered = false;
 
@@ -28,6 +32,7 @@ function boolFlag(name: string, fallback = true) {
 function ensureRegistered() {
   if (registered) return;
   for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
+  for (const capability of buildDeviceActionCapabilities()) capabilityRegistry.register(capability);
   registered = true;
 }
 
@@ -103,6 +108,79 @@ function fallbackAnswerForCapability(capability: CapabilityModule, reason: strin
   if (reason === "capability_disabled") return `That ${capability.domain} capability is not available from this surface right now.`;
   if (reason === "capability_declared") return `I understand this as a ${capability.domain} request, but that capability is not available in this release yet.`;
   return `I understand this as a ${capability.domain} request, but I can’t confirm it from an enabled capability yet.`;
+}
+
+function isConfirmationText(message: unknown) {
+  return /^(yes|confirm|proceed|go ahead|turn it (on|off)|do it)$/i.test(String(message ?? "").trim());
+}
+
+function isCancellationText(message: unknown) {
+  return /^(cancel|never mind|nevermind|don't do it|do not do it|stop)$/i.test(String(message ?? "").trim());
+}
+
+async function durableWorkflowContinuationResult(context: CanonicalConversationRequestContext, workflow: OyiWorkflow, capability: CapabilityModule): Promise<DomainResult | null> {
+  const actionId = String(workflow.action_id || "");
+  if (isCancellationText(context.input.message)) {
+    const action = actionId ? await actionService.get(actionId) : null;
+    if (action && action.status === "awaiting_confirmation") await actionService.cancel(action, context.actor?.id || null);
+    const cancelled = await workflowService.cancel(workflow);
+    return {
+      status: "answered",
+      answer: "Cancelled. I did not send that device command.",
+      presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+      metadata: { workflow_id: cancelled.workflow_id, action_id: actionId || null, workflow_status: cancelled.status },
+    };
+  }
+  if (!isConfirmationText(context.input.message)) return null;
+  const action = actionId ? await actionService.get(actionId) : null;
+  if (!action || action.status !== "awaiting_confirmation") {
+    return {
+      status: "unavailable",
+      answer: "I do not have a live pending action that matches this confirmation.",
+      presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+      metadata: { workflow_id: workflow.workflow_id, action_id: actionId || null },
+    };
+  }
+  const authority = capabilityService.canUse(capability.key, {
+    actor: context.actor,
+    oisContext: context.oisContext,
+    surface: context.input.surface,
+    scope: {
+      estate_id: action.target.estate_id || workflow.target?.estate_id || context.oisContext?.estate_id || null,
+      building_id: null,
+      home_id: action.target.home_id || workflow.target?.home_id || context.oisContext?.home_id || null,
+      room_id: action.target.room_id || workflow.target?.room_id || context.input.room_id || null,
+    },
+  });
+  if (!authority.allowed) {
+    return {
+      status: "permission_restricted",
+      answer: "I cannot execute that pending device command because your current permission or surface no longer allows it.",
+      presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+      metadata: { workflow_id: workflow.workflow_id, action_id: action.action_id, reason: authority.reason },
+    };
+  }
+  const approved = await actionService.approve(action, context.actor?.id || null);
+  const executed = await actionService.executeWithAdapter(approved, new DeviceConversationActionAdapter(context.actor as any, {
+    estateId: authority.scope.estate_id,
+    homeId: authority.scope.home_id,
+    roomId: authority.scope.room_id,
+  }));
+  const terminalWorkflow = await workflowService.transition(workflow, executed.status === "confirmed" || executed.status === "unobservable" ? "completed" : "failed", {
+    execution_record: { action_id: executed.action_id, action_status: executed.status, result: executed.result || null },
+  });
+  const target = executed.target.label || "the selected device";
+  const answer = executed.status === "confirmed"
+    ? `${target} command completed and was confirmed.`
+    : executed.status === "unobservable"
+      ? `${target} command was accepted. Oyi cannot directly observe the final physical effect, so I recorded it as unobservable.`
+      : `I could not complete that device command. ${String(executed.safe_error?.message || "")}`.trim();
+  return {
+    status: executed.status === "confirmed" || executed.status === "unobservable" ? "answered" : "unavailable",
+    answer,
+    presentation_policy: { primary: "execution", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+    metadata: { workflow_id: terminalWorkflow.workflow_id, action_id: executed.action_id, action_status: executed.status },
+  };
 }
 
 function nonEnabledCapabilityResult(capability: CapabilityModule, reason: string): DomainResult {
@@ -198,12 +276,17 @@ export class ConversationOrchestrator {
     });
     tracer.stage("request_received", { surface: context.input.surface, thread_id: context.input.thread_id || null });
     tracer.stage("turn_normalized", { domain: frame.domain, operation: frame.operation, correction_count: frame.corrections.length });
-    tracer.stage("workflow_restored", { workflow_id: null, status: "not_restored" });
+    const activeWorkflow = await workflowService.restoreActive({ threadId: context.input.thread_id || null, actorId: context.actor?.id || null }).catch((error) => {
+      logger.warn("oyi_workflow_restore_failed", { thread_id: context.input.thread_id || null, actor_id: context.actor?.id || null, error: (error as any)?.message || String(error) });
+      return null;
+    });
+    tracer.stage("workflow_restored", { workflow_id: activeWorkflow?.workflow_id || null, status: activeWorkflow?.status || "not_restored" });
     const resolvedTurn = resolveTurnAuthority({
       actor: context.actor,
       oisContext: context.oisContext,
       request: context.input,
       frame,
+      activeWorkflowId: activeWorkflow?.workflow_id || null,
       requestId: tracer.requestId,
       correlationId: tracer.correlationId,
       runtimeId: tracer.runtimeId,
@@ -221,6 +304,37 @@ export class ConversationOrchestrator {
       authority_result: resolvedTurn.authority.allowed ? "allowed" : "denied",
       tier: resolvedTurn.authority.tier,
     });
+    if (activeWorkflow && (isConfirmationText(context.input.message) || isCancellationText(context.input.message))) {
+      const workflowCapability = capabilityRegistry.get(activeWorkflow.capability_key);
+      if (workflowCapability) {
+        const continuation = await durableWorkflowContinuationResult(context, activeWorkflow, workflowCapability);
+        if (continuation) {
+          let response = capabilityDomainResultToConversationResponse({
+            context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "durable_workflow_continuation") },
+            capability: workflowCapability,
+            result: continuation,
+            evidence: [],
+          });
+          response.execution = {
+            ...(response.execution || {}),
+            orchestrator_v2: {
+              request_id: tracer.requestId,
+              correlation_id: tracer.correlationId,
+              runtime_id: tracer.runtimeId,
+              semantic_frame: frame,
+              resolved_turn: resolvedTurn,
+              capability_key: workflowCapability.key,
+              capability_rollout_status: workflowCapability.rolloutStatus,
+              capability_authority: null,
+              legacy_fallback_used: false,
+            },
+          };
+          response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, workflowCapability);
+          tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+          return response;
+        }
+      }
+    }
     const selection = boolFlag("OYI_ORCHESTRATOR_V2_ENABLED", true)
       ? capabilityService.resolve({ ...context, resolvedTurn })
       : { capability: null, matched_capability: null, rollout_status: "disabled" as const, authority: null, legacy_fallback_reason: "orchestrator_v2_disabled" };
@@ -330,7 +444,11 @@ export class ConversationOrchestrator {
             result_type: result.status,
           });
         } else if (resolution.supported && capability.createDraft) {
-          response = await capability.createDraft(capabilityContext) as ConversationRunResult;
+          const draft = await capability.createDraft(capabilityContext);
+          response = typeof (draft as any).answer === "string" && !(draft as any).reply
+            ? capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result: draft as DomainResult, evidence: [] })
+            : draft as ConversationRunResult;
+          capabilityOwnsResponse = capability;
         } else {
           response = await legacyFallback();
         }

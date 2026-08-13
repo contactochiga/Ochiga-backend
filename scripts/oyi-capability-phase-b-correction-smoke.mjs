@@ -249,3 +249,4 @@ await check("empty, unavailable and permission-restricted remain distinct", asyn
 });
 
 console.log("oyi capability phase-b correction smoke passed");
+process.exit(0);

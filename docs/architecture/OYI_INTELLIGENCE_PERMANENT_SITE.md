@@ -1,6 +1,6 @@
 # Oyi Intelligence Permanent-Site Architecture
 
-Status: Phase B executable read-capability foundation.
+Status: Phase C durable conversation workflow/action foundation.
 
 ## Target Lifecycle
 
@@ -52,14 +52,26 @@ Request -> normalize / interpret -> assemble context -> assemble candidates -> r
 
 Maintenance, Visitors, Security, Services, Community, Messages, Scenes, Automations, Reports, Home and Rooms remain registered below enabled until direct evidence ownership is complete.
 
+## Phase C Implemented
+
+- Conversation workflows and actions are durable backend records rather than thread metadata or process memory.
+- `WorkflowService` owns create, restore, input save, transition, cancel, expire, supersede and action attachment.
+- `ActionService` owns create, idempotent reuse, approve, transition, cancel, supersede, execution adapter invocation and verification recording.
+- Supabase repositories provide production persistence; in-memory repositories remain test-only.
+- Workflows/actions carry optimistic `revision` fields to prevent last-write-wins corruption.
+- Device power/channel control is the first action capability integrated with the durable path.
+- Device execution still goes through the existing device command pipeline and `ai_execution_ledger`; Oyi conversation actions do not call providers directly.
+- Confirmation/cancellation turns restore active workflow state before creating any new action.
+- Automated validation uses a fake device adapter and stops before physical execution.
+
 ## Not Completed In This Slice
 
-- Durable conversation workflow/action persistence migrations.
 - Direct evidence completion for all domains.
 - Room aggregator implementation.
 - Home aggregator implementation.
 - Forecasting and prediction evaluation persistence.
 - Proactive notification integration.
+- Durable action execution for wallet, visitors/access, maintenance, community, scenes, automations and other sensitive domains.
 
 ## Extension Pattern
 
@@ -75,4 +87,4 @@ To add or mature a domain:
 
 ## Production Enablement
 
-Phase B is intended for production observation of read-only capability routing. It does not include production migrations, physical actions, financial mutations, access mutations, message send, scene execution, automation execution, Home aggregation, Room aggregation, forecasting or learning.
+Phase C introduces production migrations for durable conversation workflow/action state and a device-first explicit-confirmation action path. It does not include automated physical acceptance, financial mutations, access mutations, message send, scene execution, automation execution, Home aggregation, Room aggregation, forecasting or learning.

@@ -1,6 +1,6 @@
 # Oyi Workflow And Action Model
 
-Status: Phase A foundation.
+Status: Phase C durable conversation workflow/action foundation.
 
 ## Distinction
 
@@ -15,8 +15,24 @@ They may link by IDs, but they are not the same status model.
 
 - `src/oyi-core/contracts/workflow.ts`
 - `src/oyi-core/workflows/WorkflowStateMachine.ts`
+- `src/oyi-core/workflows/WorkflowRepository.ts`
+- `src/oyi-core/workflows/WorkflowService.ts`
 - `src/oyi-core/contracts/action.ts`
 - `src/oyi-core/actions/ActionStateMachine.ts`
+- `src/oyi-core/actions/ActionRepository.ts`
+- `src/oyi-core/actions/ActionService.ts`
+
+## Persistence
+
+Conversation workflow/action state is durable backend state, not UI memory:
+
+- `oyi_conversation_workflows` stores the active workflow, status, actor/surface/scope, capability, target, revision, expiry and safe metadata.
+- `oyi_conversation_workflow_inputs` stores validated structured inputs separately from the workflow row.
+- `oyi_actions` stores the pending or executed conversation action with idempotency key, revision, target, requested operation/state, executor reference and terminal result.
+- `oyi_action_events` stores safe action audit events.
+- `oyi_action_evidence` stores evidence references for action verification.
+
+These tables are separate from `oyi_conversation_threads/messages`, which remain canonical chat history, and separate from operational `ochiga_workflows`, which remain organisational workflow state.
 
 ## Action Lifecycle
 
@@ -36,6 +52,20 @@ Terminal statuses include:
 
 Terminal actions are non-reusable.
 
-## Next Required Slice
+## Concurrency And Idempotency
 
-Durable workflow/action repositories and migrations are not completed by this Phase A contract slice. The next implementation slice should persist conversation workflows and actions with revision/idempotency guarantees, then wire Devices first.
+- Workflows and actions carry `revision`.
+- Service-layer transitions validate legal state changes before persistence.
+- Repository updates support expected-revision checks; stale confirmations must reload current state instead of overwriting.
+- Equivalent active actions reuse the same `idempotency_key`.
+- Terminal actions cannot be reapproved or re-executed.
+
+## Device First Integration
+
+Devices are the first action domain wired to durable conversation actions:
+
+- `devices.power.control` creates a durable workflow/action and requires explicit confirmation.
+- Confirmation restores the active workflow from backend state and binds to `workflow_id`, `action_id`, target, requested state and revision.
+- Execution uses the existing `executeDeviceCommandForActor(...)` device command pipeline.
+- The durable action records orchestration truth; `ai_execution_ledger` remains the existing device execution truth.
+- Automated tests use fake adapters and do not send physical commands.

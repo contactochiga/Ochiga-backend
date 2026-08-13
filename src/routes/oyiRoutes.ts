@@ -16,6 +16,7 @@ import { deviceRuntimeStateService } from "../services/deviceRuntimeStateService
 import { classifyFreshness } from "../oyi-core/contracts/freshness";
 import { observationPolicyForDevice } from "../oyi-core/domains/devices/deviceObservationPolicy";
 import { capabilityRegistry } from "../oyi-core/capabilities/CapabilityRegistry";
+import { buildDeviceActionCapabilities } from "../oyi-core/capabilities/DeviceActionCapabilityModules";
 import { buildPhaseBReadCapabilities } from "../oyi-core/capabilities/ReadCapabilityModules";
 
 const router = Router();
@@ -24,6 +25,7 @@ let capabilityIntrospectionRegistered = false;
 function ensureCapabilityIntrospectionRegistered() {
   if (capabilityIntrospectionRegistered) return;
   for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
+  for (const capability of buildDeviceActionCapabilities()) capabilityRegistry.register(capability);
   capabilityIntrospectionRegistered = true;
 }
 

@@ -18,6 +18,7 @@ function truthStateFor(result: DomainResult): CanonicalTruth["truth_state"] {
 
 function displayModeFor(result: DomainResult): CanonicalConversationResponse["display_mode"] {
   const primary = result.presentation_policy?.primary;
+  if (result.status === "awaiting_confirmation" || primary === "approval") return "detail";
   if (primary === "table" || primary === "list") return "list";
   if (primary === "detail") return "detail";
   return "conversation";
@@ -69,6 +70,16 @@ export function capabilityDomainResultToConversationResponse(input: {
   const now = new Date().toISOString();
   const sources = dedupeSources(input.evidence, input.capability);
   const firstEvidence = input.evidence[0] || null;
+  const confirmationRequired = input.result.status === "awaiting_confirmation";
+  const confirmations = Array.isArray(input.result.metadata?.confirmations) ? input.result.metadata.confirmations as Array<Record<string, unknown>> : [];
+  const activeExecution = input.result.metadata?.workflow_id || input.result.metadata?.action_id
+    ? {
+      workflow_id: input.result.metadata.workflow_id || null,
+      action_id: input.result.metadata.action_id || null,
+      status: input.result.status,
+      capability_key: input.capability.key,
+    }
+    : null;
   return {
     id: randomUUID(),
     thread_id: input.context.input.thread_id || null,
@@ -90,7 +101,7 @@ export function capabilityDomainResultToConversationResponse(input: {
       occurred_at: firstEvidence?.observed_at || null,
       freshness: firstEvidence?.freshness || now,
       recommended_actions: Array.isArray(input.result.actions) ? input.result.actions : [],
-      active_execution: null,
+      active_execution: activeExecution,
       target: input.context.input.target || null,
       technical_details: {
         capability_key: input.capability.key,
@@ -113,21 +124,23 @@ export function capabilityDomainResultToConversationResponse(input: {
       },
     },
     execution: {
-      status: "read_only",
+      status: confirmationRequired ? "pending_confirmation" : "read_only",
       current_turn_execution: false,
       capability_key: input.capability.key,
       capability_result: input.result.status,
+      workflow_id: input.result.metadata?.workflow_id || null,
+      action_id: input.result.metadata?.action_id || null,
     },
     cards: Array.isArray(input.result.blocks) ? input.result.blocks : [],
     sources,
     suggested_actions: Array.isArray(input.result.actions) ? input.result.actions : [],
     presentation_policy: input.result.presentation_policy as any,
-    confirmations: [],
+    confirmations,
     warnings: [],
     persistence_saved: false,
     source: "oyi_canonical_runtime",
     safe_mode: true,
-    approvalRequired: false,
-    requiresConfirmation: false,
+    approvalRequired: confirmationRequired,
+    requiresConfirmation: confirmationRequired,
   };
 }
