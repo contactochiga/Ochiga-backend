@@ -13,6 +13,7 @@ export type SemanticOperation =
   | "cancel"
   | "device.power.on"
   | "device.power.off"
+  | "device.availability"
   | "device.status"
   | "device.activity"
   | "device.failures"

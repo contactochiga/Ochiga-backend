@@ -199,8 +199,10 @@ await check("what can you do uses capability owner without legacy fallback", asy
   });
   assert.equal(response.execution.orchestrator_v2.capability_key, "global.capabilities.read");
   assert.equal(response.execution.orchestrator_v2.legacy_fallback_used, false);
-  assert.match(response.answer, /enabled capability registry/i);
+  assert.doesNotMatch(response.answer, /enabled capability registry|declared|shadowed/i);
   assert.match(response.answer, /device status/i);
+  assert.match(response.answer, /wallet transaction history/i);
+  assert.match(response.answer, /utility spending/i);
   assert.doesNotMatch(response.answer, /maintenance requests/i);
 });
 

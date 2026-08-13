@@ -23,6 +23,42 @@ function displayModeFor(result: DomainResult): CanonicalConversationResponse["di
   return "conversation";
 }
 
+function sourceLabelFor(evidence: OyiEvidence, capability: CapabilityModule) {
+  if (capability.key === "wallet.transactions.read") return "Wallet transactions";
+  if (capability.key === "utilities.spending.read") return "Utility records";
+  if (evidence.domain === "wallet") return "Wallet transactions";
+  if (evidence.domain === "utilities") return "Utility records";
+  if (evidence.domain === "devices") return "Device evidence";
+  if (evidence.domain === "maintenance") return "Maintenance records";
+  if (evidence.domain === "visitors" || evidence.domain === "access") return "Visitor access records";
+  if (evidence.domain === "security") return "Security records";
+  return `${text(evidence.domain) || "Oyi"} evidence`;
+}
+
+function dedupeSources(evidence: OyiEvidence[], capability: CapabilityModule) {
+  const seen = new Set<string>();
+  const sources: Array<Record<string, unknown>> = [];
+  for (const item of evidence) {
+    const label = sourceLabelFor(item, capability);
+    const key = [capability.key, label, item.privacy_class].join(":");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sources.push({
+      id: item.source_id || item.evidence_id,
+      type: item.source_type || item.type,
+      domain: item.domain,
+      label,
+      title: label,
+      freshness: item.freshness,
+      privacy_class: item.privacy_class,
+      object_type: item.object_type,
+      object_id: item.object_id,
+      evidence_count: evidence.filter((candidate) => [capability.key, sourceLabelFor(candidate, capability), candidate.privacy_class].join(":") === key).length,
+    });
+  }
+  return sources;
+}
+
 export function capabilityDomainResultToConversationResponse(input: {
   context: CapabilityContext;
   capability: CapabilityModule;
@@ -31,15 +67,7 @@ export function capabilityDomainResultToConversationResponse(input: {
 }): CanonicalConversationResponse {
   const answer = text(input.result.answer) || "Oyi could not produce an answer for this capability.";
   const now = new Date().toISOString();
-  const sources = input.evidence.map((item) => ({
-    id: item.evidence_id,
-    type: item.type,
-    domain: item.domain,
-    freshness: item.freshness,
-    privacy_class: item.privacy_class,
-    object_type: item.object_type,
-    object_id: item.object_id,
-  }));
+  const sources = dedupeSources(input.evidence, input.capability);
   const firstEvidence = input.evidence[0] || null;
   return {
     id: randomUUID(),

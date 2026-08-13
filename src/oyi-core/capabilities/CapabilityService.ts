@@ -24,6 +24,7 @@ export type CapabilityAuthorityResult = {
 
 export type CapabilitySelection = {
   capability: CapabilityModule | null;
+  matched_capability: CapabilityModule | null;
   rollout_status: CapabilityRolloutStatus | "not_registered";
   authority: CapabilityAuthorityResult | null;
   legacy_fallback_reason: string | null;
@@ -173,7 +174,7 @@ export class CapabilityService {
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score)[0]?.module || null;
     if (!candidate) {
-      return { capability: null, rollout_status: "not_registered", authority: null, legacy_fallback_reason: "capability_not_registered" };
+      return { capability: null, matched_capability: null, rollout_status: "not_registered", authority: null, legacy_fallback_reason: "capability_not_registered" };
     }
     const authority = this.canUse(candidate.key, { actor: context.actor, oisContext: context.oisContext, surface, scope });
     logger.info("oyi_capability_authority_decided", {
@@ -193,9 +194,9 @@ export class CapabilityService {
       authority_allowed: authority.allowed,
       reason: authority.reason,
     });
-    if (!capabilityEnabled(candidate)) return { capability: null, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: `capability_${candidate.rolloutStatus}` };
-    if (!authority.allowed) return { capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: null };
-    return { capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: null };
+    if (!capabilityEnabled(candidate)) return { capability: null, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: `capability_${candidate.rolloutStatus}` };
+    if (!authority.allowed) return { capability: candidate, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: null };
+    return { capability: candidate, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: null };
   }
 
   assertEvidenceAllowed(module: CapabilityModule, evidence: OyiEvidence[], input: { actor: AuthUser | null; oisContext: OisContext | null | undefined; surface: OyiSurface; scope: CapabilityAuthorityResult["scope"] }) {

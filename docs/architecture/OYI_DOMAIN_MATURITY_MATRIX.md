@@ -6,6 +6,8 @@ Phase B separates vocabulary from production ownership. `enabled` means resolver
 
 Phase B correction: enabled read capabilities also persist through canonical Oyi conversation History. Wallet transaction evidence now follows the authorised home wallet relationship path. Utility active/usage/balance/meter reads remain below enabled and must not be answered by the utility spending handler.
 
+Phase B final correction: resolved-but-not-enabled capabilities return safe canonical fallback responses instead of generic runtime failure wording. Capability advertising presentation no longer emits unrelated Home update artifacts, and source metadata is deduplicated into useful resident-facing labels.
+
 | Domain | Direct Evidence | Read | Detail | History | Explain | Compare | Recommend | Draft | Clarification | Approval | Execution | Verification | Home Contributor | Room Contributor | Prediction | Anomaly | Outcome | Legacy Dependency | Production Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | devices | Mature | Enabled read capabilities | Yes | Enabled activity/failures | Enabled diagnosis | Partial | Partial | Partial | Yes | Yes | Existing command path | Strong | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Phase B enabled for reads |

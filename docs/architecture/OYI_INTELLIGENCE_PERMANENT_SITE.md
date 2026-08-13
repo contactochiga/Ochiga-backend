@@ -40,6 +40,8 @@ Request -> normalize / interpret -> assemble context -> assemble candidates -> r
 - Enabled read outcomes preserve distinct `answered`, `empty`, `unavailable`, `unsupported` and `permission_restricted` states.
 - Wallet transaction evidence has parity with the existing home wallet relationship path and avoids raw internal references in resident-facing labels.
 - Capability resolution no longer chooses the nearest enabled capability in the same domain when the exact semantic capability is not enabled.
+- Resolved-but-not-enabled capabilities now return safe canonical fallback responses with explicit rollout/fallback metadata rather than generic runtime failure wording.
+- Capability advertising no longer emits unrelated Home update presentation artifacts, and capability source metadata is deduplicated into useful resident-facing provenance labels.
 
 ## Phase B Enabled Scope
 

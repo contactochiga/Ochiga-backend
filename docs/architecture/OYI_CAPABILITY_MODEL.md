@@ -74,3 +74,9 @@ Enabled read capabilities now finalize through the canonical conversation persis
 Capability selection is exact by semantic operation. If a user asks for `utilities.active.read` and that capability is not enabled, Oyi records a measured fallback/unsupported path; it must not substitute `utilities.spending.read` merely because spending is enabled in the same domain.
 
 Wallet transaction reads use the authorised home wallet relationship as evidence scope, then load matching transaction rows by wallet ID and/or home ID. Generic wallet history and typo-normalized transaction prompts share the same historical evidence path and keep empty, unavailable and permission-restricted outcomes distinct.
+
+## Phase B Final Correction
+
+Resolved capabilities below `enabled` now produce a canonical safe fallback response instead of falling through to a generic runtime failure. The fallback preserves the exact semantic capability key, rollout status, reason and fallback owner; nearest-enabled same-domain substitution remains forbidden.
+
+Capability advertising remains sourced from `CapabilityService.listForActor(...)`, but presentation metadata no longer attaches unrelated generic Home update cards/actions. Capability-owned source metadata is deduplicated and labelled for resident presentation while preserving internal evidence references.
