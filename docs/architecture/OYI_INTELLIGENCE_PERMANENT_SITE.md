@@ -33,10 +33,13 @@ Request -> normalize / interpret -> assemble context -> assemble candidates -> r
 
 - `CapabilityService` evaluates capability rollout, surface, actor, permissions and scope before evidence loading.
 - Enabled read capabilities now route through registry-owned handlers before legacy fallback.
+- Capability-owned read responses now finalize through canonical conversation persistence and can appear in Oyi History/thread restoration.
 - `What can you do?` is generated from `CapabilityService.listForActor(...)` and only advertises enabled, authorised capabilities.
 - Internal/admin capability introspection is available at `GET /oyi/runtime/internal/capabilities`.
 - Structured production traces are emitted for capability resolution, authority, evidence loading, handler completion and legacy fallback.
 - Enabled read outcomes preserve distinct `answered`, `empty`, `unavailable`, `unsupported` and `permission_restricted` states.
+- Wallet transaction evidence has parity with the existing home wallet relationship path and avoids raw internal references in resident-facing labels.
+- Capability resolution no longer chooses the nearest enabled capability in the same domain when the exact semantic capability is not enabled.
 
 ## Phase B Enabled Scope
 

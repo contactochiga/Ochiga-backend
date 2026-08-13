@@ -4,6 +4,8 @@ Status: Phase B capability rollout matrix.
 
 Phase B separates vocabulary from production ownership. `enabled` means resolver, authority, evidence requirements, evidence loading, read handler, structured result status and presentation policy are all present and tested. `implemented`, `shadow` and `declared` capabilities are not advertised to end users as available.
 
+Phase B correction: enabled read capabilities also persist through canonical Oyi conversation History. Wallet transaction evidence now follows the authorised home wallet relationship path. Utility active/usage/balance/meter reads remain below enabled and must not be answered by the utility spending handler.
+
 | Domain | Direct Evidence | Read | Detail | History | Explain | Compare | Recommend | Draft | Clarification | Approval | Execution | Verification | Home Contributor | Room Contributor | Prediction | Anomaly | Outcome | Legacy Dependency | Production Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | devices | Mature | Enabled read capabilities | Yes | Enabled activity/failures | Enabled diagnosis | Partial | Partial | Partial | Yes | Yes | Existing command path | Strong | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Phase B enabled for reads |
@@ -14,7 +16,7 @@ Phase B separates vocabulary from production ownership. `enabled` means resolver
 | access | Partial | Partial | Partial | Partial | Partial | No | No | Pending | Yes | Pending | Sensitive | Pending | No | No | No | Partial | No | Medium | Restricted |
 | wallet | Partial | Enabled transaction read | Partial | Enabled transactions | Partial | Partial | No | Financial execution disabled | Yes | Required | Disabled | Pending | Pending | No | No | Partial | No | Medium | Phase B enabled for consumer transaction reads |
 | transactions | Partial | Yes | Partial | Yes | Partial | Partial | No | No | No | No | No | No | Pending | No | No | Partial | No | Medium | Active |
-| utilities | Wallet-backed spending evidence | Enabled spending read | Partial | Partial | Partial | Partial | Partial | Financial execution disabled | Yes | Required | Disabled | Pending | Pending | Pending | Pending | Pending | No | Medium | Phase B enabled for consumer spending reads |
+| utilities | Wallet-backed spending evidence | Enabled spending read; active/usage/balance/meter below enabled | Partial | Partial | Partial | Partial | Partial | Financial execution disabled | Yes | Required | Disabled | Pending | Pending | Pending | Pending | Pending | No | Medium | Phase B enabled for consumer spending reads only |
 | services | Module exists | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Pending | Yes | Pending | Pending | Pending | Pending | No | No | No | No | Medium | Legacy fallback measured |
 | security | Module exists | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Pending | Yes | Required | Restricted | Pending | Pending | Pending | No | Yes | No | Medium | Legacy fallback measured |
 | community | Module exists | Implemented, not enabled | Partial | Partial | Partial | No | No | Draft pending | Yes | Required for send | Pending | Pending | Pending | No | No | Partial | No | Medium | Legacy fallback measured |

@@ -152,6 +152,7 @@ function declaredModule(input: {
   status: CapabilityRolloutStatus;
   permissions?: string[];
   evidence?: EvidenceRequirement[];
+  supports?: (frame: SemanticFrame) => boolean;
 }) {
   return readModule({
     key: input.key,
@@ -161,7 +162,7 @@ function declaredModule(input: {
     permissions: input.permissions || [],
     evidenceRequirements: input.evidence || [],
     rolloutStatus: input.status,
-    supports: (frame) => frame.domain === input.domain,
+    supports: input.supports || ((frame) => frame.domain === input.domain),
     collect: async () => [],
     answer: () => ({ status: "unsupported", answer: `${input.key} is not enabled yet.`, presentation_policy: resultPresentation("text") }),
   });
@@ -352,6 +353,13 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       },
       answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return {
+            status: "unavailable",
+            answer: "Wallet transaction evidence is unavailable right now. I did not treat that as an empty wallet history.",
+            presentation_policy: resultPresentation("text"),
+          };
+        }
         const contract = requestContract(context);
         const block = tableBlockForContract(contract, facts, presentationFactPredicates);
         return { status: facts.length ? "answered" : "empty", answer: buildWalletHistoryAnswer(facts), blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table") };
@@ -366,7 +374,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["wallet.read", "services.read"],
       scopeRequirements: homeScope,
       evidenceRequirements: [readRequirement("utilities", "utility_spending")],
-      supports: (frame) => frame.domain === "utilities" && (frame.operation === "utilities.spending" || /\bspent|spending|how much|utilities|electricity|power|water|internet|gas\b/i.test(frame.normalizedText)),
+      supports: (frame) => frame.domain === "utilities" && (frame.operation === "utilities.spending" || /\bspent|spending|how much|costs?|paid|payment\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadUtilitySpendingFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);
@@ -379,6 +387,10 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       },
       primary: "table",
     }),
+    declaredModule({ key: "utilities.active.read", domain: "utilities", operations: ["utilities.active", "list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "utility_status")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.active" }),
+    declaredModule({ key: "utilities.usage.read", domain: "utilities", operations: ["utilities.usage", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "declared", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "utility_usage")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.usage" }),
+    declaredModule({ key: "utilities.balance.read", domain: "utilities", operations: ["utilities.balance", "inspect"], supportedSurfaces: ["consumer"], status: "declared", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "utility_balance")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.balance" }),
+    declaredModule({ key: "utilities.meter.read", domain: "utilities", operations: ["utilities.meter", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "declared", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "meter_status")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.meter" }),
     declaredModule({ key: "maintenance.requests.read", domain: "maintenance", operations: ["list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["maintenance.read"], evidence: [readRequirement("maintenance", "relationship_context")] }),
     declaredModule({ key: "visitors.pending.read", domain: "visitors", operations: ["list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["visitors.read"], evidence: [readRequirement("visitors", "relationship_context")] }),
     declaredModule({ key: "security.incidents.read", domain: "security", operations: ["list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["security.read"], evidence: [readRequirement("security", "relationship_context")] }),

@@ -19,7 +19,11 @@ export type SemanticOperation =
   | "device.diagnosis"
   | "device.relationships"
   | "wallet.history"
-  | "utilities.spending";
+  | "utilities.spending"
+  | "utilities.active"
+  | "utilities.usage"
+  | "utilities.balance"
+  | "utilities.meter";
 
 export type SemanticEntity = {
   type: "device" | "room" | "wallet" | "utility" | "visitor" | "maintenance" | "message" | "scene" | "automation" | "camera" | "unknown";
