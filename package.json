@@ -85,6 +85,7 @@
     "smoke:cross-module-conversation": "npm run smoke:oyi-conversation",
     "smoke:compatibility-delegation": "npm run build && node scripts/compatibility-delegation-smoke.mjs",
     "smoke:enterprise-intelligence-phase1": "npm run build && node scripts/enterprise-intelligence-phase1-smoke.mjs",
+    "smoke:oyi-intelligence-permanent-site-foundation": "npm run build && node scripts/oyi-intelligence-permanent-site-foundation-smoke.mjs",
     "smoke:wallet-funding": "node scripts/wallet-funding-smoke.mjs",
     "smoke:wallet-webhook-idempotency": "node scripts/wallet-webhook-idempotency-smoke.mjs",
     "smoke:wallet-receipt": "node scripts/wallet-receipt-smoke.mjs",
