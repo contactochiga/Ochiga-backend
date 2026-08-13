@@ -69,7 +69,8 @@ Devices are the first action domain wired to durable conversation actions:
 - Room phrases constrain device lookup; they do not become room-level physical actions.
 - Multi-gang channel expressions such as `channel 2`, `switch two` and `second channel` are extracted and validated against the selected device's channel definitions.
 - Multi-channel devices require a channel unless the user explicitly requests a supported whole-device/all-channel operation; Oyi must not infer Channel 1, all channels or a parent-device power action from a generic device name.
-- Channel clarification candidates come from the resolved device's actual channel definitions. Resident-facing labels such as `Channel 2` remain separate from canonical executor codes such as `switch_2`.
+- Channel clarification candidates come from the resolved device's actual channel definitions, including the persisted runtime snapshot when static device metadata is sparse. Resident-facing labels such as `Channel 2` remain separate from canonical executor codes such as `switch_2`.
+- Stale selected-subobject metadata from the Consumer UI may provide context, but it is not treated as current-turn channel consent for a fresh multi-gang command.
 - Explicit valid channel commands, such as `Turn off 3Gang Living room channel 2`, skip redundant clarification and produce a confirmation bound to the exact device, canonical channel code and requested state.
 - If a workflow is awaiting clarification, typed target/channel continuation is evaluated before ordinary capability routing.
 - Clearly unrelated requests, such as wallet history while channel clarification is pending, may be answered without cancelling the pending workflow.

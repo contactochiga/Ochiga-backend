@@ -115,6 +115,10 @@ function channelLabel(code: string | null | undefined) {
   return code ? code.replace(/^switch_/i, "Channel ") : "";
 }
 
+function stripChannelLabel(value: unknown) {
+  return text(value).replace(/\s+Channel\s+\d+\s*$/i, "").trim();
+}
+
 function approvalPresentation(): PresentationPolicy {
   return {
     primary: "approval",
@@ -148,6 +152,33 @@ function channelDefinitionsFromValue(value: unknown) {
     .filter(Boolean) as Array<{ code: string; label: string }>;
 }
 
+function switchCodesFromValue(value: unknown) {
+  return Array.isArray(value)
+    ? value.map(text).filter((item) => /^switch_\d+$/i.test(item))
+    : [];
+}
+
+function channelDefinitionsFromRuntimeState(value: unknown) {
+  const state = recordOf(value);
+  const normalized = recordOf(state.normalized_state);
+  const switches = recordOf(normalized.switches);
+  const codes = new Set<string>();
+  for (const code of switchCodesFromValue(state.capability_codes)) codes.add(code);
+  for (const code of switchCodesFromValue(state.supported_controls)) codes.add(code);
+  for (const code of switchCodesFromValue(recordOf(state.summary).capability_codes)) codes.add(code);
+  for (const code of switchCodesFromValue(recordOf(state.summary).supported_controls)) codes.add(code);
+  for (const code of Object.keys(switches).filter((item) => /^switch_\d+$/i.test(item))) codes.add(code);
+  for (const code of Object.keys(state).filter((item) => /^switch_\d+$/i.test(item))) codes.add(code);
+  const definitions = [
+    ...channelDefinitionsFromValue(state.channel_definitions),
+    ...channelDefinitionsFromValue(recordOf(state.summary).channel_definitions),
+    ...Array.from(codes).map((code) => ({ code, label: channelLabel(code) })),
+  ];
+  const byCode = new Map<string, { code: string; label: string }>();
+  for (const item of definitions) byCode.set(item.code, item);
+  return Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code));
+}
+
 function targetWithChannel(target: CanonicalTarget, channelCode: string | null): CanonicalTarget {
   if (!channelCode) return { ...target, object_type: "device", channel_code: null };
   return {
@@ -174,8 +205,22 @@ async function loadChannelDefinitions(target: CanonicalTarget) {
   const capabilities = Array.isArray(row.capabilities)
     ? row.capabilities.map(text).filter((item) => /^switch_\d+$/i.test(item)).map((code) => ({ code, label: channelLabel(code) }))
     : [];
+  let runtimeDefinitions: Array<{ code: string; label: string }> = [];
+  const { data: stateRow, error: stateError } = await supabaseAdmin
+    .from("device_states")
+    .select("device_id,status,last_seen,updated_at")
+    .eq("device_id", deviceId)
+    .maybeSingle();
+  if (stateError) {
+    logger.warn("oyi_device_action_channel_snapshot_load_failed", {
+      device_id: deviceId,
+      error_code: (stateError as any)?.code || null,
+    });
+  } else {
+    runtimeDefinitions = channelDefinitionsFromRuntimeState(recordOf(stateRow).status);
+  }
   const byCode = new Map<string, { code: string; label: string }>();
-  for (const item of [...direct, ...capabilities]) byCode.set(item.code, item);
+  for (const item of [...direct, ...capabilities, ...runtimeDefinitions]) byCode.set(item.code, item);
   return Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code));
 }
 
@@ -210,7 +255,16 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
   const requestedChannelInput = requestedChannelCode(context.input.message || "");
   const restoredWorkflowChannel = workflow?.target?.channel_code || null;
   const explicitChannelTarget = target?.object_type === "device_channel" ? target.channel_code || null : null;
-  const requestedChannel = requestedChannelInput || restoredWorkflowChannel || explicitChannelTarget || null;
+  const requestedChannel = requestedChannelInput || restoredWorkflowChannel || null;
+  if (target?.object_type === "device_channel" && explicitChannelTarget && !requestedChannel) {
+    target = {
+      ...target,
+      object_type: "device",
+      canonical_id: target.parent_id || target.canonical_id.split(":")[0],
+      channel_code: null,
+      label: stripChannelLabel(target.label) || target.label,
+    };
+  }
   const namedPhrase = namedDevicePhraseFromControlMessage(context.input.message || "", { isControlRequest })
     || (!target && !requestedChannel ? text(context.input.message) : null);
   deviceActionTrace("oyi_device_action_target_resolution_started", context, {
@@ -219,6 +273,7 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
     target_id: target?.canonical_id || null,
     target_label: target?.label || null,
     requested_channel_input: requestedChannelInput,
+    inferred_target_channel: explicitChannelTarget,
     requested_channel: requestedChannel,
     phrase: namedPhrase || null,
   });
@@ -232,6 +287,7 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
       resolved_device_id: resolution.status === "resolved" ? resolution.device_id : null,
       resolved_device_label: resolution.status === "resolved" ? resolution.label : null,
       requested_channel_input: requestedChannelInput,
+      inferred_target_channel: explicitChannelTarget,
       requested_channel: requestedChannel,
     });
     if (resolution.status === "resolved") {
@@ -255,6 +311,7 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
     target_id: target?.canonical_id || null,
     target_label: target?.label || null,
     requested_channel_input: requestedChannelInput,
+    inferred_target_channel: explicitChannelTarget,
     requested_channel: requestedChannel,
   });
   return { target, requestedChannel, requestedChannelInput, channelDefinitions, candidates: null, phrase: namedPhrase };

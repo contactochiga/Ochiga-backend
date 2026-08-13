@@ -25,14 +25,9 @@ function createFakeSupabase() {
         room_id: "room-living",
         category: "switch",
         type: "switch",
-        capabilities: ["switch_1", "switch_2", "switch_3"],
+        capabilities: [],
         metadata: {
           aliases: ["3 gang living room", "3-gang living room", "3Gang living room"],
-          channel_definitions: [
-            { code: "switch_1", label: "Channel 1" },
-            { code: "switch_2", label: "Channel 2" },
-            { code: "switch_3", label: "Channel 3" },
-          ],
         },
         updated_at: now,
       },
@@ -55,6 +50,26 @@ function createFakeSupabase() {
     rooms: [
       { id: "room-living", name: "Living Room", home_id: "home-1", metadata: {} },
       { id: "room-bedroom", name: "Bedroom", home_id: "home-1", metadata: {} },
+    ],
+    device_states: [
+      {
+        device_id: "device-3gang-living",
+        status: {
+          online: true,
+          normalized_state: { power: true, switches: { switch_1: true, switch_2: true, switch_3: false } },
+          supported_controls: ["power"],
+          capability_codes: ["switch_1", "switch_2", "switch_3"],
+          channel_definitions: [
+            { code: "switch_1", name: "Channel 1", controllable: true },
+            { code: "switch_2", name: "Channel 2", controllable: true },
+            { code: "switch_3", name: "Channel 3", controllable: true },
+          ],
+          control_profile: "switch",
+          device_family: "switch",
+        },
+        last_seen: now,
+        updated_at: now,
+      },
     ],
     oyi_conversation_threads: [],
     oyi_conversation_messages: [],
@@ -178,7 +193,7 @@ const oisContext = {
   resolved_at: new Date().toISOString(),
 };
 
-async function run(prompt, threadId) {
+async function run(prompt, threadId, extraInput = {}) {
   return orchestratorModule.conversationOrchestrator.run({
     actor: resident,
     oisContext,
@@ -189,6 +204,7 @@ async function run(prompt, threadId) {
       home_id: "home-1",
       thread_id: threadId,
       context: oisContext,
+      ...extraInput,
     },
   });
 }
@@ -214,6 +230,35 @@ await check("multi-gang without channel asks channel and does not prepare confir
   assert.notEqual(response.execution?.status, "pending_confirmation");
   assert.equal(response.confirmations?.length || 0, 0);
   assert.deepEqual(labelsFromActions(response), ["Channel 1", "Channel 2", "Channel 3"]);
+});
+
+await check("stale selected channel metadata cannot satisfy fresh multi-gang request", async () => {
+  const response = await run("Turn off 3Gang Living room", "thread-stale-selected-channel", {
+    target: {
+      object_type: "device_channel",
+      canonical_id: "device-3gang-living:switch_1",
+      parent_id: "device-3gang-living",
+      label: "3Gang Living room Channel 1",
+      channel_code: "switch_1",
+      home_id: "home-1",
+      estate_id: "estate-1",
+    },
+    context: {
+      ...oisContext,
+      active_intelligence_context: {
+        selected_subobject: {
+          object_type: "device_channel",
+          canonical_id: "device-3gang-living:switch_1",
+          parent_id: "device-3gang-living",
+          label: "3Gang Living room Channel 1",
+          channel_code: "switch_1",
+        },
+      },
+    },
+  });
+  assert.match(response.answer, /Which channel on 3Gang Living room/i);
+  assert.equal(response.execution?.capability_result, "draft");
+  assert.equal(response.confirmations?.length || 0, 0);
 });
 
 await check("multi-gang explicit channel reaches exact confirmation", async () => {
