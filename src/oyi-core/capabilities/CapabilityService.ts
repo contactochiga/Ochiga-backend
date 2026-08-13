@@ -118,6 +118,13 @@ function privacyAllowed(module: CapabilityModule, evidence: OyiEvidence[], conte
   return null;
 }
 
+function capabilityMatchScore(module: CapabilityModule, frame: SemanticFrame) {
+  if (!module.supports(frame)) return 0;
+  if ((module.operations || []).includes(frame.operation)) return 100;
+  if (module.domain === frame.domain) return 25;
+  return 10;
+}
+
 export class CapabilityService {
   describe(key: string) {
     return capabilityRegistry.get(key);
@@ -161,7 +168,10 @@ export class CapabilityService {
     const surface = context.input.surface;
     const scope = scopeFrom({ actor: context.actor, oisContext: context.oisContext, input: context.input });
     const frame: SemanticFrame = context.resolvedTurn.semantic_frame;
-    const candidate = capabilityRegistry.all().find((module) => module.supports(frame)) || null;
+    const candidate = capabilityRegistry.all()
+      .map((module) => ({ module, score: capabilityMatchScore(module, frame) }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)[0]?.module || null;
     if (!candidate) {
       return { capability: null, rollout_status: "not_registered", authority: null, legacy_fallback_reason: "capability_not_registered" };
     }

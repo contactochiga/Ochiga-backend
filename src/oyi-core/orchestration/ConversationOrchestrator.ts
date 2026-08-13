@@ -1,6 +1,9 @@
 import type { CanonicalConversationRequestContext, ConversationRunResult } from "../contracts/conversation";
+import type { CanonicalTruth, ConversationBuilderKey } from "../contracts/canonicalConversation";
 import type { DomainResult } from "../contracts/domainResult";
+import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame } from "../interpretation/SemanticFrameParser";
+import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
 import { ConversationTracer } from "../observability/ConversationTracer";
 import { legacyConversationAdapter } from "../legacy/LegacyConversationAdapter";
 import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
@@ -8,6 +11,8 @@ import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
 import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
 import { buildPhaseBReadCapabilities } from "../capabilities/ReadCapabilityModules";
+import type { CapabilityModule } from "../contracts/capability";
+import { persistCanonicalConversationTurn } from "../persistence/canonicalConversationPersistence";
 import { resolveTurnAuthority } from "./TurnAuthorityResolver";
 import { assertNoUnverifiedGenericSuccess } from "../presentation/FallbackFirewall";
 import { logger } from "../../observability/logger";
@@ -24,6 +29,137 @@ function ensureRegistered() {
   if (registered) return;
   for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
   registered = true;
+}
+
+function scopeModeFor(turn: ResolvedTurn): ScopeMode {
+  if (turn.target?.canonical_id) return "exact_target";
+  if (turn.scope.room_id) return "room_scope";
+  if (turn.scope.home_id) return "home_scope";
+  if (turn.scope.building_id) return "building_scope";
+  if (turn.scope.estate_id) return "estate_scope";
+  return "global_scope";
+}
+
+function temporalScopeFor(turn: ResolvedTurn): IntelligenceRequestContract["temporal_scope"] {
+  const mode = turn.temporal_scope?.mode;
+  if (mode === "history") return { mode: "historical", from: turn.temporal_scope?.from || null, to: turn.temporal_scope?.to || null };
+  if (mode === "today" || mode === "yesterday" || mode === "recent") {
+    return { mode, from: turn.temporal_scope?.from || null, to: turn.temporal_scope?.to || null };
+  }
+  if (mode === "current_month") return { mode: "custom", from: turn.temporal_scope?.from || null, to: turn.temporal_scope?.to || null };
+  if (mode === "range") return { mode: "custom", from: turn.temporal_scope?.from || null, to: turn.temporal_scope?.to || null };
+  return { mode: "current", from: null, to: null };
+}
+
+function intentForCapability(capability: CapabilityModule, turn: ResolvedTurn): CanonicalIntent {
+  if (capability.key === "global.capabilities.read") return "capability";
+  if (capability.key === "devices.availability.read") return "device_availability_inventory";
+  if (capability.key === "devices.activity.read") return "activity_history";
+  if (capability.key === "devices.failures.read") return "failure_history";
+  if (capability.key === "devices.diagnosis.read") return "diagnosis";
+  if (capability.key === "devices.relationships.read") return "relationships";
+  if (capability.domain === "wallet") return "wallet_operation";
+  if (capability.domain === "utilities") return "wallet_operation";
+  return turn.operation === "list" ? "information" : "current_state";
+}
+
+function operationClassForCapability(capability: CapabilityModule, turn: ResolvedTurn): OperationClass {
+  if (capability.key === "global.capabilities.read") return "list";
+  if (capability.domain === "utilities") return "report";
+  return turn.operation === "list" ? "list" : "read";
+}
+
+function builderKeyForCapability(capability: CapabilityModule): ConversationBuilderKey {
+  if (capability.key === "global.capabilities.read") return "domain_list";
+  if (capability.key === "wallet.transactions.read") return "wallet_history";
+  if (capability.key === "utilities.spending.read") return "utility_spending";
+  if (capability.key === "devices.availability.read") return "offline_inventory";
+  if (capability.key === "devices.activity.read") return "device_activity";
+  if (capability.key === "devices.failures.read") return "device_failures";
+  if (capability.key === "devices.diagnosis.read") return "device_diagnosis";
+  if (capability.key === "devices.relationships.read") return "device_relationships";
+  return "device_status";
+}
+
+function evidenceRequirementsForCapability(capability: CapabilityModule): IntelligenceRequestContract["evidence_requirements"] {
+  const evidence = new Set((capability.evidence_requirements || []).map((requirement) => requirement.evidence_type));
+  return {
+    current_state: capability.domain === "devices" || evidence.has("device_availability") || evidence.has("utility_status"),
+    recent_events: evidence.has("execution_history") || evidence.has("recent_activity"),
+    execution_history: evidence.has("execution_history"),
+    audit_history: evidence.has("audit"),
+    relationships: evidence.has("relationship_context"),
+    permissions: true,
+    provider_state: capability.domain === "devices",
+    financial_ledger: capability.domain === "wallet" || capability.domain === "utilities",
+    access_records: capability.domain === "visitors" || capability.domain === "security",
+  };
+}
+
+function requestContractForCapability(context: CanonicalConversationRequestContext, turn: ResolvedTurn, capability: CapabilityModule): IntelligenceRequestContract {
+  const builderKey = builderKeyForCapability(capability);
+  return {
+    conversation_request_id: turn.request_id,
+    thread_id: context.input.thread_id || null,
+    surface: context.input.surface,
+    operation_class: operationClassForCapability(capability, turn),
+    intent: intentForCapability(capability, turn),
+    scope_mode: scopeModeFor(turn),
+    temporal_scope: temporalScopeFor(turn),
+    target: {
+      object_type: turn.target?.object_type || (capability.domain === "wallet" ? "wallet" : null),
+      canonical_id: turn.target?.canonical_id || null,
+      parent_id: turn.target?.parent_id || null,
+      channel_code: turn.target?.channel_code || null,
+      label: turn.target?.label || null,
+    },
+    mutation: {
+      requested: false,
+      confirmed: false,
+      command: null,
+      desired_state: null,
+      risk_class: capability.risk_class || "read",
+    },
+    evidence_requirements: evidenceRequirementsForCapability(capability),
+    answer_builder: builderKey,
+    report_builder: capability.domain === "utilities" ? capability.key : null,
+    truth_policy: "evidence_required",
+    confidence: turn.semantic_frame.confidence || 0.86,
+  };
+}
+
+async function persistCapabilityResponse(context: CanonicalConversationRequestContext, response: ConversationRunResult, truth: CanonicalTruth, turn: ResolvedTurn, capability: CapabilityModule) {
+  const contract = requestContractForCapability(context, turn, capability);
+  logger.info("oyi_capability_persistence_started", {
+    request_id: turn.request_id,
+    correlation_id: turn.correlation_id,
+    thread_id: response.thread_id || context.input.thread_id || null,
+    actor_id: context.actor?.id || null,
+    surface: context.input.surface,
+    capability_key: capability.key,
+  });
+  const persistedThreadId = await persistCanonicalConversationTurn({
+    actor: context.actor,
+    oisContext: context.oisContext,
+    request: context.input,
+    response,
+    truth,
+    object: null,
+    contract,
+    builderKey: builderKeyForCapability(capability),
+  });
+  response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
+  response.persistence_saved = Boolean(persistedThreadId);
+  logger.info(persistedThreadId ? "oyi_capability_persistence_completed" : "oyi_capability_persistence_failed", {
+    request_id: turn.request_id,
+    correlation_id: turn.correlation_id,
+    thread_id: response.thread_id || null,
+    actor_id: context.actor?.id || null,
+    surface: context.input.surface,
+    capability_key: capability.key,
+    persistence_saved: Boolean(persistedThreadId),
+  });
+  return response;
 }
 
 export class ConversationOrchestrator {
@@ -102,6 +238,7 @@ export class ConversationOrchestrator {
     };
 
     let response: ConversationRunResult;
+    let capabilityOwnsResponse: CapabilityModule | null = null;
     if (capability) {
       const capabilityContext = { ...context, resolvedTurn, legacyFallback };
       if (selection.authority && !selection.authority.allowed) {
@@ -112,6 +249,7 @@ export class ConversationOrchestrator {
           metadata: { reason: selection.authority.reason, required_permissions: selection.authority.required_permissions },
         };
         response = capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result, evidence: [] });
+        capabilityOwnsResponse = capability;
       } else {
         const resolution = await capability.resolve(capabilityContext);
         if (resolution.supported && capability.buildReadResponse) {
@@ -149,6 +287,7 @@ export class ConversationOrchestrator {
               metadata: { reason: evidenceAuthority.reason },
             } as DomainResult;
           response = capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result, evidence });
+          capabilityOwnsResponse = capability;
           logger.info("oyi_capability_handler_completed", {
             request_id: tracer.requestId,
             correlation_id: tracer.correlationId,
@@ -192,6 +331,9 @@ export class ConversationOrchestrator {
         legacy_fallback_used: !capability || Boolean(selection.legacy_fallback_reason),
       },
     };
+    if (capabilityOwnsResponse) {
+      response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityOwnsResponse);
+    }
     tracer.stage("response_composed", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, capability_key: capability?.key || "legacy" });
     tracer.stage("persistence_completed", { thread_id: response.thread_id || null, persistence_saved: response.persistence_saved === false ? "false" : "true" });
     tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });

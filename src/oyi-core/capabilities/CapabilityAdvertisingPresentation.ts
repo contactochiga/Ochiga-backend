@@ -33,7 +33,7 @@ export function buildCapabilityAdvertisingResult(input: {
     answer: [
       "Here is what I can safely do for you from the enabled capability registry right now:",
       ...lines,
-      "I will not advertise or execute capabilities that are only declared, shadowed, or not authorised for this surface.",
+      "I’ll only offer actions and information that are available and authorised for your home.",
     ].join("\n"),
     blocks: [{
       type: "capability_list",

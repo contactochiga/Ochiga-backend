@@ -21,8 +21,12 @@ function deviceOperation(text: string): SemanticOperation | null {
 function operationFor(text: string, fallback: string): SemanticOperation {
   const device = deviceOperation(text);
   if (device) return device;
-  if (/\bwallet\b.*\b(history|transactions)\b|\bshow wallet history\b/i.test(text)) return "wallet.history";
-  if (/\butilities\b.*\b(spent|spend|spending)|\bspent on utilities\b/i.test(text)) return "utilities.spending";
+  if (/\b(wallet|transactions?)\b.*\b(history|transactions?|recent)\b|\bshow wallet history\b|\brecent transactions?\b/i.test(text)) return "wallet.history";
+  if (/\butilities?\b.*\b(active|enabled|connected|available|on)\b|\bwhich utilities?\b.*\b(active|enabled|connected|available|on)\b/i.test(text)) return "utilities.active";
+  if (/\butilities?\b.*\b(usage|use|consumption|used)\b|\b(electricity|power|water|internet|gas)\b.*\b(usage|use|consumption|used)\b/i.test(text)) return "utilities.usage";
+  if (/\b(meter|utility)\b.*\b(balance|credit)\b|\b(balance|credit)\b.*\b(meter|utility)\b/i.test(text)) return "utilities.balance";
+  if (/\bmeter\b/i.test(text)) return "utilities.meter";
+  if (/\butilities?\b.*\b(spent|spend|spending|cost|costs?|paid|payment)\b|\b(how much|spend|spent|spending|cost|costs?|paid)\b.*\b(utilities?|electricity|power|water|internet|gas)\b/i.test(text)) return "utilities.spending";
   return fallback as SemanticOperation;
 }
 
