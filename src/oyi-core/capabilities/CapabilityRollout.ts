@@ -12,6 +12,13 @@ export function assertEnabledCapabilityHasAdapter(module: CapabilityModule) {
   if (!hasRead && !hasDraft && !hasExecution) {
     throw new Error(`Enabled capability ${module.key} has no executable adapter`);
   }
+  // declaredModule()'s placeholder evidence collector (ReadCapabilityModules.ts)
+  // always exists as a function, so the check above alone cannot catch a
+  // rollout_status mistakenly flipped to "enabled" while evidence loading is
+  // still the "not enabled yet" stub. Direct evidence must be wired first.
+  if ((module.collectEvidence as any)?.__isDeclaredStub) {
+    throw new Error(`Enabled capability ${module.key} still uses the declared-module stub evidence collector — direct evidence has not been wired`);
+  }
   if (module.risk_class && module.risk_class !== "read" && !hasDraft && !hasExecution) {
     throw new Error(`Enabled action capability ${module.key} has no draft or execution adapter`);
   }

@@ -5,7 +5,9 @@ import { isExplicitBroadHomeReadIntent } from "../interpretation/conversationInt
 import { safeDateLabel } from "../presentation/timeFreshness";
 import {
   buildDeviceAvailabilityInventoryAnswer,
+  buildMaintenanceRequestsAnswer,
   buildRecentChangesAnswer,
+  buildVisitorAccessAnswer,
   buildWalletHistoryAnswer,
   tableBlockForContract,
 } from "../presentation/conversationAnswerPresentation";
@@ -173,6 +175,14 @@ export function canonicalReportAnswerForTest(input: { facts: IntelligenceFact[];
 
 export function canonicalWalletHistoryAnswerForTest(input: { facts: IntelligenceFact[] }) {
   return buildWalletHistoryAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalMaintenanceRequestsAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildMaintenanceRequestsAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalVisitorAccessAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildVisitorAccessAnswer(dedupeFacts(input.facts));
 }
 
 export function canonicalObjectConversationForTest(input: { message: string; object: OperationalObject; response?: Record<string, unknown>; request?: Partial<CanonicalConversationRequest> }) {

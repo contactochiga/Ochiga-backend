@@ -265,6 +265,49 @@ export function buildWalletHistoryAnswer(facts: IntelligenceFact[]) {
   return `${rows.length} wallet transaction${rows.length === 1 ? "" : "s"} are available for the selected period. I did not navigate away or perform a financial action.`;
 }
 
+function maintenanceRequestRows(facts: IntelligenceFact[]) {
+  return facts
+    .filter((fact) => fact.fact_type === "maintenance_request")
+    .map((fact) => {
+      const value = recordOf(fact.value);
+      return {
+        title: residentSafeLabel(value.title || fact.object?.label, "Maintenance request"),
+        status: cleanLabel(value.status, "open"),
+        priority: cleanLabel(value.priority, "medium"),
+        assignee: cleanLabel(value.assigned_to, "Unassigned"),
+        date: safeDateLabel(fact.occurred_at, "Time unavailable", "date_time"),
+      };
+    });
+}
+
+export function buildMaintenanceRequestsAnswer(facts: IntelligenceFact[]) {
+  const rows = maintenanceRequestRows(facts);
+  if (!rows.length) return "I do not see any maintenance requests for this scope.";
+  const unresolved = rows.filter((row) => !/closed|resolved|completed/i.test(row.status)).length;
+  return `${rows.length} maintenance request${rows.length === 1 ? "" : "s"} are on record${unresolved ? `, ${unresolved} still unresolved` : ""}.`;
+}
+
+function visitorAccessRows(facts: IntelligenceFact[]) {
+  return facts
+    .filter((fact) => fact.fact_type === "visitor_access")
+    .map((fact) => {
+      const value = recordOf(fact.value);
+      return {
+        visitor: residentSafeLabel(value.visitor_name || fact.object?.label, "Visitor"),
+        status: cleanLabel(value.status, "unknown"),
+        purpose: cleanLabel(value.purpose, "Not specified"),
+        date: safeDateLabel(fact.occurred_at, "Time unavailable", "date_time"),
+      };
+    });
+}
+
+export function buildVisitorAccessAnswer(facts: IntelligenceFact[]) {
+  const rows = visitorAccessRows(facts);
+  if (!rows.length) return "I do not see any visitor access records for this scope.";
+  const pending = rows.filter((row) => row.status === "pending").length;
+  return `${rows.length} visitor access record${rows.length === 1 ? "" : "s"} are on file${pending ? `, ${pending} pending` : ""}. Access codes are never shared in conversation.`;
+}
+
 export function tableBlockForContract(contract: IntelligenceRequestContract, facts: IntelligenceFact[], predicates: PresentationFactPredicates): ConversationTableBlock | null {
   const snapshot = {
     snapshot_mode: contract.evidence_requirements.current_state || contract.intent === "device_availability_inventory" || contract.intent === "home_operational_summary" ? "current_state_snapshot" : "historical",

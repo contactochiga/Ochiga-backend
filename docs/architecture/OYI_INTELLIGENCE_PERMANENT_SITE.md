@@ -48,9 +48,22 @@ Request -> normalize / interpret -> assemble context -> assemble candidates -> r
 - Devices: status, availability, activity, failures, diagnosis, relationships and capabilities.
 - Wallet: consumer home transaction history.
 - Utilities: consumer home utility spending derived from wallet/service transaction evidence.
+- Maintenance: consumer/facility maintenance request reads.
+- Visitors: consumer/facility visitor access reads (access codes redacted).
 - Global: capability/help advertising from the registry.
 
-Maintenance, Visitors, Security, Services, Community, Messages, Scenes, Automations, Reports, Home and Rooms remain registered below enabled until direct evidence ownership is complete.
+Security, Services, Community, Messages, Scenes, Automations, Reports, Home and Rooms remain registered below enabled until direct evidence ownership is complete.
+
+## Direct Evidence — Maintenance & Visitors
+
+- `loadMaintenanceRequestFacts`/`loadVisitorAccessFacts` (`src/oyi-core/domains/*/*.Evidence.ts`) query `maintenance_requests`/`visitor_access` directly via `supabaseAdmin`, modelled on the existing wallet transaction loader — never the client-supplied `input.relationships` the two domains previously read from.
+- Scope is resolved server-side per surface: `home_id` for the consumer surface, `estate_id` for the facility surface, so a facility-wide read is never rejected for lacking a resident's home.
+- A query failure returns an explicit `unavailable` fact (never a silent empty array), so "no open requests" and "could not check" remain distinguishable at every layer, including the final response.
+- Visitor access codes are redacted (`redactAccessCredentialForConversation`) before they ever become conversation evidence.
+- `maintenance.requests.read` and `visitors.pending.read` are now `enabled` `readModule`s in `ReadCapabilityModules.ts`, replacing their `declaredModule` stubs.
+- Two previously-declared, zero-call-site Phase A safety guards are now real:
+  - `assertEnabledCapabilityHasAdapter` (`CapabilityRollout.ts`) rejects registration of any capability marked `enabled` whose evidence collector is still the `declaredModule` placeholder (tagged via an `__isDeclaredStub` sentinel), catching a mis-flipped rollout status at startup rather than silently advertising a capability that loads nothing.
+  - `assertClaimDoesNotPromoteUnavailable` (`contracts/evidence.ts`) is now called for every enabled read capability's response in `ConversationOrchestrator.ts`. A violation is caught and the result is downgraded to an honest `unavailable` answer rather than thrown raw, since nothing upstream of the canonical runtime currently guarantees an uncaught rejection here becomes a clean HTTP error.
 
 ## Phase C Implemented
 
@@ -74,7 +87,7 @@ Maintenance, Visitors, Security, Services, Community, Messages, Scenes, Automati
 
 ## Not Completed In This Slice
 
-- Direct evidence completion for all domains.
+- Direct evidence completion for the remaining domains (security, services, community, messages, scenes, automations, reports, home, rooms) — maintenance and visitors are done.
 - Room aggregator implementation.
 - Home aggregator implementation.
 - Forecasting and prediction evaluation persistence.

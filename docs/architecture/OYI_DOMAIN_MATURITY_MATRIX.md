@@ -2,6 +2,8 @@
 
 Status: Phase C capability/workflow rollout matrix.
 
+Direct Evidence correction: maintenance and visitors moved from context-backed (client-supplied `input.relationships`, no server-side authorization) to direct database evidence — `loadMaintenanceRequestFacts`/`loadVisitorAccessFacts` query `maintenance_requests`/`visitor_access` directly, scoped server-side by `home_id` (consumer surface) or `estate_id` (facility surface), with an explicit `unavailable` fact on query failure so empty is never confused with unavailable. Visitor access codes are redacted before becoming evidence. Both capabilities are now `enabled`.
+
 Phase B separates vocabulary from production ownership. `enabled` means resolver, authority, evidence requirements, evidence loading, read handler, structured result status and presentation policy are all present and tested. `implemented`, `shadow` and `declared` capabilities are not advertised to end users as available.
 
 Phase B correction: enabled read capabilities also persist through canonical Oyi conversation History. Wallet transaction evidence now follows the authorised home wallet relationship path. Utility active/usage/balance/meter reads remain below enabled and must not be answered by the utility spending handler.
@@ -23,8 +25,8 @@ Phase C reload correction: pending channel clarification and pending confirmatio
 | devices | Mature | Enabled read capabilities | Yes | Enabled activity/failures | Enabled diagnosis | Partial | Partial | Durable power/channel draft | Durable explicit confirmation | Durable approval | Existing command path via durable action | Existing command verification | Pending formal contributor | Pending room contributor | Partial | Partial | Partial | Low | Phase C device-first durable action path |
 | rooms | Partial | Partial | Partial | Partial | Partial | No | Partial | No | Yes | No | No | No | Pending | Pending | No | No | No | Medium | Active with gaps |
 | home | Partial | Partial | Partial | Partial | Partial | No | Partial | No | No | No | No | No | Pending aggregator | N/A | No | Partial | No | Medium | Active with gaps |
-| maintenance | Context-backed module | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Draft path pending | Yes | Pending | Pending | Pending | Pending | Pending | No | Partial | No | Medium | Legacy fallback measured |
-| visitors | Context-backed module | Implemented, not enabled | Partial | Partial | Partial | No | Partial | Draft path pending | Yes | Pending | Pending | Pending | Pending | No | No | Partial | No | Medium | Legacy fallback measured |
+| maintenance | Home/estate-scoped database evidence | Enabled request read | Partial | Partial | Partial | No | Partial | Draft path pending | Yes | Pending | Pending | Pending | Pending | Pending | No | Partial | No | Medium | Direct evidence enabled for consumer/facility reads |
+| visitors | Home/estate-scoped database evidence, access codes redacted | Enabled access read | Partial | Partial | Partial | No | Partial | Draft path pending | Yes | Pending | Pending | Pending | Pending | No | No | Partial | No | Medium | Direct evidence enabled for consumer/facility reads |
 | access | Partial | Partial | Partial | Partial | Partial | No | No | Pending | Yes | Pending | Sensitive | Pending | No | No | No | Partial | No | Medium | Restricted |
 | wallet | Partial | Enabled transaction read | Partial | Enabled transactions | Partial | Partial | No | Financial execution disabled | Yes | Required | Disabled | Pending | Pending | No | No | Partial | No | Medium | Phase B enabled for consumer transaction reads |
 | transactions | Partial | Yes | Partial | Yes | Partial | Partial | No | No | No | No | No | No | Pending | No | No | Partial | No | Medium | Active |

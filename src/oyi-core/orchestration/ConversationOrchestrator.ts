@@ -20,6 +20,8 @@ import { logger } from "../../observability/logger";
 import { actionService, workflowService } from "../workflows/defaultWorkflowActionServices";
 import { DeviceConversationActionAdapter } from "../domains/devices/deviceActionAdapter";
 import type { OyiWorkflow } from "../contracts/workflow";
+import { assertClaimDoesNotPromoteUnavailable, type CanonicalClaimState, type CanonicalResponseClaim } from "../contracts/evidence";
+import type { OyiEvidence } from "../contracts/evidence";
 
 let registered = false;
 
@@ -270,6 +272,69 @@ function nonEnabledCapabilityResult(capability: CapabilityModule, reason: string
       fallback_owner: "canonical_capability_fallback",
     },
   };
+}
+
+function claimStateForResultStatus(status: DomainResult["status"]): CanonicalClaimState {
+  if (status === "unavailable") return "unavailable";
+  if (status === "unsupported") return "unsupported";
+  if (status === "permission_restricted") return "permission_restricted";
+  if (status === "draft" || status === "awaiting_confirmation") return "inferred";
+  // "answered" and "empty" are both confirmed claims about the world (a
+  // populated list, or a positively-confirmed empty one) — this is exactly
+  // the pairing assertClaimDoesNotPromoteUnavailable exists to police: it
+  // must never be reached while the evidence backing it is unavailable or
+  // permission-restricted.
+  return "confirmed";
+}
+
+// Wires up contracts/evidence.ts's Phase A safety invariant — previously
+// declared but never called — for every enabled read capability response.
+// A violation here is a real capability bug (a handler reporting
+// answered/empty while its own evidence says unavailable/restricted); it is
+// caught and downgraded rather than thrown, because nothing upstream of the
+// canonical runtime currently guarantees an async rejection here becomes a
+// clean HTTP error instead of an unhandled rejection.
+function enforceReadResultRespectsEvidence(input: {
+  capability: CapabilityModule;
+  result: DomainResult;
+  evidence: OyiEvidence[];
+  tracer: ConversationTracer;
+}): DomainResult {
+  const { capability, result, evidence, tracer } = input;
+  if (!evidence.length) return result;
+  const claim: CanonicalResponseClaim = {
+    claim_id: `${capability.key}:${tracer.requestId}`,
+    domain: capability.domain,
+    statement: result.answer,
+    state: claimStateForResultStatus(result.status),
+    evidence_ids: evidence.map((item) => item.evidence_id),
+    fact_ids: [],
+    inference_ids: [],
+    confidence: null,
+    privacy_class: evidence[0]?.privacy_class || "household_private",
+    generated_at: new Date().toISOString(),
+    limitations: [],
+  };
+  try {
+    assertClaimDoesNotPromoteUnavailable(claim, evidence);
+    return result;
+  } catch (error) {
+    logger.error("oyi_capability_claim_evidence_violation", {
+      request_id: tracer.requestId,
+      correlation_id: tracer.correlationId,
+      capability_key: capability.key,
+      domain: capability.domain,
+      result_status: result.status,
+      evidence_count: evidence.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      status: "unavailable",
+      answer: "I could not confirm that evidence-backed answer safely, so I am not reporting it as confirmed.",
+      presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
+      metadata: { capability_key: capability.key, fallback_reason: "claim_evidence_violation", fallback_owner: "canonical_claim_guard" },
+    };
+  }
 }
 
 function requestContractForCapability(context: CanonicalConversationRequestContext, turn: ResolvedTurn, capability: CapabilityModule): IntelligenceRequestContract {
@@ -556,7 +621,7 @@ export class ConversationOrchestrator {
             evidence_count: evidence.length,
             reason: evidenceAuthority.reason,
           });
-          const result = evidenceAuthority.allowed
+          let result = evidenceAuthority.allowed
             ? capability.key === "global.capabilities.read"
               ? buildCapabilityAdvertisingResult({ service: capabilityService, context })
               : await capability.buildReadResponse(capabilityContext, evidence) as DomainResult
@@ -566,6 +631,9 @@ export class ConversationOrchestrator {
               presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
               metadata: { reason: evidenceAuthority.reason },
             } as DomainResult;
+          if (evidenceAuthority.allowed && capability.key !== "global.capabilities.read") {
+            result = enforceReadResultRespectsEvidence({ capability, result, evidence, tracer });
+          }
           response = capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result, evidence });
           capabilityOwnsResponse = capability;
           logger.info("oyi_capability_handler_completed", {

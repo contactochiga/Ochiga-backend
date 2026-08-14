@@ -12,6 +12,9 @@ import { buildDeviceFailureHistoryAnswer, buildDeviceDiagnosisAnswer, buildDevic
 import { loadWalletTransactionFacts } from "../domains/wallet/walletEvidence";
 import { loadUtilitySpendingFacts } from "../domains/utilities/utilityEvidence";
 import { buildUtilitySpendingAnswer } from "../domains/utilities/utilityConversationAnswers";
+import { loadMaintenanceRequestFacts } from "../domains/maintenance/maintenanceEvidence";
+import { loadVisitorAccessFacts } from "../domains/visitors/visitorEvidence";
+import { buildMaintenanceRequestsAnswer, buildVisitorAccessAnswer } from "../presentation/conversationAnswerPresentation";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 
 function text(value: unknown) {
@@ -106,6 +109,10 @@ function readRequirement(domain: OyiDomain, evidenceType: string): EvidenceRequi
 }
 
 const homeScope: ScopeRequirement[] = [{ scope: "home", required: true }];
+// Estate-level requirement — used by capabilities whose loaders branch
+// scope by surface (home_id for consumer, estate_id for facility), so a
+// facility-surface estate-wide read is never rejected for lacking a home_id.
+const estateScope: ScopeRequirement[] = [{ scope: "estate", required: true }];
 
 type ReadModuleInput = {
   key: string;
@@ -144,6 +151,15 @@ function readModule(input: ReadModuleInput): CapabilityModule {
   };
 }
 
+// Sentinel so a mis-flipped rollout_status can be caught at registration
+// time (see assertEnabledCapabilityHasAdapter in CapabilityRollout.ts)
+// rather than silently advertising a capability whose evidence collector
+// never actually loads anything.
+function declaredModuleStubCollect(): Promise<OyiEvidence[]> {
+  return Promise.resolve([]);
+}
+(declaredModuleStubCollect as any).__isDeclaredStub = true;
+
 function declaredModule(input: {
   key: string;
   domain: OyiDomain;
@@ -163,7 +179,7 @@ function declaredModule(input: {
     evidenceRequirements: input.evidence || [],
     rolloutStatus: input.status,
     supports: input.supports || ((frame) => frame.domain === input.domain),
-    collect: async () => [],
+    collect: declaredModuleStubCollect,
     answer: () => ({ status: "unsupported", answer: `${input.key} is not enabled yet.`, presentation_policy: resultPresentation("text") }),
   });
 }
@@ -391,8 +407,58 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
     declaredModule({ key: "utilities.usage.read", domain: "utilities", operations: ["utilities.usage", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "declared", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "utility_usage")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.usage" }),
     declaredModule({ key: "utilities.balance.read", domain: "utilities", operations: ["utilities.balance", "inspect"], supportedSurfaces: ["consumer"], status: "declared", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "utility_balance")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.balance" }),
     declaredModule({ key: "utilities.meter.read", domain: "utilities", operations: ["utilities.meter", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "declared", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "meter_status")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.meter" }),
-    declaredModule({ key: "maintenance.requests.read", domain: "maintenance", operations: ["list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["maintenance.read"], evidence: [readRequirement("maintenance", "relationship_context")] }),
-    declaredModule({ key: "visitors.pending.read", domain: "visitors", operations: ["list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["visitors.read"], evidence: [readRequirement("visitors", "relationship_context")] }),
+    readModule({
+      key: "maintenance.requests.read",
+      domain: "maintenance",
+      operations: ["list", "inspect"],
+      supportedSurfaces: ["consumer", "facility"],
+      permissions: ["maintenance.read"],
+      scopeRequirements: estateScope,
+      evidenceRequirements: [readRequirement("maintenance", "maintenance_request")],
+      supports: (frame) => frame.domain === "maintenance" && (frame.operation === "list" || frame.operation === "inspect" || /\bmaintenance|repair|fix|broken\b/i.test(frame.normalizedText)),
+      collect: async (context) => {
+        const facts = await loadMaintenanceRequestFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return {
+            status: "unavailable",
+            answer: "Maintenance request evidence is unavailable right now. I did not treat that as no open requests.",
+            presentation_policy: resultPresentation("text"),
+          };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildMaintenanceRequestsAnswer(facts), presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
+    readModule({
+      key: "visitors.pending.read",
+      domain: "visitors",
+      operations: ["list", "inspect"],
+      supportedSurfaces: ["consumer", "facility"],
+      permissions: ["visitors.read"],
+      scopeRequirements: estateScope,
+      evidenceRequirements: [readRequirement("visitors", "visitor_access")],
+      supports: (frame) => frame.domain === "visitors" && (frame.operation === "list" || frame.operation === "inspect" || /\bvisitors?|guest|access code|pending arrival\b/i.test(frame.normalizedText)),
+      collect: async (context) => {
+        const facts = await loadVisitorAccessFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return {
+            status: "unavailable",
+            answer: "Visitor access evidence is unavailable right now. I did not treat that as no visitors on file.",
+            presentation_policy: resultPresentation("text"),
+          };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildVisitorAccessAnswer(facts), presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
     declaredModule({ key: "security.incidents.read", domain: "security", operations: ["list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["security.read"], evidence: [readRequirement("security", "relationship_context")] }),
     declaredModule({ key: "services.active.read", domain: "services", operations: ["list", "inspect"], supportedSurfaces: ["consumer"], status: "implemented", permissions: ["services.read"], evidence: [readRequirement("services", "relationship_context")] }),
     declaredModule({ key: "community.latest.read", domain: "community", operations: ["list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["community.read"], evidence: [readRequirement("community", "relationship_context")] }),
