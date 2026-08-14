@@ -4,6 +4,7 @@ import type { OyiEvidence } from "../../contracts/evidence";
 import type { IntelligenceFact } from "../../contracts/canonicalConversation";
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
+import { operationalMetrics } from "../../../observability/metrics";
 import {
   readModule,
   evidenceFromFact,
@@ -75,6 +76,15 @@ function logAggregateRun(input: { aggregateType: "home" | "room"; operation: Agg
     latency_by_domain: input.latencyByDomain,
     aggregate_latency_ms: input.aggregateLatencyMs,
   });
+  // Programme 4 Phase K — "profile... Home aggregation, Room
+  // aggregation" was log-only before this pass (visible only via log
+  // inspection, not /metrics). Per-domain latency is included as a label
+  // rather than a separate metric per domain to avoid unbounded label
+  // cardinality growth as domains are added.
+  operationalMetrics.observe("oyi_room_home_aggregate_latency_ms", input.aggregateLatencyMs, { aggregate_type: input.aggregateType });
+  for (const [domain, latencyMs] of Object.entries(input.latencyByDomain)) {
+    operationalMetrics.observe("oyi_room_home_contributor_latency_ms", latencyMs, { aggregate_type: input.aggregateType, domain });
+  }
 }
 
 async function runHomeAggregate(context: CapabilityContext, operation: AggregateOperation, devicesFacts: "inventory" | "recent", capabilityKey: string): Promise<AggregateResult> {

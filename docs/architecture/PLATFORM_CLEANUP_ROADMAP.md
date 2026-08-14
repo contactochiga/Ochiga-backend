@@ -337,3 +337,43 @@ Remaining before broad production adoption:
 - continue conversation modularization through focused responsibility migrations;
 - rotate/replace credentials listed in each rotation checklist;
 - run full cross-repository release validation after branch review.
+
+## Programme 4 Phase O — Dead Code / Retirement Pass
+
+Re-verified every Phase A dead-code candidate against the current state of the repo (after Phases B–L's changes) before deleting anything — several had become load-bearing or were misclassified originally, confirming the "re-verify, don't trust a stale audit" discipline this pass is meant to enforce.
+
+**Corrections to Phase A's original dead-code list, found before any deletion happened**:
+- `src/oyi-core/domains/intelligence/learningParameters.ts` and `outcomeEvaluation.ts` were flagged dead in Phase A. Both are now genuinely live — Phase H/I wired them into the production scheduler. Never deleted.
+- `src/oyi-core/testing/canonicalConversationTestSupport.ts` was flagged dead in Phase A ("no test files exist anywhere in repo"). That search only checked for `*.test.ts`/`*.spec.ts` files — this repo's real regression suite is `.mjs` smoke scripts, and this file is load-bearing test-harness infrastructure for roughly 15 of them. Never deleted; the original Phase A finding itself was wrong, not just stale.
+
+### DELETED
+
+Whole files, zero references anywhere (production or test) after re-verification:
+- `src/oyi-core/actions/ActionVerification.ts` — superseded by `deviceActionAdapter.ts`'s own inline `verify()` (production-wired, certified in Phase F).
+- `src/oyi-core/domains/devices/deviceVerification.ts` — same supersession.
+- `src/oyi-core/evidence/EvidenceAuthorization.ts` — superseded by `CapabilityService.ts`'s `scopeAllowed()`/`privacyAllowed()` (Phase E).
+- `src/oyi-core/evidence/EvidenceFreshness.ts` — unused re-export shim; the real logic (`contracts/freshness.ts`) is already imported directly elsewhere.
+- `src/oyi-core/orchestration/CapabilityRouter.ts` — superseded by `CapabilityService.resolve()`'s scored matching.
+- `src/intelligence-core/officeLeadEventAdapter.ts`, `adapters/baseAdapter.ts`, `adapters/oyiAdapter.ts`, `adapters/officeAdapters.ts`, `adapters/cameraAdapter.ts`, `adapters/edgeAdapter.ts`, `adapters/facilityAdapter.ts` (7 files) — never instantiated anywhere; real per-domain behavior lives directly in `sourceEventPublisher.ts`/`workflowOrchestrator.ts`/oyi-core instead. Removed their `export *` lines from `intelligence-core/index.ts` too.
+
+Function-level removal within otherwise-live files (not whole-file deletions):
+- `src/services/intelligenceMemoryService.ts` — removed `getLatestMaintenanceContext`, `buildHomeTimeline`, `answerDeviceHistoryQuestion`, and their private helpers (`startOfTodayIso`, `startOfWeekIso`, `formatDeviceHistoryTime`, `deviceNameFromEvent`, `infrastructureLabel`) — pre-Programme-1 device-history Q&A scaffolding, fully superseded by Programme 1's canonical `devices.activity/failures/diagnosis.read` capabilities. `upsertResidentMemory`/`recordHomeTimelineEvent`/`recordIntelligenceMemory` (still live, called from `/ai/chat`) kept unchanged.
+- `src/routes/aiRoutes.ts` — removed ~410 lines: the entire pre-Phase-B `/ai/chat` narrative-building/tool-suggestion pipeline (`deterministicTools`, `suggestToolsWithModel`, `statusContinuationReply`, `buildReply`, `buildNarrativeReply`, `responseModeFor`, `actionResultReply`, `actionResultCard`, `primaryCardForIntent`, `compressCardsForMode`, `suggestedActionsForMode`, `buildAwarenessObject`, plus ~15 smaller formatting helpers, the OpenAI client setup, and the unused `routeAiCommand`/`ProposedAiTool` imports). Confirmed by reading the live `/ai/chat` handler line-by-line: it calls only `conversationOrchestrator.run()`, `recordIntelligenceMemory()`, and `adaptCanonicalToAiChat()` — none of the removed machinery. This also required removing the now-nonexistent `getLatestMaintenanceContext` import, since that function was deleted from `intelligenceMemoryService.ts` in the same pass.
+
+All deletions verified: typecheck clean, build clean, and 13 regression suites re-run passing (`smoke:compatibility-delegation`, `smoke:enterprise-intelligence-phase1`, `smoke:canonical-runtime-structure`, `smoke:direct-evidence-maintenance-visitors`, `smoke:direct-evidence-programme1`, `smoke:programme1-deep-conversation`, `smoke:programme2-room-home-intelligence`, `smoke:programme3-prediction-forecasting`, `smoke:security-adversarial`, `smoke:oyi-core-privacy`, `smoke:consumer-facility-scope-privacy`, `smoke:oyi-core-convergence`, `smoke:full-circle-intelligence-acceptance`).
+
+### RETAINED AS ADAPTER (intentional, documented, not retirement candidates)
+
+- `src/oyi-core/legacy/LegacyConversationAdapter.ts` + `src/oyi-core/runtime/canonicalConversationRuntime.ts` + `src/services/oyiUnifiedIntelligenceService.ts` — pipeline-2 fallback for capabilities not yet natively implemented (Phase A/B/D). Usage now measurable via Phase J's `oyi_canonical_runtime_legacy_service_fallback_total`.
+- `src/oyi-core/domains/intelligence/legacyPredictionAdapter.ts` + `src/intelligence-core/predictionEngine.ts` — `camera_anomaly`/`power_or_network_instability` have no native detector yet (retirement criteria documented in Phase C, `OYI_PREDICTION_LEARNING_MODEL.md`). Usage now measurable via Phase J's `oyi_legacy_prediction_adapter_calls_total`.
+- `src/ai/commandRouter.ts` + `src/ai/toolRegistry.ts` — Watch's (`/watch/*`) action-orchestration authority. Migration deferred per explicit user decision in Phase F (touches live physical-device execution, no hardware available to verify against).
+- `src/oyi-core/runtime/domainCapabilityRegistry.ts` — fallback capability truth for 5 domains with no native capability module (`access, transactions, cameras, notifications, incidents`), and latent (fallback-only) duplicate for the 15 domains that do have native modules (Phase D). Retiring the 15-domain overlap needs Phase J's new fallback counters to prove native resolution never actually fails for them in production — not yet available.
+- `src/intelligence-core/*` (remaining ~20 files: event bus, workflows, executive, organization, collaboration, etc.) — deliberately frozen legacy/organizational-supervision layer, carries its own explicit "Freeze ownership note" in code (Phase C). Backs `/intelligence/*`, a genuinely separate concern from Oyi's conversational answer surface.
+
+### RETAINED TEMPORARILY (test-only dependency; deletion deferred, not abandoned)
+
+- `src/oyi-core/domains/devices/DeviceDomainAdapter.ts` — sole importer is `scripts/enterprise-intelligence-phase1-smoke.mjs`.
+- `src/oyi-core/runtime/domainReasoningPolicies.ts` — sole importer is `scripts/oyi-core-convergence-smoke.mjs`.
+- `src/oyi-core/runtime/predictionTruth.ts` — sole importer is `scripts/oyi-core-convergence-smoke.mjs`.
+
+**Retirement criteria**: all three have zero production callers already (confirmed) — what's blocking deletion is that their only remaining reference is a currently-passing regression test, and Phase O's own bar ("no test-only dependency except removable legacy test") means proving that test doesn't cover something real before removing it. That requires reading what property each convergence/phase1 smoke check is actually protecting, which wasn't done in this pass — the marginal cleanup value doesn't justify weakening real coverage on a guess. Retire once a future pass either (a) confirms the specific assertions using these files test something already covered elsewhere and can be safely dropped, or (b) rewrites those assertions to not need the file.

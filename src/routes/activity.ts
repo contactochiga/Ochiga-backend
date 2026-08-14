@@ -593,8 +593,15 @@ async function buildActivity(req: express.Request) {
     estateId ? safeSelect("incidents", (q) => q.select("*").eq("estate_id", estateId).order("created_at", { ascending: false }).limit(20)) : Promise.resolve({ rows: [], available: true, reason: null }),
     estateId ? safeSelect("facility_incidents", (q) => q.select("*").eq("estate_id", estateId).order("created_at", { ascending: false }).limit(20)) : Promise.resolve({ rows: [], available: true, reason: null }),
     estateId ? safeSelect("community_posts", (q) => q.select("*").eq("estate_id", estateId).neq("status", "deleted").order("created_at", { ascending: false }).limit(30)) : Promise.resolve({ rows: [], available: true, reason: null }),
+    // Programme 4 Phase L — room_name is not a real column on devices (it's
+    // derived elsewhere, e.g. deviceEvidence.ts joins room_id against a
+    // separately-loaded rooms map). This select previously always errored
+    // on the nonexistent column, so safeSelect caught it and the entire
+    // devices section of the activity feed was silently empty for every
+    // user. room_name references below already degrade safely via `||`
+    // fallback to category/type, so no other change is needed.
     safeSelect("devices", (q) => {
-      let next = q.select("id,name,category,type,home_id,estate_id,room_id,room_name").limit(100);
+      let next = q.select("id,name,category,type,home_id,estate_id,room_id").limit(100);
       if (estateId) next = next.eq("estate_id", estateId);
       if (homeId) next = next.eq("home_id", homeId);
       return next;

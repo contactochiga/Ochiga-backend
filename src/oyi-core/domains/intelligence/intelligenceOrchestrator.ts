@@ -10,6 +10,7 @@ import { persistPrediction, persistForecast } from "./predictionPersistence";
 import { buildRecommendations } from "./recommendationPlanner";
 import { runProactiveDelivery, type ProactiveDeliveryResult } from "./proactiveDelivery";
 import { logger } from "../../../observability/logger";
+import { operationalMetrics } from "../../../observability/metrics";
 
 export type IntelligenceOrchestratorInput = {
   input: CanonicalConversationRequest;
@@ -57,6 +58,10 @@ function worstQuality(values: string[]): IntelligenceOrchestratorResult["data_qu
 // predictionEngine.ts already persists itself (§14 — avoid double writes
 // into ochiga_intelligence_predictions).
 export async function runIntelligenceOrchestrator(context: IntelligenceOrchestratorInput): Promise<IntelligenceOrchestratorResult> {
+  // Programme 4 Phase K — "profile... intelligence orchestrator,
+  // prediction/forecast path". This function had no latency
+  // instrumentation at all before this pass.
+  const startedAt = Date.now();
   const detectorContext = { input: context.input, oisContext: context.oisContext, contract: context.contract, scope: context.scope };
   const warnings: string[] = [];
 
@@ -73,7 +78,14 @@ export async function runIntelligenceOrchestrator(context: IntelligenceOrchestra
       warnings.push(`legacy adapter failed: ${error instanceof Error ? error.message : String(error)}`);
       return { anomalies: [], predictions: [], recommendations: [], warnings: [] };
     }),
-    context.scope.home_id ? generateUtilitySpendForecast(context.scope).catch((error) => {
+    context.scope.home_id ? (async () => {
+      const forecastStartedAt = Date.now();
+      try {
+        return await generateUtilitySpendForecast(context.scope);
+      } finally {
+        operationalMetrics.observe("oyi_forecast_provider_latency_ms", Date.now() - forecastStartedAt, { provider: "utility_spend" });
+      }
+    })().catch((error) => {
       warnings.push(`utility spend forecast failed: ${error instanceof Error ? error.message : String(error)}`);
       return { forecast: null, data_quality: "unavailable" as const };
     }) : Promise.resolve({ forecast: null, data_quality: "unsupported" as const }),
@@ -105,6 +117,25 @@ export async function runIntelligenceOrchestrator(context: IntelligenceOrchestra
   ]);
 
   const proactiveDeliveries = context.proactive ? await runProactiveDelivery(recommendations, { home_id: context.scope.home_id }) : [];
+
+  // Programme 4 Phase J — the spec's explicit counter list ("anomaly
+  // count, prediction count, forecast count") had no metric anywhere;
+  // this is the single entry point both conversational reads and the
+  // Phase H scheduler call, so it's instrumented here once rather than
+  // at every caller.
+  operationalMetrics.increment("oyi_anomalies_generated_total", { triggered_by: context.proactive ? "scheduled" : "conversational" }, anomalies.length);
+  operationalMetrics.increment("oyi_predictions_generated_total", { triggered_by: context.proactive ? "scheduled" : "conversational" }, predictions.length);
+  operationalMetrics.increment("oyi_forecasts_generated_total", { triggered_by: context.proactive ? "scheduled" : "conversational" }, forecasts.length);
+  operationalMetrics.increment("oyi_recommendations_built_total", { triggered_by: context.proactive ? "scheduled" : "conversational" }, recommendations.length);
+  for (const delivery of proactiveDeliveries) {
+    operationalMetrics.increment("oyi_proactive_deliveries_total", { outcome: delivery.delivered ? "sent" : "suppressed", reason: delivery.reason });
+  }
+
+  // Programme 4 Phase K — "profile... intelligence orchestrator" (see
+  // startedAt above). Labeled by triggered_by so scheduled-batch latency
+  // (Phase H, many homes per run) and conversational per-turn latency
+  // don't get averaged together into a meaningless blend.
+  operationalMetrics.observe("oyi_intelligence_orchestrator_latency_ms", Date.now() - startedAt, { triggered_by: context.proactive ? "scheduled" : "conversational" });
 
   return { anomalies, predictions, forecasts, recommendations, warnings, data_quality: quality, proactive_deliveries: proactiveDeliveries };
 }

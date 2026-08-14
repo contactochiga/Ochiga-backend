@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type { AuthUser } from "../../middleware/auth";
 import type { OisContext } from "../../types/oisContext";
 import { logger } from "../../observability/logger";
+import { operationalMetrics } from "../../observability/metrics";
 import {
   loadOyiConversationContext,
   runOyiUnifiedChat,
@@ -1320,6 +1321,17 @@ export async function runCanonicalConversation(actor: AuthUser | null, oisContex
     }
   }
   const compatibilityInput = compatibilityInputFromCanonical(input, resolved.object);
+  // Programme 4 Phase J — this is the second-hop fallback into the fully
+  // legacy oyiUnifiedIntelligenceService engine (Phase A/D: reachable from
+  // /ai/chat, /office/*, /communications/* whenever this runtime's own
+  // "exact target read" short-circuit doesn't apply). It previously had no
+  // metric at all, making Phase D's capability-truth-duplication retirement
+  // decision impossible to evidence. Counted here so future deletion
+  // decisions (Phase O) can be evidence-based, not guessed.
+  operationalMetrics.increment("oyi_canonical_runtime_legacy_service_fallback_total", {
+    surface: String(input.surface || "unknown"),
+    module: String(input.module || "unknown"),
+  });
   const compatibility = await runOyiUnifiedChat(actor, compatibilityInput) as Record<string, unknown>;
   const shapedCompatibility = shapeObjectConversation(input, compatibility, resolved.object);
   const truth = canonicalTruthFor(shapedCompatibility, resolved.object);

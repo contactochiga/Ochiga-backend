@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { generateIntelligencePredictions, type IntelligencePrediction, type IntelligencePredictionType } from "../../../intelligence-core/predictionEngine";
 import type { OperationalAnomaly, OperationalPrediction, OperationalRecommendation, OperationalScope } from "../../contracts/intelligence";
 import { logger } from "../../../observability/logger";
+import { operationalMetrics } from "../../../observability/metrics";
 
 // Strangler adapter (§14 of the Programme 3 spec): predictionEngine.ts is
 // preserved untouched and still runs (and still persists to
@@ -116,6 +117,7 @@ export async function runLegacyPredictionAdapter(options: { actor?: any; estate_
     else if (RECOMMENDATION_TYPES.has(raw.prediction_type)) recommendations.push(toRecommendation(raw));
     else predictions.push(toPrediction(raw));
   }
+  const latencyMs = Date.now() - startedAt;
   logger.info("oyi_legacy_prediction_adapter_used", {
     estate_id: options.estate_id || null,
     home_id: options.home_id || null,
@@ -125,7 +127,14 @@ export async function runLegacyPredictionAdapter(options: { actor?: any; estate_
     prediction_count: predictions.length,
     recommendation_count: recommendations.length,
     warning_count: result.warnings.length,
-    latency_ms: Date.now() - startedAt,
+    latency_ms: latencyMs,
   });
+  // Programme 4 Phase J — promotes the above log line into a first-class
+  // counter, per OYI_PREDICTION_LEARNING_MODEL.md's Phase C retirement
+  // criteria: this adapter can only be retired once camera_anomaly and
+  // power_or_network_instability have native detectors; usage must be
+  // measurable to know when that's actually safe, not assumed.
+  operationalMetrics.increment("oyi_legacy_prediction_adapter_calls_total");
+  operationalMetrics.observe("oyi_legacy_prediction_adapter_latency_ms", latencyMs);
   return { anomalies, predictions, recommendations, warnings: result.warnings };
 }

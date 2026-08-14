@@ -10,7 +10,7 @@ import {
 
 const officeRouteSource = fs.readFileSync(new URL("../dist/routes/officeExport.js", import.meta.url), "utf8");
 assert.ok(officeRouteSource.includes("/conversation/corporate"), "Office corporate conversation route must be mounted");
-assert.ok(officeRouteSource.includes("runCanonicalConversation"), "Corporate route must call canonical Oyi conversation runtime");
+assert.ok(officeRouteSource.includes("conversationOrchestrator.run"), "Corporate route must call canonical Oyi ConversationOrchestrator");
 
 assert.equal(deniedPublicCorporateOperationalRequest({ message: "Unlock my front door." }), true);
 assert.equal(deniedPublicCorporateOperationalRequest({ message: "Show my wallet balance." }), true);

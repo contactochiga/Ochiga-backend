@@ -44,6 +44,17 @@ This supersedes the "Phase A foundation" status this document previously describ
 
 Native detectors fill three real gaps the legacy engine has: it does not query `wallet_transactions` (forecasting), `facility_incidents` (via `security.incident_frequency`, a second lens on top of its own regex-based security detection), or `consumer_automation_runs` failure-rate patterns (only single-event thresholds).
 
+### Retirement criteria (Programme 4 Phase C)
+
+`device_anomaly`, `maintenance_risk`, `visitor_pattern`, and `security_risk` are already fully or largely superseded by native detectors/providers (`device.offline_cluster`/`device.reliability`, `maintenance.aging`, `visitor.volume`, `security.incident_frequency`) — those four legacy output classes could be dropped from `legacyPredictionAdapter.ts`'s consumption today without losing unique signal. They are kept for now only because `legacyPredictionAdapter.ts` forwards `predictionEngine.ts`'s output as a single batch; splitting the adapter to selectively drop already-superseded classes is Programme 4 Phase O scope (retirement pass), not this document's concern.
+
+Two classes have **no native equivalent and must stay** until replaced:
+
+- **`camera_anomaly`** — no detector in `ANOMALY_DETECTORS` inspects `camera_events`. Retirement requires a native `camera.anomaly` detector (same shape as `anomalyDetectors.ts`'s existing entries) reusing a real camera-event evidence loader.
+- **`power_or_network_instability`** — no native detector reproduces "≥3 devices offline within a 24h window, correlated across the estate" (distinct from `device.offline_cluster`, which is single-device). `runtime/incidentCorrelation.ts` is the closest native machinery but operates on already-normalized signals from `universalSignalRuntime.ts`, a different pipeline from the raw `device_events` table this legacy path reads. Retirement requires either a native detector reading `device_events` directly with the same clustering window, or `incidentCorrelation.ts` extended to consume `device_events` and produce an equivalent `OperationalAnomaly`.
+
+`legacyPredictionAdapter.ts` itself (the strangler wrapper) can only be fully retired once both native replacements exist AND have been verified (via a smoke test comparing native vs. legacy output on representative historical data) to match or exceed legacy recall. Until then, it stays, and its usage remains measurable via the existing `oyi_legacy_prediction_adapter_used` log line — Programme 4 Phase J should promote that into a first-class counter (e.g. `oyi_legacy_prediction_adapter_calls_total`) so retirement timing is evidence-based, not guessed.
+
 ## Numerical Forecasting
 
 Only ONE forecast domain is built: **utility spending** (`utilitySpendForecastProvider.ts`). This is deliberate, not an oversight — production has no reliable electricity consumption, meter-balance, or meter-reading time series anywhere in the schema (confirmed by direct migration audit, consistent with Programme 1's utilities finding). "Your electricity will run out in 3 days" is never built. Utility **spending** is forecastable because `wallet_transactions` is real, populated, and already the source Programme 1's `utilities.spending.read` reads from.
@@ -122,3 +133,48 @@ A new `intelligence` contributor was added to both `HOME_CONTRIBUTORS` and `ROOM
 - Forecasting covers only utility spending — no consumption/usage/meter-balance forecast exists anywhere (no reliable source data), and no other domain's numerical forecast was built this pass.
 - Learning parameters can be created, proposed, and promoted, but no automated evaluation loop yet proposes adjustments from real outcome data — the propose path is available to be called, not yet self-driving from `outcomeEvaluation.ts`'s results.
 - No `oyi_prediction_outcomes`/`oyi_recommendation_outcomes` table distinct from `intelligence_feedback` — the spec's "potentially... only if needed" condition was not met; the existing generic table was sufficient.
+
+The first two gaps above (no live proactive trigger, no automated learning-proposal loop) are explicitly Programme 4's Phase H and Phase I scope, respectively — not new work, closure of a documented, pre-existing gap.
+
+## Programme 4 Phase H — Proactive Runtime Operationalization (closes the first gap above)
+
+`src/oyi-core/runtime/proactiveIntelligenceScheduler.ts` adds the missing trigger only — it does not reimplement anomaly/prediction/recommendation/delivery logic. Per home per tick it calls `runIntelligenceOrchestrator({ ..., persist: true, proactive: true })` (same function and same `proactive` opt-in flag conversational capabilities deliberately never set) and `evaluateOpenPredictions({ estate_id, home_id })` — both pre-existing, already-tested Programme 3 functions.
+
+Built on the repo's existing BullMQ worker infrastructure (`src/workers/automationWorker.ts`'s `Queue`/`Worker` pattern), started from `src/worker.ts` (the existing separately-deployed `start:workers` process) alongside `startAutomationWorker`/`startIntentWorker`/`startIntentDlqWorker` — no second scheduler mechanism introduced.
+
+Requirements from the programme spec and how each is met:
+- **Disabled by default**: `OYI_PROACTIVE_SCHEDULER_ENABLED` must be explicitly `"true"`; the repeatable job is never scheduled otherwise.
+- **Bounded batch size**: `OYI_PROACTIVE_SCHEDULER_BATCH_SIZE` (default 25 homes/tick), via keyset-paginated `homes` query with wraparound so every home rotates through across ticks rather than the same first N being processed forever.
+- **Per-run delivery cap**: `OYI_PROACTIVE_SCHEDULER_MAX_DELIVERIES_PER_RUN` (default 50) is a cross-home budget threaded through the batch loop, on top of `runProactiveDelivery`'s own existing per-home cap (5).
+- **Tenant/home isolation**: each home gets a fresh scope (`estate_id`/`home_id`) and independent evidence loads; no shared mutable state between iterations.
+- **Idempotency**: BullMQ's repeatable-job `jobId` prevents duplicate schedule registration; an in-process `runInProgress` guard prevents a slow tick overlapping the next one within a single worker process; `evaluateOpenPredictions`'s own `.eq("status", "open")` guard on prediction close is separately idempotent at the DB layer.
+- **Failure isolation**: one home's evaluation throwing is caught, logged, and counted — the batch continues to the next home.
+- **Observability**: `oyi_proactive_scheduler_ticks_total`, `_homes_processed_total`, `_homes_failed_total`, `_deliveries_sent_total`, `_deliveries_suppressed_total`, `_outcomes_evaluated_total`, `_tick_duration_ms` (via `operationalMetrics`), plus a structured `oyi_proactive_scheduler_tick_completed` log line per tick.
+- **No physical execution**: only read/evaluate functions are called; no `ActionService`/`WorkflowService`/`execute` import anywhere in the file (grep-verified by `smoke:programme4-proactive-scheduler`).
+- **No automatic learning promotion**: `promoteLearningParameter` is never imported or called (same grep verification) — that remains Phase I's explicit-review-only concern.
+
+Regression coverage: `scripts/oyi-programme4-proactive-scheduler-smoke.mjs` (`npm run smoke:programme4-proactive-scheduler`), 11 structural checks. The underlying evaluation logic this scheduler invokes is already behaviorally verified end-to-end by `smoke:programme3-prediction-forecasting` — this script certifies only the new wiring, not a re-test of already-proven logic.
+
+**Not done in this pass, honestly**: no live Redis/BullMQ environment was available to observe an actual scheduled tick firing end-to-end in this session — verification here is typecheck + build + structural smoke, not a live production run. Phase M (surface acceptance) or post-deploy verification should confirm the worker process actually picks up and executes the repeatable job in the real Render environment before this is considered fully proven in production, and the scheduler ships disabled (`OYI_PROACTIVE_SCHEDULER_ENABLED` unset) until that's done.
+
+## Programme 4 Phase I — Outcome/Learning Operationalization (closes the second gap above)
+
+`src/oyi-core/domains/intelligence/learningProposalPass.ts` is the automated PROPOSAL step only — it evaluates aggregate outcome quality and calls the existing, pre-built `proposeLearningParameterAdjustment` (`learningParameters.ts`); it never imports or calls `promoteLearningParameter`. Promotion stays exactly what it already was: an explicit, separately-invoked human action.
+
+For each of the three prediction types `outcomeEvaluation.ts` actually evaluates (`device_reliability_risk`, `maintenance_sla_risk`, `automation_failure_risk` — never a type with no real evaluator, which would fabricate learning from nothing), it calls a new global aggregation function, `summarizeEvaluatedPredictionsByType` (added to `outcomeEvaluation.ts`, reusing the same `intelligence_feedback` outcome rows `evaluateOpenPredictions` already writes — no second evaluation pipeline). This is deliberately unscoped (cross-estate, cross-home): a single home rarely accumulates enough evaluated predictions to clear a sample threshold, and a learning parameter is a shared, global calibration, not something independently relearned per home.
+
+Requirements from the programme spec and how each is met:
+- **Minimum sample threshold**: `OYI_LEARNING_MIN_SAMPLE_THRESHOLD` (default 20). Below it, the type is reported `insufficient_evidence` with the actual sample size and threshold — never proposed.
+- **Versioned proposal**: reuses `learningParameters.ts`'s existing `version`/`rollout_stage` machinery unchanged — proposals write only `proposed_value`, never `current_value`; version increments only happen inside `promoteLearningParameter`, never called here.
+- **Reason/evidence basis**: every proposal carries `{ method: "empirical_accuracy_calibration", sample_size, realized, not_realized, accuracy, evaluated_at }`.
+- **Bounds enforced**: the parameter row is seeded with explicit `[0, 1]` bounds (`getLearningParameter(..., { min: 0, max: 1 })`) before the first proposal, so `clampToBounds` is never a no-op for a brand-new parameter.
+- **Forbidden namespaces still rejected**: parameter names are `prediction.<type>.confidence_calibration`, which `assertLearnableParameter` (unchanged, already existing) validates against the same forbidden-pattern/allowed-prefix checks as every other learning parameter.
+- **No permissions/RLS/security/financial authority/confirmation/allowed-action-type changes**: proposals are confidence-calibration values only; `assertLearnableParameter`'s existing forbidden-pattern check (unchanged) is the actual enforcement, exercised on every call.
+- **Insufficient evidence returns exactly that**: `{ status: "insufficient_evidence", sample_size, threshold }`, never a fabricated proposal.
+- **Never fabricates learning**: the proposed value is the directly-observed empirical accuracy from real evaluated predictions — not an invented number, not extrapolated beyond the sample.
+
+**A real bug was caught and fixed during testing, not just typechecked away**: the first implementation passed the freshly-computed accuracy as the fallback `current_value` when seeding a brand-new parameter row, which meant `current_value` silently took on a data-derived value on a parameter's very first proposal — a real violation of "never auto-promote," even though `promoteLearningParameter` itself was never called. The behavioral smoke test (`scripts/oyi-programme4-learning-proposal-smoke.mjs`, using a fake Supabase) caught this directly by asserting `current_value` stays untouched; fixed by seeding new parameters with a neutral `0.5` instead of the computed value.
+
+Wired into the same BullMQ queue Phase H's scheduler already uses (`oyi-proactive-intelligence`), as a second, independently-flagged (`OYI_LEARNING_PROPOSAL_ENABLED`, separate from `OYI_PROACTIVE_SCHEDULER_ENABLED`) repeatable job with its own interval (`OYI_LEARNING_PROPOSAL_INTERVAL_MS`, default daily) — a deployment can run proactive delivery without learning proposals or vice versa. No second scheduler mechanism introduced.
+
+Regression coverage: `scripts/oyi-programme4-learning-proposal-smoke.mjs` (`npm run smoke:programme4-learning-proposal`) — 6 behavioral checks against a fake Supabase (below-threshold skip, at-threshold proposal with correct bounds/evidence/non-promotion, idempotent re-run, structural no-auto-promotion, real-evaluator-only targeting), all passing. `scripts/oyi-programme4-proactive-scheduler-smoke.mjs` extended with 2 more checks for the independent enable flag and job wiring (now 12 total, all passing). typecheck/build clean.

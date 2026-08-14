@@ -65,7 +65,7 @@ check("TTS failure preserves the canonical text response for accessibility and f
 });
 
 check("voice and visual turns enter the same canonical Oyi Core conversation path", () => {
-  assert.match(oyiTurn, /runCanonicalConversation/);
+  assert.match(oyiTurn, /conversationOrchestrator\.run/);
   assert.match(oyiTurn, /public_corporate/);
   assert.match(oyiTurn, /office_internal/);
   assert.match(oyiTurn, /deniedPublicCorporateOperationalRequest/);

@@ -12,7 +12,7 @@ const officeRouteSource = fs.readFileSync(new URL("../dist/routes/officeExport.j
 assert.ok(serviceSource.includes("office_internal"), "Oyi surface registry must include office_internal");
 assert.ok(policySource.includes("Ochiga staff"), "Surface capability policy must describe Office Internal capabilities");
 assert.ok(officeRouteSource.includes("/conversation/internal"), "Office Internal conversation route must be mounted");
-assert.ok(officeRouteSource.includes("runCanonicalConversation"), "Office Internal route must call canonical Oyi conversation runtime");
+assert.ok(officeRouteSource.includes("conversationOrchestrator.run"), "Office Internal route must call canonical Oyi ConversationOrchestrator");
 
 assert.equal(deniedOfficeInternalOperationalRequest({ message: "Unlock the front door", permissions: [] }), true);
 assert.equal(deniedOfficeInternalOperationalRequest({ message: "Which support cases are overdue?", permissions: [] }), false);

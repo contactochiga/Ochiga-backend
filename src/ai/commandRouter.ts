@@ -1679,6 +1679,32 @@ export async function routeAiCommand(req: Request | undefined, input: AiCommandR
   return { results, scope, safe_mode: true };
 }
 
+// Programme 4 Phase L — ai_execution_ledger has actor_email and
+// prompt_excerpt columns; select("*") was returning both, unredacted, to
+// any authenticated user scoped only by home_id/estate_id — meaning any
+// other resident in the same home, or any staff member in the same
+// estate, could read every other actor's email address and raw prompt
+// text. Mirrors the redaction pattern deviceCommandExecutionStore.ts's
+// publicRecord() already uses for the same table.
+function publicLedgerRecord(row: Record<string, any>) {
+  return {
+    id: row?.id ?? null,
+    actor_user_id: row?.actor_user_id ?? null,
+    actor_role: row?.actor_role ?? null,
+    estate_id: row?.estate_id ?? null,
+    home_id: row?.home_id ?? null,
+    tool_id: row?.tool_id ?? null,
+    execution_status: row?.execution_status ?? null,
+    requested_at: row?.requested_at ?? null,
+    confirmed_at: row?.confirmed_at ?? null,
+    executed_at: row?.executed_at ?? null,
+    denied_at: row?.denied_at ?? null,
+    result_summary: row?.result_summary ?? null,
+    error_message: row?.error_message ?? null,
+    contract_version: row?.contract_version ?? null,
+  };
+}
+
 export async function listAiLedger(actor: AuthUser, limit = 100) {
   let query = supabaseAdmin
     .from("ai_execution_ledger")
@@ -1689,7 +1715,7 @@ export async function listAiLedger(actor: AuthUser, limit = 100) {
   else if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
   const { data, error } = await query;
   if (error) return { available: false, error: error.message, executions: [] };
-  return { available: true, executions: data || [] };
+  return { available: true, executions: (data || []).map(publicLedgerRecord) };
 }
 
 export async function listAiConfirmations(actor: AuthUser, limit = 50) {
@@ -1703,7 +1729,7 @@ export async function listAiConfirmations(actor: AuthUser, limit = 50) {
   else if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
   const { data, error } = await query;
   if (error) return { available: false, error: error.message, confirmations: [] };
-  return { available: true, confirmations: data || [] };
+  return { available: true, confirmations: (data || []).map(publicLedgerRecord) };
 }
 
 export async function updateAiConfirmation(actor: AuthUser, ledgerId: string, decision: "confirmed" | "denied") {
@@ -1759,5 +1785,5 @@ export async function updateAiConfirmation(actor: AuthUser, ledgerId: string, de
     .select("*")
     .maybeSingle();
   if (error) return { ok: false, error: error.message, record: null };
-  return { ok: true, record: data };
+  return { ok: true, record: data ? publicLedgerRecord(data) : null };
 }

@@ -134,9 +134,18 @@ export async function loadMaintenanceRequestFacts(
     temporal_mode: contract.temporal_scope.mode,
   };
   try {
+    // Programme 4 Phase L — resident_id/category/priority were never real
+    // columns on maintenance_requests (verified against every migration
+    // that touches this table; the base schema only has user_id, and no
+    // later migration adds the other two). This select always errored,
+    // so this loader silently returned "unavailable" for every call —
+    // Direct Evidence for maintenance never actually worked. Fixed to
+    // select only columns that exist; maintenanceFromRow's existing
+    // `|| null` / `|| "medium"` fallbacks already handle their absence
+    // safely, so no other code change is needed.
     let query = supabaseAdmin
       .from("maintenance_requests")
-      .select("id,estate_id,home_id,room_id,resident_id,title,description,category,priority,status,assigned_to,created_at,updated_at")
+      .select("id,estate_id,home_id,room_id,user_id,title,description,status,assigned_to,created_at,updated_at")
       .order("created_at", { ascending: false })
       .limit(50);
     query = isFacilitySurface ? query.eq("estate_id", scope.estate_id) : query.eq("home_id", scope.home_id);

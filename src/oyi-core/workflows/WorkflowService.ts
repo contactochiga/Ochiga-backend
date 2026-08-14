@@ -5,6 +5,7 @@ import { assertWorkflowTransition, isTerminalWorkflowStatus } from "./WorkflowSt
 import type { WorkflowRepository } from "./WorkflowRepository";
 import { InMemoryWorkflowRepository, SupabaseWorkflowRepository } from "./WorkflowRepository";
 import { logger } from "../../observability/logger";
+import { operationalMetrics } from "../../observability/metrics";
 
 function nowIso() {
   return new Date().toISOString();
@@ -100,6 +101,7 @@ export class WorkflowService {
         status: workflow.status,
         revision: workflow.revision,
       });
+      operationalMetrics.increment("oyi_workflow_restored_total", { domain: workflow.domain, source: "thread", status: workflow.status });
     }
     return workflow;
   }
@@ -139,6 +141,7 @@ export class WorkflowService {
         status: workflow.status,
         reason: deniedReason,
       });
+      operationalMetrics.increment("oyi_workflow_reference_rejected_total", { domain: workflow.domain, reason: deniedReason });
       return null;
     }
     logger.info("oyi_workflow_restored", {
@@ -150,6 +153,7 @@ export class WorkflowService {
       revision: workflow.revision,
       restore_strategy: "explicit_workflow_reference",
     });
+    operationalMetrics.increment("oyi_workflow_restored_total", { domain: workflow.domain, source: "explicit_reference", status: workflow.status });
     return workflow;
   }
 

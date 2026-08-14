@@ -297,7 +297,11 @@
     "smoke:direct-evidence-programme1": "npm run build && node scripts/oyi-direct-evidence-programme1-smoke.mjs",
     "smoke:programme1-deep-conversation": "npm run build && node scripts/oyi-programme1-deep-conversation-smoke.mjs",
     "smoke:programme2-room-home-intelligence": "npm run build && node scripts/oyi-programme2-room-home-intelligence-smoke.mjs",
-    "smoke:programme3-prediction-forecasting": "npm run build && node scripts/oyi-programme3-prediction-forecasting-smoke.mjs"
+    "smoke:programme3-prediction-forecasting": "npm run build && node scripts/oyi-programme3-prediction-forecasting-smoke.mjs",
+    "smoke:programme4-authority-privacy-closure": "npm run build && node scripts/oyi-programme4-authority-privacy-closure-smoke.mjs",
+    "smoke:programme4-proactive-scheduler": "node scripts/oyi-programme4-proactive-scheduler-smoke.mjs",
+    "smoke:programme4-learning-proposal": "npm run build && node scripts/oyi-programme4-learning-proposal-smoke.mjs",
+    "smoke:programme4-schema-hydration": "node scripts/oyi-programme4-schema-hydration-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

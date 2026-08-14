@@ -1,6 +1,7 @@
 import type { AuthUser } from "../../middleware/auth";
 import { hasPermission, permissionsForRole } from "../../core/foundation";
 import { logger } from "../../observability/logger";
+import { operationalMetrics } from "../../observability/metrics";
 import type { OisContext } from "../../types/oisContext";
 import type { OyiSurface } from "../../services/oyiUnifiedIntelligenceService";
 import type { CapabilityContext, CapabilityModule, CapabilityRolloutStatus } from "../contracts/capability";
@@ -115,6 +116,9 @@ function privacyAllowed(module: CapabilityModule, evidence: OyiEvidence[], conte
       if (context.surface === "facility" && module.domain === "wallet") return "resident_private_financial_evidence_restricted";
       if (context.surface === "public_corporate" || context.surface === "office_internal") return "resident_private_evidence_restricted_to_operational_surfaces";
     }
+    if (item.privacy_class === "facility_sensitive" && (context.surface === "public_corporate" || context.surface === "office_internal")) {
+      return "facility_sensitive_evidence_restricted_to_operational_surfaces";
+    }
   }
   return null;
 }
@@ -174,6 +178,7 @@ export class CapabilityService {
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score)[0]?.module || null;
     if (!candidate) {
+      operationalMetrics.increment("oyi_capability_resolution_total", { outcome: "unsupported", reason: "capability_not_registered" });
       return { capability: null, matched_capability: null, rollout_status: "not_registered", authority: null, legacy_fallback_reason: "capability_not_registered" };
     }
     const authority = this.canUse(candidate.key, { actor: context.actor, oisContext: context.oisContext, surface, scope });
@@ -194,8 +199,18 @@ export class CapabilityService {
       authority_allowed: authority.allowed,
       reason: authority.reason,
     });
-    if (!capabilityEnabled(candidate)) return { capability: null, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: `capability_${candidate.rolloutStatus}` };
-    if (!authority.allowed) return { capability: candidate, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: null };
+    // Programme 4 Phase J — "capability unsupported" / "permission
+    // restricted" from the spec's explicit counter list, promoted from
+    // the log line above into a queryable counter.
+    if (!capabilityEnabled(candidate)) {
+      operationalMetrics.increment("oyi_capability_resolution_total", { outcome: "unsupported", reason: `capability_${candidate.rolloutStatus}` });
+      return { capability: null, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: `capability_${candidate.rolloutStatus}` };
+    }
+    if (!authority.allowed) {
+      operationalMetrics.increment("oyi_capability_resolution_total", { outcome: authority.reason === "missing_permission" ? "permission_restricted" : "denied", reason: authority.reason || "unknown" });
+      return { capability: candidate, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: null };
+    }
+    operationalMetrics.increment("oyi_capability_resolution_total", { outcome: "allowed", reason: "ok" });
     return { capability: candidate, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: null };
   }
 

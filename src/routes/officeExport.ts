@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
-import { runCanonicalConversation } from "../oyi-core/runtime/canonicalConversationRuntime";
+import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
 import type { AuthUser } from "../middleware/auth";
 import {
   officeCredentialTimingSafeEqual,
@@ -276,13 +276,16 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
     });
   }
 
-  const canonical = await runCanonicalConversation(publicCorporateActor, {
+  const canonical = await conversationOrchestrator.run({
+    actor: publicCorporateActor,
+    oisContext: {
     surface: "public_corporate" as any,
     estate_id: null,
     home_id: null,
     module: "corporate_public",
     role: corporateRequest.agent_role,
-  } as any, {
+  } as any,
+    input: {
     message: corporateRequest.message,
     surface: "public_corporate",
     role: corporateRequest.agent_role,
@@ -312,6 +315,7 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
     intent_hint: "corporate_public_conversation",
     operation_class_hint: "read",
     scope_mode_hint: "global",
+    } as any,
   });
   const response = buildCorporatePublicResponse(corporateRequest, canonical);
   void emitAuditEvent({
@@ -360,13 +364,16 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
   }
 
   const actor = officeInternalActor(internalRequest);
-  const canonical = await runCanonicalConversation(actor, {
+  const canonical = await conversationOrchestrator.run({
+    actor,
+    oisContext: {
     surface: "office_internal" as any,
     estate_id: null,
     home_id: null,
     module: "office_internal",
     role: internalRequest.staff.role,
-  } as any, {
+  } as any,
+    input: {
     message: internalRequest.message,
     surface: "office_internal" as any,
     role: internalRequest.staff.role,
@@ -395,7 +402,8 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
     intent_hint: "office_internal_conversation",
     operation_class_hint: "read",
     scope_mode_hint: "global",
-  } as any);
+    } as any,
+  });
   const response = buildOfficeInternalResponse(internalRequest, canonical);
   void emitAuditEvent({
     actorId: actor.id,

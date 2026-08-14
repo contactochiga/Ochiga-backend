@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
+import { operationalMetrics } from "../../../observability/metrics";
 import { listPersistedPredictions } from "./predictionPersistence";
 import { loadMaintenanceRequestFacts } from "../maintenance/maintenanceEvidence";
 import { loadAutomationRunFacts } from "../automations/sceneAutomationEvidence";
@@ -115,6 +116,12 @@ export async function evaluateOpenPredictions(scope: { estate_id?: string | null
       await closePrediction(result);
     }
   }
+  // Programme 4 Phase J — "outcome evaluation" counter, instrumented at
+  // the source so every caller (Phase H's scheduler, any future manual
+  // call) is covered, not just the scheduler's own tick summary.
+  for (const result of evaluated) {
+    operationalMetrics.increment("oyi_outcome_evaluations_total", { prediction_type: result.prediction_type, outcome: result.outcome });
+  }
   return { evaluated, skipped: rows.length - eligible.length };
 }
 
@@ -168,5 +175,41 @@ export async function summarizeEvaluatedPredictions(scope: { estate_id?: string 
   } catch (error) {
     logger.warn("oyi_prediction_evaluation_summary_failed", { error });
     return { unavailable: true, total: 0, realized: 0, not_realized: 0, accuracy: null as number | null };
+  }
+}
+
+// Programme 4 Phase I — global (cross-estate, cross-home) evaluation-quality
+// aggregation for a single prediction_type. Deliberately unscoped: a single
+// home rarely accumulates enough evaluated predictions to clear a sample
+// threshold, and a learning parameter is a shared, global calibration, not
+// something independently relearned per home. Reuses the same
+// intelligence_feedback outcome rows evaluateOpenPredictions already wrote
+// — no second evaluation pipeline.
+export async function summarizeEvaluatedPredictionsByType(predictionType: string, limit = 500): Promise<{ unavailable: boolean; total: number; realized: number; not_realized: number; accuracy: number | null }> {
+  try {
+    const { data: predictionRows, error: predictionError } = await supabaseAdmin
+      .from("ochiga_intelligence_predictions")
+      .select("id")
+      .eq("prediction_type", predictionType)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (predictionError) throw predictionError;
+    const ids = (predictionRows || []).map((row: any) => String(row.id));
+    if (!ids.length) return { unavailable: false, total: 0, realized: 0, not_realized: 0, accuracy: null };
+    const { data, error } = await supabaseAdmin.from("intelligence_feedback").select("object_id,outcome_metadata").eq("object_type", "oyi_prediction").eq("feedback_type", "outcome_evaluation").in("object_id", ids);
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    let realized = 0;
+    let notRealized = 0;
+    for (const row of rows as any[]) {
+      const outcome = text(recordOf(row.outcome_metadata).outcome);
+      if (outcome === "realized") realized += 1;
+      else if (outcome === "not_realized") notRealized += 1;
+    }
+    const total = realized + notRealized;
+    return { unavailable: false, total, realized, not_realized: notRealized, accuracy: total ? realized / total : null };
+  } catch (error) {
+    logger.warn("oyi_prediction_evaluation_summary_by_type_failed", { predictionType, error });
+    return { unavailable: true, total: 0, realized: 0, not_realized: 0, accuracy: null };
   }
 }

@@ -7,6 +7,7 @@ import { assertActionTransition, isTerminalActionStatus } from "./ActionStateMac
 import type { ActionRepository } from "./ActionRepository";
 import { InMemoryActionRepository, SupabaseActionRepository } from "./ActionRepository";
 import { logger } from "../../observability/logger";
+import { operationalMetrics } from "../../observability/metrics";
 
 function nowIso() {
   return new Date().toISOString();
@@ -154,6 +155,11 @@ export class ActionService {
       to_status: saved.status,
       revision: saved.revision,
     });
+    // Programme 4 Phase J — single instrumentation point for every action
+    // status transition (confirmed/cancelled/failed/unobservable/etc, per
+    // the spec's explicit counter list), since every transition already
+    // flows through this one method.
+    operationalMetrics.increment("oyi_action_transitions_total", { domain: saved.domain, to_status: saved.status });
     return saved;
   }
 

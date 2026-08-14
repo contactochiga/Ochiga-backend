@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import type { AuthUser } from "../../middleware/auth";
-import { runCanonicalConversation } from "../../oyi-core/runtime/canonicalConversationRuntime";
+import { conversationOrchestrator } from "../../oyi-core/orchestration/ConversationOrchestrator";
 import type { CanonicalConversationResponse } from "../../oyi-core/contracts/canonicalConversation";
 import {
   CORPORATE_INTELLIGENCE_CONTRACT_VERSION,
@@ -101,13 +101,16 @@ export async function runOyiCommunicationTurn(input: OyiCommunicationTurnInput):
       throw new CommunicationOyiTurnError(403, "public_capability_blocked", "Corporate/Public intelligence cannot access or control private operational systems.");
     }
     const publicSessionId = safeText(input.public_session_id, `public_session_${requestId}`);
-    const canonical = await runCanonicalConversation(publicCorporateActor, {
+    const canonical = await conversationOrchestrator.run({
+      actor: publicCorporateActor,
+      oisContext: {
       surface: "public_corporate" as any,
       estate_id: null,
       home_id: null,
       module: "corporate_public",
       role: safeText(input.agent_role, "oma"),
-    } as any, {
+    } as any,
+      input: {
       message,
       surface: "public_corporate",
       role: safeText(input.agent_role, "oma"),
@@ -140,6 +143,7 @@ export async function runOyiCommunicationTurn(input: OyiCommunicationTurnInput):
       intent_hint: "corporate_public_conversation",
       operation_class_hint: "read",
       scope_mode_hint: "global",
+      } as any,
     });
     return { canonical, response_text: assistantText(canonical), oyi_thread_id: canonical.thread_id || input.oyi_thread_id || null };
   }
@@ -148,13 +152,16 @@ export async function runOyiCommunicationTurn(input: OyiCommunicationTurnInput):
   if (deniedOfficeInternalOperationalRequest({ message, permissions: actor.permissions || [] })) {
     throw new CommunicationOyiTurnError(403, "office_operational_capability_blocked", "Office intelligence cannot bypass Facility or Consumer operational authorization.");
   }
-  const canonical = await runCanonicalConversation(actor, {
+  const canonical = await conversationOrchestrator.run({
+    actor,
+    oisContext: {
     surface: "office_internal" as any,
     estate_id: null,
     home_id: null,
     module: input.surface === "support" ? "support_communications" : "office_internal",
     role: actor.role,
-  } as any, {
+  } as any,
+    input: {
     message,
     surface: "office_internal" as any,
     role: actor.role,
@@ -180,6 +187,7 @@ export async function runOyiCommunicationTurn(input: OyiCommunicationTurnInput):
     intent_hint: input.surface === "support" ? "support_conversation" : "office_internal_conversation",
     operation_class_hint: "read",
     scope_mode_hint: "global",
-  } as any);
+    } as any,
+  });
   return { canonical, response_text: assistantText(canonical), oyi_thread_id: canonical.thread_id || input.oyi_thread_id || null };
 }
