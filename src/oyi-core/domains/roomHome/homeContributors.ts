@@ -10,6 +10,8 @@ import { loadServicesActiveFacts } from "../services/serviceEvidence";
 import { loadWalletBalanceFacts, loadWalletTransactionFacts } from "../wallet/walletEvidence";
 import { loadCommunityPostFacts } from "../community/communityEvidence";
 import { loadSceneFacts, loadAutomationFacts, loadAutomationRunFacts } from "../automations/sceneAutomationEvidence";
+import { runIntelligenceOrchestrator } from "../intelligence/intelligenceOrchestrator";
+import { factFromAnomaly, factFromPrediction, factFromRecommendation } from "../intelligence/intelligenceCapabilities";
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -205,6 +207,39 @@ const automationsContributor: Contributor = {
   },
 };
 
+// Programme 3 — folds anomalies/predictions/recommendations into the Home
+// summary as an attention-eligible contributor, same shape as every other
+// domain here. Forecasts are deliberately excluded (they belong to the
+// explicit forecasts.read capability, not a home-summary attention item —
+// a trend is informational, not something needing attention). Never
+// persists (persist: false) and never proactively delivers (proactive:
+// false) — a plain "how is my home" question must stay a pure read, with
+// no side effect of writing rows or sending a notification.
+const intelligenceContributor: Contributor = {
+  domain: "intelligence",
+  supports: alwaysSupports,
+  contribute: async (context: ContributorContext) => {
+    const result = await runIntelligenceOrchestrator({ input: context.input, oisContext: context.oisContext, contract: context.contract, scope: context.scope, persist: false, proactive: false });
+    const facts = [
+      ...result.anomalies.map(factFromAnomaly),
+      ...result.predictions.map(factFromPrediction),
+      ...result.recommendations.map(factFromRecommendation),
+    ];
+    return buildContributorSummary({
+      domain: "intelligence",
+      facts,
+      summary: facts.length
+        ? `${result.anomalies.length} anomaly signal${result.anomalies.length === 1 ? "" : "s"}, ${result.predictions.length} prediction${result.predictions.length === 1 ? "" : "s"}, ${result.recommendations.length} recommendation${result.recommendations.length === 1 ? "" : "s"}.`
+        : "No anomalies, predictions, or recommendations right now.",
+      isAttention: (fact) => ["warning", "critical"].includes(text(recordOf(fact.value).severity)),
+      severityFor: (attention) => {
+        if (!attention.length) return "none";
+        return attention.some((fact) => text(recordOf(fact.value).severity) === "critical") ? "critical" : "warning";
+      },
+    });
+  },
+};
+
 export const HOME_CONTRIBUTORS: Contributor[] = [
   devicesContributor,
   securityContributor,
@@ -216,4 +251,5 @@ export const HOME_CONTRIBUTORS: Contributor[] = [
   automationsContributor,
   scenesContributor,
   communityContributor,
+  intelligenceContributor,
 ];

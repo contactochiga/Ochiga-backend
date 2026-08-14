@@ -71,16 +71,40 @@ export interface RoomIntelligenceContributor {
   contribute(context: AuthorizedRoomContext): Promise<RoomContribution>;
 }
 
+// Programme 3 note: these two types predate any real caller (grep confirms
+// zero call sites before this pass) but their shape already matched the
+// Programme 3 taxonomy closely, so they are MATURED in place — extended
+// additively, not replaced — rather than introducing a second "Anomaly"/
+// "Prediction" contract elsewhere. scope/object_refs are new; everything
+// else is unchanged from the original definition.
+export type OperationalScope = {
+  estate_id: string | null;
+  home_id: string | null;
+  room_id: string | null;
+};
+
 export type OperationalAnomaly = {
   anomaly_id: string;
   domain: OyiDomain;
   anomaly_type: string;
+  scope: OperationalScope;
   subject: CanonicalTarget | null;
+  object_refs: CanonicalTarget[];
   generated_at: string;
+  // What window of evidence this anomaly was detected over, and what made
+  // it anomalous — a plain deviation description, not a fabricated
+  // statistical model unless a detector genuinely computes one.
+  window: { from: string | null; to: string | null } | null;
+  baseline: string | null;
+  observed: string | null;
+  deviation: string | null;
   severity: "info" | "attention" | "warning" | "critical";
   confidence: number;
   evidence_ids: string[];
   status: "active" | "acknowledged" | "resolved" | "dismissed" | "expired";
+  explanation: string;
+  source_model: string;
+  source_model_version: string;
   limitations: string[];
   payload: Record<string, unknown>;
 };
@@ -89,7 +113,9 @@ export type OperationalPrediction = {
   prediction_id: string;
   domain: OyiDomain;
   prediction_type: string;
+  scope: OperationalScope;
   subject: CanonicalTarget | null;
+  object_refs: CanonicalTarget[];
   generated_at: string;
   horizon: string;
   predicted_value: unknown;
@@ -97,12 +123,62 @@ export type OperationalPrediction = {
   confidence: number;
   severity: "info" | "attention" | "warning" | "critical";
   evidence_ids: string[];
+  reasoning_summary: string;
   model_name: string;
   model_version: string;
   model_type: "rule" | "statistical" | "machine_learning" | "hybrid";
   expires_at: string | null;
   status: "active" | "realized" | "not_realized" | "partial" | "expired" | "dismissed";
   limitations: string[];
+};
+
+// New — no forecast contract existed before Programme 3. Only enabled for
+// metrics with real historical numerical data (see forecastProviders.ts) —
+// confidence_interval is null (not fabricated) when the method cannot
+// justify an uncertainty estimate; data_quality is then the honest signal
+// instead.
+export type OperationalForecast = {
+  forecast_id: string;
+  domain: OyiDomain;
+  metric: string;
+  scope: OperationalScope;
+  object_refs: CanonicalTarget[];
+  generated_at: string;
+  forecast_horizon: string;
+  time_points: string[];
+  predicted_values: number[];
+  confidence_interval: { lower: number[]; upper: number[] } | null;
+  baseline: { method: string; values: number[] } | null;
+  historical_window: { from: string; to: string; sample_count: number };
+  method: string;
+  method_version: string;
+  evidence_ids: string[];
+  data_quality: "sufficient" | "limited" | "stale" | "sparse" | "unavailable" | "unsupported";
+  status: "active" | "expired" | "evaluated";
+};
+
+// New — first-class recommendation object, distinct from the lighter
+// RecommendedIntelligenceAction (a UI action affordance) already defined
+// above. A recommendation may reference an actionable capability, but
+// Programme 3 never executes it — see recommendationPlanner.ts.
+export type OperationalRecommendation = {
+  recommendation_id: string;
+  domain: OyiDomain;
+  scope: OperationalScope;
+  object_refs: CanonicalTarget[];
+  created_at: string;
+  severity: "info" | "attention" | "warning" | "critical";
+  title: string;
+  summary: string;
+  reason: string;
+  evidence_ids: string[];
+  suggested_action: string;
+  actionability: "informational" | "review" | "actionable";
+  requires_confirmation: boolean;
+  capability_key: string | null;
+  expires_at: string | null;
+  status: "open" | "accepted" | "dismissed" | "executed" | "expired" | "superseded";
+  dedup_key: string;
 };
 
 export type PredictionOutcome = {
@@ -113,6 +189,18 @@ export type PredictionOutcome = {
   prediction_error: number | null;
   time_to_event_ms: number | null;
   confidence_calibration: number | null;
+  evidence_ids: string[];
+};
+
+export type ForecastOutcome = {
+  forecast_id: string;
+  evaluated_at: string;
+  time_point: string;
+  predicted_value: number;
+  actual_value: number;
+  absolute_error: number;
+  percentage_error: number | null;
+  within_confidence_interval: boolean | null;
   evidence_ids: string[];
 };
 

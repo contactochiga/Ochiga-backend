@@ -25,6 +25,7 @@ import { loadSceneFacts, loadAutomationFacts, loadAutomationRunFacts } from "../
 import { buildSceneAutomationReadAnswer, buildAutomationRunsAnswer } from "../domains/automations/sceneAutomationConversationAnswers";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { buildRoomHomeCapabilities } from "../domains/roomHome/roomHomeCapabilities";
+import { buildIntelligenceCapabilities } from "../domains/intelligence/intelligenceCapabilities";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -420,7 +421,10 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["wallet.read", "services.read"],
       scopeRequirements: homeScope,
       evidenceRequirements: [readRequirement("utilities", "utility_spending")],
-      supports: (frame) => frame.domain === "utilities" && (frame.operation === "utilities.spending" || /\bspent|spending|how much|costs?|paid|payment\b/i.test(frame.normalizedText)),
+      // Excludes explicit "forecast" wording — "forecast my electricity
+      // spending" is forward-looking (Programme 3's forecasts.read), not a
+      // historical-spend read, even though it shares "spending" vocabulary.
+      supports: (frame) => frame.domain === "utilities" && !/\bforecast\b/i.test(frame.normalizedText) && (frame.operation === "utilities.spending" || /\bspent|spending|how much|costs?|paid|payment\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadUtilitySpendingFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);
@@ -711,5 +715,8 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
     // promoted to real Room/Home Intelligence capabilities (Programme 2),
     // see domains/roomHome/roomHomeCapabilities.ts.
     ...buildRoomHomeCapabilities(),
+    // Programme 3 — anomaly/prediction/forecast/recommendation reads. See
+    // domains/intelligence/intelligenceCapabilities.ts.
+    ...buildIntelligenceCapabilities(),
   ];
 }

@@ -3,6 +3,8 @@ import type { Contributor, ContributorContext, ContributorScope } from "./contri
 import { loadHomeDeviceInventoryFacts } from "../devices/deviceEvidence";
 import { loadMaintenanceRequestFacts } from "../maintenance/maintenanceEvidence";
 import { loadSecurityIncidentFacts } from "../security/securityEvidence";
+import { runIntelligenceOrchestrator } from "../intelligence/intelligenceOrchestrator";
+import { factFromAnomaly, factFromPrediction, factFromRecommendation } from "../intelligence/intelligenceCapabilities";
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -86,8 +88,37 @@ const securityRoomContributor: Contributor = {
   },
 };
 
+// Only surfaces anomalies/predictions/recommendations whose OWN scope is
+// tied to this exact room (device.offline_cluster carries room_id from the
+// device_events row; maintenance.aging carries it from the request's
+// scope) — never the whole home's intelligence narrowed after the fact,
+// which would misleadingly imply a home-wide issue is room-specific.
+const intelligenceRoomContributor: Contributor = {
+  domain: "intelligence",
+  supports: roomIdRequired,
+  contribute: async (context: ContributorContext) => {
+    const result = await runIntelligenceOrchestrator({ input: context.input, oisContext: context.oisContext, contract: context.contract, scope: context.scope, persist: false, proactive: false });
+    const facts = [
+      ...result.anomalies.filter((a) => a.scope.room_id === context.scope.room_id).map(factFromAnomaly),
+      ...result.predictions.filter((p) => p.scope.room_id === context.scope.room_id).map(factFromPrediction),
+      ...result.recommendations.filter((r) => r.scope.room_id === context.scope.room_id).map(factFromRecommendation),
+    ];
+    return buildContributorSummary({
+      domain: "intelligence",
+      facts,
+      summary: facts.length ? `${facts.length} intelligence signal${facts.length === 1 ? "" : "s"} linked to this room.` : "No anomalies, predictions, or recommendations linked to this room.",
+      isAttention: (fact) => ["warning", "critical"].includes(text(recordOf(fact.value).severity)),
+      severityFor: (attention) => {
+        if (!attention.length) return "none";
+        return attention.some((fact) => text(recordOf(fact.value).severity) === "critical") ? "critical" : "warning";
+      },
+    });
+  },
+};
+
 export const ROOM_CONTRIBUTORS: Contributor[] = [
   devicesRoomContributor,
   maintenanceRoomContributor,
   securityRoomContributor,
+  intelligenceRoomContributor,
 ];

@@ -1,6 +1,6 @@
 # Oyi Intelligence Permanent-Site Architecture
 
-Status: Programme 2 complete — Room Intelligence (Phase F) and Home Intelligence (Phase G), built on Programme 1's direct evidence + Deep Domain Conversation layer and the Phase A/B/C durable conversation/workflow/action foundation.
+Status: Programme 3 complete — Prediction Standardization (Phase H), Numerical Forecasting (Phase I), Outcome Evaluation + Learning (Phase J), Proactive Intelligence (Phase K), built on Programme 2's Room/Home Intelligence, Programme 1's direct evidence + Deep Domain Conversation layer, and the Phase A/B/C durable conversation/workflow/action foundation.
 
 ## Target Lifecycle
 
@@ -142,6 +142,26 @@ Room and Home aggregation are now complete (Programme 2, above).
 - `home.activity.read`/`room.activity.read` use a generic recency-ordered fact composition, not a purpose-built cross-domain activity feed with per-domain temporal bucketing (today/yesterday/overnight are approximated via the existing `temporalScopeFor` "recent" 6-hour fallback where a domain has no dedicated today/yesterday branch).
 - No caching layer — every Room/Home answer re-queries current evidence live (deliberate, per §60: avoid caching unless profiling shows a need; ~10 contributors run in parallel, not sequentially).
 - Forecasting, prediction, proactive/anomaly intelligence — explicitly out of scope for Programme 2 (Programme 3 territory).
+
+## Programme 3 — Prediction + Forecasting + Outcomes/Learning + Proactive Intelligence
+
+Full detail in `OYI_PREDICTION_LEARNING_MODEL.md`. Summary:
+
+`CANONICAL EVIDENCE -> OPERATIONAL KNOWLEDGE -> ANOMALY -> PREDICTION -> FORECAST -> RECOMMENDATION -> OUTCOME -> EVALUATION -> LEARNING -> PROACTIVE SURFACING`.
+
+- New `src/oyi-core/domains/intelligence/` module: `AnomalyDetector`/`PredictionProvider` registries (5 detectors, 4 providers — `device.offline_cluster`, `maintenance.aging`, `automation.failure_rate`, `security.incident_frequency`, `visitor.volume`, wrapped into `device.reliability`, `maintenance.risk`, `automation.reliability`, `security.pattern` predictions), a strangler adapter around the preserved, untouched legacy `predictionEngine.ts`, one real forecast (utility spending, `linear_trend` with baseline + backtested confidence interval), outcome evaluation against re-observed evidence, a bounded/versioned/human-gated learning-parameter module, a pure recommendation planner (dedup + rank, never marks anything actionable), and proactive delivery that calls the existing `NotificationService`/cooldown mechanism directly.
+- Canonical contracts matured in place (not redesigned): `OperationalAnomaly`/`OperationalPrediction` extended additively; `OperationalForecast`/`OperationalRecommendation`/`ForecastOutcome` are new. Zero duplicate names introduced.
+- Four new conversational capabilities (`anomalies.read`, `predictions.read`, `forecasts.read`, `recommendations.read`) and a new `intelligence` contributor in both `HOME_CONTRIBUTORS` and `ROOM_CONTRIBUTORS` — "why are you telling me this?" is answered entirely through Programme 1's existing grounded-explain/result-set machinery, no separate explanation system.
+- No new prediction/forecast/outcome tables — `ochiga_intelligence_predictions` and `intelligence_feedback` (both real, generic, pre-existing) are reused. The one genuinely new table is `oyi_learning_parameters` (bounded/versioned tuning parameters, RLS-enabled, service-role only).
+- Learning boundary enforced in code (`learningParameters.ts`'s `assertLearnableParameter`): anomaly/prediction/forecast/recommendation/ranking/notification-cooldown parameters are tunable; anything permission/RLS/financial-authority/confirmation/security-policy/safety-constraint/action-type-shaped is rejected before any read or write, with a smoke-tested regression guard.
+- No automatic execution or auto-applied learning anywhere — every recommendation is `capability_key: null`; every learning proposal requires an explicit, separate `promoteLearningParameter(..., "enabled")` call that nothing in the codebase invokes automatically.
+
+## Not Completed In Programme 3
+
+- No live scheduled/event trigger wired for proactive delivery — the evaluation/ranking/delivery logic is a directly-callable, tested function, not yet attached to a cron/queue.
+- Outcome evaluation covers three prediction types; anything else is honestly `unobservable`.
+- Forecasting covers only utility spending — no consumption/usage/meter-balance source data exists anywhere in the schema.
+- No automated loop yet proposes learning-parameter adjustments from real outcome data — the propose/promote path exists and is tested, not yet self-driving.
 
 ## Extension Pattern
 
