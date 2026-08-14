@@ -95,7 +95,7 @@ export type IntelligenceRequestContract = {
   intent: CanonicalIntent;
   scope_mode: ScopeMode;
   temporal_scope: {
-    mode: "current" | "recent" | "today" | "yesterday" | "custom" | "historical" | "forecast";
+    mode: "current" | "recent" | "today" | "yesterday" | "custom" | "historical" | "forecast" | "this_week" | "last_week" | "last_month";
     from: string | null;
     to: string | null;
   };

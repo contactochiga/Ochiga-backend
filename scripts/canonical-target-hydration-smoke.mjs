@@ -8,6 +8,34 @@ const registry = await import("../dist/oyi-core/runtime/canonicalTargetHydration
 const panelHydrationSource = await readFile(new URL("../src/services/canonicalDevicePanelHydrationService.ts", import.meta.url), "utf8");
 const panelControllerSource = await readFile(new URL("../src/controllers/deviceStateController.ts", import.meta.url), "utf8");
 const readResolverSource = await readFile(new URL("../src/services/canonicalDeviceReadResolver.ts", import.meta.url), "utf8");
+const hydrationRegistrySource = await readFile(new URL("../src/oyi-core/runtime/canonicalTargetHydrationRegistry.ts", import.meta.url), "utf8");
+
+async function runPhantomTableDefectRegression() {
+  // meter/infrastructure_asset previously pointed at utility_meters/
+  // facility_assets, neither of which exists in any migration — every
+  // hydration attempt for these types issued a doomed query. They must now
+  // resolve to "unsupported" without touching the database at all (no
+  // config entry means genericExactLoader short-circuits before querying).
+  assert.doesNotMatch(hydrationRegistrySource, /"utility_meters"/);
+  assert.doesNotMatch(hydrationRegistrySource, /"facility_assets"/);
+  const meterResult = await registry.hydrateCanonicalTarget({
+    target: { objectType: "meter", objectId: "meter-1", ambiguous: false },
+    homeId: "home-a",
+    estateId: "estate-a",
+  });
+  assert.equal(meterResult.status, "unsupported");
+  const assetResult = await registry.hydrateCanonicalTarget({
+    target: { objectType: "infrastructure_asset", objectId: "asset-1", ambiguous: false },
+    homeId: "home-a",
+    estateId: "estate-a",
+  });
+  assert.equal(assetResult.status, "unsupported");
+
+  // wallet_transactions has no currency column (it lives in
+  // metadata.currency) — selecting it made every transaction hydration
+  // fail with a "column does not exist" query error.
+  assert.doesNotMatch(hydrationRegistrySource, /transaction:\s*\{[^}]*\bcurrency\b/);
+}
 
 function validVisibleState(overrides = {}) {
   const fetchedAt = new Date().toISOString();

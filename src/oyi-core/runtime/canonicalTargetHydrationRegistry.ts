@@ -486,7 +486,10 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
     scene: { table: "consumer_scenes", select: "id,name,estate_id,home_id,enabled,updated_at,actions", label: "Scene", module: "scenes" },
     automation: { table: "consumer_automations", select: "id,name,estate_id,home_id,enabled,next_run_at,last_run_status,updated_at,actions,trigger", label: "Automation", module: "automations" },
     maintenance_request: { table: "maintenance_requests", select: "id,title,estate_id,home_id,status,assigned_to,updated_at", label: "Maintenance request", module: "maintenance" },
-    transaction: { table: "wallet_transactions", select: "id,wallet_id,status,reference,created_at,amount,currency", label: "Transaction", module: "wallet" },
+    // currency is intentionally not selected: wallet_transactions has no
+    // currency column (it lives in metadata.currency, see walletEvidence.ts
+    // walletFromRow) — selecting it made every transaction hydration fail.
+    transaction: { table: "wallet_transactions", select: "id,wallet_id,status,reference,created_at,amount,metadata", label: "Transaction", module: "wallet" },
     visitor: { table: "visitors", select: "id,name,estate_id,home_id,status,updated_at", label: "Visitor", module: "visitors" },
     access_pass: { table: "visitor_access", select: "id,visitor_name,estate_id,home_id,status,updated_at,purpose,expires_at", label: "Access pass", module: "visitors" },
     service_account: { table: "home_service_accounts", select: "id,estate_id,home_id,service_key,provider,status,account_ref,meter_id,updated_at", label: "Service account", module: "services" },
@@ -494,9 +497,12 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
     message_thread: { table: "dm_threads", select: "id,estate_id,updated_at", label: "Message thread", module: "messages" },
     notification: { table: "notifications", select: "id,title,body,user_id,estate_id,home_id,read,created_at,metadata", label: "Notification", module: "notifications" },
     operational_incident: { table: "operational_incidents", select: "id,title,estate_id,home_id,status,severity,updated_at,current_summary", label: "Incident", module: "incidents" },
-    infrastructure_asset: { table: "facility_assets", select: "id,name,estate_id,building_id,status,health_status,updated_at,metadata", label: "Infrastructure asset", module: "infrastructure" },
+    // infrastructure_asset (facility_assets) and meter (utility_meters) are
+    // intentionally omitted: neither table exists in any migration. No real
+    // per-asset/per-meter source exists yet, so hydration now honestly
+    // returns "unsupported" for these types instead of failing a doomed
+    // query against a nonexistent table on every attempt.
     camera: { table: "facility_cameras", select: "id,name,estate_id,room_id,status,health_status,updated_at,dvr_id", label: "Camera", module: "cameras" },
-    meter: { table: "utility_meters", select: "id,name,estate_id,home_id,status,updated_at,metadata", label: "Meter", module: "meters" },
     wallet: { table: "wallets", select: "id,user_id,currency,is_frozen,updated_at", label: "Wallet", module: "wallet" },
     security_incident: { table: "facility_incidents", select: "id,title,estate_id,home_id,severity,status,location,opened_at,updated_at", label: "Security incident", module: "security" },
     utility_tariff: { table: "estate_service_configs", select: "id,title,service_key,estate_id,unit_cost,unit_name,currency,updated_at", label: "Utility tariff", module: "utilities" },

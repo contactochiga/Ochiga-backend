@@ -7,6 +7,7 @@ import type {
   CanonicalConversationRequest,
   CanonicalTruth,
   ConversationBuilderKey,
+  IntelligenceFact,
   OperationalObject,
 } from "../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../interpretation/conversationIntentRouting";
@@ -14,6 +15,7 @@ import {
   turnInterpretationFromContract,
   type ConversationContextLayers,
 } from "../context/conversationContextLayers";
+import { buildResultSetContext, type ResultSetContext } from "../context/resultSetContext";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -189,9 +191,28 @@ export async function persistCanonicalConversationTurn(input: {
   const resolvedOyiTurnMetadata = recordOf(executionRecord.resolved_oyi_turn);
   const workflowMetadata = recordOf(executionRecord.workflow);
   const actionMetadata = recordOf(executionRecord.action);
+  // Generic result-set persistence for next-turn follow-up resolution
+  // (ordinal/pronoun/"tell me more"). response.result_set is used verbatim
+  // when a follow-up resolver already narrowed it to a single object;
+  // otherwise it's derived here from response.facts, which both conversation
+  // pipelines populate (canonicalConversationRuntime.ts directly, the
+  // capability/DomainResult pipeline via CapabilityResponseAdapter.ts) — no
+  // per-domain code needed for this to work for any capability.
+  const explicitResultSet = response.result_set as ResultSetContext | null | undefined;
+  const derivedResultSet = explicitResultSet !== undefined
+    ? explicitResultSet
+    : buildResultSetContext({
+      domain: (Array.isArray(response.facts) && response.facts[0] ? (response.facts[0] as IntelligenceFact).domain : null) || null,
+      capabilityKey: text(response.capability_key) || null,
+      operation: contract.intent,
+      facts: Array.isArray(response.facts) ? response.facts as IntelligenceFact[] : [],
+      contract,
+      message: request.message,
+    });
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
+    last_result_set: derivedResultSet,
     conversation_state: {
       version: 1,
       entities: [],

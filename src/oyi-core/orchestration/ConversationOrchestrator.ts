@@ -22,6 +22,14 @@ import { DeviceConversationActionAdapter } from "../domains/devices/deviceAction
 import type { OyiWorkflow } from "../contracts/workflow";
 import { assertClaimDoesNotPromoteUnavailable, type CanonicalClaimState, type CanonicalResponseClaim } from "../contracts/evidence";
 import type { OyiEvidence } from "../contracts/evidence";
+import type { IntelligenceFact } from "../contracts/canonicalConversation";
+import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
+import { parseFollowUpIntent, resolveFollowUpReference, clarificationCandidatesFromRefs, type FollowUpIntent } from "../interpretation/followUpResolver";
+import { loadThreadResultSetContext, narrowedResultSetContext, type ResultSetContext } from "../context/resultSetContext";
+import { hydrateCanonicalTarget } from "../runtime/canonicalTargetHydrationRegistry";
+import { buildExplainAnswer, buildStatusCheckAnswer, buildFieldAnswer } from "../domains/explainAnswer";
+import { objectStateLine } from "../presentation/objectFallbackPresentation";
+import { buildUtilitySpendingComparisonAnswer } from "../domains/utilities/utilityConversationAnswers";
 
 let registered = false;
 
@@ -403,6 +411,282 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
   return response;
 }
 
+function text(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function recordOf(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+const NO_ACTIONS_TEXT_PRESENTATION = { primary: "text" as const, allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none" as const, auto_navigation: false };
+
+function syntheticFollowUpCapability(domain: string): CapabilityModule {
+  return {
+    key: `${domain}.followup`,
+    domain: domain as any,
+    rolloutStatus: "enabled",
+    operations: [],
+    supported_surfaces: ["consumer", "facility"],
+    scope_requirements: [],
+    permission_requirements: [],
+    risk_class: "read",
+    confirmation_policy: "none",
+    evidence_requirements: [],
+    presentation_policy: { primary: "text", expose_evidence: "summary", allow_internal_ids: false },
+    supports: () => false,
+    resolve: async () => ({ supported: true, reason: null }),
+    collectEvidence: async () => [],
+    buildReadResponse: async () => ({ status: "unavailable", answer: "" }),
+  };
+}
+
+function evidenceFromFollowUpFact(fact: IntelligenceFact): OyiEvidence {
+  return evidenceEnvelope({
+    evidence_id: `followup:${fact.fact_id}`,
+    domain: fact.domain as any,
+    type: fact.fact_type,
+    object_type: fact.object?.object_type || null,
+    object_id: fact.object?.canonical_id || null,
+    object_ref: { object_type: fact.object?.object_type || null, object_id: fact.object?.canonical_id || null, label: fact.object?.label || null },
+    source: "domain_adapter",
+    source_type: fact.source_type as any,
+    source_id: fact.source_id || fact.fact_id,
+    observed_at: fact.observed_at || fact.occurred_at || null,
+    freshness: (["fresh", "stale", "expired", "unknown", "unobservable", "provider_disconnected"].includes(text(fact.freshness)) ? fact.freshness : "unknown") as OyiEvidence["freshness"],
+    truth_class: fact.truth_state === "unavailable" ? "unavailable" : "source_record",
+    privacy_class: "household_private",
+    permissions: fact.permissions || [],
+    authorised_scope: { estate_id: fact.scope?.estate_id || null, building_id: null, home_id: fact.scope?.home_id || null, room_id: fact.scope?.room_id || null },
+    confidence: Number(fact.confidence || 0.75),
+    payload: { fact },
+  } as any);
+}
+
+function factFromHydration(hydration: Awaited<ReturnType<typeof hydrateCanonicalTarget>>): IntelligenceFact | null {
+  if (hydration.status !== "hydrated" || !hydration.object) return null;
+  const record = recordOf(hydration.facts).record || {};
+  const object = hydration.object;
+  return {
+    fact_id: `hydrated:${object.object_type}:${object.canonical_id}`,
+    domain: object.source_module || "unknown",
+    fact_type: object.object_type,
+    scope: { estate_id: object.estate_id, home_id: object.home_id, room_id: object.room_id },
+    object: { object_type: object.object_type, canonical_id: object.canonical_id, label: object.label },
+    statement: "",
+    value: record,
+    previous_value: null,
+    occurred_at: hydration.freshness || null,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: object.canonical_id,
+    truth_state: hydration.truth_state === "unavailable" ? "unavailable" : "confirmed",
+    confidence: 0.85,
+    freshness: hydration.freshness || "unknown",
+    privacy_class: "household_private",
+    permissions: [],
+    evidence: [],
+  };
+}
+
+// Generic, domain-agnostic detail answer for a follow-up-resolved object.
+// why/status/field intents get grounded answers (see explainAnswer.ts);
+// everything else (pronoun, ordinal, attribute, "tell me more") reuses the
+// EXISTING generic per-object-type state-line presentation
+// (objectFallbackPresentation.ts's objectStateLine) rather than new
+// per-domain "tell me more" logic, per the programme's explicit instruction.
+function followUpDetailAnswer(hydration: Awaited<ReturnType<typeof hydrateCanonicalTarget>>, intent: FollowUpIntent, fact: IntelligenceFact): string {
+  if (intent.type === "why") return buildExplainAnswer(fact);
+  if (intent.type === "status_check") return buildStatusCheckAnswer(fact);
+  if (intent.type === "field") return buildFieldAnswer(fact, intent.field);
+  return hydration.object ? objectStateLine(hydration.object) : "I could not confirm that item right now.";
+}
+
+// Re-invokes the SAME capability that produced the previous turn's result
+// set, with the current (follow-up) message as input — temporalScopeFor
+// (conversationContextLayers.ts) re-derives the timeframe from the new
+// message's own wording ("what about last week?"), so no per-domain
+// re-query logic is needed here; this works for any capability_key.
+async function handleTemporalFollowUp(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, tracer: ConversationTracer): Promise<ConversationRunResult | null> {
+  const capability = resultSet.capability_key ? capabilityRegistry.get(resultSet.capability_key) : null;
+  if (!capability) return null;
+  const capabilityContext = { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_temporal") };
+  const evidence = await capability.collectEvidence(capabilityContext);
+  let result = await (capability.buildReadResponse ? capability.buildReadResponse(capabilityContext, evidence) : { status: "unsupported" as const, answer: "" });
+  result = enforceReadResultRespectsEvidence({ capability, result: result as DomainResult, evidence, tracer });
+  let response = capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result: result as DomainResult, evidence });
+  response.execution = {
+    ...(response.execution || {}),
+    orchestrator_v2: {
+      request_id: tracer.requestId,
+      correlation_id: tracer.correlationId,
+      runtime_id: tracer.runtimeId,
+      followup: { detected: true, reference_type: "temporal_followup", source_domain: resultSet.domain, resolution_status: "resolved", fallback_used: false },
+    },
+  };
+  response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capability);
+  tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+  return response;
+}
+
+// Bounded to utilities.spending.read per the programme's explicit priority
+// ("at least real utility financial comparison works"). Re-invokes the same
+// capability twice with synthetic, complementary period phrasing and diffs
+// the two evidence sets — this is real evidence-backed comparison, not
+// forecasting.
+function complementaryPeriodPhrasing(mode: string | undefined): { current: string; previous: string } | null {
+  if (mode === "this_week" || mode === "last_week") return { current: "this week", previous: "last week" };
+  if (mode === "custom" || mode === "last_month") return { current: "this month", previous: "last month" };
+  return null;
+}
+
+async function handleUtilityComparisonFollowUp(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, tracer: ConversationTracer): Promise<ConversationRunResult | null> {
+  if (resultSet.domain !== "utilities") return null;
+  const capability = capabilityRegistry.get("utilities.spending.read");
+  if (!capability) return null;
+  const pair = complementaryPeriodPhrasing(resultSet.timeframe?.mode);
+  if (!pair) return null;
+  const currentContext = { ...context, input: { ...context.input, message: `What did I spend on utilities ${pair.current}?` }, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_comparison") };
+  const previousContext = { ...context, input: { ...context.input, message: `What did I spend on utilities ${pair.previous}?` }, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_comparison") };
+  const [currentEvidence, previousEvidence] = await Promise.all([
+    capability.collectEvidence(currentContext),
+    capability.collectEvidence(previousContext),
+  ]);
+  const currentFacts = currentEvidence.map((item) => recordOf(item.payload).fact).filter((f): f is IntelligenceFact => Boolean(f));
+  const previousFacts = previousEvidence.map((item) => recordOf(item.payload).fact).filter((f): f is IntelligenceFact => Boolean(f));
+  const evidenceUnavailable = currentFacts.some((f) => f.truth_state === "unavailable") || previousFacts.some((f) => f.truth_state === "unavailable");
+  const answer = evidenceUnavailable
+    ? "Utility spending evidence is unavailable for one of the two periods right now, so I cannot compare them safely."
+    : buildUtilitySpendingComparisonAnswer(currentFacts, previousFacts);
+  const result: DomainResult = {
+    status: evidenceUnavailable ? "unavailable" : (currentFacts.length || previousFacts.length) ? "answered" : "empty",
+    answer,
+    presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
+    metadata: {
+      comparison_metric: "utility_spending",
+      period_a: pair.previous,
+      period_b: pair.current,
+      evidence_count: currentFacts.length + previousFacts.length,
+      comparison_status: evidenceUnavailable ? "unavailable" : "compared",
+    },
+  };
+  let response = capabilityDomainResultToConversationResponse({ context: currentContext, capability, result, evidence: [...currentEvidence, ...previousEvidence] });
+  response.execution = {
+    ...(response.execution || {}),
+    orchestrator_v2: {
+      request_id: tracer.requestId,
+      correlation_id: tracer.correlationId,
+      runtime_id: tracer.runtimeId,
+      followup: { detected: true, reference_type: "comparison", source_domain: resultSet.domain, resolution_status: evidenceUnavailable ? "unavailable" : "resolved" },
+    },
+  };
+  response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capability);
+  tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+  return response;
+}
+
+// Entry point: tries to resolve the current turn as a follow-up against the
+// PREVIOUS turn's persisted result set. Returns null (never throws) when
+// there's no thread, no follow-up cue, no prior result set, or resolution
+// fails — callers fall through to normal capability routing (the legacy
+// per-domain ordinal branches in oyiUnifiedIntelligenceService.ts remain the
+// eventual fallback for anything this generic resolver can't cover yet, per
+// the strangler migration approach).
+async function attemptFollowUpResolution(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, tracer: ConversationTracer): Promise<ConversationRunResult | null> {
+  if (resolvedTurn.target) return null;
+  if (!context.input.thread_id) return null;
+  const intent = parseFollowUpIntent(context.input.message);
+  if (!intent) return null;
+  const resultSet = await loadThreadResultSetContext(context.input.thread_id);
+  logger.info("oyi_followup_detected", {
+    request_id: tracer.requestId,
+    correlation_id: tracer.correlationId,
+    thread_id: context.input.thread_id,
+    reference_type: intent.type,
+    source_turn: resultSet?.source_request_id || null,
+    source_domain: resultSet?.domain || null,
+    candidate_count: resultSet?.object_refs.length || 0,
+    fallback_used: !resultSet,
+  });
+  if (!resultSet) return null;
+
+  if (intent.type === "comparison") return handleUtilityComparisonFollowUp(context, resolvedTurn, resultSet, tracer);
+  if (intent.type === "temporal_followup") return handleTemporalFollowUp(context, resolvedTurn, resultSet, tracer);
+
+  const resolution = resolveFollowUpReference(resultSet, intent);
+  const capability = resultSet.capability_key ? capabilityRegistry.get(resultSet.capability_key) : null;
+  const capabilityForAdapter = capability || syntheticFollowUpCapability(resultSet.domain);
+
+  if (resolution.status === "unresolved") return null;
+
+  if (resolution.status === "ambiguous") {
+    const candidates = clarificationCandidatesFromRefs(resolution.candidates);
+    const names = candidates.map((c) => c.label).filter(Boolean).slice(0, 4).join("; ");
+    const result: DomainResult = {
+      status: "draft",
+      answer: `I found more than one match — did you mean: ${names}? Please tell me which one.`,
+      presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
+      metadata: { followup_ambiguous: true, candidate_count: candidates.length },
+    };
+    let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+    response.execution = {
+      ...(response.execution || {}),
+      orchestrator_v2: {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        runtime_id: tracer.runtimeId,
+        followup: { detected: true, reference_type: intent.type, source_domain: resultSet.domain, candidate_count: candidates.length, resolution_status: "ambiguous" },
+      },
+    };
+    response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityForAdapter);
+    tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+    return response;
+  }
+
+  const hydration = await hydrateCanonicalTarget({
+    actor: context.actor,
+    oisContext: context.oisContext,
+    target: {
+      objectType: resolution.ref.object_type,
+      objectId: resolution.ref.canonical_id,
+      objectName: resolution.ref.label,
+      source: "thread_target",
+      confidence: 0.9,
+      ambiguous: false,
+      clarificationQuestion: null,
+    },
+    activeContext: null,
+    visibleState: null,
+  });
+  const fact = factFromHydration(hydration);
+  const result: DomainResult = {
+    status: fact ? "answered" : "unavailable",
+    answer: fact ? followUpDetailAnswer(hydration, intent, fact) : "I could not confirm that item right now, so I am not answering as confirmed.",
+    presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
+  };
+  const evidence = fact ? [evidenceFromFollowUpFact(fact)] : [];
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence });
+  if (fact) {
+    response.facts = [fact];
+    response.result_set = narrowedResultSetContext(resultSet, resolution.ref, {
+      contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
+      message: context.input.message,
+    }) as unknown as Record<string, unknown>;
+  }
+  response.execution = {
+    ...(response.execution || {}),
+    orchestrator_v2: {
+      request_id: tracer.requestId,
+      correlation_id: tracer.correlationId,
+      runtime_id: tracer.runtimeId,
+      followup: { detected: true, reference_type: intent.type, source_domain: resultSet.domain, resolution_status: fact ? "resolved" : "unavailable", resolved_object_ref: resolution.ref.canonical_id },
+    },
+  };
+  response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityForAdapter);
+  tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+  return response;
+}
+
 export class ConversationOrchestrator {
   async run(context: CanonicalConversationRequestContext): Promise<ConversationRunResult> {
     ensureRegistered();
@@ -528,6 +812,21 @@ export class ConversationOrchestrator {
         }
       }
     }
+    // Generic follow-up resolution runs before normal capability routing —
+    // a pending device-action confirmation (handled above) always wins, but
+    // an ordinal/pronoun/temporal follow-up against the previous turn's
+    // result set is tried next, before falling through to fresh semantic
+    // routing. Returns null (never throws) when there's nothing to resolve.
+    const followUpResponse = await attemptFollowUpResolution(context, resolvedTurn, tracer).catch((error) => {
+      logger.warn("oyi_followup_resolution_failed", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
+    if (followUpResponse) return followUpResponse;
     const selection = boolFlag("OYI_ORCHESTRATOR_V2_ENABLED", true)
       ? capabilityService.resolve({ ...context, resolvedTurn })
       : { capability: null, matched_capability: null, rollout_status: "disabled" as const, authority: null, legacy_fallback_reason: "orchestrator_v2_disabled" };

@@ -129,13 +129,17 @@ export async function loadWalletTransactionFacts(
     query_home_id: scope.home_id,
   };
   try {
-    // "range" (not "custom") is the real IntelligenceRequestContract temporal
-    // mode name (see semanticFrame.ts's TemporalScope union) — this set
-    // previously listed "custom", which never matches, so range-bounded
-    // queries (e.g. "how much did I spend last week vs this week") silently
-    // ignored their from/to bounds and always returned the unbounded recent
-    // window instead.
-    const boundedTemporalModes = new Set(["today", "yesterday", "range", "current_month"]);
+    // The evidence-collection contract's temporal_scope.mode comes from
+    // conversationContextLayers.ts's temporalScopeFor(message) (via
+    // resolveIntentContract) — NOT from SemanticFrame.temporalScope, which
+    // is a separate, differently-valued shape ("range"/"current_month")
+    // that never reaches this loader. The real literal mode values here are
+    // "today" | "yesterday" | "custom" (month) | "this_week" | "last_week" |
+    // "last_month" | "recent" | "forecast" | "current". A prior pass in
+    // this same task incorrectly listed "range"/bare "current_month" here
+    // (values that never occur), which silently dropped the from/to bounds
+    // for every "this week"/"last week"/"last month" query. Corrected.
+    const boundedTemporalModes = new Set(["today", "yesterday", "custom", "this_week", "last_week", "last_month"]);
     const applyTemporalBounds = boundedTemporalModes.has(contract.temporal_scope.mode);
     const walletResult = await supabaseAdmin
       .from("wallets")

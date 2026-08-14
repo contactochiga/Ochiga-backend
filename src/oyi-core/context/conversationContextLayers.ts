@@ -47,11 +47,45 @@ function text(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+// Monday-anchored week start, matching how residents actually talk about
+// "this week"/"last week" (not a rolling 7-day window).
+function startOfWeek(date: Date) {
+  const next = startOfDay(date);
+  const day = next.getDay();
+  const diffFromMonday = day === 0 ? 6 : day - 1;
+  next.setDate(next.getDate() - diffFromMonday);
+  return next;
+}
+
 export function temporalScopeFor(message: string): IntelligenceRequestContract["temporal_scope"] {
   const now = new Date();
+  // Week/month-relative phrasing is checked before the generic "last"
+  // catch-all below — "last week"/"last month" both contain the word
+  // "last" and would otherwise fall through to a 6-hour "recent" window,
+  // silently dropping the requested period bound.
+  if (/\b(this|current)\s+week\b/i.test(message)) {
+    const start = startOfWeek(now);
+    return { mode: "this_week", from: start.toISOString(), to: now.toISOString() };
+  }
+  if (/\b(last|previous)\s+week\b/i.test(message)) {
+    const thisWeekStart = startOfWeek(now);
+    const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return { mode: "last_week", from: lastWeekStart.toISOString(), to: thisWeekStart.toISOString() };
+  }
   if (/\b(this|current)\s+month\b/i.test(message)) {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     return { mode: "custom", from: start.toISOString(), to: now.toISOString() };
+  }
+  if (/\b(last|previous)\s+month\b/i.test(message)) {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { mode: "last_month", from: start.toISOString(), to: end.toISOString() };
   }
   if (/\byesterday\b/i.test(message)) {
     const end = new Date(now);

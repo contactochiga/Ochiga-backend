@@ -1,8 +1,14 @@
 import { randomUUID } from "crypto";
-import type { CanonicalConversationResponse, CanonicalTruth } from "../contracts/canonicalConversation";
+import type { CanonicalConversationResponse, CanonicalTruth, IntelligenceFact } from "../contracts/canonicalConversation";
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
+
+function factsFromEvidencePayload(evidence: OyiEvidence[]): IntelligenceFact[] {
+  return evidence
+    .map((item) => (item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>).fact : null))
+    .filter((fact): fact is IntelligenceFact => Boolean(fact && typeof fact === "object"));
+}
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -170,5 +176,7 @@ export function capabilityDomainResultToConversationResponse(input: {
     safe_mode: true,
     approvalRequired: confirmationRequired,
     requiresConfirmation: confirmationRequired,
+    facts: factsFromEvidencePayload(input.evidence),
+    capability_key: input.capability.key,
   };
 }

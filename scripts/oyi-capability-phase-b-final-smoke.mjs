@@ -178,24 +178,33 @@ await check("capability advertising is registry-backed without Home update artif
   assert.equal((response.suggested_actions || []).some((action) => /home update/i.test(`${action.label} ${action.title} ${action.route}`)), false);
 });
 
-await check("non-enabled active utility capability returns safe canonical fallback", async () => {
+await check("active utility capability is enabled and answers directly (Programme 1 promotion)", async () => {
+  // utilities.active.read was promoted to a real evidence-backed capability
+  // in the Programme 1 pass (see oyi-direct-evidence-programme1-smoke.mjs).
+  // It now resolves directly instead of falling back to the legacy canned
+  // "can't confirm active utility services" line.
   const frame = parser.parseSemanticFrame("Which utilities are active?");
   assert.equal(frame.operation, "utilities.active");
   const selection = serviceModule.capabilityService.resolve({ actor: resident, oisContext: context, input: { message: frame.rawText, surface: "consumer", estate_id: "estate-1", home_id: "home-1", context }, resolvedTurn: { request_id: "active", correlation_id: "active", runtime_id: "runtime", thread_id: null, actor: resident, semantic_frame: frame, operation: frame.operation, capability_key: frame.operation, domain: frame.domain, scope: { estate_id: "estate-1", building_id: null, home_id: "home-1", room_id: null }, target: null, target_source: "none", active_workflow_id: null, authority: { allowed: true, tier: 0, approval_required: false, secure_review_required: false, required_permissions: [], denial_reason: null }, temporal_scope: frame.temporalScope, presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false }, context } });
-  assert.equal(selection.matched_capability?.key, "utilities.active.read");
-  assert.equal(selection.capability, null);
+  assert.equal(selection.capability?.key, "utilities.active.read");
+  assert.equal(selection.rollout_status, "enabled");
+  assert.equal(selection.legacy_fallback_reason, null);
   const response = await run("Which utilities are active?");
   assert.equal(response.execution.orchestrator_v2.capability_key, "utilities.active.read");
-  assert.equal(response.execution.orchestrator_v2.capability_rollout_status, "implemented");
+  assert.equal(response.execution.orchestrator_v2.capability_rollout_status, "enabled");
   assert.equal(response.persistence_saved, true);
-  assert.doesNotMatch(response.answer, /couldn't reach Oyi|could not reach Oyi|utility spending|spent on utilities/i);
-  assert.match(response.answer, /can.t confirm.*active utility services/i);
+  assert.doesNotMatch(response.answer, /couldn't reach Oyi|could not reach Oyi|can.t confirm.*active utility services/i);
+  assert.match(response.answer, /do not see any registered utility accounts/i);
 });
 
-await check("non-enabled fallback is generic for another domain", async () => {
+await check("maintenance capability answers directly for another domain", async () => {
+  // This assertion predates the maintenance direct-evidence pass (ca170bd),
+  // which converted maintenance.requests.read from a declared/"implemented"
+  // stub into a real, enabled readModule — its rollout_status is correctly
+  // "enabled" now, not the old "implemented" placeholder value.
   const response = await run("Show open maintenance requests.");
   assert.equal(response.execution.orchestrator_v2.capability_key, "maintenance.requests.read");
-  assert.equal(response.execution.orchestrator_v2.capability_rollout_status, "implemented");
+  assert.equal(response.execution.orchestrator_v2.capability_rollout_status, "enabled");
   assert.equal(response.persistence_saved, true);
   assert.doesNotMatch(response.answer, /couldn't reach Oyi|could not reach Oyi/i);
 });

@@ -134,6 +134,9 @@ function objectTypeLabel(object: OperationalObject) {
     floor: "floor",
     zone: "zone",
     twin_node: "twin object",
+    security_incident: "security incident",
+    utility_tariff: "electricity tariff",
+    utility_purchase: "electricity purchase",
   };
   return labels[object.object_type] || "object";
 }
@@ -217,6 +220,17 @@ function objectPersonality(object: OperationalObject) {
       actions: ["open event", "mark read", "show evidence"],
     },
     operational_incident: securityObjectProfile("operational_incident"),
+    security_incident: securityObjectProfile("operational_incident"),
+    utility_tariff: {
+      role: "I track this tariff's rate, unit, and where it applies — no vending or payment happens here.",
+      diagnostics: ["rate", "unit", "currency", "last updated"],
+      actions: ["show rate", "compare with last purchase"],
+    },
+    utility_purchase: {
+      role: "I track this purchase's amount, status, and provider reference.",
+      diagnostics: ["amount", "status", "completed at", "provider"],
+      actions: ["show receipt reference", "show recent purchases"],
+    },
     operational_event: {
       role: "I track this operational event, evidence, impact, and follow-up.",
       diagnostics: ["evidence", "impact", "status"],
@@ -262,8 +276,13 @@ function objectVoice(object: OperationalObject) {
   if (type === "scene" || type === "automation") return {
     ...sceneAutomationObjectVoice(type),
   };
-  if (type === "camera" || type === "access_point" || type === "operational_incident") return {
-    ...securityObjectVoice(type),
+  if (type === "camera" || type === "access_point" || type === "operational_incident" || type === "security_incident") return {
+    ...securityObjectVoice(type === "security_incident" ? "operational_incident" : type),
+  };
+  if (type === "utility_tariff" || type === "utility_purchase") return {
+    healthy: "The utility record is available.",
+    unavailable: "I can’t verify this utility record right now.",
+    next: type === "utility_tariff" ? "Would you like recent purchases or which utilities are active?" : "Would you like the current tariff or recent purchases?",
   };
   return {
     healthy: "Everything I can verify looks normal.",

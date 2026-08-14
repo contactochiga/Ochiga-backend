@@ -248,6 +248,16 @@ export type CanonicalConversationResponse = {
   safe_mode: true;
   approvalRequired: boolean;
   requiresConfirmation: boolean;
+  // Full evidence facts backing this turn's answer, and the capability that
+  // produced them — carried through to persistence only, never returned to
+  // the client (see routes that JSON-serialize a subset). Used generically
+  // by persistCanonicalConversationTurn to derive/store a result-set
+  // context for the next turn's follow-up resolution.
+  facts?: IntelligenceFact[];
+  capability_key?: string | null;
+  // Loosely typed here to avoid an import cycle with resultSetContext.ts;
+  // persistence/orchestrator code casts to the concrete ResultSetContext.
+  result_set?: Record<string, unknown> | null;
 };
 
 export type ConversationBuilderKey =
