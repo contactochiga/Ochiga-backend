@@ -7,6 +7,7 @@ function text(value: unknown) {
 export type FollowUpIntent =
   | { type: "comparison" }
   | { type: "temporal_followup" }
+  | { type: "filter"; keyword: string }
   | { type: "attribute"; attribute: "unresolved" | "failed" | "expensive" | "highest" | "open" }
   | { type: "ordinal"; ordinal: "first" | "second" | "third" | "last" | "latest" | "oldest" }
   | { type: "why" }
@@ -14,6 +15,34 @@ export type FollowUpIntent =
   | { type: "field"; field: "who" | "when" | "where" | "amount" }
   | { type: "detail" }
   | { type: "pronoun" };
+
+// Domain-switch-back ("go back to that maintenance issue") is parsed
+// separately from FollowUpIntent because it doesn't resolve against the
+// currently active result set — it picks WHICH domain's result set to
+// resolve against next. Keyword list intentionally mirrors the domain
+// names this codebase actually uses (see ReadCapabilityModules.ts).
+const DOMAIN_KEYWORDS: Array<[string, RegExp]> = [
+  ["maintenance", /\bmaintenance\b/i],
+  ["visitors", /\bvisitors?\b/i],
+  ["security", /\bsecurity\b|\bincidents?\b/i],
+  ["services", /\bservices?\b/i],
+  ["community", /\bcommunity\b|\bannouncements?\b/i],
+  ["scenes", /\bscenes?\b/i],
+  ["automations", /\bautomations?\b/i],
+  ["utilities", /\butilit(?:y|ies)\b|\belectricity\b/i],
+  ["wallet", /\bwallet\b|\btransactions?\b/i],
+];
+
+export type DomainSwitchIntent = { type: "switch"; domain: string } | { type: "ambiguous" } | null;
+
+export function parseDomainSwitchIntent(message: string): DomainSwitchIntent {
+  const m = text(message).toLowerCase();
+  if (!/\bgo back\b|\bback to\b|\bswitch back\b/.test(m)) return null;
+  for (const [domain, re] of DOMAIN_KEYWORDS) {
+    if (re.test(m)) return { type: "switch", domain };
+  }
+  return { type: "ambiguous" };
+}
 
 // Generic, domain-agnostic follow-up classification — no domain names
 // appear anywhere in this function. Order matters: more specific cues
@@ -32,6 +61,19 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   const isShortContinuation = /^(what about|and|how about|what's|whats)\b/.test(m) || m.split(/\s+/).filter(Boolean).length <= 4;
   if (isShortContinuation && (/\b(this|current)\s+week\b/.test(m) || /\b(last|previous)\s+week\b/.test(m) || /\b(this|current)\s+month\b/.test(m) || /\b(last|previous)\s+month\b/.test(m))) {
     return { type: "temporal_followup" };
+  }
+
+  // Filter continuity: "show only the high priority ones" / "just the open
+  // ones" narrows the previously presented LIST (possibly to more than one
+  // item) rather than selecting a single object — checked before the
+  // single-object "the X one" attribute rules below, since "only"/"just"
+  // is the disambiguating cue even when the keyword itself looks singular.
+  if (/\b(only|just)\b/.test(m) && /\bones?\b/.test(m)) {
+    const keyword = m
+      .replace(/^(show|give|list)?\s*(me\s+)?(only|just)\s+(the\s+)?/, "")
+      .replace(/\bones?\b\.?$/, "")
+      .trim();
+    if (keyword) return { type: "filter", keyword };
   }
 
   if (/\bunresolved\s+one\b|\bthe unresolved\b/.test(m)) return { type: "attribute", attribute: "unresolved" };
@@ -107,6 +149,28 @@ function resolveAttribute(resultSet: ResultSetContext, attribute: string): Follo
   if (!matches.length) return { status: "unresolved" };
   if (matches.length === 1) return { status: "resolved", ref: matches[0] };
   return { status: "ambiguous", candidates: matches };
+}
+
+export type FilterResolution =
+  | { status: "resolved"; matched: ResultSetObjectRef[]; keyword: string }
+  | { status: "unresolved" };
+
+// Generic filter matcher: a keyword like "high priority" matches a ref if
+// EVERY word in the keyword appears somewhere across that ref's status plus
+// its attribute keys+values (e.g. attributes={priority:"high"} contributes
+// both "priority" and "high" to the haystack, so "priority" matches the
+// field name and "high" matches its value) — no per-domain field-name
+// knowledge required.
+export function resolveFilterFollowUp(resultSet: ResultSetContext | null, keyword: string): FilterResolution {
+  if (!resultSet || !keyword) return { status: "unresolved" };
+  const words = keyword.split(/\s+/).filter(Boolean);
+  if (!words.length) return { status: "unresolved" };
+  const matched = resultSet.object_refs.filter((ref) => {
+    const haystack = [ref.status || "", ...Object.entries(ref.attributes || {}).flatMap(([k, v]) => [k, v])].join(" ").toLowerCase();
+    return words.every((word) => haystack.includes(word));
+  });
+  if (!matched.length) return { status: "unresolved" };
+  return { status: "resolved", matched, keyword };
 }
 
 function resolvePronoun(resultSet: ResultSetContext): FollowUpResolution {

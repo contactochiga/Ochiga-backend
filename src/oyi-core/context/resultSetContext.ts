@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { logger } from "../../observability/logger";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
@@ -11,16 +12,22 @@ export type ResultSetObjectRef = {
   metric: string | null;
   metric_value: number | null;
   status: string | null;
+  // Generic descriptive fields (priority/severity/category/...) pulled from
+  // whatever the fact's value actually has — this is what filter continuity
+  // ("show only the high priority ones") matches against, without any
+  // per-domain field-name knowledge in the resolver itself.
+  attributes: Record<string, string>;
 };
 
 export type ResultSetContext = {
   version: 1;
+  result_set_id: string;
   domain: string;
   capability_key: string | null;
   operation: string | null;
   object_refs: ResultSetObjectRef[];
   timeframe: IntelligenceRequestContract["temporal_scope"] | null;
-  filters: Record<string, unknown>;
+  filters: Record<string, string>;
   metric: string | null;
   result_count: number;
   selected_object_ref: ResultSetObjectRef | null;
@@ -29,6 +36,13 @@ export type ResultSetContext = {
   source_message: string;
   created_at: string;
 };
+
+// Thread metadata now keeps one result set PER DOMAIN (not a single
+// overwritten slot) so a domain switch ("what about my visitors today?")
+// doesn't erase the ability to later say "go back to that maintenance
+// issue" — see §10 of the closure spec. active_domain is which one a bare
+// ordinal/pronoun follow-up (no domain cue) resolves against.
+export type ResultSetsByDomain = Record<string, ResultSetContext>;
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -43,6 +57,7 @@ function recordOf(value: unknown): Record<string, unknown> {
 // balance for wallets) — first one present on a fact's value wins.
 const NUMERIC_METRIC_KEYS = ["amount", "unit_cost", "action_count", "balance"];
 const STATUS_KEYS = ["status", "last_run_status", "account_status"];
+const ATTRIBUTE_KEYS = ["status", "priority", "severity", "category", "last_run_status", "account_status", "is_official"];
 
 function extractMetric(value: Record<string, unknown>): { metric: string | null; metric_value: number | null } {
   for (const key of NUMERIC_METRIC_KEYS) {
@@ -65,6 +80,16 @@ function extractStatus(value: Record<string, unknown>): string | null {
   return null;
 }
 
+function extractAttributes(value: Record<string, unknown>): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  for (const key of ATTRIBUTE_KEYS) {
+    const raw = value[key];
+    if (raw === undefined || raw === null || raw === "") continue;
+    attributes[key] = text(raw).toLowerCase();
+  }
+  return attributes;
+}
+
 export function objectRefFromFact(fact: IntelligenceFact): ResultSetObjectRef | null {
   if (!fact.object || !fact.object.canonical_id) return null;
   const value = recordOf(fact.value);
@@ -77,12 +102,13 @@ export function objectRefFromFact(fact: IntelligenceFact): ResultSetObjectRef | 
     metric,
     metric_value,
     status: extractStatus(value),
+    attributes: extractAttributes(value),
   };
 }
 
 // Builds the generic result-set context from whatever facts a turn actually
 // answered with, preserving the order the loader presented them in (that
-// order IS the "first"/"second" ordinal semantics — see §19 of the
+// order IS the "first"/"second" ordinal semantics — see §33 of the
 // programme spec: ordinal must never fall back to undefined DB row order,
 // and every evidence loader in this codebase already applies an explicit
 // .order() clause, so presentation order is deterministic by construction).
@@ -104,6 +130,7 @@ export function buildResultSetContext(input: {
   }
   return {
     version: 1,
+    result_set_id: randomUUID(),
     domain,
     capability_key: input.capabilityKey,
     operation: input.operation,
@@ -128,6 +155,7 @@ export function buildResultSetContext(input: {
 export function narrowedResultSetContext(previous: ResultSetContext, selected: ResultSetObjectRef, input: { contract: Pick<IntelligenceRequestContract, "conversation_request_id" | "thread_id" | "temporal_scope">; message: string }): ResultSetContext {
   return {
     ...previous,
+    result_set_id: randomUUID(),
     object_refs: [selected],
     result_count: 1,
     selected_object_ref: selected,
@@ -138,8 +166,47 @@ export function narrowedResultSetContext(previous: ResultSetContext, selected: R
   };
 }
 
-export async function loadThreadResultSetContext(threadId: string | null | undefined): Promise<ResultSetContext | null> {
-  if (!threadId) return null;
+// A filter follow-up ("show only the high priority ones") narrows the SAME
+// previously-presented list to the subset matching an attribute keyword —
+// unlike narrowedResultSetContext, this may keep more than one object.
+// filters accumulate (previous constraints are preserved, see §11).
+export function filteredResultSetContext(previous: ResultSetContext, matched: ResultSetObjectRef[], filterKey: string, filterValue: string, input: { contract: Pick<IntelligenceRequestContract, "conversation_request_id" | "thread_id" | "temporal_scope">; message: string }): ResultSetContext {
+  return {
+    ...previous,
+    result_set_id: randomUUID(),
+    object_refs: matched,
+    result_count: matched.length,
+    selected_object_ref: matched.length === 1 ? matched[0] : null,
+    filters: { ...previous.filters, [filterKey]: filterValue },
+    source_request_id: input.contract.conversation_request_id,
+    source_thread_id: input.contract.thread_id || null,
+    source_message: input.message,
+    created_at: new Date().toISOString(),
+  };
+}
+
+function parseResultSetsByDomain(metadata: Record<string, unknown>): { resultSets: ResultSetsByDomain; activeDomain: string | null } {
+  const stored = metadata.result_sets;
+  if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+    const resultSets = stored as ResultSetsByDomain;
+    const activeDomain = text(metadata.active_domain) || null;
+    return { resultSets, activeDomain: activeDomain && resultSets[activeDomain] ? activeDomain : null };
+  }
+  // Legacy shape from the prior Programme 1 pass: a single overwritten
+  // last_result_set with no per-domain map. Read-compatible, never written
+  // again once this pass's persistence runs.
+  const legacy = metadata.last_result_set;
+  if (legacy && typeof legacy === "object") {
+    const parsed = legacy as ResultSetContext;
+    if (Array.isArray(parsed.object_refs) && parsed.object_refs.length && parsed.domain) {
+      return { resultSets: { [parsed.domain]: parsed }, activeDomain: parsed.domain };
+    }
+  }
+  return { resultSets: {}, activeDomain: null };
+}
+
+export async function loadThreadResultSetsContext(threadId: string | null | undefined): Promise<{ resultSets: ResultSetsByDomain; activeDomain: string | null }> {
+  if (!threadId) return { resultSets: {}, activeDomain: null };
   try {
     const { data, error } = await supabaseAdmin
       .from("oyi_conversation_threads")
@@ -147,14 +214,16 @@ export async function loadThreadResultSetContext(threadId: string | null | undef
       .eq("id", threadId)
       .maybeSingle();
     if (error) throw error;
-    const metadata = recordOf(data?.metadata);
-    const resultSet = metadata.last_result_set;
-    if (!resultSet || typeof resultSet !== "object") return null;
-    const parsed = resultSet as ResultSetContext;
-    if (!Array.isArray(parsed.object_refs) || !parsed.object_refs.length) return null;
-    return parsed;
+    return parseResultSetsByDomain(recordOf(data?.metadata));
   } catch (error) {
     logger.warn("oyi_result_set_context_load_failed", { thread_id: threadId, error });
-    return null;
+    return { resultSets: {}, activeDomain: null };
   }
+}
+
+// Convenience for the common case: the currently active domain's result
+// set, or null if there isn't one.
+export async function loadThreadResultSetContext(threadId: string | null | undefined): Promise<ResultSetContext | null> {
+  const { resultSets, activeDomain } = await loadThreadResultSetsContext(threadId);
+  return activeDomain ? resultSets[activeDomain] || null : null;
 }

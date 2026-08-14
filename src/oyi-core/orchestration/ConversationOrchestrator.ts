@@ -24,8 +24,8 @@ import { assertClaimDoesNotPromoteUnavailable, type CanonicalClaimState, type Ca
 import type { OyiEvidence } from "../contracts/evidence";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
-import { parseFollowUpIntent, resolveFollowUpReference, clarificationCandidatesFromRefs, type FollowUpIntent } from "../interpretation/followUpResolver";
-import { loadThreadResultSetContext, narrowedResultSetContext, type ResultSetContext } from "../context/resultSetContext";
+import { parseFollowUpIntent, resolveFollowUpReference, resolveFilterFollowUp, parseDomainSwitchIntent, clarificationCandidatesFromRefs, type FollowUpIntent } from "../interpretation/followUpResolver";
+import { loadThreadResultSetContext, loadThreadResultSetsContext, narrowedResultSetContext, filteredResultSetContext, type ResultSetContext } from "../context/resultSetContext";
 import { hydrateCanonicalTarget } from "../runtime/canonicalTargetHydrationRegistry";
 import { buildExplainAnswer, buildStatusCheckAnswer, buildFieldAnswer } from "../domains/explainAnswer";
 import { objectStateLine } from "../presentation/objectFallbackPresentation";
@@ -592,64 +592,45 @@ async function handleUtilityComparisonFollowUp(context: CanonicalConversationReq
 // per-domain ordinal branches in oyiUnifiedIntelligenceService.ts remain the
 // eventual fallback for anything this generic resolver can't cover yet, per
 // the strangler migration approach).
-async function attemptFollowUpResolution(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, tracer: ConversationTracer): Promise<ConversationRunResult | null> {
-  if (resolvedTurn.target) return null;
-  if (!context.input.thread_id) return null;
-  const intent = parseFollowUpIntent(context.input.message);
-  if (!intent) return null;
-  const resultSet = await loadThreadResultSetContext(context.input.thread_id);
-  logger.info("oyi_followup_detected", {
-    request_id: tracer.requestId,
-    correlation_id: tracer.correlationId,
-    thread_id: context.input.thread_id,
-    reference_type: intent.type,
-    source_turn: resultSet?.source_request_id || null,
-    source_domain: resultSet?.domain || null,
-    candidate_count: resultSet?.object_refs.length || 0,
-    fallback_used: !resultSet,
-  });
-  if (!resultSet) return null;
-
-  if (intent.type === "comparison") return handleUtilityComparisonFollowUp(context, resolvedTurn, resultSet, tracer);
-  if (intent.type === "temporal_followup") return handleTemporalFollowUp(context, resolvedTurn, resultSet, tracer);
-
-  const resolution = resolveFollowUpReference(resultSet, intent);
+function followUpCapabilityFor(resultSet: ResultSetContext): CapabilityModule {
   const capability = resultSet.capability_key ? capabilityRegistry.get(resultSet.capability_key) : null;
-  const capabilityForAdapter = capability || syntheticFollowUpCapability(resultSet.domain);
+  return capability || syntheticFollowUpCapability(resultSet.domain);
+}
 
-  if (resolution.status === "unresolved") return null;
+async function buildAmbiguousFollowUpResponse(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, referenceType: string, candidateRefs: import("../context/resultSetContext").ResultSetObjectRef[], tracer: ConversationTracer): Promise<ConversationRunResult> {
+  const candidates = clarificationCandidatesFromRefs(candidateRefs);
+  const names = candidates.map((c) => c.label).filter(Boolean).slice(0, 4).join("; ");
+  const result: DomainResult = {
+    status: "draft",
+    answer: `I found more than one match — did you mean: ${names}? Please tell me which one.`,
+    presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
+    metadata: { followup_ambiguous: true, candidate_count: candidates.length },
+  };
+  const capabilityForAdapter = followUpCapabilityFor(resultSet);
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+  response.execution = {
+    ...(response.execution || {}),
+    orchestrator_v2: {
+      request_id: tracer.requestId,
+      correlation_id: tracer.correlationId,
+      runtime_id: tracer.runtimeId,
+      followup: { detected: true, resolver: "canonical", reference_type: referenceType, source_domain: resultSet.domain, result_set_id: resultSet.result_set_id, candidate_count: candidates.length, resolution_status: "ambiguous" },
+    },
+  };
+  response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityForAdapter);
+  tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+  return response;
+}
 
-  if (resolution.status === "ambiguous") {
-    const candidates = clarificationCandidatesFromRefs(resolution.candidates);
-    const names = candidates.map((c) => c.label).filter(Boolean).slice(0, 4).join("; ");
-    const result: DomainResult = {
-      status: "draft",
-      answer: `I found more than one match — did you mean: ${names}? Please tell me which one.`,
-      presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
-      metadata: { followup_ambiguous: true, candidate_count: candidates.length },
-    };
-    let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
-    response.execution = {
-      ...(response.execution || {}),
-      orchestrator_v2: {
-        request_id: tracer.requestId,
-        correlation_id: tracer.correlationId,
-        runtime_id: tracer.runtimeId,
-        followup: { detected: true, reference_type: intent.type, source_domain: resultSet.domain, candidate_count: candidates.length, resolution_status: "ambiguous" },
-      },
-    };
-    response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityForAdapter);
-    tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
-    return response;
-  }
-
+async function resolveAndHydrateSingleObject(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, intent: FollowUpIntent, ref: import("../context/resultSetContext").ResultSetObjectRef, tracer: ConversationTracer): Promise<ConversationRunResult> {
+  const capabilityForAdapter = followUpCapabilityFor(resultSet);
   const hydration = await hydrateCanonicalTarget({
     actor: context.actor,
     oisContext: context.oisContext,
     target: {
-      objectType: resolution.ref.object_type,
-      objectId: resolution.ref.canonical_id,
-      objectName: resolution.ref.label,
+      objectType: ref.object_type,
+      objectId: ref.canonical_id,
+      objectName: ref.label,
       source: "thread_target",
       confidence: 0.9,
       ambiguous: false,
@@ -668,8 +649,8 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
   let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence });
   if (fact) {
     response.facts = [fact];
-    response.result_set = narrowedResultSetContext(resultSet, resolution.ref, {
-      contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
+    response.result_set = narrowedResultSetContext(resultSet, ref, {
+      contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id || null, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
       message: context.input.message,
     }) as unknown as Record<string, unknown>;
   }
@@ -679,12 +660,122 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
       request_id: tracer.requestId,
       correlation_id: tracer.correlationId,
       runtime_id: tracer.runtimeId,
-      followup: { detected: true, reference_type: intent.type, source_domain: resultSet.domain, resolution_status: fact ? "resolved" : "unavailable", resolved_object_ref: resolution.ref.canonical_id },
+      followup: { detected: true, resolver: "canonical", reference_type: intent.type, source_domain: resultSet.domain, result_set_id: resultSet.result_set_id, resolution_status: fact ? "resolved" : "unavailable", resolved_object_ref: ref.canonical_id, resolved_object_type: ref.object_type, hydration_status: hydration.status },
     },
   };
   response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityForAdapter);
   tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
   return response;
+}
+
+// Filter continuity: "show only the high priority ones" narrows the
+// previous list to the matching subset (possibly more than one item) and
+// presents it directly from the already-persisted object_refs — no new
+// query, no per-domain filter logic.
+async function handleFilterFollowUp(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, keyword: string, tracer: ConversationTracer): Promise<ConversationRunResult | null> {
+  const resolution = resolveFilterFollowUp(resultSet, keyword);
+  if (resolution.status === "unresolved") return null;
+  const capabilityForAdapter = followUpCapabilityFor(resultSet);
+  const labels = resolution.matched.slice(0, 5).map((ref) => ref.label).filter(Boolean).join("; ");
+  const result: DomainResult = {
+    status: "answered",
+    answer: `${resolution.matched.length} of ${resultSet.object_refs.length} match "${keyword}": ${labels}.`,
+    presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
+  };
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+  response.result_set = filteredResultSetContext(resultSet, resolution.matched, "keyword", keyword, {
+    contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id || null, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
+    message: context.input.message,
+  }) as unknown as Record<string, unknown>;
+  response.execution = {
+    ...(response.execution || {}),
+    orchestrator_v2: {
+      request_id: tracer.requestId,
+      correlation_id: tracer.correlationId,
+      runtime_id: tracer.runtimeId,
+      followup: { detected: true, resolver: "canonical", reference_type: "filter", source_domain: resultSet.domain, result_set_id: resultSet.result_set_id, resolution_status: "resolved", candidate_count: resolution.matched.length },
+    },
+  };
+  response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityForAdapter);
+  tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+  return response;
+}
+
+// "Go back to that maintenance issue" — restores focus to a DIFFERENT
+// domain's own persisted result set (not the currently active one). See
+// §10 of the closure spec: cross-domain context switching. Only resolves
+// when the referenced domain actually has a stored result set in this
+// thread; otherwise falls through so normal routing can still try.
+async function handleDomainSwitchFollowUp(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, switchIntent: Extract<ReturnType<typeof parseDomainSwitchIntent>, { type: "switch" } | { type: "ambiguous" }>, tracer: ConversationTracer): Promise<ConversationRunResult | null> {
+  const { resultSets } = await loadThreadResultSetsContext(context.input.thread_id);
+  const availableDomains = Object.keys(resultSets);
+  if (switchIntent.type === "ambiguous") {
+    if (!availableDomains.length) return null;
+    if (availableDomains.length === 1) {
+      // Only one domain on record — safe to resolve directly, no real ambiguity.
+      return resolveAndHydrateSingleObject(context, resolvedTurn, resultSets[availableDomains[0]], { type: "pronoun" }, resultSets[availableDomains[0]].selected_object_ref || resultSets[availableDomains[0]].object_refs[0], tracer);
+    }
+    const capabilityForAdapter = syntheticFollowUpCapability("global");
+    const result: DomainResult = {
+      status: "draft",
+      answer: `I have more than one earlier topic in this conversation — did you mean ${availableDomains.join(", ")}? Please name the one you mean.`,
+      presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
+      metadata: { followup_ambiguous: true, candidate_count: availableDomains.length },
+    };
+    let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+    response.execution = {
+      ...(response.execution || {}),
+      orchestrator_v2: { request_id: tracer.requestId, correlation_id: tracer.correlationId, runtime_id: tracer.runtimeId, followup: { detected: true, resolver: "canonical", reference_type: "domain_switch", resolution_status: "ambiguous", candidate_count: availableDomains.length } },
+    };
+    response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityForAdapter);
+    tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+    return response;
+  }
+  const targetResultSet = resultSets[switchIntent.domain];
+  if (!targetResultSet) return null;
+  const resolution = resolveFollowUpReference(targetResultSet, { type: "pronoun" });
+  if (resolution.status === "ambiguous") return buildAmbiguousFollowUpResponse(context, resolvedTurn, targetResultSet, "domain_switch", resolution.candidates, tracer);
+  if (resolution.status === "unresolved") return null;
+  return resolveAndHydrateSingleObject(context, resolvedTurn, targetResultSet, { type: "pronoun" }, resolution.ref, tracer);
+}
+
+async function attemptFollowUpResolution(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, tracer: ConversationTracer): Promise<ConversationRunResult | null> {
+  if (resolvedTurn.target) return null;
+  if (!context.input.thread_id) return null;
+
+  const switchIntent = parseDomainSwitchIntent(context.input.message);
+  if (switchIntent) {
+    const switched = await handleDomainSwitchFollowUp(context, resolvedTurn, switchIntent, tracer);
+    if (switched) return switched;
+    // Fall through to normal follow-up/routing if the referenced domain
+    // has no stored result set to restore.
+  }
+
+  const intent = parseFollowUpIntent(context.input.message);
+  if (!intent) return null;
+  const resultSet = await loadThreadResultSetContext(context.input.thread_id);
+  logger.info("oyi_followup_detected", {
+    request_id: tracer.requestId,
+    correlation_id: tracer.correlationId,
+    thread_id: context.input.thread_id,
+    resolver: resultSet ? "canonical" : "none",
+    reference_type: intent.type,
+    source_turn: resultSet?.source_request_id || null,
+    result_set_id: resultSet?.result_set_id || null,
+    source_domain: resultSet?.domain || null,
+    candidate_count: resultSet?.object_refs.length || 0,
+    fallback_used: !resultSet,
+  });
+  if (!resultSet) return null;
+
+  if (intent.type === "comparison") return handleUtilityComparisonFollowUp(context, resolvedTurn, resultSet, tracer);
+  if (intent.type === "temporal_followup") return handleTemporalFollowUp(context, resolvedTurn, resultSet, tracer);
+  if (intent.type === "filter") return handleFilterFollowUp(context, resolvedTurn, resultSet, intent.keyword, tracer);
+
+  const resolution = resolveFollowUpReference(resultSet, intent);
+  if (resolution.status === "unresolved") return null;
+  if (resolution.status === "ambiguous") return buildAmbiguousFollowUpResponse(context, resolvedTurn, resultSet, intent.type, resolution.candidates, tracer);
+  return resolveAndHydrateSingleObject(context, resolvedTurn, resultSet, intent, resolution.ref, tracer);
 }
 
 export class ConversationOrchestrator {

@@ -25,6 +25,42 @@ function createFakeSupabase() {
       { id: "mr-old", estate_id: "estate-1", home_id: "home-1", resident_id: "resident-1", title: "Leaking kitchen tap", description: null, category: "plumbing", priority: "medium", status: "open", assigned_to: null, created_at: daysAgo(20), updated_at: daysAgo(20) },
       { id: "mr-new", estate_id: "estate-1", home_id: "home-1", resident_id: "resident-1", title: "AC not cooling", description: null, category: "hvac", priority: "high", status: "open", assigned_to: "Tech Dele", created_at: daysAgo(2), updated_at: daysAgo(2) },
     ],
+    visitor_access: [
+      { id: "va-old", estate_id: "estate-1", home_id: "home-1", visitor_name: "Chidi Okafor", purpose: "Delivery", access_code: "9911", status: "used", expires_at: daysAgo(4), created_at: daysAgo(5), updated_at: daysAgo(4) },
+      { id: "va-new", estate_id: "estate-1", home_id: "home-1", visitor_name: "Amara Bello", purpose: "Guest", access_code: "4471", status: "expected", expires_at: daysAgo(-1), created_at: daysAgo(1), updated_at: daysAgo(1) },
+    ],
+    facility_incidents: [
+      { id: "fi-1", estate_id: "estate-1", home_id: "home-1", room_id: null, title: "Gate sensor fault", incident_type: "access", severity: "medium", status: "open", location: "Main gate", opened_at: daysAgo(3), acknowledged_at: null, resolved_at: null, closed_at: null, updated_at: daysAgo(3) },
+    ],
+    community_posts: [
+      { id: "cp-1", estate_id: "estate-1", author_id: "manager-1", title: "Water shutdown notice", body: "Water will be off 9am-11am.", status: "published", category: "notice", is_pinned: true, priority: "high", audience_type: "estate", created_at: daysAgo(1), updated_at: daysAgo(1) },
+      { id: "cp-2", estate_id: "estate-1", author_id: "resident-2", title: "Lost cat", body: "Has anyone seen a grey cat?", status: "published", category: "general", is_pinned: false, priority: "low", audience_type: "estate", created_at: daysAgo(2), updated_at: daysAgo(2) },
+    ],
+    users: [{ id: "manager-1", role: "estate_manager" }, { id: "resident-2", role: "resident" }],
+    consumer_scenes: [
+      { id: "sc-1", estate_id: "estate-1", home_id: "home-1", name: "Evening lights", actions: [{ device: "dev-1" }], enabled: true, updated_at: daysAgo(3) },
+      { id: "sc-2", estate_id: "estate-1", home_id: "home-1", name: "Morning routine", actions: [{ device: "dev-2" }], enabled: true, updated_at: daysAgo(6) },
+    ],
+    consumer_automations: [
+      { id: "au-1", estate_id: "estate-1", home_id: "home-1", name: "Low battery alert", trigger: { type: "battery_low" }, actions: [], enabled: true, next_run_at: null, last_run_at: daysAgo(1), last_run_status: "failed", updated_at: daysAgo(1) },
+    ],
+    consumer_automation_runs: [
+      { id: "run-1", automation_id: "au-1", estate_id: "estate-1", home_id: "home-1", trigger_type: "battery_low", source: "system", status: "failed", started_at: daysAgo(1), completed_at: daysAgo(1), error_code: "SENSOR_TIMEOUT", error_message: "Sensor did not respond in time", created_at: daysAgo(1) },
+    ],
+    home_service_assignments: [
+      { home_id: "home-1", service_key: "utility_token", enabled: true, scope: "home", updated_at: daysAgo(2) },
+      { home_id: "home-1", service_key: "service_charge", enabled: true, scope: "home", updated_at: daysAgo(2) },
+    ],
+    home_service_accounts: [
+      { id: "hsa-1", home_id: "home-1", service_key: "utility_token", provider: "PowerCo", status: "active", linked: true, due_date: null, expires_at: null, updated_at: daysAgo(2) },
+      { id: "hsa-2", home_id: "home-1", service_key: "service_charge", provider: "Estate Ops", status: "active", linked: true, due_date: null, expires_at: null, updated_at: daysAgo(2) },
+    ],
+    estate_service_configs: [
+      { id: "esc-1", estate_id: "estate-1", service_key: "utility_token", title: "Electricity", unit_cost: 209.5, unit_name: "kWh", currency: "NGN", active: true, billing_mode: "metered", metadata: {}, updated_at: daysAgo(10) },
+    ],
+    service_transactions: [
+      { id: "st-1", estate_id: "estate-1", home_id: "home-1", service_key: "utility_token", provider: "PowerCo", amount: 5000, currency: "NGN", status: "completed", computed_units: 23.8, fulfilment_method: "token", token_reference: "TKN-1", completed_at: daysAgo(1), failure_code: null, safe_failure_message: null, created_at: daysAgo(1) },
+    ],
     oyi_conversation_threads: [],
     oyi_conversation_messages: [],
   };
@@ -45,6 +81,10 @@ function createFakeSupabase() {
     }
     eq(column, value) {
       this.filters.push({ column, value });
+      return this;
+    }
+    neq(column, value) {
+      this.filters.push({ column, op: "neq", value });
       return this;
     }
     gte(column, value) {
@@ -107,6 +147,7 @@ function createFakeSupabase() {
       for (const filter of this.filters) {
         if (filter.op === "gte") rows = rows.filter((row) => String(row[filter.column] || "") >= String(filter.value));
         else if (filter.op === "lte") rows = rows.filter((row) => String(row[filter.column] || "") <= String(filter.value));
+        else if (filter.op === "neq") rows = rows.filter((row) => String(row[filter.column] || "") !== String(filter.value));
         else rows = rows.filter((row) => String(row[filter.column] || "") === String(filter.value));
       }
       for (const filter of this.inFilters) rows = rows.filter((row) => filter.values.includes(String(row[filter.column])));
@@ -352,8 +393,9 @@ await check("maintenance thread: list -> oldest -> detail -> why, fully resolved
 
   const threadRow = fakeSupabase.db.oyi_conversation_threads.find((row) => row.id === threadId);
   assert.ok(threadRow, "thread row must exist after the list turn");
-  assert.equal(threadRow.metadata.last_result_set.domain, "maintenance");
-  assert.equal(threadRow.metadata.last_result_set.object_refs.length, 2);
+  assert.equal(threadRow.metadata.active_domain, "maintenance");
+  assert.equal(threadRow.metadata.result_sets.maintenance.domain, "maintenance");
+  assert.equal(threadRow.metadata.result_sets.maintenance.object_refs.length, 2);
 
   const oldestResponse = await run("Which one is oldest?", threadId);
   assert.match(oldestResponse.answer, /Leaking kitchen tap/i);
@@ -361,8 +403,8 @@ await check("maintenance thread: list -> oldest -> detail -> why, fully resolved
   assert.equal(oldestResponse.execution.orchestrator_v2.followup.resolution_status, "resolved");
 
   const narrowedThreadRow = fakeSupabase.db.oyi_conversation_threads.find((row) => row.id === threadId);
-  assert.equal(narrowedThreadRow.metadata.last_result_set.object_refs.length, 1);
-  assert.equal(narrowedThreadRow.metadata.last_result_set.selected_object_ref.canonical_id, "mr-old");
+  assert.equal(narrowedThreadRow.metadata.result_sets.maintenance.object_refs.length, 1);
+  assert.equal(narrowedThreadRow.metadata.result_sets.maintenance.selected_object_ref.canonical_id, "mr-old");
 
   const detailResponse = await run("Tell me more about that one.", threadId);
   assert.match(detailResponse.answer, /open/i);
@@ -386,6 +428,134 @@ await check("wallet thread: recent transactions -> latest -> how much", async ()
 
   const amountResponse = await run("How much was it?", threadId);
   assert.match(amountResponse.answer, /6,100/);
+});
+
+// ---------- end-to-end: visitors, security, community, automations, scenes, services, utilities ----------
+
+await check("visitors thread: who visited this week -> latest -> did they arrive", async () => {
+  const listResponse = await run("Show visitor access this week.");
+  assert.match(listResponse.answer, /2 visitor access record/i);
+  const threadId = listResponse.thread_id;
+
+  const latestResponse = await run("Who was the latest?", threadId);
+  assert.equal(latestResponse.execution.orchestrator_v2.followup.reference_type, "ordinal");
+  assert.equal(latestResponse.execution.orchestrator_v2.followup.resolved_object_ref, "va-new");
+  assert.doesNotMatch(latestResponse.answer, /4471|9911/, "answer must never expose a raw access code");
+
+  const arrivedResponse = await run("Did that person arrive?", threadId);
+  assert.equal(arrivedResponse.execution.orchestrator_v2.followup.reference_type, "status_check");
+  assert.match(arrivedResponse.answer, /expected/i);
+});
+
+await check("security thread: incidents -> latest -> where -> resolved", async () => {
+  const listResponse = await run("Any security incidents?");
+  const threadId = listResponse.thread_id;
+  assert.ok(threadId);
+
+  const latestResponse = await run("Tell me about the latest one.", threadId);
+  assert.match(latestResponse.answer, /Gate sensor fault/i);
+
+  const whereResponse = await run("Where did it happen?", threadId);
+  assert.match(whereResponse.answer, /Main gate/i);
+
+  const resolvedResponse = await run("Is it resolved?", threadId);
+  assert.match(resolvedResponse.answer, /\bopen\b/i);
+});
+
+await check("community thread: announcements -> latest official one", async () => {
+  const listResponse = await run("Any important community announcements?");
+  const threadId = listResponse.thread_id;
+  assert.ok(threadId);
+
+  const latestResponse = await run("Tell me more about the latest one.", threadId);
+  assert.match(latestResponse.answer, /Water shutdown notice/i);
+  assert.doesNotMatch(latestResponse.answer, /community_posts|table/i, "must not expose internal table/source language");
+});
+
+await check("automations thread: which failed -> last one -> why did it fail", async () => {
+  const listResponse = await run("Which automations failed recently?");
+  const threadId = listResponse.thread_id;
+  assert.ok(threadId);
+
+  const lastResponse = await run("Tell me more about the last one.", threadId);
+  // The run record itself carries no automation name (only automation_id),
+  // so the generic objectStateLine presentation reports the run's own
+  // status honestly rather than inventing a name it doesn't have.
+  assert.match(lastResponse.answer, /not completed|failed/i);
+
+  const whyResponse = await run("Why did it fail?", threadId);
+  assert.match(whyResponse.answer, /SENSOR_TIMEOUT|Sensor did not respond/i);
+});
+
+await check("scenes thread: what scenes do I have -> second one (no execution)", async () => {
+  const listResponse = await run("What scenes do I have?");
+  const threadId = listResponse.thread_id;
+  assert.ok(threadId);
+
+  const secondResponse = await run("Tell me more about the second one.", threadId);
+  assert.equal(secondResponse.execution.orchestrator_v2.followup.reference_type, "ordinal");
+  assert.equal(secondResponse.execution.status, "read_only");
+});
+
+await check("services thread: what services are active -> first one (service account, not utility spend)", async () => {
+  const listResponse = await run("What services are active?");
+  const threadId = listResponse.thread_id;
+  assert.ok(threadId);
+
+  const firstResponse = await run("Tell me more about the first one.", threadId);
+  assert.equal(firstResponse.execution.orchestrator_v2.followup.reference_type, "ordinal");
+  assert.equal(firstResponse.execution.orchestrator_v2.followup.resolved_object_type, "service_account");
+});
+
+await check("utilities thread: active -> tariff -> last purchase stay distinct capabilities", async () => {
+  const activeResponse = await run("What utilities are active?");
+  assert.match(activeResponse.execution.orchestrator_v2.capability_key, /utilities\.active\.read/);
+
+  const tariffResponse = await run("What tariff am I on?");
+  assert.equal(tariffResponse.execution.orchestrator_v2.capability_key, "utilities.tariff.read");
+  assert.match(tariffResponse.answer, /209\.5/);
+
+  const purchaseResponse = await run("When did I last buy electricity?");
+  assert.equal(purchaseResponse.execution.orchestrator_v2.capability_key, "utilities.purchases.read");
+  assert.match(purchaseResponse.answer, /utility purchase/i);
+});
+
+// ---------- filter continuity ----------
+
+await check("filter continuity: show only the high priority ones retains the open constraint", async () => {
+  const listResponse = await run("What maintenance issues are open?");
+  const threadId = listResponse.thread_id;
+
+  const filteredResponse = await run("Show only the high priority ones.", threadId);
+  assert.equal(filteredResponse.execution.orchestrator_v2.followup.reference_type, "filter");
+  assert.match(filteredResponse.answer, /AC not cooling/i);
+  assert.doesNotMatch(filteredResponse.answer, /Leaking kitchen tap/i);
+
+  const threadRow = fakeSupabase.db.oyi_conversation_threads.find((row) => row.id === threadId);
+  assert.equal(threadRow.metadata.result_sets.maintenance.object_refs.length, 1);
+  assert.equal(threadRow.metadata.result_sets.maintenance.filters.keyword, "high priority");
+});
+
+// ---------- cross-domain context switching ----------
+
+await check("cross-domain switch: maintenance -> visitors -> back to maintenance", async () => {
+  const maintenanceList = await run("What maintenance issues are open?");
+  const threadId = maintenanceList.thread_id;
+
+  const oldest = await run("Which one is oldest?", threadId);
+  assert.equal(oldest.execution.orchestrator_v2.followup.resolved_object_ref, "mr-old");
+
+  const visitorsList = await run("Show visitor access this week.", threadId);
+  assert.match(visitorsList.answer, /visitor access record/i);
+
+  const latestVisitor = await run("Who was the latest?", threadId);
+  assert.equal(latestVisitor.execution.orchestrator_v2.followup.source_domain, "visitors");
+  assert.equal(latestVisitor.execution.orchestrator_v2.followup.resolved_object_ref, "va-new");
+
+  const goBack = await run("Go back to that maintenance issue.", threadId);
+  assert.equal(goBack.execution.orchestrator_v2.followup.reference_type, "pronoun");
+  assert.equal(goBack.execution.orchestrator_v2.followup.resolved_object_ref, "mr-old");
+  assert.match(goBack.answer, /open/i);
 });
 
 // ---------- ambiguity: no silent guess ----------

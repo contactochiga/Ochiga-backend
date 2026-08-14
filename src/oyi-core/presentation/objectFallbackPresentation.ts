@@ -111,6 +111,8 @@ function objectTypeLabel(object: OperationalObject) {
     wing: "wing",
     visitor: "visitor",
     access_pass: "access pass",
+    visitor_access: "visitor",
+    automation_run: "automation run",
     maintenance_request: "maintenance request",
     wallet: "wallet",
     transaction: "transaction",
@@ -185,6 +187,12 @@ function objectPersonality(object: OperationalObject) {
     },
     visitor: visitorObjectProfile("visitor"),
     access_pass: visitorObjectProfile("access_pass"),
+    visitor_access: visitorObjectProfile("visitor_access"),
+    automation_run: {
+      role: "I track this automation run's trigger, outcome, and any recorded error — no re-execution happens here.",
+      diagnostics: ["status", "started/completed", "error code", "trigger source"],
+      actions: ["show automation", "show recent runs"],
+    },
     maintenance_request: maintenanceObjectProfile(),
     wallet: {
       role: "I track this wallet's balance, funding, charges, receipts, and payment safety.",
@@ -261,7 +269,7 @@ function objectVoice(object: OperationalObject) {
     unavailable: "I can’t verify the payment record right now.",
     next: "Would you like recent transactions or a receipt?",
   };
-  if (type === "visitor" || type === "access_pass") return {
+  if (type === "visitor" || type === "access_pass" || type === "visitor_access") return {
     ...visitorObjectVoice(),
   };
   if (type === "maintenance_request") return {
@@ -273,8 +281,8 @@ function objectVoice(object: OperationalObject) {
   if (type === "message_thread" || type === "community_post") return {
     ...communityObjectVoice(type),
   };
-  if (type === "scene" || type === "automation") return {
-    ...sceneAutomationObjectVoice(type),
+  if (type === "scene" || type === "automation" || type === "automation_run") return {
+    ...sceneAutomationObjectVoice(type === "automation_run" ? "automation" : type),
   };
   if (type === "camera" || type === "access_point" || type === "operational_incident" || type === "security_incident") return {
     ...securityObjectVoice(type === "security_incident" ? "operational_incident" : type),

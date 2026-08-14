@@ -664,7 +664,12 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["automations.read"],
       scopeRequirements: homeScope,
       evidenceRequirements: [readRequirement("automations", "route_contract")],
-      supports: (frame) => frame.domain === "automations" && (frame.operation === "list" || frame.operation === "inspect" || /\bautomations?\b/i.test(frame.normalizedText)),
+      // Explicitly excludes run/failure phrasing so it never shadows the
+      // more specific automations.runs.read (e.g. "which automations
+      // failed recently?" must answer from run/error evidence, not the
+      // automation definition list) — mirrors the utilities.spending vs
+      // utilities.active mutual-exclusion pattern already used elsewhere.
+      supports: (frame) => frame.domain === "automations" && !/\brun|ran|last run|failed|failure|history\b/i.test(frame.normalizedText) && (frame.operation === "list" || frame.operation === "inspect" || /\bautomations?\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadAutomationFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);

@@ -15,7 +15,7 @@ import {
   turnInterpretationFromContract,
   type ConversationContextLayers,
 } from "../context/conversationContextLayers";
-import { buildResultSetContext, type ResultSetContext } from "../context/resultSetContext";
+import { buildResultSetContext, loadThreadResultSetsContext, type ResultSetContext } from "../context/resultSetContext";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -193,11 +193,14 @@ export async function persistCanonicalConversationTurn(input: {
   const actionMetadata = recordOf(executionRecord.action);
   // Generic result-set persistence for next-turn follow-up resolution
   // (ordinal/pronoun/"tell me more"). response.result_set is used verbatim
-  // when a follow-up resolver already narrowed it to a single object;
-  // otherwise it's derived here from response.facts, which both conversation
-  // pipelines populate (canonicalConversationRuntime.ts directly, the
-  // capability/DomainResult pipeline via CapabilityResponseAdapter.ts) — no
-  // per-domain code needed for this to work for any capability.
+  // when a follow-up resolver already narrowed/selected it; otherwise it's
+  // derived here from response.facts, which both conversation pipelines
+  // populate (canonicalConversationRuntime.ts directly, the capability/
+  // DomainResult pipeline via CapabilityResponseAdapter.ts) — no per-domain
+  // code needed for this to work for any capability. Result sets are kept
+  // PER DOMAIN (not a single overwritten slot) so switching domains mid
+  // thread doesn't erase the ability to later say "go back to that
+  // maintenance issue" (see resultSetContext.ts / §10 cross-domain switch).
   const explicitResultSet = response.result_set as ResultSetContext | null | undefined;
   const derivedResultSet = explicitResultSet !== undefined
     ? explicitResultSet
@@ -209,10 +212,16 @@ export async function persistCanonicalConversationTurn(input: {
       contract,
       message: request.message,
     });
+  const priorResultSets = await loadThreadResultSetsContext(threadId).catch(() => ({ resultSets: {}, activeDomain: null }));
+  const mergedResultSets = derivedResultSet
+    ? { ...priorResultSets.resultSets, [derivedResultSet.domain]: derivedResultSet }
+    : priorResultSets.resultSets;
+  const activeDomain = derivedResultSet ? derivedResultSet.domain : priorResultSets.activeDomain;
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
-    last_result_set: derivedResultSet,
+    result_sets: mergedResultSets,
+    active_domain: activeDomain,
     conversation_state: {
       version: 1,
       entities: [],

@@ -485,6 +485,9 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
     room: { table: "rooms", select: "id,name,home_id,updated_at", label: "Room", module: "spaces" },
     scene: { table: "consumer_scenes", select: "id,name,estate_id,home_id,enabled,updated_at,actions", label: "Scene", module: "scenes" },
     automation: { table: "consumer_automations", select: "id,name,estate_id,home_id,enabled,next_run_at,last_run_status,updated_at,actions,trigger", label: "Automation", module: "automations" },
+    // sceneAutomationEvidence.ts's loadAutomationRunFacts emits object_type
+    // "automation_run" — same missing-alias defect as visitor_access above.
+    automation_run: { table: "consumer_automation_runs", select: "id,automation_id,estate_id,home_id,trigger_type,source,status,started_at,completed_at,error_code,error_message,created_at", label: "Automation run", module: "automations" },
     maintenance_request: { table: "maintenance_requests", select: "id,title,estate_id,home_id,status,assigned_to,updated_at", label: "Maintenance request", module: "maintenance" },
     // currency is intentionally not selected: wallet_transactions has no
     // currency column (it lives in metadata.currency, see walletEvidence.ts
@@ -492,6 +495,11 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
     transaction: { table: "wallet_transactions", select: "id,wallet_id,status,reference,created_at,amount,metadata", label: "Transaction", module: "wallet" },
     visitor: { table: "visitors", select: "id,name,estate_id,home_id,status,updated_at", label: "Visitor", module: "visitors" },
     access_pass: { table: "visitor_access", select: "id,visitor_name,estate_id,home_id,status,updated_at,purpose,expires_at", label: "Access pass", module: "visitors" },
+    // visitorEvidence.ts's direct-evidence loader (loadVisitorAccessFacts)
+    // emits object_type "visitor_access", not "access_pass" — this alias
+    // was missing, so every "tell me more about that visitor" follow-up
+    // failed hydration silently (fell through to "unsupported").
+    visitor_access: { table: "visitor_access", select: "id,visitor_name,estate_id,home_id,status,updated_at,purpose,expires_at", label: "Visitor access", module: "visitors" },
     service_account: { table: "home_service_accounts", select: "id,estate_id,home_id,service_key,provider,status,account_ref,meter_id,updated_at", label: "Service account", module: "services" },
     community_post: { table: "community_posts", select: "id,title,estate_id,updated_at", label: "Community post", module: "community" },
     message_thread: { table: "dm_threads", select: "id,estate_id,updated_at", label: "Message thread", module: "messages" },
