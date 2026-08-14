@@ -1,4 +1,5 @@
 import type {
+  IntelligenceFact,
   OperationalObject,
   OperationalObjectType,
 } from "../../contracts/canonicalConversation";
@@ -9,6 +10,18 @@ function text(value: unknown) {
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+export function buildAutomationRunsAnswer(facts: IntelligenceFact[]) {
+  if (facts.some((fact) => fact.truth_state === "unavailable")) {
+    return "Automation run history is unavailable right now. I did not treat that as no runs.";
+  }
+  if (!facts.length) return "I do not see any automation runs on record for this scope.";
+  const failed = facts.filter((fact) => text(recordOf(fact.value).status) === "failed");
+  const latest = facts[0];
+  const latestValue = recordOf(latest.value);
+  const latestLine = `Most recent run: ${text(latestValue.status)}${latestValue.error_message ? ` (${text(latestValue.error_message)})` : ""}.`;
+  return `${facts.length} automation run${facts.length === 1 ? "" : "s"} on record, ${failed.length} failed. ${latestLine}`;
 }
 
 function naturalizeUserCopy(value: string) {

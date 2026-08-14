@@ -1,4 +1,5 @@
 import type {
+  IntelligenceFact,
   OperationalObject,
   OperationalObjectType,
 } from "../../contracts/canonicalConversation";
@@ -9,6 +10,18 @@ function text(value: unknown) {
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+export function buildServicesActiveAnswer(facts: IntelligenceFact[]) {
+  if (!facts.length) return "I do not see any registered services for this scope.";
+  const active = facts.filter((fact) => Boolean(recordOf(fact.value).active));
+  const requested = facts.filter((fact) => {
+    const value = recordOf(fact.value);
+    return Boolean(value.enabled) && !value.active && value.account_status !== "unknown";
+  });
+  const parts = [`${active.length} of ${facts.length} registered services are active`];
+  if (requested.length) parts.push(`${requested.length} enabled but not yet linked`);
+  return `${parts.join(", ")}.`;
 }
 
 function naturalizeUserCopy(value: string) {

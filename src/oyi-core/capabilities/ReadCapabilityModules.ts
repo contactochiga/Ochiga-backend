@@ -9,12 +9,20 @@ import { resolveIntentContract, factAppliesToContract, isFailureFact, presentati
 import { loadHomeDeviceInventoryFacts, loadRecentDeviceChangeFacts, dedupeIntelligenceFacts } from "../domains/devices/deviceEvidence";
 import { buildDeviceAvailabilityInventoryAnswer, buildRecentChangesAnswer, buildWalletHistoryAnswer, tableBlockForContract } from "../presentation/conversationAnswerPresentation";
 import { buildDeviceFailureHistoryAnswer, buildDeviceDiagnosisAnswer, buildDeviceRelationshipsAnswer } from "../domains/devices/deviceConversationAnswers";
-import { loadWalletTransactionFacts } from "../domains/wallet/walletEvidence";
-import { loadUtilitySpendingFacts } from "../domains/utilities/utilityEvidence";
-import { buildUtilitySpendingAnswer } from "../domains/utilities/utilityConversationAnswers";
+import { loadWalletTransactionFacts, loadWalletBalanceFacts } from "../domains/wallet/walletEvidence";
+import { loadUtilitySpendingFacts, loadServiceAccountFacts, loadUtilityTariffFacts, loadUtilityPurchaseFacts, UTILITY_SERVICE_KEYS } from "../domains/utilities/utilityEvidence";
+import { buildUtilitySpendingAnswer, buildUtilityActiveAnswer, buildUtilityTariffAnswer, buildUtilityPurchasesAnswer } from "../domains/utilities/utilityConversationAnswers";
 import { loadMaintenanceRequestFacts } from "../domains/maintenance/maintenanceEvidence";
 import { loadVisitorAccessFacts } from "../domains/visitors/visitorEvidence";
-import { buildMaintenanceRequestsAnswer, buildVisitorAccessAnswer } from "../presentation/conversationAnswerPresentation";
+import { buildMaintenanceRequestsAnswer, buildVisitorAccessAnswer, buildWalletBalanceAnswer } from "../presentation/conversationAnswerPresentation";
+import { loadSecurityIncidentFacts } from "../domains/security/securityEvidence";
+import { buildSecurityIncidentsAnswer } from "../domains/security/securityConversationAnswers";
+import { loadServicesActiveFacts } from "../domains/services/serviceEvidence";
+import { buildServicesActiveAnswer } from "../domains/services/serviceConversationAnswers";
+import { loadCommunityPostFacts } from "../domains/community/communityEvidence";
+import { buildCommunityLatestAnswer } from "../domains/community/communityConversationAnswers";
+import { loadSceneFacts, loadAutomationFacts, loadAutomationRunFacts } from "../domains/automations/sceneAutomationEvidence";
+import { buildSceneAutomationReadAnswer, buildAutomationRunsAnswer } from "../domains/automations/sceneAutomationConversationAnswers";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 
 function text(value: unknown) {
@@ -383,6 +391,27 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       primary: "table",
     }),
     readModule({
+      key: "wallet.balance.read",
+      domain: "wallet",
+      operations: ["inspect", "inform"],
+      supportedSurfaces: ["consumer"],
+      permissions: ["wallet.read"],
+      scopeRequirements: homeScope,
+      evidenceRequirements: [readRequirement("wallet", "wallet_balance")],
+      supports: (frame) => frame.domain === "wallet" && /\bbalance|how much (do i have|is in|left)|current balance\b/i.test(frame.normalizedText),
+      collect: async (context) => {
+        const facts = await loadWalletBalanceFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Wallet balance evidence is unavailable right now. I did not treat that as a zero balance.", presentation_policy: resultPresentation("text") };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildWalletBalanceAnswer(facts), presentation_policy: resultPresentation("text") };
+      },
+    }),
+    readModule({
       key: "utilities.spending.read",
       domain: "utilities",
       operations: ["utilities.spending", "summarize"],
@@ -397,16 +426,95 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       },
       answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return {
+            status: "unavailable",
+            answer: "Utility spending evidence is unavailable right now. I did not treat that as no spending.",
+            presentation_policy: resultPresentation("text"),
+          };
+        }
         const contract = requestContract(context);
         const block = tableBlockForContract({ ...contract, intent: "wallet_operation", answer_builder: "utility_spending" }, facts, presentationFactPredicates);
         return { status: facts.length ? "answered" : "empty", answer: buildUtilitySpendingAnswer(facts), blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table") };
       },
       primary: "table",
     }),
-    declaredModule({ key: "utilities.active.read", domain: "utilities", operations: ["utilities.active", "list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "utility_status")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.active" }),
+    readModule({
+      key: "utilities.active.read",
+      domain: "utilities",
+      operations: ["utilities.active", "list", "inspect"],
+      supportedSurfaces: ["consumer", "facility"],
+      permissions: ["utilities.read"],
+      scopeRequirements: estateScope,
+      evidenceRequirements: [readRequirement("utilities", "service_account")],
+      supports: (frame) => frame.domain === "utilities" && (frame.operation === "utilities.active" || /\bwhich utilit(?:y|ies)|utilit(?:y|ies)\b.*\bactive|enabled|connected\b/i.test(frame.normalizedText)),
+      collect: async (context) => {
+        const facts = await loadServiceAccountFacts(context.input, context.oisContext, requestContract(context), { onlyServiceKeys: UTILITY_SERVICE_KEYS, domain: "utilities" });
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Utility account evidence is unavailable right now.", presentation_policy: resultPresentation("text") };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildUtilityActiveAnswer(facts), presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
+    // usage/balance/meter-reading stay disabled: no consumption table is
+    // ever queried in this codebase (utility_events has zero call sites),
+    // home_service_accounts.balance/outstanding are declared columns that
+    // are never written by any code path, and no per-meter reading series
+    // exists anywhere. Enabling these would mean answering with data that
+    // does not exist. See docs/architecture/OYI_DOMAIN_MATURITY_MATRIX.md.
     declaredModule({ key: "utilities.usage.read", domain: "utilities", operations: ["utilities.usage", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "declared", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "utility_usage")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.usage" }),
     declaredModule({ key: "utilities.balance.read", domain: "utilities", operations: ["utilities.balance", "inspect"], supportedSurfaces: ["consumer"], status: "declared", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "utility_balance")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.balance" }),
     declaredModule({ key: "utilities.meter.read", domain: "utilities", operations: ["utilities.meter", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "declared", permissions: ["utilities.read"], evidence: [readRequirement("utilities", "meter_status")], supports: (frame) => frame.domain === "utilities" && frame.operation === "utilities.meter" }),
+    readModule({
+      key: "utilities.tariff.read",
+      domain: "utilities",
+      operations: ["inspect", "inform"],
+      supportedSurfaces: ["consumer", "facility"],
+      permissions: ["utilities.read"],
+      scopeRequirements: estateScope,
+      evidenceRequirements: [readRequirement("utilities", "utility_tariff")],
+      supports: (frame) => frame.domain === "utilities" && /\btariff|rate|unit cost|per kwh|price per\b/i.test(frame.normalizedText),
+      collect: async (context) => {
+        const facts = await loadUtilityTariffFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Tariff evidence is unavailable right now.", presentation_policy: resultPresentation("text") };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildUtilityTariffAnswer(facts), presentation_policy: resultPresentation("text") };
+      },
+    }),
+    readModule({
+      key: "utilities.purchases.read",
+      domain: "utilities",
+      operations: ["list", "utilities.history"],
+      supportedSurfaces: ["consumer", "facility"],
+      permissions: ["utilities.read", "wallet.read"],
+      scopeRequirements: estateScope,
+      evidenceRequirements: [readRequirement("utilities", "utility_purchase")],
+      supports: (frame) => frame.domain === "utilities" && /\bbuy|bought|purchase|purchased|vend|vending|token|last (bought|purchase)\b/i.test(frame.normalizedText),
+      collect: async (context) => {
+        const facts = await loadUtilityPurchaseFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Utility purchase history is unavailable right now.", presentation_policy: resultPresentation("text") };
+        }
+        const contract = requestContract(context);
+        const block = tableBlockForContract({ ...contract, intent: "wallet_operation", answer_builder: "utility_purchase" }, facts, presentationFactPredicates);
+        return { status: facts.length ? "answered" : "empty", answer: buildUtilityPurchasesAnswer(facts), blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table") };
+      },
+      primary: "table",
+    }),
     readModule({
       key: "maintenance.requests.read",
       domain: "maintenance",
@@ -459,12 +567,139 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       },
       primary: "list",
     }),
-    declaredModule({ key: "security.incidents.read", domain: "security", operations: ["list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["security.read"], evidence: [readRequirement("security", "relationship_context")] }),
-    declaredModule({ key: "services.active.read", domain: "services", operations: ["list", "inspect"], supportedSurfaces: ["consumer"], status: "implemented", permissions: ["services.read"], evidence: [readRequirement("services", "relationship_context")] }),
-    declaredModule({ key: "community.latest.read", domain: "community", operations: ["list", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "implemented", permissions: ["community.read"], evidence: [readRequirement("community", "relationship_context")] }),
+    readModule({
+      key: "security.incidents.read",
+      domain: "security",
+      operations: ["list", "inspect"],
+      supportedSurfaces: ["consumer", "facility"],
+      permissions: ["security.read"],
+      scopeRequirements: estateScope,
+      evidenceRequirements: [readRequirement("security", "security_incident")],
+      supports: (frame) => frame.domain === "security" && (frame.operation === "list" || frame.operation === "inspect" || /\bsecurity|incident|alert|unresolved|failed access\b/i.test(frame.normalizedText)),
+      collect: async (context) => {
+        const facts = await loadSecurityIncidentFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Security incident evidence is unavailable right now. I did not treat that as no incidents.", presentation_policy: resultPresentation("text") };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildSecurityIncidentsAnswer(facts), presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
+    readModule({
+      key: "services.active.read",
+      domain: "services",
+      operations: ["list", "inspect"],
+      supportedSurfaces: ["consumer"],
+      permissions: ["services.read"],
+      scopeRequirements: homeScope,
+      evidenceRequirements: [readRequirement("services", "service_account")],
+      supports: (frame) => frame.domain === "services" && (frame.operation === "list" || frame.operation === "inspect" || /\bservices?\b/i.test(frame.normalizedText)),
+      collect: async (context) => {
+        const facts = await loadServicesActiveFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Service account evidence is unavailable right now.", presentation_policy: resultPresentation("text") };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildServicesActiveAnswer(facts), presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
+    readModule({
+      key: "community.latest.read",
+      domain: "community",
+      operations: ["list", "inspect"],
+      supportedSurfaces: ["consumer", "facility"],
+      permissions: ["community.read"],
+      scopeRequirements: estateScope,
+      evidenceRequirements: [readRequirement("community", "community_post")],
+      supports: (frame) => frame.domain === "community" && (frame.operation === "list" || frame.operation === "inspect" || /\bcommunity|announcement|notice|update\b/i.test(frame.normalizedText)),
+      collect: async (context) => {
+        const facts = await loadCommunityPostFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Community updates are unavailable right now. I did not treat that as no announcements.", presentation_policy: resultPresentation("text") };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildCommunityLatestAnswer(facts), presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
     declaredModule({ key: "messages.unread.read", domain: "messages", operations: ["list", "inspect"], supportedSurfaces: ["consumer"], status: "implemented", permissions: ["messages.read"], evidence: [readRequirement("messages", "relationship_context")] }),
-    declaredModule({ key: "scenes.list.read", domain: "scenes", operations: ["list", "inspect"], supportedSurfaces: ["consumer"], status: "implemented", permissions: ["scenes.read"], evidence: [readRequirement("scenes", "route_contract")] }),
-    declaredModule({ key: "automations.list.read", domain: "automations", operations: ["list", "inspect"], supportedSurfaces: ["consumer"], status: "implemented", permissions: ["automations.read"], evidence: [readRequirement("automations", "route_contract")] }),
+    readModule({
+      key: "scenes.list.read",
+      domain: "scenes",
+      operations: ["list", "inspect"],
+      supportedSurfaces: ["consumer"],
+      permissions: ["scenes.read"],
+      scopeRequirements: homeScope,
+      evidenceRequirements: [readRequirement("scenes", "route_contract")],
+      supports: (frame) => frame.domain === "scenes" && (frame.operation === "list" || frame.operation === "inspect" || /\bscenes?\b/i.test(frame.normalizedText)),
+      collect: async (context) => {
+        const facts = await loadSceneFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Scene evidence is unavailable right now.", presentation_policy: resultPresentation("text") };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildSceneAutomationReadAnswer(facts.map((fact) => fact.value as Record<string, unknown>), "scenes"), presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
+    readModule({
+      key: "automations.list.read",
+      domain: "automations",
+      operations: ["list", "inspect"],
+      supportedSurfaces: ["consumer"],
+      permissions: ["automations.read"],
+      scopeRequirements: homeScope,
+      evidenceRequirements: [readRequirement("automations", "route_contract")],
+      supports: (frame) => frame.domain === "automations" && (frame.operation === "list" || frame.operation === "inspect" || /\bautomations?\b/i.test(frame.normalizedText)),
+      collect: async (context) => {
+        const facts = await loadAutomationFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Automation evidence is unavailable right now.", presentation_policy: resultPresentation("text") };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildSceneAutomationReadAnswer(facts.map((fact) => fact.value as Record<string, unknown>), "automations"), presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
+    readModule({
+      key: "automations.runs.read",
+      domain: "automations",
+      operations: ["list", "inspect"],
+      supportedSurfaces: ["consumer"],
+      permissions: ["automations.read"],
+      scopeRequirements: homeScope,
+      evidenceRequirements: [readRequirement("automations", "automation_run")],
+      supports: (frame) => frame.domain === "automations" && /\brun|ran|last run|history|failed|failure\b/i.test(frame.normalizedText),
+      collect: async (context) => {
+        const facts = await loadAutomationRunFacts(context.input, context.oisContext, requestContract(context));
+        return facts.map(evidenceFromFact);
+      },
+      answer: (context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) {
+          return { status: "unavailable", answer: "Automation run history is unavailable right now. I did not treat that as no runs.", presentation_policy: resultPresentation("text") };
+        }
+        return { status: facts.length ? "answered" : "empty", answer: buildAutomationRunsAnswer(facts), presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
     declaredModule({ key: "reports.period_summary.read", domain: "reports", operations: ["summarize", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "shadow", permissions: [], evidence: [readRequirement("reports", "cross_domain_summary")] }),
     declaredModule({ key: "home.summary.read", domain: "home", operations: ["summarize"], supportedSurfaces: ["consumer"], status: "shadow", permissions: ["devices.read"], evidence: [readRequirement("home", "composed_context")] }),
     declaredModule({ key: "rooms.inventory.read", domain: "rooms", operations: ["list"], supportedSurfaces: ["consumer", "facility"], status: "shadow", permissions: ["homes.read"], evidence: [readRequirement("rooms", "composed_context")] }),

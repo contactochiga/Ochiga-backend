@@ -1,4 +1,8 @@
-import type { CanonicalConversationRequest, OperationalObject } from "../../contracts/canonicalConversation";
+import { supabaseAdmin } from "../../../supabase/supabaseClient";
+import { logger } from "../../../observability/logger";
+import type { OisContext } from "../../../types/oisContext";
+import type { CanonicalConversationRequest, IntelligenceFact, OperationalObject } from "../../contracts/canonicalConversation";
+import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -68,4 +72,122 @@ export function communityThreadBoundarySummary() {
     community_message_storage: ["dm_threads", "dm_messages", "community_posts"],
     boundary: "community_message_threads_are_operational_targets_not_oyi_conversation_threads",
   };
+}
+
+// Reuses the exact official-vs-chatter test from
+// src/controllers/communityController.ts's communitySourceFor — category,
+// is_pinned and author role are the real discriminators (there is no
+// is_official/type column). community_posts is estate-scoped only (no
+// home_id column), so both surfaces read the same estate-wide rows.
+const OFFICIAL_CATEGORIES = new Set(["announcement", "notice", "maintenance", "security", "service", "event"]);
+function isOfficialCommunityPost(category: string, isPinned: boolean, authorRole: string) {
+  return isPinned || OFFICIAL_CATEGORIES.has(category) || /admin|manager|operator|moderator|security|maintenance|staff|owner/.test(authorRole);
+}
+
+function currentScope(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
+  return { estate_id: input.estate_id || oisContext?.estate_id || null };
+}
+
+function unavailableCommunityFact(input: { scope: ReturnType<typeof currentScope>; reason: string; contract: IntelligenceRequestContract }): IntelligenceFact {
+  const now = new Date().toISOString();
+  return {
+    fact_id: `community-post-unavailable:${input.contract.conversation_request_id}`,
+    domain: "community",
+    fact_type: "community_post",
+    scope: { estate_id: input.scope.estate_id, home_id: null, room_id: null },
+    object: { object_type: "community_post", canonical_id: input.scope.estate_id || "unknown-estate", label: "Community updates" },
+    statement: "Community post evidence is unavailable right now.",
+    value: { reason: input.reason },
+    previous_value: null,
+    occurred_at: null,
+    observed_at: now,
+    source_type: "database",
+    source_id: null,
+    truth_state: "unavailable",
+    confidence: 0,
+    freshness: "unavailable",
+    privacy_class: "building_operational",
+    permissions: ["community.read"],
+    evidence: [{ type: "community_posts", status: "unavailable", reason: input.reason }],
+  };
+}
+
+// Direct evidence: community_posts, estate-scoped, ranked official-first.
+// Never reads resident-private DM threads (dm_threads/dm_messages) — those
+// remain out of scope for this capability, matching messages.unread.read's
+// existing separate declared-module boundary.
+export async function loadCommunityPostFacts(
+  input: CanonicalConversationRequest,
+  oisContext: OisContext | null | undefined,
+  contract: IntelligenceRequestContract,
+): Promise<IntelligenceFact[]> {
+  const scope = currentScope(input, oisContext);
+  if (!scope.estate_id) return [];
+  const diagnosticBase = { capability_key: "community.latest.read", surface: input.surface, estate_id: scope.estate_id };
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("community_posts")
+      .select("id,estate_id,author_id,title,body,status,category,is_pinned,priority,audience_type,created_at,updated_at")
+      .eq("estate_id", scope.estate_id)
+      .neq("status", "deleted")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    const authorIds = Array.from(new Set(rows.map((row: any) => text(row.author_id)).filter(Boolean)));
+    const roleByAuthor = new Map<string, string>();
+    if (authorIds.length) {
+      const { data: authorRows, error: authorError } = await supabaseAdmin.from("users").select("id,role").in("id", authorIds);
+      if (!authorError && Array.isArray(authorRows)) {
+        for (const row of authorRows as any[]) roleByAuthor.set(String(row.id), text(row.role).toLowerCase());
+      }
+    }
+    const facts = rows.map((row: any): IntelligenceFact => {
+      const category = text(row.category) || "resident";
+      const isPinned = Boolean(row.is_pinned);
+      const authorRole = roleByAuthor.get(text(row.author_id)) || "";
+      const official = isOfficialCommunityPost(category, isPinned, authorRole);
+      const title = text(row.title) || "Community update";
+      return {
+        fact_id: `community-post:${row.id}`,
+        domain: "community",
+        fact_type: "community_post",
+        scope: { estate_id: scope.estate_id, home_id: null, room_id: null },
+        object: { object_type: "community_post", canonical_id: String(row.id), label: title },
+        statement: `${title} (${official ? "official" : "resident"}, ${category}).`,
+        value: {
+          title,
+          body: text(row.body) || null,
+          category,
+          is_pinned: isPinned,
+          is_official: official,
+          priority: text(row.priority) || null,
+          audience_type: text(row.audience_type) || null,
+        },
+        previous_value: null,
+        occurred_at: text(row.created_at) || null,
+        observed_at: new Date().toISOString(),
+        source_type: "database",
+        source_id: String(row.id),
+        truth_state: "confirmed",
+        confidence: 0.9,
+        freshness: text(row.updated_at || row.created_at) || "historical",
+        privacy_class: "building_operational",
+        permissions: ["community.read"],
+        evidence: [{ type: "community_posts", id: row.id, category }],
+      };
+    });
+    // Official-first, then most recent — matches the "prioritize
+    // operationally relevant updates over chatter" requirement.
+    facts.sort((a, b) => {
+      const officialDelta = Number(recordOf(b.value).is_official) - Number(recordOf(a.value).is_official);
+      if (officialDelta) return officialDelta;
+      return String(b.occurred_at || "").localeCompare(String(a.occurred_at || ""));
+    });
+    logger.info("oyi_community_post_evidence_loaded", { ...diagnosticBase, query_row_count: rows.length, fact_count: facts.length, result_type: facts.length ? "answered" : "empty" });
+    return facts;
+  } catch (error) {
+    logger.warn("conversation_community_post_load_failed", { ...diagnosticBase, error, result_type: "unavailable" });
+    return [unavailableCommunityFact({ scope, reason: "community_post_query_failed", contract })];
+  }
 }

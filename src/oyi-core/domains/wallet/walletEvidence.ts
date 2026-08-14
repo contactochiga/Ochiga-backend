@@ -129,7 +129,13 @@ export async function loadWalletTransactionFacts(
     query_home_id: scope.home_id,
   };
   try {
-    const boundedTemporalModes = new Set(["today", "yesterday", "custom", "current_month"]);
+    // "range" (not "custom") is the real IntelligenceRequestContract temporal
+    // mode name (see semanticFrame.ts's TemporalScope union) — this set
+    // previously listed "custom", which never matches, so range-bounded
+    // queries (e.g. "how much did I spend last week vs this week") silently
+    // ignored their from/to bounds and always returned the unbounded recent
+    // window instead.
+    const boundedTemporalModes = new Set(["today", "yesterday", "range", "current_month"]);
     const applyTemporalBounds = boundedTemporalModes.has(contract.temporal_scope.mode);
     const walletResult = await supabaseAdmin
       .from("wallets")
@@ -171,5 +177,90 @@ export async function loadWalletTransactionFacts(
       error,
     });
     return [unavailableWalletFact({ scope, reason: "wallet_transaction_query_failed", contract })];
+  }
+}
+
+function unavailableWalletBalanceFact(input: {
+  scope: ReturnType<typeof currentScope>;
+  reason: string;
+  contract: IntelligenceRequestContract;
+}): IntelligenceFact {
+  const now = new Date().toISOString();
+  return {
+    fact_id: `wallet-balance-unavailable:${input.contract.conversation_request_id}`,
+    domain: "wallet",
+    fact_type: "wallet_balance",
+    scope: { estate_id: input.scope.estate_id, home_id: input.scope.home_id, room_id: null },
+    object: { object_type: "wallet", canonical_id: input.scope.home_id || "unknown-home", label: "Wallet balance" },
+    statement: "Wallet balance evidence is unavailable right now.",
+    value: { reason: input.reason },
+    previous_value: null,
+    occurred_at: null,
+    observed_at: now,
+    source_type: "database",
+    source_id: null,
+    truth_state: "unavailable",
+    confidence: 0,
+    freshness: "unavailable",
+    privacy_class: "financial_sensitive",
+    permissions: ["wallet.read"],
+    evidence: [{ type: "wallets", status: "unavailable", reason: input.reason }],
+  };
+}
+
+// Direct evidence: wallets.balance/currency/is_frozen — real, maintained
+// columns (written by the atomic debit RPC and wallet funding/service-
+// payment paths) that the transaction loader above never selected. Widens
+// the existing "id"-only wallet lookup rather than adding a second query.
+export async function loadWalletBalanceFacts(
+  input: CanonicalConversationRequest,
+  oisContext: OisContext | null | undefined,
+  contract: IntelligenceRequestContract,
+): Promise<IntelligenceFact[]> {
+  const scope = currentScope(input, oisContext);
+  if (!scope.home_id) return [];
+  const diagnosticBase = {
+    capability_key: "wallet.balance.read",
+    estate_id: scope.estate_id,
+    home_id: scope.home_id,
+  };
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("wallets")
+      .select("id,home_id,balance,currency,is_frozen,updated_at")
+      .eq("home_id", scope.home_id)
+      .limit(10);
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    const facts = rows.map((row: any): IntelligenceFact => {
+      const balance = Number(row.balance || 0);
+      const currency = text(row.currency) || "NGN";
+      const frozen = Boolean(row.is_frozen);
+      return {
+        fact_id: `wallet-balance:${row.id}`,
+        domain: "wallet",
+        fact_type: "wallet_balance",
+        scope: { estate_id: scope.estate_id, home_id: text(row.home_id) || scope.home_id, room_id: null },
+        object: { object_type: "wallet", canonical_id: String(row.id), label: "Wallet" },
+        statement: `Wallet balance: ${balance} ${currency}${frozen ? " (frozen)" : ""}.`,
+        value: { balance, currency, is_frozen: frozen },
+        previous_value: null,
+        occurred_at: text(row.updated_at) || null,
+        observed_at: new Date().toISOString(),
+        source_type: "database",
+        source_id: String(row.id),
+        truth_state: "confirmed",
+        confidence: 0.95,
+        freshness: text(row.updated_at) || "fresh",
+        privacy_class: "financial_sensitive",
+        permissions: ["wallet.read"],
+        evidence: [{ type: "wallets", id: row.id }],
+      };
+    });
+    logger.info("oyi_wallet_balance_evidence_loaded", { ...diagnosticBase, query_row_count: rows.length, fact_count: facts.length, result_type: facts.length ? "answered" : "empty" });
+    return facts;
+  } catch (error) {
+    logger.warn("conversation_wallet_balance_load_failed", { ...diagnosticBase, error, result_type: "unavailable" });
+    return [unavailableWalletBalanceFact({ scope, reason: "wallet_balance_query_failed", contract })];
   }
 }

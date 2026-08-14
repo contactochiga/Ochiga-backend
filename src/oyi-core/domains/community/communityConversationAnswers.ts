@@ -1,4 +1,5 @@
 import type {
+  IntelligenceFact,
   OperationalObject,
   OperationalObjectType,
 } from "../../contracts/canonicalConversation";
@@ -9,6 +10,19 @@ function text(value: unknown) {
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+// Facts arrive official-first (see loadCommunityPostFacts) — this only
+// presents that ordering, it does not re-rank.
+export function buildCommunityLatestAnswer(facts: IntelligenceFact[]) {
+  if (facts.some((fact) => fact.truth_state === "unavailable")) {
+    return "Community updates are unavailable right now. I did not treat that as no announcements.";
+  }
+  if (!facts.length) return "I do not see any community updates for this estate.";
+  const official = facts.filter((fact) => Boolean(recordOf(fact.value).is_official));
+  if (!official.length) return `I see ${facts.length} community post${facts.length === 1 ? "" : "s"}, but nothing from management or an official category recently.`;
+  const lines = official.slice(0, 3).map((fact) => text(recordOf(fact.value).title)).filter(Boolean);
+  return `${official.length} official update${official.length === 1 ? "" : "s"} recently: ${lines.join("; ")}.`;
 }
 
 function naturalizeUserCopy(value: string) {

@@ -265,6 +265,19 @@ export function buildWalletHistoryAnswer(facts: IntelligenceFact[]) {
   return `${rows.length} wallet transaction${rows.length === 1 ? "" : "s"} are available for the selected period. I did not navigate away or perform a financial action.`;
 }
 
+export function buildWalletBalanceAnswer(facts: IntelligenceFact[]) {
+  if (facts.some((fact) => fact.truth_state === "unavailable")) {
+    return "Wallet balance evidence is unavailable right now. I did not treat that as a zero balance.";
+  }
+  if (!facts.length) return "I do not see a wallet on record for this home.";
+  const wallet = facts[0];
+  const value = recordOf(wallet.value);
+  const balance = Number(value.balance || 0);
+  const currency = text(value.currency) || "NGN";
+  const frozen = Boolean(value.is_frozen);
+  return `Wallet balance: ${currency} ${balance.toLocaleString()}${frozen ? ". This wallet is currently frozen." : "."}`;
+}
+
 function maintenanceRequestRows(facts: IntelligenceFact[]) {
   return facts
     .filter((fact) => fact.fact_type === "maintenance_request")

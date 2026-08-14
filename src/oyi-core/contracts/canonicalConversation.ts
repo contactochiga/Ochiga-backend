@@ -39,7 +39,10 @@ export type OperationalObjectType =
   | "notification"
   | "operational_incident"
   | "operational_event"
-  | "twin_node";
+  | "twin_node"
+  | "security_incident"
+  | "utility_tariff"
+  | "utility_purchase";
 
 export type TruthState =
   | "confirmed"

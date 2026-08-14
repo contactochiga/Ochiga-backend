@@ -9,6 +9,7 @@ import {
   buildRecentChangesAnswer,
   buildVisitorAccessAnswer,
   buildWalletHistoryAnswer,
+  buildWalletBalanceAnswer,
   tableBlockForContract,
 } from "../presentation/conversationAnswerPresentation";
 import {
@@ -16,6 +17,11 @@ import {
 } from "../domains/devices/deviceConversationAnswers";
 import { dedupeIntelligenceFacts as dedupeFacts } from "../domains/devices/deviceEvidence";
 import { buildReportAnswer } from "../domains/reports/reportConversationAnswers";
+import { buildUtilityActiveAnswer, buildUtilityTariffAnswer, buildUtilityPurchasesAnswer } from "../domains/utilities/utilityConversationAnswers";
+import { buildSecurityIncidentsAnswer } from "../domains/security/securityConversationAnswers";
+import { buildServicesActiveAnswer } from "../domains/services/serviceConversationAnswers";
+import { buildCommunityLatestAnswer } from "../domains/community/communityConversationAnswers";
+import { buildSceneAutomationReadAnswer, buildAutomationRunsAnswer } from "../domains/automations/sceneAutomationConversationAnswers";
 import { shapeObjectConversation } from "../presentation/objectFallbackPresentation";
 import {
   buildClarificationContinuationResponse,
@@ -183,6 +189,42 @@ export function canonicalMaintenanceRequestsAnswerForTest(input: { facts: Intell
 
 export function canonicalVisitorAccessAnswerForTest(input: { facts: IntelligenceFact[] }) {
   return buildVisitorAccessAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalWalletBalanceAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildWalletBalanceAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalUtilityActiveAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildUtilityActiveAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalUtilityTariffAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildUtilityTariffAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalUtilityPurchasesAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildUtilityPurchasesAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalSecurityIncidentsAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildSecurityIncidentsAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalServicesActiveAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildServicesActiveAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalCommunityLatestAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildCommunityLatestAnswer(dedupeFacts(input.facts));
+}
+
+export function canonicalSceneAutomationReadAnswerForTest(input: { facts: IntelligenceFact[]; domain: "scenes" | "automations" }) {
+  return buildSceneAutomationReadAnswer(dedupeFacts(input.facts).map((fact) => fact.value as Record<string, unknown>), input.domain);
+}
+
+export function canonicalAutomationRunsAnswerForTest(input: { facts: IntelligenceFact[] }) {
+  return buildAutomationRunsAnswer(dedupeFacts(input.facts));
 }
 
 export function canonicalObjectConversationForTest(input: { message: string; object: OperationalObject; response?: Record<string, unknown>; request?: Partial<CanonicalConversationRequest> }) {

@@ -142,7 +142,7 @@
     "smoke:scheduler-refresh-classes": "npm run smoke:device-runtime-v2",
     "validate:env": "node scripts/validate-env.mjs",
     "validate:security": "node scripts/validate-security.mjs",
-    "validate:release": "node scripts/validate-release.mjs && npm run smoke:release-closure && npm run smoke:scene-runtime-v2 && npm run smoke:release-stabilization && npm run smoke:service-provisioning && npm run smoke:electricity-purchase && npm run smoke:device-schema && npm run smoke:device-runtime-v2 && npm run smoke:device-runtime-payload && npm run smoke:device-fast-state && npm run smoke:tuya-authorization && npm run smoke:device-control-matrix && npm run smoke:tuya-ir-inventory && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence && npm run smoke:infrastructure-onboarding && npm run smoke:operational-object-context && npm run smoke:canonical-truth && npm run smoke:compatibility-delegation && npm run smoke:wallet-funding && npm run smoke:wallet-webhook-idempotency && npm run smoke:wallet-receipt && npm run smoke:wallet-notification && npm run smoke:wallet-return-flow && npm run smoke:smart-access && npm run smoke:oyi-capability-phase-b && npm run smoke:maintenance-domain-extraction && npm run smoke:visitor-domain-extraction && npm run smoke:direct-evidence-maintenance-visitors",
+    "validate:release": "node scripts/validate-release.mjs && npm run smoke:release-closure && npm run smoke:scene-runtime-v2 && npm run smoke:release-stabilization && npm run smoke:service-provisioning && npm run smoke:electricity-purchase && npm run smoke:device-schema && npm run smoke:device-runtime-v2 && npm run smoke:device-runtime-payload && npm run smoke:device-fast-state && npm run smoke:tuya-authorization && npm run smoke:device-control-matrix && npm run smoke:tuya-ir-inventory && npm run smoke:device-intelligence && npm run smoke:infrastructure-intelligence && npm run smoke:infrastructure-onboarding && npm run smoke:operational-object-context && npm run smoke:canonical-truth && npm run smoke:compatibility-delegation && npm run smoke:wallet-funding && npm run smoke:wallet-webhook-idempotency && npm run smoke:wallet-receipt && npm run smoke:wallet-notification && npm run smoke:wallet-return-flow && npm run smoke:smart-access && npm run smoke:oyi-capability-phase-b && npm run smoke:maintenance-domain-extraction && npm run smoke:visitor-domain-extraction && npm run smoke:direct-evidence-maintenance-visitors && npm run smoke:direct-evidence-programme1",
     "smoke:automation-runtime-v2": "node scripts/automation-runtime-v2-smoke.mjs",
     "smoke:oyi-core-convergence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs convergence",
     "smoke:oyi-core-privacy": "npm run build && node scripts/oyi-core-convergence-smoke.mjs privacy",
@@ -293,7 +293,8 @@
     "smoke:camera-privacy-handoff": "npm run build && node scripts/full-domain-architecture-smoke.mjs",
     "smoke:domain-authority-tiers": "npm run build && node scripts/full-domain-architecture-smoke.mjs",
     "smoke:domain-verification-contracts": "npm run build && node scripts/full-domain-architecture-smoke.mjs",
-    "smoke:direct-evidence-maintenance-visitors": "npm run build && node scripts/oyi-direct-evidence-maintenance-visitors-smoke.mjs"
+    "smoke:direct-evidence-maintenance-visitors": "npm run build && node scripts/oyi-direct-evidence-maintenance-visitors-smoke.mjs",
+    "smoke:direct-evidence-programme1": "npm run build && node scripts/oyi-direct-evidence-programme1-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

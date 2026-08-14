@@ -67,11 +67,14 @@ check("maintenance.requests.read and visitors.pending.read are enabled with a re
 });
 
 check("still-declared domains keep the stub sentinel (regression guard for the new assertion itself)", () => {
+  // security.incidents.read was promoted to a real evidence-backed capability
+  // in the Programme 1 pass (see oyi-direct-evidence-programme1-smoke.mjs);
+  // messages.unread.read remains genuinely out of scope and still declared.
   const modules = buildPhaseBReadCapabilities();
-  const security = modules.find((module) => module.key === "security.incidents.read");
-  assert.ok(security, "security.incidents.read must still be registered");
-  assert.notEqual(security.rolloutStatus, "enabled");
-  assert.equal(Boolean(security.collectEvidence.__isDeclaredStub), true, "still-declared domains must keep the stub collector");
+  const messages = modules.find((module) => module.key === "messages.unread.read");
+  assert.ok(messages, "messages.unread.read must still be registered");
+  assert.notEqual(messages.rolloutStatus, "enabled");
+  assert.equal(Boolean(messages.collectEvidence.__isDeclaredStub), true, "still-declared domains must keep the stub collector");
 });
 
 check("assertEnabledCapabilityHasAdapter rejects an enabled capability that still uses the declared-module stub", () => {

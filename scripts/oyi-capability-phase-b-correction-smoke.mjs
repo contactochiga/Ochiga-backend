@@ -221,9 +221,13 @@ await check("utility spending and active utility requests resolve to distinct ca
   const spendingSelection = serviceModule.capabilityService.resolve({ actor: resident, oisContext: context, input: { message: spending.rawText, surface: "consumer", estate_id: "estate-1", home_id: "home-1", context }, resolvedTurn: { request_id: "spend", correlation_id: "spend", runtime_id: "runtime", thread_id: null, actor: resident, semantic_frame: spending, operation: spending.operation, capability_key: spending.operation, domain: spending.domain, scope: { estate_id: "estate-1", building_id: null, home_id: "home-1", room_id: null }, target: null, target_source: "none", active_workflow_id: null, authority: { allowed: true, tier: 0, approval_required: false, secure_review_required: false, required_permissions: [], denial_reason: null }, temporal_scope: spending.temporalScope, presentation_policy: { primary: "table", allowed_supporting_blocks: ["text", "table"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "current_state_snapshot", auto_navigation: false }, context } });
   const activeSelection = serviceModule.capabilityService.resolve({ actor: resident, oisContext: context, input: { message: active.rawText, surface: "consumer", estate_id: "estate-1", home_id: "home-1", context }, resolvedTurn: { request_id: "active", correlation_id: "active", runtime_id: "runtime", thread_id: null, actor: resident, semantic_frame: active, operation: active.operation, capability_key: active.operation, domain: active.domain, scope: { estate_id: "estate-1", building_id: null, home_id: "home-1", room_id: null }, target: null, target_source: "none", active_workflow_id: null, authority: { allowed: true, tier: 0, approval_required: false, secure_review_required: false, required_permissions: [], denial_reason: null }, temporal_scope: active.temporalScope, presentation_policy: { primary: "table", allowed_supporting_blocks: ["text", "table"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "current_state_snapshot", auto_navigation: false }, context } });
   assert.equal(spendingSelection.capability?.key, "utilities.spending.read");
-  assert.equal(activeSelection.capability, null);
-  assert.equal(activeSelection.rollout_status, "implemented");
-  assert.equal(activeSelection.legacy_fallback_reason, "capability_implemented");
+  // utilities.active.read was promoted to a real evidence-backed capability
+  // in the Programme 1 pass (see oyi-direct-evidence-programme1-smoke.mjs);
+  // it now resolves directly instead of falling back to legacy.
+  assert.equal(activeSelection.capability?.key, "utilities.active.read");
+  assert.equal(activeSelection.rollout_status, "enabled");
+  assert.equal(activeSelection.legacy_fallback_reason, null);
+  assert.notEqual(spendingSelection.capability?.key, activeSelection.capability?.key);
 });
 
 await check("empty, unavailable and permission-restricted remain distinct", async () => {

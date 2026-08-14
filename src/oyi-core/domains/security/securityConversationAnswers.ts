@@ -1,4 +1,5 @@
 import type {
+  IntelligenceFact,
   OperationalObject,
   OperationalObjectType,
 } from "../../contracts/canonicalConversation";
@@ -9,6 +10,21 @@ function text(value: unknown) {
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+export function buildSecurityIncidentsAnswer(facts: IntelligenceFact[]) {
+  if (facts.some((fact) => fact.truth_state === "unavailable")) {
+    return "Security incident evidence is unavailable right now. I did not treat that as no incidents.";
+  }
+  if (!facts.length) return "I do not see any security incidents for this scope.";
+  const unresolved = facts.filter((fact) => {
+    const status = text(recordOf(fact.value).status).toLowerCase();
+    return status !== "resolved" && status !== "closed";
+  });
+  const latest = facts[0];
+  const latestValue = recordOf(latest.value);
+  const latestLine = `Most recent: ${text(latestValue.title)} (${text(latestValue.severity)} severity, ${text(latestValue.status)}).`;
+  return `${facts.length} security incident${facts.length === 1 ? "" : "s"} on record, ${unresolved.length} unresolved. ${latestLine}`;
 }
 
 function naturalizeUserCopy(value: string) {
