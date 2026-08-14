@@ -1,6 +1,6 @@
 # Oyi Intelligence Permanent-Site Architecture
 
-Status: Programme 1 complete — direct evidence across the operational core plus a generic Deep Domain Conversation layer, built on the Phase A/B/C durable conversation/workflow/action foundation.
+Status: Programme 2 complete — Room Intelligence (Phase F) and Home Intelligence (Phase G), built on Programme 1's direct evidence + Deep Domain Conversation layer and the Phase A/B/C durable conversation/workflow/action foundation.
 
 ## Target Lifecycle
 
@@ -114,15 +114,34 @@ Architecture: `DomainResult → canonical object references → thread result-se
 - **Observability**: `oyi_followup_detected` plus per-turn `execution.orchestrator_v2.followup` (resolver, reference_type, source_domain, result_set_id, candidate_count, resolution_status, resolved_object_ref/type, hydration_status) and comparison metadata (comparison_metric, period_a, period_b, evidence_count, comparison_status).
 - **Tests**: `oyi-programme1-deep-conversation-smoke.mjs` — live end-to-end orchestrator threads (with a fake Supabase) for maintenance, wallet, visitors, security, community, automations, scenes, services, and utilities, plus filter continuity, cross-domain switching, ambiguity clarification, and hydration-defect regressions.
 
+## Programme 2 — Room Intelligence (Phase F) + Home Intelligence (Phase G)
+
+Full detail in `OYI_ROOM_INTELLIGENCE.md` / `OYI_HOME_INTELLIGENCE.md`. Summary:
+
+`DOMAIN EVIDENCE -> DOMAIN CONTRIBUTORS -> ROOM/HOME AGGREGATION -> COVERAGE + FRESHNESS -> ATTENTION + PRIORITY -> OPERATIONAL SUMMARY -> CANONICAL OBJECT REFERENCES -> PROGRAMME 1 FOLLOW-UP/DETAIL`.
+
+- Contributor contract matured (not redesigned): `contributorSummary.ts` gained `coverage`/`source_health` fields, a 5-level severity scale aligned with the existing `CanonicalTruth.severity` vocabulary, and per-domain freshness reconciliation (`classifyFreshness`) — devices need near-live freshness, wallet facts are always historical, everything else in between.
+- New `src/oyi-core/domains/roomHome/` module: `contributorTypes.ts` (the `Contributor`/`ContributorContext` interface), `homeContributors.ts` (10 contributors), `roomContributors.ts` (3 contributors — only domains with a real `room_id` relationship), `aggregator.ts` (parallel execution with per-contributor failure isolation), `aggregateContract.ts` (coverage/severity/overall-state/attention-dedup), `roomHomeAnswers.ts` (deterministic NL composition), `roomTargetResolution.ts` (room-name resolution for broad "how is X" questions), `roomHomeCapabilities.ts` (the 7 capabilities).
+- Two real, previously-undiscovered production bugs fixed while wiring this up: `resolveRoomForRead` selected a nonexistent `rooms.metadata` column (real column is `ai_profile`) — natural-language room resolution was silently broken; the hydration registry's `home`/`room` entries selected a nonexistent `updated_at` column on both tables — direct home/room object hydration was silently broken. Both fixed with regression coverage.
+- Multi-domain result-set continuity: Programme 1's thread-metadata result-set storage moved from a single overwritten slot to a `result_sets: {domain: ResultSetContext}` map (`resultSetContext.ts`), and `followUpResolver.ts`'s domain-switch detection was broadened from only "go back to X" to also recognize "tell me about the automation" / "what about the maintenance issue?" — this is what lets one broad Home/Room answer surfacing several domains support natural cross-domain drill-down, without a second follow-up system.
+- No new database tables. No new evidence system. Every contributor is a thin wrapper around an existing Programme 1 loader.
+
 ## Not Completed In Programme 1
 
 - Filter continuity is generic and works (see above), but only for keyword-style refinements against the already-presented list — it does not re-query with an additional server-side constraint.
 - Financial/metric comparison is wired only for `utilities.spending.read`, not generically across all domains with a numeric metric.
-- Room aggregator implementation.
-- Home aggregator implementation.
 - Forecasting and prediction evaluation persistence.
 - Proactive notification integration.
 - Durable action execution for wallet, visitors/access, maintenance, community, scenes, automations and other sensitive domains — Programme 1 is read/intelligence only, Phase C's action-safety boundary is unchanged.
+
+Room and Home aggregation are now complete (Programme 2, above).
+
+## Not Completed In Programme 2
+
+- Scene/automation Room relevance derived indirectly from device-target membership (parsing `actions` JSON against a room's devices) — not built; scenes/automations remain Home-only contributors, documented as a real schema gap in `OYI_ROOM_INTELLIGENCE.md` rather than fabricated.
+- `home.activity.read`/`room.activity.read` use a generic recency-ordered fact composition, not a purpose-built cross-domain activity feed with per-domain temporal bucketing (today/yesterday/overnight are approximated via the existing `temporalScopeFor` "recent" 6-hour fallback where a domain has no dedicated today/yesterday branch).
+- No caching layer — every Room/Home answer re-queries current evidence live (deliberate, per §60: avoid caching unless profiling shows a need; ~10 contributors run in parallel, not sequentially).
+- Forecasting, prediction, proactive/anomaly intelligence — explicitly out of scope for Programme 2 (Programme 3 territory).
 
 ## Extension Pattern
 

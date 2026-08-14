@@ -24,6 +24,7 @@ import { buildCommunityLatestAnswer } from "../domains/community/communityConver
 import { loadSceneFacts, loadAutomationFacts, loadAutomationRunFacts } from "../domains/automations/sceneAutomationEvidence";
 import { buildSceneAutomationReadAnswer, buildAutomationRunsAnswer } from "../domains/automations/sceneAutomationConversationAnswers";
 import type { SemanticFrame } from "../contracts/semanticFrame";
+import { buildRoomHomeCapabilities } from "../domains/roomHome/roomHomeCapabilities";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -48,7 +49,7 @@ function privacyForFact(fact: IntelligenceFact): OyiEvidence["privacy_class"] {
   return "household_private";
 }
 
-function evidenceFromFact(fact: IntelligenceFact): OyiEvidence {
+export function evidenceFromFact(fact: IntelligenceFact): OyiEvidence {
   return evidenceEnvelope({
     evidence_id: `capability:${fact.fact_id}`,
     domain: fact.domain as OyiDomain,
@@ -79,11 +80,11 @@ function evidenceFromFact(fact: IntelligenceFact): OyiEvidence {
   });
 }
 
-function factsFromEvidence(evidence: OyiEvidence[]): IntelligenceFact[] {
+export function factsFromEvidence(evidence: OyiEvidence[]): IntelligenceFact[] {
   return evidence.map((item) => recordOf(item.payload).fact).filter((item): item is IntelligenceFact => Boolean(item && typeof item === "object"));
 }
 
-function targetRecord(context: CapabilityContext) {
+export function targetRecord(context: CapabilityContext) {
   return {
     objectType: context.resolvedTurn.target?.object_type || null,
     objectId: context.resolvedTurn.target?.canonical_id || null,
@@ -91,7 +92,7 @@ function targetRecord(context: CapabilityContext) {
   };
 }
 
-function requestContract(context: CapabilityContext) {
+export function requestContract(context: CapabilityContext) {
   return resolveIntentContract(context.input, null, targetRecord(context));
 }
 
@@ -99,7 +100,7 @@ function capabilityPresentation(primary: CapabilityPresentationPolicy["primary"]
   return { primary, expose_evidence: "summary", allow_internal_ids: false };
 }
 
-function resultPresentation(primary: PresentationPolicy["primary"]): PresentationPolicy {
+export function resultPresentation(primary: PresentationPolicy["primary"]): PresentationPolicy {
   return {
     primary,
     allowed_supporting_blocks: primary === "table" ? ["text", "table"] : primary === "list" ? ["text", "list"] : ["text"],
@@ -112,17 +113,17 @@ function resultPresentation(primary: PresentationPolicy["primary"]): Presentatio
   };
 }
 
-function readRequirement(domain: OyiDomain, evidenceType: string): EvidenceRequirement {
+export function readRequirement(domain: OyiDomain, evidenceType: string): EvidenceRequirement {
   return { domain, evidence_type: evidenceType, freshness: ["fresh", "stale", "expired", "unknown", "provider_disconnected"], required: true };
 }
 
-const homeScope: ScopeRequirement[] = [{ scope: "home", required: true }];
+export const homeScope: ScopeRequirement[] = [{ scope: "home", required: true }];
 // Estate-level requirement — used by capabilities whose loaders branch
 // scope by surface (home_id for consumer, estate_id for facility), so a
 // facility-surface estate-wide read is never rejected for lacking a home_id.
-const estateScope: ScopeRequirement[] = [{ scope: "estate", required: true }];
+export const estateScope: ScopeRequirement[] = [{ scope: "estate", required: true }];
 
-type ReadModuleInput = {
+export type ReadModuleInput = {
   key: string;
   domain: OyiDomain;
   operations: string[];
@@ -137,7 +138,7 @@ type ReadModuleInput = {
   primary?: CapabilityPresentationPolicy["primary"];
 };
 
-function readModule(input: ReadModuleInput): CapabilityModule {
+export function readModule(input: ReadModuleInput): CapabilityModule {
   return {
     key: input.key,
     domain: input.domain,
@@ -706,7 +707,9 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       primary: "list",
     }),
     declaredModule({ key: "reports.period_summary.read", domain: "reports", operations: ["summarize", "inspect"], supportedSurfaces: ["consumer", "facility"], status: "shadow", permissions: [], evidence: [readRequirement("reports", "cross_domain_summary")] }),
-    declaredModule({ key: "home.summary.read", domain: "home", operations: ["summarize"], supportedSurfaces: ["consumer"], status: "shadow", permissions: ["devices.read"], evidence: [readRequirement("home", "composed_context")] }),
-    declaredModule({ key: "rooms.inventory.read", domain: "rooms", operations: ["list"], supportedSurfaces: ["consumer", "facility"], status: "shadow", permissions: ["homes.read"], evidence: [readRequirement("rooms", "composed_context")] }),
+    // home.summary.read / rooms.inventory.read were declared/shadow stubs —
+    // promoted to real Room/Home Intelligence capabilities (Programme 2),
+    // see domains/roomHome/roomHomeCapabilities.ts.
+    ...buildRoomHomeCapabilities(),
   ];
 }

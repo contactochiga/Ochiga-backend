@@ -268,8 +268,12 @@ export async function resolveNamedDeviceForRead(
 
 function scoreRoomCandidate(phrase: string, row: Record<string, unknown>) {
   const normalizedPhrase = normalizeLookupText(phrase).replace(/\bsecond\b/g, "2").replace(/\bfirst\b/g, "1");
-  const name = normalizeLookupText(row.name || recordOf(row.metadata).label).replace(/\bsecond\b/g, "2").replace(/\bfirst\b/g, "1");
-  const aliases = arrayOfStrings(recordOf(row.metadata).aliases).map((item) => normalizeLookupText(item).replace(/\bsecond\b/g, "2").replace(/\bfirst\b/g, "1"));
+  // rooms has no "metadata" column — the real jsonb column is "ai_profile",
+  // which this previously referenced by the wrong name (making the select
+  // below fail outright on every call, so ALL natural-language room
+  // resolution was silently broken — see resolveRoomForRead's try/catch).
+  const name = normalizeLookupText(row.name || recordOf(row.ai_profile).label).replace(/\bsecond\b/g, "2").replace(/\bfirst\b/g, "1");
+  const aliases = arrayOfStrings(recordOf(row.ai_profile).aliases).map((item) => normalizeLookupText(item).replace(/\bsecond\b/g, "2").replace(/\bfirst\b/g, "1"));
   if (!normalizedPhrase || !name) return 0;
   let score = 0;
   if (normalizedPhrase === name) score += 1;
@@ -292,7 +296,7 @@ export async function resolveRoomForRead(
   try {
     const { data, error } = await supabaseAdmin
       .from("rooms")
-      .select("id,name,home_id,metadata")
+      .select("id,name,home_id,ai_profile")
       .eq("home_id", scope.home_id)
       .limit(80);
     if (error) throw error;

@@ -87,7 +87,7 @@ function maintenanceFromRow(row: Record<string, unknown>, scope: ReturnType<type
     fact_id: `maintenance-request:${row.id}`,
     domain: "maintenance",
     fact_type: "maintenance_request",
-    scope: { estate_id: scope.estate_id, home_id: text(row.home_id) || scope.home_id, room_id: null },
+    scope: { estate_id: scope.estate_id, home_id: text(row.home_id) || scope.home_id, room_id: text(row.room_id) || null },
     object: { object_type: "maintenance_request", canonical_id: String(row.id), label: title },
     statement: `${title}: ${status}${priority ? ` (${priority} priority)` : ""}.`,
     value: {
@@ -136,7 +136,7 @@ export async function loadMaintenanceRequestFacts(
   try {
     let query = supabaseAdmin
       .from("maintenance_requests")
-      .select("id,estate_id,home_id,resident_id,title,description,category,priority,status,assigned_to,created_at,updated_at")
+      .select("id,estate_id,home_id,room_id,resident_id,title,description,category,priority,status,assigned_to,created_at,updated_at")
       .order("created_at", { ascending: false })
       .limit(50);
     query = isFacilitySurface ? query.eq("estate_id", scope.estate_id) : query.eq("home_id", scope.home_id);

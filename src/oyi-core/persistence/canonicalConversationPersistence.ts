@@ -201,22 +201,39 @@ export async function persistCanonicalConversationTurn(input: {
   // PER DOMAIN (not a single overwritten slot) so switching domains mid
   // thread doesn't erase the ability to later say "go back to that
   // maintenance issue" (see resultSetContext.ts / §10 cross-domain switch).
-  const explicitResultSet = response.result_set as ResultSetContext | null | undefined;
-  const derivedResultSet = explicitResultSet !== undefined
-    ? explicitResultSet
-    : buildResultSetContext({
-      domain: (Array.isArray(response.facts) && response.facts[0] ? (response.facts[0] as IntelligenceFact).domain : null) || null,
-      capabilityKey: text(response.capability_key) || null,
-      operation: contract.intent,
-      facts: Array.isArray(response.facts) ? response.facts as IntelligenceFact[] : [],
-      contract,
-      message: request.message,
-    });
+  // response.result_set may be a single ResultSetContext (normal single-
+  // domain capability, or a follow-up resolver's narrowed selection) OR an
+  // ARRAY of them (Room/Home Intelligence — one broad answer can surface
+  // several domains at once: maintenance, an automation failure, an
+  // expected visitor, all in the same turn). An array turn deliberately
+  // does not change active_domain — "tell me about that" right after a
+  // multi-domain summary is genuinely ambiguous without a named domain
+  // (see followUpResolver.ts's broadened parseDomainSwitchIntent, which
+  // handles "tell me about the automation" by domain name instead).
+  const explicitResultSetRaw = response.result_set as ResultSetContext | ResultSetContext[] | null | undefined;
   const priorResultSets = await loadThreadResultSetsContext(threadId).catch(() => ({ resultSets: {}, activeDomain: null }));
-  const mergedResultSets = derivedResultSet
-    ? { ...priorResultSets.resultSets, [derivedResultSet.domain]: derivedResultSet }
-    : priorResultSets.resultSets;
-  const activeDomain = derivedResultSet ? derivedResultSet.domain : priorResultSets.activeDomain;
+  let mergedResultSets = priorResultSets.resultSets;
+  let activeDomain = priorResultSets.activeDomain;
+  if (Array.isArray(explicitResultSetRaw)) {
+    for (const resultSet of explicitResultSetRaw) {
+      mergedResultSets = { ...mergedResultSets, [resultSet.domain]: resultSet };
+    }
+  } else {
+    const derivedResultSet = explicitResultSetRaw !== undefined
+      ? explicitResultSetRaw
+      : buildResultSetContext({
+        domain: (Array.isArray(response.facts) && response.facts[0] ? (response.facts[0] as IntelligenceFact).domain : null) || null,
+        capabilityKey: text(response.capability_key) || null,
+        operation: contract.intent,
+        facts: Array.isArray(response.facts) ? response.facts as IntelligenceFact[] : [],
+        contract,
+        message: request.message,
+      });
+    if (derivedResultSet) {
+      mergedResultSets = { ...mergedResultSets, [derivedResultSet.domain]: derivedResultSet };
+      activeDomain = derivedResultSet.domain;
+    }
+  }
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,

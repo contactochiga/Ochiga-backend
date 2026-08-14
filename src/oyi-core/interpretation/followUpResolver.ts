@@ -35,13 +35,24 @@ const DOMAIN_KEYWORDS: Array<[string, RegExp]> = [
 
 export type DomainSwitchIntent = { type: "switch"; domain: string } | { type: "ambiguous" } | null;
 
+// Two distinct triggers: an explicit "go back to X" always means switch (and
+// asks for clarification if no domain is named), while a plain "tell me
+// about the automation" / "what about the maintenance issue?" only switches
+// when a domain IS named — otherwise it's left for the normal
+// active-domain pronoun/detail resolution in parseFollowUpIntent (e.g.
+// "tell me about that" with no domain keyword must keep working exactly as
+// before). This is what makes cross-domain drill-down after a Room/Home
+// Intelligence answer work without "go back" phrasing — see §23/§50 of the
+// Programme 2 spec.
 export function parseDomainSwitchIntent(message: string): DomainSwitchIntent {
   const m = text(message).toLowerCase();
-  if (!/\bgo back\b|\bback to\b|\bswitch back\b/.test(m)) return null;
+  const isExplicitGoBack = /\bgo back\b|\bback to\b|\bswitch back\b/.test(m);
+  const isDomainReference = /\btell me about\b|\bwhat about\b|\bexplain\b/.test(m);
+  if (!isExplicitGoBack && !isDomainReference) return null;
   for (const [domain, re] of DOMAIN_KEYWORDS) {
     if (re.test(m)) return { type: "switch", domain };
   }
-  return { type: "ambiguous" };
+  return isExplicitGoBack ? { type: "ambiguous" } : null;
 }
 
 // Generic, domain-agnostic follow-up classification — no domain names

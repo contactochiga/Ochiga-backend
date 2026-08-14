@@ -178,5 +178,11 @@ export function capabilityDomainResultToConversationResponse(input: {
     requiresConfirmation: confirmationRequired,
     facts: factsFromEvidencePayload(input.evidence),
     capability_key: input.capability.key,
+    // A capability may pre-compute one or more per-domain result sets
+    // itself (e.g. Room/Home Intelligence, which surfaces several domains
+    // in one turn — see roomHomeCapabilities.ts) via DomainResult.metadata.
+    // persistCanonicalConversationTurn uses this verbatim instead of
+    // deriving a single result set from response.facts.
+    result_set: (input.result.metadata?.result_set as Record<string, unknown> | Record<string, unknown>[] | undefined) ?? undefined,
   };
 }

@@ -259,7 +259,7 @@ export type CanonicalConversationResponse = {
   capability_key?: string | null;
   // Loosely typed here to avoid an import cycle with resultSetContext.ts;
   // persistence/orchestrator code casts to the concrete ResultSetContext.
-  result_set?: Record<string, unknown> | null;
+  result_set?: Record<string, unknown> | Record<string, unknown>[] | null;
 };
 
 export type ConversationBuilderKey =

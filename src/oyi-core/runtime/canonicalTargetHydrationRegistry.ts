@@ -479,10 +479,13 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
   const scope = activeScope(request);
   const config: Partial<Record<OperationalObjectType, { table: string; select: string; label: string; module: string }>> = {
     estate: { table: "estates", select: "id,name,updated_at", label: "Estate", module: "estate" },
-    home: { table: "homes", select: "id,name,estate_id,updated_at", label: "Home", module: "homes" },
+    // homes/rooms have no updated_at column anywhere in the schema (only
+    // created_at) — selecting it made every home/room hydration attempt
+    // fail with a "column does not exist" query error.
+    home: { table: "homes", select: "id,name,estate_id,building_id,created_at", label: "Home", module: "homes" },
     building: { table: "estate_buildings", select: "id,name,estate_id,building_ref,block,floors,unit_count,building_type,status,metadata,updated_at", label: "Building", module: "estate" },
     zone: { table: "estate_zones", select: "id,name,estate_id,zone_ref,zone_type,parent_zone_ref,description,metadata,updated_at", label: "Zone", module: "estate" },
-    room: { table: "rooms", select: "id,name,home_id,updated_at", label: "Room", module: "spaces" },
+    room: { table: "rooms", select: "id,name,home_id,estate_id,type,floor,created_at", label: "Room", module: "spaces" },
     scene: { table: "consumer_scenes", select: "id,name,estate_id,home_id,enabled,updated_at,actions", label: "Scene", module: "scenes" },
     automation: { table: "consumer_automations", select: "id,name,estate_id,home_id,enabled,next_run_at,last_run_status,updated_at,actions,trigger", label: "Automation", module: "automations" },
     // sceneAutomationEvidence.ts's loadAutomationRunFacts emits object_type
