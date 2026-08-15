@@ -119,7 +119,7 @@ export type CorporateCommercialSignal =
 
 export type CorporateToolProposal = {
   proposal_id?: string;
-  tool: "crm.update_journey" | "crm.create_or_update_lead" | "crm.create_opportunity" | "office.create_followup_task" | "office.prepare_commercial_document" | "office.request_handoff";
+  tool: "crm.update_journey" | "crm.create_or_update_lead" | "crm.create_opportunity" | "office.create_followup_task" | "office.prepare_commercial_document" | "office.request_handoff" | "office.review_meeting_context";
   governance: "office_validates_before_execution";
   reason: string;
   parameters: Record<string, unknown>;
@@ -369,6 +369,30 @@ export type OfficeInternalOyiCoreRequest = {
     support_case_ref: string | null;
     safe_summary: string | null;
   } | null;
+  project_context: {
+    project_ref: string | null;
+    safe_summary: string | null;
+  } | null;
+  task_context: {
+    task_ref: string | null;
+    safe_summary: string | null;
+  } | null;
+  meeting_context: {
+    meeting_ref: string | null;
+    safe_summary: string | null;
+  } | null;
+  partnership_context: {
+    partnership_ref: string | null;
+    safe_summary: string | null;
+  } | null;
+  document_context: {
+    document_ref: string | null;
+    safe_summary: string | null;
+  } | null;
+  content_context: {
+    content_ref: string | null;
+    safe_summary: string | null;
+  } | null;
   requested_capability: string | null;
   knowledge_context: CorporateKnowledgeReference[];
   metadata: Record<string, unknown>;
@@ -386,7 +410,7 @@ export type OfficeInternalOyiCoreResponse = {
   understood_intent: string;
   business_domain: CorporateBusinessUnit;
   suggested_next_action: string | null;
-  attention_signal: "none" | "follow_up" | "support" | "project" | "portfolio" | "private" | "partnership" | "handoff";
+  attention_signal: "none" | "follow_up" | "support" | "project" | "portfolio" | "private" | "partnership" | "handoff" | "meeting";
   tool_proposals: CorporateToolProposal[];
   knowledge_references: CorporateKnowledgeReference[];
   safe_metadata: Record<string, unknown>;

@@ -102,6 +102,12 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
   const crm = recordOf(body.crm_context);
   const portfolio = recordOf(body.portfolio_context);
   const support = recordOf(body.support_context);
+  const project = recordOf(body.project_context);
+  const task = recordOf(body.task_context);
+  const meeting = recordOf(body.meeting_context);
+  const partnership = recordOf(body.partnership_context);
+  const documentCtx = recordOf(body.document_context);
+  const content = recordOf(body.content_context);
   return {
     request_id: safeText(body.request_id, requestId),
     message: safeText(body.message),
@@ -135,6 +141,30 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
     support_context: Object.keys(support).length ? {
       support_case_ref: safeText(support.support_case_ref) || null,
       safe_summary: safeText(support.safe_summary).slice(0, 800) || null,
+    } : null,
+    project_context: Object.keys(project).length ? {
+      project_ref: safeText(project.project_ref) || null,
+      safe_summary: safeText(project.safe_summary).slice(0, 800) || null,
+    } : null,
+    task_context: Object.keys(task).length ? {
+      task_ref: safeText(task.task_ref) || null,
+      safe_summary: safeText(task.safe_summary).slice(0, 800) || null,
+    } : null,
+    meeting_context: Object.keys(meeting).length ? {
+      meeting_ref: safeText(meeting.meeting_ref) || null,
+      safe_summary: safeText(meeting.safe_summary).slice(0, 800) || null,
+    } : null,
+    partnership_context: Object.keys(partnership).length ? {
+      partnership_ref: safeText(partnership.partnership_ref) || null,
+      safe_summary: safeText(partnership.safe_summary).slice(0, 800) || null,
+    } : null,
+    document_context: Object.keys(documentCtx).length ? {
+      document_ref: safeText(documentCtx.document_ref) || null,
+      safe_summary: safeText(documentCtx.safe_summary).slice(0, 800) || null,
+    } : null,
+    content_context: Object.keys(content).length ? {
+      content_ref: safeText(content.content_ref) || null,
+      safe_summary: safeText(content.safe_summary).slice(0, 800) || null,
     } : null,
     requested_capability: safeText(body.requested_capability) || null,
     knowledge_context: knowledgeContext(body.knowledge_context),
@@ -388,6 +418,12 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
       crm_context: internalRequest.crm_context,
       portfolio_context: internalRequest.portfolio_context,
       support_context: internalRequest.support_context,
+      project_context: internalRequest.project_context,
+      task_context: internalRequest.task_context,
+      meeting_context: internalRequest.meeting_context,
+      partnership_context: internalRequest.partnership_context,
+      document_context: internalRequest.document_context,
+      content_context: internalRequest.content_context,
       contract_version: CORPORATE_INTELLIGENCE_CONTRACT_VERSION,
     },
     conversation_context: {
@@ -398,6 +434,12 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
       crm_safe_summary: internalRequest.crm_context?.safe_summary || null,
       portfolio_safe_summary: internalRequest.portfolio_context?.safe_summary || null,
       support_safe_summary: internalRequest.support_context?.safe_summary || null,
+      project_safe_summary: internalRequest.project_context?.safe_summary || null,
+      task_safe_summary: internalRequest.task_context?.safe_summary || null,
+      meeting_safe_summary: internalRequest.meeting_context?.safe_summary || null,
+      partnership_safe_summary: internalRequest.partnership_context?.safe_summary || null,
+      document_safe_summary: internalRequest.document_context?.safe_summary || null,
+      content_safe_summary: internalRequest.content_context?.safe_summary || null,
     },
     intent_hint: "office_internal_conversation",
     operation_class_hint: "read",
