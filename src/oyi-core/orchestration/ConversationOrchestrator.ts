@@ -11,8 +11,9 @@ import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
 import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
 import { buildDeviceActionCapabilities, continueDeviceActionWorkflow } from "../capabilities/DeviceActionCapabilityModules";
-import { buildPhaseBReadCapabilities } from "../capabilities/ReadCapabilityModules";
-import type { CapabilityModule } from "../contracts/capability";
+import { buildPhaseBReadCapabilities, resultPresentation } from "../capabilities/ReadCapabilityModules";
+import { buildOfficeInternalReadCapabilities, buildPublicCorporateReadCapabilities } from "../capabilities/OfficeCorporateCapabilityModules";
+import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import { persistCanonicalConversationTurn } from "../persistence/canonicalConversationPersistence";
 import { resolveTurnAuthority } from "./TurnAuthorityResolver";
 import { assertNoUnverifiedGenericSuccess } from "../presentation/FallbackFirewall";
@@ -43,6 +44,8 @@ function ensureRegistered() {
   if (registered) return;
   for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
   for (const capability of buildDeviceActionCapabilities()) capabilityRegistry.register(capability);
+  for (const capability of buildOfficeInternalReadCapabilities()) capabilityRegistry.register(capability);
+  for (const capability of buildPublicCorporateReadCapabilities()) capabilityRegistry.register(capability);
   registered = true;
 }
 
@@ -778,6 +781,115 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
   return resolveAndHydrateSingleObject(context, resolvedTurn, resultSet, intent, resolution.ref, tracer);
 }
 
+const BUSINESS_CAPABILITY_LABELS: Record<string, string> = {
+  "crm.leads.read": "leads that need attention",
+  "crm.opportunities.read": "opportunities that haven't been followed up",
+  "reports.approvals.read": "reports awaiting approval",
+  "development.status.read": "development project status",
+  "corporate.company.read": "what Ochiga does",
+  "corporate.development.read": "Ochiga's current developments",
+  "corporate.oyi.read": "what Oyi is",
+  "corporate.private.read": "Ochiga Private",
+  "corporate.partnerships.read": "partnering with Ochiga",
+};
+
+const OFFICE_OVERVIEW_CAPABILITY_KEYS = ["crm.leads.read", "crm.opportunities.read", "reports.approvals.read", "development.status.read"];
+
+function unavailableInsideFallback(): Promise<ConversationRunResult> {
+  return Promise.reject(new Error("legacyFallback is not available inside the business-surface fallback response"));
+}
+
+// office_internal/public_corporate have no legacy engine of their own —
+// this composes an honest response directly from the real capabilities
+// registered for the surface instead of ever reaching
+// legacyConversationAdapter.run() (Consumer/Facility's device/room
+// target resolver), which has no notion of a CRM lead or a corporate
+// topic and previously surfaced its generic "Which item should I
+// inspect?" clarification for every business question on these
+// surfaces. Only used when no single capability resolved a match, so
+// this never overrides a real capability answer or a genuine
+// permission denial.
+async function collectBusinessOverviewSections(
+  baseContext: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn },
+  keys: string[]
+): Promise<Array<{ key: string; result: DomainResult; evidence: OyiEvidence[] }>> {
+  const surface = baseContext.input.surface;
+  const sections: Array<{ key: string; result: DomainResult; evidence: OyiEvidence[] }> = [];
+  for (const key of keys) {
+    const capability = capabilityRegistry.get(key);
+    if (!capability) continue;
+    const authority = capabilityService.canUse(key, { actor: baseContext.actor, oisContext: baseContext.oisContext, surface });
+    if (!authority.allowed) continue;
+    const capabilityContext: CapabilityContext = { ...baseContext, legacyFallback: unavailableInsideFallback };
+    try {
+      const evidence = await capability.collectEvidence(capabilityContext);
+      const result = capability.buildReadResponse ? await capability.buildReadResponse(capabilityContext, evidence) as DomainResult : null;
+      if (result && result.status === "answered") sections.push({ key, result, evidence });
+    } catch (error) {
+      logger.warn("oyi_business_fallback_section_failed", {
+        capability_key: key,
+        surface,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return sections;
+}
+
+async function buildBusinessSurfaceFallbackResponse(
+  baseContext: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn }
+): Promise<ConversationRunResult> {
+  const surface = baseContext.input.surface;
+  const frame = baseContext.resolvedTurn.semantic_frame;
+  const listing = capabilityService
+    .listForActor({ actor: baseContext.actor, oisContext: baseContext.oisContext, surface })
+    .filter((item) => item.key !== "global.capabilities.read");
+  const isOverviewQuery = surface === "office_internal" && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
+
+  let sections: Array<{ key: string; result: DomainResult; evidence: OyiEvidence[] }> = [];
+  if (isOverviewQuery) {
+    const keys = OFFICE_OVERVIEW_CAPABILITY_KEYS.filter((key) => listing.some((item) => item.key === key));
+    sections = await collectBusinessOverviewSections(baseContext, keys);
+  }
+
+  let answer: string;
+  let blocks: Array<Record<string, unknown>> = [];
+  if (sections.length) {
+    answer = sections.map((section) => `${BUSINESS_CAPABILITY_LABELS[section.key] || section.key}:\n${section.result.answer}`).join("\n\n");
+    blocks = sections.flatMap((section) => section.result.blocks || []);
+  } else if (listing.length) {
+    const topics = listing.map((item) => BUSINESS_CAPABILITY_LABELS[item.key] || item.key.replace(/\./g, " "));
+    answer = surface === "office_internal"
+      ? `I can help with ${topics.join(", ")}. Ask me about any of these directly and I'll pull the current data.`
+      : `I can tell you about ${topics.join(", ")}. Ask me about any of these.`;
+  } else {
+    answer = "I don't have an enabled capability for that yet on this surface.";
+  }
+
+  const syntheticCapability: CapabilityModule = {
+    key: "business_surface.fallback",
+    domain: "global",
+    rolloutStatus: "enabled",
+    supported_surfaces: [surface],
+    supports: () => true,
+    resolve: async () => ({ supported: true, reason: null }),
+    collectEvidence: async () => [],
+  };
+  const result: DomainResult = {
+    status: sections.length || listing.length ? "answered" : "unsupported",
+    answer,
+    blocks,
+    presentation_policy: resultPresentation(sections.length ? "list" : "text"),
+  };
+  const capabilityContext: CapabilityContext = { ...baseContext, legacyFallback: unavailableInsideFallback };
+  return capabilityDomainResultToConversationResponse({
+    context: capabilityContext,
+    capability: syntheticCapability,
+    result,
+    evidence: sections.flatMap((section) => section.evidence),
+  });
+}
+
 export class ConversationOrchestrator {
   async run(context: CanonicalConversationRequestContext): Promise<ConversationRunResult> {
     ensureRegistered();
@@ -921,8 +1033,19 @@ export class ConversationOrchestrator {
     const selection = boolFlag("OYI_ORCHESTRATOR_V2_ENABLED", true)
       ? capabilityService.resolve({ ...context, resolvedTurn })
       : { capability: null, matched_capability: null, rollout_status: "disabled" as const, authority: null, legacy_fallback_reason: "orchestrator_v2_disabled" };
-    const capability = selection.capability;
-    const matchedCapability = selection.matched_capability;
+    // office_internal/public_corporate have no capability module for
+    // every domain a Consumer/Facility module claims (e.g. "home"), so
+    // resolve() can still pick a Consumer/Facility-only module as the
+    // single top-scoring candidate. That candidate is always denied here
+    // with reason "surface_not_supported" — an architectural mismatch,
+    // not a real permission problem — so it's folded into "no capability
+    // matched" rather than surfaced as "You are not authorised...".
+    // A genuine RBAC denial (missing_permission) is untouched and still
+    // reported as a real denial below.
+    const isBusinessSurface = context.input.surface === "office_internal" || context.input.surface === "public_corporate";
+    const architecturalMismatch = isBusinessSurface && Boolean(selection.authority) && !selection.authority!.allowed && selection.authority!.reason === "surface_not_supported";
+    const capability = architecturalMismatch ? null : selection.capability;
+    const matchedCapability = architecturalMismatch ? null : selection.matched_capability;
     logger.info("oyi_capability_resolved", {
       request_id: tracer.requestId,
       correlation_id: tracer.correlationId,
@@ -944,7 +1067,26 @@ export class ConversationOrchestrator {
     });
 
     const legacyFallback = async () => {
-      const reason = selection.legacy_fallback_reason || "unimplemented_capability";
+      const reason = architecturalMismatch ? "capability_surface_mismatch" : selection.legacy_fallback_reason || "unimplemented_capability";
+      if (isBusinessSurface) {
+        // Never reach legacyConversationAdapter.run() — Consumer/
+        // Facility's device/room target resolver — for these two
+        // surfaces. It has no notion of a CRM lead, a report or a
+        // corporate topic, so every unmatched query used to fall into
+        // its generic "Which item should I inspect?" clarification.
+        tracer.stage("legacy_fallback_used", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason, fallback_owner: "business_surface_fallback" });
+        logger.info("oyi_business_surface_fallback", {
+          request_id: tracer.requestId,
+          correlation_id: tracer.correlationId,
+          thread_id: context.input.thread_id || null,
+          actor_id: context.actor?.id || null,
+          surface: context.input.surface,
+          domain: resolvedTurn.domain,
+          legacy_fallback_reason: reason,
+          fallback_owner: "business_surface_fallback",
+        });
+        return buildBusinessSurfaceFallbackResponse({ ...context, resolvedTurn });
+      }
       tracer.stage("legacy_fallback_used", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason });
       logger.info("oyi_capability_legacy_fallback", {
         request_id: tracer.requestId,

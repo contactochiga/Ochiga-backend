@@ -1,0 +1,494 @@
+// First-class Oyi Core capability modules for the office_internal and
+// public_corporate surfaces. Consumer/Facility's capability modules
+// (ReadCapabilityModules.ts) are built entirely around the smart-home
+// object model and have zero CRM/development/corporate-knowledge
+// awareness — these modules fill that gap using the same readModule()
+// factory pattern and the same capability pipeline (supports/collect/
+// buildReadResponse), so authority, evidence and presentation are
+// enforced identically to every other capability.
+//
+// office_internal modules never query a database directly — Backend has
+// no direct connection to Office's CRM/reports/development store (a
+// separate Supabase project from Consumer/Facility's). Office computes a
+// compact, permission-gated `operational_snapshot` itself (reusing its
+// own existing store + permission functions) and attaches it to the
+// request; these modules only read evidence from that snapshot. A null
+// section means "not computed for this request" (reported as
+// unavailable, never fabricated); an empty array means "computed,
+// genuinely none right now".
+//
+// public_corporate modules never read private Office data and never
+// inherit Office operational authority — corporate.development.read
+// reads Website's own public Sanity dataset live (credential-free CDN
+// read); the other four use curated content mirrored from what is
+// actually live on the public website today (app/about, app/private,
+// app/partnerships, lib/company.ts), since no CMS schema exists yet for
+// that copy.
+import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
+import type { DomainResult } from "../contracts/domainResult";
+import type { OyiEvidence } from "../contracts/evidence";
+import type { SemanticFrame } from "../contracts/semanticFrame";
+import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
+import { readModule, resultPresentation } from "./ReadCapabilityModules";
+
+type OperationalSnapshot = {
+  generated_at: string | null;
+  leads: {
+    needing_attention: Array<{ id: string; name: string; status: string; reason: string; last_activity_at: string | null }>;
+    total_open: number;
+  } | null;
+  opportunities: {
+    stale: Array<{ id: string; name: string; stage: string; days_since_activity: number | null; owner: string | null }>;
+    total_open: number;
+  } | null;
+  reports: {
+    pending_approval: Array<{ id: string; title: string; submitted_by: string | null; submitted_at: string | null }>;
+  } | null;
+  development: {
+    projects: Array<{ id: string; name: string; status: string; percent_complete: number | null; units_sold: number | null; units_total: number | null }>;
+  } | null;
+};
+
+function officeSnapshot(context: CapabilityContext): OperationalSnapshot | null {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
+  const snapshot = (requestContext as Record<string, unknown>).operational_snapshot;
+  return snapshot && typeof snapshot === "object" ? (snapshot as OperationalSnapshot) : null;
+}
+
+const officePrivate: OyiEvidence["privacy_class"] = "corporate_private";
+const publicEvidence: OyiEvidence["privacy_class"] = "public";
+const readOperations = ["inform", "summarize", "list", "inspect"];
+
+function unavailableResult(answer: string): DomainResult {
+  return { status: "unavailable", answer, presentation_policy: resultPresentation("text") };
+}
+
+// ---------------------------------------------------------------------
+// office_internal — CRM leads
+// ---------------------------------------------------------------------
+function crmLeadsReadModule(): CapabilityModule {
+  return readModule({
+    key: "crm.leads.read",
+    domain: "crm",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["crm.read"],
+    evidenceRequirements: [{ domain: "crm", evidence_type: "crm_lead_needs_attention", freshness: ["fresh", "stale", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\bleads?\b/i.test(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const leads = snapshot?.leads;
+      if (!leads) return [];
+      return leads.needing_attention.map((lead) =>
+        evidenceEnvelope({
+          domain: "crm",
+          type: "crm_lead_needs_attention",
+          object_type: "lead",
+          object_id: lead.id,
+          source: "domain_adapter",
+          observed_at: lead.last_activity_at,
+          freshness: lead.last_activity_at ? "fresh" : "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { lead },
+        })
+      );
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.leads) {
+        return unavailableResult("I don't have a current read on leads for this session — the Office CRM snapshot wasn't attached to this request.");
+      }
+      const { needing_attention: items, total_open: totalOpen } = snapshot.leads;
+      if (!items.length) {
+        return {
+          status: "empty",
+          answer: `No leads currently need attention. There are ${totalOpen} open lead${totalOpen === 1 ? "" : "s"} in total and none are flagged.`,
+          presentation_policy: resultPresentation("list"),
+          metadata: { total_open: totalOpen },
+        };
+      }
+      const lines = items.slice(0, 10).map((lead) => `${lead.name} — ${lead.reason} (${lead.status})`);
+      return {
+        status: "answered",
+        answer: `${items.length} lead${items.length === 1 ? "" : "s"} need${items.length === 1 ? "s" : ""} attention out of ${totalOpen} open:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [{ type: "list", items }],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total_open: totalOpen },
+      };
+    },
+    primary: "list",
+  });
+}
+
+// ---------------------------------------------------------------------
+// office_internal — CRM opportunities
+// ---------------------------------------------------------------------
+function crmOpportunitiesReadModule(): CapabilityModule {
+  return readModule({
+    key: "crm.opportunities.read",
+    domain: "crm",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["crm.read"],
+    evidenceRequirements: [{ domain: "crm", evidence_type: "crm_opportunity_stale", freshness: ["fresh", "stale", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\bopportunit/i.test(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const opportunities = snapshot?.opportunities;
+      if (!opportunities) return [];
+      return opportunities.stale.map((opportunity) =>
+        evidenceEnvelope({
+          domain: "crm",
+          type: "crm_opportunity_stale",
+          object_type: "opportunity",
+          object_id: opportunity.id,
+          source: "domain_adapter",
+          observed_at: null,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { opportunity },
+        })
+      );
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.opportunities) {
+        return unavailableResult("I don't have a current read on opportunities for this session — the Office CRM snapshot wasn't attached to this request.");
+      }
+      const { stale: items, total_open: totalOpen } = snapshot.opportunities;
+      if (!items.length) {
+        return {
+          status: "empty",
+          answer: `All ${totalOpen} open opportunit${totalOpen === 1 ? "y" : "ies"} have been followed up recently — none are stale.`,
+          presentation_policy: resultPresentation("list"),
+          metadata: { total_open: totalOpen },
+        };
+      }
+      const lines = items.slice(0, 10).map((o) => `${o.name} — ${o.stage}${o.days_since_activity != null ? `, ${o.days_since_activity}d since last activity` : ""}${o.owner ? ` (owner: ${o.owner})` : ""}`);
+      return {
+        status: "answered",
+        answer: `${items.length} opportunit${items.length === 1 ? "y hasn't" : "ies haven't"} been followed up this week:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [{ type: "list", items }],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total_open: totalOpen },
+      };
+    },
+    primary: "list",
+  });
+}
+
+// ---------------------------------------------------------------------
+// office_internal — Reports awaiting approval
+// ---------------------------------------------------------------------
+function reportsApprovalsReadModule(): CapabilityModule {
+  return readModule({
+    key: "reports.approvals.read",
+    domain: "office_reports",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["reports.write"],
+    evidenceRequirements: [{ domain: "office_reports", evidence_type: "report_pending_approval", freshness: ["fresh", "stale", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "office_reports",
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const reports = snapshot?.reports;
+      if (!reports) return [];
+      return reports.pending_approval.map((report) =>
+        evidenceEnvelope({
+          domain: "office_reports",
+          type: "report_pending_approval",
+          object_type: "report",
+          object_id: report.id,
+          source: "domain_adapter",
+          observed_at: report.submitted_at,
+          freshness: report.submitted_at ? "fresh" : "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { report },
+        })
+      );
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.reports) {
+        return unavailableResult("I don't have a current read on report approvals for this session — the Office reports snapshot wasn't attached to this request.");
+      }
+      const items = snapshot.reports.pending_approval;
+      if (!items.length) {
+        return { status: "empty", answer: "No reports are currently awaiting approval.", presentation_policy: resultPresentation("list") };
+      }
+      const lines = items.slice(0, 10).map((r) => `${r.title}${r.submitted_by ? ` — submitted by ${r.submitted_by}` : ""}`);
+      return {
+        status: "answered",
+        answer: `${items.length} report${items.length === 1 ? "" : "s"} awaiting approval:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [{ type: "list", items }],
+        presentation_policy: resultPresentation("list"),
+      };
+    },
+    primary: "list",
+  });
+}
+
+// ---------------------------------------------------------------------
+// office_internal — Development status
+// ---------------------------------------------------------------------
+function developmentStatusReadModule(): CapabilityModule {
+  return readModule({
+    key: "development.status.read",
+    domain: "office_development",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["development.manage"],
+    evidenceRequirements: [{ domain: "office_development", evidence_type: "development_project_status", freshness: ["fresh", "stale", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "office_development",
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const development = snapshot?.development;
+      if (!development) return [];
+      return development.projects.map((project) =>
+        evidenceEnvelope({
+          domain: "office_development",
+          type: "development_project_status",
+          object_type: "development_project",
+          object_id: project.id,
+          source: "domain_adapter",
+          observed_at: null,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { project },
+        })
+      );
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.development) {
+        return unavailableResult("I don't have a current read on development projects for this session — the Office development snapshot wasn't attached to this request.");
+      }
+      const items = snapshot.development.projects;
+      if (!items.length) {
+        return { status: "empty", answer: "No development projects are currently tracked in Development Management.", presentation_policy: resultPresentation("list") };
+      }
+      const lines = items.map((p) => {
+        const parts = [p.status];
+        if (p.percent_complete != null) parts.push(`${p.percent_complete}% complete`);
+        if (p.units_sold != null && p.units_total != null) parts.push(`${p.units_sold}/${p.units_total} units sold`);
+        return `${p.name} — ${parts.join(", ")}`;
+      });
+      return {
+        status: "answered",
+        answer: `Across ${items.length} development project${items.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [{ type: "list", items }],
+        presentation_policy: resultPresentation("list"),
+      };
+    },
+    primary: "list",
+  });
+}
+
+// ---------------------------------------------------------------------
+// public_corporate — curated static content, mirrored from what is
+// actually live on the public website today (app/about/page.tsx,
+// app/private/page.tsx, app/partnerships/page.tsx, lib/company.ts).
+// Not Sanity-live like development, so the answer is honest about that.
+// ---------------------------------------------------------------------
+function corporateEvidence(domain: OyiEvidence["domain"], type: string): OyiEvidence {
+  return evidenceEnvelope({
+    domain,
+    type,
+    object_type: null,
+    object_id: null,
+    source: "domain_adapter",
+    observed_at: null,
+    freshness: "unknown",
+    privacy_class: publicEvidence,
+    confidence: 0.85,
+    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    payload: {},
+  });
+}
+
+function corporateCompanyReadModule(): CapabilityModule {
+  return readModule({
+    key: "corporate.company.read",
+    domain: "corporate_company",
+    operations: readOperations,
+    supportedSurfaces: ["public_corporate"],
+    permissions: [],
+    evidenceRequirements: [],
+    supports: (frame: SemanticFrame) => frame.domain === "corporate_company",
+    collect: async () => [corporateEvidence("corporate_company", "corporate_company_profile")],
+    answer: () => ({
+      status: "answered",
+      answer:
+        "Ochiga develops and powers intelligent places, bringing together real estate development, building technology and strategic investment partnerships. " +
+        "The company works through three connected engines: Ochiga Development (creates the physical asset), Oyi (Ochiga's building operating technology — powers how it operates), " +
+        "and Ochiga Private (connects selected investors, buyers, landowners and strategic partners with opportunity). These are interconnected parts of one Ochiga ecosystem, not three unrelated businesses.",
+      presentation_policy: resultPresentation("text"),
+    }),
+    primary: "text",
+  });
+}
+
+function corporateOyiReadModule(): CapabilityModule {
+  return readModule({
+    key: "corporate.oyi.read",
+    domain: "corporate_oyi",
+    operations: readOperations,
+    supportedSurfaces: ["public_corporate"],
+    permissions: [],
+    evidenceRequirements: [],
+    supports: (frame: SemanticFrame) => frame.domain === "corporate_oyi",
+    collect: async () => [corporateEvidence("corporate_oyi", "corporate_oyi_profile")],
+    answer: () => ({
+      status: "answered",
+      answer:
+        "Oyi is Ochiga's building operating technology — the intelligence layer that helps developments continue to evolve after handover, powering access control, energy, climate and security across a property. " +
+        "It's the same assistant you're talking to right now, adapted for residents, facility staff and Ochiga's own developments. More at getoyi.com.",
+      presentation_policy: resultPresentation("text"),
+    }),
+    primary: "text",
+  });
+}
+
+function corporatePrivateReadModule(): CapabilityModule {
+  return readModule({
+    key: "corporate.private.read",
+    domain: "corporate_private",
+    operations: readOperations,
+    supportedSurfaces: ["public_corporate"],
+    permissions: [],
+    evidenceRequirements: [],
+    supports: (frame: SemanticFrame) => frame.domain === "corporate_private",
+    collect: async () => [corporateEvidence("corporate_private", "corporate_private_profile")],
+    answer: () => ({
+      status: "answered",
+      answer:
+        "Ochiga Private is a curated private real-estate investment and opportunity network connecting selected investors, buyers, landowners and strategic partners with Ochiga's development opportunities. " +
+        "Membership works through five stages — Apply, Qualify, Access, Participate, Grow — and opportunities span recurring income, longer-term appreciation and development-linked categories. " +
+        "Membership and access are subject to individual review and are never guaranteed; Ochiga does not provide investment advice, and nothing here is an offer of securities or a guarantee of returns.",
+      presentation_policy: resultPresentation("text"),
+    }),
+    primary: "text",
+  });
+}
+
+function corporatePartnershipsReadModule(): CapabilityModule {
+  return readModule({
+    key: "corporate.partnerships.read",
+    domain: "corporate_partnerships",
+    operations: readOperations,
+    supportedSurfaces: ["public_corporate"],
+    permissions: [],
+    evidenceRequirements: [],
+    supports: (frame: SemanticFrame) => frame.domain === "corporate_partnerships",
+    collect: async () => [corporateEvidence("corporate_partnerships", "corporate_partnerships_profile")],
+    answer: () => ({
+      status: "answered",
+      answer:
+        "Ochiga partners across several tracks: Landowners & Joint Ventures (land contribution, joint development), Capital Partners (institutions, family offices, strategic capital), " +
+        "Buyers & Offtake (acquisition and sales relationships), and Professional/Strategic Partners (delivery and technology integrators). " +
+        "The process is Introduce, Review, Structure, Align, Execute. Start a conversation at ochiga.com.ng/partnerships or ochiga.com.ng/contact.",
+      presentation_policy: resultPresentation("text"),
+    }),
+    primary: "text",
+  });
+}
+
+// ---------------------------------------------------------------------
+// public_corporate — Development, live from Website's public Sanity
+// dataset (same project/dataset the website itself renders from). A
+// credential-free CDN read — no new secrets, nothing private.
+// ---------------------------------------------------------------------
+const SANITY_PROJECT_ID = "ap1ku6sf";
+const SANITY_DATASET = "production";
+const DEVELOPMENT_PROJECTS_GROQ = `*[_type == "developmentProject"] | order(order asc) {
+  name,
+  "slug": slug.current,
+  typeLine,
+  location,
+  status,
+  oneLiner
+}`;
+
+type SanityDevelopmentProject = {
+  name?: string;
+  slug?: string;
+  typeLine?: string;
+  location?: string;
+  status?: string;
+  oneLiner?: string;
+};
+
+async function fetchLiveDevelopmentProjects(): Promise<{ projects: SanityDevelopmentProject[]; fetched: boolean }> {
+  try {
+    const url = `https://${SANITY_PROJECT_ID}.apicdn.sanity.io/v2024-01-01/data/query/${SANITY_DATASET}?query=${encodeURIComponent(DEVELOPMENT_PROJECTS_GROQ)}`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!response.ok) return { projects: [], fetched: false };
+    const body = (await response.json()) as { result?: SanityDevelopmentProject[] };
+    return { projects: Array.isArray(body.result) ? body.result : [], fetched: true };
+  } catch {
+    return { projects: [], fetched: false };
+  }
+}
+
+function corporateDevelopmentReadModule(): CapabilityModule {
+  return readModule({
+    key: "corporate.development.read",
+    domain: "corporate_development",
+    operations: readOperations,
+    supportedSurfaces: ["public_corporate"],
+    permissions: [],
+    evidenceRequirements: [{ domain: "corporate_development", evidence_type: "public_development_project", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "corporate_development",
+    collect: async () => {
+      const { projects, fetched } = await fetchLiveDevelopmentProjects();
+      if (!fetched) return [];
+      return projects.map((project) =>
+        evidenceEnvelope({
+          domain: "corporate_development",
+          type: "public_development_project",
+          object_type: "development_project",
+          object_id: project.slug || project.name || null,
+          source: "provider",
+          source_type: "provider_api",
+          observed_at: new Date().toISOString(),
+          freshness: "fresh",
+          privacy_class: publicEvidence,
+          confidence: 0.95,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { project },
+        })
+      );
+    },
+    answer: (context, evidence) => {
+      if (!evidence.length) {
+        return unavailableResult("I couldn't reach the live development records just now, so I can't list current projects accurately. Please try again shortly or see ochiga.com.ng/development.");
+      }
+      const projects = evidence.map((item) => (item.payload as { project: SanityDevelopmentProject }).project);
+      const lines = projects.map((p) => `${p.name}${p.location ? ` (${p.location})` : ""}${p.status ? ` — ${p.status}` : ""}${p.oneLiner ? `: ${p.oneLiner}` : ""}`);
+      return {
+        status: "answered",
+        answer: `Ochiga currently has ${projects.length} development${projects.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [{ type: "list", items: projects }],
+        presentation_policy: resultPresentation("list"),
+      };
+    },
+    primary: "list",
+  });
+}
+
+export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule()];
+}
+
+export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {
+  return [corporateCompanyReadModule(), corporateDevelopmentReadModule(), corporateOyiReadModule(), corporatePrivateReadModule(), corporatePartnershipsReadModule()];
+}

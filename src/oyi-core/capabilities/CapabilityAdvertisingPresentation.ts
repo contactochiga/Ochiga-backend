@@ -7,6 +7,14 @@ const DOMAIN_LABELS: Record<string, string> = {
   wallet: "wallet transaction history",
   utilities: "utility spending",
   global: "Oyi capability help",
+  crm: "leads and opportunities",
+  office_reports: "reports awaiting approval",
+  office_development: "development project status",
+  corporate_company: "what Ochiga does",
+  corporate_development: "Ochiga's current developments",
+  corporate_oyi: "what Oyi is",
+  corporate_private: "Ochiga Private",
+  corporate_partnerships: "partnering with Ochiga",
 };
 
 export function buildCapabilityAdvertisingResult(input: {
@@ -28,12 +36,18 @@ export function buildCapabilityAdvertisingResult(input: {
     };
   }
   const lines = domains.map((domain) => `• ${DOMAIN_LABELS[domain] || domain}`);
+  const surface = input.context.input.surface;
+  const scopeLine = surface === "office_internal"
+    ? "I’ll only offer information that’s available and authorised for your Office role."
+    : surface === "public_corporate"
+    ? "I’ll only share information that’s public — nothing private or operational."
+    : "I’ll only offer actions and information that are available and authorised for your home.";
   return {
     status: "answered",
     answer: [
       "Here is what I can safely help with right now:",
       ...lines,
-      "I’ll only offer actions and information that are available and authorised for your home.",
+      scopeLine,
     ].join("\n"),
     presentation_policy: { primary: "list", allowed_supporting_blocks: ["text", "list"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
     metadata: { capabilities },

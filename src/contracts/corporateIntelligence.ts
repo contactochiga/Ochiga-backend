@@ -396,6 +396,31 @@ export type OfficeInternalOyiCoreRequest = {
   requested_capability: string | null;
   knowledge_context: CorporateKnowledgeReference[];
   metadata: Record<string, unknown>;
+  // Compact, permission-gated read of Office's own CRM/reports/development
+  // stores, computed by Office (using its own existing store + permission
+  // functions) and attached to the outbound request. Oyi Core's office
+  // capability modules read evidence from this rather than querying any
+  // database directly — Backend has no direct connection to Office's data
+  // store. A null section means "not computed for this actor/request" (the
+  // capability must report unavailable, never fabricate); an empty array
+  // means "computed, genuinely none right now".
+  operational_snapshot?: {
+    generated_at: string | null;
+    leads: {
+      needing_attention: Array<{ id: string; name: string; status: string; reason: string; last_activity_at: string | null }>;
+      total_open: number;
+    } | null;
+    opportunities: {
+      stale: Array<{ id: string; name: string; stage: string; days_since_activity: number | null; owner: string | null }>;
+      total_open: number;
+    } | null;
+    reports: {
+      pending_approval: Array<{ id: string; title: string; submitted_by: string | null; submitted_at: string | null }>;
+    } | null;
+    development: {
+      projects: Array<{ id: string; name: string; status: string; percent_complete: number | null; units_sold: number | null; units_total: number | null }>;
+    } | null;
+  } | null;
 };
 
 export type OfficeInternalOyiCoreResponse = {

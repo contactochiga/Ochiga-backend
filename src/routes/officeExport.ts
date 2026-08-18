@@ -169,6 +169,7 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
     requested_capability: safeText(body.requested_capability) || null,
     knowledge_context: knowledgeContext(body.knowledge_context),
     metadata: recordOf(body.metadata),
+    operational_snapshot: body.operational_snapshot && typeof body.operational_snapshot === "object" ? body.operational_snapshot : null,
   };
 }
 
@@ -424,6 +425,7 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
       partnership_context: internalRequest.partnership_context,
       document_context: internalRequest.document_context,
       content_context: internalRequest.content_context,
+      operational_snapshot: internalRequest.operational_snapshot || null,
       contract_version: CORPORATE_INTELLIGENCE_CONTRACT_VERSION,
     },
     conversation_context: {

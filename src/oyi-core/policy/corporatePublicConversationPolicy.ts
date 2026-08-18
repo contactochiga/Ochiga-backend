@@ -47,6 +47,14 @@ function qualificationSignal(message: string) {
 }
 
 function answerFor(request: CorporateOyiCoreRequest, canonical: CanonicalConversationResponse, signal: CorporateCommercialSignal) {
+  // Prefer a real Oyi Core answer (now that corporate.company.read,
+  // corporate.development.read, corporate.oyi.read, corporate.private.read
+  // and corporate.partnerships.read exist and run through the capability
+  // pipeline) over the generic hardcoded/business-unit-routing text below.
+  // Signal detection, business_unit routing and tool proposals are
+  // computed independently of this function and are unaffected.
+  const canonicalAnswer = text(canonical.reply) || text(canonical.answer);
+  if (canonicalAnswer) return canonicalAnswer;
   const message = norm(request.message);
   if (/\bwhat does ochiga do|what is ochiga|about ochiga\b/.test(message)) {
     return "Ochiga develops and powers intelligent places. The company combines real estate development, building technology through Oyi, private relationship-led opportunities, and structured partnerships.";

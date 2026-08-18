@@ -173,10 +173,20 @@ export class CapabilityService {
     const surface = context.input.surface;
     const scope = scopeFrom({ actor: context.actor, oisContext: context.oisContext, input: context.input });
     const frame: SemanticFrame = context.resolvedTurn.semantic_frame;
+    // A module's supports()/score is domain-only — it cannot see the
+    // request surface (SemanticFrame carries no surface field), so two
+    // modules covering the same domain on different surfaces can score
+    // identically. Without this tie-break, whichever registered first
+    // wins arbitrarily, which can select a module that's certain to be
+    // denied for "surface_not_supported" over one that would have
+    // actually answered. Prefer surface-compatible candidates first,
+    // then fall back to score — this only narrows/reorders candidates
+    // that already scored > 0, so it cannot make an otherwise-denied
+    // capability newly authorized.
     const candidate = capabilityRegistry.all()
-      .map((module) => ({ module, score: capabilityMatchScore(module, frame) }))
+      .map((module) => ({ module, score: capabilityMatchScore(module, frame), surfaceMatch: surfaceAllowed(module, surface) }))
       .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score)[0]?.module || null;
+      .sort((a, b) => (Number(b.surfaceMatch) - Number(a.surfaceMatch)) || (b.score - a.score))[0]?.module || null;
     if (!candidate) {
       operationalMetrics.increment("oyi_capability_resolution_total", { outcome: "unsupported", reason: "capability_not_registered" });
       return { capability: null, matched_capability: null, rollout_status: "not_registered", authority: null, legacy_fallback_reason: "capability_not_registered" };
