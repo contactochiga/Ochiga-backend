@@ -32,7 +32,15 @@ export type OyiDomain =
   | "reports"
   | "cameras"
   | "notifications"
-  | "incidents";
+  | "incidents"
+  | "crm"
+  | "office_reports"
+  | "office_development"
+  | "corporate_company"
+  | "corporate_development"
+  | "corporate_oyi"
+  | "corporate_private"
+  | "corporate_partnerships";
 
 export type ParsedEntity = {
   type: "room" | "device" | "visitor" | "wallet" | "service" | "message" | "scene" | "automation" | "camera" | "unknown";
@@ -115,6 +123,18 @@ function classifyOperation(text: string): OyiOperation {
 
 function classifyDomain(text: string): OyiDomain | null {
   if (/\bwhat can you do\b|\bhelp\b|\bcapabilit/i.test(text)) return "global";
+  // Office/corporate business domains — checked before the Consumer/Facility
+  // smart-home branches below so office_internal/public_corporate business
+  // phrasing (leads, opportunities, report approvals, developments, company
+  // knowledge) never gets stolen by the generic "report"/"home" branches.
+  if (/\b(leads?|prospects?|opportunit(?:y|ies)|pipeline|follow(?:ed)?[\s-]?up on|crm)\b/i.test(text)) return "crm";
+  if (/\b(reports?\s+(?:are\s+)?(?:awaiting|pending|needing)\s+approval|approval\s+queue|pending\s+approvals?)\b/i.test(text)) return "office_reports";
+  if (/\b(our\s+developments?|development\s+(?:status|update)|construction\s+(?:status|progress)|site\s+progress|units?\s+sold|happening\s+across\s+(?:our\s+)?developments?)\b/i.test(text)) return "office_development";
+  if (/\bochiga\s+private\b/i.test(text)) return "corporate_private";
+  if (/\bpartner(?:ship)?s?\s+with\s+ochiga\b|\bhow\s+can\s+i\s+partner\b|\bbecome\s+a\s+partner\b|\bpartnership\b/i.test(text)) return "corporate_partnerships";
+  if (/\bwhat\s+is\s+oyi\b|\btell\s+me\s+about\s+oyi\b|\babout\s+oyi\b/i.test(text)) return "corporate_oyi";
+  if (/\byour\s+developments?\b|\btell\s+me\s+about\s+(?:your\s+|the\s+)?developments?\b|\bdevelopment\s+projects?\b/i.test(text)) return "corporate_development";
+  if (/\bwhat\s+does\s+ochiga\s+do\b|\bwhat\s+is\s+ochiga\b|\babout\s+ochiga\b|\bwho\s+is\s+ochiga\b|\bwhat\s+does\s+the\s+company\s+do\b|\btell\s+me\s+about\s+ochiga\b/i.test(text)) return "corporate_company";
   if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair|broken|not working)\b/i.test(text)) return "maintenance";
   if (/\b(report|analytics?|trend|comparison|compare)\b/i.test(text)) return "reports";
   if (/\bhome|house|everything|what should i check|needs attention|changed today\b/i.test(text)) return "home";
