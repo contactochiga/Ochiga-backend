@@ -354,7 +354,14 @@ class ExecutionLedgerService {
     };
     this.records.set(executionId, next);
     void this.persist(next);
-    void recordExecutionObservability(next);
+    // Only fire on the transition INTO a terminal state, not on every
+    // complete() call — complete() is also called later, on an already-
+    // terminal record, purely to attach a conversationReference/
+    // executiveReference (src/oyi-core/service.ts) with no status change
+    // at all. Without this guard those reference-only calls would
+    // re-fire this hook and duplicate the observability event for the
+    // same execution.
+    if (current.status !== next.status) void recordExecutionObservability(next);
     return next;
   }
 
