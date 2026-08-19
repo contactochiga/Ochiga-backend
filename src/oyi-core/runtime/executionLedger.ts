@@ -1,6 +1,46 @@
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { NormalizedSignal, SignalEvidence } from "../contracts/operationalSignal";
 import type { SignalRuntimeReceipt } from "./universalSignalRuntime";
+import { recordOyiObservabilityEvent, type OyiObservabilityStatus } from "../../intelligence-core/oyiObservabilityBridge";
+
+// Oyi Cross-Surface Observability Closure — one terminal-status device
+// execution per completed record, tagged with a real surface only when
+// origin unambiguously maps to one (consumer_app/facility_app/
+// office_app). voice_assistant/automation/provider/physical/api origins
+// are deliberately skipped here rather than guessed at — they don't
+// have a 1:1 surface mapping in the data available at this layer.
+const EXECUTION_ORIGIN_SURFACE: Record<string, "consumer" | "facility" | "office_internal"> = {
+  consumer_app: "consumer",
+  facility_app: "facility",
+  office_app: "office_internal",
+};
+const TERMINAL_STATUS: Partial<Record<ExecutionStatus, OyiObservabilityStatus>> = {
+  executed: "success",
+  failed: "failed",
+  denied: "denied",
+  expired: "timed_out",
+};
+function recordExecutionObservability(record: ExecutionLedgerRecord) {
+  const status = TERMINAL_STATUS[record.status];
+  if (!status) return; // not a terminal state yet (pending_confirmation/confirmed/recorded)
+  const surface = EXECUTION_ORIGIN_SURFACE[String(record.origin || "").toLowerCase()];
+  if (!surface) return;
+  return recordOyiObservabilityEvent({
+    surface,
+    category: "device",
+    event_type: "device.execution_completed",
+    status,
+    actor_ref: record.initiator?.id || null,
+    estate_id: record.estate || null,
+    tool: record.action || null,
+    conversation_id: record.conversationReference || null,
+    request_id: record.correlationId || null,
+    latency_ms: Number.isFinite(record.duration as number) ? (record.duration as number) : null,
+    safe_summary: `${record.action || "Device action"} — ${status}`,
+    source_table: "ai_execution_ledger",
+    source_event_id: record.executionId,
+  });
+}
 
 export type ExecutionStatus =
   | "pending_confirmation"
@@ -314,6 +354,7 @@ class ExecutionLedgerService {
     };
     this.records.set(executionId, next);
     void this.persist(next);
+    void recordExecutionObservability(next);
     return next;
   }
 

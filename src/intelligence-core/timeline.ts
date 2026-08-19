@@ -25,6 +25,13 @@ export function normalizeIntelligenceEvent(input: Partial<IntelligenceEvent> & {
     source: String(input.source || input.agent_id || "intelligence"),
     metadata: input.metadata || {},
     occurred_at: input.occurred_at || now,
+    mode: input.mode ?? null,
+    status: input.status ?? null,
+    capability: input.capability ?? null,
+    tool: input.tool ?? null,
+    conversation_id: input.conversation_id ?? null,
+    request_id: input.request_id ?? null,
+    latency_ms: input.latency_ms ?? null,
   };
 }
 

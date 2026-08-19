@@ -18,6 +18,8 @@ import { observationPolicyForDevice } from "../oyi-core/domains/devices/deviceOb
 import { capabilityRegistry } from "../oyi-core/capabilities/CapabilityRegistry";
 import { buildDeviceActionCapabilities } from "../oyi-core/capabilities/DeviceActionCapabilityModules";
 import { buildPhaseBReadCapabilities } from "../oyi-core/capabilities/ReadCapabilityModules";
+import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
+import { randomUUID } from "crypto";
 
 const router = Router();
 let capabilityIntrospectionRegistered = false;
@@ -163,14 +165,54 @@ router.post("/runtime/outbox/process", requireAuth, resolveRequestContext, async
 });
 
 router.post("/runtime/conversation", requireAuth, resolveRequestContext, async (req, res) => {
+  const requestId = randomUUID();
+  const startedAt = Date.now();
+  const surface = req.oisContext?.surface;
   try {
     const runtime = await conversationOrchestrator.run({
       actor: req.user || null,
       oisContext: req.oisContext || null,
       input: mapOyiRouteBodyToConversationRequest(req.body || {}, req.oisContext || null, "runtime"),
     });
+    // Only consumer/facility real conversation events are observable here
+    // (office_internal/public_corporate already handled at their own
+    // routes) — never blocks or alters the response above.
+    if (surface === "consumer" || surface === "facility") {
+      void recordOyiObservabilityEvent({
+        surface,
+        mode: "text",
+        category: "conversation",
+        event_type: "conversation.turn_completed",
+        status: observabilityStatusFromTruthState(runtime?.truth?.truth_state),
+        actor_ref: req.user?.id || null,
+        estate_id: runtime?.context?.estate_id || null,
+        home_id: runtime?.context?.home_id || null,
+        capability: runtime?.capability_key || null,
+        conversation_id: runtime?.thread_id || null,
+        request_id: requestId,
+        latency_ms: Date.now() - startedAt,
+        safe_summary: `Conversation turn (${runtime?.intent || "general"})`,
+        source_table: "oyi_conversation_messages",
+        source_event_id: runtime?.id || requestId,
+      });
+    }
     return res.json({ ok: true, response: runtime });
   } catch {
+    if (surface === "consumer" || surface === "facility") {
+      void recordOyiObservabilityEvent({
+        surface,
+        mode: "text",
+        category: "conversation",
+        event_type: "conversation.turn_completed",
+        status: "failed",
+        actor_ref: req.user?.id || null,
+        request_id: requestId,
+        latency_ms: Date.now() - startedAt,
+        safe_summary: "Conversation turn failed",
+        source_table: "oyi_conversation_messages",
+        source_event_id: requestId,
+      });
+    }
     return res.status(500).json({ ok: false, error: "Unable to run canonical Oyi runtime conversation" });
   }
 });

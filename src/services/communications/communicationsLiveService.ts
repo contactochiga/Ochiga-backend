@@ -10,6 +10,7 @@ import {
   CommunicationSessionCreateInput,
   CommunicationStatus,
 } from "./communicationContracts";
+import { recordOyiObservabilityEvent } from "../../intelligence-core/oyiObservabilityBridge";
 
 type PersistedSession = {
   session_id: string;
@@ -1083,7 +1084,7 @@ export class CommunicationsLiveService {
         },
       },
     });
-    recordEvent({
+    const communicationEvent = recordEvent({
       session_id: row.session_id,
       surface: row.surface,
       event_type: input.eventType,
@@ -1091,6 +1092,45 @@ export class CommunicationsLiveService {
       actor_role: input.actorRole || null,
       metadata: input.metadata || {},
     });
+    recordVoiceVisionObservability(row, input.eventType, communicationEvent.event_id, input.actorId || null);
     return row;
   }
+}
+
+// Oyi Cross-Surface Observability Closure — voice.transcribed/
+// visual.observed are the two events that genuinely represent "a real
+// voice/vision turn happened" (voice.responded/oyi.responded are the
+// response half of the same turn; recording those too would double
+// count). Both fire only after the real transcription/capture step
+// they represent has already succeeded (see communications.ts's
+// voice-turn/visual-observation handlers — a failure returns before
+// ever reaching recordOyiMediaTurn), so status is honestly always
+// "success" here, not assumed. No transcript text or image data is
+// ever included. Only office_public (the corporate website's live
+// widget) and office_internal map onto a canonical surface today —
+// support/community sessions are out of this closure's scope.
+function recordVoiceVisionObservability(
+  row: { surface: CommunicationSession["surface"]; estate_id?: string | null; home_id?: string | null; oyi_thread_id?: string | null },
+  eventType: "voice.transcribed" | "voice.responded" | "visual.observed" | "oyi.responded",
+  eventId: string,
+  actorRef: string | null
+) {
+  const mode = eventType === "voice.transcribed" ? "voice" : eventType === "visual.observed" ? "vision" : null;
+  if (!mode) return;
+  const surface = row.surface === "office_public" ? "public_corporate" : row.surface === "office_internal" ? "office_internal" : null;
+  if (!surface) return;
+  void recordOyiObservabilityEvent({
+    surface,
+    mode,
+    category: "conversation",
+    event_type: mode === "voice" ? "conversation.voice_turn" : "conversation.vision_turn",
+    status: "success",
+    actor_ref: actorRef,
+    estate_id: row.estate_id || null,
+    home_id: row.home_id || null,
+    conversation_id: row.oyi_thread_id || null,
+    safe_summary: mode === "voice" ? "Voice turn processed" : "Vision observation processed",
+    source_table: "communications_events",
+    source_event_id: eventId,
+  });
 }
