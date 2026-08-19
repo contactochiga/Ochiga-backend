@@ -20,9 +20,24 @@ const TERMINAL_STATUS: Partial<Record<ExecutionStatus, OyiObservabilityStatus>> 
   denied: "denied",
   expired: "timed_out",
 };
+// ExecutionLedgerService ingests every signal the Universal Signal
+// Runtime processes (src/oyi-core/service.ts:136, its one and only
+// startForSignal call site) — not only device commands. Discovered via
+// production data after deploy: emitAuditEvent() (src/core/foundation/
+// audit.ts:75) emits an "audit.recorded" signal for nearly every
+// audited action anywhere in the app, which was showing up here as
+// fabricated-looking "device actions" (e.g. actor "office_sync",
+// tool "audit.recorded"). Only "device.command.*" actions are a real,
+// user/Oyi-initiated command — allowlisted explicitly rather than
+// trying to blocklist every non-command signal type this runtime might
+// ever carry.
+function isGenuineDeviceCommand(action: string): boolean {
+  return /^device\.command\./.test(action);
+}
 function recordExecutionObservability(record: ExecutionLedgerRecord) {
   const status = TERMINAL_STATUS[record.status];
   if (!status) return; // not a terminal state yet (pending_confirmation/confirmed/recorded)
+  if (!isGenuineDeviceCommand(String(record.action || ""))) return;
   const surface = EXECUTION_ORIGIN_SURFACE[String(record.origin || "").toLowerCase()];
   if (!surface) return;
   return recordOyiObservabilityEvent({
