@@ -543,8 +543,6 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
     estateMembershipsResult,
     homeMembershipsResult,
     visitorsResult,
-    paymentsResult,
-    duesResult,
     communityPostsResult,
     usersResult,
     roomsResult,
@@ -565,8 +563,6 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
     safeSelectWithStatus("estate_memberships"),
     safeSelectWithStatus("home_memberships"),
     safeSelectWithStatus("visitors"),
-    safeSelectWithStatus("payments"),
-    safeSelectWithStatus("dues"),
     safeSelectWithStatus("community_posts"),
     safeSelectWithStatus("users", "id,email,full_name,username,role,estate_id,home_id,account_status,created_at,updated_at"),
     safeSelectWithStatus("rooms"),
@@ -588,8 +584,6 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
   const estateMemberships = estateMembershipsResult.rows;
   const homeMemberships = homeMembershipsResult.rows;
   const visitors = visitorsResult.rows;
-  const payments = paymentsResult.rows;
-  const dues = duesResult.rows;
   const communityPosts = communityPostsResult.rows;
   const users = usersResult.rows;
   const rooms = roomsResult.rows;
@@ -635,8 +629,7 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
       homes_count: estateHomes.length,
       devices_count: estateDevices.length,
       resident_count: memberCount,
-      wallet_balance: toNumber(estateWallet?.balance || estate.wallet_balance),
-      monthly_recurring_revenue: toNumber(estate.monthly_fee || estate.subscription_fee),
+      wallet_balance: toNumber(estateWallet?.balance),
       support_open: openSupport + unreadAlerts,
       support_escalated: maintenanceRequests.filter(
         (ticket) => String(ticket.estate_id) === estateId && String(ticket.priority || "").toLowerCase() === "critical"
@@ -655,7 +648,6 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
     name: home.name || home.unit || "Unnamed Home",
     residents_count: home.residents_count || home.users_count || homeMemberships.filter((member) => String(member.home_id) === String(home.id)).length,
     devices_count: devices.filter((device) => String(device.home_id) === String(home.id)).length,
-    wallet_balance: toNumber(home.wallet_balance || wallets.find((wallet) => String(wallet.home_id) === String(home.id))?.balance),
     automation_state: home.automation_state || home.status || "standby",
     created_at: home.created_at || nowIso,
     updated_at: home.updated_at || nowIso,
@@ -677,10 +669,10 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
     updated_at: device.updated_at || nowIso,
   }));
 
-  const officeWallets = [...estateWallets, ...wallets].map((wallet, index) => ({
+  const officeWallets = estateWallets.map((wallet, index) => ({
     id: String(wallet.id || `oyi_wallet_${index + 1}`),
-    scope_type: wallet.estate_id ? "estate" : wallet.home_id ? "home" : "user",
-    scope_id: String(wallet.estate_id || wallet.home_id || wallet.user_id || ""),
+    scope_type: "estate",
+    scope_id: String(wallet.estate_id || ""),
     label: wallet.label || wallet.name || "Oyi Wallet",
     balance: toNumber(wallet.balance),
     currency: wallet.currency || "NGN",
@@ -712,7 +704,7 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
       period: "live",
       sessions: visitors.length,
       unique_visitors: new Set(visitors.map((visitor) => visitor.user_id || visitor.email || visitor.phone)).size,
-      conversions: payments.length,
+      conversions: 0,
       active_agent: "Oyi OS",
       top_source: "Oyi Backend",
       top_location: officeEstates[0]?.location || "",
@@ -802,8 +794,6 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
     estate_memberships: estateMembershipsResult.source,
     home_memberships: homeMembershipsResult.source,
     visitors: visitorsResult.source,
-    payments: paymentsResult.source,
-    dues: duesResult.source,
     community_posts: communityPostsResult.source,
     users: usersResult.source,
     rooms: roomsResult.source,
@@ -903,8 +893,6 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
         wallets: wallets.length,
         maintenance_requests: maintenanceRequests.length,
         notifications: notifications.length,
-        payments: payments.length,
-        dues: dues.length,
         community_posts: communityPosts.length,
         users: users.length,
         rooms: rooms.length,
@@ -1106,6 +1094,144 @@ router.get("/portfolio/projection", requireOfficeExportKey, async (req: Request,
     generated_at: nowIso,
     estates: officeEstates,
     buildings: officeBuildings,
+  });
+});
+
+// ---------------------------------------------------------------
+// Canonical Office financial aggregation contract — the ONE aggregate-only
+// financial view Office (and, later, Oyi Core) should read for corporate
+// financial reasoning. It never returns a resident/home-keyed row and never
+// touches consumer wallets/wallet_transactions — only genuinely estate-scoped
+// financial records: estate_wallets (a balance snapshot) and
+// service_transactions (utility purchases and facility service-charge
+// collections, both estate_id-scoped at the row level, filtered to
+// status="completed" so only settled money counts). Every figure here is
+// either a raw snapshot column or a SUM/COUNT over real rows for the
+// requested period — fields that have no real backing data (recurring
+// revenue, receivables, payables, operating expenses) are simply omitted
+// rather than shipped as fabricated zeros.
+// ---------------------------------------------------------------
+const UTILITY_SERVICE_TYPES = new Set(["power", "water", "gas", "internet"]);
+const FACILITY_SERVICE_TYPES = new Set(["service_charge"]);
+
+router.get("/financial-summary", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+  const estateIdFilter = safeText(req.query.estate_id as string) || null;
+  const periodDays = Math.min(Math.max(toNumber(req.query.period_days, 30) || 30, 1), 365);
+  const periodStartMs = nowMs - periodDays * 24 * 60 * 60 * 1000;
+  const periodStart = new Date(periodStartMs).toISOString();
+  const periodEnd = nowIso;
+
+  const [estatesResult, estateWalletsResult, serviceTxResult] = await Promise.all([
+    safeSelectWithStatus("estates", "id,name,status"),
+    safeSelectWithStatus("estate_wallets", "estate_id,balance,currency,updated_at"),
+    safeSelectWithStatus(
+      "service_transactions",
+      "estate_id,service_type,service_key,amount,net_service_amount,status,currency,created_at"
+    ),
+  ]);
+
+  const estates = estatesResult.rows.filter((estate) => !estateIdFilter || String(estate.id) === estateIdFilter);
+  const estateWallets = estateWalletsResult.rows;
+  const completedTx = serviceTxResult.rows.filter((row) => {
+    if (String(row.status || "") !== "completed") return false;
+    const createdMs = Date.parse(String(row.created_at || ""));
+    return Number.isFinite(createdMs) && createdMs >= periodStartMs && createdMs <= nowMs;
+  });
+
+  function round2(value: number) {
+    return Math.round(value * 100) / 100;
+  }
+
+  function estateFigures(estateId: string) {
+    const estateTx = completedTx.filter((row) => String(row.estate_id) === estateId);
+    const amountOf = (row: Row) => toNumber(row.net_service_amount ?? row.amount);
+    const revenuePeriod = estateTx.reduce((sum, row) => sum + amountOf(row), 0);
+    const utilitySalesPeriod = estateTx
+      .filter((row) => UTILITY_SERVICE_TYPES.has(String(row.service_type)))
+      .reduce((sum, row) => sum + amountOf(row), 0);
+    const serviceChargePeriod = estateTx
+      .filter((row) => FACILITY_SERVICE_TYPES.has(String(row.service_type)))
+      .reduce((sum, row) => sum + amountOf(row), 0);
+    return {
+      revenue_period: round2(revenuePeriod),
+      utility_sales_period: round2(utilitySalesPeriod),
+      service_charge_period: round2(serviceChargePeriod),
+      transaction_count: estateTx.length,
+    };
+  }
+
+  const officeFinancialEstates = estates.map((estate) => {
+    const estateId = String(estate.id);
+    const wallet = estateWallets.find((row) => String(row.estate_id) === estateId);
+    const figures = estateFigures(estateId);
+    return {
+      estate_id: estateId,
+      name: estate.name || "Unnamed Estate",
+      current_balance: wallet ? toNumber(wallet.balance) : null,
+      currency: wallet?.currency || "NGN",
+      ...figures,
+      period_start: periodStart,
+      period_end: periodEnd,
+      freshness: nowIso,
+      evidence_refs: wallet ? ["estate_wallets", "service_transactions"] : ["service_transactions"],
+    };
+  });
+
+  const portfolioTotals = officeFinancialEstates.reduce(
+    (totals, estate) => {
+      totals.current_balance_total += estate.current_balance || 0;
+      totals.revenue_period_total += estate.revenue_period;
+      totals.utility_sales_period_total += estate.utility_sales_period;
+      totals.service_charge_period_total += estate.service_charge_period;
+      totals.transaction_count_total += estate.transaction_count;
+      return totals;
+    },
+    {
+      current_balance_total: 0,
+      revenue_period_total: 0,
+      utility_sales_period_total: 0,
+      service_charge_period_total: 0,
+      transaction_count_total: 0,
+    }
+  );
+
+  void emitAuditEvent({
+    actorId: "office_financial_summary",
+    actorEmail: "office-sync@ochiga.local",
+    actorRole: "system",
+    action: "office.financial_summary.accessed",
+    resourceType: "office_financial_summary",
+    resourceId: estateIdFilter || "all",
+    status: "success",
+    metadata: { estate_count: officeFinancialEstates.length, period_days: periodDays },
+    req,
+  } as any);
+
+  return res.json({
+    source: "oyi-os",
+    contract_version: CONTRACT_VERSION,
+    generated_at: nowIso,
+    period_start: periodStart,
+    period_end: periodEnd,
+    estates: officeFinancialEstates,
+    portfolio: {
+      estate_count: officeFinancialEstates.length,
+      currency: "NGN",
+      current_balance_total: round2(portfolioTotals.current_balance_total),
+      revenue_period_total: round2(portfolioTotals.revenue_period_total),
+      utility_sales_period_total: round2(portfolioTotals.utility_sales_period_total),
+      service_charge_period_total: round2(portfolioTotals.service_charge_period_total),
+      transaction_count_total: portfolioTotals.transaction_count_total,
+    },
+    meta: {
+      sources: {
+        estates: estatesResult.source,
+        estate_wallets: estateWalletsResult.source,
+        service_transactions: serviceTxResult.source,
+      },
+    },
   });
 });
 

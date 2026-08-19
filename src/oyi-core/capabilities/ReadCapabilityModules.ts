@@ -497,10 +497,15 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       },
     }),
     readModule({
+      // consumer-only: loadUtilityPurchaseFacts returns row-level,
+      // home_id-tagged purchase records (with token_reference etc.), which
+      // must never flow to a non-owner surface even estate-scoped. Facility
+      // gets utility revenue as an estate aggregate through a dedicated
+      // financial capability instead, never through this row-level module.
       key: "utilities.purchases.read",
       domain: "utilities",
       operations: ["list", "utilities.history"],
-      supportedSurfaces: ["consumer", "facility"],
+      supportedSurfaces: ["consumer"],
       permissions: ["utilities.read", "wallet.read"],
       scopeRequirements: estateScope,
       evidenceRequirements: [readRequirement("utilities", "utility_purchase")],
