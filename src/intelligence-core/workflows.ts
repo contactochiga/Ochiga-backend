@@ -198,9 +198,18 @@ export function workflowVisibleToActorForTest(workflow: { estate_id?: string | n
   return true;
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export async function getWorkflow(id: string, actor?: AuthUser | null) {
   if (!canViewWorkflows(actor)) return { ok: false, error: "Workflow access requires an operational or executive role" };
-  const { data, error } = await supabaseAdmin.from("ochiga_workflows").select("*").or(`id.eq.${id},workflow_id.eq.${id}`).maybeSingle();
+  // ochiga_workflows.id is a uuid column — PostgREST/Postgres rejects the
+  // whole .or() filter if the id.eq. branch can't cast, even when the
+  // caller only ever intended to match by the text workflow_id (e.g.
+  // "wf_..."). Only include the id.eq. branch when it can actually cast.
+  const filter = isUuid(id) ? `id.eq.${id},workflow_id.eq.${id}` : `workflow_id.eq.${id}`;
+  const { data, error } = await supabaseAdmin.from("ochiga_workflows").select("*").or(filter).maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: "Workflow not found" };
   const policy = getIntelligencePermissionPolicy(actor);
