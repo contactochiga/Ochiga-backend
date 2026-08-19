@@ -31,7 +31,13 @@ const TERMINAL_STATUS: Partial<Record<ExecutionStatus, OyiObservabilityStatus>> 
 // user/Oyi-initiated command — allowlisted explicitly rather than
 // trying to blocklist every non-command signal type this runtime might
 // ever carry.
-function isGenuineDeviceCommand(action: string): boolean {
+//
+// Exported so this classification has exactly one home — any future
+// reader of ai_execution_ledger (a new /oyi/runtime/executions filter,
+// a report, another bridge) should call this rather than re-deriving
+// its own "is this a real action" rule. See docs/architecture/
+// OYI_RUNTIME_DOMAIN_MODEL.md, Domain 2.
+export function isGenuineDeviceCommand(action: string): boolean {
   return /^device\.command\./.test(action);
 }
 function recordExecutionObservability(record: ExecutionLedgerRecord) {
