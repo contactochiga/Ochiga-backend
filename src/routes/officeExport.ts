@@ -13,6 +13,8 @@ import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLIC
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
 import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
+import { createWorkflow, transitionWorkflow, listWorkflows, getWorkflow, type WorkflowStatus } from "../intelligence-core/workflows";
+import type { IntelligenceAgentId } from "../intelligence-core/types";
 
 const router = Router();
 
@@ -96,6 +98,29 @@ const publicCorporateActor: AuthUser = {
   permissions: [],
   permission_scopes: [],
 };
+
+// Oyi Runtime Contract, Domain 3 (Task) — synthetic actor for the
+// office-backend-intelligence-events boundary contract
+// (src/contracts/platformBoundaries.ts). Office calls these routes
+// with its own shared-secret credential (requireOfficeExportKey), not
+// a real Backend AuthUser, so a real getIntelligencePermissionPolicy()
+// scope/role decision is still needed — "ochiga_admin" is the closest
+// real role (global "office" scope per permissionEngine.ts, passes
+// canViewWorkflows()'s allowlist unchanged). This reuses
+// createWorkflow/transitionWorkflow/listWorkflows/getWorkflow exactly
+// as written for every other caller; nothing in workflows.ts changes.
+// "ochiga_admin" is a real PlatformRole (src/core/foundation/
+// permissions.ts) that getIntelligencePermissionPolicy/canViewWorkflows
+// already understand — it's just outside AuthUser's narrower `UserRole`
+// type (src/types/user.ts), a pre-existing type/runtime gap elsewhere
+// in this codebase, not something introduced here. Cast, not a new role.
+const officeWorkflowActor = {
+  id: "office_workflow_bridge",
+  email: "office-workflow-bridge@ochiga.local",
+  role: "ochiga_admin",
+  permissions: [],
+  permission_scopes: [],
+} as unknown as AuthUser;
 
 function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInternalOyiCoreRequest {
   const staff = recordOf(body.staff);
@@ -1281,6 +1306,96 @@ router.get("/observability/events", requireOfficeExportKey, async (req: Request,
     return res.json({ ok: true, events: data || [] });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to load observability events" });
+  }
+});
+
+// Oyi Runtime Contract, Domain 3 (Task) — fulfills the already-declared
+// "office-backend-intelligence-events" platform boundary contract
+// (src/contracts/platformBoundaries.ts): Office stays the source of
+// truth for crm_tasks/leads/proposals/deployments; these routes let it
+// additively project a subset of that state into ochiga_workflows for
+// cross-agent operational visibility (Facility's operator queue,
+// Consumer's dashboard counts already read this table). Thin wrappers
+// only — createWorkflow/transitionWorkflow/listWorkflows/getWorkflow
+// (src/intelligence-core/workflows.ts) do all the real work,
+// unmodified. See docs/architecture/OYI_RUNTIME_DOMAIN_MODEL.md.
+const OFFICE_ALLOWED_WORKFLOW_TYPES = new Set([
+  "customer_converted",
+  "proposal_accepted",
+  "meeting_requested",
+  "deployment_required",
+]);
+const OFFICE_ALLOWED_AGENTS = new Set(["oma", "osa"]);
+
+router.get("/workflows", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const result = await listWorkflows(officeWorkflowActor, {
+      status: typeof req.query.status === "string" ? req.query.status : null,
+      escalated: req.query.escalated === "true",
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    return res.status(result.ok ? 200 : 500).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load workflows", workflows: [] });
+  }
+});
+
+router.post("/workflows", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const body = req.body || {};
+  const workflowType = safeText(body.workflow_type);
+  if (!OFFICE_ALLOWED_WORKFLOW_TYPES.has(workflowType)) {
+    return res.status(400).json({ ok: false, error: `workflow_type must be one of: ${Array.from(OFFICE_ALLOWED_WORKFLOW_TYPES).join(", ")}` });
+  }
+  const originAgent = OFFICE_ALLOWED_AGENTS.has(body.origin_agent) ? (body.origin_agent as IntelligenceAgentId) : "oma";
+  const responsibleAgent = OFFICE_ALLOWED_AGENTS.has(body.responsible_agent) || body.responsible_agent === "facility"
+    ? (body.responsible_agent as IntelligenceAgentId)
+    : "osa";
+  if (!body.title || !body.summary) {
+    return res.status(400).json({ ok: false, error: "title and summary are required" });
+  }
+  try {
+    const result = await createWorkflow({
+      workflow_type: workflowType,
+      title: safeText(body.title).slice(0, 180),
+      summary: safeText(body.summary).slice(0, 500),
+      priority: ["low", "medium", "high", "critical"].includes(body.priority) ? body.priority : undefined,
+      origin_agent: originAgent,
+      responsible_agent: responsibleAgent,
+      actor: officeWorkflowActor,
+      estate_id: body.estate_id || null,
+      home_id: body.home_id || null,
+      source_event_id: safeText(body.source_event_id) || null,
+      recommended_action: safeText(body.recommended_action) || null,
+      metadata: { ...recordOf(body.metadata), office_source_ref: safeText(body.source_ref) || null },
+    });
+    return res.status(result.ok ? 201 : 500).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to create workflow" });
+  }
+});
+
+const WORKFLOW_STATUS_VALUES = new Set(["created", "reviewed", "assigned", "accepted", "in_progress", "completed", "verified", "cancelled", "failed", "blocked", "escalated"]);
+
+router.patch("/workflows/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const body = req.body || {};
+  if (!WORKFLOW_STATUS_VALUES.has(body.status)) {
+    return res.status(400).json({ ok: false, error: `status must be one of: ${Array.from(WORKFLOW_STATUS_VALUES).join(", ")}` });
+  }
+  try {
+    const existing = await getWorkflow(String(req.params.id), officeWorkflowActor);
+    if (!existing.ok || !existing.workflow) {
+      return res.status(404).json({ ok: false, error: existing.error || "Workflow not found" });
+    }
+    const result = await transitionWorkflow({
+      workflow: existing.workflow,
+      status: body.status as WorkflowStatus,
+      actor: officeWorkflowActor,
+      summary: safeText(body.summary) || undefined,
+      metadata: recordOf(body.metadata),
+    });
+    return res.status(result.ok ? 200 : 500).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to update workflow" });
   }
 });
 
