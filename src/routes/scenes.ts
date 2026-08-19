@@ -29,6 +29,53 @@ const SCENE_ACTION_LIMIT = 24;
 const SCENE_ACTION_CONCURRENCY = 3;
 const SCENE_ACTION_TIMEOUT_MS = 15_000;
 
+// Shared Automation Runtime, PR 1 (infrastructure only) — canonical
+// surface contract. consumer_automations.surface defaults to
+// "consumer" for every existing row (see migration
+// 20260820000000_automation_surface_contract.sql), so this constant
+// list, not the column, is what actually gates whether the scheduler
+// or the create/update routes will ever touch a non-consumer row.
+// Facility and Office go from "off" to "on" independently, later,
+// each its own approved pass — see docs/architecture/
+// SHARED_AUTOMATION_RUNTIME.md.
+type AutomationSurface = "consumer" | "facility" | "office";
+const AUTOMATION_SURFACES: AutomationSurface[] = ["consumer", "facility", "office"];
+const AUTOMATION_SURFACE_FACILITY_ENABLED = String(process.env.AUTOMATION_SURFACE_FACILITY_ENABLED || "false").toLowerCase() === "true";
+const AUTOMATION_SURFACE_OFFICE_ENABLED = String(process.env.AUTOMATION_SURFACE_OFFICE_ENABLED || "false").toLowerCase() === "true";
+
+function enabledAutomationSurfaces(): AutomationSurface[] {
+  const surfaces: AutomationSurface[] = ["consumer"];
+  if (AUTOMATION_SURFACE_FACILITY_ENABLED) surfaces.push("facility");
+  if (AUTOMATION_SURFACE_OFFICE_ENABLED) surfaces.push("office");
+  return surfaces;
+}
+
+function isAutomationSurfaceEnabled(surface: AutomationSurface): boolean {
+  return enabledAutomationSurfaces().includes(surface);
+}
+
+// Office automations have no per-user row in Backend's `users` table —
+// Office's own admin/staff identities live in ochiga-office, not here.
+// This mirrors the exact synthetic-actor pattern already established
+// and running in production for officeExport.ts's officeWorkflowActor:
+// role "ochiga_admin" is a real PlatformRole every permission check in
+// this codebase already understands, cast past AuthUser's narrower
+// UserRole type (a pre-existing, documented type/runtime gap, not
+// something introduced here). Dead code while
+// AUTOMATION_SURFACE_OFFICE_ENABLED is false — the scheduler query
+// below never returns an office row until that flag flips.
+function officeAutomationActor(automation: any): AuthUser {
+  return {
+    id: "office_automation_runtime",
+    email: "office-automation-runtime@ochiga.local",
+    role: "ochiga_admin",
+    permissions: [],
+    permission_scopes: [],
+    estate_id: automation?.estate_id || null,
+    home_id: automation?.home_id || null,
+  } as unknown as AuthUser;
+}
+
 type CleanSceneAction = {
   device_id: string;
   command: Record<string, any>;
@@ -575,6 +622,14 @@ export async function executeConsumerAutomation(input: {
   occurrenceKey?: string | null;
 }) {
   const { automation, actor, req, source } = input;
+  // Shared entry point for both the scheduler (claimAndRunAutomation) and
+  // POST /automations/:id/test — checked here too, not only in the
+  // scheduler's claim path, so a disabled surface can never execute
+  // regardless of which caller reaches this function.
+  const surface: AutomationSurface = AUTOMATION_SURFACES.includes(automation.surface) ? automation.surface : "consumer";
+  if (!isAutomationSurfaceEnabled(surface)) {
+    throw Object.assign(new Error(`The ${surface} automation surface is not yet enabled.`), { statusCode: 403, code: "automation_surface_disabled" });
+  }
   const requestedAt = new Date().toISOString();
   const runId = crypto.randomUUID();
   const scheduledFor = input.scheduledFor || requestedAt;
@@ -632,6 +687,7 @@ export async function executeConsumerAutomation(input: {
     trigger_type: triggerType,
     source,
     scheduled_for: scheduledFor,
+    surface: automation.surface || "consumer",
   });
 
   const actions = cleanActions(automation.actions);
@@ -657,7 +713,7 @@ export async function executeConsumerAutomation(input: {
     };
     await supabaseAdmin.from("consumer_automation_runs").update(failed as any).eq("id", runId);
     await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
-    logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code });
+    logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code, surface: automation.surface || "consumer" });
     return { ...runRow, ...failed };
   }
 
@@ -683,13 +739,14 @@ export async function executeConsumerAutomation(input: {
   };
   await supabaseAdmin.from("consumer_automation_runs").update(completed as any).eq("id", runId);
   await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: status }).eq("id", automation.id);
-  await audit(actor, `automation.run.${status}`, automation.id, { ...completed, automation_run_id: runId, source, domain: "resident_device_private" }, req);
+  await audit(actor, `automation.run.${status}`, automation.id, { ...completed, automation_run_id: runId, source, domain: "resident_device_private", surface: automation.surface || "consumer" }, req);
   logger.info("automation_run_completed", {
     automation_id: automation.id,
     automation_run_id: runId,
     trigger_occurrence_key: occurrenceKey,
     source,
     status,
+    surface: automation.surface || "consumer",
   });
   return { ...runRow, ...completed };
 }
@@ -718,16 +775,18 @@ async function automationSchedulerTick() {
   const started = Date.now();
   try {
     const nowIso = new Date().toISOString();
+    const surfaces = enabledAutomationSurfaces();
     const { data, error } = await supabaseAdmin
       .from("consumer_automations")
       .select("*")
       .eq("enabled", true)
       .not("next_run_at", "is", null)
       .lte("next_run_at", nowIso)
+      .in("surface", surfaces)
       .order("next_run_at", { ascending: true })
       .limit(10);
     if (error) throw error;
-    logger.info("automation_scheduler_tick", { due: data?.length || 0, duration_ms: Date.now() - started });
+    logger.info("automation_scheduler_tick", { due: data?.length || 0, duration_ms: Date.now() - started, enabled_surfaces: surfaces });
     for (const automation of data || []) {
       void claimAndRunAutomation(automation).catch((runError) => logger.error("automation_run_failed", { error: runError, automation_id: automation?.id, source: "scheduled" }));
     }
@@ -739,6 +798,16 @@ async function automationSchedulerTick() {
 }
 
 async function claimAndRunAutomation(automation: any) {
+  // Defense in depth: automationSchedulerTick() already filters the due-scan
+  // by enabledAutomationSurfaces(), so this branch is unreachable in
+  // production while a surface's flag is off. Kept here too so this
+  // function stays safe to call directly (tests, a future manual-run path)
+  // without relying solely on the caller having filtered correctly.
+  const surface: AutomationSurface = AUTOMATION_SURFACES.includes(automation.surface) ? automation.surface : "consumer";
+  if (!isAutomationSurfaceEnabled(surface)) {
+    logger.info("automation_run_skipped", { automation_id: automation.id, reason: "surface_disabled", surface });
+    return;
+  }
   const triggerResult = validateAutomationTrigger(automation.trigger);
   if (!triggerResult.ok) {
     await supabaseAdmin.from("consumer_automations").update({ last_run_status: "skipped", enabled: false, next_run_at: null }).eq("id", automation.id);
@@ -774,9 +843,19 @@ async function claimAndRunAutomation(automation: any) {
     trigger_occurrence_key: occurrenceKey,
     next_run_at: next ? next.toISOString() : null,
   });
-  const { data: actor } = await supabaseAdmin.from("users").select("*").eq("id", automation.created_by).maybeSingle();
+  // consumer + facility automations are always created by a real Backend
+  // user (resident or facility staff both have real `users` rows), so
+  // actor resolution is unchanged for them. office is the one surface
+  // with no per-user Backend identity — see officeAutomationActor above.
+  let actor: AuthUser | null = null;
+  if (surface === "office") {
+    actor = officeAutomationActor(automation);
+  } else {
+    const { data } = await supabaseAdmin.from("users").select("*").eq("id", automation.created_by).maybeSingle();
+    actor = (data as AuthUser) || null;
+  }
   if (!actor?.id) {
-    logger.warn("automation_run_skipped", { automation_id: automation.id, trigger_occurrence_key: occurrenceKey, reason: "creator_unavailable" });
+    logger.warn("automation_run_skipped", { automation_id: automation.id, trigger_occurrence_key: occurrenceKey, reason: "creator_unavailable", surface });
     return;
   }
   const req = {
@@ -785,7 +864,7 @@ async function claimAndRunAutomation(automation: any) {
     body: { source: "automation" },
     oisContext: { estate_id: automation.estate_id, home_id: automation.home_id },
   };
-  await executeConsumerAutomation({ automation: claim.data, actor: actor as AuthUser, req, source: "scheduled", scheduledFor, occurrenceKey });
+  await executeConsumerAutomation({ automation: claim.data, actor, req, source: "scheduled", scheduledFor, occurrenceKey });
 }
 
 router.get("/automations", requirePermission("devices.read"), async (req, res) => {
@@ -798,6 +877,10 @@ router.get("/automations", requirePermission("devices.read"), async (req, res) =
 
 router.post("/automations", requirePermission("devices.control"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
+  const surface: AutomationSurface = AUTOMATION_SURFACES.includes(req.body?.surface) ? req.body.surface : "consumer";
+  if (!isAutomationSurfaceEnabled(surface)) {
+    return res.status(403).json({ error: `The ${surface} automation surface is not yet enabled.`, code: "automation_surface_disabled" });
+  }
   const name = String(req.body?.name || "").trim().slice(0, 80);
   const triggerResult = validateAutomationTrigger(req.body?.trigger);
   if (!triggerResult.ok) return res.status(422).json({ error: triggerResult.error, code: triggerResult.code });
@@ -816,6 +899,7 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
     ...activeScope(req),
     created_by: req.user!.id,
     name,
+    surface,
     trigger,
     condition,
     actions: canonicalActions,
@@ -833,6 +917,11 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
 router.patch("/automations/:id", requirePermission("devices.control"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
   const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (req.body?.surface != null) {
+    if (!AUTOMATION_SURFACES.includes(req.body.surface)) return res.status(422).json({ error: "Unsupported automation surface.", code: "invalid_automation_surface" });
+    if (!isAutomationSurfaceEnabled(req.body.surface)) return res.status(403).json({ error: `The ${req.body.surface} automation surface is not yet enabled.`, code: "automation_surface_disabled" });
+    updates.surface = req.body.surface;
+  }
   if (req.body?.name != null) {
     const name = String(req.body.name || "").trim().slice(0, 80);
     if (!name) return res.status(400).json({ error: "Automation name is required" });
