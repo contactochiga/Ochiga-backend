@@ -47,6 +47,30 @@ type OperationalSnapshot = {
   development: {
     projects: Array<{ id: string; name: string; status: string; percent_complete: number | null; units_sold: number | null; units_total: number | null }>;
   } | null;
+  financial: {
+    generated_at: string | null;
+    period_start: string | null;
+    period_end: string | null;
+    portfolio: {
+      estate_count: number;
+      currency: string;
+      current_balance_total: number;
+      revenue_period_total: number;
+      utility_sales_period_total: number;
+      service_charge_period_total: number;
+      transaction_count_total: number;
+    } | null;
+    estates: Array<{
+      estate_id: string;
+      name: string;
+      current_balance: number | null;
+      currency: string;
+      revenue_period: number;
+      utility_sales_period: number;
+      service_charge_period: number;
+      transaction_count: number;
+    }>;
+  } | null;
 };
 
 function officeSnapshot(context: CapabilityContext): OperationalSnapshot | null {
@@ -294,6 +318,76 @@ function developmentStatusReadModule(): CapabilityModule {
 }
 
 // ---------------------------------------------------------------------
+// office_internal — Financial summary (Financial Unification Programme)
+// The snapshot's financial section is itself sourced live from
+// Ochiga-backend's canonical /office/financial-summary aggregate contract
+// (Office fetches it and attaches it, same as every other snapshot
+// section) — so this module only ever surfaces real, already-computed
+// estate/portfolio aggregates. It never returns a resident/home-keyed
+// figure. If the snapshot's financial section is null (actor lacks
+// financial.read, or the backend call failed), the answer says so rather
+// than fabricating a number.
+// ---------------------------------------------------------------------
+function financialSummaryReadModule(): CapabilityModule {
+  return readModule({
+    key: "financial.summary.read",
+    domain: "office_financial",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["financial.read"],
+    evidenceRequirements: [{ domain: "office_financial", evidence_type: "financial_estate_summary", freshness: ["fresh", "stale", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "office_financial",
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const financial = snapshot?.financial;
+      if (!financial) return [];
+      return financial.estates.map((estate) =>
+        evidenceEnvelope({
+          domain: "office_financial",
+          type: "financial_estate_summary",
+          object_type: "estate_financial_summary",
+          object_id: estate.estate_id,
+          source: "domain_adapter",
+          observed_at: financial.generated_at,
+          freshness: financial.generated_at ? "fresh" : "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: estate.estate_id, building_id: null, home_id: null, room_id: null },
+          payload: { estate, portfolio: financial.portfolio, period_start: financial.period_start, period_end: financial.period_end },
+        })
+      );
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      const financial = snapshot?.financial;
+      if (!financial) {
+        return unavailableResult("I don't have a current read on the financial position for this session — the financial snapshot wasn't attached to this request, or this account isn't permitted to view it.");
+      }
+      const portfolio = financial.portfolio;
+      if (!portfolio || !financial.estates.length) {
+        return { status: "empty", answer: "No estate financial records are available right now.", presentation_policy: resultPresentation("text") };
+      }
+      const fmt = (value: number) => `${portfolio.currency} ${Number(value || 0).toLocaleString("en-NG")}`;
+      const lines = financial.estates
+        .slice(0, 10)
+        .map((estate) => `${estate.name} — balance ${fmt(estate.current_balance ?? 0)}, revenue ${fmt(estate.revenue_period)}, ${estate.transaction_count} transaction${estate.transaction_count === 1 ? "" : "s"}`);
+      const summary =
+        `Across ${portfolio.estate_count} estate${portfolio.estate_count === 1 ? "" : "s"}: current balance ${fmt(portfolio.current_balance_total)}, ` +
+        `period revenue ${fmt(portfolio.revenue_period_total)} (utility sales ${fmt(portfolio.utility_sales_period_total)}, service charges ${fmt(portfolio.service_charge_period_total)}), ` +
+        `${portfolio.transaction_count_total} completed transaction${portfolio.transaction_count_total === 1 ? "" : "s"}.\n${lines.map((line) => `• ${line}`).join("\n")}`;
+      return {
+        status: "answered",
+        answer: summary,
+        blocks: [{ type: "list", items: financial.estates }],
+        presentation_policy: resultPresentation("list"),
+        metadata: { portfolio, period_start: financial.period_start, period_end: financial.period_end },
+      };
+    },
+    primary: "list",
+  });
+}
+
+// ---------------------------------------------------------------------
 // public_corporate — curated static content, mirrored from what is
 // actually live on the public website today (app/about/page.tsx,
 // app/private/page.tsx, app/partnerships/page.tsx, lib/company.ts).
@@ -486,7 +580,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule()];
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule()];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {

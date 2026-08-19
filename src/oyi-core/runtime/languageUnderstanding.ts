@@ -36,6 +36,7 @@ export type OyiDomain =
   | "crm"
   | "office_reports"
   | "office_development"
+  | "office_financial"
   | "corporate_company"
   | "corporate_development"
   | "corporate_oyi"
@@ -130,6 +131,7 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\b(leads?|prospects?|opportunit(?:y|ies)|pipeline|follow(?:ed)?[\s-]?up on|crm)\b/i.test(text)) return "crm";
   if (/\b(reports?\s+(?:are\s+)?(?:awaiting|pending|needing)\s+approval|approval\s+queue|pending\s+approvals?)\b/i.test(text)) return "office_reports";
   if (/\b(our\s+developments?|development\s+(?:status|update)|construction\s+(?:status|progress)|site\s+progress|units?\s+sold|happening\s+across\s+(?:our\s+)?developments?)\b/i.test(text)) return "office_development";
+  if (/\b(financial\s+position|financially|recurring\s+revenue|portfolio\s+financial|financial\s+performance|financial\s+attention|cash\s+position|collections?\s+(?:this|so\s+far|for)|behind\s+on\s+collections|utility\s+(?:sales|revenue)|estate\s+(?:wallet|revenue|collections))\b/i.test(text)) return "office_financial";
   if (/\bochiga\s+private\b/i.test(text)) return "corporate_private";
   if (/\bpartner(?:ship)?s?\s+with\s+ochiga\b|\bhow\s+can\s+i\s+partner\b|\bbecome\s+a\s+partner\b|\bpartnership\b/i.test(text)) return "corporate_partnerships";
   if (/\bwhat\s+is\s+oyi\b|\btell\s+me\s+about\s+oyi\b|\babout\s+oyi\b/i.test(text)) return "corporate_oyi";
