@@ -12,6 +12,7 @@ import type { CorporateBusinessUnit, CorporateOyiCoreRequest, OfficeInternalOyiC
 import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLICY } from "../contracts/corporateIntelligence";
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
+import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
 
 const router = Router();
 
@@ -349,6 +350,25 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
     } as any,
   });
   const response = buildCorporatePublicResponse(corporateRequest, canonical);
+  // Oyi Cross-Surface Observability Closure — the corporate website
+  // widget has no other path into Office's observability today (unlike
+  // office_internal, which Office already self-instruments on its own
+  // side). public_session_id is an anonymous session reference, never
+  // PII; no raw message text is stored.
+  void recordOyiObservabilityEvent({
+    surface: "public_corporate",
+    mode: "text",
+    category: "conversation",
+    event_type: "conversation.turn_completed",
+    status: observabilityStatusFromTruthState((canonical as any)?.truth?.truth_state),
+    actor_ref: corporateRequest.public_session_id || null,
+    capability: (canonical as any)?.capability_key || null,
+    conversation_id: response.conversation_thread_id || null,
+    request_id: requestId,
+    safe_summary: `Website conversation turn (${(canonical as any)?.intent || "general"})`,
+    source_table: "oyi_conversation_messages",
+    source_event_id: (canonical as any)?.id || requestId,
+  });
   void emitAuditEvent({
     actorId: publicCorporateActor.id,
     actorRole: "guest",
@@ -1233,6 +1253,35 @@ router.get("/financial-summary", requireOfficeExportKey, async (req: Request, re
       },
     },
   });
+});
+
+// Oyi Cross-Surface Observability Closure — the one read endpoint
+// Office's AI Agents page uses to see Consumer/Facility/Website
+// conversation, voice, vision and device-execution activity that its
+// own local traces table has no visibility into. Reads only rows this
+// closure's bridge wrote (source = "oyi_observability_bridge") —
+// ochiga_intelligence_events also carries unrelated workflow/camera-
+// intel/edge-discovery rows, deliberately excluded here. Returns a
+// safe projection only: no actor_id (matches the existing safeEvent()
+// convention in security/securityObservability.ts — internal
+// references are stored, never handed to a lower-trust reader), no
+// raw metadata, no message/transcript/image content (none was ever
+// stored in the first place).
+router.get("/observability/events", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const requestedLimit = Number(req.query.limit);
+  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 1000) : 200;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("ochiga_intelligence_events")
+      .select("id, occurred_at, surface, mode, category, event_type, status, capability, tool, conversation_id, request_id, latency_ms, estate_id, home_id, summary")
+      .eq("source", "oyi_observability_bridge")
+      .order("occurred_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return res.json({ ok: true, events: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load observability events" });
+  }
 });
 
 export default router;

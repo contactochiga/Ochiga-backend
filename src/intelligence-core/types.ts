@@ -62,12 +62,24 @@ export type IntelligenceEventCategory =
   | "sales"
   | "camera"
   | "edge"
-  | "system";
+  | "system"
+  // Oyi Cross-Surface Observability Closure — a completed conversation
+  // turn through ConversationOrchestrator.run(), distinct from "device"
+  // (a command/action) and "automation" (a scheduled/triggered run).
+  | "conversation";
 
+// office_internal/public_corporate are the two literal surface strings
+// ConversationOrchestrator.run() already receives from Office and the
+// corporate website (see officeExport.ts) — added here rather than
+// reusing the generic "office"/"website" values so the Oyi Cross-Surface
+// Observability Closure can distinguish them precisely instead of
+// approximating; every other value on this type is unchanged.
 export type IntelligenceSurface =
   | "consumer"
   | "facility"
   | "office"
+  | "office_internal"
+  | "public_corporate"
   | "edge"
   | "camera"
   | "watch"
@@ -150,6 +162,17 @@ export type IntelligenceEvent = {
   source: string;
   metadata: Record<string, unknown>;
   occurred_at: string;
+  // Oyi Cross-Surface Observability Closure — optional, only populated
+  // by conversation/execution/communications events; every other
+  // existing publisher (workflows, camera intel, edge discovery) is
+  // unaffected and simply omits these.
+  mode?: "text" | "voice" | "vision" | null;
+  status?: "success" | "denied" | "failed" | "timed_out" | "unavailable" | null;
+  capability?: string | null;
+  tool?: string | null;
+  conversation_id?: string | null;
+  request_id?: string | null;
+  latency_ms?: number | null;
 };
 
 export type IntelligenceResponse = {

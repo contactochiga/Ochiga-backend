@@ -40,6 +40,7 @@ const VALID_CATEGORIES: IntelligenceEventCategory[] = [
   "camera",
   "edge",
   "system",
+  "conversation",
 ];
 
 function clampLimit(limit: unknown, fallback = 50) {
@@ -63,6 +64,7 @@ export function normalizeIntelligenceCategory(category: unknown): IntelligenceEv
   if (raw.includes("wallet") || raw.includes("payment") || raw.includes("finance")) return "wallet";
   if (raw.includes("service")) return "service";
   if (raw.includes("automation") || raw.includes("scene")) return "automation";
+  if (raw.includes("conversation") || raw.includes("chat")) return "conversation";
   if (raw.includes("workflow")) return "workflow";
   if (raw.includes("prediction")) return "prediction";
   if (raw.includes("office")) return "office";
@@ -108,6 +110,13 @@ export async function publishIntelligenceEvent(eventInput: IntelligenceEvent, op
     source_event_id: options.source_event_id || null,
     metadata: event.metadata || {},
     occurred_at: event.occurred_at,
+    mode: event.mode || null,
+    status: event.status || null,
+    capability: event.capability || null,
+    tool: event.tool || null,
+    conversation_id: event.conversation_id || null,
+    request_id: event.request_id || null,
+    latency_ms: Number.isFinite(event.latency_ms as number) ? event.latency_ms : null,
   };
 
   const { data, error } = await supabaseAdmin
