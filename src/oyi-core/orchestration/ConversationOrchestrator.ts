@@ -31,6 +31,13 @@ import { hydrateCanonicalTarget } from "../runtime/canonicalTargetHydrationRegis
 import { buildExplainAnswer, buildStatusCheckAnswer, buildFieldAnswer } from "../domains/explainAnswer";
 import { objectStateLine } from "../presentation/objectFallbackPresentation";
 import { buildUtilitySpendingComparisonAnswer } from "../domains/utilities/utilityConversationAnswers";
+import {
+  resolveOfficeConversationContinuity,
+  populatedOfficeContextSlot,
+  isOfficeRecordDomain,
+  hasExplicitDomainSwitchSignal,
+  buildOfficeActiveContext,
+} from "../context/officeConversationContext";
 
 let registered = false;
 
@@ -380,6 +387,42 @@ function requestContractForCapability(context: CanonicalConversationRequestConte
   };
 }
 
+// Oyi Conversational Runtime Completion Programme, Phase 2. Recomputed
+// from the FINAL context (already continuity-adjusted, whether the slot
+// arrived live from Office's frontend this turn or was reinjected from
+// persisted memory) rather than threaded through as a separate flag, so
+// this stays correct regardless of which path produced the answer.
+//   - populated slot matches the domain that actually answered -> fresh
+//     memory, refreshing the expiry window (a normal grounded turn).
+//   - that domain answered but explicit switch-away language was used
+//     and nothing matches it -> null, clearing stale memory on purpose.
+//   - anything else (a non-record business domain, or a record domain
+//     with nothing populated and no switch signal) -> undefined, leaving
+//     whatever's already persisted untouched (see persistCanonical
+//     ConversationTurn's own undefined-vs-null handling).
+function businessActiveContextForTurn(context: CanonicalConversationRequestContext, response: ConversationRunResult, capability: CapabilityModule): Record<string, unknown> | null | undefined {
+  if (context.input.surface !== "office_internal") return undefined;
+  const threadId = text(context.input.thread_id);
+  if (!threadId) return undefined;
+  const populated = populatedOfficeContextSlot(context as CapabilityContext);
+  if (populated && populated.domain === capability.domain) {
+    return buildOfficeActiveContext({
+      threadId,
+      actorId: text(context.actor?.id),
+      populated,
+      capabilityKey: capability.key,
+      intentLabel: BUSINESS_CAPABILITY_LABELS[capability.key] || capability.key,
+      userMessage: context.input.message,
+      resultStatus: response.truth?.truth_state || null,
+      resultAnswer: response.answer || response.message || null,
+    });
+  }
+  if (isOfficeRecordDomain(capability.domain) && hasExplicitDomainSwitchSignal(context.input.message)) {
+    return null;
+  }
+  return undefined;
+}
+
 async function persistCapabilityResponse(context: CanonicalConversationRequestContext, response: ConversationRunResult, truth: CanonicalTruth, turn: ResolvedTurn, capability: CapabilityModule) {
   const contract = requestContractForCapability(context, turn, capability);
   logger.info("oyi_capability_persistence_started", {
@@ -399,6 +442,7 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
     object: null,
     contract,
     builderKey: builderKeyForCapability(capability),
+    businessActiveContext: businessActiveContextForTurn(context, response, capability),
   });
   response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
   response.persistence_saved = Boolean(persistedThreadId);
@@ -962,7 +1006,7 @@ export class ConversationOrchestrator {
       });
     }
     tracer.stage("workflow_restored", { workflow_id: activeWorkflow?.workflow_id || null, status: activeWorkflow?.status || "not_restored" });
-    const resolvedTurn = resolveTurnAuthority({
+    let resolvedTurn = resolveTurnAuthority({
       actor: context.actor,
       oisContext: context.oisContext,
       request: context.input,
@@ -972,6 +1016,27 @@ export class ConversationOrchestrator {
       correlationId: tracer.correlationId,
       runtimeId: tracer.runtimeId,
     });
+    // Oyi Conversational Runtime Completion Programme, Phase 2 -- office_
+    // internal conversation continuity. A no-op for every other surface
+    // (returns the same objects back). See officeConversationContext.ts
+    // for the full precedence rules; this only ever adjusts the DOMAIN
+    // classification and/or reinjects a previously-sent *_context slot --
+    // it never changes authority/permissions, which capabilityService.
+    // canUse() still checks fresh against the CURRENT actor below.
+    const continuity = await resolveOfficeConversationContinuity(context, resolvedTurn);
+    if (continuity.source !== "unchanged") {
+      logger.info("oyi_office_continuity_applied", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        actor_id: context.actor?.id || null,
+        raw_domain: resolvedTurn.domain,
+        resolved_domain: continuity.resolvedTurn.domain,
+        source: continuity.source,
+      });
+    }
+    context = continuity.context;
+    resolvedTurn = continuity.resolvedTurn;
     tracer.stage("turn_resolved", {
       domain: resolvedTurn.domain,
       operation: resolvedTurn.operation,
