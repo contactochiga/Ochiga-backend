@@ -556,4 +556,11 @@ export type OfficeInternalOyiCoreResponse = {
   tool_proposals: CorporateToolProposal[];
   knowledge_references: CorporateKnowledgeReference[];
   safe_metadata: Record<string, unknown>;
+  // Oyi Conversational Runtime Completion Programme, Phase 3. The
+  // OfficeActionProposalView carried in canonical.confirmations, if this
+  // turn produced/updated a governed action proposal -- see
+  // governedAction.ts. execute_directive is only ever populated once
+  // status is "confirmed" (never while merely "pending"), so the client
+  // cannot skip the confirmation step.
+  pending_action: Record<string, unknown> | null;
 };

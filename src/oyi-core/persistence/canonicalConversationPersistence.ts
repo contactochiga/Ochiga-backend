@@ -17,6 +17,7 @@ import {
 } from "../context/conversationContextLayers";
 import { buildResultSetContext, loadThreadResultSetsContext, type ResultSetContext } from "../context/resultSetContext";
 import { loadOfficeActiveContext } from "../context/officeConversationContext";
+import { loadAnyOfficeActionProposal } from "../context/officeActionProposal";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -159,6 +160,10 @@ export async function persistCanonicalConversationTurn(input: {
   // present, folded into threadMetadata.business_active_context using
   // the SAME upsert/update calls below -- no second write path.
   businessActiveContext?: Record<string, unknown> | null;
+  // Oyi Conversational Runtime Completion Programme, Phase 3 -- mirrors
+  // businessActiveContext's exact undefined/null/value handling for a
+  // pending governed action proposal (see officeActionProposal.ts).
+  pendingActionProposal?: Record<string, unknown> | null;
 }) {
   const { actor, contract, object, request, response, truth } = input;
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
@@ -257,12 +262,23 @@ export async function persistCanonicalConversationTurn(input: {
   } else {
     businessActiveContext = await loadOfficeActiveContext(threadId, actor?.id || null).catch(() => null);
   }
+  // Same undefined/null/value convention as businessActiveContext above --
+  // undefined preserves whatever's already persisted (status-agnostic, so
+  // an in-flight "confirmed" proposal survives an unrelated turn too, not
+  // just a "pending" one).
+  let pendingActionProposal: Record<string, unknown> | null = null;
+  if (input.pendingActionProposal !== undefined) {
+    pendingActionProposal = input.pendingActionProposal;
+  } else {
+    pendingActionProposal = await loadAnyOfficeActionProposal(threadId, actor?.id || null).catch(() => null);
+  }
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
     result_sets: mergedResultSets,
     active_domain: activeDomain,
     business_active_context: businessActiveContext,
+    pending_action_proposal: pendingActionProposal,
     conversation_state: {
       version: 1,
       entities: [],
