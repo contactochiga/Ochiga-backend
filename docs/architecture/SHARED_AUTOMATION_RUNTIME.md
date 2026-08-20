@@ -1,6 +1,6 @@
-# Shared Automation Runtime — PR 1 (surface foundation)
+# Shared Automation Runtime — PR 1 (surface foundation) + PR 2 (Facility)
 
-Status: PR 1 of an approved 3-PR rollout (PR 1 infrastructure → PR 2 Facility → PR 3 Office, each separately approved and deployed). This document covers PR 1 only: what changed, what stayed identical, and exactly what remains disabled.
+Status: PR 1 and PR 2 of an approved 3-PR rollout (PR 1 infrastructure → PR 2 Facility → PR 3 Office, each separately approved and deployed). PR 3 (Office) is not built yet.
 
 Companion to `docs/architecture/OYI_RUNTIME_DOMAIN_MODEL.md` (Automation is Domain 4 there) — that document's "Automation" section should be read alongside this one; this file is the implementation-level detail for the Automation domain's PR 1 evolution.
 
@@ -40,6 +40,65 @@ type AutomationSurface = "consumer" | "facility" | "office";
 
 `surface` is threaded into every log/audit call the automation executor already makes — `automation_scheduler_tick` (which surfaces are live this tick), `automation_run_created`, `automation_run_failed`, `automation_run_completed`, and the `automation.run.<status>` audit event. No new event type was created; no existing `ai_execution_ledger` or `ochiga_intelligence_events` write path was duplicated — device-command actions still produce exactly one ledger row each, exactly as before.
 
-## Rollback
+## Rollback (PR 1)
 
 Set both flags to `false` (or leave them at their default). No code revert needed for a flag-only rollback — every new branch this PR added is already provably inert at `false`. Full code rollback (revert the deploy) remains available as a second line of defense if the additive branches themselves are ever suspected of a regression, but is not expected to be necessary since `surface='consumer'` runs through the exact same code as before this PR.
+
+---
+
+## PR 2 — Facility
+
+### Capability audit result
+
+Re-audited `/Users/ochigaidoko/Documents/facility-oyi` (Facility's own frontend, which calls Ochiga-backend directly — no separate Facility identity/data store) and Ochiga-backend together before writing any code.
+
+**Proven automation-ready** (real, live, already-executable, already reachable from Facility's own dedicated routes):
+- `visitor.approve` / `visitor.revoke` / `visitor.expire` — `executionRegistry.ts`, backing table `visitor_access`, same table Facility's own `PATCH /facility/visitors/:id` already mutates.
+- `maintenance.assign` / `maintenance.complete` / `maintenance.cancel` — same registry, backing table `maintenance_requests`, same table Facility's own `PATCH /facility/maintenance/:id` (`requirePermission("support.assign")`) already mutates.
+- Device commands (`device_command` action type) — no new code; PR 1's dispatch lane was already surface-agnostic, and Facility staff are real Backend `users` rows with real `estate_id`, so `resolveVisibleDevice`'s existing scope checks already apply unchanged.
+
+**Explicitly still unsupported, and why:**
+- `community.approve/reject`, `service.assign/complete`, `wallet.approve/cancel` — marked `available: false` inside `EXECUTION_REGISTRY` itself; nothing implements them anywhere.
+- **Report/export** — a real, working endpoint exists (`GET /facility/visitors/reports/export?format=json|csv`), but it is synchronous/interactive: it returns a blob to a live browser session. A 3am scheduled automation has nowhere to deliver that blob (no email/storage/notification-delivery capability exists to hand it to — see next point). Not automation-shaped without a receiving capability. Not wired.
+- **Notification/broadcast send** — audited every notification-adjacent route in both repos; all are read/acknowledge/preference-management only. `community.broadcast` permission gates a live-video-stream start, not a message-send. No genuine "notify residents" action exists anywhere. Not invented.
+- **Service-config toggling** (`PATCH /services/config/:key`, real and actionable) — not yet a capability-registry entry; wiring it in would mean writing new dispatch/authorization code inside `executionRegistry.ts` rather than reusing what exists. Left as a named follow-up, not built this pass, to keep PR 2 to "reuse the existing... layers," not extend them.
+
+### One real bug found and fixed en route
+
+`executionRegistry.ts`'s `operationalRole()` checked the actor's role string against a list that included the *legacy* alias `"operator"` but not the actual, current `PlatformRole` value `"maintenance_operator"` — meaning a genuine `maintenance_operator` actor (exactly the role Facility's own maintenance route requires) could never pass this check and would always fall through to the resident-self-service branch, which denies staff-initiated `maintenance.assign`/`maintenance.complete`/`maintenance.cancel`. Fixed by adding `"maintenance_operator"` to the recognized list — one line, no behavior change for any other role.
+
+### Action contract, surface-gated
+
+```ts
+// PR 1, unchanged, all surfaces
+{ action_type?: "device_command"; device_id; command; label? }
+
+// PR 2, new, facility surface only
+{ action_type: "registered_action"; action_id: "visitor.approve"|"visitor.revoke"|"visitor.expire"|"maintenance.assign"|"maintenance.complete"|"maintenance.cancel"; entity_id: string; assignee?: string; label?: string }
+```
+
+An automation's `actions[]` is homogeneous — every item is `registered_action` or none are. Mixed arrays are rejected at creation/update time, not silently split. `registered_action` items are rejected at creation time unless `surface === "facility"`, independent of the surface-level enforcement PR 1 already built.
+
+### Execution chain (unchanged shape, one new lane)
+
+```
+automation definition (consumer_automations, surface="facility")
+  → scheduler tick / manual test  (unchanged — PR 1)
+  → executeConsumerAutomation      (unchanged entry point — PR 1)
+  → dispatch by action homogeneity:
+      device_command   → executeResidentActionBatch → executeDeviceCommandForActor → ai_execution_ledger   (unchanged — PR 1)
+      registered_action → executeRegisteredActionBatch (new, thin) → executeRegisteredAction (unchanged, existing)
+                            → visitor_access / maintenance_requests mutation
+                            → publishSourceIntelligenceEvent (unchanged, existing)
+  → consumer_automation_runs (unchanged shape — counts/status/actions[], both lanes converge here)
+```
+
+`executeRegisteredAction` already owns scope enforcement (`inActorScope`: actor `estate_id` must match the target row's `estate_id`) and role enforcement (`operationalRole`) — PR 2 adds no new authorization logic, only the batch/timeout scaffolding calling into it, exactly the reuse required.
+
+### Known, accepted asymmetry (inherited, not introduced)
+
+`registered_action` results do not produce an `ai_execution_ledger` row — `executeRegisteredAction` writes directly to `visitor_access`/`maintenance_requests` plus `publishSourceIntelligenceEvent`, the same shape it already had before any automation could call it (via the existing conversational confirm-flow in `oyiUnifiedIntelligenceService.ts`). Automation inherits this, doesn't create a new gap.
+
+### Rollback (PR 2)
+
+Same mechanism as PR 1: `AUTOMATION_SURFACE_FACILITY_ENABLED=false`. No new flag was introduced for the `registered_action` lane specifically — it is reachable only through a facility-surfaced automation, which is already fully gated by the one existing flag.

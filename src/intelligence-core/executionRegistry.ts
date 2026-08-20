@@ -37,7 +37,15 @@ function safeFailure(reason: string) {
 }
 
 function operationalRole(actor: AuthUser) {
-  return ["super_admin", "ochiga_admin", "estate_admin", "facility_manager", "security_operator", "admin", "manager", "security", "operator"].includes(String(actor.role || "").toLowerCase());
+  // "operator" here is the legacy UserRole alias (src/core/foundation/
+  // permissions.ts LEGACY_ROLE_ALIASES) for maintenance_operator — the
+  // real, current PlatformRole string ("maintenance_operator") was
+  // missing from this list, which meant a genuine maintenance_operator
+  // actor (e.g. Facility's own maintenance staff, per its dedicated
+  // PATCH /facility/maintenance/:id route requiring support.assign)
+  // could never pass this check despite having a real operational
+  // role. Found via Shared Automation Runtime PR 2 verification.
+  return ["super_admin", "ochiga_admin", "estate_admin", "facility_manager", "maintenance_operator", "security_operator", "admin", "manager", "security", "operator"].includes(String(actor.role || "").toLowerCase());
 }
 
 function inActorScope(actor: AuthUser, row: any) {
