@@ -516,6 +516,146 @@ function normalizeMessage(context: CapabilityContext): string {
 }
 
 // ---------------------------------------------------------------------
+// office_internal — Automations (Oyi Conversational Runtime Completion
+// Programme, second domain after Tasks — same template). Reuses the
+// same "automations" domain Consumer's automations.list.read/
+// automations.runs.read already classify on (ReadCapabilityModules.ts)
+// rather than inventing an office-prefixed domain: CapabilityService.
+// resolve() explicitly scores surface-compatible candidates before
+// domain/text score (SemanticFrame carries no surface field, so this is
+// the resolver's own documented mechanism for exactly this situation —
+// several modules sharing one domain, disambiguated by
+// supported_surfaces, never by the classifier). trigger/action are
+// Office's own already-formatted display strings (humanizeAutomation-
+// Trigger/automationActionSummary), not re-derived here. Like Tasks,
+// this only answers about the specific automation currently selected —
+// no aggregate list capability, and no lifecycle actions (pause/resume/
+// run now/delete) here; those stay manual through the existing
+// Automations detail panel, matching this pass's read-only scope.
+// ---------------------------------------------------------------------
+type AutomationContextSlot = {
+  automation_ref: string | null;
+  safe_summary: string | null;
+  name?: string | null;
+  enabled?: boolean;
+  trigger?: string | null;
+  action?: string | null;
+  owner?: string | null;
+  last_run_status?: string | null;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+} | null;
+
+function automationContextSlot(context: CapabilityContext): AutomationContextSlot {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
+  const slot = (requestContext as Record<string, unknown>).automation_context;
+  return slot && typeof slot === "object" ? (slot as AutomationContextSlot) : null;
+}
+
+// Mirrors office.js's automationStatusInfo() 3-line rule exactly (not
+// enabled -> Paused; last run failed -> Needs Attention; else -> Active)
+// so the two independent implementations describe the same automation
+// the same way. Both are small enough that drift risk is low, and
+// keeping the raw enabled/last_run_status fields on the wire (rather
+// than a pre-composed label) matches how every other structured field
+// on this contract stays raw and gets formatted at the point of use.
+function describeAutomationStatus(automation: AutomationContextSlot): string {
+  if (!automation) return "unknown";
+  if (!automation.enabled) return "paused";
+  if (automation.last_run_status === "failed") return "needs attention";
+  return "active";
+}
+
+function officeAutomationsReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_automations.read",
+    domain: "automations",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["tasks.read"],
+    evidenceRequirements: [{ domain: "automations", evidence_type: "office_automation_selected", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "automations",
+    collect: async (context) => {
+      const automation = automationContextSlot(context);
+      if (!automation || !(automation.safe_summary || automation.name)) return [];
+      return [
+        evidenceEnvelope({
+          domain: "automations",
+          type: "office_automation_selected",
+          object_type: "automation",
+          object_id: automation.automation_ref,
+          source: "domain_adapter",
+          observed_at: automation.last_run_at || null,
+          freshness: automation.last_run_at ? "fresh" : "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { automation },
+        }),
+      ];
+    },
+    answer: (context) => {
+      const automation = automationContextSlot(context);
+      if (!automation || !(automation.safe_summary || automation.name)) {
+        return unavailableResult("I don't have a specific automation open to check — select one in Automations first, then ask me about it.");
+      }
+      const message = normalizeMessage(context);
+      const label = automation.name || "This automation";
+
+      if (/\btask\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: `${label} isn't linked to a specific task — automations and tasks aren't connected records in this system.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\btrigger|schedule|when does|how often\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: automation.trigger ? `${label} runs ${automation.trigger}.` : `${label} doesn't have a trigger configured yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bnext run\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: automation.enabled && automation.next_run_at ? `${label}'s next run is ${automation.next_run_at}.` : `${label} has no upcoming run scheduled.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\blast run|ran last|recently\b/i.test(message)) {
+        if (!automation.last_run_at) {
+          return { status: "answered", answer: `${label} hasn't run yet.`, presentation_policy: resultPresentation("text") };
+        }
+        return { status: "answered", answer: `${label} last ran ${automation.last_run_at} — ${automation.last_run_status || "unknown result"}.`, presentation_policy: resultPresentation("text") };
+      }
+      if (/\bwho owns|owner\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: automation.owner ? `${label} is owned by ${automation.owner}.` : `${label} doesn't have an owner assigned yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bwhat does .* do|action|what happens\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: automation.action ? `${label}: ${automation.action}.` : `${label} doesn't have an action configured yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bstatus|active|paused|running|enabled\b/i.test(message)) {
+        return { status: "answered", answer: `${label} is ${describeAutomationStatus(automation)}.`, presentation_policy: resultPresentation("text") };
+      }
+
+      const digest = automation.safe_summary || [label, describeAutomationStatus(automation), automation.trigger].filter(Boolean).join(" · ");
+      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+    },
+    primary: "text",
+  });
+}
+
+// ---------------------------------------------------------------------
 // public_corporate — curated static content, mirrored from what is
 // actually live on the public website today (app/about/page.tsx,
 // app/private/page.tsx, app/partnerships/page.tsx, lib/company.ts).
@@ -708,7 +848,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule()];
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule()];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {
