@@ -53,7 +53,7 @@ function isUuid(value: unknown): boolean {
 // Facility and Office go from "off" to "on" independently, later,
 // each its own approved pass — see docs/architecture/
 // SHARED_AUTOMATION_RUNTIME.md.
-type AutomationSurface = "consumer" | "facility" | "office";
+export type AutomationSurface = "consumer" | "facility" | "office";
 const AUTOMATION_SURFACES: AutomationSurface[] = ["consumer", "facility", "office"];
 const AUTOMATION_SURFACE_FACILITY_ENABLED = String(process.env.AUTOMATION_SURFACE_FACILITY_ENABLED || "false").toLowerCase() === "true";
 const AUTOMATION_SURFACE_OFFICE_ENABLED = String(process.env.AUTOMATION_SURFACE_OFFICE_ENABLED || "false").toLowerCase() === "true";
@@ -65,7 +65,7 @@ function enabledAutomationSurfaces(): AutomationSurface[] {
   return surfaces;
 }
 
-function isAutomationSurfaceEnabled(surface: AutomationSurface): boolean {
+export function isAutomationSurfaceEnabled(surface: AutomationSurface): boolean {
   return enabledAutomationSurfaces().includes(surface);
 }
 
@@ -79,7 +79,7 @@ function isAutomationSurfaceEnabled(surface: AutomationSurface): boolean {
 // something introduced here). Dead code while
 // AUTOMATION_SURFACE_OFFICE_ENABLED is false — the scheduler query
 // below never returns an office row until that flag flips.
-function officeAutomationActor(automation: any): AuthUser {
+export function officeAutomationActor(automation: any): AuthUser {
   return {
     id: "office_automation_runtime",
     email: "office-automation-runtime@ochiga.local",
@@ -172,7 +172,7 @@ function validateRegisteredActions(actions: CleanRegisteredAction[]) {
 // bridge. workflow_type is restricted to WORKFLOW_CONTRACTS (already
 // declared, already has real origin/responsible agent pairs) rather
 // than accepting an arbitrary string.
-type CleanWorkflowAction = {
+export type CleanWorkflowAction = {
   operation: "create" | "transition";
   workflow_type: string | null;
   workflow_id: string | null;
@@ -182,11 +182,11 @@ type CleanWorkflowAction = {
   label: string | null;
 };
 
-function isWorkflowActionItem(item: any): boolean {
+export function isWorkflowActionItem(item: any): boolean {
   return Boolean(item && typeof item === "object" && item.action_type === "workflow_action");
 }
 
-function cleanWorkflowActions(value: unknown): CleanWorkflowAction[] {
+export function cleanWorkflowActions(value: unknown): CleanWorkflowAction[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter(isWorkflowActionItem)
@@ -207,7 +207,7 @@ function cleanWorkflowActions(value: unknown): CleanWorkflowAction[] {
 // permission/scope enforcement happens once, consistently, at every
 // run inside createWorkflow/transitionWorkflow/getWorkflow themselves
 // (same as the existing Office bridge), not re-implemented here.
-function validateWorkflowActions(actions: CleanWorkflowAction[]) {
+export function validateWorkflowActions(actions: CleanWorkflowAction[]) {
   if (!actions.length) return { ok: false as const, error: "At least one action is required.", code: "automation_action_required" };
   for (const action of actions) {
     if (action.operation === "create") {

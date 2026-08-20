@@ -15,6 +15,20 @@ import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } f
 import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
 import { createWorkflow, transitionWorkflow, listWorkflows, getWorkflow, type WorkflowStatus } from "../intelligence-core/workflows";
 import type { IntelligenceAgentId } from "../intelligence-core/types";
+// Tasks Domain UI (Office) — reuses the Shared Automation Runtime's own
+// validation, not a second automation engine. These routes only ever
+// read/write consumer_automations rows with surface forced to
+// "office" server-side; the scheduler, executor, and workflow_action
+// dispatch are entirely unmodified (src/routes/scenes.ts).
+import {
+  cleanWorkflowActions,
+  validateWorkflowActions,
+  isAutomationSurfaceEnabled,
+  officeAutomationActor,
+  executeConsumerAutomation,
+  type AutomationSurface,
+} from "./scenes";
+import { validateAutomationTrigger, nextAutomationRunAt } from "../services/automationScheduleService";
 
 const router = Router();
 
@@ -1396,6 +1410,171 @@ router.patch("/workflows/:id", requireOfficeExportKey, async (req: Request, res:
     return res.status(result.ok ? 200 : 500).json(result);
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to update workflow" });
+  }
+});
+
+router.get("/workflows/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const result = await getWorkflow(String(req.params.id), officeWorkflowActor);
+    return res.status(result.ok ? 200 : result.error === "Workflow not found" ? 404 : 500).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load workflow" });
+  }
+});
+
+// Tasks Domain UI (Office) — additive bridge to the Shared Automation
+// Runtime (src/routes/scenes.ts). Office never gets its own scheduler,
+// executor, or table: every route below reads/writes the exact same
+// consumer_automations / consumer_automation_runs rows the live 30s
+// scheduler already claims, with surface hardcoded to "office" so
+// Office can never see or create a consumer/facility row through this
+// door. AUTOMATION_SURFACE_OFFICE_ENABLED still gates whether a
+// created row will ever actually run — creating one while the flag is
+// off is allowed (so the UI isn't blocked on ops turning the flag on),
+// but it will simply sit unclaimed, exactly like today.
+const OFFICE_AUTOMATION_SURFACE: AutomationSurface = "office";
+
+router.get("/automations", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    let query = supabaseAdmin.from("consumer_automations").select("*").eq("surface", OFFICE_AUTOMATION_SURFACE).order("created_at", { ascending: false });
+    if (typeof req.query.status === "string" && req.query.status === "enabled") query = query.eq("enabled", true);
+    if (typeof req.query.status === "string" && req.query.status === "disabled") query = query.eq("enabled", false);
+    const limit = req.query.limit ? Math.max(1, Math.min(200, Number(req.query.limit))) : 100;
+    const { data, error } = await query.limit(limit);
+    if (error) return res.status(500).json({ ok: false, error: error.message, automations: [] });
+    return res.status(200).json({ ok: true, automations: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load automations", automations: [] });
+  }
+});
+
+router.get("/automations/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const { data, error } = await supabaseAdmin.from("consumer_automations").select("*").eq("id", req.params.id).eq("surface", OFFICE_AUTOMATION_SURFACE).maybeSingle();
+    if (error) return res.status(500).json({ ok: false, error: error.message });
+    if (!data) return res.status(404).json({ ok: false, error: "Automation not found" });
+    return res.status(200).json({ ok: true, automation: data });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load automation" });
+  }
+});
+
+router.post("/automations", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const body = req.body || {};
+  const name = safeText(body.name).slice(0, 80);
+  const triggerResult = validateAutomationTrigger(body.trigger);
+  if (!triggerResult.ok) return res.status(422).json({ ok: false, error: triggerResult.error, code: triggerResult.code });
+  const rawActions = Array.isArray(body.actions) ? body.actions : [];
+  const workflowActions = cleanWorkflowActions(rawActions);
+  const validation = validateWorkflowActions(workflowActions);
+  if (!validation.ok) return res.status(422).json({ ok: false, error: validation.error, code: validation.code });
+  if (!name) return res.status(400).json({ ok: false, error: "A name is required" });
+  const trigger = triggerResult.trigger;
+  const nextRun = body.enabled === false ? null : nextAutomationRunAt(trigger);
+  const row = {
+    estate_id: null,
+    home_id: null,
+    created_by: null,
+    owner: safeText(body.owner) || null,
+    name,
+    surface: OFFICE_AUTOMATION_SURFACE,
+    trigger,
+    condition: body.condition && typeof body.condition === "object" ? body.condition : {},
+    actions: workflowActions.map((action) => ({ action_type: "workflow_action", ...action })),
+    enabled: body.enabled !== false,
+    timezone: trigger.timezone,
+    schedule_version: 1,
+    next_run_at: nextRun ? nextRun.toISOString() : null,
+  };
+  try {
+    const { data, error } = await supabaseAdmin.from("consumer_automations").insert(row as any).select("*").single();
+    if (error) return res.status(500).json({ ok: false, error: error.message });
+    return res.status(201).json({ ok: true, automation: data });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to create automation" });
+  }
+});
+
+router.patch("/automations/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const body = req.body || {};
+  const current = await supabaseAdmin.from("consumer_automations").select("*").eq("id", req.params.id).eq("surface", OFFICE_AUTOMATION_SURFACE).maybeSingle();
+  if (!current.data) return res.status(404).json({ ok: false, error: "Automation not found" });
+  const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (body.name != null) {
+    const name = safeText(body.name).slice(0, 80);
+    if (!name) return res.status(400).json({ ok: false, error: "Automation name is required" });
+    updates.name = name;
+  }
+  if (body.owner != null) updates.owner = safeText(body.owner) || null;
+  if (body.enabled != null) updates.enabled = body.enabled === true;
+  if (body.condition != null) updates.condition = body.condition && typeof body.condition === "object" ? body.condition : {};
+  let validatedTrigger: ReturnType<typeof validateAutomationTrigger> | null = null;
+  if (body.trigger != null) {
+    validatedTrigger = validateAutomationTrigger(body.trigger);
+    if (!validatedTrigger.ok) return res.status(422).json({ ok: false, error: validatedTrigger.error, code: validatedTrigger.code });
+    updates.trigger = validatedTrigger.trigger;
+    updates.timezone = validatedTrigger.trigger.timezone;
+    updates.schedule_version = 1;
+  }
+  if (body.actions != null) {
+    const workflowActions = cleanWorkflowActions(Array.isArray(body.actions) ? body.actions : []);
+    const validation = validateWorkflowActions(workflowActions);
+    if (!validation.ok) return res.status(422).json({ ok: false, error: validation.error, code: validation.code });
+    updates.actions = workflowActions.map((action) => ({ action_type: "workflow_action", ...action }));
+  }
+  const triggerForNext = validatedTrigger || validateAutomationTrigger(current.data.trigger);
+  const enabledForNext = updates.enabled == null ? current.data.enabled !== false : updates.enabled === true;
+  updates.next_run_at = enabledForNext && triggerForNext.ok ? nextAutomationRunAt(triggerForNext.trigger)?.toISOString() || null : null;
+  try {
+    const { data, error } = await supabaseAdmin.from("consumer_automations").update(updates).eq("id", req.params.id).eq("surface", OFFICE_AUTOMATION_SURFACE).select("*").single();
+    if (error) return res.status(404).json({ ok: false, error: error.message || "Automation not found" });
+    return res.status(200).json({ ok: true, automation: data });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to update automation" });
+  }
+});
+
+router.delete("/automations/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const { data, error } = await supabaseAdmin.from("consumer_automations").delete().eq("id", req.params.id).eq("surface", OFFICE_AUTOMATION_SURFACE).select("id").maybeSingle();
+    if (error) return res.status(500).json({ ok: false, error: error.message });
+    if (!data) return res.status(404).json({ ok: false, error: "Automation not found" });
+    return res.status(200).json({ ok: true, id: req.params.id });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to delete automation" });
+  }
+});
+
+router.get("/automations/:id/runs", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const automation = await supabaseAdmin.from("consumer_automations").select("id").eq("id", req.params.id).eq("surface", OFFICE_AUTOMATION_SURFACE).maybeSingle();
+    if (!automation.data) return res.status(404).json({ ok: false, error: "Automation not found" });
+    const limit = req.query.limit ? Math.max(1, Math.min(200, Number(req.query.limit))) : 20;
+    const { data, error } = await supabaseAdmin.from("consumer_automation_runs").select("*").eq("automation_id", req.params.id).order("created_at", { ascending: false }).limit(limit);
+    if (error) return res.status(500).json({ ok: false, error: error.message, runs: [] });
+    return res.status(200).json({ ok: true, runs: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load automation runs", runs: [] });
+  }
+});
+
+router.post("/automations/:id/test", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const automation = await supabaseAdmin.from("consumer_automations").select("*").eq("id", req.params.id).eq("surface", OFFICE_AUTOMATION_SURFACE).maybeSingle();
+    if (!automation.data) return res.status(404).json({ ok: false, error: "Automation not found" });
+    if (!isAutomationSurfaceEnabled(OFFICE_AUTOMATION_SURFACE)) {
+      return res.status(403).json({ ok: false, error: "The office automation surface is not yet enabled.", code: "automation_surface_disabled" });
+    }
+    const actor = officeAutomationActor(automation.data);
+    const result = await executeConsumerAutomation({
+      automation: automation.data,
+      actor,
+      req: { user: actor, headers: {}, body: { source: "automation" }, oisContext: { estate_id: automation.data.estate_id, home_id: automation.data.home_id } },
+      source: "manual_test",
+    });
+    return res.status(200).json({ ok: true, run: result });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Automation test could not run.", code: "automation_test_failed" });
   }
 });
 
