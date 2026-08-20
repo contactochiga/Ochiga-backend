@@ -256,6 +256,14 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
     partnership_context: Object.keys(partnership).length ? {
       partnership_ref: safeText(partnership.partnership_ref) || null,
       safe_summary: safeText(partnership.safe_summary).slice(0, 800) || null,
+      relationship_type: safeText(partnership.relationship_type) || null,
+      review_status: safeText(partnership.review_status) || null,
+      business_unit: safeText(partnership.business_unit) || null,
+      relationship_manager: safeText(partnership.relationship_manager).slice(0, 180) || null,
+      organization_name: safeText(partnership.organization_name).slice(0, 180) || null,
+      opportunity_type: safeText(partnership.opportunity_type) || null,
+      last_contact_status: safeText(partnership.last_contact_status) || null,
+      last_contact_mode: safeText(partnership.last_contact_mode) || null,
     } : null,
     document_context: Object.keys(documentCtx).length ? {
       document_ref: safeText(documentCtx.document_ref) || null,

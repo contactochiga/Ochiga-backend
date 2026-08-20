@@ -463,9 +463,22 @@ export type OfficeInternalOyiCoreRequest = {
     follow_up_task_title?: string | null;
     follow_up_task_status?: string | null;
   } | null;
+  // Mirrors task_context's additive-structured-fields pattern. org/
+  // opportunity/handoff are real cross-references office.js already
+  // resolves for partnershipOyiSafeSummary — surfaced here as flat
+  // strings (not nested objects) so answer() can reason about them
+  // without re-deriving Office's own lookups.
   partnership_context: {
     partnership_ref: string | null;
     safe_summary: string | null;
+    relationship_type?: string | null;
+    review_status?: string | null;
+    business_unit?: string | null;
+    relationship_manager?: string | null;
+    organization_name?: string | null;
+    opportunity_type?: string | null;
+    last_contact_status?: string | null;
+    last_contact_mode?: string | null;
   } | null;
   document_context: {
     document_ref: string | null;

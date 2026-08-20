@@ -204,12 +204,23 @@ function classifyDomain(text: string): OyiDomain | null {
   // signal than the looser CRM follow-up phrasing, so it needs to win when
   // both appear (e.g. "should I follow up on this task").
   if (/\btasks?\b/i.test(text)) return "office_tasks";
+  // Checked before "crm" below, which would otherwise steal it via its
+  // bare "opportunit(y|ies)" alternative -- "is there an opportunity
+  // linked to this partnership" mentions both, but a specific partnership
+  // record being open is the stronger, more specific signal (same
+  // precedent as office_tasks above). This domain is also used for
+  // public_corporate's "how can I partner with Ochiga" static-copy
+  // capability -- reused here for office_internal via surface-based
+  // disambiguation in capabilityService.resolve() rather than a new
+  // domain, so moving it earlier in this chain affects both surfaces
+  // identically and has no new collision risk against any Consumer/
+  // Facility domain.
+  if (/\bpartner(?:ship)?s?\s+with\s+ochiga\b|\bhow\s+can\s+i\s+partner\b|\bbecome\s+a\s+partner\b|\bpartnership\b/i.test(text)) return "corporate_partnerships";
   if (/\b(leads?|prospects?|opportunit(?:y|ies)|pipeline|follow(?:ed)?[\s-]?up on|crm)\b/i.test(text)) return "crm";
   if (/\b(reports?\s+(?:are\s+)?(?:awaiting|pending|needing)\s+approval|approval\s+queue|pending\s+approvals?)\b/i.test(text)) return "office_reports";
   if (/\b(our\s+developments?|development\s+(?:status|update)|construction\s+(?:status|progress)|site\s+progress|units?\s+sold|happening\s+across\s+(?:our\s+)?developments?)\b/i.test(text)) return "office_development";
   if (/\b(financial\s+position|financially|recurring\s+revenue|portfolio\s+financial|financial\s+performance|financial\s+attention|cash\s+position|collections?\s+(?:this|so\s+far|for)|behind\s+on\s+collections|utility\s+(?:sales|revenue)|estate\s+(?:wallet|revenue|collections))\b/i.test(text)) return "office_financial";
   if (/\bochiga\s+private\b/i.test(text)) return "corporate_private";
-  if (/\bpartner(?:ship)?s?\s+with\s+ochiga\b|\bhow\s+can\s+i\s+partner\b|\bbecome\s+a\s+partner\b|\bpartnership\b/i.test(text)) return "corporate_partnerships";
   if (/\bwhat\s+is\s+oyi\b|\btell\s+me\s+about\s+oyi\b|\babout\s+oyi\b/i.test(text)) return "corporate_oyi";
   if (/\byour\s+developments?\b|\btell\s+me\s+about\s+(?:your\s+|the\s+)?developments?\b|\bdevelopment\s+projects?\b/i.test(text)) return "corporate_development";
   if (/\bwhat\s+does\s+ochiga\s+do\b|\bwhat\s+is\s+ochiga\b|\babout\s+ochiga\b|\bwho\s+is\s+ochiga\b|\bwhat\s+does\s+the\s+company\s+do\b|\btell\s+me\s+about\s+ochiga\b/i.test(text)) return "corporate_company";
