@@ -146,6 +146,7 @@
     "smoke:automation-runtime-v2": "node scripts/automation-runtime-v2-smoke.mjs",
     "smoke:shared-automation-runtime-pr1": "node scripts/shared-automation-runtime-pr1-smoke.mjs",
     "smoke:shared-automation-runtime-pr2-facility": "node scripts/shared-automation-runtime-pr2-facility-smoke.mjs",
+    "smoke:shared-automation-runtime-pr3-office": "node scripts/shared-automation-runtime-pr3-office-smoke.mjs",
     "smoke:oyi-core-convergence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs convergence",
     "smoke:oyi-core-privacy": "npm run build && node scripts/oyi-core-convergence-smoke.mjs privacy",
     "smoke:oyi-core-contextual-intelligence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs contextual",

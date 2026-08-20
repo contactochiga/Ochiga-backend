@@ -1,6 +1,6 @@
-# Shared Automation Runtime — PR 1 (surface foundation) + PR 2 (Facility)
+# Shared Automation Runtime — PR 1 (surface foundation) + PR 2 (Facility) + PR 3 (Office)
 
-Status: PR 1 and PR 2 of an approved 3-PR rollout (PR 1 infrastructure → PR 2 Facility → PR 3 Office, each separately approved and deployed). PR 3 (Office) is not built yet.
+Status: all 3 PRs of the approved rollout are built (PR 1 infrastructure → PR 2 Facility → PR 3 Office). Office UI work (the AI Agents shell) is explicitly out of scope for PR 3 — this is runtime/backend integration only.
 
 Companion to `docs/architecture/OYI_RUNTIME_DOMAIN_MODEL.md` (Automation is Domain 4 there) — that document's "Automation" section should be read alongside this one; this file is the implementation-level detail for the Automation domain's PR 1 evolution.
 
@@ -102,3 +102,57 @@ automation definition (consumer_automations, surface="facility")
 ### Rollback (PR 2)
 
 Same mechanism as PR 1: `AUTOMATION_SURFACE_FACILITY_ENABLED=false`. No new flag was introduced for the `registered_action` lane specifically — it is reachable only through a facility-surfaced automation, which is already fully gated by the one existing flag.
+
+---
+
+## PR 3 — Office
+
+### What this makes real
+
+Office becomes a real participant in the same scheduler/executor Consumer and Facility already share — via `createWorkflow`/`transitionWorkflow`/`getWorkflow` (`intelligence-core/workflows.ts`), the exact same Task-domain functions the Oyi Runtime Contract bridge (`officeExport.ts`'s `/office/workflows` routes) already calls in production. This is a second, independent way to reach the same Task domain — a scheduled/automation-driven path, alongside the existing CRM-event-triggered bridge — not a replacement for it, and not a new workflow engine.
+
+`crm_tasks` is not touched anywhere in this pass. Office automations only ever create/transition `ochiga_workflows` rows — the same additive-projection relationship the Task-domain bridge already established with Office's CRM data.
+
+### Action contract, surface-gated
+
+```ts
+// PR 3, new, office surface only
+{ action_type: "workflow_action"; operation: "create"; workflow_type: <one of WORKFLOW_CONTRACTS' 13 types>; title: string; summary: string; label?: string }
+{ action_type: "workflow_action"; operation: "transition"; workflow_id: string; status: <one of WORKFLOW_STATUSES>; summary?: string; label?: string }
+```
+
+`workflow_type` is restricted to the already-declared `WORKFLOW_CONTRACTS` list (13 entries, each with a real `origin_agent`/`responsible_agent` pair) rather than accepting an arbitrary string — no new workflow type is invented. `status` is restricted to the already-declared `WORKFLOW_STATUSES` (11 values). Rejected at creation time unless `surface === "office"`, the same independent-enforcement pattern PR 2 established for `registered_action`.
+
+### Actor resolution — no change needed
+
+Office's synthetic actor (`officeAutomationActor()`, `role: "ochiga_admin"`) was already scaffolded as dead code in PR 1, built and named specifically for this moment. PR 3 activates it — no new code, no new identity model. It mirrors `officeExport.ts`'s `officeWorkflowActor` exactly.
+
+### Execution chain (unchanged shape, third lane)
+
+```
+automation definition (consumer_automations, surface="office")
+  → scheduler tick / manual test        (unchanged — PR 1)
+  → executeConsumerAutomation            (unchanged entry point — PR 1)
+  → dispatch by action homogeneity:
+      device_command    → executeResidentActionBatch → executeDeviceCommandForActor → ai_execution_ledger   (unchanged — PR 1)
+      registered_action  → executeRegisteredActionBatch → executeRegisteredAction                            (unchanged — PR 2)
+      workflow_action    → executeWorkflowActionBatch (new, thin) → createWorkflow / getWorkflow+transitionWorkflow (unchanged, existing)
+                             → ochiga_workflows / ochiga_workflow_events / ochiga_intelligence_events
+  → consumer_automation_runs (unchanged shape — counts/status/actions[], all three lanes converge here)
+```
+
+`createWorkflow`/`transitionWorkflow` already own their own audit trail (`ochiga_workflow_events`) and observability emission (`publishIntelligenceEvent` → `ochiga_intelligence_events`) — PR 3 adds no new authorization or observability logic, only the batch/timeout scaffolding calling into them, identical in shape to PR 2's `executeRegisteredActionBatch`.
+
+### Known, accepted asymmetry (inherited, not introduced)
+
+Same as PR 2's registered_action: `workflow_action` results do not produce an `ai_execution_ledger` row. `createWorkflow`/`transitionWorkflow` never touched the execution ledger even before this pass (confirmed during the Oyi Runtime Contract closure — Task-domain writes are deliberately isolated from the Action-domain ledger). Automation inherits this correctly-isolated shape, doesn't create a new gap.
+
+### Explicitly not wired in PR 3, and why
+
+- **Report/export, notification/broadcast, service-config toggling** — same reasoning as PR 2: no proven canonical execution target exists for any of these yet.
+- **Office AI Agents UI shell** — explicitly out of scope; this PR is runtime/backend integration only.
+- **Reverse bridge (automation-created workflows flowing back into `crm_tasks`)** — not built. The existing bridge stays one-way (Office CRM events → `ochiga_workflows`); this PR adds a second, separate one-way path (scheduled automation → `ochiga_workflows`) that never touches `crm_tasks`.
+
+### Rollback (PR 3)
+
+Same mechanism as PR 1/PR 2: `AUTOMATION_SURFACE_OFFICE_ENABLED=false`. No new flag — `workflow_action` is reachable only through an office-surfaced automation, already fully gated.

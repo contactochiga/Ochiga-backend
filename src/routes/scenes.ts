@@ -21,6 +21,12 @@ import {
 } from "../services/registeredActionBatchExecutionService";
 import { getRegisteredExecutionAction } from "../intelligence-core/executionRegistry";
 import {
+  executeWorkflowActionBatch,
+  workflowContractFor,
+  type WorkflowCanonicalAction,
+} from "../services/workflowActionBatchExecutionService";
+import { WORKFLOW_STATUSES } from "../intelligence-core/workflows";
+import {
   automationOccurrenceKey,
   nextAutomationRunAt,
   validateAutomationTrigger,
@@ -147,6 +153,73 @@ function validateRegisteredActions(actions: CleanRegisteredAction[]) {
     }
     if (action.action_id === "maintenance.assign" && !action.assignee) {
       return { ok: false as const, error: "maintenance.assign requires an assignee.", code: "assignee_required" };
+    }
+  }
+  return { ok: true as const };
+}
+
+// Shared Automation Runtime PR 3 (Office) — the third action shape.
+// Dispatches through createWorkflow/transitionWorkflow/getWorkflow
+// (intelligence-core/workflows.ts), the exact same functions the Oyi
+// Runtime Contract Task-domain bridge (officeExport.ts) already calls
+// in production. No new workflow logic, no crm_tasks interaction —
+// this is a second, independent way to reach the same Task domain
+// (scheduled, not CRM-event-triggered), not a replacement for the
+// bridge. workflow_type is restricted to WORKFLOW_CONTRACTS (already
+// declared, already has real origin/responsible agent pairs) rather
+// than accepting an arbitrary string.
+type CleanWorkflowAction = {
+  operation: "create" | "transition";
+  workflow_type: string | null;
+  workflow_id: string | null;
+  status: string | null;
+  title: string | null;
+  summary: string | null;
+  label: string | null;
+};
+
+function isWorkflowActionItem(item: any): boolean {
+  return Boolean(item && typeof item === "object" && item.action_type === "workflow_action");
+}
+
+function cleanWorkflowActions(value: unknown): CleanWorkflowAction[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isWorkflowActionItem)
+    .slice(0, SCENE_ACTION_LIMIT)
+    .map((item: any) => ({
+      operation: item?.operation === "transition" ? "transition" : item?.operation === "create" ? "create" : null,
+      workflow_type: item?.workflow_type ? String(item.workflow_type).trim() : null,
+      workflow_id: item?.workflow_id ? String(item.workflow_id).trim() : null,
+      status: item?.status ? String(item.status).trim() : null,
+      title: item?.title ? String(item.title).trim().slice(0, 180) : null,
+      summary: item?.summary ? String(item.summary).trim().slice(0, 500) : null,
+      label: item?.label ? String(item.label).trim() : null,
+    }))
+    .filter((item): item is CleanWorkflowAction => item.operation !== null);
+}
+
+// Structural validation only — no DB lookup, no execution. Full
+// permission/scope enforcement happens once, consistently, at every
+// run inside createWorkflow/transitionWorkflow/getWorkflow themselves
+// (same as the existing Office bridge), not re-implemented here.
+function validateWorkflowActions(actions: CleanWorkflowAction[]) {
+  if (!actions.length) return { ok: false as const, error: "At least one action is required.", code: "automation_action_required" };
+  for (const action of actions) {
+    if (action.operation === "create") {
+      if (!action.workflow_type || !workflowContractFor(action.workflow_type)) {
+        return { ok: false as const, error: `${action.workflow_type || "(missing)"} is not a supported automation workflow type.`, code: "unsupported_workflow_type" };
+      }
+      if (!action.title || !action.summary) {
+        return { ok: false as const, error: "workflow_action create requires a title and summary.", code: "workflow_title_summary_required" };
+      }
+    } else {
+      if (!action.workflow_id) {
+        return { ok: false as const, error: "workflow_action transition requires a workflow_id.", code: "workflow_id_required" };
+      }
+      if (!action.status || !(WORKFLOW_STATUSES as readonly string[]).includes(action.status)) {
+        return { ok: false as const, error: `${action.status || "(missing)"} is not a supported workflow status.`, code: "unsupported_workflow_status" };
+      }
     }
   }
   return { ok: true as const };
@@ -766,15 +839,14 @@ export async function executeConsumerAutomation(input: {
     surface: automation.surface || "consumer",
   });
 
-  // Shared Automation Runtime PR 2 (Facility) — an automation's actions
-  // are homogeneous: either every item is a registered_action (Facility
-  // visitor/maintenance capabilities) or none are (the original,
-  // unmodified device_command path every Consumer automation already
-  // uses). Mixed arrays are rejected at creation time (see the
-  // create/update routes below), so this check is a dispatch choice,
-  // not a validation gate.
+  // Shared Automation Runtime — an automation's actions are homogeneous:
+  // every item is device_command, registered_action (PR 2, Facility),
+  // or workflow_action (PR 3, Office). Mixed arrays are rejected at
+  // creation time (see the create/update routes below), so this check
+  // is a dispatch choice, not a validation gate.
   const rawActions = Array.isArray(automation.actions) ? automation.actions : [];
   const isRegisteredActionAutomation = rawActions.length > 0 && rawActions.every(isRegisteredActionItem);
+  const isWorkflowActionAutomation = rawActions.length > 0 && rawActions.every(isWorkflowActionItem);
 
   let results: any[];
   if (isRegisteredActionAutomation) {
@@ -807,6 +879,39 @@ export async function executeConsumerAutomation(input: {
       runId,
       actions: registeredActions.map((action) => ({ ...action, action_label: action.label || action.action_id })) as RegisteredCanonicalAction[],
       requestedAt,
+    });
+  } else if (isWorkflowActionAutomation) {
+    const workflowActions = cleanWorkflowActions(automation.actions);
+    const validation = validateWorkflowActions(workflowActions);
+    if (!validation.ok) {
+      const completedAt = new Date().toISOString();
+      const failedActions = workflowActions.map((action, index) => ({
+        action_index: index,
+        operation: action.operation,
+        workflow_type: action.workflow_type,
+        workflow_id: action.workflow_id,
+        status: "skipped",
+        error: validation.error,
+      }));
+      const failed = {
+        status: "failed",
+        completed_at: completedAt,
+        counts: { total: workflowActions.length, completed: 0, failed: workflowActions.length || 1 },
+        actions: failedActions,
+        error_code: validation.code,
+        error_message: validation.error,
+      };
+      await supabaseAdmin.from("consumer_automation_runs").update(failed as any).eq("id", runId);
+      await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
+      logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code, surface: automation.surface || "consumer" });
+      return { ...runRow, ...failed };
+    }
+    results = await executeWorkflowActionBatch({
+      actor,
+      runId,
+      actions: workflowActions as WorkflowCanonicalAction[],
+      requestedAt,
+      scope: { estateId: automation.estate_id, homeId: automation.home_id },
     });
   } else {
     const actions = cleanActions(automation.actions);
@@ -1008,8 +1113,12 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
   const condition = req.body?.condition && typeof req.body.condition === "object" ? req.body.condition : {};
   const rawActions = Array.isArray(req.body?.actions) ? req.body.actions : [];
   const requestedRegisteredActions = rawActions.length > 0 && rawActions.every(isRegisteredActionItem);
+  const requestedWorkflowActions = rawActions.length > 0 && rawActions.every(isWorkflowActionItem);
   if (requestedRegisteredActions && surface !== "facility") {
     return res.status(422).json({ error: "Registered actions (visitor/maintenance) are currently only supported on the facility surface.", code: "registered_action_surface_mismatch" });
+  }
+  if (requestedWorkflowActions && surface !== "office") {
+    return res.status(422).json({ error: "Workflow actions are currently only supported on the office surface.", code: "workflow_action_surface_mismatch" });
   }
   let finalActions: any[];
   let actionCount: number;
@@ -1019,6 +1128,12 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
     if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
     finalActions = registeredActions.map((action) => ({ action_type: "registered_action", ...action }));
     actionCount = registeredActions.length;
+  } else if (requestedWorkflowActions) {
+    const workflowActions = cleanWorkflowActions(rawActions);
+    const validation = validateWorkflowActions(workflowActions);
+    if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
+    finalActions = workflowActions.map((action) => ({ action_type: "workflow_action", ...action }));
+    actionCount = workflowActions.length;
   } else {
     const actions = cleanActions(rawActions);
     if (!name || !trigger || !actions.length) return res.status(400).json({ error: "A name, trigger, and at least one device action are required" });
@@ -1079,14 +1194,23 @@ router.patch("/automations/:id", requirePermission("devices.control"), async (re
     const effectiveSurface: AutomationSurface = updates.surface || current.data.surface || "consumer";
     const rawActions = Array.isArray(req.body.actions) ? req.body.actions : [];
     const requestedRegisteredActions = rawActions.length > 0 && rawActions.every(isRegisteredActionItem);
+    const requestedWorkflowActions = rawActions.length > 0 && rawActions.every(isWorkflowActionItem);
     if (requestedRegisteredActions && effectiveSurface !== "facility") {
       return res.status(422).json({ error: "Registered actions (visitor/maintenance) are currently only supported on the facility surface.", code: "registered_action_surface_mismatch" });
+    }
+    if (requestedWorkflowActions && effectiveSurface !== "office") {
+      return res.status(422).json({ error: "Workflow actions are currently only supported on the office surface.", code: "workflow_action_surface_mismatch" });
     }
     if (requestedRegisteredActions) {
       const registeredActions = cleanRegisteredActions(rawActions);
       const validation = validateRegisteredActions(registeredActions);
       if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
       updates.actions = registeredActions.map((action) => ({ action_type: "registered_action", ...action }));
+    } else if (requestedWorkflowActions) {
+      const workflowActions = cleanWorkflowActions(rawActions);
+      const validation = validateWorkflowActions(workflowActions);
+      if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
+      updates.actions = workflowActions.map((action) => ({ action_type: "workflow_action", ...action }));
     } else {
       const actions = cleanActions(rawActions);
       if (!actions.length) return res.status(400).json({ error: "At least one device action is required" });
