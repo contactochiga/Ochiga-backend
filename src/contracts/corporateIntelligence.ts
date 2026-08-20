@@ -119,7 +119,7 @@ export type CorporateCommercialSignal =
 
 export type CorporateToolProposal = {
   proposal_id?: string;
-  tool: "crm.update_journey" | "crm.create_or_update_lead" | "crm.create_opportunity" | "office.create_followup_task" | "office.prepare_commercial_document" | "office.request_handoff" | "office.review_meeting_context";
+  tool: "crm.update_journey" | "crm.create_or_update_lead" | "crm.create_opportunity" | "office.create_followup_task" | "office.prepare_commercial_document" | "office.request_handoff" | "office.review_meeting_context" | "office.create_automation";
   governance: "office_validates_before_execution";
   reason: string;
   parameters: Record<string, unknown>;
@@ -375,6 +375,14 @@ export type OfficeInternalOyiCoreRequest = {
   } | null;
   task_context: {
     task_ref: string | null;
+    safe_summary: string | null;
+  } | null;
+  // Mirrors task_context exactly — set when staff have a Tasks-domain
+  // automation open (Office's Automations detail panel). Lets Oyi Core
+  // reason about the automation's real trigger/action/status instead of
+  // guessing from free text, same as every other context slot here.
+  automation_context: {
+    automation_ref: string | null;
     safe_summary: string | null;
   } | null;
   meeting_context: {
