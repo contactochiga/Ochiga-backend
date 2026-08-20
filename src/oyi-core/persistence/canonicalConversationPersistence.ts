@@ -16,6 +16,7 @@ import {
   type ConversationContextLayers,
 } from "../context/conversationContextLayers";
 import { buildResultSetContext, loadThreadResultSetsContext, type ResultSetContext } from "../context/resultSetContext";
+import { loadOfficeActiveContext } from "../context/officeConversationContext";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -150,6 +151,14 @@ export async function persistCanonicalConversationTurn(input: {
   object: OperationalObject | null;
   contract: IntelligenceRequestContract;
   builderKey: ConversationBuilderKey | null;
+  // Oyi Conversational Runtime Completion Programme, Phase 2 -- office_
+  // internal's small "active record" continuity object (see
+  // officeConversationContext.ts). Optional and additive: undefined for
+  // every existing caller (Consumer/Facility, public_corporate), so
+  // their persisted thread metadata is byte-for-byte unchanged. When
+  // present, folded into threadMetadata.business_active_context using
+  // the SAME upsert/update calls below -- no second write path.
+  businessActiveContext?: Record<string, unknown> | null;
 }) {
   const { actor, contract, object, request, response, truth } = input;
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
@@ -234,11 +243,26 @@ export async function persistCanonicalConversationTurn(input: {
       activeDomain = derivedResultSet.domain;
     }
   }
+  // businessActiveContext undefined => this turn had nothing continuity-
+  // relevant to report (e.g. a Financial question, unrelated to any
+  // single-record domain) -- preserve whatever was already persisted
+  // rather than wiping it, same "don't destroy valid existing context on
+  // an unrelated turn" principle already applied to result_sets above.
+  // Explicitly null => an explicit domain-switch was detected this turn
+  // (see officeConversationContext.ts's hasExplicitDomainSwitchSignal) --
+  // the prior active record is deliberately cleared, not carried forward.
+  let businessActiveContext: Record<string, unknown> | null = null;
+  if (input.businessActiveContext !== undefined) {
+    businessActiveContext = input.businessActiveContext;
+  } else {
+    businessActiveContext = await loadOfficeActiveContext(threadId, actor?.id || null).catch(() => null);
+  }
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
     result_sets: mergedResultSets,
     active_domain: activeDomain,
+    business_active_context: businessActiveContext,
     conversation_state: {
       version: 1,
       entities: [],
