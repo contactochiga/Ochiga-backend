@@ -16,6 +16,11 @@ import {
   type ResidentCanonicalAction,
 } from "../services/residentActionBatchExecutionService";
 import {
+  executeRegisteredActionBatch,
+  type RegisteredCanonicalAction,
+} from "../services/registeredActionBatchExecutionService";
+import { getRegisteredExecutionAction } from "../intelligence-core/executionRegistry";
+import {
   automationOccurrenceKey,
   nextAutomationRunAt,
   validateAutomationTrigger,
@@ -74,6 +79,77 @@ function officeAutomationActor(automation: any): AuthUser {
     estate_id: automation?.estate_id || null,
     home_id: automation?.home_id || null,
   } as unknown as AuthUser;
+}
+
+// Shared Automation Runtime PR 2 (Facility) — the second action shape,
+// alongside the existing device_command shape below. Dispatches through
+// executeRegisteredAction (intelligence-core/executionRegistry.ts),
+// which already owns scope/permission enforcement and observability —
+// this file only validates structure and routes to it.
+//
+// Deliberately narrower than the full EXECUTION_REGISTRY: excludes
+// device.on/off/toggle (devices already go through the proven
+// device_command lane below, not duplicated here) and excludes
+// community.approve/reject, service.assign/complete, wallet.approve/
+// cancel (all marked available:false in the registry itself — not
+// implemented anywhere, not invented here either). A real, live
+// Facility "report" export endpoint and a real service-config toggle
+// endpoint were both found during this pass's audit but are
+// synchronous/interactive-only with no automation-shaped delivery
+// target or registry entry yet — named as follow-ups, not wired in.
+const FACILITY_REGISTERED_ACTION_IDS = [
+  "visitor.approve",
+  "visitor.revoke",
+  "visitor.expire",
+  "maintenance.assign",
+  "maintenance.complete",
+  "maintenance.cancel",
+] as const;
+
+type CleanRegisteredAction = {
+  action_id: string;
+  entity_id: string;
+  assignee?: string | null;
+  label?: string | null;
+};
+
+function isRegisteredActionItem(item: any): boolean {
+  return Boolean(item && typeof item === "object" && item.action_type === "registered_action");
+}
+
+function cleanRegisteredActions(value: unknown): CleanRegisteredAction[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isRegisteredActionItem)
+    .slice(0, SCENE_ACTION_LIMIT)
+    .map((item: any) => ({
+      action_id: String(item?.action_id || "").trim(),
+      entity_id: String(item?.entity_id || "").trim(),
+      assignee: item?.assignee ? String(item.assignee).trim() : null,
+      label: item?.label ? String(item.label).trim() : null,
+    }))
+    .filter((item) => item.action_id && item.entity_id);
+}
+
+// Structural validation only — no DB lookup, no execution. Full
+// scope/permission enforcement happens once, consistently, at every
+// run (scheduled or manual) inside executeRegisteredAction itself, not
+// re-implemented here at save time.
+function validateRegisteredActions(actions: CleanRegisteredAction[]) {
+  if (!actions.length) return { ok: false as const, error: "At least one action is required.", code: "automation_action_required" };
+  for (const action of actions) {
+    if (!(FACILITY_REGISTERED_ACTION_IDS as readonly string[]).includes(action.action_id)) {
+      return { ok: false as const, error: `${action.action_id} is not a supported Facility automation action.`, code: "unsupported_registered_action" };
+    }
+    const registered = getRegisteredExecutionAction(action.action_id);
+    if (!registered?.available) {
+      return { ok: false as const, error: `${action.action_id} is not yet available.`, code: "registered_action_unavailable" };
+    }
+    if (action.action_id === "maintenance.assign" && !action.assignee) {
+      return { ok: false as const, error: "maintenance.assign requires an assignee.", code: "assignee_required" };
+    }
+  }
+  return { ok: true as const };
 }
 
 type CleanSceneAction = {
@@ -690,42 +766,86 @@ export async function executeConsumerAutomation(input: {
     surface: automation.surface || "consumer",
   });
 
-  const actions = cleanActions(automation.actions);
-  let canonicalActions: CanonicalSceneAction[] = [];
-  try {
-    canonicalActions = await canonicalizeSceneActions(req, actions);
-  } catch (err: any) {
-    const completedAt = new Date().toISOString();
-    const failedActions = actions.map((action, index) => ({
-      action_index: index,
-      device_id: action.device_id,
-      canonical_device_id: action.device_id,
-      status: "skipped",
-      error: err?.message || "Automation action is not allowed.",
-    }));
-    const failed = {
-      status: "failed",
-      completed_at: completedAt,
-      counts: { total: actions.length, completed: 0, failed: actions.length || 1 },
-      actions: failedActions,
-      error_code: err?.code || "automation_action_invalid",
-      error_message: err?.message || "Automation action is not allowed.",
-    };
-    await supabaseAdmin.from("consumer_automation_runs").update(failed as any).eq("id", runId);
-    await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
-    logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code, surface: automation.surface || "consumer" });
-    return { ...runRow, ...failed };
-  }
+  // Shared Automation Runtime PR 2 (Facility) — an automation's actions
+  // are homogeneous: either every item is a registered_action (Facility
+  // visitor/maintenance capabilities) or none are (the original,
+  // unmodified device_command path every Consumer automation already
+  // uses). Mixed arrays are rejected at creation time (see the
+  // create/update routes below), so this check is a dispatch choice,
+  // not a validation gate.
+  const rawActions = Array.isArray(automation.actions) ? automation.actions : [];
+  const isRegisteredActionAutomation = rawActions.length > 0 && rawActions.every(isRegisteredActionItem);
 
-  const results = await executeResidentActionBatch({
-    kind: "automation",
-    actor,
-    req,
-    runId,
-    actions: canonicalActions,
-    requestedAt,
-    scope: { estateId: automation.estate_id, homeId: automation.home_id },
-  });
+  let results: any[];
+  if (isRegisteredActionAutomation) {
+    const registeredActions = cleanRegisteredActions(automation.actions);
+    const validation = validateRegisteredActions(registeredActions);
+    if (!validation.ok) {
+      const completedAt = new Date().toISOString();
+      const failedActions = registeredActions.map((action, index) => ({
+        action_index: index,
+        registered_action_id: action.action_id,
+        entity_id: action.entity_id,
+        status: "skipped",
+        error: validation.error,
+      }));
+      const failed = {
+        status: "failed",
+        completed_at: completedAt,
+        counts: { total: registeredActions.length, completed: 0, failed: registeredActions.length || 1 },
+        actions: failedActions,
+        error_code: validation.code,
+        error_message: validation.error,
+      };
+      await supabaseAdmin.from("consumer_automation_runs").update(failed as any).eq("id", runId);
+      await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
+      logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code, surface: automation.surface || "consumer" });
+      return { ...runRow, ...failed };
+    }
+    results = await executeRegisteredActionBatch({
+      actor,
+      runId,
+      actions: registeredActions.map((action) => ({ ...action, action_label: action.label || action.action_id })) as RegisteredCanonicalAction[],
+      requestedAt,
+    });
+  } else {
+    const actions = cleanActions(automation.actions);
+    let canonicalActions: CanonicalSceneAction[] = [];
+    try {
+      canonicalActions = await canonicalizeSceneActions(req, actions);
+    } catch (err: any) {
+      const completedAt = new Date().toISOString();
+      const failedActions = actions.map((action, index) => ({
+        action_index: index,
+        device_id: action.device_id,
+        canonical_device_id: action.device_id,
+        status: "skipped",
+        error: err?.message || "Automation action is not allowed.",
+      }));
+      const failed = {
+        status: "failed",
+        completed_at: completedAt,
+        counts: { total: actions.length, completed: 0, failed: actions.length || 1 },
+        actions: failedActions,
+        error_code: err?.code || "automation_action_invalid",
+        error_message: err?.message || "Automation action is not allowed.",
+      };
+      await supabaseAdmin.from("consumer_automation_runs").update(failed as any).eq("id", runId);
+      await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
+      logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code, surface: automation.surface || "consumer" });
+      return { ...runRow, ...failed };
+    }
+
+    results = await executeResidentActionBatch({
+      kind: "automation",
+      actor,
+      req,
+      runId,
+      actions: canonicalActions,
+      requestedAt,
+      scope: { estateId: automation.estate_id, homeId: automation.home_id },
+    });
+  }
   const completedAt = new Date().toISOString();
   const status = residentBatchStatus(results, "automation");
   const counts = residentBatchCounts(results);
@@ -886,14 +1006,30 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
   if (!triggerResult.ok) return res.status(422).json({ error: triggerResult.error, code: triggerResult.code });
   const trigger = triggerResult.trigger;
   const condition = req.body?.condition && typeof req.body.condition === "object" ? req.body.condition : {};
-  const actions = cleanActions(req.body?.actions);
-  if (!name || !trigger || !actions.length) return res.status(400).json({ error: "A name, trigger, and at least one device action are required" });
-  let canonicalActions: CanonicalSceneAction[];
-  try {
-    canonicalActions = await canonicalizeSceneActions(req, actions);
-  } catch (err: any) {
-    return res.status(Number(err?.statusCode || 422)).json({ error: err?.message || "Automation contains an unavailable or unsafe device action", code: err?.code || "automation_action_invalid" });
+  const rawActions = Array.isArray(req.body?.actions) ? req.body.actions : [];
+  const requestedRegisteredActions = rawActions.length > 0 && rawActions.every(isRegisteredActionItem);
+  if (requestedRegisteredActions && surface !== "facility") {
+    return res.status(422).json({ error: "Registered actions (visitor/maintenance) are currently only supported on the facility surface.", code: "registered_action_surface_mismatch" });
   }
+  let finalActions: any[];
+  let actionCount: number;
+  if (requestedRegisteredActions) {
+    const registeredActions = cleanRegisteredActions(rawActions);
+    const validation = validateRegisteredActions(registeredActions);
+    if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
+    finalActions = registeredActions.map((action) => ({ action_type: "registered_action", ...action }));
+    actionCount = registeredActions.length;
+  } else {
+    const actions = cleanActions(rawActions);
+    if (!name || !trigger || !actions.length) return res.status(400).json({ error: "A name, trigger, and at least one device action are required" });
+    try {
+      finalActions = await canonicalizeSceneActions(req, actions);
+    } catch (err: any) {
+      return res.status(Number(err?.statusCode || 422)).json({ error: err?.message || "Automation contains an unavailable or unsafe device action", code: err?.code || "automation_action_invalid" });
+    }
+    actionCount = actions.length;
+  }
+  if (!name || !trigger) return res.status(400).json({ error: "A name and trigger are required" });
   const nextRun = req.body?.enabled === false ? null : nextAutomationRunAt(trigger);
   const row = {
     ...activeScope(req),
@@ -902,7 +1038,7 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
     surface,
     trigger,
     condition,
-    actions: canonicalActions,
+    actions: finalActions,
     enabled: req.body?.enabled !== false,
     timezone: trigger.timezone,
     schedule_version: 1,
@@ -910,7 +1046,7 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
   };
   const { data, error } = await supabaseAdmin.from("consumer_automations").insert(row as any).select("*").single();
   if (error) return res.status(500).json({ error: error.message });
-  await audit(req.user!, "automation.created", data.id, { action_count: actions.length }, req);
+  await audit(req.user!, "automation.created", data.id, { action_count: actionCount, surface }, req);
   res.status(201).json(data);
 });
 
@@ -937,17 +1073,30 @@ router.patch("/automations/:id", requirePermission("devices.control"), async (re
     updates.schedule_version = 1;
   }
   if (req.body?.condition != null) updates.condition = req.body.condition && typeof req.body.condition === "object" ? req.body.condition : {};
-  if (req.body?.actions != null) {
-    const actions = cleanActions(req.body.actions);
-    if (!actions.length) return res.status(400).json({ error: "At least one device action is required" });
-    try {
-      updates.actions = await canonicalizeSceneActions(req, actions);
-    } catch (err: any) {
-      return res.status(Number(err?.statusCode || 422)).json({ error: err?.message || "Automation contains an unavailable or unsafe device action", code: err?.code || "automation_action_invalid" });
-    }
-  }
   const current = await scoped(supabaseAdmin.from("consumer_automations").select("*").eq("id", req.params.id), req).maybeSingle();
   if (!current.data) return res.status(404).json({ error: "Automation not found" });
+  if (req.body?.actions != null) {
+    const effectiveSurface: AutomationSurface = updates.surface || current.data.surface || "consumer";
+    const rawActions = Array.isArray(req.body.actions) ? req.body.actions : [];
+    const requestedRegisteredActions = rawActions.length > 0 && rawActions.every(isRegisteredActionItem);
+    if (requestedRegisteredActions && effectiveSurface !== "facility") {
+      return res.status(422).json({ error: "Registered actions (visitor/maintenance) are currently only supported on the facility surface.", code: "registered_action_surface_mismatch" });
+    }
+    if (requestedRegisteredActions) {
+      const registeredActions = cleanRegisteredActions(rawActions);
+      const validation = validateRegisteredActions(registeredActions);
+      if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
+      updates.actions = registeredActions.map((action) => ({ action_type: "registered_action", ...action }));
+    } else {
+      const actions = cleanActions(rawActions);
+      if (!actions.length) return res.status(400).json({ error: "At least one device action is required" });
+      try {
+        updates.actions = await canonicalizeSceneActions(req, actions);
+      } catch (err: any) {
+        return res.status(Number(err?.statusCode || 422)).json({ error: err?.message || "Automation contains an unavailable or unsafe device action", code: err?.code || "automation_action_invalid" });
+      }
+    }
+  }
   const triggerForNext = validatedTrigger || validateAutomationTrigger(current.data.trigger);
   const enabledForNext = updates.enabled == null ? current.data.enabled !== false : updates.enabled === true;
   updates.next_run_at = enabledForNext && triggerForNext.ok ? nextAutomationRunAt(triggerForNext.trigger)?.toISOString() || null : null;
