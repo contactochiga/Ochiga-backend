@@ -41,6 +41,8 @@ export type OyiDomain =
   | "office_meetings"
   | "office_support"
   | "office_portfolio"
+  | "office_documents"
+  | "office_content"
   | "corporate_company"
   | "corporate_development"
   | "corporate_oyi"
@@ -64,6 +66,8 @@ const BUSINESS_DOMAINS = new Set<OyiDomain>([
   "office_meetings",
   "office_support",
   "office_portfolio",
+  "office_documents",
+  "office_content",
   "corporate_company",
   "corporate_development",
   "corporate_oyi",
@@ -199,6 +203,15 @@ function classifyDomain(text: string): OyiDomain | null {
   // compound phrase "portfolio financial", not the word alone), so this
   // has no collision risk in the other direction either.
   if (/\bportfolio\b/i.test(text)) return "office_portfolio";
+  // No other domain in this file uses bare "document(s)" (verified: zero
+  // prior occurrences), so no collision risk in either direction.
+  if (/\bdocuments?\b/i.test(text)) return "office_documents";
+  // "article" and "content" both refer to the same Content/articles
+  // object type in Office's UI (nav label "Content", creation dialog
+  // "New Article"). Neither word appears elsewhere in this file (the
+  // Consumer/Facility "community" branch below matches "post"/"comment"/
+  // "announcement", never bare "content"), so no collision risk.
+  if (/\barticles?\b|\bcontent\b/i.test(text)) return "office_content";
   // Checked before "crm" below, which would otherwise steal it via "follow
   // up on" -- an explicit "task" mention is a stronger, more specific
   // signal than the looser CRM follow-up phrasing, so it needs to win when
