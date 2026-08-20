@@ -129,6 +129,20 @@ function classifyDomain(text: string): OyiDomain | null {
   // smart-home branches below so office_internal/public_corporate business
   // phrasing (leads, opportunities, report approvals, developments, company
   // knowledge) never gets stolen by the generic "report"/"home" branches.
+  // Checked before "office_tasks" below -- an explicit "automation" mention
+  // is a stronger, more specific signal than "task" when both appear (e.g.
+  // "is this automation linked to a task?", asked while an automation is
+  // selected), since the shared "automations" domain (checked again, later,
+  // for messages that only mention automation) is what Office's own
+  // automation capability actually listens on. Without this, "task" would
+  // otherwise always win first and every automation question that also
+  // says "task" would silently answer from the wrong capability -- caught
+  // live in production verification, not by capability-level unit tests,
+  // since it's a cross-domain classification-order bug, not a capability
+  // logic bug (both capabilities individually still degrade honestly, so
+  // it was never a correctness/fabrication issue, just the wrong one of
+  // two truthful answers).
+  if (/\bautomat(?:e|es|ed|ing|ion|ions)?\b/i.test(text)) return "automations";
   // Checked before "crm" below, which would otherwise steal it via "follow
   // up on" -- an explicit "task" mention is a stronger, more specific
   // signal than the looser CRM follow-up phrasing, so it needs to win when
