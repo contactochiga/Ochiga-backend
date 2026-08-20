@@ -368,6 +368,16 @@ export type OfficeInternalOyiCoreRequest = {
   support_context: {
     support_case_ref: string | null;
     safe_summary: string | null;
+    title?: string | null;
+    status?: string | null;
+    severity?: string | null;
+    category?: string | null;
+    product_area?: string | null;
+    assigned_staff?: string | null;
+    sla_target_at?: string | null;
+    resolution_notes?: string | null;
+    customer_name?: string | null;
+    organization_name?: string | null;
   } | null;
   project_context: {
     project_ref: string | null;

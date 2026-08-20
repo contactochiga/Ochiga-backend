@@ -477,21 +477,21 @@ function officeTasksReadModule(): CapabilityModule {
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\bhistory|activity|log\b/i.test(message)) {
+      if (/\b(?:history|activity|log)\b/i.test(message)) {
         return {
           status: "answered",
           answer: `I don't have an activity history for ${label} available in this conversation yet — check the Audit Log tab on the task for that.`,
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\bowner|owns|assign/i.test(message)) {
+      if (/\b(?:owner|owns|assign\w*)\b/i.test(message)) {
         return {
           status: "answered",
           answer: task.owner ? `${label} is owned by ${task.owner}.` : `${label} doesn't have an owner assigned yet.`,
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\bdue|overdue|deadline|late\b/i.test(message)) {
+      if (/\b(?:due|overdue|deadline|late)\b/i.test(message)) {
         if (!task.due_at) {
           return { status: "answered", answer: `${label} doesn't have a due date set.`, presentation_policy: resultPresentation("text") };
         }
@@ -610,7 +610,7 @@ function officeAutomationsReadModule(): CapabilityModule {
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\btrigger|schedule|when does|how often\b/i.test(message)) {
+      if (/\b(?:trigger|schedule\w*|when does|how often)\b/i.test(message)) {
         return {
           status: "answered",
           answer: automation.trigger ? `${label} runs ${automation.trigger}.` : `${label} doesn't have a trigger configured yet.`,
@@ -624,27 +624,27 @@ function officeAutomationsReadModule(): CapabilityModule {
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\blast run|ran last|recently\b/i.test(message)) {
+      if (/\b(?:last run|ran last|recently)\b/i.test(message)) {
         if (!automation.last_run_at) {
           return { status: "answered", answer: `${label} hasn't run yet.`, presentation_policy: resultPresentation("text") };
         }
         return { status: "answered", answer: `${label} last ran ${automation.last_run_at} — ${automation.last_run_status || "unknown result"}.`, presentation_policy: resultPresentation("text") };
       }
-      if (/\bwho owns|owner\b/i.test(message)) {
+      if (/\b(?:who owns|owner)\b/i.test(message)) {
         return {
           status: "answered",
           answer: automation.owner ? `${label} is owned by ${automation.owner}.` : `${label} doesn't have an owner assigned yet.`,
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\bwhat does .* do|action|what happens\b/i.test(message)) {
+      if (/\b(?:what does .* do|action|what happens)\b/i.test(message)) {
         return {
           status: "answered",
           answer: automation.action ? `${label}: ${automation.action}.` : `${label} doesn't have an action configured yet.`,
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\bstatus|active|paused|running|enabled\b/i.test(message)) {
+      if (/\b(?:status|active|paused|running|enabled)\b/i.test(message)) {
         return { status: "answered", answer: `${label} is ${describeAutomationStatus(automation)}.`, presentation_policy: resultPresentation("text") };
       }
 
@@ -724,7 +724,7 @@ function officeMeetingsReadModule(): CapabilityModule {
       const message = normalizeMessage(context);
       const label = meeting.title || "This meeting";
 
-      if (/\btask|follow.?up\b/i.test(message)) {
+      if (/\b(?:task|follow.?up)\b/i.test(message)) {
         return {
           status: "answered",
           answer: meeting.follow_up_task_title
@@ -733,14 +733,14 @@ function officeMeetingsReadModule(): CapabilityModule {
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\bwhen|schedule[d]?\b/i.test(message)) {
+      if (/\b(?:when|schedule[d]?)\b/i.test(message)) {
         return {
           status: "answered",
           answer: meeting.scheduled_at ? `${label} is scheduled for ${meeting.scheduled_at}.` : `${label} hasn't been scheduled yet.`,
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\bwho owns|owner\b/i.test(message)) {
+      if (/\b(?:who owns|owner)\b/i.test(message)) {
         return {
           status: "answered",
           answer: meeting.owner ? `${label} is owned by ${meeting.owner}.` : `${label} doesn't have an owner assigned yet.`,
@@ -754,7 +754,7 @@ function officeMeetingsReadModule(): CapabilityModule {
           presentation_policy: resultPresentation("text"),
         };
       }
-      if (/\brelated|connected to|linked to\b/i.test(message)) {
+      if (/\b(?:related|connected to|linked to)\b/i.test(message)) {
         return {
           status: "answered",
           answer: meeting.related_name ? `${label} is related to the ${meeting.related_type || "record"} "${meeting.related_name}".` : `${label} isn't linked to a related record.`,
@@ -766,6 +766,126 @@ function officeMeetingsReadModule(): CapabilityModule {
       }
 
       const digest = meeting.safe_summary || [label, meeting.status, meeting.scheduled_at].filter(Boolean).join(" · ");
+      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+    },
+    primary: "text",
+  });
+}
+
+// ---------------------------------------------------------------------
+// office_internal — Support (Oyi Conversational Runtime Completion
+// Programme, fourth domain — same template as Tasks/Automations/
+// Meetings). Reads only the currently-selected support case
+// (support_context), same single-record scope as the others — no
+// aggregate support-queue capability.
+// ---------------------------------------------------------------------
+type SupportContextSlot = {
+  support_case_ref: string | null;
+  safe_summary: string | null;
+  title?: string | null;
+  status?: string | null;
+  severity?: string | null;
+  category?: string | null;
+  product_area?: string | null;
+  assigned_staff?: string | null;
+  sla_target_at?: string | null;
+  resolution_notes?: string | null;
+  customer_name?: string | null;
+  organization_name?: string | null;
+} | null;
+
+function supportContextSlot(context: CapabilityContext): SupportContextSlot {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
+  const slot = (requestContext as Record<string, unknown>).support_context;
+  return slot && typeof slot === "object" ? (slot as SupportContextSlot) : null;
+}
+
+function officeSupportReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_support.read",
+    domain: "office_support",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["support.read"],
+    evidenceRequirements: [{ domain: "office_support", evidence_type: "office_support_case_selected", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "office_support",
+    collect: async (context) => {
+      const support = supportContextSlot(context);
+      if (!support || !(support.safe_summary || support.title)) return [];
+      return [
+        evidenceEnvelope({
+          domain: "office_support",
+          type: "office_support_case_selected",
+          object_type: "support_case",
+          object_id: support.support_case_ref,
+          source: "domain_adapter",
+          observed_at: null,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { support },
+        }),
+      ];
+    },
+    answer: (context) => {
+      const support = supportContextSlot(context);
+      if (!support || !(support.safe_summary || support.title)) {
+        return unavailableResult("I don't have a specific support case open to check — select one in Support first, then ask me about it.");
+      }
+      const message = normalizeMessage(context);
+      const label = support.title || "This case";
+
+      if (/\b(?:customer|organization|who is this (?:for|from))\b/i.test(message)) {
+        const who = [support.customer_name, support.organization_name].filter(Boolean).join(" at ");
+        return {
+          status: "answered",
+          answer: who ? `${label} is for ${who}.` : `${label} doesn't have a customer or organization recorded yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:severity|urgent|priority)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: support.severity ? `${label} is ${support.severity} severity.` : `${label} doesn't have a severity set yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:category|product area|what (?:kind|type) of)\b/i.test(message)) {
+        const parts = [support.category, support.product_area].filter(Boolean).join(" · ");
+        return {
+          status: "answered",
+          answer: parts ? `${label} is categorized as ${parts}.` : `${label} doesn't have a category set yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:sla|deadline|due)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: support.sla_target_at ? `${label}'s SLA target is ${support.sla_target_at}.` : `${label} doesn't have an SLA target set.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:resolv\w*|fixed)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: support.resolution_notes ? `${label}'s resolution: ${support.resolution_notes}.` : `${label} doesn't have resolution notes recorded yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:who.?s (?:working|assigned)|assigned to|owner)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: support.assigned_staff ? `${label} is assigned to ${support.assigned_staff}.` : `${label} isn't assigned to anyone yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bstatus\b/i.test(message) && support.status) {
+        return { status: "answered", answer: `${label} is ${support.status}.`, presentation_policy: resultPresentation("text") };
+      }
+
+      const digest = support.safe_summary || [label, support.status, support.severity].filter(Boolean).join(" · ");
       return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
     },
     primary: "text",
@@ -965,7 +1085,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule()];
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule()];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {
