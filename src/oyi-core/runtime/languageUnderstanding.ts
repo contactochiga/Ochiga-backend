@@ -40,11 +40,40 @@ export type OyiDomain =
   | "office_tasks"
   | "office_meetings"
   | "office_support"
+  | "office_portfolio"
   | "corporate_company"
   | "corporate_development"
   | "corporate_oyi"
   | "corporate_private"
   | "corporate_partnerships";
+
+// Domains that are unambiguously office_internal/public_corporate
+// business phrasing (per classifyDomain's own ordering intent, see the
+// comment above its office/corporate branches) -- once classifyDomain has
+// matched one of these, nothing downstream should be allowed to override
+// it with a Consumer/Facility smart-home guess. Deliberately excludes
+// "automations", which is a genuinely shared domain name between office
+// and consumer/facility (disambiguated by supported_surfaces at the
+// capability-resolution layer instead, not by domain classification).
+const BUSINESS_DOMAINS = new Set<OyiDomain>([
+  "crm",
+  "office_reports",
+  "office_development",
+  "office_financial",
+  "office_tasks",
+  "office_meetings",
+  "office_support",
+  "office_portfolio",
+  "corporate_company",
+  "corporate_development",
+  "corporate_oyi",
+  "corporate_private",
+  "corporate_partnerships",
+]);
+
+export function isBusinessDomain(domain: OyiDomain | null): boolean {
+  return Boolean(domain && BUSINESS_DOMAINS.has(domain));
+}
 
 export type ParsedEntity = {
   type: "room" | "device" | "visitor" | "wallet" | "service" | "message" | "scene" | "automation" | "camera" | "unknown";
@@ -162,6 +191,14 @@ function classifyDomain(text: string): OyiDomain | null {
   // only (supportedSurfaces), so it must win whenever "support" is
   // explicitly named.
   if (/\bsupport\b/i.test(text)) return "office_support";
+  // Checked before "office_financial" below -- "what's the financial
+  // position of this portfolio" mentions both, and while a specific
+  // portfolio entry is selected the message is about THAT entry, not the
+  // system-wide financial aggregate financial.summary.read covers. No
+  // other domain uses bare "portfolio" (office_financial only matches the
+  // compound phrase "portfolio financial", not the word alone), so this
+  // has no collision risk in the other direction either.
+  if (/\bportfolio\b/i.test(text)) return "office_portfolio";
   // Checked before "crm" below, which would otherwise steal it via "follow
   // up on" -- an explicit "task" mention is a stronger, more specific
   // signal than the looser CRM follow-up phrasing, so it needs to win when

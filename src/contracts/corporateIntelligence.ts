@@ -360,10 +360,33 @@ export type OfficeInternalOyiCoreRequest = {
     opportunity_ref: string | null;
     safe_summary: string | null;
   } | null;
+  // projection_state is derived client-side (mirrors office.js's
+  // portfolioOyiSafeSummary 3-branch logic exactly: linked/unavailable/
+  // not_linked) rather than re-derived here, so the honest distinction
+  // between "no live Oyi deployment reference" and "linked but the live
+  // read failed right now" is preserved without duplicating that logic.
+  // homes_*/devices_*/major_open_escalations are only ever real numbers
+  // when projection_state is "linked" -- otherwise null, never guessed.
   portfolio_context: {
     portfolio_ref: string | null;
     backend_building_ref: string | null;
     safe_summary: string | null;
+    name?: string | null;
+    relationship_type?: string | null;
+    business_unit?: string | null;
+    status?: string | null;
+    oyi_deployment_status?: string | null;
+    facility_os_status?: string | null;
+    consumer_os_status?: string | null;
+    support_status?: string | null;
+    health_summary?: string | null;
+    major_escalations?: number | null;
+    projection_state?: "linked" | "unavailable" | "not_linked" | null;
+    homes_total?: number | null;
+    homes_active?: number | null;
+    devices_total?: number | null;
+    devices_online?: number | null;
+    major_open_escalations?: number | null;
   } | null;
   support_context: {
     support_case_ref: string | null;

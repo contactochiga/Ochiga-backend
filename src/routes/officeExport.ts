@@ -53,6 +53,11 @@ function safeText(value: any, fallback = "") {
   return result || fallback;
 }
 
+function safeNumber(value: any): number | null {
+  const result = Number(value);
+  return Number.isFinite(result) ? result : null;
+}
+
 function recordOf(value: any): Record<string, any> {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -178,6 +183,22 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
       portfolio_ref: safeText(portfolio.portfolio_ref) || null,
       backend_building_ref: safeText(portfolio.backend_building_ref) || null,
       safe_summary: safeText(portfolio.safe_summary).slice(0, 800) || null,
+      name: safeText(portfolio.name).slice(0, 180) || null,
+      relationship_type: safeText(portfolio.relationship_type) || null,
+      business_unit: safeText(portfolio.business_unit) || null,
+      status: safeText(portfolio.status) || null,
+      oyi_deployment_status: safeText(portfolio.oyi_deployment_status) || null,
+      facility_os_status: safeText(portfolio.facility_os_status) || null,
+      consumer_os_status: safeText(portfolio.consumer_os_status) || null,
+      support_status: safeText(portfolio.support_status) || null,
+      health_summary: safeText(portfolio.health_summary).slice(0, 500) || null,
+      major_escalations: safeNumber(portfolio.major_escalations),
+      projection_state: (["linked", "unavailable", "not_linked"] as const).includes(portfolio.projection_state) ? portfolio.projection_state : null,
+      homes_total: safeNumber(portfolio.homes_total),
+      homes_active: safeNumber(portfolio.homes_active),
+      devices_total: safeNumber(portfolio.devices_total),
+      devices_online: safeNumber(portfolio.devices_online),
+      major_open_escalations: safeNumber(portfolio.major_open_escalations),
     } : null,
     support_context: Object.keys(support).length ? {
       support_case_ref: safeText(support.support_case_ref) || null,
