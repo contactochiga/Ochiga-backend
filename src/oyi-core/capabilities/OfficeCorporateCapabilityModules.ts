@@ -30,6 +30,7 @@ import type { OyiEvidence } from "../contracts/evidence";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
+import { parseTaskMutationIntent, parseMeetingMutationIntent, parseSupportMutationIntent } from "../context/officeActionProposal";
 
 type OperationalSnapshot = {
   generated_at: string | null;
@@ -87,7 +88,7 @@ function officeSnapshot(context: CapabilityContext): OperationalSnapshot | null 
 // selectedContextSlot()/CONTEXT_SLOT_BY_SELECTED_TYPE already treat
 // task_context as "Office already knows what record is open" — a more
 // reliable signal than trying to infer a task from free text.
-type TaskContextSlot = {
+export type TaskContextSlot = {
   task_ref: string | null;
   safe_summary: string | null;
   title?: string | null;
@@ -98,7 +99,7 @@ type TaskContextSlot = {
   overdue?: boolean;
 } | null;
 
-function taskContextSlot(context: CapabilityContext): TaskContextSlot {
+export function taskContextSlot(context: CapabilityContext): TaskContextSlot {
   const requestContext = context.input.context;
   if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
   const slot = (requestContext as Record<string, unknown>).task_context;
@@ -109,7 +110,7 @@ const officePrivate: OyiEvidence["privacy_class"] = "corporate_private";
 const publicEvidence: OyiEvidence["privacy_class"] = "public";
 const readOperations = ["inform", "summarize", "list", "inspect"];
 
-function unavailableResult(answer: string): DomainResult {
+export function unavailableResult(answer: string): DomainResult {
   return { status: "unavailable", answer, presentation_policy: resultPresentation("text") };
 }
 
@@ -435,7 +436,11 @@ function officeTasksReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["tasks.read"],
     evidenceRequirements: [{ domain: "office_tasks", evidence_type: "office_task_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_tasks",
+    // Mutually exclusive with office_tasks.write's own supports() (Phase 3)
+    // by construction -- a mutation-intent message ("move this to in
+    // progress") is claimed by the write capability instead, so there's
+    // no tie-break to reason about.
+    supports: (frame: SemanticFrame) => frame.domain === "office_tasks" && !parseTaskMutationIntent(frame.normalizedText),
     collect: async (context) => {
       const task = taskContextSlot(context);
       if (!task || !(task.safe_summary || task.title)) return [];
@@ -667,7 +672,7 @@ function officeAutomationsReadModule(): CapabilityModule {
 // never a blanket "not tracked" statement like Tasks'
 // workflow/automation-linkage answers.
 // ---------------------------------------------------------------------
-type MeetingContextSlot = {
+export type MeetingContextSlot = {
   meeting_ref: string | null;
   safe_summary: string | null;
   title?: string | null;
@@ -681,7 +686,7 @@ type MeetingContextSlot = {
   follow_up_task_status?: string | null;
 } | null;
 
-function meetingContextSlot(context: CapabilityContext): MeetingContextSlot {
+export function meetingContextSlot(context: CapabilityContext): MeetingContextSlot {
   const requestContext = context.input.context;
   if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
   const slot = (requestContext as Record<string, unknown>).meeting_context;
@@ -696,7 +701,8 @@ function officeMeetingsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["meetings.read"],
     evidenceRequirements: [{ domain: "office_meetings", evidence_type: "office_meeting_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_meetings",
+    // Mutually exclusive with office_meetings.write's own supports() (Phase 3).
+    supports: (frame: SemanticFrame) => frame.domain === "office_meetings" && !parseMeetingMutationIntent(frame.normalizedText),
     collect: async (context) => {
       const meeting = meetingContextSlot(context);
       if (!meeting || !(meeting.safe_summary || meeting.title)) return [];
@@ -779,7 +785,7 @@ function officeMeetingsReadModule(): CapabilityModule {
 // (support_context), same single-record scope as the others — no
 // aggregate support-queue capability.
 // ---------------------------------------------------------------------
-type SupportContextSlot = {
+export type SupportContextSlot = {
   support_case_ref: string | null;
   safe_summary: string | null;
   title?: string | null;
@@ -794,7 +800,7 @@ type SupportContextSlot = {
   organization_name?: string | null;
 } | null;
 
-function supportContextSlot(context: CapabilityContext): SupportContextSlot {
+export function supportContextSlot(context: CapabilityContext): SupportContextSlot {
   const requestContext = context.input.context;
   if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
   const slot = (requestContext as Record<string, unknown>).support_context;
@@ -809,7 +815,8 @@ function officeSupportReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["support.read"],
     evidenceRequirements: [{ domain: "office_support", evidence_type: "office_support_case_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_support",
+    // Mutually exclusive with office_support.write's own supports() (Phase 3).
+    supports: (frame: SemanticFrame) => frame.domain === "office_support" && !parseSupportMutationIntent(frame.normalizedText),
     collect: async (context) => {
       const support = supportContextSlot(context);
       if (!support || !(support.safe_summary || support.title)) return [];

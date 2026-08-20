@@ -214,6 +214,13 @@ export function buildOfficeInternalResponse(
     suggested_next_action: text((canonical as any).suggested_next_action) || null,
     attention_signal: attentionSignal(request),
     tool_proposals: toolProposals(request),
+    // Oyi Conversational Runtime Completion Programme, Phase 3. Governed
+    // action proposals (Tasks/Meetings/Support write capabilities, see
+    // OfficeActionCapabilityModules.ts) surface their public view through
+    // canonical.confirmations -- an existing, generic "things needing
+    // confirmation" pass-through field (CapabilityResponseAdapter.ts),
+    // reused here rather than inventing a parallel one.
+    pending_action: Array.isArray(canonical.confirmations) && canonical.confirmations.length ? canonical.confirmations[0] : null,
     knowledge_references: request.knowledge_context,
     safe_metadata: {
       staff_role: request.staff.role,

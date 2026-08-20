@@ -184,5 +184,13 @@ export function capabilityDomainResultToConversationResponse(input: {
     // persistCanonicalConversationTurn uses this verbatim instead of
     // deriving a single result set from response.facts.
     result_set: (input.result.metadata?.result_set as Record<string, unknown> | Record<string, unknown>[] | undefined) ?? undefined,
+    // Only set the key at all when the capability explicitly provided one
+    // (hasOwnProperty, not `?? undefined`) -- this DomainResult field is
+    // three-state (absent/null/value, see canonicalConversation.ts), and a
+    // capability that never touches proposals must leave it absent so
+    // persistCanonicalConversationTurn preserves whatever's already there.
+    ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "pending_action_proposal")
+      ? { pending_action_proposal: input.result.metadata!.pending_action_proposal as Record<string, unknown> | null }
+      : {}),
   };
 }

@@ -260,6 +260,17 @@ export type CanonicalConversationResponse = {
   // Loosely typed here to avoid an import cycle with resultSetContext.ts;
   // persistence/orchestrator code casts to the concrete ResultSetContext.
   result_set?: Record<string, unknown> | Record<string, unknown>[] | null;
+  // Oyi Conversational Runtime Completion Programme, Phase 3. Three-state
+  // by design (matches business_active_context in officeConversationContext.
+  // ts): the KEY absent entirely means "nothing changed this turn, preserve
+  // whatever's already persisted" (an unrelated read question shouldn't
+  // wipe a pending mutation proposal); present with null means "explicitly
+  // clear" (cancelled / verified / superseded); present with a value means
+  // "set/update". See CapabilityResponseAdapter.ts for how this is
+  // populated only when a capability's DomainResult.metadata explicitly
+  // sets the key, and canonicalConversationPersistence.ts for how the
+  // three states are interpreted on write.
+  pending_action_proposal?: Record<string, unknown> | null;
 };
 
 export type ConversationBuilderKey =

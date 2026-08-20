@@ -13,6 +13,7 @@ import { capabilityDomainResultToConversationResponse } from "../capabilities/Ca
 import { buildDeviceActionCapabilities, continueDeviceActionWorkflow } from "../capabilities/DeviceActionCapabilityModules";
 import { buildPhaseBReadCapabilities, resultPresentation } from "../capabilities/ReadCapabilityModules";
 import { buildOfficeInternalReadCapabilities, buildPublicCorporateReadCapabilities } from "../capabilities/OfficeCorporateCapabilityModules";
+import { buildOfficeActionCapabilities } from "../capabilities/OfficeActionCapabilityModules";
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import { persistCanonicalConversationTurn } from "../persistence/canonicalConversationPersistence";
 import { resolveTurnAuthority } from "./TurnAuthorityResolver";
@@ -38,6 +39,14 @@ import {
   hasExplicitDomainSwitchSignal,
   buildOfficeActiveContext,
 } from "../context/officeConversationContext";
+import {
+  loadPendingOfficeActionProposal,
+  loadConfirmedOfficeActionProposal,
+  isOfficeConfirmationText,
+  isOfficeCancellationText,
+  proposalPublicView,
+} from "../context/officeActionProposal";
+import type { GovernedActionProposal } from "../../contracts/governedAction";
 
 let registered = false;
 
@@ -52,6 +61,7 @@ function ensureRegistered() {
   for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
   for (const capability of buildDeviceActionCapabilities()) capabilityRegistry.register(capability);
   for (const capability of buildOfficeInternalReadCapabilities()) capabilityRegistry.register(capability);
+  for (const capability of buildOfficeActionCapabilities()) capabilityRegistry.register(capability);
   for (const capability of buildPublicCorporateReadCapabilities()) capabilityRegistry.register(capability);
   registered = true;
 }
@@ -443,6 +453,13 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
     contract,
     builderKey: builderKeyForCapability(capability),
     businessActiveContext: businessActiveContextForTurn(context, response, capability),
+    // hasOwnProperty, not `response.pending_action_proposal ?? undefined` --
+    // the field is three-state (see canonicalConversation.ts), and most
+    // capability responses never touch it at all, which must mean
+    // "preserve", not "absent therefore undefined by coincidence".
+    pendingActionProposal: Object.prototype.hasOwnProperty.call(response, "pending_action_proposal")
+      ? (response as any).pending_action_proposal
+      : undefined,
   });
   response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
   response.persistence_saved = Boolean(persistedThreadId);
@@ -508,6 +525,161 @@ function evidenceFromFollowUpFact(fact: IntelligenceFact): OyiEvidence {
     confidence: Number(fact.confidence || 0.75),
     payload: { fact },
   } as any);
+}
+
+// ---------------------------------------------------------------------
+// Oyi Conversational Runtime Completion Programme, Phase 3 — Governed
+// Action Proposals: the confirm/cancel/verify turn handler. A structural
+// no-op for every surface except office_internal (mirrors Phase 2's
+// resolveOfficeConversationContinuity exactly). Checked BEFORE normal
+// capability resolution, same precedence position as the durable device-
+// workflow continuation block above, but a separate mechanism -- see
+// officeActionProposal.ts's header comment for why OyiWorkflow/
+// ActionService (built for direct-backend execution) isn't reused here.
+// ---------------------------------------------------------------------
+function officeActionTitleCase(value: string): string {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const OFFICE_PROPOSAL_FIELD_TO_CONTEXT_FIELD: Record<string, string> = { assignee: "owner" };
+
+function officeProposalFieldAndValue(proposal: GovernedActionProposal): { field: string; value: unknown } | null {
+  const entries = Object.entries(proposal.proposed_state || {});
+  if (!entries.length) return null;
+  const [field, value] = entries[0];
+  return { field, value };
+}
+
+function officeProposalValuesMatch(field: string, expected: unknown, observed: unknown): boolean {
+  if (field === "due_at") {
+    const a = Date.parse(String(expected));
+    const b = Date.parse(String(observed));
+    if (Number.isNaN(a) || Number.isNaN(b)) return false;
+    return Math.abs(a - b) < 60_000;
+  }
+  return text(expected).toLowerCase() === text(observed).toLowerCase();
+}
+
+function officeProposalVerifiedDescription(proposal: GovernedActionProposal, label: string): string {
+  const value = (proposal.parameters as any)?.canonical_value;
+  if (proposal.operation === "status_transition") return `Done. "${label}" is now ${officeActionTitleCase(text(value))}.`;
+  if (proposal.operation === "reassign_owner") return `Done. "${label}" is now assigned to ${text(value)}.`;
+  if (proposal.operation === "change_due_date") return `Done. "${label}"'s due date is now ${new Date(text(value)).toDateString()}.`;
+  if (proposal.operation === "resolve_case") return `Done. "${label}" is now resolved.`;
+  return `Done. "${label}" was updated.`;
+}
+
+function syntheticOfficeActionCapability(key: string, domain: string): CapabilityModule {
+  return {
+    key,
+    domain: domain as any,
+    rolloutStatus: "enabled",
+    operations: [],
+    supported_surfaces: ["office_internal"],
+    scope_requirements: [],
+    permission_requirements: [],
+    risk_class: "low_risk_action",
+    confirmation_policy: "none",
+    evidence_requirements: [],
+    presentation_policy: { primary: "text", expose_evidence: "summary", allow_internal_ids: false },
+    supports: () => false,
+    resolve: async () => ({ supported: true, reason: null }),
+    collectEvidence: async () => [],
+  };
+}
+
+async function respondFromOfficeActionResult(
+  context: CanonicalConversationRequestContext,
+  resolvedTurn: ResolvedTurn,
+  capability: CapabilityModule,
+  result: DomainResult
+): Promise<ConversationRunResult> {
+  const capabilityContext: CapabilityContext = { ...context, resolvedTurn, legacyFallback: unavailableInsideFallback };
+  let response = capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result, evidence: [] });
+  response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capability);
+  return response;
+}
+
+async function handleOfficeActionProposalTurn(
+  context: CanonicalConversationRequestContext,
+  resolvedTurn: ResolvedTurn,
+  tracer: ConversationTracer
+): Promise<ConversationRunResult | null> {
+  if (context.input.surface !== "office_internal" || !context.input.thread_id) return null;
+  const threadId = context.input.thread_id;
+  const actorId = context.actor?.id || null;
+  const message = context.input.message;
+
+  // 1) Verification turn -- a CONFIRMED proposal is waiting to be checked
+  // against the authoritative resulting state. Only fires once the
+  // client's fresh *_context slot actually reflects the SAME record the
+  // proposal targeted; otherwise this falls through, leaving the
+  // confirmed proposal for a later turn (up to its own expiry) rather
+  // than forcing a verification against the wrong data.
+  const confirmed = await loadConfirmedOfficeActionProposal(threadId, actorId);
+  if (confirmed) {
+    const populated = populatedOfficeContextSlot(context as CapabilityContext);
+    if (populated && populated.domain === confirmed.domain && populated.ref === confirmed.target_entity_id) {
+      const proposedField = officeProposalFieldAndValue(confirmed);
+      const contextFieldKey = proposedField ? (OFFICE_PROPOSAL_FIELD_TO_CONTEXT_FIELD[proposedField.field] || proposedField.field) : null;
+      const observed = contextFieldKey ? (populated.slot as Record<string, unknown>)[contextFieldKey] : undefined;
+      const verified = Boolean(proposedField && officeProposalValuesMatch(proposedField.field, proposedField.value, observed));
+      const label = text((populated.slot as any)?.title) || officeActionTitleCase(confirmed.target_entity_type);
+      logger.info("oyi_office_action_verified", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: threadId,
+        actor_id: actorId,
+        proposal_id: confirmed.proposal_id,
+        domain: confirmed.domain,
+        operation: confirmed.operation,
+        verified,
+      });
+      const capability = syntheticOfficeActionCapability(`${confirmed.domain}.action_verified`, confirmed.domain);
+      const result: DomainResult = {
+        status: "answered",
+        answer: verified
+          ? officeProposalVerifiedDescription(confirmed, label)
+          : `I attempted that, but "${label}" doesn't show the expected change yet — please check it directly in ${officeActionTitleCase(confirmed.target_entity_type)}.`,
+        presentation_policy: resultPresentation("text"),
+        metadata: { pending_action_proposal: null },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+  }
+
+  // 2) Confirm / cancel turn -- a PENDING proposal exists.
+  const pending = await loadPendingOfficeActionProposal(threadId, actorId);
+  if (pending) {
+    if (isOfficeCancellationText(message)) {
+      const capability = syntheticOfficeActionCapability(`${pending.domain}.action_cancelled`, pending.domain);
+      const result: DomainResult = {
+        status: "answered",
+        answer: "Cancelled. No changes were made.",
+        presentation_policy: resultPresentation("text"),
+        metadata: { pending_action_proposal: null },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    if (isOfficeConfirmationText(message)) {
+      const confirmedProposal: GovernedActionProposal = { ...pending, status: "confirmed" };
+      const populated = populatedOfficeContextSlot(context as CapabilityContext);
+      const label = text((populated?.slot as any)?.title) || officeActionTitleCase(pending.target_entity_type);
+      const capability = syntheticOfficeActionCapability(`${pending.domain}.action_confirmed`, pending.domain);
+      const result: DomainResult = {
+        status: "answered",
+        answer: `Confirmed — updating "${label}" now.`,
+        presentation_policy: resultPresentation("text"),
+        metadata: { confirmations: [proposalPublicView(confirmedProposal)], pending_action_proposal: confirmedProposal },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    // Neither confirm nor cancel -- most likely a fresh mutation-intent
+    // message ("actually make it Monday"). Fall through to normal
+    // capability routing: the write capability's own createDraft will
+    // naturally supersede this pending proposal with a new one.
+  }
+  return null;
 }
 
 function factFromHydration(hydration: Awaited<ReturnType<typeof hydrateCanonicalTarget>>): IntelligenceFact | null {
@@ -1088,6 +1260,25 @@ export class ConversationOrchestrator {
           return response;
         }
       }
+    }
+    // Oyi Conversational Runtime Completion Programme, Phase 3 -- a
+    // pending/confirmed governed action proposal (office_internal only)
+    // is checked next, same precedence tier as the device-workflow
+    // confirmation block above it (a separate mechanism -- see
+    // officeActionProposal.ts). Returns null when there's nothing to
+    // handle, structurally a no-op for every other surface.
+    const officeActionResponse = await handleOfficeActionProposalTurn(context, resolvedTurn, tracer).catch((error) => {
+      logger.warn("oyi_office_action_proposal_turn_failed", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
+    if (officeActionResponse) {
+      tracer.finish({ thread_id: officeActionResponse.thread_id || null, response_state: officeActionResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return officeActionResponse;
     }
     // Generic follow-up resolution runs before normal capability routing —
     // a pending device-action confirmation (handled above) always wins, but
