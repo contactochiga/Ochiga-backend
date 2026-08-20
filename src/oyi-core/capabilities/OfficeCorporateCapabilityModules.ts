@@ -1137,6 +1137,233 @@ function officePartnershipsReadModule(): CapabilityModule {
 }
 
 // ---------------------------------------------------------------------
+// office_internal — Documents (Oyi Conversational Runtime Completion
+// Programme, seventh domain -- and the first explicitly scoped as
+// STRICTLY READ-ONLY: no drafting, generation, sending, approval or
+// publishing of any kind, per instruction). document_context only ever
+// carries metadata already rendered on the Documents detail page (title,
+// type, status, owner, related record) -- never the file body/contents,
+// which may carry sensitive commercial detail Oyi Core has no need to
+// see just to answer "what is this document about" (mirrors office.js's
+// documentOyiSafeSummary comment exactly). A staff member asking Oyi to
+// summarize/read/draft/send/approve/publish a document gets an honest
+// "I can only see this document's metadata, not its contents" answer,
+// never a fabricated summary and never an action.
+// ---------------------------------------------------------------------
+type DocumentContextSlot = {
+  document_ref: string | null;
+  safe_summary: string | null;
+  title?: string | null;
+  document_type?: string | null;
+  status?: string | null;
+  owner?: string | null;
+  related_type?: string | null;
+  related_name?: string | null;
+} | null;
+
+function documentContextSlot(context: CapabilityContext): DocumentContextSlot {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
+  const slot = (requestContext as Record<string, unknown>).document_context;
+  return slot && typeof slot === "object" ? (slot as DocumentContextSlot) : null;
+}
+
+function officeDocumentsReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_documents.read",
+    domain: "office_documents",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["documents.generate"],
+    evidenceRequirements: [{ domain: "office_documents", evidence_type: "office_document_selected", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "office_documents",
+    collect: async (context) => {
+      const document = documentContextSlot(context);
+      if (!document || !(document.safe_summary || document.title)) return [];
+      return [
+        evidenceEnvelope({
+          domain: "office_documents",
+          type: "office_document_selected",
+          object_type: "document",
+          object_id: document.document_ref,
+          source: "domain_adapter",
+          observed_at: null,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { document },
+        }),
+      ];
+    },
+    answer: (context) => {
+      const document = documentContextSlot(context);
+      if (!document || !(document.safe_summary || document.title)) {
+        return unavailableResult("I don't have a specific document open to check — select one in Documents first, then ask me about it.");
+      }
+      const message = normalizeMessage(context);
+      const label = document.title || "This document";
+
+      if (/\b(?:say|says|summarize|summarise|contents?|read it|what.?s in it|what does it contain)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: `I can only see ${label}'s metadata — title, type, status and owner — not the file's contents, so I can't summarize or read it. Open it in Documents to review the actual content.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:draft|generate|send|approve|approval|publish)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: `I can only look up ${label.toLowerCase() === "this document" ? "this document's" : `${label}'s`} status and metadata — drafting, sending, approving or publishing documents isn't something I can do from chat yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bstatus\b/i.test(message) && document.status) {
+        return { status: "answered", answer: `${label} is ${document.status}.`, presentation_policy: resultPresentation("text") };
+      }
+      if (/\b(?:owner|who (?:owns|created|made))\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: document.owner ? `${label} is owned by ${document.owner}.` : `${label} doesn't have an owner recorded.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:type|kind of document)\b/i.test(message) && document.document_type) {
+        return { status: "answered", answer: `${label} is a ${document.document_type} document.`, presentation_policy: resultPresentation("text") };
+      }
+      if (/\b(?:related|linked|about which|which (?:lead|opportunity|partnership|project))\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: document.related_name ? `${label} is related to ${(document.related_type || "a record").replace(/_/g, " ")}: ${document.related_name}.` : `${label} isn't linked to a specific record.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+
+      const digest = document.safe_summary || [label, document.document_type, document.status].filter(Boolean).join(" · ");
+      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+    },
+    primary: "text",
+  });
+}
+
+// ---------------------------------------------------------------------
+// office_internal — Content (Oyi Conversational Runtime Completion
+// Programme, eighth domain -- also STRICTLY READ-ONLY: no drafting,
+// generation, review-state changes or publishing. excerpt is real
+// short-form metadata Office already surfaces on the Content editor page
+// (contentOyiSafeSummary), never the full article body, so Oyi can
+// legitimately describe what an article is about from the excerpt
+// without ever claiming to have read or be able to edit the full text.
+// ---------------------------------------------------------------------
+type ContentContextSlot = {
+  content_ref: string | null;
+  safe_summary: string | null;
+  title?: string | null;
+  workflow_status?: string | null;
+  category?: string | null;
+  author?: string | null;
+  excerpt?: string | null;
+  scheduled_publish_at?: string | null;
+  sanity_live_url?: string | null;
+} | null;
+
+function contentContextSlot(context: CapabilityContext): ContentContextSlot {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
+  const slot = (requestContext as Record<string, unknown>).content_context;
+  return slot && typeof slot === "object" ? (slot as ContentContextSlot) : null;
+}
+
+function officeContentReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_content.read",
+    domain: "office_content",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["content.write"],
+    evidenceRequirements: [{ domain: "office_content", evidence_type: "office_content_selected", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "office_content",
+    collect: async (context) => {
+      const content = contentContextSlot(context);
+      if (!content || !(content.safe_summary || content.title)) return [];
+      return [
+        evidenceEnvelope({
+          domain: "office_content",
+          type: "office_content_selected",
+          object_type: "content_article",
+          object_id: content.content_ref,
+          source: "domain_adapter",
+          observed_at: null,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { content },
+        }),
+      ];
+    },
+    answer: (context) => {
+      const content = contentContextSlot(context);
+      if (!content || !(content.safe_summary || content.title)) {
+        return unavailableResult("I don't have a specific article open to check — select one in Content first, then ask me about it.");
+      }
+      const message = normalizeMessage(context);
+      const label = content.title || "This article";
+
+      if (/\b(?:draft|generate|write|edit|approve|approval|publish|schedule it)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: `I can only look up ${label}'s status and metadata — drafting, editing, approving or publishing articles isn't something I can do from chat yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bstatus\b/i.test(message) && content.workflow_status) {
+        return { status: "answered", answer: `${label} is ${content.workflow_status}.`, presentation_policy: resultPresentation("text") };
+      }
+      if (/\b(?:category)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: content.category ? `${label} is in the ${content.category} category.` : `${label} doesn't have a category set yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bauthor\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: content.author ? `${label} is written by ${content.author}.` : `${label} doesn't have an author recorded.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:scheduled|when.*(?:publish|go live|goes live))\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: content.scheduled_publish_at ? `${label} is scheduled to publish ${content.scheduled_publish_at}.` : `${label} doesn't have a publish date scheduled.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:live|is it published|url|link)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: content.sanity_live_url ? `${label} is live at ${content.sanity_live_url}.` : `${label} isn't live yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:about|excerpt|summary|what.?s it about)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: content.excerpt ? `${label}: ${content.excerpt}` : `${label} doesn't have an excerpt written yet — I can't see the full article body.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+
+      const digest = content.safe_summary || [label, content.workflow_status, content.category].filter(Boolean).join(" · ");
+      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+    },
+    primary: "text",
+  });
+}
+
+// ---------------------------------------------------------------------
 // public_corporate — curated static content, mirrored from what is
 // actually live on the public website today (app/about/page.tsx,
 // app/private/page.tsx, app/partnerships/page.tsx, lib/company.ts).
@@ -1329,7 +1556,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule(), officePortfolioReadModule(), officePartnershipsReadModule()];
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule(), officePortfolioReadModule(), officePartnershipsReadModule(), officeDocumentsReadModule(), officeContentReadModule()];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {

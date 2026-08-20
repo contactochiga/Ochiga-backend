@@ -480,13 +480,35 @@ export type OfficeInternalOyiCoreRequest = {
     last_contact_status?: string | null;
     last_contact_mode?: string | null;
   } | null;
+  // title/document_type/status/owner/related_type/related_name are
+  // metadata ONLY -- never the file body/contents, which may carry
+  // sensitive commercial detail (mirrors office.js's documentOyiSafeSummary
+  // comment exactly). office_documents.read is a strictly read-only
+  // capability: no drafting, generation, sending, approval or publishing.
   document_context: {
     document_ref: string | null;
     safe_summary: string | null;
+    title?: string | null;
+    document_type?: string | null;
+    status?: string | null;
+    owner?: string | null;
+    related_type?: string | null;
+    related_name?: string | null;
   } | null;
+  // excerpt is real short-form metadata Office already surfaces on the
+  // Content editor page (never the full article body) -- office_content.read
+  // is strictly read-only: no drafting, generation, review-state changes
+  // or publishing.
   content_context: {
     content_ref: string | null;
     safe_summary: string | null;
+    title?: string | null;
+    workflow_status?: string | null;
+    category?: string | null;
+    author?: string | null;
+    excerpt?: string | null;
+    scheduled_publish_at?: string | null;
+    sanity_live_url?: string | null;
   } | null;
   requested_capability: string | null;
   knowledge_context: CorporateKnowledgeReference[];
