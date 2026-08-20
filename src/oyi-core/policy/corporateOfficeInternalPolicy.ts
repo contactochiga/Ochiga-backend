@@ -44,6 +44,7 @@ const CONTEXT_SLOT_BY_SELECTED_TYPE: Record<string, keyof OfficeInternalOyiCoreR
   ticket: "support_context",
   project: "project_context",
   task: "task_context",
+  automation: "automation_context",
   meeting: "meeting_context",
   partnership: "partnership_context",
   document: "document_context",
@@ -55,6 +56,7 @@ const CONTEXT_SLOT_FALLBACK_ORDER: Array<keyof OfficeInternalOyiCoreRequest> = [
   "crm_context",
   "project_context",
   "task_context",
+  "automation_context",
   "meeting_context",
   "partnership_context",
   "portfolio_context",
@@ -139,6 +141,28 @@ function toolProposals(request: OfficeInternalOyiCoreRequest): CorporateToolProp
       },
     });
   }
+  // Deliberately narrow, deliberately shallow: this only proposes that
+  // staff open the real New Automation wizard, never a trigger/action
+  // guess. Oyi Core has no reliable way to infer an exact schedule or
+  // workflow target from conversation, and the wizard's own validation
+  // (validateWorkflowActions on the backend) is the only place that's
+  // allowed to decide an automation is well-formed. suggested_name is an
+  // editable starting point, not a stored fact.
+  if (/\b(automat|recurring|every (day|week|time)|whenever|set up a rule)\b/i.test(request.message)) {
+    proposals.push({
+      proposal_id: `office_automation_${request.request_id}`,
+      tool: "office.create_automation",
+      governance: "office_validates_before_execution",
+      reason: "This sounds like it should run on a repeating schedule rather than as a one-off task. Office must define the exact trigger and action before anything is created.",
+      parameters: {
+        business_unit: request.business_unit,
+        selected_type: request.page_context.selected_type,
+        selected_id: request.page_context.selected_id || request.automation_context?.automation_ref || null,
+        suggested_name: text(request.message).slice(0, 120),
+        review_required: true,
+      },
+    });
+  }
   return proposals;
 }
 
@@ -190,6 +214,7 @@ export function buildOfficeInternalResponse(
       support_context_present: Boolean(request.support_context),
       project_context_present: Boolean(request.project_context),
       task_context_present: Boolean(request.task_context),
+      automation_context_present: Boolean(request.automation_context),
       meeting_context_present: Boolean(request.meeting_context),
       partnership_context_present: Boolean(request.partnership_context),
       document_context_present: Boolean(request.document_context),

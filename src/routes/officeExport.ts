@@ -144,6 +144,7 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
   const support = recordOf(body.support_context);
   const project = recordOf(body.project_context);
   const task = recordOf(body.task_context);
+  const automation = recordOf(body.automation_context);
   const meeting = recordOf(body.meeting_context);
   const partnership = recordOf(body.partnership_context);
   const documentCtx = recordOf(body.document_context);
@@ -189,6 +190,10 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
     task_context: Object.keys(task).length ? {
       task_ref: safeText(task.task_ref) || null,
       safe_summary: safeText(task.safe_summary).slice(0, 800) || null,
+    } : null,
+    automation_context: Object.keys(automation).length ? {
+      automation_ref: safeText(automation.automation_ref) || null,
+      safe_summary: safeText(automation.safe_summary).slice(0, 800) || null,
     } : null,
     meeting_context: Object.keys(meeting).length ? {
       meeting_ref: safeText(meeting.meeting_ref) || null,
@@ -480,6 +485,7 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
       support_context: internalRequest.support_context,
       project_context: internalRequest.project_context,
       task_context: internalRequest.task_context,
+      automation_context: internalRequest.automation_context,
       meeting_context: internalRequest.meeting_context,
       partnership_context: internalRequest.partnership_context,
       document_context: internalRequest.document_context,
@@ -497,6 +503,7 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
       support_safe_summary: internalRequest.support_context?.safe_summary || null,
       project_safe_summary: internalRequest.project_context?.safe_summary || null,
       task_safe_summary: internalRequest.task_context?.safe_summary || null,
+      automation_safe_summary: internalRequest.automation_context?.safe_summary || null,
       meeting_safe_summary: internalRequest.meeting_context?.safe_summary || null,
       partnership_safe_summary: internalRequest.partnership_context?.safe_summary || null,
       document_safe_summary: internalRequest.document_context?.safe_summary || null,
