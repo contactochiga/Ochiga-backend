@@ -139,30 +139,74 @@ function nextWeekdayIso(name: string): string | null {
   return result.toISOString();
 }
 
+function datePhraseToIso(phrase: string): string | null {
+  const weekday = WEEKDAYS.find((w) => new RegExp(`\\b${w}\\b`, "i").test(phrase));
+  if (weekday) return nextWeekdayIso(weekday);
+  if (/\btomorrow\b/i.test(phrase)) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 1);
+    d.setUTCHours(12, 0, 0, 0);
+    return d.toISOString();
+  }
+  const parsed = Date.parse(phrase);
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+}
+
 function parseTaskDueDateIntent(message: string): TaskMutationIntent | null {
   const m = text(message);
   const match = m.match(/\b(?:due date|due|deadline)\b(?:.*?)\bto\b\s+(.+?)[.?!]?$/i) || m.match(/\breschedule\b(?:.*?)\bto\b\s+(.+?)[.?!]?$/i);
   if (!match) return null;
   const phrase = match[1].trim();
-  const weekday = WEEKDAYS.find((w) => new RegExp(`\\b${w}\\b`, "i").test(phrase));
-  let iso: string | null = null;
-  if (weekday) {
-    iso = nextWeekdayIso(weekday);
-  } else if (/\btomorrow\b/i.test(phrase)) {
-    const d = new Date();
-    d.setUTCDate(d.getUTCDate() + 1);
-    d.setUTCHours(12, 0, 0, 0);
-    iso = d.toISOString();
-  } else {
-    const parsed = Date.parse(phrase);
-    iso = Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
-  }
+  const iso = datePhraseToIso(phrase);
   if (!iso) return null;
   return { operation: "change_due_date", field: "due_at", rawValue: phrase, canonicalValue: iso };
 }
 
 export function parseTaskMutationIntent(message: string): TaskMutationIntent | null {
   return parseTaskStatusIntent(message) || parseTaskAssigneeIntent(message) || parseTaskDueDateIntent(message);
+}
+
+// ---------------------------------------------------------------------
+// Revision parsing -- a short correction sent while a proposal is
+// already PENDING ("actually make it Monday", "change Tony to Adoyi")
+// legitimately doesn't repeat the original trigger phrase ("change the
+// due date to"/"assign this to"). Rather than requiring the full phrase
+// every time, this is tried ONLY when a pending proposal already exists
+// (see ConversationOrchestrator.ts's handleOfficeActionProposalTurn),
+// reusing the SAME per-operation value parsers above in a looser mode
+// that trusts the pending proposal's own operation to say what KIND of
+// value is being revised. Deliberately bounded to short messages (<=6
+// words) so an unrelated longer sentence can never be misread as a
+// revision.
+const REVISION_PREFIX = /^(?:actually,?\s*|no,?\s*|wait,?\s*)?(?:make it|change it to|change that to|change [a-z]+ to|instead,?\s*make it|instead)\s*/i;
+
+export function reconstructTaskTriggerPhrase(intent: TaskMutationIntent): string {
+  if (intent.operation === "status_transition") return `move this to ${intent.canonicalValue.replace(/_/g, " ")}`;
+  if (intent.operation === "reassign_owner") return `assign this to ${intent.canonicalValue}`;
+  return `change the due date to ${intent.canonicalValue}`;
+}
+
+export function parseTaskRevisionIntent(message: string, pendingOperation: string): TaskMutationIntent | null {
+  const raw = text(message);
+  if (!raw || raw.split(/\s+/).length > 6) return null;
+  const candidate = raw.replace(REVISION_PREFIX, "").trim().replace(/[.?!]+$/, "") || raw;
+  if (!candidate) return null;
+  if (pendingOperation === "status_transition") {
+    for (const [pattern, canonical] of TASK_STATUS_WORDS) {
+      if (pattern.test(candidate)) return { operation: "status_transition", field: "status", rawValue: candidate, canonicalValue: canonical };
+    }
+    return null;
+  }
+  if (pendingOperation === "reassign_owner") {
+    if (!/^[A-Za-z][A-Za-z '.-]{1,60}$/.test(candidate) || /^(?:me|myself|him|her|them|someone|anyone)$/i.test(candidate)) return null;
+    return { operation: "reassign_owner", field: "assignee", rawValue: candidate, canonicalValue: candidate };
+  }
+  if (pendingOperation === "change_due_date") {
+    const iso = datePhraseToIso(candidate);
+    if (!iso) return null;
+    return { operation: "change_due_date", field: "due_at", rawValue: candidate, canonicalValue: iso };
+  }
+  return null;
 }
 
 export type MeetingMutationIntent = { operation: "status_transition"; field: "status"; rawValue: string; canonicalValue: string };

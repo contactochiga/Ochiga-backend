@@ -45,6 +45,8 @@ import {
   isOfficeConfirmationText,
   isOfficeCancellationText,
   proposalPublicView,
+  parseTaskRevisionIntent,
+  reconstructTaskTriggerPhrase,
 } from "../context/officeActionProposal";
 import type { GovernedActionProposal } from "../../contracts/governedAction";
 
@@ -674,10 +676,27 @@ async function handleOfficeActionProposalTurn(
       };
       return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
     }
-    // Neither confirm nor cancel -- most likely a fresh mutation-intent
-    // message ("actually make it Monday"). Fall through to normal
-    // capability routing: the write capability's own createDraft will
-    // naturally supersede this pending proposal with a new one.
+    // Neither confirm nor cancel. A message that already contains the
+    // full trigger phrase ("change the due date to Monday") falls
+    // through to normal capability routing below, where the write
+    // capability's own createDraft naturally supersedes this pending
+    // proposal with a new one. A short correction that DOESN'T repeat
+    // the trigger phrase ("actually make it Monday") is tried here as a
+    // revision of the SAME pending operation before falling through.
+    if (pending.domain === "office_tasks") {
+      const revision = parseTaskRevisionIntent(message, pending.operation);
+      if (revision) {
+        const capability = capabilityRegistry.get("office_tasks.write");
+        if (capability?.createDraft) {
+          const revisedContext: CanonicalConversationRequestContext = { ...context, input: { ...context.input, message: reconstructTaskTriggerPhrase(revision) } };
+          const capabilityContext: CapabilityContext = { ...revisedContext, resolvedTurn, legacyFallback: unavailableInsideFallback };
+          const draft = await capability.createDraft(capabilityContext);
+          let response = capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result: draft as DomainResult, evidence: [] });
+          response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capability);
+          return response;
+        }
+      }
+    }
   }
   return null;
 }
