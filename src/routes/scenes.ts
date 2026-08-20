@@ -40,6 +40,10 @@ const SCENE_ACTION_LIMIT = 24;
 const SCENE_ACTION_CONCURRENCY = 3;
 const SCENE_ACTION_TIMEOUT_MS = 15_000;
 
+function isUuid(value: unknown): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
 // Shared Automation Runtime, PR 1 (infrastructure only) — canonical
 // surface contract. consumer_automations.surface defaults to
 // "consumer" for every existing row (see migration
@@ -805,7 +809,16 @@ export async function executeConsumerAutomation(input: {
     automation_id: automation.id,
     estate_id: automation.estate_id || null,
     home_id: automation.home_id || null,
-    created_by: automation.created_by || actor.id,
+    // consumer_automation_runs.created_by is a uuid FK to users(id).
+    // automation.created_by is always a real uuid for consumer/facility
+    // (residents and facility staff both have real Backend users), but
+    // office automations have no per-user identity — actor.id there is
+    // the synthetic "office_automation_runtime" string, not a uuid, and
+    // would fail this insert with an invalid-uuid error. Only fall back
+    // to actor.id when it's actually a uuid; otherwise leave it null,
+    // which the FK already permits (ON DELETE SET NULL). Found via
+    // Shared Automation Runtime PR 3 production verification.
+    created_by: automation.created_by || (isUuid(actor.id) ? actor.id : null),
     trigger_type: triggerType,
     trigger_occurrence_key: occurrenceKey,
     source,
