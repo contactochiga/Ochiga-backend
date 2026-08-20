@@ -893,6 +893,136 @@ function officeSupportReadModule(): CapabilityModule {
 }
 
 // ---------------------------------------------------------------------
+// office_internal — Portfolio (Oyi Conversational Runtime Completion
+// Programme, fifth domain — same template as Tasks/Automations/
+// Meetings/Support). Genuinely different shape from the other four:
+// operational numbers (homes/devices/escalations) only exist when the
+// entry is actually linked to a live Oyi deployment, so this always
+// checks projection_state first and answers honestly about which of
+// the three real states applies (linked / live-read-unavailable-right-
+// now / never-linked) rather than treating "no numbers" as one
+// undifferentiated blank.
+// ---------------------------------------------------------------------
+type PortfolioContextSlot = {
+  portfolio_ref: string | null;
+  backend_building_ref: string | null;
+  safe_summary: string | null;
+  name?: string | null;
+  relationship_type?: string | null;
+  business_unit?: string | null;
+  status?: string | null;
+  oyi_deployment_status?: string | null;
+  facility_os_status?: string | null;
+  consumer_os_status?: string | null;
+  support_status?: string | null;
+  health_summary?: string | null;
+  major_escalations?: number | null;
+  projection_state?: "linked" | "unavailable" | "not_linked" | null;
+  homes_total?: number | null;
+  homes_active?: number | null;
+  devices_total?: number | null;
+  devices_online?: number | null;
+  major_open_escalations?: number | null;
+} | null;
+
+function portfolioContextSlot(context: CapabilityContext): PortfolioContextSlot {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
+  const slot = (requestContext as Record<string, unknown>).portfolio_context;
+  return slot && typeof slot === "object" ? (slot as PortfolioContextSlot) : null;
+}
+
+function describeOperationalState(portfolio: PortfolioContextSlot): string {
+  if (!portfolio) return "unknown";
+  if (portfolio.projection_state === "linked") {
+    return `${portfolio.homes_active ?? "—"}/${portfolio.homes_total ?? "—"} homes active, ${portfolio.devices_online ?? "—"}/${portfolio.devices_total ?? "—"} devices online, ${portfolio.major_open_escalations ?? 0} major open escalation${portfolio.major_open_escalations === 1 ? "" : "s"}`;
+  }
+  if (portfolio.projection_state === "unavailable") return "live Oyi operational data is currently unavailable";
+  return "not yet linked to a live Oyi deployment reference";
+}
+
+function officePortfolioReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_portfolio.read",
+    domain: "office_portfolio",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["portfolio.read"],
+    evidenceRequirements: [{ domain: "office_portfolio", evidence_type: "office_portfolio_entry_selected", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "office_portfolio",
+    collect: async (context) => {
+      const portfolio = portfolioContextSlot(context);
+      if (!portfolio || !(portfolio.safe_summary || portfolio.name)) return [];
+      return [
+        evidenceEnvelope({
+          domain: "office_portfolio",
+          type: "office_portfolio_entry_selected",
+          object_type: "portfolio_entry",
+          object_id: portfolio.portfolio_ref,
+          source: "domain_adapter",
+          observed_at: null,
+          freshness: portfolio.projection_state === "linked" ? "fresh" : "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { portfolio },
+        }),
+      ];
+    },
+    answer: (context) => {
+      const portfolio = portfolioContextSlot(context);
+      if (!portfolio || !(portfolio.safe_summary || portfolio.name)) {
+        return unavailableResult("I don't have a specific portfolio entry open to check — select one in Portfolio first, then ask me about it.");
+      }
+      const message = normalizeMessage(context);
+      const label = portfolio.name || "This portfolio entry";
+
+      if (/\b(?:home|homes|device|devices|escalation\w*|operational|online)\b/i.test(message)) {
+        return { status: "answered", answer: `${label}: ${describeOperationalState(portfolio)}.`, presentation_policy: resultPresentation("text") };
+      }
+      if (/\b(?:deployment|deployed|oyi)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: portfolio.oyi_deployment_status ? `${label}'s Oyi deployment is ${portfolio.oyi_deployment_status}.` : `${label} doesn't have a deployment status set.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:facility os|facility system)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: portfolio.facility_os_status ? `${label}'s Facility OS is ${portfolio.facility_os_status}.` : `${label} doesn't have a Facility OS status set.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:consumer os|resident app|consumer app)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: portfolio.consumer_os_status ? `${label}'s Consumer OS is ${portfolio.consumer_os_status}.` : `${label} doesn't have a Consumer OS status set.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:health|going|doing)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: portfolio.health_summary ? `${label}: ${portfolio.health_summary}.` : `${label} doesn't have a health summary recorded yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:relationship|account type)\b/i.test(message) && portfolio.relationship_type) {
+        return { status: "answered", answer: `${label} is a ${portfolio.relationship_type} relationship.`, presentation_policy: resultPresentation("text") };
+      }
+      if (/\bstatus\b/i.test(message) && portfolio.status) {
+        return { status: "answered", answer: `${label} is ${portfolio.status}.`, presentation_policy: resultPresentation("text") };
+      }
+
+      const digest = portfolio.safe_summary || [label, portfolio.relationship_type, describeOperationalState(portfolio)].filter(Boolean).join(" · ");
+      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+    },
+    primary: "text",
+  });
+}
+
+// ---------------------------------------------------------------------
 // public_corporate — curated static content, mirrored from what is
 // actually live on the public website today (app/about/page.tsx,
 // app/private/page.tsx, app/partnerships/page.tsx, lib/company.ts).
@@ -1085,7 +1215,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule()];
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule(), officePortfolioReadModule()];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {

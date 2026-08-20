@@ -1,5 +1,5 @@
 import type { SemanticFrame, SemanticConstraint, SemanticEntity, SemanticOperation } from "../contracts/semanticFrame";
-import type { OyiDomain } from "../runtime/languageUnderstanding";
+import { type OyiDomain, isBusinessDomain } from "../runtime/languageUnderstanding";
 import { normalizeLanguage } from "./LanguageNormalizer";
 import { resolveReferences } from "./ReferenceResolver";
 import { resolveTemporalScope } from "./TemporalResolver";
@@ -32,6 +32,24 @@ function operationFor(text: string, fallback: string): SemanticOperation {
 }
 
 function domainFor(text: string, normalizedDomain: OyiDomain | null, operation: SemanticOperation): OyiDomain | null {
+  // classifyDomain (languageUnderstanding.ts) deliberately checks office/
+  // corporate business phrasing before any Consumer/Facility smart-home
+  // pattern, specifically so office_internal/public_corporate questions
+  // never get stolen by generic branches like "reports" or "home" -- but
+  // that ordering only protects against classifyDomain's OWN later
+  // branches. This function's device/wallet/utilities operation heuristic
+  // is a separate, independent override that ran unconditionally, so a
+  // business question that happened to also contain device-operation
+  // vocabulary (e.g. "how many devices are online in this portfolio?" --
+  // "devices...online" reads as device.availability) would silently be
+  // reclassified as "devices" and lose its already-correct business
+  // domain entirely. Caught via live capabilityService.resolve() testing
+  // during the Portfolio capability's regression pass, not by capability-
+  // level tests (which call buildReadResponse directly and never exercise
+  // this classifier at all) -- a caution for testing every future domain
+  // the same way. Once classifyDomain has already resolved one of these
+  // domains, nothing here should be allowed to override it.
+  if (isBusinessDomain(normalizedDomain)) return normalizedDomain;
   if (operation.startsWith("device.")) return "devices";
   if (operation.startsWith("wallet.")) return "wallet";
   if (operation.startsWith("utilities.")) return "utilities";
