@@ -39,6 +39,7 @@ export type OyiDomain =
   | "office_financial"
   | "office_tasks"
   | "office_meetings"
+  | "office_support"
   | "corporate_company"
   | "corporate_development"
   | "corporate_oyi"
@@ -151,6 +152,16 @@ function classifyDomain(text: string): OyiDomain | null {
   // occurrences of the word in this file), so this has no collision risk
   // in the other direction.
   if (/\bmeetings?\b/i.test(text)) return "office_meetings";
+  // Checked before "office_tasks"/"maintenance" below -- "is there a task
+  // from this support case" mentions both; the message is about the
+  // support case, so support wins. Also needs to be checked before the
+  // Consumer/Facility "maintenance" branch further down
+  // (/\breport\b...\b(problem|issue|fault...)\b/), since a phrase like "did
+  // the customer report a problem with this support case" would otherwise
+  // match maintenance's pattern first -- this domain is office_internal-
+  // only (supportedSurfaces), so it must win whenever "support" is
+  // explicitly named.
+  if (/\bsupport\b/i.test(text)) return "office_support";
   // Checked before "crm" below, which would otherwise steal it via "follow
   // up on" -- an explicit "task" mention is a stronger, more specific
   // signal than the looser CRM follow-up phrasing, so it needs to win when

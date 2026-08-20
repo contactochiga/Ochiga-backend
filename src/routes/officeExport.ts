@@ -182,6 +182,16 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
     support_context: Object.keys(support).length ? {
       support_case_ref: safeText(support.support_case_ref) || null,
       safe_summary: safeText(support.safe_summary).slice(0, 800) || null,
+      title: safeText(support.title).slice(0, 180) || null,
+      status: safeText(support.status) || null,
+      severity: safeText(support.severity) || null,
+      category: safeText(support.category) || null,
+      product_area: safeText(support.product_area) || null,
+      assigned_staff: safeText(support.assigned_staff) || null,
+      sla_target_at: safeText(support.sla_target_at) || null,
+      resolution_notes: safeText(support.resolution_notes).slice(0, 500) || null,
+      customer_name: safeText(support.customer_name).slice(0, 180) || null,
+      organization_name: safeText(support.organization_name).slice(0, 180) || null,
     } : null,
     project_context: Object.keys(project).length ? {
       project_ref: safeText(project.project_ref) || null,
