@@ -38,6 +38,7 @@ export type OyiDomain =
   | "office_development"
   | "office_financial"
   | "office_tasks"
+  | "office_meetings"
   | "corporate_company"
   | "corporate_development"
   | "corporate_oyi"
@@ -143,6 +144,13 @@ function classifyDomain(text: string): OyiDomain | null {
   // it was never a correctness/fabrication issue, just the wrong one of
   // two truthful answers).
   if (/\bautomat(?:e|es|ed|ing|ion|ions)?\b/i.test(text)) return "automations";
+  // Checked before "office_tasks" below -- "what are the follow-up tasks
+  // from this meeting" is a realistic phrase that mentions both; the
+  // message is fundamentally about the meeting, so meeting wins. No
+  // Consumer/Facility domain uses "meeting" at all (verified: zero prior
+  // occurrences of the word in this file), so this has no collision risk
+  // in the other direction.
+  if (/\bmeetings?\b/i.test(text)) return "office_meetings";
   // Checked before "crm" below, which would otherwise steal it via "follow
   // up on" -- an explicit "task" mention is a stronger, more specific
   // signal than the looser CRM follow-up phrasing, so it needs to win when

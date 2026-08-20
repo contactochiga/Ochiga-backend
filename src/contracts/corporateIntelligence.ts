@@ -411,9 +411,24 @@ export type OfficeInternalOyiCoreRequest = {
     last_run_at?: string | null;
     next_run_at?: string | null;
   } | null;
+  // follow_up_task_title/status are a REAL existing cross-reference
+  // (office.js resolves record.follow_up_task_id to a real task before
+  // building this) -- unlike Tasks/Automations, which never have a real
+  // task/automation link and say so, a meeting genuinely can have a
+  // linked follow-up task, so this is answered truthfully either way
+  // (present or absent), never a blanket "not tracked" statement.
   meeting_context: {
     meeting_ref: string | null;
     safe_summary: string | null;
+    title?: string | null;
+    status?: string | null;
+    scheduled_at?: string | null;
+    owner?: string | null;
+    outcome?: string | null;
+    related_type?: string | null;
+    related_name?: string | null;
+    follow_up_task_title?: string | null;
+    follow_up_task_status?: string | null;
   } | null;
   partnership_context: {
     partnership_ref: string | null;

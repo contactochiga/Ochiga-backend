@@ -656,6 +656,123 @@ function officeAutomationsReadModule(): CapabilityModule {
 }
 
 // ---------------------------------------------------------------------
+// office_internal — Meetings (Oyi Conversational Runtime Completion
+// Programme, third domain — same template as Tasks/Automations). Reads
+// only the currently-selected meeting (meeting_context), same
+// single-record scope as Tasks/Automations — no aggregate meetings-list
+// capability. Genuinely different from Tasks/Automations in one respect:
+// a meeting CAN have a real linked follow-up task (office.js already
+// resolves record.follow_up_task_id before building meeting_context), so
+// that question is answered truthfully either way — present or absent —
+// never a blanket "not tracked" statement like Tasks'
+// workflow/automation-linkage answers.
+// ---------------------------------------------------------------------
+type MeetingContextSlot = {
+  meeting_ref: string | null;
+  safe_summary: string | null;
+  title?: string | null;
+  status?: string | null;
+  scheduled_at?: string | null;
+  owner?: string | null;
+  outcome?: string | null;
+  related_type?: string | null;
+  related_name?: string | null;
+  follow_up_task_title?: string | null;
+  follow_up_task_status?: string | null;
+} | null;
+
+function meetingContextSlot(context: CapabilityContext): MeetingContextSlot {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
+  const slot = (requestContext as Record<string, unknown>).meeting_context;
+  return slot && typeof slot === "object" ? (slot as MeetingContextSlot) : null;
+}
+
+function officeMeetingsReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_meetings.read",
+    domain: "office_meetings",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["meetings.read"],
+    evidenceRequirements: [{ domain: "office_meetings", evidence_type: "office_meeting_selected", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "office_meetings",
+    collect: async (context) => {
+      const meeting = meetingContextSlot(context);
+      if (!meeting || !(meeting.safe_summary || meeting.title)) return [];
+      return [
+        evidenceEnvelope({
+          domain: "office_meetings",
+          type: "office_meeting_selected",
+          object_type: "meeting",
+          object_id: meeting.meeting_ref,
+          source: "domain_adapter",
+          observed_at: meeting.scheduled_at || null,
+          freshness: meeting.scheduled_at ? "fresh" : "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { meeting },
+        }),
+      ];
+    },
+    answer: (context) => {
+      const meeting = meetingContextSlot(context);
+      if (!meeting || !(meeting.safe_summary || meeting.title)) {
+        return unavailableResult("I don't have a specific meeting open to check — select one in Meetings first, then ask me about it.");
+      }
+      const message = normalizeMessage(context);
+      const label = meeting.title || "This meeting";
+
+      if (/\btask|follow.?up\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: meeting.follow_up_task_title
+            ? `${label} has a linked follow-up task: ${meeting.follow_up_task_title}${meeting.follow_up_task_status ? ` (${meeting.follow_up_task_status})` : ""}.`
+            : `${label} doesn't have a follow-up task recorded yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bwhen|schedule[d]?\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: meeting.scheduled_at ? `${label} is scheduled for ${meeting.scheduled_at}.` : `${label} hasn't been scheduled yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bwho owns|owner\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: meeting.owner ? `${label} is owned by ${meeting.owner}.` : `${label} doesn't have an owner assigned yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:outcome|result|how (?:did|was) (?:it|this|the meeting)|what happened)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: meeting.outcome ? `${label}'s outcome: ${meeting.outcome}.` : `${label} doesn't have an outcome recorded yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\brelated|connected to|linked to\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: meeting.related_name ? `${label} is related to the ${meeting.related_type || "record"} "${meeting.related_name}".` : `${label} isn't linked to a related record.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bstatus\b/i.test(message) && meeting.status) {
+        return { status: "answered", answer: `${label} is ${meeting.status}.`, presentation_policy: resultPresentation("text") };
+      }
+
+      const digest = meeting.safe_summary || [label, meeting.status, meeting.scheduled_at].filter(Boolean).join(" · ");
+      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+    },
+    primary: "text",
+  });
+}
+
+// ---------------------------------------------------------------------
 // public_corporate — curated static content, mirrored from what is
 // actually live on the public website today (app/about/page.tsx,
 // app/private/page.tsx, app/partnerships/page.tsx, lib/company.ts).
@@ -848,7 +965,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule()];
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule()];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {
