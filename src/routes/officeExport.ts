@@ -190,6 +190,12 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
     task_context: Object.keys(task).length ? {
       task_ref: safeText(task.task_ref) || null,
       safe_summary: safeText(task.safe_summary).slice(0, 800) || null,
+      title: safeText(task.title).slice(0, 180) || null,
+      status: safeText(task.status) || null,
+      priority: safeText(task.priority) || null,
+      owner: safeText(task.owner) || null,
+      due_at: safeText(task.due_at) || null,
+      overdue: Boolean(task.overdue),
     } : null,
     automation_context: Object.keys(automation).length ? {
       automation_ref: safeText(automation.automation_ref) || null,

@@ -373,9 +373,21 @@ export type OfficeInternalOyiCoreRequest = {
     project_ref: string | null;
     safe_summary: string | null;
   } | null;
+  // status/priority/owner/due_at/overdue are optional, additive structured
+  // fields alongside safe_summary — added so a real capability module can
+  // answer a specific sub-question (who owns it, is it overdue) instead of
+  // only ever echoing the whole pre-composed summary string. safe_summary
+  // is unchanged and still used by every other existing consumer of this
+  // slot (tool-proposal reasoning, the degraded-answer rescue).
   task_context: {
     task_ref: string | null;
     safe_summary: string | null;
+    title?: string | null;
+    status?: string | null;
+    priority?: string | null;
+    owner?: string | null;
+    due_at?: string | null;
+    overdue?: boolean;
   } | null;
   // Mirrors task_context exactly — set when staff have a Tasks-domain
   // automation open (Office's Automations detail panel). Lets Oyi Core
