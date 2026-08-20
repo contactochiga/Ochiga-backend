@@ -127,6 +127,38 @@ export function hasExplicitDomainSwitchSignal(message: string): boolean {
   return EXPLICIT_SWITCH_PATTERN.test(text(message));
 }
 
+// Bare keyword patterns mirroring classifyDomain's own per-domain
+// regexes (languageUnderstanding.ts), duplicated intentionally rather
+// than imported -- classifyDomain's SINGLE winning domain is ordering-
+// dependent (meetings is checked before support, so "we're done with
+// this meeting, what's happening with the support case" resolves to
+// office_meetings, not office_support, since the message legitimately
+// names BOTH). An explicit-switch message can legitimately mention two
+// domains at once -- one being closed, one being opened -- so once a
+// switch phrase is detected, ALL domain keywords in the message are
+// scanned independently rather than trusting classifyDomain's one
+// answer, and whichever named domain ISN'T the one currently open is
+// treated as the switch target.
+const OFFICE_DOMAIN_KEYWORD_PATTERN: Partial<Record<OyiDomain, RegExp>> = {
+  office_meetings: /\bmeetings?\b/i,
+  office_support: /\bsupport\b/i,
+  office_portfolio: /\bportfolio\b/i,
+  office_tasks: /\btasks?\b/i,
+  automations: /\bautomat(?:e|es|ed|ing|ion|ions)?\b/i,
+  corporate_partnerships: /\bpartner(?:ship)?s?\b/i,
+  office_documents: /\bdocuments?\b/i,
+  office_content: /\barticles?\b|\bcontent\b/i,
+};
+
+function detectSwitchTargetDomain(message: string, excludeDomain: OyiDomain): OyiDomain | null {
+  const m = text(message);
+  const matches: OyiDomain[] = [];
+  for (const [domain, pattern] of Object.entries(OFFICE_DOMAIN_KEYWORD_PATTERN) as Array<[OyiDomain, RegExp]>) {
+    if (domain !== excludeDomain && pattern.test(m)) matches.push(domain);
+  }
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export type OfficeActiveContext = {
   thread_id: string;
   actor_id: string;
@@ -278,11 +310,33 @@ export async function resolveOfficeConversationContinuity(
   const populated = populatedOfficeContextSlot(context as CapabilityContext);
 
   if (populated) {
+    // Checked BEFORE the "already matches" shortcut below: classifyDomain
+    // only ever returns ONE winning domain, ordering-dependent (meetings
+    // is checked before support in languageUnderstanding.ts), so a message
+    // that legitimately names both the domain being closed AND the domain
+    // being opened ("we're done with this meeting, what's happening with
+    // the support case for AC failure?") would otherwise resolve rawDomain
+    // to "office_meetings" -- happening to equal the still-open slot's own
+    // domain -- and silently short-circuit before the switch was ever
+    // considered. detectSwitchTargetDomain scans independently of
+    // classifyDomain's ordering for exactly this reason.
+    if (hasExplicitDomainSwitchSignal(message)) {
+      const switchTarget = detectSwitchTargetDomain(message, populated.domain);
+      if (switchTarget) {
+        const adjustedResolvedTurn: ResolvedTurn = {
+          ...resolvedTurn,
+          domain: switchTarget,
+          semantic_frame: { ...resolvedTurn.semantic_frame, domain: switchTarget },
+        };
+        return { resolvedTurn: adjustedResolvedTurn, context, source: "explicit_switch_honored" };
+      }
+      // Switch phrase present but nothing else named -- e.g. "let's move
+      // on to something else" -- there's no target to switch to, so this
+      // falls through to the normal precedence rules below rather than
+      // forcing a wipe with nowhere to land.
+    }
     if (rawDomain === populated.domain) {
       return { resolvedTurn, context, source: "unchanged" };
-    }
-    if (isOfficeRecordDomain(rawDomain) && hasExplicitDomainSwitchSignal(message)) {
-      return { resolvedTurn, context, source: "explicit_switch_honored" };
     }
     if (rawDomain !== null && !isOfficeRecordDomain(rawDomain)) {
       // A genuinely different, non-record business topic -- respect it.
