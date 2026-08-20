@@ -212,6 +212,15 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
     meeting_context: Object.keys(meeting).length ? {
       meeting_ref: safeText(meeting.meeting_ref) || null,
       safe_summary: safeText(meeting.safe_summary).slice(0, 800) || null,
+      title: safeText(meeting.title).slice(0, 180) || null,
+      status: safeText(meeting.status) || null,
+      scheduled_at: safeText(meeting.scheduled_at) || null,
+      owner: safeText(meeting.owner) || null,
+      outcome: safeText(meeting.outcome).slice(0, 500) || null,
+      related_type: safeText(meeting.related_type) || null,
+      related_name: safeText(meeting.related_name).slice(0, 180) || null,
+      follow_up_task_title: safeText(meeting.follow_up_task_title).slice(0, 180) || null,
+      follow_up_task_status: safeText(meeting.follow_up_task_status) || null,
     } : null,
     partnership_context: Object.keys(partnership).length ? {
       partnership_ref: safeText(partnership.partnership_ref) || null,
