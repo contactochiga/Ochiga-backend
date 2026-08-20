@@ -837,7 +837,7 @@ function officeSupportReadModule(): CapabilityModule {
       const message = normalizeMessage(context);
       const label = support.title || "This case";
 
-      if (/\b(?:customer|organization|who is this (?:for|from))\b/i.test(message)) {
+      if (/\b(?:customer|organization|who is this .*(?:for|from))\b/i.test(message)) {
         const who = [support.customer_name, support.organization_name].filter(Boolean).join(" at ");
         return {
           status: "answered",
