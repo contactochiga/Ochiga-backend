@@ -792,6 +792,7 @@ const BUSINESS_CAPABILITY_LABELS: Record<string, string> = {
   "office_meetings.read": "the meeting you have open",
   "office_support.read": "the support case you have open",
   "office_portfolio.read": "the portfolio entry you have open",
+  "office_partnerships.read": "the partnership you have open",
   "corporate.company.read": "what Ochiga does",
   "corporate.development.read": "Ochiga's current developments",
   "corporate.oyi.read": "what Oyi is",

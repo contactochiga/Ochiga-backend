@@ -1023,6 +1023,120 @@ function officePortfolioReadModule(): CapabilityModule {
 }
 
 // ---------------------------------------------------------------------
+// office_internal — Partnerships (Oyi Conversational Runtime Completion
+// Programme, sixth domain). Deliberately reuses the "corporate_partnerships"
+// domain classifyDomain() already resolves for the public site's "how do
+// I partner with Ochiga" phrasing, rather than adding a new office_*
+// domain -- same precedent as Automations reusing Consumer's "automations"
+// domain. capabilityService.resolve() disambiguates purely by
+// supported_surfaces (office_internal here vs. public_corporate for
+// corporate.partnerships.read), sorting surface-compatible candidates
+// above incompatible ones regardless of score, so no languageUnderstanding.ts
+// change is needed -- verified in the regression script below.
+// ---------------------------------------------------------------------
+type PartnershipContextSlot = {
+  partnership_ref: string | null;
+  safe_summary: string | null;
+  relationship_type?: string | null;
+  review_status?: string | null;
+  business_unit?: string | null;
+  relationship_manager?: string | null;
+  organization_name?: string | null;
+  opportunity_type?: string | null;
+  last_contact_status?: string | null;
+  last_contact_mode?: string | null;
+} | null;
+
+function partnershipContextSlot(context: CapabilityContext): PartnershipContextSlot {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
+  const slot = (requestContext as Record<string, unknown>).partnership_context;
+  return slot && typeof slot === "object" ? (slot as PartnershipContextSlot) : null;
+}
+
+function officePartnershipsReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_partnerships.read",
+    domain: "corporate_partnerships",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["partnerships.read"],
+    evidenceRequirements: [{ domain: "corporate_partnerships", evidence_type: "office_partnership_selected", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "corporate_partnerships",
+    collect: async (context) => {
+      const partnership = partnershipContextSlot(context);
+      if (!partnership || !partnership.safe_summary) return [];
+      return [
+        evidenceEnvelope({
+          domain: "corporate_partnerships",
+          type: "office_partnership_selected",
+          object_type: "partnership_relationship",
+          object_id: partnership.partnership_ref,
+          source: "domain_adapter",
+          observed_at: null,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { partnership },
+        }),
+      ];
+    },
+    answer: (context) => {
+      const partnership = partnershipContextSlot(context);
+      if (!partnership || !partnership.safe_summary) {
+        return unavailableResult("I don't have a specific partnership open to check — select one in Partnerships first, then ask me about it.");
+      }
+      const message = normalizeMessage(context);
+      const label = partnership.organization_name || "This partnership";
+
+      if (/\b(?:status|review)\b/i.test(message) && partnership.review_status) {
+        return { status: "answered", answer: `${label} is ${partnership.review_status}.`, presentation_policy: resultPresentation("text") };
+      }
+      if (/\b(?:manager|who.?s (?:managing|handling)|owner)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: partnership.relationship_manager ? `${label} is managed by ${partnership.relationship_manager}.` : `${label} doesn't have a relationship manager assigned yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:organization|organisation|company)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: partnership.organization_name ? `${label} is with ${partnership.organization_name}.` : `This partnership doesn't have an organization recorded yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bopportunit(?:y|ies)\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: partnership.opportunity_type ? `${label} has a linked ${partnership.opportunity_type} opportunity.` : `${label} isn't linked to a specific opportunity — these aren't connected records in this system.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:contact\w*|communicat\w*|handoff|touch\w*|reach\w*)\b/i.test(message)) {
+        const via = [partnership.last_contact_status, partnership.last_contact_mode].filter(Boolean).join(" via ");
+        return {
+          status: "answered",
+          answer: via ? `${label}'s last communication: ${via}.` : `${label} doesn't have a communication logged yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\b(?:business unit|unit)\b/i.test(message) && partnership.business_unit) {
+        return { status: "answered", answer: `${label} sits under ${partnership.business_unit}.`, presentation_policy: resultPresentation("text") };
+      }
+      if (/\b(?:relationship type|what kind of)\b/i.test(message) && partnership.relationship_type) {
+        return { status: "answered", answer: `${label} is a ${partnership.relationship_type} relationship.`, presentation_policy: resultPresentation("text") };
+      }
+
+      const digest = partnership.safe_summary || [label, partnership.relationship_type, partnership.review_status].filter(Boolean).join(" · ");
+      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+    },
+    primary: "text",
+  });
+}
+
+// ---------------------------------------------------------------------
 // public_corporate — curated static content, mirrored from what is
 // actually live on the public website today (app/about/page.tsx,
 // app/private/page.tsx, app/partnerships/page.tsx, lib/company.ts).
@@ -1215,7 +1329,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule(), officePortfolioReadModule()];
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule(), officePortfolioReadModule(), officePartnershipsReadModule()];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {
