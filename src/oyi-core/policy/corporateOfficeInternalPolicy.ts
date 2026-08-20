@@ -172,7 +172,17 @@ function toolProposals(request: OfficeInternalOyiCoreRequest): CorporateToolProp
 // Office already sent a safe_summary for the exact record the staff member is looking at. Rather than
 // let that generic reply stand, ground the answer in the safe_summary Office already vouched for -
 // this surfaces real context without fabricating anything Oyi Core itself did not verify.
-const DEGRADED_ANSWER_PATTERN = /evidence is not clean enough|could not retrieve|did not perform any action|need a clearer corporate object|need a clearer object or question/i;
+//
+// These two literal openings are ConversationOrchestrator.ts's buildBusinessSurfaceFallbackResponse()
+// output verbatim (the only two strings office_internal's business-surface fallback ever produces:
+// "I can help with {topics}...", or "I don't have an enabled capability for that yet on this
+// surface." when no capability is registered at all) -- office_internal never reaches the legacy
+// engine's degraded-evidence phrasing, so matching that instead (as this pattern previously did) meant
+// the rescue never fired. Anchored to these exact openings on purpose: a real capability module's
+// answer is free-form prose about actual data and can never start with either literal, so this can
+// only ever intercept the generic fallback -- it structurally cannot override a registered capability's
+// answer.
+const DEGRADED_ANSWER_PATTERN = /^I can help with|^I don't have an enabled capability for that yet on this surface\./i;
 
 function composeAnswer(request: OfficeInternalOyiCoreRequest, canonical: CanonicalConversationResponse): string {
   const canonicalAnswer = text(canonical.message || (canonical as any).assistant_message);

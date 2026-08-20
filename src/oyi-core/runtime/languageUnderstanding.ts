@@ -37,6 +37,7 @@ export type OyiDomain =
   | "office_reports"
   | "office_development"
   | "office_financial"
+  | "office_tasks"
   | "corporate_company"
   | "corporate_development"
   | "corporate_oyi"
@@ -128,6 +129,11 @@ function classifyDomain(text: string): OyiDomain | null {
   // smart-home branches below so office_internal/public_corporate business
   // phrasing (leads, opportunities, report approvals, developments, company
   // knowledge) never gets stolen by the generic "report"/"home" branches.
+  // Checked before "crm" below, which would otherwise steal it via "follow
+  // up on" -- an explicit "task" mention is a stronger, more specific
+  // signal than the looser CRM follow-up phrasing, so it needs to win when
+  // both appear (e.g. "should I follow up on this task").
+  if (/\btasks?\b/i.test(text)) return "office_tasks";
   if (/\b(leads?|prospects?|opportunit(?:y|ies)|pipeline|follow(?:ed)?[\s-]?up on|crm)\b/i.test(text)) return "crm";
   if (/\b(reports?\s+(?:are\s+)?(?:awaiting|pending|needing)\s+approval|approval\s+queue|pending\s+approvals?)\b/i.test(text)) return "office_reports";
   if (/\b(our\s+developments?|development\s+(?:status|update)|construction\s+(?:status|progress)|site\s+progress|units?\s+sold|happening\s+across\s+(?:our\s+)?developments?)\b/i.test(text)) return "office_development";

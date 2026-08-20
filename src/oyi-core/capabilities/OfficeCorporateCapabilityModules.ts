@@ -80,6 +80,31 @@ function officeSnapshot(context: CapabilityContext): OperationalSnapshot | null 
   return snapshot && typeof snapshot === "object" ? (snapshot as OperationalSnapshot) : null;
 }
 
+// Tasks reads the currently-SELECTED task's context slot (a specific
+// record the staff member has open), not an aggregate snapshot section —
+// there is no tasks list in operational_snapshot today, and adding one is
+// a separate, larger change. This mirrors exactly how the frontend's own
+// selectedContextSlot()/CONTEXT_SLOT_BY_SELECTED_TYPE already treat
+// task_context as "Office already knows what record is open" — a more
+// reliable signal than trying to infer a task from free text.
+type TaskContextSlot = {
+  task_ref: string | null;
+  safe_summary: string | null;
+  title?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  owner?: string | null;
+  due_at?: string | null;
+  overdue?: boolean;
+} | null;
+
+function taskContextSlot(context: CapabilityContext): TaskContextSlot {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
+  const slot = (requestContext as Record<string, unknown>).task_context;
+  return slot && typeof slot === "object" ? (slot as TaskContextSlot) : null;
+}
+
 const officePrivate: OyiEvidence["privacy_class"] = "corporate_private";
 const publicEvidence: OyiEvidence["privacy_class"] = "public";
 const readOperations = ["inform", "summarize", "list", "inspect"];
@@ -388,6 +413,109 @@ function financialSummaryReadModule(): CapabilityModule {
 }
 
 // ---------------------------------------------------------------------
+// office_internal — Tasks (Oyi Conversational Runtime Completion
+// Programme, Phase 1c). The first of office_internal's context-slot
+// domains (task/automation/meeting/partnership/document/content/
+// support/project) to get a real capability module instead of falling
+// through to the generic business-surface fallback. Answers only about
+// the specific task the staff member currently has open (task_context),
+// never a fabricated aggregate — there is no task list capability here,
+// only a grounded read of one real record. Question-aware: leads with
+// whichever field the message asked about, otherwise falls back to the
+// full safe_summary digest. Workflow/automation linkage and activity
+// history are answered honestly as "not tracked"/"not available" rather
+// than invented — crm_tasks carries no such link field in this system,
+// and Office does not send task history over this contract yet.
+// ---------------------------------------------------------------------
+function officeTasksReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_tasks.read",
+    domain: "office_tasks",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["tasks.read"],
+    evidenceRequirements: [{ domain: "office_tasks", evidence_type: "office_task_selected", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) => frame.domain === "office_tasks",
+    collect: async (context) => {
+      const task = taskContextSlot(context);
+      if (!task || !(task.safe_summary || task.title)) return [];
+      return [
+        evidenceEnvelope({
+          domain: "office_tasks",
+          type: "office_task_selected",
+          object_type: "task",
+          object_id: task.task_ref,
+          source: "domain_adapter",
+          observed_at: null,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.9,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { task },
+        }),
+      ];
+    },
+    answer: (context) => {
+      const task = taskContextSlot(context);
+      if (!task || !(task.safe_summary || task.title)) {
+        return unavailableResult("I don't have a specific task open to check — select a task in Tasks first, then ask me about it.");
+      }
+      const message = normalizeMessage(context);
+      const label = task.title || "This task";
+
+      if (/\bworkflow\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: `${label} isn't linked to a specific workflow — tasks and workflows aren't connected records in this system.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bautomat/i.test(message)) {
+        return {
+          status: "answered",
+          answer: `${label} isn't linked to a specific automation — tasks and automations aren't connected records in this system.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bhistory|activity|log\b/i.test(message)) {
+        return {
+          status: "answered",
+          answer: `I don't have an activity history for ${label} available in this conversation yet — check the Audit Log tab on the task for that.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bowner|owns|assign/i.test(message)) {
+        return {
+          status: "answered",
+          answer: task.owner ? `${label} is owned by ${task.owner}.` : `${label} doesn't have an owner assigned yet.`,
+          presentation_policy: resultPresentation("text"),
+        };
+      }
+      if (/\bdue|overdue|deadline|late\b/i.test(message)) {
+        if (!task.due_at) {
+          return { status: "answered", answer: `${label} doesn't have a due date set.`, presentation_policy: resultPresentation("text") };
+        }
+        const overdueNote = task.overdue ? " — it's overdue." : ".";
+        return { status: "answered", answer: `${label} is due ${task.due_at}${overdueNote}`, presentation_policy: resultPresentation("text") };
+      }
+      if (/\bpriority\b/i.test(message) && task.priority) {
+        return { status: "answered", answer: `${label} is ${task.priority} priority.`, presentation_policy: resultPresentation("text") };
+      }
+
+      // General/status question, or nothing more specific matched — the
+      // full pre-composed digest is the honest, complete answer.
+      const digest = task.safe_summary || [label, task.status, task.priority].filter(Boolean).join(" · ");
+      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+    },
+    primary: "text",
+  });
+}
+
+function normalizeMessage(context: CapabilityContext): string {
+  return String(context.input.message ?? "").toLowerCase();
+}
+
+// ---------------------------------------------------------------------
 // public_corporate — curated static content, mirrored from what is
 // actually live on the public website today (app/about/page.tsx,
 // app/private/page.tsx, app/partnerships/page.tsx, lib/company.ts).
@@ -580,7 +708,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule()];
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule()];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {

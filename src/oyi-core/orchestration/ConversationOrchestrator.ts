@@ -786,6 +786,8 @@ const BUSINESS_CAPABILITY_LABELS: Record<string, string> = {
   "crm.opportunities.read": "opportunities that haven't been followed up",
   "reports.approvals.read": "reports awaiting approval",
   "development.status.read": "development project status",
+  "financial.summary.read": "financial position",
+  "office_tasks.read": "the task you have open",
   "corporate.company.read": "what Ochiga does",
   "corporate.development.read": "Ochiga's current developments",
   "corporate.oyi.read": "what Oyi is",
@@ -793,7 +795,7 @@ const BUSINESS_CAPABILITY_LABELS: Record<string, string> = {
   "corporate.partnerships.read": "partnering with Ochiga",
 };
 
-const OFFICE_OVERVIEW_CAPABILITY_KEYS = ["crm.leads.read", "crm.opportunities.read", "reports.approvals.read", "development.status.read"];
+const OFFICE_OVERVIEW_CAPABILITY_KEYS = ["crm.leads.read", "crm.opportunities.read", "reports.approvals.read", "development.status.read", "financial.summary.read"];
 
 function unavailableInsideFallback(): Promise<ConversationRunResult> {
   return Promise.reject(new Error("legacyFallback is not available inside the business-surface fallback response"));
