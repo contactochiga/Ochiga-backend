@@ -393,9 +393,23 @@ export type OfficeInternalOyiCoreRequest = {
   // automation open (Office's Automations detail panel). Lets Oyi Core
   // reason about the automation's real trigger/action/status instead of
   // guessing from free text, same as every other context slot here.
+  // trigger/action are pre-formatted human-readable strings (Office
+  // already computes these via humanizeAutomationTrigger/
+  // automationActionSummary for its own UI) rather than raw structured
+  // objects, since the trigger/action shape varies by type
+  // (create/transition) and Office's own formatter is the single place
+  // that already knows how to render it -- not duplicated here.
   automation_context: {
     automation_ref: string | null;
     safe_summary: string | null;
+    name?: string | null;
+    enabled?: boolean;
+    trigger?: string | null;
+    action?: string | null;
+    owner?: string | null;
+    last_run_status?: string | null;
+    last_run_at?: string | null;
+    next_run_at?: string | null;
   } | null;
   meeting_context: {
     meeting_ref: string | null;

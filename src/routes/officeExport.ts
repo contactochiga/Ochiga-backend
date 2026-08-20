@@ -200,6 +200,14 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
     automation_context: Object.keys(automation).length ? {
       automation_ref: safeText(automation.automation_ref) || null,
       safe_summary: safeText(automation.safe_summary).slice(0, 800) || null,
+      name: safeText(automation.name).slice(0, 180) || null,
+      enabled: Boolean(automation.enabled),
+      trigger: safeText(automation.trigger) || null,
+      action: safeText(automation.action) || null,
+      owner: safeText(automation.owner) || null,
+      last_run_status: safeText(automation.last_run_status) || null,
+      last_run_at: safeText(automation.last_run_at) || null,
+      next_run_at: safeText(automation.next_run_at) || null,
     } : null,
     meeting_context: Object.keys(meeting).length ? {
       meeting_ref: safeText(meeting.meeting_ref) || null,
