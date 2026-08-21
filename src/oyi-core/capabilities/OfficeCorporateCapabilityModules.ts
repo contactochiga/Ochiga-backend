@@ -29,7 +29,7 @@ import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
-import { readModule, resultPresentation, evidenceFromFact } from "./ReadCapabilityModules";
+import { readModule, resultPresentation } from "./ReadCapabilityModules";
 import { parseMeetingMutationIntent, parseSupportMutationIntent, isTaskMutationMessage } from "../context/officeActionProposal";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 
@@ -563,12 +563,13 @@ function normalizeMessage(context: CapabilityContext): string {
 // office_internal — Tasks list (Phase 4, PR 2). Answers "show me my
 // overdue tasks" / "what tasks are open" -- an aggregate the single-
 // selected-record officeTasksReadModule above cannot answer (it only
-// ever sees one task_context slot). Reuses evidenceFromFact() (the same
-// helper Consumer/Facility's own read modules use) so each task
-// participates in the same generic evidence -> IntelligenceFact ->
-// ResultSetContext pipeline as any other capability, which is what lets
-// a later turn ("move the first two to Monday") resolve an ordinal
-// reference against this list without any Office-specific plumbing.
+// ever sees one task_context slot). Each task is wrapped in an
+// evidenceEnvelope() carrying an IntelligenceFact payload (see collect()
+// below) so it participates in the same generic evidence ->
+// IntelligenceFact -> ResultSetContext pipeline as any other capability,
+// which is what lets a later turn ("move the first two to Monday")
+// resolve an ordinal reference against this list without any
+// Office-specific plumbing.
 // ---------------------------------------------------------------------
 function taskOpenFact(task: NonNullable<OperationalSnapshot["tasks"]>["open"][number]): IntelligenceFact {
   return {
@@ -607,7 +608,34 @@ function officeTasksQueryReadModule(): CapabilityModule {
       const snapshot = officeSnapshot(context);
       const tasks = snapshot?.tasks;
       if (!tasks) return [];
-      return tasks.open.map((task) => evidenceFromFact(taskOpenFact(task)));
+      // Phase 4 hotfix (found in live production verification, not
+      // caught by unit tests that call collect()/answer() directly and
+      // so never exercise CapabilityService's assertEvidenceAllowed
+      // gate) -- evidenceFromFact() is a Consumer/Facility helper whose
+      // privacyForFact() ignores whatever privacy_class the fact itself
+      // carries and defaults anything it doesn't recognize (every
+      // office_* domain) to "household_private", which privacyAllowed()
+      // then unconditionally blocks on office_internal. Every OTHER
+      // office_internal capability in this file builds its envelope via
+      // evidenceEnvelope() directly with an explicit corporate privacy_
+      // class for exactly this reason; this one now matches.
+      return tasks.open.map((task) => {
+        const fact = taskOpenFact(task);
+        return evidenceEnvelope({
+          evidence_id: `capability:${fact.fact_id}`,
+          domain: "office_tasks",
+          type: fact.fact_type,
+          object_type: "task",
+          object_id: task.id,
+          source: "domain_adapter",
+          observed_at: fact.observed_at,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.85,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { fact },
+        });
+      });
     },
     answer: (context) => {
       const snapshot = officeSnapshot(context);
