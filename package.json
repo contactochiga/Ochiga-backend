@@ -24,6 +24,7 @@
     "smoke:milestone2-list-capabilities": "npm run build && node scripts/milestone2-list-capabilities-smoke.mjs",
     "smoke:milestone2-write-capabilities": "npm run build && node scripts/milestone2-write-capabilities-smoke.mjs",
     "smoke:milestone2-documents-content-readonly": "npm run build && node scripts/milestone2-documents-content-readonly-smoke.mjs",
+    "smoke:milestone2-adaptive-blocks-coverage": "npm run build && node scripts/milestone2-adaptive-blocks-coverage-smoke.mjs",
     "smoke:office-export-auth-compat": "npm run build && node scripts/office-export-auth-compat-smoke.mjs",
     "smoke:communications-office-auth-compat": "npm run build && node scripts/communications-office-auth-compat-smoke.mjs",
     "smoke:communications-layer": "npm run build && node scripts/communications-layer-smoke.mjs",

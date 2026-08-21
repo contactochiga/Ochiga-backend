@@ -192,6 +192,24 @@ export function unavailableResult(answer: string): DomainResult {
   return { status: "unavailable", answer, presentation_policy: resultPresentation("text") };
 }
 
+// Milestone 2 — adaptive response coverage: a single-record "give me an
+// overview" question (no specific sub-question matched, falls through
+// to the digest branch) pairs its short prose answer with a compact
+// key_value block, same "short explanation + structured detail"
+// composition the brief's own example calls for ("a single partnership
+// status question: short answer + key-value block"). Filters out
+// genuinely absent fields rather than showing "—" for everything that
+// happens not to apply to this record.
+function capitalize(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+function keyValueBlock(title: string, items: Array<{ label: string; value: string | null | undefined }>) {
+  const populated = items.filter((item) => item.value !== null && item.value !== undefined && item.value !== "");
+  if (!populated.length) return [];
+  return [{ type: "key_value" as const, title, items: populated as Array<{ label: string; value: string }> }];
+}
+
 // ---------------------------------------------------------------------
 // office_internal — CRM leads
 // ---------------------------------------------------------------------
@@ -242,7 +260,20 @@ function crmLeadsReadModule(): CapabilityModule {
       return {
         status: "answered",
         answer: `${items.length} lead${items.length === 1 ? "" : "s"} need${items.length === 1 ? "s" : ""} attention out of ${totalOpen} open:\n${lines.map((line) => `• ${line}`).join("\n")}`,
-        blocks: [{ type: "list", items }],
+        blocks: [
+          {
+            type: "record_list",
+            title: "Leads Needing Attention",
+            columns: [
+              { key: "name", label: "Lead" },
+              { key: "status", label: "Status" },
+              { key: "reason", label: "Reason" },
+            ],
+            rows: items.map((lead) => ({ id: lead.id, name: lead.name, status: lead.status, reason: lead.reason })),
+            total_count: totalOpen,
+            truncated: items.length < totalOpen,
+          },
+        ],
         presentation_policy: resultPresentation("list"),
         metadata: { total_open: totalOpen },
       };
@@ -301,7 +332,20 @@ function crmOpportunitiesReadModule(): CapabilityModule {
       return {
         status: "answered",
         answer: `${items.length} opportunit${items.length === 1 ? "y hasn't" : "ies haven't"} been followed up this week:\n${lines.map((line) => `• ${line}`).join("\n")}`,
-        blocks: [{ type: "list", items }],
+        blocks: [
+          {
+            type: "record_list",
+            title: "Stale Opportunities",
+            columns: [
+              { key: "name", label: "Opportunity" },
+              { key: "stage", label: "Stage" },
+              { key: "owner", label: "Owner" },
+            ],
+            rows: items.map((o) => ({ id: o.id, name: o.name, stage: o.stage, owner: o.owner })),
+            total_count: totalOpen,
+            truncated: items.length < totalOpen,
+          },
+        ],
         presentation_policy: resultPresentation("list"),
         metadata: { total_open: totalOpen },
       };
@@ -355,7 +399,19 @@ function reportsApprovalsReadModule(): CapabilityModule {
       return {
         status: "answered",
         answer: `${items.length} report${items.length === 1 ? "" : "s"} awaiting approval:\n${lines.map((line) => `• ${line}`).join("\n")}`,
-        blocks: [{ type: "list", items }],
+        blocks: [
+          {
+            type: "record_list",
+            title: "Reports Awaiting Approval",
+            columns: [
+              { key: "title", label: "Report" },
+              { key: "submitted_by", label: "Submitted By" },
+            ],
+            rows: items.map((r) => ({ id: r.id, title: r.title, submitted_by: r.submitted_by })),
+            total_count: items.length,
+            truncated: false,
+          },
+        ],
         presentation_policy: resultPresentation("list"),
       };
     },
@@ -413,7 +469,20 @@ function developmentStatusReadModule(): CapabilityModule {
       return {
         status: "answered",
         answer: `Across ${items.length} development project${items.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
-        blocks: [{ type: "list", items }],
+        blocks: [
+          {
+            type: "record_list",
+            title: "Development Projects",
+            columns: [
+              { key: "name", label: "Project" },
+              { key: "status", label: "Status" },
+              { key: "percent_complete", label: "Progress" },
+            ],
+            rows: items.map((p) => ({ id: p.id, name: p.name, status: p.status, percent_complete: p.percent_complete != null ? `${p.percent_complete}%` : null })),
+            total_count: items.length,
+            truncated: false,
+          },
+        ],
         presentation_policy: resultPresentation("list"),
       };
     },
@@ -482,7 +551,39 @@ function financialSummaryReadModule(): CapabilityModule {
       return {
         status: "answered",
         answer: summary,
-        blocks: [{ type: "list", items: financial.estates }],
+        // Mixed composition: a key_value block for the portfolio-level
+        // totals, then a table of the estates behind them — short
+        // explanation + KPI + table, matching the adaptive response
+        // brief's own "Compare portfolio projects"-style example.
+        blocks: [
+          {
+            type: "key_value",
+            title: "Portfolio Summary",
+            items: [
+              { label: "Estates", value: String(portfolio.estate_count) },
+              { label: "Current Balance", value: fmt(portfolio.current_balance_total) },
+              { label: "Period Revenue", value: fmt(portfolio.revenue_period_total) },
+              { label: "Transactions", value: String(portfolio.transaction_count_total) },
+            ],
+          },
+          {
+            type: "record_list",
+            title: "Estates",
+            columns: [
+              { key: "name", label: "Estate" },
+              { key: "current_balance", label: "Balance" },
+              { key: "revenue_period", label: "Revenue" },
+            ],
+            rows: financial.estates.map((estate) => ({
+              id: estate.estate_id,
+              name: estate.name,
+              current_balance: fmt(estate.current_balance ?? 0),
+              revenue_period: fmt(estate.revenue_period),
+            })),
+            total_count: financial.estates.length,
+            truncated: false,
+          },
+        ],
         presentation_policy: resultPresentation("list"),
         metadata: { portfolio, period_start: financial.period_start, period_end: financial.period_end },
       };
@@ -920,7 +1021,17 @@ function officeAutomationsReadModule(): CapabilityModule {
       }
 
       const digest = automation.safe_summary || [label, describeAutomationStatus(automation), automation.trigger].filter(Boolean).join(" · ");
-      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+      return {
+        status: "answered",
+        answer: digest,
+        blocks: keyValueBlock(label, [
+          { label: "Status", value: capitalize(describeAutomationStatus(automation)) },
+          { label: "Trigger", value: automation.trigger },
+          { label: "Owner", value: automation.owner },
+          { label: "Last run", value: automation.last_run_at ? `${automation.last_run_at} — ${automation.last_run_status || "unknown"}` : null },
+        ]),
+        presentation_policy: resultPresentation("text"),
+      };
     },
     primary: "text",
   });
@@ -1168,7 +1279,17 @@ function officeMeetingsReadModule(): CapabilityModule {
       }
 
       const digest = meeting.safe_summary || [label, meeting.status, meeting.scheduled_at].filter(Boolean).join(" · ");
-      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+      return {
+        status: "answered",
+        answer: digest,
+        blocks: keyValueBlock(label, [
+          { label: "Status", value: meeting.status },
+          { label: "When", value: meeting.scheduled_at },
+          { label: "Owner", value: meeting.owner },
+          { label: "Outcome", value: meeting.outcome },
+        ]),
+        presentation_policy: resultPresentation("text"),
+      };
     },
     primary: "text",
   });
@@ -1417,7 +1538,17 @@ function officeSupportReadModule(): CapabilityModule {
       }
 
       const digest = support.safe_summary || [label, support.status, support.severity].filter(Boolean).join(" · ");
-      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+      return {
+        status: "answered",
+        answer: digest,
+        blocks: keyValueBlock(label, [
+          { label: "Status", value: support.status },
+          { label: "Severity", value: support.severity },
+          { label: "Priority", value: support.priority },
+          { label: "Owner", value: support.assigned_staff },
+        ]),
+        presentation_policy: resultPresentation("text"),
+      };
     },
     primary: "text",
   });
@@ -1667,7 +1798,17 @@ function officePortfolioReadModule(): CapabilityModule {
       }
 
       const digest = portfolio.safe_summary || [label, portfolio.relationship_type, describeOperationalState(portfolio)].filter(Boolean).join(" · ");
-      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+      return {
+        status: "answered",
+        answer: digest,
+        blocks: keyValueBlock(label, [
+          { label: "Status", value: portfolio.status },
+          { label: "Relationship", value: portfolio.relationship_type },
+          { label: "Health", value: portfolio.health_summary },
+          { label: "Support", value: portfolio.support_status },
+        ]),
+        presentation_policy: resultPresentation("text"),
+      };
     },
     primary: "text",
   });
@@ -1908,7 +2049,17 @@ function officePartnershipsReadModule(): CapabilityModule {
       }
 
       const digest = partnership.safe_summary || [label, partnership.relationship_type, partnership.review_status].filter(Boolean).join(" · ");
-      return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
+      return {
+        status: "answered",
+        answer: digest,
+        blocks: keyValueBlock(label, [
+          { label: "Status", value: partnership.review_status },
+          { label: "Relationship", value: partnership.relationship_type },
+          { label: "Manager", value: partnership.relationship_manager },
+          { label: "Business Unit", value: partnership.business_unit },
+        ]),
+        presentation_policy: resultPresentation("text"),
+      };
     },
     primary: "text",
   });
