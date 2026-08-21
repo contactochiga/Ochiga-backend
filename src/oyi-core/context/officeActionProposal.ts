@@ -594,7 +594,7 @@ export function buildBatchGovernedActionProposal(input: {
   };
 }
 
-// Phase 4, PR 5 -- revision accumulation. Previously, "actually Tuesday"
+// Phase 3/4 -- revision accumulation. Previously, "actually Tuesday"
 // followed by "and give it to Tony" replaced the whole proposal each
 // time (a fresh single-field buildGovernedActionProposal() call
 // derived from the still-unchanged task_context), so the second
@@ -604,10 +604,24 @@ export function buildBatchGovernedActionProposal(input: {
 // don't let a stale yes fire days later" reasoning as a fresh
 // proposal). Single-record only -- batch proposals are explicitly out
 // of scope here (see ConversationOrchestrator.ts's fallthrough guard).
+//
+// Milestone 2 (Backend): generalized from Tasks-only to any single-
+// record domain's mutation intent shape (the caller picks the right
+// per-domain parser; this function only needs {field, rawValue,
+// canonicalValue}). Also now accumulates previous_state, not just
+// proposed_state -- previously a field added on a LATER revision never
+// got a previous_state entry at all (mergeTaskRevisionIntoProposal
+// never touched it), so the multi-field diff card had nothing to show
+// on the "before" side for that field. currentValue is the field's
+// live value at the moment of the revision (from the caller's already-
+// populated context slot) -- captured once, on first mention, same
+// "don't re-derive, don't fabricate" principle as everywhere else in
+// this file.
 export function mergeTaskRevisionIntoProposal(
   pending: GovernedActionProposal,
-  intent: TaskMutationIntent,
-  description: string
+  intent: { operation: string; field: string; rawValue: string; canonicalValue: unknown },
+  description: string,
+  currentValue?: unknown
 ): GovernedActionProposal {
   const now = new Date();
   const priorFieldsRaw = recordOf(pending.parameters).fields;
@@ -622,6 +636,10 @@ export function mergeTaskRevisionIntoProposal(
       : text((pending.parameters as Record<string, unknown> | undefined)?.field)
       ? { [(pending.parameters as Record<string, unknown>).field as string]: { raw_value: (pending.parameters as Record<string, unknown>).raw_value, canonical_value: (pending.parameters as Record<string, unknown>).canonical_value } }
       : {};
+  const priorPreviousState = recordOf(pending.previous_state);
+  const nextPreviousState = Object.prototype.hasOwnProperty.call(priorPreviousState, intent.field)
+    ? priorPreviousState
+    : { ...priorPreviousState, [intent.field]: currentValue ?? null };
   return {
     ...pending,
     description,
@@ -632,6 +650,7 @@ export function mergeTaskRevisionIntoProposal(
         [intent.field]: { raw_value: intent.rawValue, canonical_value: intent.canonicalValue },
       },
     },
+    previous_state: nextPreviousState,
     proposed_state: { ...(pending.proposed_state || {}), [intent.field]: intent.canonicalValue },
     execute_directive: pending.execute_directive
       ? { ...pending.execute_directive, patch: { ...pending.execute_directive.patch, [intent.field]: intent.canonicalValue } }

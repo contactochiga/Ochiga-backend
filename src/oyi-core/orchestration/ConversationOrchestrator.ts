@@ -49,6 +49,11 @@ import {
   proposalPublicView,
   parseTaskRevisionIntent,
   parseTaskMutationIntent,
+  parseMeetingMutationIntent,
+  parseSupportMutationIntent,
+  parseAutomationMutationIntent,
+  parsePortfolioMutationIntent,
+  parsePartnershipMutationIntent,
   mergeTaskRevisionIntoProposal,
 } from "../context/officeActionProposal";
 import { buildLastVerifiedOfficeAction } from "../context/officeAutomationSuggestion";
@@ -627,6 +632,24 @@ const BATCH_DOMAIN_LABEL: Record<string, string> = {
   office_portfolio: "portfolio entry",
   corporate_partnerships: "partnership",
 };
+// Milestone 2 -- generalizes revision accumulation ("actually Tuesday",
+// then "and give it to Tony" merging into ONE proposal) beyond Tasks to
+// every single-record write-capable domain. Tasks alone gets a genuine
+// short-phrase revision parser (parseTaskRevisionIntent, which trusts
+// the pending proposal's own operation to disambiguate a bare word like
+// "Monday" or "Tony" from an unrelated sentence); every other domain
+// falls back to its ordinary full-phrase mutation parser only ("assign
+// this to Tony" works, a bare "Tony" does not) -- still real revision
+// accumulation, just without the extra short-phrase convenience layer.
+const REVISION_DOMAIN_INTENT_PARSER: Partial<Record<string, (message: string, pendingOperation: string) => { operation: string; field: string; rawValue: string; canonicalValue: unknown } | null>> = {
+  office_tasks: (message, pendingOperation) => parseTaskRevisionIntent(message, pendingOperation) || parseTaskMutationIntent(message),
+  office_meetings: (message) => parseMeetingMutationIntent(message),
+  office_support: (message) => parseSupportMutationIntent(message),
+  automations: (message) => parseAutomationMutationIntent(message),
+  office_portfolio: (message) => parsePortfolioMutationIntent(message),
+  corporate_partnerships: (message) => parsePartnershipMutationIntent(message),
+};
+
 const BATCH_DOMAIN_SURFACE_NAME: Record<string, string> = {
   office_tasks: "Tasks",
   automations: "Automations",
@@ -967,12 +990,20 @@ async function handleOfficeActionProposalTurn(
     // way -- accumulating a revision onto a batch is out of scope here;
     // skip so a short correction against a pending batch falls through
     // to normal routing instead of an incorrect reply.
-    if (pending.domain === "office_tasks" && !(pending.child_operations && pending.child_operations.length)) {
-      const revisionIntent = parseTaskRevisionIntent(message, pending.operation) || parseTaskMutationIntent(message);
+    const revisionParser = REVISION_DOMAIN_INTENT_PARSER[pending.domain];
+    if (revisionParser && !(pending.child_operations && pending.child_operations.length)) {
+      const revisionIntent = revisionParser(message, pending.operation);
       if (revisionIntent) {
         const populated = populatedOfficeContextSlot(context as CapabilityContext);
-        const label = text((populated?.slot as any)?.title) || officeActionTitleCase(pending.target_entity_type);
-        const merged = mergeTaskRevisionIntoProposal(pending, revisionIntent, "");
+        const label = text((populated?.slot as any)?.title) || text((populated?.slot as any)?.name) || officeActionTitleCase(pending.target_entity_type);
+        // Milestone 2 -- captures the field's CURRENT live value from the
+        // already-populated context slot the first time this field is
+        // revised, so the multi-field diff card has a real "before" to
+        // show, not just the "after" (see mergeTaskRevisionIntoProposal's
+        // header note).
+        const contextFieldKey = OFFICE_PROPOSAL_FIELD_TO_CONTEXT_FIELD[revisionIntent.field] || revisionIntent.field;
+        const currentValue = (populated?.slot as Record<string, unknown> | undefined)?.[contextFieldKey];
+        const merged = mergeTaskRevisionIntoProposal(pending, revisionIntent, "", currentValue);
         const description = describeTaskRevision(merged.proposed_state, label);
         const revisedProposal: GovernedActionProposal = { ...merged, description };
         const capability = syntheticOfficeActionCapability(`${pending.domain}.action_revised`, pending.domain);
