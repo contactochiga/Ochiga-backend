@@ -30,7 +30,14 @@ import type { OyiEvidence } from "../contracts/evidence";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
-import { parseMeetingMutationIntent, parseSupportMutationIntent, isTaskMutationMessage } from "../context/officeActionProposal";
+import {
+  parseMeetingMutationIntent,
+  parseSupportMutationIntent,
+  isTaskMutationMessage,
+  isAutomationMutationMessage,
+  parsePortfolioMutationIntent,
+  parsePartnershipMutationIntent,
+} from "../context/officeActionProposal";
 import { isAutomationScheduleOrRecurrenceMessage } from "../context/officeAutomationSuggestion";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 
@@ -142,10 +149,21 @@ export function taskContextSlot(context: CapabilityContext): TaskContextSlot {
 
 // Phase 4, PR 4 -- the batch counterpart of task_context: after a batch
 // confirm, Office resends one rebuilt entry per child it PATCHed
-// (same taskOyiContext() shape as the single-record slot above, just
-// plural), so the VERIFY turn can check each child independently
-// instead of assuming a single selected record.
-export type TaskBatchContextEntry = NonNullable<TaskContextSlot>;
+// (the SAME per-domain *OyiContext() shape the single-record slot for
+// that domain already uses -- taskOyiContext/automationOyiContext/
+// supportOyiContext/etc, just plural), so the VERIFY turn can check
+// each child independently instead of assuming a single selected
+// record. The wire field is still named task_batch_context (unchanged
+// since Phase 4 PR 4) and reused as-is for every batch-capable domain
+// Milestone 2 adds -- introducing a second, third, fourth
+// per-domain-named field would mean touching Office's proxy forwarding
+// and Backend's normalizer for each new domain for no real benefit; the
+// entries are already self-describing (each carries its own ref key --
+// task_ref/automation_ref/support_case_ref/etc), so one shared array is
+// sufficient. Entry shape widened from Tasks-only to a generic record
+// accordingly -- see BATCH_ENTRY_REF_KEY in ConversationOrchestrator.ts
+// for how the right ref key is picked per domain at verify time.
+export type TaskBatchContextEntry = Record<string, unknown>;
 
 export function taskBatchContextSlot(context: CapabilityContext): TaskBatchContextEntry[] {
   const requestContext = context.input.context;
@@ -770,7 +788,7 @@ function officeTasksQueryReadModule(): CapabilityModule {
 // run now/delete) here; those stay manual through the existing
 // Automations detail panel, matching this pass's read-only scope.
 // ---------------------------------------------------------------------
-type AutomationContextSlot = {
+export type AutomationContextSlot = {
   automation_ref: string | null;
   safe_summary: string | null;
   name?: string | null;
@@ -783,7 +801,7 @@ type AutomationContextSlot = {
   next_run_at?: string | null;
 } | null;
 
-function automationContextSlot(context: CapabilityContext): AutomationContextSlot {
+export function automationContextSlot(context: CapabilityContext): AutomationContextSlot {
   const requestContext = context.input.context;
   if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
   const slot = (requestContext as Record<string, unknown>).automation_context;
@@ -813,7 +831,10 @@ function officeAutomationsReadModule(): CapabilityModule {
     permissions: ["tasks.read"],
     evidenceRequirements: [{ domain: "automations", evidence_type: "office_automation_selected", freshness: ["fresh", "unknown"], required: false }],
     supports: (frame: SemanticFrame) =>
-      frame.domain === "automations" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isAutomationsListIntent(frame.normalizedText),
+      frame.domain === "automations" &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      !isAutomationMutationMessage(frame.normalizedText) &&
+      !isAutomationsListIntent(frame.normalizedText),
     collect: async (context) => {
       const automation = automationContextSlot(context);
       if (!automation || !(automation.safe_summary || automation.name)) return [];
@@ -949,7 +970,10 @@ function officeAutomationsQueryReadModule(): CapabilityModule {
     permissions: ["tasks.read"],
     evidenceRequirements: [{ domain: "automations", evidence_type: "office_automation_open", freshness: ["fresh", "unknown"], required: false }],
     supports: (frame: SemanticFrame) =>
-      frame.domain === "automations" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isAutomationsListIntent(frame.normalizedText),
+      frame.domain === "automations" &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      !isAutomationMutationMessage(frame.normalizedText) &&
+      isAutomationsListIntent(frame.normalizedText),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const automations = snapshot?.automations;
@@ -1272,6 +1296,7 @@ export type SupportContextSlot = {
   safe_summary: string | null;
   title?: string | null;
   status?: string | null;
+  priority?: string | null;
   severity?: string | null;
   category?: string | null;
   product_area?: string | null;
@@ -1513,7 +1538,7 @@ function officeSupportQueryReadModule(): CapabilityModule {
 // now / never-linked) rather than treating "no numbers" as one
 // undifferentiated blank.
 // ---------------------------------------------------------------------
-type PortfolioContextSlot = {
+export type PortfolioContextSlot = {
   portfolio_ref: string | null;
   backend_building_ref: string | null;
   safe_summary: string | null;
@@ -1535,7 +1560,7 @@ type PortfolioContextSlot = {
   major_open_escalations?: number | null;
 } | null;
 
-function portfolioContextSlot(context: CapabilityContext): PortfolioContextSlot {
+export function portfolioContextSlot(context: CapabilityContext): PortfolioContextSlot {
   const requestContext = context.input.context;
   if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
   const slot = (requestContext as Record<string, unknown>).portfolio_context;
@@ -1560,7 +1585,10 @@ function officePortfolioReadModule(): CapabilityModule {
     permissions: ["portfolio.read"],
     evidenceRequirements: [{ domain: "office_portfolio", evidence_type: "office_portfolio_entry_selected", freshness: ["fresh", "unknown"], required: false }],
     supports: (frame: SemanticFrame) =>
-      frame.domain === "office_portfolio" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isPortfolioListIntent(frame.normalizedText),
+      frame.domain === "office_portfolio" &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      !parsePortfolioMutationIntent(frame.normalizedText) &&
+      !isPortfolioListIntent(frame.normalizedText),
     collect: async (context) => {
       const portfolio = portfolioContextSlot(context);
       if (!portfolio || !(portfolio.safe_summary || portfolio.name)) return [];
@@ -1687,7 +1715,10 @@ function officePortfolioQueryReadModule(): CapabilityModule {
     permissions: ["portfolio.read"],
     evidenceRequirements: [{ domain: "office_portfolio", evidence_type: "office_portfolio_open", freshness: ["fresh", "unknown"], required: false }],
     supports: (frame: SemanticFrame) =>
-      frame.domain === "office_portfolio" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isPortfolioListIntent(frame.normalizedText),
+      frame.domain === "office_portfolio" &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      !parsePortfolioMutationIntent(frame.normalizedText) &&
+      isPortfolioListIntent(frame.normalizedText),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const portfolio = snapshot?.portfolio;
@@ -1765,7 +1796,7 @@ function officePortfolioQueryReadModule(): CapabilityModule {
 // above incompatible ones regardless of score, so no languageUnderstanding.ts
 // change is needed -- verified in the regression script below.
 // ---------------------------------------------------------------------
-type PartnershipContextSlot = {
+export type PartnershipContextSlot = {
   partnership_ref: string | null;
   safe_summary: string | null;
   relationship_type?: string | null;
@@ -1778,7 +1809,7 @@ type PartnershipContextSlot = {
   last_contact_mode?: string | null;
 } | null;
 
-function partnershipContextSlot(context: CapabilityContext): PartnershipContextSlot {
+export function partnershipContextSlot(context: CapabilityContext): PartnershipContextSlot {
   const requestContext = context.input.context;
   if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
   const slot = (requestContext as Record<string, unknown>).partnership_context;
@@ -1794,7 +1825,10 @@ function officePartnershipsReadModule(): CapabilityModule {
     permissions: ["partnerships.read"],
     evidenceRequirements: [{ domain: "corporate_partnerships", evidence_type: "office_partnership_selected", freshness: ["fresh", "unknown"], required: false }],
     supports: (frame: SemanticFrame) =>
-      frame.domain === "corporate_partnerships" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isPartnershipsListIntent(frame.normalizedText),
+      frame.domain === "corporate_partnerships" &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      !parsePartnershipMutationIntent(frame.normalizedText) &&
+      !isPartnershipsListIntent(frame.normalizedText),
     collect: async (context) => {
       const partnership = partnershipContextSlot(context);
       if (!partnership || !partnership.safe_summary) return [];
@@ -1904,7 +1938,10 @@ function officePartnershipsQueryReadModule(): CapabilityModule {
     permissions: ["partnerships.read"],
     evidenceRequirements: [{ domain: "corporate_partnerships", evidence_type: "office_partnership_open", freshness: ["fresh", "unknown"], required: false }],
     supports: (frame: SemanticFrame) =>
-      frame.domain === "corporate_partnerships" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isPartnershipsListIntent(frame.normalizedText),
+      frame.domain === "corporate_partnerships" &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      !parsePartnershipMutationIntent(frame.normalizedText) &&
+      isPartnershipsListIntent(frame.normalizedText),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const partnerships = snapshot?.partnerships;

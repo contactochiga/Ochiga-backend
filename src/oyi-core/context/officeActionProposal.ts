@@ -77,6 +77,26 @@ const SUPPORT_STATUS_TRANSITIONS: Record<string, string[]> = {
   resolved: ["in_progress", "closed"],
   closed: [],
 };
+// Milestone 2 — mirrored from ochiga-office's own STATUS_TRANSITIONS
+// (office-operational-workflows.js) for the two domains that had no
+// write capability at all before this. Same "pre-flight courtesy, not
+// the enforcement" note as the three tables above applies.
+const PORTFOLIO_STATUS_TRANSITIONS: Record<string, string[]> = {
+  active: ["on_hold", "completed", "cancelled"],
+  normal: ["attention", "on_hold"],
+  attention: ["normal", "on_hold"],
+  on_hold: ["active", "normal", "cancelled"],
+  completed: [],
+  cancelled: [],
+};
+const PARTNERSHIP_STATUS_TRANSITIONS: Record<string, string[]> = {
+  new: ["under_review", "active", "declined"],
+  under_review: ["active", "declined"],
+  active: ["paused", "closed"],
+  paused: ["active", "closed"],
+  closed: [],
+  declined: [],
+};
 
 function validateTransition(transitions: Record<string, string[]>, current: string, next: string): { valid: boolean; reason: string | null } {
   const from = text(current).toLowerCase();
@@ -97,7 +117,28 @@ function validateTransition(transitions: Record<string, string[]>, current: stri
 export type TaskMutationIntent =
   | { operation: "status_transition"; field: "status"; rawValue: string; canonicalValue: string }
   | { operation: "reassign_owner"; field: "assignee"; rawValue: string; canonicalValue: string }
-  | { operation: "change_due_date"; field: "due_at"; rawValue: string; canonicalValue: string };
+  | { operation: "change_due_date"; field: "due_at"; rawValue: string; canonicalValue: string }
+  | { operation: "change_priority"; field: "priority"; rawValue: string; canonicalValue: string };
+
+// Milestone 2 — "make those high priority" / "make this low priority",
+// generic enough it's shared verbatim by the Support priority parser
+// below (same field, same three real values in both collections'
+// FIELD_POLICY).
+const PRIORITY_WORDS: Array<[RegExp, string]> = [
+  [/\bhigh priority\b|\burgent\b/i, "high"],
+  [/\bmedium priority\b|\bnormal priority\b/i, "medium"],
+  [/\blow priority\b/i, "low"],
+];
+
+export function parsePriorityIntent(message: string): { rawValue: string; canonicalValue: string } | null {
+  const m = text(message);
+  if (!/\b(?:make|set|mark|change)\b/i.test(m)) return null;
+  for (const [pattern, canonical] of PRIORITY_WORDS) {
+    const match = m.match(pattern);
+    if (match) return { rawValue: match[0], canonicalValue: canonical };
+  }
+  return null;
+}
 
 const TASK_STATUS_WORDS: Array<[RegExp, string]> = [
   [/\bin[- ]?progress\b|\bstarted\b/i, "in_progress"],
@@ -123,7 +164,7 @@ function parseTaskAssigneeIntent(message: string): TaskMutationIntent | null {
   // narrows. "give" added in Phase 4, PR 5 -- "and give it to Tony" is
   // the natural way to ADD an owner onto an already-pending revision
   // (see mergeTaskRevisionIntoProposal), same reasoning.
-  const match = text(message).match(/\b(?:assign|reassign|give)(?:\s+this|\s+these|\s+them|\s+it)?(?:\s+tasks?)?\s+to\s+([A-Za-z][A-Za-z '.-]{1,60})/i);
+  const match = text(message).match(/\b(?:assign|reassign|give)(?:\s+this|\s+these|\s+those|\s+them|\s+it)?(?:\s+tasks?)?\s+to\s+([A-Za-z][A-Za-z '.-]{1,60})/i);
   if (!match) return null;
   const name = match[1].trim().replace(/[.?!]+$/, "");
   if (!name || /^(?:me|myself|him|her|them|someone|anyone)$/i.test(name)) return null;
@@ -168,8 +209,14 @@ function parseTaskDueDateIntent(message: string): TaskMutationIntent | null {
   return { operation: "change_due_date", field: "due_at", rawValue: phrase, canonicalValue: iso };
 }
 
+function parseTaskPriorityIntent(message: string): TaskMutationIntent | null {
+  const priority = parsePriorityIntent(message);
+  if (!priority) return null;
+  return { operation: "change_priority", field: "priority", rawValue: priority.rawValue, canonicalValue: priority.canonicalValue };
+}
+
 export function parseTaskMutationIntent(message: string): TaskMutationIntent | null {
-  return parseTaskStatusIntent(message) || parseTaskAssigneeIntent(message) || parseTaskDueDateIntent(message);
+  return parseTaskStatusIntent(message) || parseTaskAssigneeIntent(message) || parseTaskDueDateIntent(message) || parseTaskPriorityIntent(message);
 }
 
 // ---------------------------------------------------------------------
@@ -245,6 +292,7 @@ const REVISION_PREFIX = /^(?:actually,?\s*|no,?\s*|wait,?\s*)?(?:make it|change 
 export function reconstructTaskTriggerPhrase(intent: TaskMutationIntent): string {
   if (intent.operation === "status_transition") return `move this to ${intent.canonicalValue.replace(/_/g, " ")}`;
   if (intent.operation === "reassign_owner") return `assign this to ${intent.canonicalValue}`;
+  if (intent.operation === "change_priority") return `make this ${intent.canonicalValue} priority`;
   return `change the due date to ${intent.canonicalValue}`;
 }
 
@@ -268,28 +316,62 @@ export function parseTaskRevisionIntent(message: string, pendingOperation: strin
     if (!iso) return null;
     return { operation: "change_due_date", field: "due_at", rawValue: candidate, canonicalValue: iso };
   }
+  if (pendingOperation === "change_priority") {
+    const priority = parsePriorityIntent(`make it ${candidate}`) || parsePriorityIntent(candidate);
+    if (!priority && !/^(?:high|medium|normal|low)$/i.test(candidate)) return null;
+    const canonical = priority?.canonicalValue || candidate.toLowerCase().replace("normal", "medium");
+    return { operation: "change_priority", field: "priority", rawValue: candidate, canonicalValue: canonical };
+  }
   return null;
 }
 
-export type MeetingMutationIntent = { operation: "status_transition"; field: "status"; rawValue: string; canonicalValue: string };
+export type MeetingMutationIntent =
+  | { operation: "status_transition"; field: "status"; rawValue: string; canonicalValue: string }
+  | { operation: "reschedule"; field: "scheduled_at"; rawValue: string; canonicalValue: string };
+
+// Reuses the same weekday/tomorrow/date-phrase parsing as Tasks' due
+// date, plus a bare time-of-day ("3pm"/"15:00") applied to today (or
+// tomorrow if that time has already passed) -- "move the first one to
+// 3pm" from the acceptance examples has no day at all, just a time.
+function timePhraseToIso(phrase: string): string | null {
+  const timeMatch = phrase.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i);
+  if (!timeMatch) return null;
+  let hour = parseInt(timeMatch[1], 10);
+  const minute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+  const meridiem = timeMatch[3]?.toLowerCase();
+  if (meridiem === "pm" && hour < 12) hour += 12;
+  if (meridiem === "am" && hour === 12) hour = 0;
+  if (!meridiem && hour < 8) hour += 12; // "move it to 3" means 3pm during business hours, not 3am.
+  if (hour > 23 || minute > 59) return null;
+  const result = new Date();
+  result.setUTCHours(hour, minute, 0, 0);
+  if (result.getTime() < Date.now()) result.setUTCDate(result.getUTCDate() + 1);
+  return result.toISOString();
+}
+
+function meetingReschedulePhraseToIso(phrase: string): string | null {
+  return datePhraseToIso(phrase) || timePhraseToIso(phrase);
+}
 
 export function parseMeetingMutationIntent(message: string): MeetingMutationIntent | null {
   const m = text(message);
   if (/\bcancel\b/i.test(m) && /\bmeeting\b|\bthis\b/i.test(m)) {
     return { operation: "status_transition", field: "status", rawValue: "cancel", canonicalValue: "cancelled" };
   }
+  const rescheduleMatch = m.match(/\b(?:move|reschedule|change)\b(?:.*?)\bto\b\s+(.+?)[.?!]?$/i);
+  if (rescheduleMatch) {
+    const iso = meetingReschedulePhraseToIso(rescheduleMatch[1].trim());
+    if (iso) return { operation: "reschedule", field: "scheduled_at", rawValue: rescheduleMatch[1].trim(), canonicalValue: iso };
+  }
   return null;
 }
 
-export type SupportMutationIntent = {
-  operation: "resolve_case";
-  field: "status";
-  rawValue: string;
-  canonicalValue: "resolved";
-  resolutionNotes: string | null;
-};
+export type SupportMutationIntent =
+  | { operation: "resolve_case"; field: "status"; rawValue: string; canonicalValue: "resolved"; resolutionNotes: string | null }
+  | { operation: "reassign_owner"; field: "assigned_staff"; rawValue: string; canonicalValue: string }
+  | { operation: "change_priority"; field: "priority"; rawValue: string; canonicalValue: string };
 
-export function parseSupportMutationIntent(message: string): SupportMutationIntent | null {
+function parseSupportResolveIntent(message: string): SupportMutationIntent | null {
   const m = text(message);
   if (!/\bresolve[d]?\b|\bmark(?:ed)?\b.*\bresolved\b|\bclose this (?:case|ticket)\b/i.test(m)) return null;
   const noteMatch = m.match(/\bresolve[d]?(?:\s+this)?(?:\s+(?:case|ticket|support case))?\s*[-:—]\s*(.+)$/i);
@@ -297,7 +379,96 @@ export function parseSupportMutationIntent(message: string): SupportMutationInte
   return { operation: "resolve_case", field: "status", rawValue: "resolved", canonicalValue: "resolved", resolutionNotes };
 }
 
-export { TASK_STATUS_TRANSITIONS, MEETING_STATUS_TRANSITIONS, SUPPORT_STATUS_TRANSITIONS, validateTransition };
+function parseSupportAssigneeIntent(message: string): SupportMutationIntent | null {
+  const match = text(message).match(/\b(?:assign|reassign)(?:\s+this|\s+these|\s+those|\s+them)?(?:\s+cases?|\s+issues?|\s+tickets?)?\s+to\s+([A-Za-z][A-Za-z '.-]{1,60})/i);
+  if (!match) return null;
+  const name = match[1].trim().replace(/[.?!]+$/, "");
+  if (!name || /^(?:me|myself|him|her|them|someone|anyone)$/i.test(name)) return null;
+  return { operation: "reassign_owner", field: "assigned_staff", rawValue: name, canonicalValue: name };
+}
+
+function parseSupportPriorityIntent(message: string): SupportMutationIntent | null {
+  const priority = parsePriorityIntent(message);
+  if (!priority) return null;
+  return { operation: "change_priority", field: "priority", rawValue: priority.rawValue, canonicalValue: priority.canonicalValue };
+}
+
+export function parseSupportMutationIntent(message: string): SupportMutationIntent | null {
+  return parseSupportResolveIntent(message) || parseSupportAssigneeIntent(message) || parseSupportPriorityIntent(message);
+}
+
+// ---------------------------------------------------------------------
+// Automations — pause/resume. No STATUS_TRANSITIONS table (there's no
+// state machine, just a boolean `enabled`), so no validateTransition
+// call for this one; the only real "invalid" case (already in that
+// state) is checked directly against the ref/context's own current value.
+// ---------------------------------------------------------------------
+export type AutomationMutationIntent = { operation: "pause" | "resume"; field: "enabled"; rawValue: string; canonicalValue: boolean };
+
+export function parseAutomationMutationIntent(message: string): AutomationMutationIntent | null {
+  const m = text(message);
+  if (/\b(?:pause|disable|turn off|deactivate)\b/i.test(m)) {
+    return { operation: "pause", field: "enabled", rawValue: "pause", canonicalValue: false };
+  }
+  if (/\b(?:resume|enable|turn on|activate|reactivate)\b/i.test(m)) {
+    return { operation: "resume", field: "enabled", rawValue: "resume", canonicalValue: true };
+  }
+  return null;
+}
+
+export function isAutomationMutationMessage(message: string): boolean {
+  return Boolean(parseAutomationMutationIntent(message));
+}
+
+export type PortfolioMutationIntent = { operation: "status_transition"; field: "status"; rawValue: string; canonicalValue: string };
+
+const PORTFOLIO_STATUS_WORDS: Array<[RegExp, string]> = [
+  [/\bnormal\b/i, "normal"],
+  [/\battention\b|\bat risk\b|\bneeds attention\b/i, "attention"],
+  [/\bon hold\b/i, "on_hold"],
+  [/\bactive\b/i, "active"],
+  [/\bcomplete[d]?\b/i, "completed"],
+  [/\bcancell?ed\b/i, "cancelled"],
+];
+
+export function parsePortfolioMutationIntent(message: string): PortfolioMutationIntent | null {
+  const m = text(message);
+  if (!/\b(?:move|change|update|mark|set)\b/i.test(m)) return null;
+  for (const [pattern, canonical] of PORTFOLIO_STATUS_WORDS) {
+    const match = m.match(pattern);
+    if (match) return { operation: "status_transition", field: "status", rawValue: match[0], canonicalValue: canonical };
+  }
+  return null;
+}
+
+// Milestone 2 correctness note: Office's updateOperationalRecord (see
+// office-operational-workflows.js's assertTransition/normalizeStatus)
+// validates transitions against review_status, falling back to status
+// only when review_status is absent -- review_status is the field this
+// programme's PartnershipContextSlot actually carries too (Backend has
+// no forwarded "status" field for partnerships at all). field is
+// "review_status", not "status", to match what's real on both ends.
+export type PartnershipMutationIntent = { operation: "status_transition"; field: "review_status"; rawValue: string; canonicalValue: string };
+
+const PARTNERSHIP_STATUS_WORDS: Array<[RegExp, string]> = [
+  [/\bunder review\b/i, "under_review"],
+  [/\bactive\b/i, "active"],
+  [/\bpaused\b/i, "paused"],
+  [/\bclosed\b/i, "closed"],
+  [/\bdeclined\b/i, "declined"],
+];
+
+export function parsePartnershipMutationIntent(message: string): PartnershipMutationIntent | null {
+  const m = text(message);
+  if (!/\b(?:move|change|update|mark|set)\b/i.test(m)) return null;
+  for (const [pattern, canonical] of PARTNERSHIP_STATUS_WORDS) {
+    const match = m.match(pattern);
+    if (match) return { operation: "status_transition", field: "review_status", rawValue: match[0], canonicalValue: canonical };
+  }
+  return null;
+}
+
+export { TASK_STATUS_TRANSITIONS, MEETING_STATUS_TRANSITIONS, SUPPORT_STATUS_TRANSITIONS, PORTFOLIO_STATUS_TRANSITIONS, PARTNERSHIP_STATUS_TRANSITIONS, validateTransition };
 
 // ---------------------------------------------------------------------
 // Confirmation / cancellation phrase detection -- wider than
