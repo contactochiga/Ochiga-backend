@@ -52,7 +52,13 @@ const tasks = {
 
 const overdueContext = contextWithSnapshot("Show me my overdue tasks", tasks);
 const evidence = await queryModule.collectEvidence(overdueContext);
-assert.equal(evidence.length, 2, "collect() surfaces every open task as evidence (answer() does the overdue filtering)");
+// Regression guard for a real production bug (found in live Milestone 1
+// verification): collect() must filter the SAME way answer() does, not
+// return every open task regardless of phrasing -- otherwise the
+// persisted result set ("the first two") resolves against the wrong,
+// unfiltered list instead of what was actually shown to the user.
+assert.equal(evidence.length, 1, "collect() must filter to overdue-only, matching answer()'s own filtering exactly");
+assert.equal(evidence[0].object_id, "task-1", "the single evidence item must be the actually-overdue task");
 assert.ok(evidence[0].payload?.fact?.object?.canonical_id, "each evidence item must carry a fact with object.canonical_id for result-set/follow-up resolution");
 // Regression guard for a real production bug (found in live Milestone 1
 // verification, not caught here originally because this test calls

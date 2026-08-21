@@ -736,7 +736,7 @@ async function respondFromBatchVerification(
     total,
     verified_count: verifiedCount,
   });
-  let answer =
+  const answer =
     total === 0
       ? "There was nothing in that batch to verify."
       : verifiedCount === total
@@ -744,12 +744,6 @@ async function respondFromBatchVerification(
       : verifiedCount === 0
       ? `I attempted that, but none of the ${total} tasks show the expected change yet — please check them directly in Tasks.`
       : `${verifiedCount} of ${total} tasks were updated as proposed. Please check directly: ${unverifiedLabels.join(", ")}.`;
-  answer += ` [[DEBUG ${JSON.stringify({
-    raw_context_keys: Object.keys(recordOf(context.input.context)),
-    raw_task_batch_context: recordOf(context.input.context).task_batch_context,
-    batch_entries: batchEntries,
-    children_summary: children.map((c) => ({ target_entity_id: c.target_entity_id, proposed_state: c.proposed_state, status: c.status })),
-  })}]]`;
   const capability = syntheticOfficeActionCapability(`${confirmed.domain}.batch_action_verified`, confirmed.domain);
   const allVerified = total > 0 && verifiedCount === total;
   const result: DomainResult = {
