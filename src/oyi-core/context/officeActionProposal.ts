@@ -225,11 +225,32 @@ export function parseTaskMutationIntent(message: string): TaskMutationIntent | n
 // discipline as the single-record parsers above: only ever recognizes
 // an EXPLICIT count or an explicit "all", never guesses a number from
 // vague language ("a few", "some").
+//
+// Milestone 2 -- adds a SINGLE-ordinal target ("pause the second one",
+// "the first automation"), reusing the exact same batch machinery for
+// a target list of length 1 rather than inventing a parallel single-
+// target execution path. This closes a real production bug found in
+// live verification: "pause the second one" / "move the first one to
+// 3pm" previously fell through to the generic read-only ordinal
+// follow-up resolver (attemptFollowUpResolution, which runs BEFORE
+// capability routing) and got answered as a "tell me about it" lookup
+// instead of proposing the mutation -- same collision class as the
+// Milestone 1 "the first two" bug, just for the singular case Tasks'
+// own batch flow never exercised (Tasks mutations always used "move
+// THIS to..." for a single target, never "the first one"). See
+// ConversationOrchestrator.ts's WRITE_DOMAIN_MUTATION_CHECK for the
+// other half of this fix -- the follow-up resolver must defer to
+// capability routing whenever the message is ALSO a genuine mutation
+// for the active list's domain.
 // ---------------------------------------------------------------------
-export type BatchTargetIntent = { type: "count"; count: number } | { type: "all" };
+export type BatchTargetIntent = { type: "count"; count: number } | { type: "all" } | { type: "ordinal"; position: number };
 
 const BATCH_COUNT_WORDS: Record<string, number> = {
   two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+
+const ORDINAL_POSITION_WORDS: Record<string, number> = {
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10,
 };
 
 export function parseBatchTargetIntent(message: string): BatchTargetIntent | null {
@@ -242,6 +263,21 @@ export function parseBatchTargetIntent(message: string): BatchTargetIntent | nul
   }
   if (/\ball(?: of them| of these| the overdue ones| the open ones)?\b/.test(m) || /\beverything\b/.test(m)) {
     return { type: "all" };
+  }
+  // Milestone 2 -- "assign THOSE to Adoyi" (referring back to the
+  // currently active/just-filtered list as a whole, not a specific
+  // count) is one of the brief's own acceptance examples ("Which ones
+  // are critical?" -> "Assign those to Adoyi."). Only ever consulted
+  // once a real mutation verb has already matched (parseBatchTargetIntent
+  // is only called from a write capability's supports()/createDraft()),
+  // so treating a bare "those"/"these" as "everything currently in
+  // scope" is safe and unambiguous in this context.
+  if (/\b(?:those|these)\b/.test(m)) {
+    return { type: "all" };
+  }
+  const ordinalMatch = m.match(/\bthe (first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b(?:\s+one)?/);
+  if (ordinalMatch) {
+    return { type: "ordinal", position: ORDINAL_POSITION_WORDS[ordinalMatch[1]] };
   }
   return null;
 }
