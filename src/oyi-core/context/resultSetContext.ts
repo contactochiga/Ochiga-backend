@@ -57,7 +57,12 @@ function recordOf(value: unknown): Record<string, unknown> {
 // balance for wallets) — first one present on a fact's value wins.
 const NUMERIC_METRIC_KEYS = ["amount", "unit_cost", "action_count", "balance"];
 const STATUS_KEYS = ["status", "last_run_status", "account_status"];
-const ATTRIBUTE_KEYS = ["status", "priority", "severity", "category", "last_run_status", "account_status", "is_official"];
+// owner/due_at/overdue added in Phase 4, PR 3 -- generic-sounding
+// enough to apply to future office_* list domains (Meetings/Support
+// also have an owner and a due-by concept), not Tasks-specific. Purely
+// additive: existing domains that never populate these keys are
+// unaffected.
+const ATTRIBUTE_KEYS = ["status", "priority", "severity", "category", "last_run_status", "account_status", "is_official", "owner", "due_at", "overdue"];
 
 function extractMetric(value: Record<string, unknown>): { metric: string | null; metric_value: number | null } {
   for (const key of NUMERIC_METRIC_KEYS) {
