@@ -39,6 +39,7 @@ import {
   isOfficeRecordDomain,
   hasExplicitDomainSwitchSignal,
   buildOfficeActiveContext,
+  buildOfficeDomainOnlyActiveContext,
 } from "../context/officeConversationContext";
 import {
   loadPendingOfficeActionProposal,
@@ -425,6 +426,27 @@ function businessActiveContextForTurn(context: CanonicalConversationRequestConte
       threadId,
       actorId: text(context.actor?.id),
       populated,
+      capabilityKey: capability.key,
+      intentLabel: BUSINESS_CAPABILITY_LABELS[capability.key] || capability.key,
+      userMessage: context.input.message,
+      resultStatus: response.truth?.truth_state || null,
+      resultAnswer: response.answer || response.message || null,
+    });
+  }
+  // Phase 4 -- a LIST/aggregate capability (office_tasks.query.read: "show
+  // me my overdue tasks") never populates a single-record *_context slot,
+  // so the branch above never fires for it -- meaning a following
+  // keyword-less follow-up ("move the first two to Monday") had no way to
+  // know it was still about office_tasks. Domain-only continuity (no slot
+  // to reinject) closes that gap for any office record domain, gated on a
+  // genuine answer (never on a degraded/unavailable/restricted turn,
+  // which shouldn't plant continuity for the next unrelated message).
+  const genuineAnswer = response.truth?.truth_state === "observed" || response.truth?.truth_state === "confirmed";
+  if (!populated && isOfficeRecordDomain(capability.domain) && genuineAnswer) {
+    return buildOfficeDomainOnlyActiveContext({
+      threadId,
+      actorId: text(context.actor?.id),
+      domain: capability.domain,
       capabilityKey: capability.key,
       intentLabel: BUSINESS_CAPABILITY_LABELS[capability.key] || capability.key,
       userMessage: context.input.message,
