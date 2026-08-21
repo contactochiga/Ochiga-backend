@@ -54,6 +54,15 @@ const overdueContext = contextWithSnapshot("Show me my overdue tasks", tasks);
 const evidence = await queryModule.collectEvidence(overdueContext);
 assert.equal(evidence.length, 2, "collect() surfaces every open task as evidence (answer() does the overdue filtering)");
 assert.ok(evidence[0].payload?.fact?.object?.canonical_id, "each evidence item must carry a fact with object.canonical_id for result-set/follow-up resolution");
+// Regression guard for a real production bug (found in live Milestone 1
+// verification, not caught here originally because this test calls
+// collect()/buildReadResponse() directly and never exercised
+// CapabilityService's assertEvidenceAllowed gate): evidenceFromFact()
+// silently defaulted every office_* fact to privacy_class
+// "household_private", which privacyAllowed() unconditionally blocks
+// for office_internal, making this capability's evidence permanently
+// rejected in production despite every unit-level check here passing.
+assert.equal(evidence[0].privacy_class, "corporate_private", "task evidence must carry an office-appropriate privacy_class, not Consumer/Facility's household_private default");
 
 const overdueResult = await queryModule.buildReadResponse(overdueContext, evidence);
 assert.equal(overdueResult.status, "answered");
