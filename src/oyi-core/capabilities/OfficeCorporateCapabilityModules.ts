@@ -113,6 +113,18 @@ type OperationalSnapshot = {
     items: Array<{ id: string; name: string; status: string; review_status: string | null; relationship_type: string | null; owner: string | null }>;
     total: number;
   } | null;
+  // Milestone 2 — Documents/Content, strictly read-only (see
+  // officeDocumentsReadModule's/officeContentReadModule's own header
+  // notes): list/inspect/compare/status/metadata only, never a write
+  // capability.
+  documents: {
+    items: Array<{ id: string; title: string; document_type: string | null; status: string | null; owner: string | null }>;
+    total: number;
+  } | null;
+  content: {
+    items: Array<{ id: string; title: string; workflow_status: string | null; category: string | null; author: string | null }>;
+    total: number;
+  } | null;
 };
 
 function officeSnapshot(context: CapabilityContext): OperationalSnapshot | null {
@@ -2039,7 +2051,8 @@ function officeDocumentsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["documents.generate"],
     evidenceRequirements: [{ domain: "office_documents", evidence_type: "office_document_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_documents" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_documents" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isDocumentsListIntent(frame.normalizedText),
     collect: async (context) => {
       const document = documentContextSlot(context);
       if (!document || !(document.safe_summary || document.title)) return [];
@@ -2109,6 +2122,104 @@ function officeDocumentsReadModule(): CapabilityModule {
   });
 }
 
+function isDocumentsListIntent(message: string): boolean {
+  return /\bdocuments\b/i.test(message);
+}
+
+function documentListFact(doc: NonNullable<OperationalSnapshot["documents"]>["items"][number]): IntelligenceFact {
+  return {
+    fact_id: `office_document_open:${doc.id}`,
+    domain: "office_documents",
+    fact_type: "office_document_open",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "document", canonical_id: doc.id, label: doc.title },
+    statement: `${doc.title} — ${doc.status || "unknown"}`,
+    value: { status: doc.status, owner: doc.owner },
+    previous_value: null,
+    occurred_at: null,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: doc.id,
+    truth_state: "observed",
+    confidence: 0.85,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
+// office_documents.query.read — list/inspect/compare/status/metadata
+// ONLY (see officeDocumentsReadModule's own header note on why this
+// domain is strictly read-only). No write, no batch, no proposal path
+// exists or is added here.
+function officeDocumentsQueryReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_documents.query.read",
+    domain: "office_documents",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["documents.generate"],
+    evidenceRequirements: [{ domain: "office_documents", evidence_type: "office_document_open", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_documents" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isDocumentsListIntent(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const documents = snapshot?.documents;
+      if (!documents) return [];
+      return documents.items.map((doc) => {
+        const fact = documentListFact(doc);
+        return evidenceEnvelope({
+          evidence_id: `capability:${fact.fact_id}`,
+          domain: "office_documents",
+          type: fact.fact_type,
+          object_type: "document",
+          object_id: doc.id,
+          source: "domain_adapter",
+          observed_at: fact.observed_at,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.85,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { fact },
+        });
+      });
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.documents) {
+        return unavailableResult("I don't have a current read on documents for this session — the Office documents snapshot wasn't attached to this request.");
+      }
+      const { items, total } = snapshot.documents;
+      if (!items.length) {
+        return { status: "empty", answer: "No documents on record.", presentation_policy: resultPresentation("list"), metadata: { total } };
+      }
+      const lines = items.slice(0, 10).map((d) => `${d.title}${d.document_type ? ` — ${d.document_type}` : ""}${d.status ? `, ${d.status}` : ""}`);
+      return {
+        status: "answered",
+        answer: `${items.length} document${items.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [
+          {
+            type: "record_list",
+            title: "Documents",
+            columns: [
+              { key: "title", label: "Document" },
+              { key: "document_type", label: "Type" },
+              { key: "status", label: "Status" },
+            ],
+            rows: items.map((d) => ({ id: d.id, title: d.title, document_type: d.document_type, status: d.status })),
+            total_count: total,
+            truncated: items.length < total,
+          },
+        ],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total },
+      };
+    },
+    primary: "list",
+  });
+}
+
 // ---------------------------------------------------------------------
 // office_internal — Content (Oyi Conversational Runtime Completion
 // Programme, eighth domain -- also STRICTLY READ-ONLY: no drafting,
@@ -2145,7 +2256,8 @@ function officeContentReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["content.write"],
     evidenceRequirements: [{ domain: "office_content", evidence_type: "office_content_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_content" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_content" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isContentListIntent(frame.normalizedText),
     collect: async (context) => {
       const content = contentContextSlot(context);
       if (!content || !(content.safe_summary || content.title)) return [];
@@ -2223,6 +2335,103 @@ function officeContentReadModule(): CapabilityModule {
       return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
     },
     primary: "text",
+  });
+}
+
+function isContentListIntent(message: string): boolean {
+  return /\b(?:articles|content items|posts)\b/i.test(message);
+}
+
+function contentListFact(item: NonNullable<OperationalSnapshot["content"]>["items"][number]): IntelligenceFact {
+  return {
+    fact_id: `office_content_open:${item.id}`,
+    domain: "office_content",
+    fact_type: "office_content_open",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "content_item", canonical_id: item.id, label: item.title },
+    statement: `${item.title} — ${item.workflow_status || "unknown"}`,
+    value: { status: item.workflow_status, category: item.category },
+    previous_value: null,
+    occurred_at: null,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: item.id,
+    truth_state: "observed",
+    confidence: 0.85,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
+// office_content.query.read — list/inspect/compare/status/metadata
+// ONLY (see officeContentReadModule's own header note). No write, no
+// batch, no proposal path exists or is added here.
+function officeContentQueryReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_content.query.read",
+    domain: "office_content",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["content.write"],
+    evidenceRequirements: [{ domain: "office_content", evidence_type: "office_content_open", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_content" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isContentListIntent(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const content = snapshot?.content;
+      if (!content) return [];
+      return content.items.map((item) => {
+        const fact = contentListFact(item);
+        return evidenceEnvelope({
+          evidence_id: `capability:${fact.fact_id}`,
+          domain: "office_content",
+          type: fact.fact_type,
+          object_type: "content_item",
+          object_id: item.id,
+          source: "domain_adapter",
+          observed_at: fact.observed_at,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.85,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { fact },
+        });
+      });
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.content) {
+        return unavailableResult("I don't have a current read on content for this session — the Office content snapshot wasn't attached to this request.");
+      }
+      const { items, total } = snapshot.content;
+      if (!items.length) {
+        return { status: "empty", answer: "No content items on record.", presentation_policy: resultPresentation("list"), metadata: { total } };
+      }
+      const lines = items.slice(0, 10).map((c) => `${c.title}${c.workflow_status ? ` — ${c.workflow_status}` : ""}${c.category ? `, ${c.category}` : ""}`);
+      return {
+        status: "answered",
+        answer: `${items.length} content item${items.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [
+          {
+            type: "record_list",
+            title: "Content",
+            columns: [
+              { key: "title", label: "Title" },
+              { key: "workflow_status", label: "Status" },
+              { key: "category", label: "Category" },
+            ],
+            rows: items.map((c) => ({ id: c.id, title: c.title, workflow_status: c.workflow_status, category: c.category })),
+            total_count: total,
+            truncated: items.length < total,
+          },
+        ],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total },
+      };
+    },
+    primary: "list",
   });
 }
 
@@ -2438,7 +2647,9 @@ export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
     officePartnershipsReadModule(),
     officePartnershipsQueryReadModule(),
     officeDocumentsReadModule(),
+    officeDocumentsQueryReadModule(),
     officeContentReadModule(),
+    officeContentQueryReadModule(),
   ];
 }
 
