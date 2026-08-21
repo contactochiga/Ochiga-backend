@@ -18,6 +18,7 @@
     "smoke:phase4-office-reference-resolution": "npm run build && node scripts/phase4-office-reference-resolution-smoke.mjs",
     "smoke:phase4-batch-governed-proposals": "npm run build && node scripts/phase4-batch-governed-proposals-smoke.mjs && node scripts/phase4-batch-verification-arithmetic-smoke.mjs",
     "smoke:phase4-revision-lifecycle": "npm run build && node scripts/phase4-revision-lifecycle-smoke.mjs",
+    "smoke:phase4-nl-scheduling-handoff": "npm run build && node scripts/phase4-nl-scheduling-handoff-smoke.mjs",
     "smoke:office-export-auth-compat": "npm run build && node scripts/office-export-auth-compat-smoke.mjs",
     "smoke:communications-office-auth-compat": "npm run build && node scripts/communications-office-auth-compat-smoke.mjs",
     "smoke:communications-layer": "npm run build && node scripts/communications-layer-smoke.mjs",

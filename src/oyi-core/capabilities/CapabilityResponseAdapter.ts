@@ -192,5 +192,10 @@ export function capabilityDomainResultToConversationResponse(input: {
     ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "pending_action_proposal")
       ? { pending_action_proposal: input.result.metadata!.pending_action_proposal as Record<string, unknown> | null }
       : {}),
+    // Phase 4, PR 6 -- same three-state convention as pending_action_
+    // proposal above.
+    ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "last_verified_office_action")
+      ? { last_verified_office_action: input.result.metadata!.last_verified_office_action as Record<string, unknown> | null }
+      : {}),
   };
 }

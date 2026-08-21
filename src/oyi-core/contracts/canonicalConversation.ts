@@ -271,6 +271,12 @@ export type CanonicalConversationResponse = {
   // sets the key, and canonicalConversationPersistence.ts for how the
   // three states are interpreted on write.
   pending_action_proposal?: Record<string, unknown> | null;
+  // Phase 4, PR 6. Same three-state convention as pending_action_proposal
+  // above, set once a governed action proposal's VERIFY turn succeeds
+  // (ConversationOrchestrator.ts), so "do that every Friday" on a LATER
+  // turn can reference what was just verified. See
+  // officeAutomationSuggestion.ts.
+  last_verified_office_action?: Record<string, unknown> | null;
 };
 
 export type ConversationBuilderKey =

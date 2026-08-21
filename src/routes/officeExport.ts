@@ -12,6 +12,7 @@ import type { CorporateBusinessUnit, CorporateOyiCoreRequest, OfficeInternalOyiC
 import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLICY } from "../contracts/corporateIntelligence";
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
+import { loadLastVerifiedOfficeAction } from "../oyi-core/context/officeAutomationSuggestionStore";
 import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
 import { createWorkflow, transitionWorkflow, listWorkflows, getWorkflow, type WorkflowStatus } from "../intelligence-core/workflows";
 import type { IntelligenceAgentId } from "../intelligence-core/types";
@@ -610,7 +611,13 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
     scope_mode_hint: "global",
     } as any,
   });
-  const response = buildOfficeInternalResponse(internalRequest, canonical);
+  // Phase 4, PR 6 -- loaded here (not carried on internalRequest, which
+  // represents INBOUND Office data) so "do that every Friday" can
+  // reference whatever governed-action proposal was just verified in
+  // this same thread. Own try/catch inside the loader already returns
+  // null on any failure -- never blocks the response.
+  const lastVerifiedAction = await loadLastVerifiedOfficeAction(internalRequest.conversation_thread_id, actor.id);
+  const response = buildOfficeInternalResponse(internalRequest, canonical, lastVerifiedAction);
   void emitAuditEvent({
     actorId: actor.id,
     actorRole: internalRequest.staff.role,
