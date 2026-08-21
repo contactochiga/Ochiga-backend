@@ -28,6 +28,7 @@ import type { IntelligenceFact } from "../contracts/canonicalConversation";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { parseFollowUpIntent, resolveFollowUpReference, resolveFilterFollowUp, parseDomainSwitchIntent, clarificationCandidatesFromRefs, type FollowUpIntent } from "../interpretation/followUpResolver";
 import { loadThreadResultSetContext, loadThreadResultSetsContext, narrowedResultSetContext, filteredResultSetContext, type ResultSetContext } from "../context/resultSetContext";
+import { isOfficeResultSetDomain, officeFactFromRef, officeFollowUpAnswer } from "../context/officeResultSetReference";
 import { hydrateCanonicalTarget } from "../runtime/canonicalTargetHydrationRegistry";
 import { buildExplainAnswer, buildStatusCheckAnswer, buildFieldAnswer } from "../domains/explainAnswer";
 import { objectStateLine } from "../presentation/objectFallbackPresentation";
@@ -862,6 +863,41 @@ async function buildAmbiguousFollowUpResponse(context: CanonicalConversationRequ
 
 async function resolveAndHydrateSingleObject(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, intent: FollowUpIntent, ref: import("../context/resultSetContext").ResultSetObjectRef, tracer: ConversationTracer): Promise<ConversationRunResult> {
   const capabilityForAdapter = followUpCapabilityFor(resultSet);
+  // Phase 4, PR 3 -- office_* result sets have no hydrateCanonicalTarget
+  // path (Backend has no DB connection to Office's tables); answer
+  // directly from the ref's own already-persisted label/status/
+  // attributes instead of re-fetching. See officeResultSetReference.ts.
+  if (isOfficeResultSetDomain(resultSet.domain)) {
+    const fact = officeFactFromRef(ref);
+    const result: DomainResult = {
+      status: "answered",
+      answer: officeFollowUpAnswer(ref, intent),
+      presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
+    };
+    let officeResponse = capabilityDomainResultToConversationResponse({
+      context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") },
+      capability: capabilityForAdapter,
+      result,
+      evidence: [evidenceFromFollowUpFact(fact)],
+    });
+    officeResponse.facts = [fact];
+    officeResponse.result_set = narrowedResultSetContext(resultSet, ref, {
+      contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id || null, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
+      message: context.input.message,
+    }) as unknown as Record<string, unknown>;
+    officeResponse.execution = {
+      ...(officeResponse.execution || {}),
+      orchestrator_v2: {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        runtime_id: tracer.runtimeId,
+        followup: { detected: true, resolver: "office_result_set", reference_type: intent.type, source_domain: resultSet.domain, result_set_id: resultSet.result_set_id, resolution_status: "resolved", resolved_object_ref: ref.canonical_id, resolved_object_type: ref.object_type },
+      },
+    };
+    officeResponse = await persistCapabilityResponse(context, officeResponse, officeResponse.truth, resolvedTurn, capabilityForAdapter);
+    tracer.finish({ thread_id: officeResponse.thread_id || null, response_state: officeResponse.persistence_saved === false ? "unsaved" : "returned" });
+    return officeResponse;
+  }
   const hydration = await hydrateCanonicalTarget({
     actor: context.actor,
     oisContext: context.oisContext,
