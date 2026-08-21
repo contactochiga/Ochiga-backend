@@ -33,11 +33,26 @@ function text(value: unknown) {
 // (languageUnderstanding.ts) is a corporate-record domain with no
 // Consumer/Facility hydration path -- Tasks is the only one with a list
 // capability today (Phase 4 PR 2), but this check is domain-shaped, not
-// task-shaped, so Milestone 2's Automations/Meetings/Support list
-// capabilities plug into the SAME continuation without touching this
-// file again.
-export function isOfficeResultSetDomain(domain: string): boolean {
-  return domain.startsWith("office_") || domain === "crm";
+// task-shaped, so Milestone 2's Automations/Meetings/Support/Portfolio/
+// Partnerships list capabilities plug into the SAME continuation
+// without touching this file again.
+//
+// Milestone 2 exception: "automations" and "corporate_partnerships" are
+// domain strings DELIBERATELY REUSED from elsewhere (see
+// officeAutomationsReadModule's / officePartnershipsReadModule's own
+// header notes) rather than getting their own office_* domain name --
+// "automations" is also Consumer/Facility's real device-automation
+// domain (with its own hydrateCanonicalTarget path that must keep
+// working), and "corporate_partnerships" is also the PUBLIC corporate
+// site's own read capability's domain. A bare domain-string check would
+// misroute either of those into Office's ref-only continuation. The
+// capability_key that actually produced the result set is unambiguous
+// (every Office capability's key starts with "office_"), so that's the
+// tie-break for just these two shared domains.
+export function isOfficeResultSetDomain(domain: string, capabilityKey?: string | null): boolean {
+  if (domain.startsWith("office_") || domain === "crm") return true;
+  if ((domain === "automations" || domain === "corporate_partnerships") && text(capabilityKey).startsWith("office_")) return true;
+  return false;
 }
 
 function humanizeStatus(status: string | null): string | null {
@@ -49,10 +64,17 @@ function humanizeStatus(status: string | null): string | null {
 // no live re-fetch. truth_state is deliberately "observed" (not
 // "confirmed"): this is the SAME data Office vouched for on the list
 // turn, carried forward, not a fresh read.
-export function officeFactFromRef(ref: ResultSetObjectRef): IntelligenceFact {
+//
+// domain is the RESULT SET's domain (resultSet.domain), not derived from
+// the ref itself -- a ref carries no domain of its own. Previously
+// hardcoded to "office_tasks" unconditionally, harmless while Tasks was
+// the only list capability with this continuation (Phase 4, PR 3); now
+// that Milestone 2 adds five more domains through the same function,
+// hardcoding it would mislabel every non-Tasks follow-up fact.
+export function officeFactFromRef(ref: ResultSetObjectRef, domain: string): IntelligenceFact {
   return {
     fact_id: `office_result_set_ref:${ref.object_type}:${ref.canonical_id}`,
-    domain: "office_tasks",
+    domain,
     fact_type: `${ref.object_type}_detail`,
     scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
     object: { object_type: ref.object_type, canonical_id: ref.canonical_id, label: ref.label },
