@@ -590,14 +590,51 @@ export function officeProposalFieldsAndValues(proposal: GovernedActionProposal):
 }
 
 export function officeProposalValuesMatch(field: string, expected: unknown, observed: unknown): boolean {
-  if (field === "due_at") {
+  if (field === "due_at" || field === "scheduled_at") {
     const a = Date.parse(String(expected));
     const b = Date.parse(String(observed));
     if (Number.isNaN(a) || Number.isNaN(b)) return false;
     return Math.abs(a - b) < 60_000;
   }
+  if (field === "enabled") {
+    return Boolean(expected) === (text(observed).toLowerCase() === "true");
+  }
   return text(expected).toLowerCase() === text(observed).toLowerCase();
 }
+
+// Milestone 2 -- each domain's *OyiContext() shape (office.js) keys its
+// batch-verify entry by a different ref field (task_ref/automation_ref/
+// support_case_ref/meeting_ref/portfolio_ref/partnership_ref); this
+// picks the right one so respondFromBatchVerification below can match a
+// resent context entry back to the child proposal it came from,
+// regardless of which domain the batch belongs to. Also the label used
+// in the final verify answer ("N automations were updated" vs "N
+// tasks..."), so the wording is honest for every batch-capable domain,
+// not just Tasks.
+const BATCH_DOMAIN_REF_KEY: Record<string, string> = {
+  office_tasks: "task_ref",
+  automations: "automation_ref",
+  office_support: "support_case_ref",
+  office_meetings: "meeting_ref",
+  office_portfolio: "portfolio_ref",
+  corporate_partnerships: "partnership_ref",
+};
+const BATCH_DOMAIN_LABEL: Record<string, string> = {
+  office_tasks: "task",
+  automations: "automation",
+  office_support: "case",
+  office_meetings: "meeting",
+  office_portfolio: "portfolio entry",
+  corporate_partnerships: "partnership",
+};
+const BATCH_DOMAIN_SURFACE_NAME: Record<string, string> = {
+  office_tasks: "Tasks",
+  automations: "Automations",
+  office_support: "Support",
+  office_meetings: "Meetings",
+  office_portfolio: "Portfolio",
+  corporate_partnerships: "Partnerships",
+};
 
 // Phase 4, PR 5 -- driven off proposed_state's own field names rather
 // than parameters.canonical_value (the ORIGINAL field only, unchanged
@@ -606,9 +643,12 @@ export function officeProposalValuesMatch(field: string, expected: unknown, obse
 // actually made, not just the first one. Produces byte-identical text
 // to the old per-operation branches for the single-field case.
 function describeProposedFieldChange(label: string, field: string, value: unknown): string {
-  if (field === "status") return `"${label}" is now ${officeActionTitleCase(text(value))}`;
-  if (field === "assignee") return `"${label}" is now assigned to ${text(value)}`;
+  if (field === "status" || field === "review_status") return `"${label}" is now ${officeActionTitleCase(text(value))}`;
+  if (field === "assignee" || field === "assigned_staff") return `"${label}" is now assigned to ${text(value)}`;
   if (field === "due_at") return `"${label}"'s due date is now ${new Date(text(value)).toDateString()}`;
+  if (field === "scheduled_at") return `"${label}" is now scheduled for ${new Date(text(value)).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+  if (field === "priority") return `"${label}" is now ${text(value)} priority`;
+  if (field === "enabled") return `"${label}" is now ${value ? "active" : "paused"}`;
   return `"${label}"'s ${field} is now ${text(value)}`;
 }
 
@@ -618,9 +658,12 @@ function describeProposedFieldChange(label: string, field: string, value: unknow
 // used to build a combined description when mergeTaskRevisionIntoProposal
 // accumulates more than one field.
 function describeProposedFieldTarget(field: string, value: unknown): string {
-  if (field === "status") return `move to ${officeActionTitleCase(text(value))}`;
-  if (field === "assignee") return `assign to ${text(value)}`;
+  if (field === "status" || field === "review_status") return `move to ${officeActionTitleCase(text(value))}`;
+  if (field === "assignee" || field === "assigned_staff") return `assign to ${text(value)}`;
   if (field === "due_at") return `move the due date to ${new Date(text(value)).toDateString()}`;
+  if (field === "scheduled_at") return `move to ${new Date(text(value)).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+  if (field === "priority") return `set to ${text(value)} priority`;
+  if (field === "enabled") return value ? "resume" : "pause";
   return `update ${field} to ${text(value)}`;
 }
 
@@ -709,11 +752,12 @@ async function respondFromBatchVerification(
   confirmed: GovernedActionProposal
 ): Promise<ConversationRunResult> {
   const batchEntries = taskBatchContextSlot(context as CapabilityContext);
+  const refKey = BATCH_DOMAIN_REF_KEY[confirmed.domain] || "task_ref";
   const children = confirmed.child_operations || [];
   let verifiedCount = 0;
   const unverifiedLabels: string[] = [];
   for (const child of children) {
-    const observedEntry = batchEntries.find((entry) => text(entry.task_ref) === child.target_entity_id);
+    const observedEntry = batchEntries.find((entry) => text(entry[refKey]) === child.target_entity_id);
     const proposedField = officeProposalFieldAndValue(child);
     const contextFieldKey = proposedField ? (OFFICE_PROPOSAL_FIELD_TO_CONTEXT_FIELD[proposedField.field] || proposedField.field) : null;
     const observed = observedEntry && contextFieldKey ? (observedEntry as Record<string, unknown>)[contextFieldKey] : undefined;
@@ -721,7 +765,7 @@ async function respondFromBatchVerification(
     if (verified) {
       verifiedCount += 1;
     } else {
-      unverifiedLabels.push(text(observedEntry?.title) || child.target_entity_id);
+      unverifiedLabels.push(text(observedEntry?.title || observedEntry?.name) || child.target_entity_id);
     }
   }
   const total = children.length;
@@ -736,14 +780,16 @@ async function respondFromBatchVerification(
     total,
     verified_count: verifiedCount,
   });
+  const itemLabel = BATCH_DOMAIN_LABEL[confirmed.domain] || "record";
+  const surfaceName = BATCH_DOMAIN_SURFACE_NAME[confirmed.domain] || "Office";
   const answer =
     total === 0
       ? "There was nothing in that batch to verify."
       : verifiedCount === total
-      ? `Done. All ${total} task${total === 1 ? "" : "s"} were updated as proposed.`
+      ? `Done. All ${total} ${itemLabel}${total === 1 ? "" : "s"} were updated as proposed.`
       : verifiedCount === 0
-      ? `I attempted that, but none of the ${total} tasks show the expected change yet — please check them directly in Tasks.`
-      : `${verifiedCount} of ${total} tasks were updated as proposed. Please check directly: ${unverifiedLabels.join(", ")}.`;
+      ? `I attempted that, but none of the ${total} ${itemLabel}${total === 1 ? "" : "s"} show the expected change yet — please check ${total === 1 ? "it" : "them"} directly in ${surfaceName}.`
+      : `${verifiedCount} of ${total} ${itemLabel}${total === 1 ? "" : "s"} were updated as proposed. Please check directly: ${unverifiedLabels.join(", ")}.`;
   const capability = syntheticOfficeActionCapability(`${confirmed.domain}.batch_action_verified`, confirmed.domain);
   const allVerified = total > 0 && verifiedCount === total;
   const result: DomainResult = {
@@ -757,7 +803,7 @@ async function respondFromBatchVerification(
     metadata: {
       pending_action_proposal: null,
       ...(allVerified
-        ? { last_verified_office_action: buildLastVerifiedOfficeAction(confirmed, `${total} tasks`, automationSuggestionDescription(children[0]?.proposed_state || null, `${total} tasks`)) }
+        ? { last_verified_office_action: buildLastVerifiedOfficeAction(confirmed, `${total} ${itemLabel}${total === 1 ? "" : "s"}`, automationSuggestionDescription(children[0]?.proposed_state || null, `${total} ${itemLabel}${total === 1 ? "" : "s"}`)) }
         : {}),
     },
   };
@@ -830,7 +876,11 @@ async function handleOfficeActionProposalTurn(
       });
       const verifiedCount = fieldResults.filter((r) => r.verified).length;
       const allVerified = fieldResults.length > 0 && verifiedCount === fieldResults.length;
-      const label = text((populated.slot as any)?.title) || officeActionTitleCase(confirmed.target_entity_type);
+      // title covers Tasks/Meetings/Support; name covers Automations/
+      // Portfolio/Partnerships (each *OyiContext() shape's own label
+      // field -- see office.js) -- checked in that order since some
+      // shapes could theoretically carry both.
+      const label = text((populated.slot as any)?.title) || text((populated.slot as any)?.name) || officeActionTitleCase(confirmed.target_entity_type);
       logger.info("oyi_office_action_verified", {
         request_id: tracer.requestId,
         correlation_id: tracer.correlationId,

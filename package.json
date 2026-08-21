@@ -22,6 +22,7 @@
     "smoke:phase4-hotfix-domain-continuity": "npm run build && node scripts/phase4-hotfix-domain-continuity-smoke.mjs",
     "smoke:milestone2-recurrence-collision": "npm run build && node scripts/phase4-milestone2-recurrence-collision-smoke.mjs",
     "smoke:milestone2-list-capabilities": "npm run build && node scripts/milestone2-list-capabilities-smoke.mjs",
+    "smoke:milestone2-write-capabilities": "npm run build && node scripts/milestone2-write-capabilities-smoke.mjs",
     "smoke:office-export-auth-compat": "npm run build && node scripts/office-export-auth-compat-smoke.mjs",
     "smoke:communications-office-auth-compat": "npm run build && node scripts/communications-office-auth-compat-smoke.mjs",
     "smoke:communications-layer": "npm run build && node scripts/communications-layer-smoke.mjs",
