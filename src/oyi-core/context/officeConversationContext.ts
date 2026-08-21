@@ -164,10 +164,18 @@ export type OfficeActiveContext = {
   actor_id: string;
   surface: "office_internal";
   active_domain: OyiDomain;
-  active_context_slot_key: OfficeContextSlotKey;
+  // Phase 4 -- nullable. A LIST/aggregate answer (office_tasks.query.read
+  // has no single selected record to attach these to -- "Show me my
+  // overdue tasks" doesn't populate task_context the way opening one
+  // task does. null here means "we know the domain the staff member was
+  // just in, but there's no specific record to reinject," which is
+  // exactly enough for a keyword-less follow-up ("move the first two to
+  // Monday") to resolve to the right domain without resurrecting a fake
+  // record. See buildOfficeDomainOnlyActiveContext.
+  active_context_slot_key: OfficeContextSlotKey | null;
   active_record_ref: string | null;
   active_record_safe_summary: string | null;
-  active_context_slot: Record<string, unknown>;
+  active_context_slot: Record<string, unknown> | null;
   active_capability_key: string | null;
   last_intent_label: string | null;
   last_user_message: string;
@@ -213,6 +221,44 @@ export function buildOfficeActiveContext(input: {
   };
 }
 
+// Phase 4 -- domain-only continuity for a LIST/aggregate answer (no
+// single populated *_context slot to attach to). Lets a keyword-less
+// follow-up ("move the first two to Monday" after "show me my overdue
+// tasks") resolve to the right domain on the next turn without
+// resurrecting a fake single-record slot -- see resolveOfficeConversation
+// Continuity's persisted-memory fallback, which only reinjects a slot
+// into context.input.context when active_context_slot is actually
+// present.
+export function buildOfficeDomainOnlyActiveContext(input: {
+  threadId: string;
+  actorId: string;
+  domain: OyiDomain;
+  capabilityKey: string | null;
+  intentLabel: string | null;
+  userMessage: string;
+  resultStatus: string | null;
+  resultAnswer: string | null;
+}): OfficeActiveContext {
+  const now = new Date();
+  return {
+    thread_id: input.threadId,
+    actor_id: input.actorId,
+    surface: "office_internal",
+    active_domain: input.domain,
+    active_context_slot_key: null,
+    active_record_ref: null,
+    active_record_safe_summary: null,
+    active_context_slot: null,
+    active_capability_key: input.capabilityKey,
+    last_intent_label: input.intentLabel,
+    last_user_message: text(input.userMessage).slice(0, 240),
+    last_result_status: input.resultStatus,
+    last_result_excerpt: text(input.resultAnswer).slice(0, 240),
+    updated_at: now.toISOString(),
+    expires_at: new Date(now.getTime() + OFFICE_ACTIVE_CONTEXT_TTL_MS).toISOString(),
+  };
+}
+
 // Pure validation, split out from the DB fetch below so it's directly
 // unit-testable without a live Supabase connection. Never treats memory
 // belonging to a different actor, a different surface, or memory past
@@ -227,7 +273,11 @@ export function usableOfficeActiveContext(
   if (stored.surface !== "office_internal") return null;
   if (text(stored.actor_id) !== text(actorId)) return null;
   if (!stored.expires_at || Date.parse(stored.expires_at) < now) return null;
-  if (!stored.active_domain || !stored.active_context_slot_key || !stored.active_context_slot) return null;
+  // Phase 4 -- active_context_slot_key/active_context_slot are no longer
+  // required (buildOfficeDomainOnlyActiveContext legitimately omits
+  // them for a LIST/aggregate answer); active_domain is the only thing
+  // that must be present.
+  if (!stored.active_domain) return null;
   return stored as OfficeActiveContext;
 }
 
@@ -372,6 +422,14 @@ export async function resolveOfficeConversationContinuity(
     domain: memory.active_domain,
     semantic_frame: { ...resolvedTurn.semantic_frame, domain: memory.active_domain },
   };
+  // Phase 4 -- a domain-only memory (buildOfficeDomainOnlyActiveContext,
+  // from a LIST/aggregate answer like office_tasks.query.read) has no
+  // slot to reinject; adjust the domain only. Reinjecting is still exact
+  // replay of what THIS actor's own earlier turn already sent, same as
+  // before, whenever a real slot is present.
+  if (!memory.active_context_slot_key || !memory.active_context_slot) {
+    return { resolvedTurn: adjustedResolvedTurn, context, source: "persisted_memory_reinjected" };
+  }
   const adjustedContext: CanonicalConversationRequestContext = {
     ...context,
     input: {
