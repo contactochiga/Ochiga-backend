@@ -53,6 +53,26 @@ assert.ok(fields.some((f) => f.field === "assignee" && f.value === "Tony"));
 // A never-merged (single-field) proposal still returns exactly one entry.
 assert.equal(officeProposalFieldsAndValues(base).length, 1);
 
+// --- Milestone 2: mergeTaskRevisionIntoProposal now also accumulates
+// previous_state, not just proposed_state -- the known Milestone 1 gap
+// where a field added by a LATER revision had no "before" value at all,
+// so the multi-field diff card had nothing to show on that side. The
+// currentValue param captures it once, from the live context slot, the
+// first time that field is touched. ---
+assert.equal(merged.previous_state.due_at, null, "the original proposal's own previous_state entry is preserved");
+assert.equal(merged.previous_state.assignee, null, "no currentValue was passed for the assignee merge above -- must record null, never fabricate a value");
+
+const mergedWithCurrent = mergeTaskRevisionIntoProposal(base, parseTaskMutationIntent("make this high priority"), "desc", "medium");
+assert.equal(mergedWithCurrent.previous_state.priority, "medium", "a real currentValue must be captured into previous_state on first mention");
+assert.equal(mergedWithCurrent.proposed_state.priority, "high");
+
+// Merging the SAME field a second time must not overwrite an
+// already-captured previous_state (that would silently lose the
+// genuine "before" and replace it with an intermediate value).
+const mergedTwice = mergeTaskRevisionIntoProposal(mergedWithCurrent, parseTaskMutationIntent("actually make it low priority"), "desc2", "high");
+assert.equal(mergedTwice.previous_state.priority, "medium", "previous_state must not be overwritten by a second revision to the same field");
+assert.equal(mergedTwice.proposed_state.priority, "low", "proposed_state must still reflect the latest revision");
+
 // --- corporateOfficeInternalPolicy: Phase 3 gap #2 fix -- "Due" substring must not fire the follow-up proposal ---
 const requestBase = {
   request_id: "req-1",
