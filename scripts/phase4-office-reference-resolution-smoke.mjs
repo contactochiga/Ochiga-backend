@@ -55,9 +55,22 @@ function resultSet(refs) {
 // --- Domain classification never misroutes a shared Consumer/Facility domain ---
 assert.equal(isOfficeResultSetDomain("office_tasks"), true);
 assert.equal(isOfficeResultSetDomain("crm"), true);
-assert.equal(isOfficeResultSetDomain("automations"), false, "shared Consumer/Facility domain must never be misclassified as Office's");
+assert.equal(isOfficeResultSetDomain("automations"), false, "shared Consumer/Facility domain must never be misclassified as Office's when no capability_key is given");
 assert.equal(isOfficeResultSetDomain("wallet"), false);
 assert.equal(isOfficeResultSetDomain("devices"), false);
+
+// --- Milestone 2: capability_key disambiguates the two domains Office
+// deliberately REUSES rather than inventing its own office_* name for
+// ("automations" is also Consumer/Facility's real device-automation
+// domain; "corporate_partnerships" is also the public corporate site's
+// own read capability's domain). Only Office's own capability keys
+// (always "office_"-prefixed) may claim the Office continuation. ---
+assert.equal(isOfficeResultSetDomain("automations", "office_automations.query.read"), true, "Office's own automations list capability must be recognized");
+assert.equal(isOfficeResultSetDomain("automations", "office_automations.read"), true);
+assert.equal(isOfficeResultSetDomain("automations", "automations.list.read"), false, "Consumer/Facility's real automations capability key must stay on its own hydration path");
+assert.equal(isOfficeResultSetDomain("corporate_partnerships", "office_partnerships.query.read"), true, "Office's own partnerships list capability must be recognized");
+assert.equal(isOfficeResultSetDomain("corporate_partnerships", "corporate.partnerships.read"), false, "the public corporate site's own partnerships capability key must never be swept into Office's continuation");
+assert.equal(isOfficeResultSetDomain("corporate_partnerships", null), false, "no capability_key at all must not default to true");
 
 // --- Reused ordinal/pronoun resolution against Office-shaped refs ---
 const refs = [
@@ -108,10 +121,20 @@ assert.ok(detailAnswer.includes("Follow up with vendor"));
 assert.ok(detailAnswer.includes("owned by Tony"));
 assert.ok(detailAnswer.includes("due 2026-08-10T00:00:00Z (overdue)"));
 
-const fact = officeFactFromRef(withOwnerAndDue);
+const fact = officeFactFromRef(withOwnerAndDue, "office_tasks");
 assert.equal(fact.object.canonical_id, "task-1");
 assert.equal(fact.object.object_type, "task");
 assert.equal(fact.truth_state, "observed");
 assert.equal(fact.value.owner, "Tony");
+assert.equal(fact.domain, "office_tasks");
+
+// Milestone 2: domain must come from the actual result set, not a
+// hardcoded "office_tasks" -- previously harmless when Tasks was the
+// only domain with this continuation, now a real bug for every other
+// domain sharing this function.
+const automationRef = { object_type: "automation", canonical_id: "auto-1", label: "Weekly follow-up sweep", occurred_at: null, metric: null, metric_value: null, status: "enabled", attributes: {} };
+const automationFact = officeFactFromRef(automationRef, "automations");
+assert.equal(automationFact.domain, "automations", "the fact's domain must reflect the actual result set, not a hardcoded Tasks value");
+assert.equal(automationFact.object.object_type, "automation");
 
 console.log("phase4-office-reference-resolution-smoke: PASS");

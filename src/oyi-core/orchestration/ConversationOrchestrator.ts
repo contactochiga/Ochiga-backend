@@ -1104,8 +1104,8 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
   // path (Backend has no DB connection to Office's tables); answer
   // directly from the ref's own already-persisted label/status/
   // attributes instead of re-fetching. See officeResultSetReference.ts.
-  if (isOfficeResultSetDomain(resultSet.domain)) {
-    const fact = officeFactFromRef(ref);
+  if (isOfficeResultSetDomain(resultSet.domain, resultSet.capability_key)) {
+    const fact = officeFactFromRef(ref, resultSet.domain);
     const result: DomainResult = {
       status: "answered",
       answer: officeFollowUpAnswer(ref, intent),
