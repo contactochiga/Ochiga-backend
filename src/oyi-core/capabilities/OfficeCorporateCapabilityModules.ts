@@ -31,7 +31,7 @@ import type { SemanticFrame } from "../contracts/semanticFrame";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
 import { parseMeetingMutationIntent, parseSupportMutationIntent, isTaskMutationMessage } from "../context/officeActionProposal";
-import { parseAutomationScheduleIntent } from "../context/officeAutomationSuggestion";
+import { isAutomationScheduleOrRecurrenceMessage } from "../context/officeAutomationSuggestion";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 
 type OperationalSnapshot = {
@@ -466,19 +466,23 @@ function isTaskListIntent(message: string): boolean {
   return /\btasks\b/i.test(message);
 }
 
-// Production bug found in live Milestone 1 verification: "Do that every
-// Friday" has no task-mutation or plural-list wording, so it fell through
-// to office_tasks.read's own catch-all supports() -- which requires an
-// active single-record task_context that a scheduling reference never
-// has, producing "I don't have a specific task open to check..." as the
-// PRIMARY answer, rendered alongside (and contradicting) the correct
-// automation-suggestion card that corporateOfficeInternalPolicy.ts's
-// toolProposals() independently attaches for the same message. This is a
-// scheduling reference, not a task question, so office_tasks.read must
-// not claim it -- let it fall through to the generic degraded-answer
-// rescue instead, same as any other unclaimed office_internal message.
+// Production bug found in live Milestone 1 verification, generalized in
+// Milestone 2: "Do that every Friday" (or any other scheduling/
+// recurrence reference) has no domain-specific mutation/list wording, so
+// after any answer keeps that domain active via domain-only continuity,
+// it falls through to that domain's single-record read module's own
+// catch-all supports() -- which requires an active single-record
+// context a scheduling reference never has, producing a misleading
+// "I don't have a specific X open to check..." PRIMARY answer, rendered
+// alongside (and contradicting) the correct automation-suggestion card
+// corporateOfficeInternalPolicy.ts's toolProposals() independently
+// attaches for the same message. A scheduling/recurrence reference must
+// never be claimed by ANY single-record (or list) read module -- let it
+// fall through to the generic degraded-answer rescue instead, same as
+// any other unclaimed office_internal message. Applied uniformly below
+// to every office_internal read module, not just Tasks.
 function isAutomationScheduleReferenceMessage(message: string): boolean {
-  return Boolean(parseAutomationScheduleIntent(message));
+  return isAutomationScheduleOrRecurrenceMessage(message);
 }
 
 function officeTasksReadModule(): CapabilityModule {
@@ -785,7 +789,7 @@ function officeAutomationsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["tasks.read"],
     evidenceRequirements: [{ domain: "automations", evidence_type: "office_automation_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "automations",
+    supports: (frame: SemanticFrame) => frame.domain === "automations" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
     collect: async (context) => {
       const automation = automationContextSlot(context);
       if (!automation || !(automation.safe_summary || automation.name)) return [];
@@ -907,7 +911,10 @@ function officeMeetingsReadModule(): CapabilityModule {
     permissions: ["meetings.read"],
     evidenceRequirements: [{ domain: "office_meetings", evidence_type: "office_meeting_selected", freshness: ["fresh", "unknown"], required: false }],
     // Mutually exclusive with office_meetings.write's own supports() (Phase 3).
-    supports: (frame: SemanticFrame) => frame.domain === "office_meetings" && !parseMeetingMutationIntent(frame.normalizedText),
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_meetings" &&
+      !parseMeetingMutationIntent(frame.normalizedText) &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText),
     collect: async (context) => {
       const meeting = meetingContextSlot(context);
       if (!meeting || !(meeting.safe_summary || meeting.title)) return [];
@@ -1021,7 +1028,10 @@ function officeSupportReadModule(): CapabilityModule {
     permissions: ["support.read"],
     evidenceRequirements: [{ domain: "office_support", evidence_type: "office_support_case_selected", freshness: ["fresh", "unknown"], required: false }],
     // Mutually exclusive with office_support.write's own supports() (Phase 3).
-    supports: (frame: SemanticFrame) => frame.domain === "office_support" && !parseSupportMutationIntent(frame.normalizedText),
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_support" &&
+      !parseSupportMutationIntent(frame.normalizedText) &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText),
     collect: async (context) => {
       const support = supportContextSlot(context);
       if (!support || !(support.safe_summary || support.title)) return [];
@@ -1161,7 +1171,7 @@ function officePortfolioReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["portfolio.read"],
     evidenceRequirements: [{ domain: "office_portfolio", evidence_type: "office_portfolio_entry_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_portfolio",
+    supports: (frame: SemanticFrame) => frame.domain === "office_portfolio" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
     collect: async (context) => {
       const portfolio = portfolioContextSlot(context);
       if (!portfolio || !(portfolio.safe_summary || portfolio.name)) return [];
@@ -1274,7 +1284,7 @@ function officePartnershipsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["partnerships.read"],
     evidenceRequirements: [{ domain: "corporate_partnerships", evidence_type: "office_partnership_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "corporate_partnerships",
+    supports: (frame: SemanticFrame) => frame.domain === "corporate_partnerships" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
     collect: async (context) => {
       const partnership = partnershipContextSlot(context);
       if (!partnership || !partnership.safe_summary) return [];
@@ -1388,7 +1398,7 @@ function officeDocumentsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["documents.generate"],
     evidenceRequirements: [{ domain: "office_documents", evidence_type: "office_document_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_documents",
+    supports: (frame: SemanticFrame) => frame.domain === "office_documents" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
     collect: async (context) => {
       const document = documentContextSlot(context);
       if (!document || !(document.safe_summary || document.title)) return [];
@@ -1494,7 +1504,7 @@ function officeContentReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["content.write"],
     evidenceRequirements: [{ domain: "office_content", evidence_type: "office_content_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_content",
+    supports: (frame: SemanticFrame) => frame.domain === "office_content" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
     collect: async (context) => {
       const content = contentContextSlot(context);
       if (!content || !(content.safe_summary || content.title)) return [];

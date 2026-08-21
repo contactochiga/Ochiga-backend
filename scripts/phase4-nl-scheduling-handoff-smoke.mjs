@@ -3,25 +3,45 @@ process.env.SUPABASE_URL ||= "http://localhost:54321";
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= "phase4-nl-scheduling-handoff-smoke-service-role-key";
 
 // Oyi Conversational Runtime Completion Programme, Phase 4, PR 6 — NL
-// scheduling handoff. Pure-function coverage: parsing, suggestion
-// parameter shape, and toolProposals()'s wiring -- all Supabase-free
-// (corporateOfficeInternalPolicy.ts must stay that way; see
-// officeAutomationSuggestion.ts's header comment on why the DB-touching
-// loader lives in a separate file).
+// scheduling handoff. Widened in Milestone 2 to cover daily/weekly/
+// monthly cadence phrasing (not just weekday), still referent-gated
+// (that/this/it) so ordinary mentions of a cadence never misfire.
+// Pure-function coverage: parsing, suggestion parameter shape, and
+// toolProposals()'s wiring -- all Supabase-free (corporateOfficeInternalPolicy.ts
+// must stay that way; see officeAutomationSuggestion.ts's header
+// comment on why the DB-touching loader lives in a separate file).
 const {
   parseAutomationScheduleIntent,
+  isAutomationScheduleOrRecurrenceMessage,
   automationScheduleSuggestionParameters,
   automationSuggestionProposalId,
   buildLastVerifiedOfficeAction,
 } = await import("../dist/oyi-core/context/officeAutomationSuggestion.js");
 const { buildOfficeInternalResponse } = await import("../dist/oyi-core/policy/corporateOfficeInternalPolicy.js");
 
-// --- parseAutomationScheduleIntent: narrow, requires "do that/this every <weekday>" ---
-assert.deepEqual(parseAutomationScheduleIntent("Do that every Friday"), { weekday: 5, weekdayName: "Friday" });
-assert.deepEqual(parseAutomationScheduleIntent("do this every monday"), { weekday: 1, weekdayName: "Monday" });
+// --- parseAutomationScheduleIntent: weekday cadence (existing) ---
+assert.deepEqual(parseAutomationScheduleIntent("Do that every Friday"), { cadence: "weekday", weekday: 5, weekdayName: "Friday" });
+assert.deepEqual(parseAutomationScheduleIntent("do this every monday"), { cadence: "weekday", weekday: 1, weekdayName: "Monday" });
 assert.equal(parseAutomationScheduleIntent("we meet every Friday"), null, "an unrelated weekly cadence must not misfire");
 assert.equal(parseAutomationScheduleIntent("every Friday"), null, "missing the referring word must not match");
-assert.equal(parseAutomationScheduleIntent("do that every week"), null, "a non-weekday word must not match");
+
+// --- parseAutomationScheduleIntent: daily/weekly/monthly cadence (Milestone 2) ---
+assert.deepEqual(parseAutomationScheduleIntent("do that every day"), { cadence: "daily" });
+assert.deepEqual(parseAutomationScheduleIntent("repeat this daily"), { cadence: "daily" });
+assert.deepEqual(parseAutomationScheduleIntent("keep doing this every day"), { cadence: "daily" });
+assert.deepEqual(parseAutomationScheduleIntent("repeat this weekly"), { cadence: "weekly" });
+assert.deepEqual(parseAutomationScheduleIntent("keep doing this each week"), { cadence: "weekly" });
+assert.deepEqual(parseAutomationScheduleIntent("make this recurring"), { cadence: "weekly" });
+assert.deepEqual(parseAutomationScheduleIntent("run that monthly"), { cadence: "monthly" });
+assert.deepEqual(parseAutomationScheduleIntent("repeat this every month"), { cadence: "monthly" });
+assert.equal(parseAutomationScheduleIntent("we run reports monthly"), null, "missing the referring word must still not match for the new cadences");
+assert.deepEqual(parseAutomationScheduleIntent("from now on do this every Monday"), { cadence: "weekday", weekday: 1, weekdayName: "Monday" }, "a leading qualifier before the recognized phrase must not break the match");
+
+// --- isAutomationScheduleOrRecurrenceMessage: broader net used to guard read capabilities ---
+assert.equal(isAutomationScheduleOrRecurrenceMessage("Do that every Friday"), true);
+assert.equal(isAutomationScheduleOrRecurrenceMessage("whenever a new qualified lead arrives, create a follow-up"), true, "generic recurrence phrasing must also be recognized even without a narrow schedule-intent match");
+assert.equal(isAutomationScheduleOrRecurrenceMessage("set up a rule for this"), true);
+assert.equal(isAutomationScheduleOrRecurrenceMessage("is this task overdue"), false, "an ordinary question must not be swept up by the guard");
 
 // --- buildLastVerifiedOfficeAction: pure, no DB ---
 const proposal = {
@@ -33,12 +53,23 @@ assert.equal(lastAction.target_label, "Follow up with vendor");
 assert.ok(Date.parse(lastAction.verified_at) <= Date.now());
 
 // --- automationScheduleSuggestionParameters: real, wizard-consumable trigger ---
-const scheduleIntent = { weekday: 5, weekdayName: "Friday" };
-const params = automationScheduleSuggestionParameters(scheduleIntent, lastAction);
-assert.equal(params.suggested_schedule.schedule_type, "weekdays");
-assert.deepEqual(params.suggested_schedule.weekdays, [5]);
-assert.ok(params.suggested_name.includes("Friday"));
-assert.ok(params.suggested_name.includes("Follow up with vendor"));
+const weekdayParams = automationScheduleSuggestionParameters({ cadence: "weekday", weekday: 5, weekdayName: "Friday" }, lastAction);
+assert.equal(weekdayParams.suggested_schedule.schedule_type, "weekdays");
+assert.deepEqual(weekdayParams.suggested_schedule.weekdays, [5]);
+assert.ok(weekdayParams.suggested_name.includes("Friday"));
+assert.ok(weekdayParams.suggested_name.includes("Follow up with vendor"));
+
+const dailyParams = automationScheduleSuggestionParameters({ cadence: "daily" }, lastAction);
+assert.equal(dailyParams.suggested_schedule.schedule_type, "daily", "daily is a real, wizard-supported schedule_type and must be fully prefilled");
+assert.ok(dailyParams.suggested_name.includes("every day"));
+
+const weeklyParams = automationScheduleSuggestionParameters({ cadence: "weekly" }, lastAction);
+assert.equal(weeklyParams.suggested_schedule.schedule_type, "weekdays");
+assert.deepEqual(weeklyParams.suggested_schedule.weekdays, [], "an unspecified weekly cadence must leave the day blank rather than inventing one");
+
+const monthlyParams = automationScheduleSuggestionParameters({ cadence: "monthly" }, lastAction);
+assert.equal(monthlyParams.suggested_schedule, undefined, "monthly has no real schedule_type in this system -- must never fabricate one");
+assert.ok(monthlyParams.suggested_name.includes("every month"));
 
 assert.ok(automationSuggestionProposalId("req-123").includes("req-123"));
 
@@ -68,6 +99,14 @@ assert.equal(automationProposal.parameters.suggested_schedule.schedule_type, "we
 assert.deepEqual(automationProposal.parameters.suggested_schedule.weekdays, [5]);
 assert.equal(automationProposal.parameters.review_required, true);
 assert.equal(scheduleResponse.tool_proposals.length, 1, "must not ALSO fire the generic automation-detection proposal for the same message");
+
+// Monthly cadence -> the automation proposal still fires (it's a real
+// recurrence reference) but carries a limitation note and no fabricated schedule.
+const monthlyResponse = buildOfficeInternalResponse({ ...requestBase, message: "run that monthly" }, canonicalBase, lastAction);
+const monthlyProposal = monthlyResponse.tool_proposals.find((p) => p.tool === "office.create_automation");
+assert.ok(monthlyProposal, "a monthly recurrence reference must still produce a proposal card, just without a fabricated schedule");
+assert.equal(monthlyProposal.parameters.suggested_schedule, undefined);
+assert.ok(/monthly recurrence isn.t available/i.test(monthlyProposal.reason), "the reason text must honestly disclose the unsupported cadence");
 
 // The generic automation-detection path is untouched for ordinary phrasing.
 const genericResponse = buildOfficeInternalResponse({ ...requestBase, message: "set up a rule for this" }, canonicalBase, null);
