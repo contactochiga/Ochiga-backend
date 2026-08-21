@@ -228,6 +228,22 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
       due_at: safeText(task.due_at) || null,
       overdue: Boolean(task.overdue),
     } : null,
+    task_batch_context: Array.isArray(body.task_batch_context)
+      ? body.task_batch_context
+          .map((item: any) => {
+            const entry = recordOf(item);
+            return {
+              task_ref: safeText(entry.task_ref) || null,
+              title: safeText(entry.title).slice(0, 180) || null,
+              status: safeText(entry.status) || null,
+              priority: safeText(entry.priority) || null,
+              owner: safeText(entry.owner) || null,
+              due_at: safeText(entry.due_at) || null,
+              overdue: Boolean(entry.overdue),
+            };
+          })
+          .filter((entry: { task_ref: string | null }) => Boolean(entry.task_ref))
+      : null,
     automation_context: Object.keys(automation).length ? {
       automation_ref: safeText(automation.automation_ref) || null,
       safe_summary: safeText(automation.safe_summary).slice(0, 800) || null,
@@ -560,6 +576,7 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
       support_context: internalRequest.support_context,
       project_context: internalRequest.project_context,
       task_context: internalRequest.task_context,
+      task_batch_context: internalRequest.task_batch_context,
       automation_context: internalRequest.automation_context,
       meeting_context: internalRequest.meeting_context,
       partnership_context: internalRequest.partnership_context,

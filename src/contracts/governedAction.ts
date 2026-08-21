@@ -84,6 +84,28 @@ export type GovernedActionProposal = {
   verification_result: OfficeActionVerificationResult | null;
   failure_reason: string | null;
   execute_directive: OfficeActionExecuteDirective | null;
+  // Phase 4, PR 4 -- a batch proposal ("move the first two to Monday")
+  // is a PARENT with no execute_directive of its own (target_entity_id
+  // is the sentinel "batch") and N children, each a fully independent
+  // GovernedActionProposal built the exact same way a single-record
+  // proposal is (same field builders, same validateTransition call per
+  // child's own current state). Office iterates children client-side on
+  // confirm, exactly generalizing the single-record propose/execute/
+  // verify split -- not a second execution mechanism. null on every
+  // child and on every non-batch proposal.
+  child_operations: GovernedActionProposal[] | null;
+};
+
+// What Office reports back on the turn after a batch confirm, one entry
+// per child it attempted -- built from the SAME apiPatchOperational
+// response every single-record confirm already reads, just N times.
+// Honest by construction: a child that failed its PATCH call is
+// reported ok:false with the error, never silently dropped.
+export type OfficeActionBatchChildReport = {
+  target_entity_id: string;
+  ok: boolean;
+  observed_state: Record<string, unknown> | null;
+  error: string | null;
 };
 
 // Public-facing projection surfaced to Office over the wire (in
@@ -103,4 +125,5 @@ export type OfficeActionProposalView = {
   risk_level: OfficeMutationRiskLevel;
   status: OfficeActionProposalStatus;
   execute_directive: OfficeActionExecuteDirective | null;
+  child_operations: OfficeActionProposalView[] | null;
 };
