@@ -120,8 +120,10 @@ function parseTaskAssigneeIntent(message: string): TaskMutationIntent | null {
   // (?:this|these|them) added in Phase 4, PR 4 -- "assign these to Tony"
   // is the natural batch phrasing alongside the pre-existing single-
   // record "assign this to Tony"; purely additive, no existing match
-  // narrows.
-  const match = text(message).match(/\b(?:assign|reassign)(?:\s+this|\s+these|\s+them)?(?:\s+tasks?)?\s+to\s+([A-Za-z][A-Za-z '.-]{1,60})/i);
+  // narrows. "give" added in Phase 4, PR 5 -- "and give it to Tony" is
+  // the natural way to ADD an owner onto an already-pending revision
+  // (see mergeTaskRevisionIntoProposal), same reasoning.
+  const match = text(message).match(/\b(?:assign|reassign|give)(?:\s+this|\s+these|\s+them|\s+it)?(?:\s+tasks?)?\s+to\s+([A-Za-z][A-Za-z '.-]{1,60})/i);
   if (!match) return null;
   const name = match[1].trim().replace(/[.?!]+$/, "");
   if (!name || /^(?:me|myself|him|her|them|someone|anyone)$/i.test(name)) return null;
@@ -418,6 +420,52 @@ export function buildBatchGovernedActionProposal(input: {
     failure_reason: null,
     execute_directive: null,
     child_operations: input.children,
+  };
+}
+
+// Phase 4, PR 5 -- revision accumulation. Previously, "actually Tuesday"
+// followed by "and give it to Tony" replaced the whole proposal each
+// time (a fresh single-field buildGovernedActionProposal() call
+// derived from the still-unchanged task_context), so the second
+// revision silently discarded the first. This instead ADDS the new
+// field into the same proposal's parameters/proposed_state/
+// execute_directive.patch, refreshing the TTL (same "read the card,
+// don't let a stale yes fire days later" reasoning as a fresh
+// proposal). Single-record only -- batch proposals are explicitly out
+// of scope here (see ConversationOrchestrator.ts's fallthrough guard).
+export function mergeTaskRevisionIntoProposal(
+  pending: GovernedActionProposal,
+  intent: TaskMutationIntent,
+  description: string
+): GovernedActionProposal {
+  const now = new Date();
+  const priorFieldsRaw = recordOf(pending.parameters).fields;
+  // Seed from the base proposal's own field/raw_value/canonical_value on
+  // the FIRST merge (buildGovernedActionProposal never populates a
+  // `fields` map itself -- that shape is introduced here) so a proposal
+  // revised exactly once still carries a complete fields map, not just
+  // the newly-added one.
+  const priorFields: Record<string, unknown> =
+    priorFieldsRaw && typeof priorFieldsRaw === "object"
+      ? (priorFieldsRaw as Record<string, unknown>)
+      : text((pending.parameters as Record<string, unknown> | undefined)?.field)
+      ? { [(pending.parameters as Record<string, unknown>).field as string]: { raw_value: (pending.parameters as Record<string, unknown>).raw_value, canonical_value: (pending.parameters as Record<string, unknown>).canonical_value } }
+      : {};
+  return {
+    ...pending,
+    description,
+    parameters: {
+      ...pending.parameters,
+      fields: {
+        ...priorFields,
+        [intent.field]: { raw_value: intent.rawValue, canonical_value: intent.canonicalValue },
+      },
+    },
+    proposed_state: { ...(pending.proposed_state || {}), [intent.field]: intent.canonicalValue },
+    execute_directive: pending.execute_directive
+      ? { ...pending.execute_directive, patch: { ...pending.execute_directive.patch, [intent.field]: intent.canonicalValue } }
+      : pending.execute_directive,
+    expires_at: new Date(now.getTime() + PROPOSAL_TTL_MS).toISOString(),
   };
 }
 

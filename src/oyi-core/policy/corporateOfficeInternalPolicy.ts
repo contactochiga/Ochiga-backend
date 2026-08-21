@@ -89,7 +89,11 @@ function attentionSignal(request: OfficeInternalOyiCoreRequest): OfficeInternalO
   if (/portfolio|building|deployment|health/.test(message) || request.portfolio_context) return "portfolio";
   if (/partner|partnership|integrator|capital|landowner/.test(message) || request.partnership_context) return "partnership";
   if (/follow.?up|overdue|attention|due/.test(message)) return "follow_up";
-  if (request.task_context && /overdue|due|late/i.test(text(request.task_context.safe_summary))) return "follow_up";
+  // Phase 4 gap fix (Phase 3 checkpoint) -- "due" alone matched ANY task
+  // that merely had a due date mentioned in its summary ("Due: Aug 20"),
+  // not just a genuinely overdue/late one. Requires actual lateness
+  // language now.
+  if (request.task_context && /\boverdue\b|\blate\b/i.test(text(request.task_context.safe_summary))) return "follow_up";
   return "none";
 }
 
@@ -98,7 +102,12 @@ function toolProposals(request: OfficeInternalOyiCoreRequest): CorporateToolProp
   const proposals: CorporateToolProposal[] = [];
   const taskSummary = text(request.task_context?.safe_summary);
   const meetingSummary = text(request.meeting_context?.safe_summary);
-  if (/follow.?up|task|remind/.test(message) || /overdue|due|late/i.test(taskSummary)) {
+  // Phase 4 gap fix (Phase 3 checkpoint) -- this used to match the bare
+  // word "due" anywhere in the task summary, so a perfectly on-time task
+  // whose summary happened to mention its due date ("Due: Aug 20") fired
+  // this proposal right alongside an unrelated refusal. Requires actual
+  // overdue/lateness language now, same fix as attentionSignal() above.
+  if (/follow.?up|task|remind/.test(message) || /\boverdue\b|\blate\b/i.test(taskSummary)) {
     proposals.push({
       proposal_id: `office_task_${request.request_id}`,
       tool: "office.create_followup_task",
