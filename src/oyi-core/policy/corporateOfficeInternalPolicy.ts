@@ -6,6 +6,12 @@ import {
   type OfficeInternalOyiCoreRequest,
   type OfficeInternalOyiCoreResponse,
 } from "../../contracts/corporateIntelligence";
+import {
+  parseAutomationScheduleIntent,
+  automationScheduleSuggestionParameters,
+  automationSuggestionProposalId,
+  type LastVerifiedOfficeAction,
+} from "../context/officeAutomationSuggestion";
 
 function text(value: unknown, fallback = "") {
   const result = String(value ?? "").trim();
@@ -97,11 +103,38 @@ function attentionSignal(request: OfficeInternalOyiCoreRequest): OfficeInternalO
   return "none";
 }
 
-function toolProposals(request: OfficeInternalOyiCoreRequest): CorporateToolProposal[] {
+function toolProposals(request: OfficeInternalOyiCoreRequest, lastVerifiedAction: LastVerifiedOfficeAction | null): CorporateToolProposal[] {
   const message = normalize(request.message);
   const proposals: CorporateToolProposal[] = [];
   const taskSummary = text(request.task_context?.safe_summary);
   const meetingSummary = text(request.meeting_context?.safe_summary);
+  // Phase 4, PR 6 -- "do that every Friday" referring to the operation
+  // just verified (see officeAutomationSuggestion.ts's header note on
+  // why only the TRIGGER is prefilled, never the action: automations in
+  // this system only ever create/transition a workflow, and Tasks
+  // aren't a workflow -- inventing a task-recurrence action here would
+  // violate the existing "never invent an unsupported action" rule this
+  // whole proposal already follows). Checked before the generic
+  // automation-detection regex below; the two never overlap (that regex
+  // requires the literal words "day"/"week"/"time" after "every", not a
+  // weekday name), so there's no double-proposal risk.
+  const scheduleIntent = parseAutomationScheduleIntent(request.message);
+  if (scheduleIntent && lastVerifiedAction) {
+    proposals.push({
+      proposal_id: automationSuggestionProposalId(request.request_id),
+      tool: "office.create_automation",
+      governance: "office_validates_before_execution",
+      reason: `This sounds like it should repeat every ${scheduleIntent.weekdayName} rather than as a one-off. Office must confirm the workflow action before anything is created — the trigger is prefilled from what was just verified, the action still needs to be chosen.`,
+      parameters: {
+        business_unit: request.business_unit,
+        selected_type: request.page_context.selected_type,
+        selected_id: request.page_context.selected_id || request.automation_context?.automation_ref || null,
+        review_required: true,
+        ...automationScheduleSuggestionParameters(scheduleIntent, lastVerifiedAction),
+      },
+    });
+    return proposals;
+  }
   // Phase 4 gap fix (Phase 3 checkpoint) -- this used to match the bare
   // word "due" anywhere in the task summary, so a perfectly on-time task
   // whose summary happened to mention its due date ("Due: Aug 20") fired
@@ -206,7 +239,8 @@ function composeAnswer(request: OfficeInternalOyiCoreRequest, canonical: Canonic
 
 export function buildOfficeInternalResponse(
   request: OfficeInternalOyiCoreRequest,
-  canonical: CanonicalConversationResponse
+  canonical: CanonicalConversationResponse,
+  lastVerifiedAction: LastVerifiedOfficeAction | null = null
 ): OfficeInternalOyiCoreResponse {
   const answer = composeAnswer(request, canonical);
   return {
@@ -222,7 +256,7 @@ export function buildOfficeInternalResponse(
     business_domain: businessDomain(request),
     suggested_next_action: text((canonical as any).suggested_next_action) || null,
     attention_signal: attentionSignal(request),
-    tool_proposals: toolProposals(request),
+    tool_proposals: toolProposals(request, lastVerifiedAction),
     // Oyi Conversational Runtime Completion Programme, Phase 3. Governed
     // action proposals (Tasks/Meetings/Support write capabilities, see
     // OfficeActionCapabilityModules.ts) surface their public view through

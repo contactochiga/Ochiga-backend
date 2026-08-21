@@ -50,6 +50,7 @@ import {
   parseTaskMutationIntent,
   mergeTaskRevisionIntoProposal,
 } from "../context/officeActionProposal";
+import { buildLastVerifiedOfficeAction } from "../context/officeAutomationSuggestion";
 import type { GovernedActionProposal } from "../../contracts/governedAction";
 
 let registered = false;
@@ -464,6 +465,9 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
     pendingActionProposal: Object.prototype.hasOwnProperty.call(response, "pending_action_proposal")
       ? (response as any).pending_action_proposal
       : undefined,
+    lastVerifiedOfficeAction: Object.prototype.hasOwnProperty.call(response, "last_verified_office_action")
+      ? (response as any).last_verified_office_action
+      : undefined,
   });
   response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
   response.persistence_saved = Boolean(persistedThreadId);
@@ -605,6 +609,19 @@ function describeTaskRevision(proposedState: Record<string, unknown> | null, lab
   return `Ready to ${parts.join(" and ")} for "${label}".`;
 }
 
+// Phase 4, PR 6 -- a compact, future-tense, name-friendly summary of
+// what was just done (as opposed to officeProposalVerifiedDescription's
+// past-tense "Done. X is now Y." framing), fed into "do that every
+// Friday"'s suggested automation name.
+// AutomationScheduleSuggestion's suggested_name becomes e.g. "move the
+// due date to Tue Aug 25 2026 for "X" every Friday" -- reads naturally.
+function automationSuggestionDescription(proposedState: Record<string, unknown> | null, label: string): string {
+  const entries = Object.entries(proposedState || {});
+  if (!entries.length) return `update "${label}"`;
+  const parts = entries.map(([field, value]) => describeProposedFieldTarget(field, value));
+  return `${parts.join(" and ")} for "${label}"`;
+}
+
 function officeProposalVerifiedDescription(proposal: GovernedActionProposal, label: string): string {
   if (proposal.operation === "resolve_case") return `Done. "${label}" is now resolved.`;
   const entries = Object.entries(proposal.proposed_state || {});
@@ -706,11 +723,21 @@ async function respondFromBatchVerification(
       ? `I attempted that, but none of the ${total} tasks show the expected change yet — please check them directly in Tasks.`
       : `${verifiedCount} of ${total} tasks were updated as proposed. Please check directly: ${unverifiedLabels.join(", ")}.`;
   const capability = syntheticOfficeActionCapability(`${confirmed.domain}.batch_action_verified`, confirmed.domain);
+  const allVerified = total > 0 && verifiedCount === total;
   const result: DomainResult = {
     status: "answered",
     answer,
     presentation_policy: resultPresentation("text"),
-    metadata: { pending_action_proposal: null },
+    // Phase 4, PR 6 -- same "only on FULL verification" rule as the
+    // single-record path. Batch children all make the SAME kind of
+    // change to different records, so the first child's proposed_state
+    // describes the shared change; the label names the whole group.
+    metadata: {
+      pending_action_proposal: null,
+      ...(allVerified
+        ? { last_verified_office_action: buildLastVerifiedOfficeAction(confirmed, `${total} tasks`, automationSuggestionDescription(children[0]?.proposed_state || null, `${total} tasks`)) }
+        : {}),
+    },
   };
   return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
 }
@@ -808,7 +835,15 @@ async function handleOfficeActionProposalTurn(
         status: "answered",
         answer,
         presentation_policy: resultPresentation("text"),
-        metadata: { pending_action_proposal: null },
+        // Phase 4, PR 6 -- only ever recorded on a FULLY verified change
+        // (key omitted, not just falsy, when not allVerified -- absence
+        // means "preserve whatever's already there" per the three-state
+        // convention), so "do that every Friday" can never reference a
+        // partially- or un-verified operation.
+        metadata: {
+          pending_action_proposal: null,
+          ...(allVerified ? { last_verified_office_action: buildLastVerifiedOfficeAction(confirmed, label, automationSuggestionDescription(confirmed.proposed_state, label)) } : {}),
+        },
       };
       return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
     }

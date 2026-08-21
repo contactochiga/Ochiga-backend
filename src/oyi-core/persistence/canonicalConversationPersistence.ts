@@ -18,6 +18,7 @@ import {
 import { buildResultSetContext, loadThreadResultSetsContext, type ResultSetContext } from "../context/resultSetContext";
 import { loadOfficeActiveContext } from "../context/officeConversationContext";
 import { loadAnyOfficeActionProposal } from "../context/officeActionProposal";
+import { loadLastVerifiedOfficeAction } from "../context/officeAutomationSuggestionStore";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -164,6 +165,10 @@ export async function persistCanonicalConversationTurn(input: {
   // businessActiveContext's exact undefined/null/value handling for a
   // pending governed action proposal (see officeActionProposal.ts).
   pendingActionProposal?: Record<string, unknown> | null;
+  // Phase 4, PR 6 -- same undefined/null/value convention, for "do that
+  // every Friday" to reference the just-verified operation on a LATER
+  // turn (see officeAutomationSuggestion.ts).
+  lastVerifiedOfficeAction?: Record<string, unknown> | null;
 }) {
   const { actor, contract, object, request, response, truth } = input;
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
@@ -272,6 +277,12 @@ export async function persistCanonicalConversationTurn(input: {
   } else {
     pendingActionProposal = await loadAnyOfficeActionProposal(threadId, actor?.id || null).catch(() => null);
   }
+  let lastVerifiedOfficeAction: Record<string, unknown> | null = null;
+  if (input.lastVerifiedOfficeAction !== undefined) {
+    lastVerifiedOfficeAction = input.lastVerifiedOfficeAction;
+  } else {
+    lastVerifiedOfficeAction = await loadLastVerifiedOfficeAction(threadId, actor?.id || null).catch(() => null);
+  }
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
@@ -279,6 +290,7 @@ export async function persistCanonicalConversationTurn(input: {
     active_domain: activeDomain,
     business_active_context: businessActiveContext,
     pending_action_proposal: pendingActionProposal,
+    last_verified_office_action: lastVerifiedOfficeAction,
     conversation_state: {
       version: 1,
       entities: [],
