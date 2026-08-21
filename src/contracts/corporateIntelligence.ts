@@ -438,6 +438,13 @@ export type OfficeInternalOyiCoreRequest = {
     due_at?: string | null;
     overdue?: boolean;
   }> | null;
+  // Phase 4, PR 5 -- lifecycle precision. Office reports a client-side
+  // PATCH failure (network error, permission denial at Office's own
+  // layer) directly rather than leaving Oyi Core to assume success or
+  // wait out the proposal's TTL -- see handleOfficeActionProposalTurn's
+  // execution_failed branch (ConversationOrchestrator.ts).
+  execution_failed: boolean;
+  execution_failure_reason: string | null;
   // Mirrors task_context exactly — set when staff have a Tasks-domain
   // automation open (Office's Automations detail panel). Lets Oyi Core
   // reason about the automation's real trigger/action/status instead of

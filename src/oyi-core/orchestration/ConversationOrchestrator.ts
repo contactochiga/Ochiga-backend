@@ -47,7 +47,8 @@ import {
   isOfficeCancellationText,
   proposalPublicView,
   parseTaskRevisionIntent,
-  reconstructTaskTriggerPhrase,
+  parseTaskMutationIntent,
+  mergeTaskRevisionIntoProposal,
 } from "../context/officeActionProposal";
 import type { GovernedActionProposal } from "../../contracts/governedAction";
 
@@ -553,6 +554,15 @@ export function officeProposalFieldAndValue(proposal: GovernedActionProposal): {
   return { field, value };
 }
 
+// Phase 4, PR 5 -- the plural counterpart, needed once a proposal can
+// carry more than one field (revision accumulation). officeProposalField
+// AndValue above is left as-is (still correct for the single-field/
+// first-field case every existing caller other than the verify loop
+// below relies on).
+export function officeProposalFieldsAndValues(proposal: GovernedActionProposal): Array<{ field: string; value: unknown }> {
+  return Object.entries(proposal.proposed_state || {}).map(([field, value]) => ({ field, value }));
+}
+
 export function officeProposalValuesMatch(field: string, expected: unknown, observed: unknown): boolean {
   if (field === "due_at") {
     const a = Date.parse(String(expected));
@@ -563,13 +573,44 @@ export function officeProposalValuesMatch(field: string, expected: unknown, obse
   return text(expected).toLowerCase() === text(observed).toLowerCase();
 }
 
+// Phase 4, PR 5 -- driven off proposed_state's own field names rather
+// than parameters.canonical_value (the ORIGINAL field only, unchanged
+// by mergeTaskRevisionIntoProposal) so a revision-accumulated
+// multi-field proposal ("due date + owner") describes every change it
+// actually made, not just the first one. Produces byte-identical text
+// to the old per-operation branches for the single-field case.
+function describeProposedFieldChange(label: string, field: string, value: unknown): string {
+  if (field === "status") return `"${label}" is now ${officeActionTitleCase(text(value))}`;
+  if (field === "assignee") return `"${label}" is now assigned to ${text(value)}`;
+  if (field === "due_at") return `"${label}"'s due date is now ${new Date(text(value)).toDateString()}`;
+  return `"${label}"'s ${field} is now ${text(value)}`;
+}
+
+// Phase 4, PR 5 -- the PROPOSAL-framing counterpart of
+// describeProposedFieldChange above (that one says "is now X" for a
+// VERIFIED change; this says "move/assign to X" for a PENDING one),
+// used to build a combined description when mergeTaskRevisionIntoProposal
+// accumulates more than one field.
+function describeProposedFieldTarget(field: string, value: unknown): string {
+  if (field === "status") return `move to ${officeActionTitleCase(text(value))}`;
+  if (field === "assignee") return `assign to ${text(value)}`;
+  if (field === "due_at") return `move the due date to ${new Date(text(value)).toDateString()}`;
+  return `update ${field} to ${text(value)}`;
+}
+
+function describeTaskRevision(proposedState: Record<string, unknown> | null, label: string): string {
+  const entries = Object.entries(proposedState || {});
+  if (!entries.length) return `Ready to update "${label}".`;
+  const parts = entries.map(([field, value]) => describeProposedFieldTarget(field, value));
+  return `Ready to ${parts.join(" and ")} for "${label}".`;
+}
+
 function officeProposalVerifiedDescription(proposal: GovernedActionProposal, label: string): string {
-  const value = (proposal.parameters as any)?.canonical_value;
-  if (proposal.operation === "status_transition") return `Done. "${label}" is now ${officeActionTitleCase(text(value))}.`;
-  if (proposal.operation === "reassign_owner") return `Done. "${label}" is now assigned to ${text(value)}.`;
-  if (proposal.operation === "change_due_date") return `Done. "${label}"'s due date is now ${new Date(text(value)).toDateString()}.`;
   if (proposal.operation === "resolve_case") return `Done. "${label}" is now resolved.`;
-  return `Done. "${label}" was updated.`;
+  const entries = Object.entries(proposal.proposed_state || {});
+  if (!entries.length) return `Done. "${label}" was updated.`;
+  if (entries.length === 1) return `Done. ${describeProposedFieldChange(label, entries[0][0], entries[0][1])}.`;
+  return `Done. ${entries.map(([field, value]) => describeProposedFieldChange(label, field, value)).join(", and ")}.`;
 }
 
 // Phase 4, PR 4 -- confirming a batch proposal must confirm every child
@@ -692,15 +733,54 @@ async function handleOfficeActionProposalTurn(
   // than forcing a verification against the wrong data.
   const confirmed = await loadConfirmedOfficeActionProposal(threadId, actorId);
   if (confirmed) {
+    // Phase 4, PR 5 -- lifecycle precision. A client-side PATCH failure
+    // (network error, permission denial at Office's own layer) previously
+    // left the proposal "confirmed" in storage until its natural 10-minute
+    // TTL, silently lingering rather than being explicitly resolved.
+    // Office reports the failure directly (see confirmOyiActionProposal /
+    // confirmBatchActionProposal in office.js) so this can close it out
+    // immediately -- same "clear pending_action_proposal" mechanism
+    // cancel/verified already use, just reached via a different route.
+    const executionFailedReport = recordOf(context.input.context).execution_failed;
+    if (executionFailedReport) {
+      const failureReason = text(recordOf(context.input.context).execution_failure_reason) || null;
+      logger.info("oyi_office_action_execution_failed", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: threadId,
+        actor_id: actorId,
+        proposal_id: confirmed.proposal_id,
+        domain: confirmed.domain,
+        operation: confirmed.operation,
+        failure_reason: failureReason,
+      });
+      const capability = syntheticOfficeActionCapability(`${confirmed.domain}.action_execution_failed`, confirmed.domain);
+      const result: DomainResult = {
+        status: "answered",
+        answer: `That change could not be completed${failureReason ? `: ${failureReason}` : "."} Nothing was verified as changed.`,
+        presentation_policy: resultPresentation("text"),
+        metadata: { pending_action_proposal: null },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
     if (confirmed.child_operations && confirmed.child_operations.length) {
       return respondFromBatchVerification(context, resolvedTurn, tracer, confirmed);
     }
     const populated = populatedOfficeContextSlot(context as CapabilityContext);
     if (populated && populated.domain === confirmed.domain && populated.ref === confirmed.target_entity_id) {
-      const proposedField = officeProposalFieldAndValue(confirmed);
-      const contextFieldKey = proposedField ? (OFFICE_PROPOSAL_FIELD_TO_CONTEXT_FIELD[proposedField.field] || proposedField.field) : null;
-      const observed = contextFieldKey ? (populated.slot as Record<string, unknown>)[contextFieldKey] : undefined;
-      const verified = Boolean(proposedField && officeProposalValuesMatch(proposedField.field, proposedField.value, observed));
+      // Phase 4, PR 5 -- checks EVERY field a revision-accumulated
+      // proposal set, not just the first (officeProposalFieldAndValue),
+      // so "due date + owner" both have to show up before this reports
+      // full success; a proposal with only one field behaves exactly as
+      // before.
+      const proposedFields = officeProposalFieldsAndValues(confirmed);
+      const fieldResults = proposedFields.map(({ field, value }) => {
+        const contextFieldKey = OFFICE_PROPOSAL_FIELD_TO_CONTEXT_FIELD[field] || field;
+        const observed = (populated.slot as Record<string, unknown>)[contextFieldKey];
+        return { field, verified: officeProposalValuesMatch(field, value, observed) };
+      });
+      const verifiedCount = fieldResults.filter((r) => r.verified).length;
+      const allVerified = fieldResults.length > 0 && verifiedCount === fieldResults.length;
       const label = text((populated.slot as any)?.title) || officeActionTitleCase(confirmed.target_entity_type);
       logger.info("oyi_office_action_verified", {
         request_id: tracer.requestId,
@@ -710,14 +790,23 @@ async function handleOfficeActionProposalTurn(
         proposal_id: confirmed.proposal_id,
         domain: confirmed.domain,
         operation: confirmed.operation,
-        verified,
+        verified: allVerified,
+        field_count: fieldResults.length,
+        verified_count: verifiedCount,
       });
       const capability = syntheticOfficeActionCapability(`${confirmed.domain}.action_verified`, confirmed.domain);
+      let answer: string;
+      if (allVerified) {
+        answer = officeProposalVerifiedDescription(confirmed, label);
+      } else if (verifiedCount === 0) {
+        answer = `I attempted that, but "${label}" doesn't show the expected change yet — please check it directly in ${officeActionTitleCase(confirmed.target_entity_type)}.`;
+      } else {
+        const unverifiedFields = fieldResults.filter((r) => !r.verified).map((r) => r.field).join(", ");
+        answer = `Part of that change went through for "${label}", but not all of it (${unverifiedFields} doesn't show the expected value yet) — please check it directly in ${officeActionTitleCase(confirmed.target_entity_type)}.`;
+      }
       const result: DomainResult = {
         status: "answered",
-        answer: verified
-          ? officeProposalVerifiedDescription(confirmed, label)
-          : `I attempted that, but "${label}" doesn't show the expected change yet — please check it directly in ${officeActionTitleCase(confirmed.target_entity_type)}.`,
+        answer,
         presentation_policy: resultPresentation("text"),
         metadata: { pending_action_proposal: null },
       };
@@ -757,30 +846,36 @@ async function handleOfficeActionProposalTurn(
       };
       return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
     }
-    // Neither confirm nor cancel. A message that already contains the
-    // full trigger phrase ("change the due date to Monday") falls
-    // through to normal capability routing below, where the write
-    // capability's own createDraft naturally supersedes this pending
-    // proposal with a new one. A short correction that DOESN'T repeat
-    // the trigger phrase ("actually make it Monday") is tried here as a
-    // revision of the SAME pending operation before falling through.
-    // Batch proposals don't have a single task_context to revise against
-    // this way -- accumulating a revision onto a batch is explicit Phase
-    // 4 PR 5 scope; skip here so a short correction against a pending
-    // batch falls through to normal routing instead of an incorrect
-    // "I don't have a specific task open" reply.
+    // Neither confirm nor cancel. Phase 4, PR 5 -- revision accumulation.
+    // A short correction ("actually make it Monday") is recognized via
+    // the same-field loose parser; a message that names a DIFFERENT
+    // field, whether short ("and give it to Tony") or a full phrase
+    // ("assign this to Tony"), is recognized via the normal mutation
+    // parser. Either way this now MERGES the change into the SAME
+    // pending proposal (mergeTaskRevisionIntoProposal) instead of
+    // replacing it wholesale -- "actually Tuesday" followed by "and give
+    // it to Tony" lands as one proposal with both changes, not two
+    // proposals where the second silently discards the first. Batch
+    // proposals don't have a single task_context to revise against this
+    // way -- accumulating a revision onto a batch is out of scope here;
+    // skip so a short correction against a pending batch falls through
+    // to normal routing instead of an incorrect reply.
     if (pending.domain === "office_tasks" && !(pending.child_operations && pending.child_operations.length)) {
-      const revision = parseTaskRevisionIntent(message, pending.operation);
-      if (revision) {
-        const capability = capabilityRegistry.get("office_tasks.write");
-        if (capability?.createDraft) {
-          const revisedContext: CanonicalConversationRequestContext = { ...context, input: { ...context.input, message: reconstructTaskTriggerPhrase(revision) } };
-          const capabilityContext: CapabilityContext = { ...revisedContext, resolvedTurn, legacyFallback: unavailableInsideFallback };
-          const draft = await capability.createDraft(capabilityContext);
-          let response = capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result: draft as DomainResult, evidence: [] });
-          response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capability);
-          return response;
-        }
+      const revisionIntent = parseTaskRevisionIntent(message, pending.operation) || parseTaskMutationIntent(message);
+      if (revisionIntent) {
+        const populated = populatedOfficeContextSlot(context as CapabilityContext);
+        const label = text((populated?.slot as any)?.title) || officeActionTitleCase(pending.target_entity_type);
+        const merged = mergeTaskRevisionIntoProposal(pending, revisionIntent, "");
+        const description = describeTaskRevision(merged.proposed_state, label);
+        const revisedProposal: GovernedActionProposal = { ...merged, description };
+        const capability = syntheticOfficeActionCapability(`${pending.domain}.action_revised`, pending.domain);
+        const result: DomainResult = {
+          status: "awaiting_confirmation",
+          answer: `${description} Reply "yes" to confirm, or "no" to cancel.`,
+          presentation_policy: resultPresentation("approval"),
+          metadata: { confirmations: [proposalPublicView(revisedProposal)], pending_action_proposal: revisedProposal },
+        };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
       }
     }
   }

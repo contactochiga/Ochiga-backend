@@ -244,6 +244,8 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
           })
           .filter((entry: { task_ref: string | null }) => Boolean(entry.task_ref))
       : null,
+    execution_failed: Boolean(body.execution_failed),
+    execution_failure_reason: safeText(body.execution_failure_reason).slice(0, 300) || null,
     automation_context: Object.keys(automation).length ? {
       automation_ref: safeText(automation.automation_ref) || null,
       safe_summary: safeText(automation.safe_summary).slice(0, 800) || null,
@@ -577,6 +579,8 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
       project_context: internalRequest.project_context,
       task_context: internalRequest.task_context,
       task_batch_context: internalRequest.task_batch_context,
+      execution_failed: internalRequest.execution_failed,
+      execution_failure_reason: internalRequest.execution_failure_reason,
       automation_context: internalRequest.automation_context,
       meeting_context: internalRequest.meeting_context,
       partnership_context: internalRequest.partnership_context,
