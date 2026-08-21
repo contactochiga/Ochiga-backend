@@ -14,13 +14,19 @@
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import type { DomainResult } from "../contracts/domainResult";
 import type { SemanticFrame } from "../contracts/semanticFrame";
+import type { GovernedActionProposal } from "../../contracts/governedAction";
 import { resultPresentation } from "./ReadCapabilityModules";
 import { taskContextSlot, meetingContextSlot, supportContextSlot, unavailableResult } from "./OfficeCorporateCapabilityModules";
+import { loadThreadResultSetContext } from "../context/resultSetContext";
 import {
   parseTaskMutationIntent,
   parseMeetingMutationIntent,
   parseSupportMutationIntent,
+  parseBatchTargetIntent,
+  parseBatchMutationIntent,
+  isTaskMutationMessage,
   buildGovernedActionProposal,
+  buildBatchGovernedActionProposal,
   proposalPublicView,
   TASK_STATUS_TRANSITIONS,
   MEETING_STATUS_TRANSITIONS,
@@ -60,6 +66,144 @@ function proposalResult(answer: string, proposal: ReturnType<typeof buildGoverne
 }
 
 // ---------------------------------------------------------------------
+// Tasks — batch (Phase 4, PR 4): "the first two", "all of them" against
+// the thread's last office_tasks list turn (office_tasks.query.read).
+// Builds N independent child proposals using the SAME per-operation
+// shape as the single-record path below, just parameterized by a
+// ResultSetObjectRef instead of the single open task_context slot --
+// each child's "current" state comes from the ref's own already-
+// persisted label/status/attributes (Phase 4 PR 3's same no-re-fetch
+// principle), not a fresh read. A target that fails pre-validation
+// (e.g. already completed) is skipped and named in the description
+// rather than silently dropped or blocking the whole batch.
+// ---------------------------------------------------------------------
+async function buildTaskBatchDraft(context: CapabilityContext, batchTarget: { type: "count"; count: number } | { type: "all" }): Promise<DomainResult> {
+  const intent = parseBatchMutationIntent(context.input.message);
+  if (!intent) {
+    return draftUnavailable('I didn\'t catch a clear change to make for that group. Try something like "move the first two to Monday" or "assign these to <name>".');
+  }
+  const ids = threadAndActor(context);
+  if (!ids) {
+    return draftUnavailable("I can't safely propose a change without a stable conversation — please try again.");
+  }
+  const resultSet = await loadThreadResultSetContext(context.input.thread_id);
+  if (!resultSet || resultSet.domain !== "office_tasks" || !resultSet.object_refs.length) {
+    return draftUnavailable("I don't have a recent list of tasks to reference — ask to see your tasks first, then tell me which ones to change.");
+  }
+  const targets = batchTarget.type === "all" ? resultSet.object_refs : resultSet.object_refs.slice(0, batchTarget.count);
+  if (!targets.length) {
+    return draftUnavailable("There's nothing in that list to change.");
+  }
+
+  const children: GovernedActionProposal[] = [];
+  const includedLabels: string[] = [];
+  const skipped: string[] = [];
+
+  for (const ref of targets) {
+    const label = ref.label || "This task";
+    if (intent.operation === "status_transition") {
+      const currentStatus = text(ref.attributes.status) || "open";
+      const validation = validateTransition(TASK_STATUS_TRANSITIONS, currentStatus, intent.canonicalValue);
+      if (!validation.valid) {
+        skipped.push(`"${label}" (${validation.reason})`);
+        continue;
+      }
+      children.push(
+        buildGovernedActionProposal({
+          threadId: ids.threadId,
+          actorId: ids.actorId,
+          domain: "office_tasks",
+          targetEntityType: "task",
+          targetEntityId: ref.canonical_id,
+          operation: intent.operation,
+          field: intent.field,
+          rawValue: intent.rawValue,
+          canonicalValue: intent.canonicalValue,
+          description: `Move "${label}" from ${titleCase(currentStatus)} to ${titleCase(intent.canonicalValue)}.`,
+          previousState: { status: currentStatus },
+          authorization: { allowed: true, reason: null, required_permissions: ["tasks.manage"] },
+          validation,
+          riskLevel: "low_risk_action",
+          executeDirective: { namespace: "crm", collection: "tasks", record_id: ref.canonical_id, patch: { status: intent.canonicalValue } },
+        })
+      );
+      includedLabels.push(label);
+      continue;
+    }
+    if (intent.operation === "reassign_owner") {
+      const previousOwner = text(ref.attributes.owner) || null;
+      children.push(
+        buildGovernedActionProposal({
+          threadId: ids.threadId,
+          actorId: ids.actorId,
+          domain: "office_tasks",
+          targetEntityType: "task",
+          targetEntityId: ref.canonical_id,
+          operation: intent.operation,
+          field: intent.field,
+          rawValue: intent.rawValue,
+          canonicalValue: intent.canonicalValue,
+          description: `Assign "${label}" to ${intent.canonicalValue}${previousOwner ? ` (currently ${previousOwner})` : ""}.`,
+          previousState: { assignee: previousOwner },
+          authorization: { allowed: true, reason: null, required_permissions: ["tasks.manage"] },
+          validation: { valid: true, reason: null },
+          riskLevel: "consequential_action",
+          executeDirective: { namespace: "crm", collection: "tasks", record_id: ref.canonical_id, patch: { assignee: intent.canonicalValue } },
+        })
+      );
+      includedLabels.push(label);
+      continue;
+    }
+    // change_due_date
+    const previousDue = text(ref.attributes.due_at) || null;
+    children.push(
+      buildGovernedActionProposal({
+        threadId: ids.threadId,
+        actorId: ids.actorId,
+        domain: "office_tasks",
+        targetEntityType: "task",
+        targetEntityId: ref.canonical_id,
+        operation: intent.operation,
+        field: intent.field,
+        rawValue: intent.rawValue,
+        canonicalValue: intent.canonicalValue,
+        description: `Move "${label}"'s due date to ${new Date(intent.canonicalValue as string).toDateString()}.`,
+        previousState: { due_at: previousDue },
+        authorization: { allowed: true, reason: null, required_permissions: ["tasks.manage"] },
+        validation: { valid: true, reason: null },
+        riskLevel: "low_risk_action",
+        executeDirective: { namespace: "crm", collection: "tasks", record_id: ref.canonical_id, patch: { due_at: intent.canonicalValue } },
+      })
+    );
+    includedLabels.push(label);
+  }
+
+  if (!children.length) {
+    return draftUnavailable(`None of those tasks can make that change right now: ${skipped.join("; ")}.`);
+  }
+
+  const verb =
+    intent.operation === "status_transition"
+      ? `move to ${titleCase(intent.canonicalValue)}`
+      : intent.operation === "reassign_owner"
+      ? `assign to ${intent.canonicalValue}`
+      : `move the due date to ${new Date(intent.canonicalValue as string).toDateString()}`;
+  let description = `Ready to ${verb} for ${children.length} task${children.length === 1 ? "" : "s"}: ${includedLabels.map((l) => `"${l}"`).join(", ")}.`;
+  if (skipped.length) description += ` Skipped ${skipped.length}: ${skipped.join("; ")}.`;
+
+  const proposal = buildBatchGovernedActionProposal({
+    threadId: ids.threadId,
+    actorId: ids.actorId,
+    domain: "office_tasks",
+    operation: intent.operation,
+    description,
+    riskLevel: intent.operation === "reassign_owner" ? "consequential_action" : "low_risk_action",
+    children,
+  });
+  return proposalResult(`${description} Reply "yes" to confirm, or "no" to cancel.`, proposal);
+}
+
+// ---------------------------------------------------------------------
 // Tasks — status transition / owner reassignment / due-date change.
 // ---------------------------------------------------------------------
 function officeTasksWriteModule(): CapabilityModule {
@@ -75,7 +219,7 @@ function officeTasksWriteModule(): CapabilityModule {
     confirmation_policy: "explicit_confirmation",
     evidence_requirements: [],
     presentation_policy: { primary: "approval", expose_evidence: "summary", allow_internal_ids: false },
-    supports: (frame: SemanticFrame) => frame.domain === "office_tasks" && Boolean(parseTaskMutationIntent(frame.normalizedText)),
+    supports: (frame: SemanticFrame) => frame.domain === "office_tasks" && isTaskMutationMessage(frame.normalizedText),
     async resolve() {
       return { supported: true, reason: null };
     },
@@ -83,6 +227,10 @@ function officeTasksWriteModule(): CapabilityModule {
       return [];
     },
     createDraft: async (context: CapabilityContext): Promise<DomainResult> => {
+      const batchTarget = parseBatchTargetIntent(context.input.message);
+      if (batchTarget) {
+        return buildTaskBatchDraft(context, batchTarget);
+      }
       const task = taskContextSlot(context);
       if (!task || !task.task_ref) {
         return draftUnavailable("I don't have a specific task open to check — select one in Tasks first, then ask me about it.");

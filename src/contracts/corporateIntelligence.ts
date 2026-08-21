@@ -422,6 +422,22 @@ export type OfficeInternalOyiCoreRequest = {
     due_at?: string | null;
     overdue?: boolean;
   } | null;
+  // Phase 4, PR 4 -- the batch counterpart of task_context. After a
+  // batch confirm ("move the first two to Monday" -> yes), Office
+  // PATCHes each child directly (apiPatchOperational, the same
+  // already-audited route every manual status button uses) and resends
+  // one rebuilt entry per child here (same shape as task_context, no
+  // safe_summary required) so the following VERIFY turn can check each
+  // child independently instead of assuming a single selected record.
+  task_batch_context: Array<{
+    task_ref: string | null;
+    title?: string | null;
+    status?: string | null;
+    priority?: string | null;
+    owner?: string | null;
+    due_at?: string | null;
+    overdue?: boolean;
+  }> | null;
   // Mirrors task_context exactly — set when staff have a Tasks-domain
   // automation open (Office's Automations detail panel). Lets Oyi Core
   // reason about the automation's real trigger/action/status instead of

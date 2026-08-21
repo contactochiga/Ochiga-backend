@@ -12,7 +12,7 @@ import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdve
 import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
 import { buildDeviceActionCapabilities, continueDeviceActionWorkflow } from "../capabilities/DeviceActionCapabilityModules";
 import { buildPhaseBReadCapabilities, resultPresentation } from "../capabilities/ReadCapabilityModules";
-import { buildOfficeInternalReadCapabilities, buildPublicCorporateReadCapabilities } from "../capabilities/OfficeCorporateCapabilityModules";
+import { buildOfficeInternalReadCapabilities, buildPublicCorporateReadCapabilities, taskBatchContextSlot } from "../capabilities/OfficeCorporateCapabilityModules";
 import { buildOfficeActionCapabilities } from "../capabilities/OfficeActionCapabilityModules";
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import { persistCanonicalConversationTurn } from "../persistence/canonicalConversationPersistence";
@@ -544,16 +544,16 @@ function officeActionTitleCase(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const OFFICE_PROPOSAL_FIELD_TO_CONTEXT_FIELD: Record<string, string> = { assignee: "owner" };
+export const OFFICE_PROPOSAL_FIELD_TO_CONTEXT_FIELD: Record<string, string> = { assignee: "owner" };
 
-function officeProposalFieldAndValue(proposal: GovernedActionProposal): { field: string; value: unknown } | null {
+export function officeProposalFieldAndValue(proposal: GovernedActionProposal): { field: string; value: unknown } | null {
   const entries = Object.entries(proposal.proposed_state || {});
   if (!entries.length) return null;
   const [field, value] = entries[0];
   return { field, value };
 }
 
-function officeProposalValuesMatch(field: string, expected: unknown, observed: unknown): boolean {
+export function officeProposalValuesMatch(field: string, expected: unknown, observed: unknown): boolean {
   if (field === "due_at") {
     const a = Date.parse(String(expected));
     const b = Date.parse(String(observed));
@@ -570,6 +570,19 @@ function officeProposalVerifiedDescription(proposal: GovernedActionProposal, lab
   if (proposal.operation === "change_due_date") return `Done. "${label}"'s due date is now ${new Date(text(value)).toDateString()}.`;
   if (proposal.operation === "resolve_case") return `Done. "${label}" is now resolved.`;
   return `Done. "${label}" was updated.`;
+}
+
+// Phase 4, PR 4 -- confirming a batch proposal must confirm every child
+// too (proposalPublicView only reveals a child's execute_directive once
+// ITS OWN status is "confirmed", same rule as a single proposal), so
+// Office's client-side loop over child_operations actually gets a
+// directive for each one.
+export function confirmProposalTree(proposal: GovernedActionProposal): GovernedActionProposal {
+  return {
+    ...proposal,
+    status: "confirmed",
+    child_operations: proposal.child_operations ? proposal.child_operations.map((child) => ({ ...child, status: "confirmed" })) : null,
+  };
 }
 
 function syntheticOfficeActionCapability(key: string, domain: string): CapabilityModule {
@@ -603,6 +616,64 @@ async function respondFromOfficeActionResult(
   return response;
 }
 
+// Phase 4, PR 4 -- batch counterpart of the single-record verify branch
+// below. Office resends one rebuilt context entry per child it actually
+// PATCHed (task_batch_context, see taskBatchContextSlot); a child with
+// no matching entry (its PATCH call itself failed/was skipped
+// client-side) counts as unverified, never silently as success. Honest
+// partial-success reporting, never a blanket "done."
+async function respondFromBatchVerification(
+  context: CanonicalConversationRequestContext,
+  resolvedTurn: ResolvedTurn,
+  tracer: ConversationTracer,
+  confirmed: GovernedActionProposal
+): Promise<ConversationRunResult> {
+  const batchEntries = taskBatchContextSlot(context as CapabilityContext);
+  const children = confirmed.child_operations || [];
+  let verifiedCount = 0;
+  const unverifiedLabels: string[] = [];
+  for (const child of children) {
+    const observedEntry = batchEntries.find((entry) => text(entry.task_ref) === child.target_entity_id);
+    const proposedField = officeProposalFieldAndValue(child);
+    const contextFieldKey = proposedField ? (OFFICE_PROPOSAL_FIELD_TO_CONTEXT_FIELD[proposedField.field] || proposedField.field) : null;
+    const observed = observedEntry && contextFieldKey ? (observedEntry as Record<string, unknown>)[contextFieldKey] : undefined;
+    const verified = Boolean(observedEntry && proposedField && officeProposalValuesMatch(proposedField.field, proposedField.value, observed));
+    if (verified) {
+      verifiedCount += 1;
+    } else {
+      unverifiedLabels.push(text(observedEntry?.title) || child.target_entity_id);
+    }
+  }
+  const total = children.length;
+  logger.info("oyi_office_action_batch_verified", {
+    request_id: tracer.requestId,
+    correlation_id: tracer.correlationId,
+    thread_id: context.input.thread_id || null,
+    actor_id: context.actor?.id || null,
+    proposal_id: confirmed.proposal_id,
+    domain: confirmed.domain,
+    operation: confirmed.operation,
+    total,
+    verified_count: verifiedCount,
+  });
+  const answer =
+    total === 0
+      ? "There was nothing in that batch to verify."
+      : verifiedCount === total
+      ? `Done. All ${total} task${total === 1 ? "" : "s"} were updated as proposed.`
+      : verifiedCount === 0
+      ? `I attempted that, but none of the ${total} tasks show the expected change yet — please check them directly in Tasks.`
+      : `${verifiedCount} of ${total} tasks were updated as proposed. Please check directly: ${unverifiedLabels.join(", ")}.`;
+  const capability = syntheticOfficeActionCapability(`${confirmed.domain}.batch_action_verified`, confirmed.domain);
+  const result: DomainResult = {
+    status: "answered",
+    answer,
+    presentation_policy: resultPresentation("text"),
+    metadata: { pending_action_proposal: null },
+  };
+  return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+}
+
 async function handleOfficeActionProposalTurn(
   context: CanonicalConversationRequestContext,
   resolvedTurn: ResolvedTurn,
@@ -621,6 +692,9 @@ async function handleOfficeActionProposalTurn(
   // than forcing a verification against the wrong data.
   const confirmed = await loadConfirmedOfficeActionProposal(threadId, actorId);
   if (confirmed) {
+    if (confirmed.child_operations && confirmed.child_operations.length) {
+      return respondFromBatchVerification(context, resolvedTurn, tracer, confirmed);
+    }
     const populated = populatedOfficeContextSlot(context as CapabilityContext);
     if (populated && populated.domain === confirmed.domain && populated.ref === confirmed.target_entity_id) {
       const proposedField = officeProposalFieldAndValue(confirmed);
@@ -665,13 +739,19 @@ async function handleOfficeActionProposalTurn(
       return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
     }
     if (isOfficeConfirmationText(message)) {
-      const confirmedProposal: GovernedActionProposal = { ...pending, status: "confirmed" };
-      const populated = populatedOfficeContextSlot(context as CapabilityContext);
-      const label = text((populated?.slot as any)?.title) || officeActionTitleCase(pending.target_entity_type);
+      const confirmedProposal: GovernedActionProposal = confirmProposalTree(pending);
       const capability = syntheticOfficeActionCapability(`${pending.domain}.action_confirmed`, pending.domain);
+      let confirmAnswer: string;
+      if (pending.child_operations && pending.child_operations.length) {
+        confirmAnswer = `Confirmed — updating ${pending.child_operations.length} task${pending.child_operations.length === 1 ? "" : "s"} now.`;
+      } else {
+        const populated = populatedOfficeContextSlot(context as CapabilityContext);
+        const label = text((populated?.slot as any)?.title) || officeActionTitleCase(pending.target_entity_type);
+        confirmAnswer = `Confirmed — updating "${label}" now.`;
+      }
       const result: DomainResult = {
         status: "answered",
-        answer: `Confirmed — updating "${label}" now.`,
+        answer: confirmAnswer,
         presentation_policy: resultPresentation("text"),
         metadata: { confirmations: [proposalPublicView(confirmedProposal)], pending_action_proposal: confirmedProposal },
       };
@@ -684,7 +764,12 @@ async function handleOfficeActionProposalTurn(
     // proposal with a new one. A short correction that DOESN'T repeat
     // the trigger phrase ("actually make it Monday") is tried here as a
     // revision of the SAME pending operation before falling through.
-    if (pending.domain === "office_tasks") {
+    // Batch proposals don't have a single task_context to revise against
+    // this way -- accumulating a revision onto a batch is explicit Phase
+    // 4 PR 5 scope; skip here so a short correction against a pending
+    // batch falls through to normal routing instead of an incorrect
+    // "I don't have a specific task open" reply.
+    if (pending.domain === "office_tasks" && !(pending.child_operations && pending.child_operations.length)) {
       const revision = parseTaskRevisionIntent(message, pending.operation);
       if (revision) {
         const capability = capabilityRegistry.get("office_tasks.write");

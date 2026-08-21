@@ -30,7 +30,7 @@ import type { OyiEvidence } from "../contracts/evidence";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation, evidenceFromFact } from "./ReadCapabilityModules";
-import { parseTaskMutationIntent, parseMeetingMutationIntent, parseSupportMutationIntent } from "../context/officeActionProposal";
+import { parseMeetingMutationIntent, parseSupportMutationIntent, isTaskMutationMessage } from "../context/officeActionProposal";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 
 type OperationalSnapshot = {
@@ -114,6 +114,20 @@ export function taskContextSlot(context: CapabilityContext): TaskContextSlot {
   if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
   const slot = (requestContext as Record<string, unknown>).task_context;
   return slot && typeof slot === "object" ? (slot as TaskContextSlot) : null;
+}
+
+// Phase 4, PR 4 -- the batch counterpart of task_context: after a batch
+// confirm, Office resends one rebuilt entry per child it PATCHed
+// (same taskOyiContext() shape as the single-record slot above, just
+// plural), so the VERIFY turn can check each child independently
+// instead of assuming a single selected record.
+export type TaskBatchContextEntry = NonNullable<TaskContextSlot>;
+
+export function taskBatchContextSlot(context: CapabilityContext): TaskBatchContextEntry[] {
+  const requestContext = context.input.context;
+  if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return [];
+  const slot = (requestContext as Record<string, unknown>).task_batch_context;
+  return Array.isArray(slot) ? (slot.filter((entry) => entry && typeof entry === "object") as TaskBatchContextEntry[]) : [];
 }
 
 const officePrivate: OyiEvidence["privacy_class"] = "corporate_private";
@@ -465,7 +479,7 @@ function officeTasksReadModule(): CapabilityModule {
     // progress") is claimed by the write capability, a plural list query
     // ("show my overdue tasks") is claimed by the query capability, so
     // there's no tie-break to reason about.
-    supports: (frame: SemanticFrame) => frame.domain === "office_tasks" && !parseTaskMutationIntent(frame.normalizedText) && !isTaskListIntent(frame.normalizedText),
+    supports: (frame: SemanticFrame) => frame.domain === "office_tasks" && !isTaskMutationMessage(frame.normalizedText) && !isTaskListIntent(frame.normalizedText),
     collect: async (context) => {
       const task = taskContextSlot(context);
       if (!task || !(task.safe_summary || task.title)) return [];
@@ -588,7 +602,7 @@ function officeTasksQueryReadModule(): CapabilityModule {
     permissions: ["tasks.read"],
     evidenceRequirements: [{ domain: "office_tasks", evidence_type: "office_task_open", freshness: ["fresh", "unknown"], required: false }],
     supports: (frame: SemanticFrame) =>
-      frame.domain === "office_tasks" && !parseTaskMutationIntent(frame.normalizedText) && isTaskListIntent(frame.normalizedText),
+      frame.domain === "office_tasks" && !isTaskMutationMessage(frame.normalizedText) && isTaskListIntent(frame.normalizedText),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const tasks = snapshot?.tasks;

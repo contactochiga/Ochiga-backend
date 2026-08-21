@@ -117,7 +117,11 @@ function parseTaskStatusIntent(message: string): TaskMutationIntent | null {
 }
 
 function parseTaskAssigneeIntent(message: string): TaskMutationIntent | null {
-  const match = text(message).match(/\b(?:assign|reassign)(?:\s+this)?(?:\s+task)?\s+to\s+([A-Za-z][A-Za-z '.-]{1,60})/i);
+  // (?:this|these|them) added in Phase 4, PR 4 -- "assign these to Tony"
+  // is the natural batch phrasing alongside the pre-existing single-
+  // record "assign this to Tony"; purely additive, no existing match
+  // narrows.
+  const match = text(message).match(/\b(?:assign|reassign)(?:\s+this|\s+these|\s+them)?(?:\s+tasks?)?\s+to\s+([A-Za-z][A-Za-z '.-]{1,60})/i);
   if (!match) return null;
   const name = match[1].trim().replace(/[.?!]+$/, "");
   if (!name || /^(?:me|myself|him|her|them|someone|anyone)$/i.test(name)) return null;
@@ -164,6 +168,62 @@ function parseTaskDueDateIntent(message: string): TaskMutationIntent | null {
 
 export function parseTaskMutationIntent(message: string): TaskMutationIntent | null {
   return parseTaskStatusIntent(message) || parseTaskAssigneeIntent(message) || parseTaskDueDateIntent(message);
+}
+
+// ---------------------------------------------------------------------
+// Batch target parsing (Phase 4, PR 4) -- "the first two", "the first
+// 3", "all of them" / "all the overdue ones". Deliberately narrow, same
+// discipline as the single-record parsers above: only ever recognizes
+// an EXPLICIT count or an explicit "all", never guesses a number from
+// vague language ("a few", "some").
+// ---------------------------------------------------------------------
+export type BatchTargetIntent = { type: "count"; count: number } | { type: "all" };
+
+const BATCH_COUNT_WORDS: Record<string, number> = {
+  two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+
+export function parseBatchTargetIntent(message: string): BatchTargetIntent | null {
+  const m = text(message).toLowerCase();
+  const countMatch = m.match(/\bthe first (two|three|four|five|six|seven|eight|nine|ten|\d+)\b/);
+  if (countMatch) {
+    const raw = countMatch[1];
+    const count = BATCH_COUNT_WORDS[raw] ?? parseInt(raw, 10);
+    if (Number.isFinite(count) && count > 1) return { type: "count", count };
+  }
+  if (/\ball(?: of them| of these| the overdue ones| the open ones)?\b/.test(m) || /\beverything\b/.test(m)) {
+    return { type: "all" };
+  }
+  return null;
+}
+
+// Batch-only, lenient due-date fallback: "move the first two to Monday"
+// has no "due"/"deadline"/"reschedule" keyword the single-record
+// parseTaskDueDateIntent requires, but is unambiguous once a batch
+// target is already present. Only ever tried after parseBatchTargetIntent
+// has matched (see isTaskMutationMessage/officeTasksWriteModule's batch
+// branch), so it never widens matching for a single-record message.
+export function parseBatchMutationIntent(message: string): TaskMutationIntent | null {
+  const direct = parseTaskMutationIntent(message);
+  if (direct) return direct;
+  const match = text(message).match(/\bto\s+(.+?)[.?!]?$/i);
+  if (!match) return null;
+  const phrase = match[1].trim();
+  const iso = datePhraseToIso(phrase);
+  if (!iso) return null;
+  return { operation: "change_due_date", field: "due_at", rawValue: phrase, canonicalValue: iso };
+}
+
+// Single source of truth for "is this message trying to mutate a task"
+// across BOTH office_tasks.write's own supports() and office_tasks.read/
+// office_tasks.query.read's exclusion guards -- keeps the three-way
+// mutual exclusion correct now that batch messages ("move the first two
+// to Monday") don't match the single-record parseTaskMutationIntent
+// alone.
+export function isTaskMutationMessage(message: string): boolean {
+  if (parseTaskMutationIntent(message)) return true;
+  const batchTarget = parseBatchTargetIntent(message);
+  return Boolean(batchTarget && parseBatchMutationIntent(message));
 }
 
 // ---------------------------------------------------------------------
@@ -309,6 +369,55 @@ export function buildGovernedActionProposal(input: {
     verification_result: null,
     failure_reason: null,
     execute_directive: input.executeDirective,
+    child_operations: null,
+  };
+}
+
+// Phase 4, PR 4 -- wraps N already-built single-record proposals (each
+// constructed by the exact same per-operation builders as a lone
+// proposal, just looped over a resolved result-set target instead of
+// the single open *_context slot) into one parent. The parent itself
+// has no execute_directive (target_entity_id is the sentinel "batch")
+// -- Office iterates child_operations on confirm, one apiPatchOperational
+// call per child, the SAME call every single-record confirm already
+// makes.
+export function buildBatchGovernedActionProposal(input: {
+  threadId: string;
+  actorId: string;
+  domain: string;
+  operation: string;
+  description: string;
+  riskLevel: OfficeMutationRiskLevel;
+  children: GovernedActionProposal[];
+}): GovernedActionProposal {
+  const now = new Date();
+  const proposalId = randomUUID();
+  return {
+    proposal_id: proposalId,
+    thread_id: input.threadId,
+    actor_id: input.actorId,
+    domain: input.domain,
+    target_entity_type: input.children[0]?.target_entity_type || "task",
+    target_entity_id: "batch",
+    operation: input.operation,
+    parameters: { child_count: input.children.length },
+    description: input.description,
+    previous_state: null,
+    proposed_state: null,
+    authorization: { allowed: true, reason: null, required_permissions: [] },
+    validation: { valid: true, reason: null },
+    confirmation_required: true,
+    risk_level: input.riskLevel,
+    idempotency_key: proposalId,
+    status: "pending",
+    execution_reference: null,
+    created_at: now.toISOString(),
+    expires_at: new Date(now.getTime() + PROPOSAL_TTL_MS).toISOString(),
+    executed_at: null,
+    verification_result: null,
+    failure_reason: null,
+    execute_directive: null,
+    child_operations: input.children,
   };
 }
 
@@ -329,6 +438,7 @@ export function proposalPublicView(proposal: GovernedActionProposal): OfficeActi
     // ts) -- a merely-pending proposal never carries an execute directive,
     // so a client bug can't skip the confirm step.
     execute_directive: proposal.status === "confirmed" ? proposal.execute_directive : null,
+    child_operations: proposal.child_operations ? proposal.child_operations.map(proposalPublicView) : null,
   };
 }
 
