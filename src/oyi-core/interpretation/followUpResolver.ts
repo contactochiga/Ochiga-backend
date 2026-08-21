@@ -79,10 +79,21 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   // item) rather than selecting a single object — checked before the
   // single-object "the X one" attribute rules below, since "only"/"just"
   // is the disambiguating cue even when the keyword itself looks singular.
-  if (/\b(only|just)\b/.test(m) && /\bones?\b/.test(m)) {
+  //
+  // Milestone 2 -- also "which ones are critical?" / "which are high
+  // priority?", without "only"/"just" at all. Found in live production
+  // verification: this exact phrasing (one of the brief's own examples,
+  // "Which ones are critical?") fell through the filter check entirely,
+  // fell through every other rule below too, and ended up in normal
+  // capability routing with no domain noun to match a list capability's
+  // supports() -- landing on the single-record module instead, which
+  // honestly (but wrongly) reported no record was open.
+  if ((/\b(only|just)\b/.test(m) && /\bones?\b/.test(m)) || /^which\s+(ones?\s+)?(are|is)\b/.test(m)) {
     const keyword = m
       .replace(/^(show|give|list)?\s*(me\s+)?(only|just)\s+(the\s+)?/, "")
+      .replace(/^which\s+(ones?\s+)?(are|is)\s+/, "")
       .replace(/\bones?\b\.?$/, "")
+      .replace(/\?$/, "")
       .trim();
     if (keyword) return { type: "filter", keyword };
   }

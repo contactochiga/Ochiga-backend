@@ -1360,6 +1360,25 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
   });
   if (!resultSet) return null;
 
+  // Milestone 2 -- production bug found in live verification: "pause
+  // the second one" / "move the first one to 3pm" parse as a genuine
+  // ordinal FOLLOW-UP reference (parseFollowUpIntent, above) against
+  // the active list's domain, and this function runs BEFORE normal
+  // capability routing -- so it was answering these as a read-only
+  // "tell me about it" lookup instead of ever reaching office_X.write's
+  // batch/ordinal proposal path. Exact same collision class as
+  // Milestone 1's "the first two" bug, just for the singular ordinal
+  // case Tasks' own batch flow never exercised (single-record Task
+  // mutations always said "move THIS to...", never "the first one").
+  // If the message is ALSO a genuine mutation for the result set's own
+  // domain, defer entirely to normal capability routing -- an ordinary
+  // read follow-up ("tell me about the first one") never matches any
+  // domain's mutation parser, so this changes nothing for reads.
+  const domainMutationParser = REVISION_DOMAIN_INTENT_PARSER[resultSet.domain];
+  if (domainMutationParser && domainMutationParser(context.input.message, "")) {
+    return null;
+  }
+
   if (intent.type === "comparison") return handleUtilityComparisonFollowUp(context, resolvedTurn, resultSet, tracer);
   if (intent.type === "temporal_followup") return handleTemporalFollowUp(context, resolvedTurn, resultSet, tracer);
   if (intent.type === "filter") return handleFilterFollowUp(context, resolvedTurn, resultSet, intent.keyword, tracer);

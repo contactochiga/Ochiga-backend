@@ -228,7 +228,15 @@ function classifyDomain(text: string): OyiDomain | null {
   // domain, so moving it earlier in this chain affects both surfaces
   // identically and has no new collision risk against any Consumer/
   // Facility domain.
-  if (/\bpartner(?:ship)?s?\s+with\s+ochiga\b|\bhow\s+can\s+i\s+partner\b|\bbecome\s+a\s+partner\b|\bpartnership\b/i.test(text)) return "corporate_partnerships";
+  // Milestone 2 bug found in live production verification: \bpartnership\b
+  // (singular only, no trailing s) never matched the PLURAL "partnerships"
+  // -- "s" right after "partnership" means there's no word boundary there,
+  // so \bpartnership\b silently fails on exactly the phrasing
+  // office_partnerships.query.read's own list-intent check requires
+  // ("show me the partnerships"). Added \bpartnerships\b explicitly
+  // instead of just loosening the trailing pattern, to stay minimal and
+  // avoid touching the three qualified phrases' matching at all.
+  if (/\bpartner(?:ship)?s?\s+with\s+ochiga\b|\bhow\s+can\s+i\s+partner\b|\bbecome\s+a\s+partner\b|\bpartnership\b|\bpartnerships\b/i.test(text)) return "corporate_partnerships";
   if (/\b(leads?|prospects?|opportunit(?:y|ies)|pipeline|follow(?:ed)?[\s-]?up on|crm)\b/i.test(text)) return "crm";
   if (/\b(reports?\s+(?:are\s+)?(?:awaiting|pending|needing)\s+approval|approval\s+queue|pending\s+approvals?)\b/i.test(text)) return "office_reports";
   if (/\b(our\s+developments?|development\s+(?:status|update)|construction\s+(?:status|progress)|site\s+progress|units?\s+sold|happening\s+across\s+(?:our\s+)?developments?)\b/i.test(text)) return "office_development";

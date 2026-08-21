@@ -67,6 +67,23 @@ function draftUnavailable(answer: string): DomainResult {
   return unavailableResult(answer);
 }
 
+// Milestone 2 -- shared across every *BatchDraft builder below. "all"
+// takes every ref, "count" takes the first N, "ordinal" (a single
+// named position -- "pause the second one") takes exactly one ref at
+// that position, or none if the list is shorter than that (never
+// wraps/guesses a different target).
+function resolveBatchTargets<T>(
+  objectRefs: T[],
+  batchTarget: { type: "all" } | { type: "count"; count: number } | { type: "ordinal"; position: number }
+): T[] {
+  if (batchTarget.type === "all") return objectRefs;
+  if (batchTarget.type === "ordinal") {
+    const ref = objectRefs[batchTarget.position - 1];
+    return ref ? [ref] : [];
+  }
+  return objectRefs.slice(0, batchTarget.count);
+}
+
 function proposalResult(answer: string, proposal: ReturnType<typeof buildGovernedActionProposal>): DomainResult {
   return {
     status: "awaiting_confirmation",
@@ -91,7 +108,7 @@ function proposalResult(answer: string, proposal: ReturnType<typeof buildGoverne
 // (e.g. already completed) is skipped and named in the description
 // rather than silently dropped or blocking the whole batch.
 // ---------------------------------------------------------------------
-async function buildTaskBatchDraft(context: CapabilityContext, batchTarget: { type: "count"; count: number } | { type: "all" }): Promise<DomainResult> {
+async function buildTaskBatchDraft(context: CapabilityContext, batchTarget: { type: "count"; count: number } | { type: "all" } | { type: "ordinal"; position: number }): Promise<DomainResult> {
   const intent = parseBatchMutationIntent(context.input.message);
   if (!intent) {
     return draftUnavailable('I didn\'t catch a clear change to make for that group. Try something like "move the first two to Monday" or "assign these to <name>".');
@@ -104,7 +121,7 @@ async function buildTaskBatchDraft(context: CapabilityContext, batchTarget: { ty
   if (!resultSet || resultSet.domain !== "office_tasks" || !resultSet.object_refs.length) {
     return draftUnavailable("I don't have a recent list of tasks to reference — ask to see your tasks first, then tell me which ones to change.");
   }
-  const targets = batchTarget.type === "all" ? resultSet.object_refs : resultSet.object_refs.slice(0, batchTarget.count);
+  const targets = resolveBatchTargets(resultSet.object_refs, batchTarget);
   if (!targets.length) {
     return draftUnavailable("There's nothing in that list to change.");
   }
@@ -384,6 +401,112 @@ function officeTasksWriteModule(): CapabilityModule {
   };
 }
 
+// Milestone 2 -- batch/ordinal targeting against a persisted meetings
+// list result set (office_meetings.query.read), same shape as the other
+// *BatchDraft builders. Added specifically to fix a production bug: "What
+// meetings do I have tomorrow?" -> "Move the first one to 3pm" is one of
+// the brief's own acceptance examples, and previously had no batch path
+// for Meetings at all -- a single-ordinal reference like "the first one"
+// fell through to the generic read-only follow-up resolver before ever
+// reaching this capability (see ConversationOrchestrator.ts's
+// REVISION_DOMAIN_INTENT_PARSER bailout, the other half of this fix).
+async function buildMeetingBatchDraft(context: CapabilityContext, batchTarget: { type: "count"; count: number } | { type: "all" } | { type: "ordinal"; position: number }): Promise<DomainResult> {
+  const intent = parseMeetingMutationIntent(context.input.message);
+  if (!intent) {
+    return draftUnavailable('I didn\'t catch a clear change to make for that group. Try something like "move the first one to 3pm" or "cancel the second one".');
+  }
+  const ids = threadAndActor(context);
+  if (!ids) {
+    return draftUnavailable("I can't safely propose a change without a stable conversation — please try again.");
+  }
+  const resultSet = await loadThreadResultSetContext(context.input.thread_id);
+  if (!resultSet || resultSet.domain !== "office_meetings" || !resultSet.object_refs.length) {
+    return draftUnavailable("I don't have a recent list of meetings to reference — ask what meetings you have first, then tell me which one to change.");
+  }
+  const targets = resolveBatchTargets(resultSet.object_refs, batchTarget);
+  if (!targets.length) {
+    return draftUnavailable("There's nothing in that list to change.");
+  }
+
+  const children: GovernedActionProposal[] = [];
+  const includedLabels: string[] = [];
+  const skipped: string[] = [];
+  for (const ref of targets) {
+    const label = ref.label || "This meeting";
+    if (intent.operation === "reschedule") {
+      // scheduled_at lives on the ref's own occurred_at (see meetingOpenFact
+      // in OfficeCorporateCapabilityModules.ts), not attributes -- ATTRIBUTE_KEYS
+      // (resultSetContext.ts) has no scheduled_at entry.
+      const previousScheduledAt = ref.occurred_at || null;
+      children.push(
+        buildGovernedActionProposal({
+          threadId: ids.threadId,
+          actorId: ids.actorId,
+          domain: "office_meetings",
+          targetEntityType: "meeting",
+          targetEntityId: ref.canonical_id,
+          operation: intent.operation,
+          field: intent.field,
+          rawValue: intent.rawValue,
+          canonicalValue: intent.canonicalValue,
+          description: `Move "${label}" to ${new Date(intent.canonicalValue).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`,
+          previousState: { scheduled_at: previousScheduledAt },
+          authorization: { allowed: true, reason: null, required_permissions: ["meetings.manage"] },
+          validation: { valid: true, reason: null },
+          riskLevel: "low_risk_action",
+          executeDirective: { namespace: "office", collection: "meetings", record_id: ref.canonical_id, patch: { scheduled_at: intent.canonicalValue } },
+        })
+      );
+      includedLabels.push(label);
+      continue;
+    }
+    // status_transition (cancel)
+    const currentStatus = text(ref.attributes.status) || "scheduled";
+    const validation = validateTransition(MEETING_STATUS_TRANSITIONS, currentStatus, intent.canonicalValue);
+    if (!validation.valid) {
+      skipped.push(`"${label}" (${validation.reason})`);
+      continue;
+    }
+    children.push(
+      buildGovernedActionProposal({
+        threadId: ids.threadId,
+        actorId: ids.actorId,
+        domain: "office_meetings",
+        targetEntityType: "meeting",
+        targetEntityId: ref.canonical_id,
+        operation: intent.operation,
+        field: intent.field,
+        rawValue: intent.rawValue,
+        canonicalValue: intent.canonicalValue,
+        description: `Cancel "${label}".`,
+        previousState: { status: currentStatus },
+        authorization: { allowed: true, reason: null, required_permissions: ["meetings.manage"] },
+        validation,
+        riskLevel: "consequential_action",
+        executeDirective: { namespace: "office", collection: "meetings", record_id: ref.canonical_id, patch: { status: "cancelled" } },
+      })
+    );
+    includedLabels.push(label);
+  }
+
+  if (!children.length) {
+    return draftUnavailable(`None of those meetings can make that change right now: ${skipped.join("; ")}.`);
+  }
+  const verb = intent.operation === "reschedule" ? `move to ${new Date(intent.canonicalValue).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}` : "cancel";
+  let description = `Ready to ${verb} for ${children.length} meeting${children.length === 1 ? "" : "s"}: ${includedLabels.map((l) => `"${l}"`).join(", ")}.`;
+  if (skipped.length) description += ` Skipped ${skipped.length}: ${skipped.join("; ")}.`;
+  const proposal = buildBatchGovernedActionProposal({
+    threadId: ids.threadId,
+    actorId: ids.actorId,
+    domain: "office_meetings",
+    operation: intent.operation,
+    description,
+    riskLevel: intent.operation === "reschedule" ? "low_risk_action" : "consequential_action",
+    children,
+  });
+  return proposalResult(`${description} Reply "yes" to confirm, or "no" to cancel.`, proposal);
+}
+
 // ---------------------------------------------------------------------
 // Meetings — cancel.
 // ---------------------------------------------------------------------
@@ -408,6 +531,10 @@ function officeMeetingsWriteModule(): CapabilityModule {
       return [];
     },
     createDraft: async (context: CapabilityContext): Promise<DomainResult> => {
+      const batchTarget = parseBatchTargetIntent(context.input.message);
+      if (batchTarget) {
+        return buildMeetingBatchDraft(context, batchTarget);
+      }
       const meeting = meetingContextSlot(context);
       if (!meeting || !meeting.meeting_ref) {
         return draftUnavailable("I don't have a specific meeting open to check — select one in Meetings first, then ask me about it.");
@@ -487,7 +614,7 @@ function officeMeetingsWriteModule(): CapabilityModule {
 // per-target, so a batch "resolve" would either fabricate identical
 // notes across cases or silently drop the requirement; neither is
 // acceptable, so batch resolve simply isn't offered.
-async function buildSupportBatchDraft(context: CapabilityContext, batchTarget: { type: "count"; count: number } | { type: "all" }): Promise<DomainResult> {
+async function buildSupportBatchDraft(context: CapabilityContext, batchTarget: { type: "count"; count: number } | { type: "all" } | { type: "ordinal"; position: number }): Promise<DomainResult> {
   const intent = parseSupportMutationIntent(context.input.message);
   if (!intent || intent.operation === "resolve_case") {
     return draftUnavailable('I didn\'t catch a clear change to make for that group. Try something like "assign those to <name>" or "make those high priority".');
@@ -500,7 +627,7 @@ async function buildSupportBatchDraft(context: CapabilityContext, batchTarget: {
   if (!resultSet || resultSet.domain !== "office_support" || !resultSet.object_refs.length) {
     return draftUnavailable("I don't have a recent list of support cases to reference — ask to see them first, then tell me which ones to change.");
   }
-  const targets = batchTarget.type === "all" ? resultSet.object_refs : resultSet.object_refs.slice(0, batchTarget.count);
+  const targets = resolveBatchTargets(resultSet.object_refs, batchTarget);
   if (!targets.length) {
     return draftUnavailable("There's nothing in that list to change.");
   }
@@ -674,7 +801,7 @@ function officeSupportWriteModule(): CapabilityModule {
 // "invalid" case is already being in the requested state, checked
 // directly.
 // ---------------------------------------------------------------------
-async function buildAutomationBatchDraft(context: CapabilityContext, batchTarget: { type: "count"; count: number } | { type: "all" }): Promise<DomainResult> {
+async function buildAutomationBatchDraft(context: CapabilityContext, batchTarget: { type: "count"; count: number } | { type: "all" } | { type: "ordinal"; position: number }): Promise<DomainResult> {
   const intent = parseAutomationMutationIntent(context.input.message);
   if (!intent) {
     return draftUnavailable('I didn\'t catch a clear change to make for that group. Try "pause the second one" or "resume all of them".');
@@ -687,7 +814,7 @@ async function buildAutomationBatchDraft(context: CapabilityContext, batchTarget
   if (!resultSet || resultSet.domain !== "automations" || !resultSet.object_refs.length) {
     return draftUnavailable("I don't have a recent list of automations to reference — ask to see them first, then tell me which ones to change.");
   }
-  const targets = batchTarget.type === "all" ? resultSet.object_refs : resultSet.object_refs.slice(0, batchTarget.count);
+  const targets = resolveBatchTargets(resultSet.object_refs, batchTarget);
   if (!targets.length) {
     return draftUnavailable("There's nothing in that list to change.");
   }

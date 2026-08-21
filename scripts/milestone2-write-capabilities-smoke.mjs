@@ -245,4 +245,43 @@ function frame(domain, normalizedText) {
 
 assert.deepEqual(parseBatchTargetIntent("pause all of them"), { type: "all" });
 
+// ======================= Single-ordinal batch target (production bug fix) =======================
+// Found in live Milestone 2 production verification: "pause the second
+// one" / "move the first one to 3pm" previously matched NEITHER the
+// count pattern ("the first N", N>=2) NOR "all" -- parseBatchTargetIntent
+// returned null, so createDraft() took the SINGLE-RECORD path (requiring
+// an open *_context slot) instead of the batch path, and separately the
+// message was swallowed by the generic read-only ordinal follow-up
+// resolver before ever reaching capability routing at all (see
+// ConversationOrchestrator.ts's REVISION_DOMAIN_INTENT_PARSER bailout).
+assert.deepEqual(parseBatchTargetIntent("pause the second one"), { type: "ordinal", position: 2 });
+assert.deepEqual(parseBatchTargetIntent("pause the first one"), { type: "ordinal", position: 1 });
+assert.deepEqual(parseBatchTargetIntent("move the first automation to 3pm"), { type: "ordinal", position: 1 });
+assert.deepEqual(parseBatchTargetIntent("resolve the third one"), { type: "ordinal", position: 3 });
+// Still mutually exclusive with the existing count pattern -- "the first
+// two" must never be misread as ordinal position 1.
+assert.deepEqual(parseBatchTargetIntent("pause the first two"), { type: "count", count: 2 });
+
+{
+  // createDraft() must now recognize "pause the second one" as a BATCH
+  // message (honest "no recent list" decline) rather than treating it as
+  // a single-record request (which would instead say "I don't have a
+  // specific automation open to check").
+  const write = actionModule("office_automations.write");
+  const draft = await write.createDraft({ input: { message: "pause the second one", thread_id: "thread-1", context: {} }, actor: { id: "actor-1" } });
+  assert.equal(draft.status, "unavailable");
+  assert.ok(/recent list of automations/i.test(draft.answer), "must take the batch-target path, not the single-record path, for a singular ordinal mutation");
+}
+{
+  // Meetings gained its own batch/ordinal draft builder specifically to
+  // fix this exact production bug ("What meetings do I have tomorrow?"
+  // -> "Move the first one to 3pm" is one of the brief's own examples) --
+  // must take the batch-target path (honest "no recent list" decline),
+  // not the single-record path ("no meeting open").
+  const write = actionModule("office_meetings.write");
+  const draft = await write.createDraft({ input: { message: "move the first one to 3pm", thread_id: "thread-1", context: {} }, actor: { id: "actor-1" } });
+  assert.equal(draft.status, "unavailable");
+  assert.ok(/recent list of meetings/i.test(draft.answer), draft.answer);
+}
+
 console.log("milestone2-write-capabilities-smoke: PASS");
