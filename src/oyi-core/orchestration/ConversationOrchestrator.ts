@@ -710,6 +710,13 @@ async function respondFromBatchVerification(
 ): Promise<ConversationRunResult> {
   const batchEntries = taskBatchContextSlot(context as CapabilityContext);
   const children = confirmed.child_operations || [];
+  logger.info("oyi_TEMP_DEBUG_batch_verify_inputs", {
+    thread_id: context.input.thread_id || null,
+    raw_context_keys: Object.keys(recordOf(context.input.context)),
+    raw_task_batch_context: recordOf(context.input.context).task_batch_context,
+    batch_entries: batchEntries,
+    children_summary: children.map((c) => ({ target_entity_id: c.target_entity_id, proposed_state: c.proposed_state, status: c.status })),
+  });
   let verifiedCount = 0;
   const unverifiedLabels: string[] = [];
   for (const child of children) {
