@@ -556,6 +556,13 @@ export type OfficeInternalOyiCoreResponse = {
   tool_proposals: CorporateToolProposal[];
   knowledge_references: CorporateKnowledgeReference[];
   safe_metadata: Record<string, unknown>;
+  // Oyi Conversational Runtime Completion Programme, Phase 4. Semantic
+  // presentation blocks (see conversationAnswerPresentation.ts's
+  // ConversationBlock union) -- populated from canonical.cards, which
+  // capabilities already populate via DomainResult.blocks (an existing,
+  // Consumer/Facility-proven mechanism, not a new one). Office renders
+  // these according to its own design system; Backend never returns HTML.
+  blocks: Record<string, unknown>[];
   // Oyi Conversational Runtime Completion Programme, Phase 3. The
   // OfficeActionProposalView carried in canonical.confirmations, if this
   // turn produced/updated a governed action proposal -- see
