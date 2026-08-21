@@ -14,6 +14,57 @@ export type ConversationTableBlock = {
   snapshot?: Record<string, string | null>;
 };
 
+// Oyi Conversational Runtime Completion Programme, Phase 4 -- adaptive
+// response blocks. Siblings of ConversationTableBlock, same convention
+// (a discriminated "type" field, plain-data shape, no HTML). Backend
+// returns semantic presentation intent; the frontend (Office's
+// renderResponseBlocks(), Consumer's existing block renderer) decides
+// how to draw it. DomainResult.blocks stays loosely typed
+// (Array<Record<string, unknown>>) -- these types are a convention
+// capabilities follow, not a runtime-enforced union, matching how
+// ConversationTableBlock itself already works.
+export type ConversationKeyValueBlock = {
+  type: "key_value";
+  title?: string | null;
+  items: Array<{ label: string; value: string }>;
+};
+
+export type ConversationStatusBlock = {
+  type: "status";
+  label: string;
+  tone?: "neutral" | "positive" | "warning" | "critical" | null;
+};
+
+// A record-list is a table with an identity: each row carries a hidden
+// id (never rendered as a visible column) so a later turn's ordinal/
+// pronoun reference ("the first two") can resolve back to a specific
+// record without the user repeating names or IDs. total_count/truncated
+// let the frontend show "32 open leads, showing 10" honestly rather than
+// implying the table is the complete set when it isn't.
+export type ConversationRecordListBlock = {
+  type: "record_list";
+  title?: string | null;
+  columns: Array<{ key: string; label: string }>;
+  rows: Array<{ id: string; status?: string | null } & Record<string, string | number | null>>;
+  total_count?: number | null;
+  truncated?: boolean;
+};
+
+// warning: something the user should know but that isn't blocking.
+// limitation: an honest "I can't do that yet" boundary -- distinct tone
+// from a warning, never phrased as if it were an error on the user's part.
+export type ConversationNoteBlock = {
+  type: "warning" | "limitation";
+  text: string;
+};
+
+export type ConversationBlock =
+  | ConversationTableBlock
+  | ConversationKeyValueBlock
+  | ConversationStatusBlock
+  | ConversationRecordListBlock
+  | ConversationNoteBlock;
+
 export type PresentationFactPredicates = {
   factAppliesToContract: (fact: IntelligenceFact, contract: IntelligenceRequestContract) => boolean;
   isResidentVisibleOperationalFact: (fact: IntelligenceFact) => boolean;

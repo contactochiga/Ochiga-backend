@@ -221,6 +221,11 @@ export function buildOfficeInternalResponse(
     // confirmation" pass-through field (CapabilityResponseAdapter.ts),
     // reused here rather than inventing a parallel one.
     pending_action: Array.isArray(canonical.confirmations) && canonical.confirmations.length ? canonical.confirmations[0] : null,
+    // Oyi Conversational Runtime Completion Programme, Phase 4. Already
+    // computed by capabilityDomainResultToConversationResponse from
+    // DomainResult.blocks -- just never surfaced to office_internal
+    // before now (Consumer/Facility already receive it as canonical.cards).
+    blocks: Array.isArray(canonical.cards) ? canonical.cards : [],
     knowledge_references: request.knowledge_context,
     safe_metadata: {
       staff_role: request.staff.role,
