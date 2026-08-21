@@ -31,6 +31,7 @@ import type { SemanticFrame } from "../contracts/semanticFrame";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
 import { parseMeetingMutationIntent, parseSupportMutationIntent, isTaskMutationMessage } from "../context/officeActionProposal";
+import { parseAutomationScheduleIntent } from "../context/officeAutomationSuggestion";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 
 type OperationalSnapshot = {
@@ -465,6 +466,21 @@ function isTaskListIntent(message: string): boolean {
   return /\btasks\b/i.test(message);
 }
 
+// Production bug found in live Milestone 1 verification: "Do that every
+// Friday" has no task-mutation or plural-list wording, so it fell through
+// to office_tasks.read's own catch-all supports() -- which requires an
+// active single-record task_context that a scheduling reference never
+// has, producing "I don't have a specific task open to check..." as the
+// PRIMARY answer, rendered alongside (and contradicting) the correct
+// automation-suggestion card that corporateOfficeInternalPolicy.ts's
+// toolProposals() independently attaches for the same message. This is a
+// scheduling reference, not a task question, so office_tasks.read must
+// not claim it -- let it fall through to the generic degraded-answer
+// rescue instead, same as any other unclaimed office_internal message.
+function isAutomationScheduleReferenceMessage(message: string): boolean {
+  return Boolean(parseAutomationScheduleIntent(message));
+}
+
 function officeTasksReadModule(): CapabilityModule {
   return readModule({
     key: "office_tasks.read",
@@ -479,7 +495,11 @@ function officeTasksReadModule(): CapabilityModule {
     // progress") is claimed by the write capability, a plural list query
     // ("show my overdue tasks") is claimed by the query capability, so
     // there's no tie-break to reason about.
-    supports: (frame: SemanticFrame) => frame.domain === "office_tasks" && !isTaskMutationMessage(frame.normalizedText) && !isTaskListIntent(frame.normalizedText),
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_tasks" &&
+      !isTaskMutationMessage(frame.normalizedText) &&
+      !isTaskListIntent(frame.normalizedText) &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText),
     collect: async (context) => {
       const task = taskContextSlot(context);
       if (!task || !(task.safe_summary || task.title)) return [];

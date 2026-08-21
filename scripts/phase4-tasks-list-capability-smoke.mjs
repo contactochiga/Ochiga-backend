@@ -41,6 +41,20 @@ assert.equal(singleModule.supports(frame("office_tasks", "move this to in progre
 
 assert.equal(queryModule.supports(frame("crm", "show me my overdue tasks")), false, "wrong domain must never match");
 
+// Production bug found in live Milestone 1 verification: "Do that every
+// Friday" carries no mutation/plural-list wording, so after Phase 4's
+// domain-only continuity keeps "office_tasks" active following any task
+// answer, this fell through to office_tasks.read's own catch-all
+// supports() -- which requires an active single-record task_context a
+// scheduling reference never has, so it answered "I don't have a
+// specific task open to check..." as the PRIMARY answer, contradicting
+// the correct automation-suggestion card corporateOfficeInternalPolicy.ts
+// attaches for the very same message. office_tasks.read must not claim a
+// scheduling-reference message at all, regardless of context.
+assert.equal(singleModule.supports(frame("office_tasks", "Do that every Friday")), false, "a scheduling reference must not be claimed by the single-record read module");
+assert.equal(singleModule.supports(frame("office_tasks", "do this every monday")), false, "a scheduling reference (any weekday) must not be claimed by the single-record read module");
+assert.equal(queryModule.supports(frame("office_tasks", "Do that every Friday")), false, "a scheduling reference must not be claimed by the list module either");
+
 // --- Evidence + answer shape ---
 const tasks = {
   open: [
