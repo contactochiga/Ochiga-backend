@@ -10,6 +10,7 @@ import {
   parseAutomationScheduleIntent,
   automationScheduleSuggestionParameters,
   automationSuggestionProposalId,
+  GENERIC_AUTOMATION_REFERENCE_PATTERN,
   type LastVerifiedOfficeAction,
 } from "../context/officeAutomationSuggestion";
 
@@ -120,11 +121,18 @@ function toolProposals(request: OfficeInternalOyiCoreRequest, lastVerifiedAction
   // weekday name), so there's no double-proposal risk.
   const scheduleIntent = parseAutomationScheduleIntent(request.message);
   if (scheduleIntent && lastVerifiedAction) {
+    const cadencePhrase =
+      scheduleIntent.cadence === "weekday" ? `every ${scheduleIntent.weekdayName}` :
+      scheduleIntent.cadence === "daily" ? "every day" :
+      scheduleIntent.cadence === "weekly" ? "every week" : "every month";
+    const unsupportedNote =
+      scheduleIntent.cadence === "monthly" ? " Monthly recurrence isn't available yet, so the schedule isn't prefilled — pick a supported cadence in the wizard." :
+      scheduleIntent.cadence === "weekly" ? " The day isn't prefilled — pick which day(s) in the wizard." : "";
     proposals.push({
       proposal_id: automationSuggestionProposalId(request.request_id),
       tool: "office.create_automation",
       governance: "office_validates_before_execution",
-      reason: `This sounds like it should repeat every ${scheduleIntent.weekdayName} rather than as a one-off. Office must confirm the workflow action before anything is created — the trigger is prefilled from what was just verified, the action still needs to be chosen.`,
+      reason: `This sounds like it should repeat ${cadencePhrase} rather than as a one-off. Office must confirm the workflow action before anything is created — the trigger is prefilled from what was just verified, the action still needs to be chosen.${unsupportedNote}`,
       parameters: {
         business_unit: request.business_unit,
         selected_type: request.page_context.selected_type,
@@ -190,7 +198,7 @@ function toolProposals(request: OfficeInternalOyiCoreRequest, lastVerifiedAction
   // (validateWorkflowActions on the backend) is the only place that's
   // allowed to decide an automation is well-formed. suggested_name is an
   // editable starting point, not a stored fact.
-  if (/\b(automat|recurring|every (day|week|time)|whenever|set up a rule)\b/i.test(request.message)) {
+  if (GENERIC_AUTOMATION_REFERENCE_PATTERN.test(request.message)) {
     proposals.push({
       proposal_id: `office_automation_${request.request_id}`,
       tool: "office.create_automation",
