@@ -83,6 +83,29 @@ type OperationalSnapshot = {
       transaction_count: number;
     }>;
   } | null;
+  // Milestone 2 — same "Office computes and permission-gates, Backend
+  // only ever reads as evidence" pattern as tasks above, for the five
+  // domains that previously had only a single-selected-record slot.
+  automations: {
+    items: Array<{ id: string; name: string; enabled: boolean; trigger_summary: string; last_run_status: string | null; last_run_at: string | null }>;
+    total: number;
+  } | null;
+  meetings: {
+    items: Array<{ id: string; title: string; status: string; scheduled_at: string | null; owner: string | null; participants: string[] }>;
+    total: number;
+  } | null;
+  support: {
+    items: Array<{ id: string; title: string; status: string; priority: string | null; severity: string | null; owner: string | null }>;
+    total: number;
+  } | null;
+  portfolio: {
+    items: Array<{ id: string; name: string; status: string; support_status: string | null; health_summary: string | null; owner: string | null }>;
+    total: number;
+  } | null;
+  partnerships: {
+    items: Array<{ id: string; name: string; status: string; review_status: string | null; relationship_type: string | null; owner: string | null }>;
+    total: number;
+  } | null;
 };
 
 function officeSnapshot(context: CapabilityContext): OperationalSnapshot | null {
@@ -789,7 +812,8 @@ function officeAutomationsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["tasks.read"],
     evidenceRequirements: [{ domain: "automations", evidence_type: "office_automation_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "automations" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "automations" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isAutomationsListIntent(frame.normalizedText),
     collect: async (context) => {
       const automation = automationContextSlot(context);
       if (!automation || !(automation.safe_summary || automation.name)) return [];
@@ -869,6 +893,128 @@ function officeAutomationsReadModule(): CapabilityModule {
   });
 }
 
+// Plural "automations" distinguishes a list query from a single-record
+// question about the one currently open (same construction as Tasks'
+// isTaskListIntent) — mutual exclusion with officeAutomationsReadModule
+// by construction, no score tie-break to reason about.
+function isAutomationsListIntent(message: string): boolean {
+  return /\bautomations\b/i.test(message);
+}
+
+function automationOpenFact(automation: NonNullable<OperationalSnapshot["automations"]>["items"][number]): IntelligenceFact {
+  return {
+    fact_id: `office_automation_open:${automation.id}`,
+    domain: "automations",
+    fact_type: "office_automation_open",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "automation", canonical_id: automation.id, label: automation.name },
+    statement: `${automation.name} — ${automation.enabled ? "enabled" : "paused"}`,
+    value: { status: automation.enabled ? "enabled" : "paused", last_run_status: automation.last_run_status, enabled: String(automation.enabled) },
+    previous_value: null,
+    occurred_at: automation.last_run_at,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: automation.id,
+    truth_state: "observed",
+    confidence: 0.85,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
+// Milestone 2 — same list-aggregate template as office_tasks.query.read
+// (Phase 4, PR 2): one shared row-filter used by BOTH collect() and
+// answer() so the persisted result set always matches what's displayed
+// ("pause the second one" must resolve against exactly the rows shown,
+// not a differently-filtered set) — this is the exact bug class found
+// live in Milestone 1 production verification for Tasks, so every new
+// list capability below follows the same shared-filter discipline from
+// the start instead of risking the same drift.
+function automationQueryRows(automations: NonNullable<OperationalSnapshot["automations"]>, normalizedMessage: string) {
+  let rows = automations.items;
+  if (/\b(?:active|enabled|running)\b/i.test(normalizedMessage)) rows = rows.filter((a) => a.enabled);
+  else if (/\b(?:paused|disabled|inactive)\b/i.test(normalizedMessage)) rows = rows.filter((a) => !a.enabled);
+  if (/\bfailed\b/i.test(normalizedMessage)) rows = rows.filter((a) => a.last_run_status === "failed");
+  return rows;
+}
+
+function officeAutomationsQueryReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_automations.query.read",
+    domain: "automations",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["tasks.read"],
+    evidenceRequirements: [{ domain: "automations", evidence_type: "office_automation_open", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "automations" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isAutomationsListIntent(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const automations = snapshot?.automations;
+      if (!automations) return [];
+      const rows = automationQueryRows(automations, normalizeMessage(context));
+      return rows.map((automation) => {
+        const fact = automationOpenFact(automation);
+        return evidenceEnvelope({
+          evidence_id: `capability:${fact.fact_id}`,
+          domain: "automations",
+          type: fact.fact_type,
+          object_type: "automation",
+          object_id: automation.id,
+          source: "domain_adapter",
+          observed_at: fact.observed_at,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.85,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { fact },
+        });
+      });
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.automations) {
+        return unavailableResult("I don't have a current read on automations for this session — the Office automations snapshot wasn't attached to this request.");
+      }
+      const message = normalizeMessage(context);
+      const { total } = snapshot.automations;
+      const rows = automationQueryRows(snapshot.automations, message);
+      if (!rows.length) {
+        return {
+          status: "empty",
+          answer: `None of the ${total} automation${total === 1 ? "" : "s"} match that right now.`,
+          presentation_policy: resultPresentation("list"),
+          metadata: { total },
+        };
+      }
+      const lines = rows.slice(0, 10).map((a) => `${a.name} — ${a.enabled ? "active" : "paused"}, ${a.trigger_summary}${a.last_run_status === "failed" ? " (last run failed)" : ""}`);
+      return {
+        status: "answered",
+        answer: `${rows.length} automation${rows.length === 1 ? "" : "s"} out of ${total} total:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [
+          {
+            type: "record_list",
+            title: "Automations",
+            columns: [
+              { key: "name", label: "Automation" },
+              { key: "status", label: "Status" },
+              { key: "trigger_summary", label: "Trigger" },
+            ],
+            rows: rows.map((a) => ({ id: a.id, name: a.name, status: a.enabled ? "Active" : "Paused", trigger_summary: a.trigger_summary })),
+            total_count: total,
+            truncated: rows.length < total,
+          },
+        ],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total },
+      };
+    },
+    primary: "list",
+  });
+}
+
 // ---------------------------------------------------------------------
 // office_internal — Meetings (Oyi Conversational Runtime Completion
 // Programme, third domain — same template as Tasks/Automations). Reads
@@ -910,11 +1056,13 @@ function officeMeetingsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["meetings.read"],
     evidenceRequirements: [{ domain: "office_meetings", evidence_type: "office_meeting_selected", freshness: ["fresh", "unknown"], required: false }],
-    // Mutually exclusive with office_meetings.write's own supports() (Phase 3).
+    // Mutually exclusive with office_meetings.write's own supports() (Phase 3)
+    // and office_meetings.query.read's own supports() (Milestone 2).
     supports: (frame: SemanticFrame) =>
       frame.domain === "office_meetings" &&
       !parseMeetingMutationIntent(frame.normalizedText) &&
-      !isAutomationScheduleReferenceMessage(frame.normalizedText),
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      !isMeetingsListIntent(frame.normalizedText),
     collect: async (context) => {
       const meeting = meetingContextSlot(context);
       if (!meeting || !(meeting.safe_summary || meeting.title)) return [];
@@ -990,6 +1138,128 @@ function officeMeetingsReadModule(): CapabilityModule {
   });
 }
 
+function isMeetingsListIntent(message: string): boolean {
+  return /\bmeetings\b/i.test(message);
+}
+
+function meetingOpenFact(meeting: NonNullable<OperationalSnapshot["meetings"]>["items"][number]): IntelligenceFact {
+  return {
+    fact_id: `office_meeting_open:${meeting.id}`,
+    domain: "office_meetings",
+    fact_type: "office_meeting_open",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "meeting", canonical_id: meeting.id, label: meeting.title },
+    statement: `${meeting.title} — ${meeting.status}`,
+    value: { status: meeting.status, owner: meeting.owner },
+    previous_value: null,
+    occurred_at: meeting.scheduled_at,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: meeting.id,
+    truth_state: "observed",
+    confidence: 0.85,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
+function isSameLocalDate(isoValue: string | null, dayOffset: number): boolean {
+  if (!isoValue) return false;
+  const parsed = new Date(isoValue);
+  if (Number.isNaN(parsed.getTime())) return false;
+  const target = new Date();
+  target.setDate(target.getDate() + dayOffset);
+  return parsed.getUTCFullYear() === target.getUTCFullYear() && parsed.getUTCMonth() === target.getUTCMonth() && parsed.getUTCDate() === target.getUTCDate();
+}
+
+function meetingQueryRows(meetings: NonNullable<OperationalSnapshot["meetings"]>, normalizedMessage: string) {
+  let rows = meetings.items;
+  if (/\btomorrow\b/i.test(normalizedMessage)) rows = rows.filter((m) => isSameLocalDate(m.scheduled_at, 1));
+  else if (/\btoday\b/i.test(normalizedMessage)) rows = rows.filter((m) => isSameLocalDate(m.scheduled_at, 0));
+  return rows;
+}
+
+function officeMeetingsQueryReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_meetings.query.read",
+    domain: "office_meetings",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["meetings.read"],
+    evidenceRequirements: [{ domain: "office_meetings", evidence_type: "office_meeting_open", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_meetings" &&
+      !parseMeetingMutationIntent(frame.normalizedText) &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      isMeetingsListIntent(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const meetings = snapshot?.meetings;
+      if (!meetings) return [];
+      const rows = meetingQueryRows(meetings, normalizeMessage(context));
+      return rows.map((meeting) => {
+        const fact = meetingOpenFact(meeting);
+        return evidenceEnvelope({
+          evidence_id: `capability:${fact.fact_id}`,
+          domain: "office_meetings",
+          type: fact.fact_type,
+          object_type: "meeting",
+          object_id: meeting.id,
+          source: "domain_adapter",
+          observed_at: fact.observed_at,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.85,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { fact },
+        });
+      });
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.meetings) {
+        return unavailableResult("I don't have a current read on meetings for this session — the Office meetings snapshot wasn't attached to this request.");
+      }
+      const message = normalizeMessage(context);
+      const { total } = snapshot.meetings;
+      const rows = meetingQueryRows(snapshot.meetings, message);
+      if (!rows.length) {
+        return {
+          status: "empty",
+          answer: /\btomorrow\b/i.test(message) ? "No meetings scheduled for tomorrow." : /\btoday\b/i.test(message) ? "No meetings scheduled for today." : "No meetings scheduled right now.",
+          presentation_policy: resultPresentation("list"),
+          metadata: { total },
+        };
+      }
+      const lines = rows.slice(0, 10).map((m) => `${m.title}${m.scheduled_at ? ` — ${m.scheduled_at}` : ""}${m.owner ? `, ${m.owner}` : ""}`);
+      return {
+        status: "answered",
+        answer: `${rows.length} meeting${rows.length === 1 ? "" : "s"}${rows.length === total ? "" : ` out of ${total} total`}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [
+          {
+            type: "record_list",
+            title: "Meetings",
+            columns: [
+              { key: "title", label: "Meeting" },
+              { key: "scheduled_at", label: "When" },
+              { key: "owner", label: "Owner" },
+              { key: "status", label: "Status" },
+            ],
+            rows: rows.map((m) => ({ id: m.id, title: m.title, scheduled_at: m.scheduled_at, owner: m.owner, status: m.status })),
+            total_count: total,
+            truncated: rows.length < total,
+          },
+        ],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total },
+      };
+    },
+    primary: "list",
+  });
+}
+
 // ---------------------------------------------------------------------
 // office_internal — Support (Oyi Conversational Runtime Completion
 // Programme, fourth domain — same template as Tasks/Automations/
@@ -1027,11 +1297,13 @@ function officeSupportReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["support.read"],
     evidenceRequirements: [{ domain: "office_support", evidence_type: "office_support_case_selected", freshness: ["fresh", "unknown"], required: false }],
-    // Mutually exclusive with office_support.write's own supports() (Phase 3).
+    // Mutually exclusive with office_support.write's own supports() (Phase 3)
+    // and office_support.query.read's own supports() (Milestone 2).
     supports: (frame: SemanticFrame) =>
       frame.domain === "office_support" &&
       !parseSupportMutationIntent(frame.normalizedText) &&
-      !isAutomationScheduleReferenceMessage(frame.normalizedText),
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      !isSupportListIntent(frame.normalizedText),
     collect: async (context) => {
       const support = supportContextSlot(context);
       if (!support || !(support.safe_summary || support.title)) return [];
@@ -1114,6 +1386,122 @@ function officeSupportReadModule(): CapabilityModule {
   });
 }
 
+// "cases"/"issues"/"tickets" — plural record-type nouns, not the bare
+// domain keyword "support" (which appears in both single-record and
+// list phrasing alike and so can't be the mutual-exclusion signal).
+function isSupportListIntent(message: string): boolean {
+  return /\b(?:cases|issues|tickets)\b/i.test(message);
+}
+
+function supportOpenFact(support: NonNullable<OperationalSnapshot["support"]>["items"][number]): IntelligenceFact {
+  return {
+    fact_id: `office_support_case_open:${support.id}`,
+    domain: "office_support",
+    fact_type: "office_support_case_open",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "support_case", canonical_id: support.id, label: support.title },
+    statement: `${support.title} — ${support.status}`,
+    value: { status: support.status, priority: support.priority, severity: support.severity, owner: support.owner },
+    previous_value: null,
+    occurred_at: null,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: support.id,
+    truth_state: "observed",
+    confidence: 0.85,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
+function supportQueryRows(support: NonNullable<OperationalSnapshot["support"]>, normalizedMessage: string) {
+  let rows = support.items;
+  if (/\bcritical\b/i.test(normalizedMessage)) rows = rows.filter((s) => s.severity === "critical");
+  else if (/\bhigh priority\b/i.test(normalizedMessage)) rows = rows.filter((s) => s.priority === "high");
+  return rows;
+}
+
+function officeSupportQueryReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_support.query.read",
+    domain: "office_support",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["support.read"],
+    evidenceRequirements: [{ domain: "office_support", evidence_type: "office_support_case_open", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_support" &&
+      !parseSupportMutationIntent(frame.normalizedText) &&
+      !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
+      isSupportListIntent(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const support = snapshot?.support;
+      if (!support) return [];
+      const rows = supportQueryRows(support, normalizeMessage(context));
+      return rows.map((item) => {
+        const fact = supportOpenFact(item);
+        return evidenceEnvelope({
+          evidence_id: `capability:${fact.fact_id}`,
+          domain: "office_support",
+          type: fact.fact_type,
+          object_type: "support_case",
+          object_id: item.id,
+          source: "domain_adapter",
+          observed_at: fact.observed_at,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.85,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { fact },
+        });
+      });
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.support) {
+        return unavailableResult("I don't have a current read on support cases for this session — the Office support snapshot wasn't attached to this request.");
+      }
+      const message = normalizeMessage(context);
+      const { total } = snapshot.support;
+      const rows = supportQueryRows(snapshot.support, message);
+      if (!rows.length) {
+        return {
+          status: "empty",
+          answer: `No open support cases match that. There ${total === 1 ? "is" : "are"} ${total} open case${total === 1 ? "" : "s"} in total.`,
+          presentation_policy: resultPresentation("list"),
+          metadata: { total },
+        };
+      }
+      const lines = rows.slice(0, 10).map((s) => `${s.title} — ${s.status}${s.severity ? `, ${s.severity} severity` : ""}${s.owner ? `, ${s.owner}` : ""}`);
+      return {
+        status: "answered",
+        answer: `${rows.length} case${rows.length === 1 ? "" : "s"}${rows.length === total ? "" : ` out of ${total} open total`}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [
+          {
+            type: "record_list",
+            title: "Support Cases",
+            columns: [
+              { key: "title", label: "Case" },
+              { key: "status", label: "Status" },
+              { key: "severity", label: "Severity" },
+              { key: "owner", label: "Owner" },
+            ],
+            rows: rows.map((s) => ({ id: s.id, title: s.title, status: s.status, severity: s.severity, owner: s.owner })),
+            total_count: total,
+            truncated: rows.length < total,
+          },
+        ],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total },
+      };
+    },
+    primary: "list",
+  });
+}
+
 // ---------------------------------------------------------------------
 // office_internal — Portfolio (Oyi Conversational Runtime Completion
 // Programme, fifth domain — same template as Tasks/Automations/
@@ -1171,7 +1559,8 @@ function officePortfolioReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["portfolio.read"],
     evidenceRequirements: [{ domain: "office_portfolio", evidence_type: "office_portfolio_entry_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_portfolio" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_portfolio" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isPortfolioListIntent(frame.normalizedText),
     collect: async (context) => {
       const portfolio = portfolioContextSlot(context);
       if (!portfolio || !(portfolio.safe_summary || portfolio.name)) return [];
@@ -1244,6 +1633,126 @@ function officePortfolioReadModule(): CapabilityModule {
   });
 }
 
+function isPortfolioListIntent(message: string): boolean {
+  return /\b(?:projects|properties|entries|portfolio items)\b/i.test(message);
+}
+
+function portfolioOpenFact(entry: NonNullable<OperationalSnapshot["portfolio"]>["items"][number]): IntelligenceFact {
+  return {
+    fact_id: `office_portfolio_open:${entry.id}`,
+    domain: "office_portfolio",
+    fact_type: "office_portfolio_open",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "portfolio_entry", canonical_id: entry.id, label: entry.name },
+    statement: `${entry.name} — ${entry.status}`,
+    value: { status: entry.status, owner: entry.owner },
+    previous_value: null,
+    occurred_at: null,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: entry.id,
+    truth_state: "observed",
+    confidence: 0.85,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
+const TOP_N_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+
+function parseTopN(normalizedMessage: string): number | null {
+  const match = normalizedMessage.match(/\btop\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i);
+  if (!match) return null;
+  const raw = match[1].toLowerCase();
+  return /^\d+$/.test(raw) ? Number(raw) : TOP_N_WORDS[raw] ?? null;
+}
+
+function portfolioQueryRows(portfolio: NonNullable<OperationalSnapshot["portfolio"]>, normalizedMessage: string) {
+  let rows = portfolio.items;
+  if (/\bat risk\b/i.test(normalizedMessage)) rows = rows.filter((p) => p.status === "attention");
+  if (/\bno health summary\b/i.test(normalizedMessage)) rows = rows.filter((p) => !p.health_summary);
+  const topN = parseTopN(normalizedMessage);
+  if (topN) rows = rows.slice(0, topN);
+  return rows;
+}
+
+function officePortfolioQueryReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_portfolio.query.read",
+    domain: "office_portfolio",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["portfolio.read"],
+    evidenceRequirements: [{ domain: "office_portfolio", evidence_type: "office_portfolio_open", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_portfolio" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isPortfolioListIntent(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const portfolio = snapshot?.portfolio;
+      if (!portfolio) return [];
+      const rows = portfolioQueryRows(portfolio, normalizeMessage(context));
+      return rows.map((entry) => {
+        const fact = portfolioOpenFact(entry);
+        return evidenceEnvelope({
+          evidence_id: `capability:${fact.fact_id}`,
+          domain: "office_portfolio",
+          type: fact.fact_type,
+          object_type: "portfolio_entry",
+          object_id: entry.id,
+          source: "domain_adapter",
+          observed_at: fact.observed_at,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.85,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { fact },
+        });
+      });
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.portfolio) {
+        return unavailableResult("I don't have a current read on portfolio entries for this session — the Office portfolio snapshot wasn't attached to this request.");
+      }
+      const message = normalizeMessage(context);
+      const { total } = snapshot.portfolio;
+      const rows = portfolioQueryRows(snapshot.portfolio, message);
+      if (!rows.length) {
+        return {
+          status: "empty",
+          answer: `None of the ${total} portfolio entr${total === 1 ? "y matches" : "ies match"} that right now.`,
+          presentation_policy: resultPresentation("list"),
+          metadata: { total },
+        };
+      }
+      const lines = rows.slice(0, 10).map((p) => `${p.name} — ${p.status}${p.health_summary ? `, ${p.health_summary}` : ", no health summary recorded"}`);
+      return {
+        status: "answered",
+        answer: `${rows.length} portfolio entr${rows.length === 1 ? "y" : "ies"} out of ${total} total:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [
+          {
+            type: "record_list",
+            title: "Portfolio",
+            columns: [
+              { key: "name", label: "Entry" },
+              { key: "status", label: "Status" },
+              { key: "health_summary", label: "Health" },
+            ],
+            rows: rows.map((p) => ({ id: p.id, name: p.name, status: p.status, health_summary: p.health_summary || "—" })),
+            total_count: total,
+            truncated: rows.length < total,
+          },
+        ],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total },
+      };
+    },
+    primary: "list",
+  });
+}
+
 // ---------------------------------------------------------------------
 // office_internal — Partnerships (Oyi Conversational Runtime Completion
 // Programme, sixth domain). Deliberately reuses the "corporate_partnerships"
@@ -1284,7 +1793,8 @@ function officePartnershipsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["partnerships.read"],
     evidenceRequirements: [{ domain: "corporate_partnerships", evidence_type: "office_partnership_selected", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "corporate_partnerships" && !isAutomationScheduleReferenceMessage(frame.normalizedText),
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "corporate_partnerships" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isPartnershipsListIntent(frame.normalizedText),
     collect: async (context) => {
       const partnership = partnershipContextSlot(context);
       if (!partnership || !partnership.safe_summary) return [];
@@ -1355,6 +1865,100 @@ function officePartnershipsReadModule(): CapabilityModule {
       return { status: "answered", answer: digest, presentation_policy: resultPresentation("text") };
     },
     primary: "text",
+  });
+}
+
+function isPartnershipsListIntent(message: string): boolean {
+  return /\bpartnerships\b/i.test(message);
+}
+
+function partnershipOpenFact(entry: NonNullable<OperationalSnapshot["partnerships"]>["items"][number]): IntelligenceFact {
+  return {
+    fact_id: `office_partnership_open:${entry.id}`,
+    domain: "corporate_partnerships",
+    fact_type: "office_partnership_open",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "partnership_relationship", canonical_id: entry.id, label: entry.name },
+    statement: `${entry.name} — ${entry.status}`,
+    value: { status: entry.status, owner: entry.owner },
+    previous_value: null,
+    occurred_at: null,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: entry.id,
+    truth_state: "observed",
+    confidence: 0.85,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
+function officePartnershipsQueryReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_partnerships.query.read",
+    domain: "corporate_partnerships",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["partnerships.read"],
+    evidenceRequirements: [{ domain: "corporate_partnerships", evidence_type: "office_partnership_open", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "corporate_partnerships" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isPartnershipsListIntent(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const partnerships = snapshot?.partnerships;
+      if (!partnerships) return [];
+      return partnerships.items.map((entry) => {
+        const fact = partnershipOpenFact(entry);
+        return evidenceEnvelope({
+          evidence_id: `capability:${fact.fact_id}`,
+          domain: "corporate_partnerships",
+          type: fact.fact_type,
+          object_type: "partnership_relationship",
+          object_id: entry.id,
+          source: "domain_adapter",
+          observed_at: fact.observed_at,
+          freshness: "unknown",
+          privacy_class: officePrivate,
+          confidence: 0.85,
+          authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+          payload: { fact },
+        });
+      });
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.partnerships) {
+        return unavailableResult("I don't have a current read on partnerships for this session — the Office partnerships snapshot wasn't attached to this request.");
+      }
+      const { items, total } = snapshot.partnerships;
+      if (!items.length) {
+        return { status: "empty", answer: "No active partnerships right now.", presentation_policy: resultPresentation("list"), metadata: { total } };
+      }
+      const lines = items.slice(0, 10).map((p) => `${p.name} — ${p.status}${p.owner ? `, managed by ${p.owner}` : ""}`);
+      return {
+        status: "answered",
+        answer: `${items.length} partnership${items.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [
+          {
+            type: "record_list",
+            title: "Partnerships",
+            columns: [
+              { key: "name", label: "Partnership" },
+              { key: "status", label: "Status" },
+              { key: "owner", label: "Manager" },
+            ],
+            rows: items.map((p) => ({ id: p.id, name: p.name, status: p.status, owner: p.owner })),
+            total_count: total,
+            truncated: items.length < total,
+          },
+        ],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total },
+      };
+    },
+    primary: "list",
   });
 }
 
@@ -1778,7 +2382,27 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeTasksQueryReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule(), officePortfolioReadModule(), officePartnershipsReadModule(), officeDocumentsReadModule(), officeContentReadModule()];
+  return [
+    crmLeadsReadModule(),
+    crmOpportunitiesReadModule(),
+    reportsApprovalsReadModule(),
+    developmentStatusReadModule(),
+    financialSummaryReadModule(),
+    officeTasksReadModule(),
+    officeTasksQueryReadModule(),
+    officeAutomationsReadModule(),
+    officeAutomationsQueryReadModule(),
+    officeMeetingsReadModule(),
+    officeMeetingsQueryReadModule(),
+    officeSupportReadModule(),
+    officeSupportQueryReadModule(),
+    officePortfolioReadModule(),
+    officePortfolioQueryReadModule(),
+    officePartnershipsReadModule(),
+    officePartnershipsQueryReadModule(),
+    officeDocumentsReadModule(),
+    officeContentReadModule(),
+  ];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {
