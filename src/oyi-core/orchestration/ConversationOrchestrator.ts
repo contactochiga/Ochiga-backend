@@ -805,7 +805,7 @@ async function respondFromBatchVerification(
   });
   const itemLabel = BATCH_DOMAIN_LABEL[confirmed.domain] || "record";
   const surfaceName = BATCH_DOMAIN_SURFACE_NAME[confirmed.domain] || "Office";
-  const answer =
+  let answer =
     total === 0
       ? "There was nothing in that batch to verify."
       : verifiedCount === total
@@ -813,6 +813,16 @@ async function respondFromBatchVerification(
       : verifiedCount === 0
       ? `I attempted that, but none of the ${total} ${itemLabel}${total === 1 ? "" : "s"} show the expected change yet — please check ${total === 1 ? "it" : "them"} directly in ${surfaceName}.`
       : `${verifiedCount} of ${total} ${itemLabel}${total === 1 ? "" : "s"} were updated as proposed. Please check directly: ${unverifiedLabels.join(", ")}.`;
+  // TEMPORARY diagnostic -- Milestone 2 production verification found
+  // support batch reassign always reports 0/N verified even though the
+  // PATCH itself demonstrably succeeds (confirmed directly against the
+  // API). No Backend log access on this account (established in
+  // Milestone 1); embedding the raw comparison inputs in the response
+  // text is the same workaround used then. Reverted before this PR
+  // series closes out.
+  if (verifiedCount < total) {
+    answer += ` [[DEBUG refKey=${refKey} batchEntries=${JSON.stringify(batchEntries)} children=${JSON.stringify(children.map((c) => ({ id: c.target_entity_id, field: officeProposalFieldAndValue(c) })))}]]`;
+  }
   const capability = syntheticOfficeActionCapability(`${confirmed.domain}.batch_action_verified`, confirmed.domain);
   const allVerified = total > 0 && verifiedCount === total;
   const result: DomainResult = {
