@@ -594,6 +594,16 @@ function taskOpenFact(task: NonNullable<OperationalSnapshot["tasks"]>["open"][nu
   };
 }
 
+// Phase 4 hotfix -- the ONE filtering decision ("overdue" phrasing means
+// overdue-only), shared by collect() and answer() so the persisted
+// result set always matches what was actually displayed and confirmed
+// to the user. Previously duplicated independently in each, which is
+// exactly how they drifted out of sync.
+function officeTasksQueryRows(tasks: NonNullable<OperationalSnapshot["tasks"]>, normalizedMessage: string) {
+  const wantsOverdueOnly = /\boverdue\b/i.test(normalizedMessage);
+  return wantsOverdueOnly ? tasks.open.filter((task) => task.overdue) : tasks.open;
+}
+
 function officeTasksQueryReadModule(): CapabilityModule {
   return readModule({
     key: "office_tasks.query.read",
@@ -608,6 +618,15 @@ function officeTasksQueryReadModule(): CapabilityModule {
       const snapshot = officeSnapshot(context);
       const tasks = snapshot?.tasks;
       if (!tasks) return [];
+      // Phase 4 hotfix (found in live production verification): collect()
+      // must filter the SAME way answer() does below (see
+      // officeTasksQueryRows), not return every open task regardless of
+      // phrasing. Previously "show me my overdue tasks" ANSWERED with
+      // only the overdue ones but registered ALL open tasks (including
+      // non-overdue ones) as the persisted result set -- so "move the
+      // first two" on the next turn resolved against the wrong,
+      // unfiltered list instead of the two tasks actually shown.
+      const rows = officeTasksQueryRows(tasks, normalizeMessage(context));
       // Phase 4 hotfix (found in live production verification, not
       // caught by unit tests that call collect()/answer() directly and
       // so never exercise CapabilityService's assertEvidenceAllowed
@@ -619,7 +638,7 @@ function officeTasksQueryReadModule(): CapabilityModule {
       // office_internal capability in this file builds its envelope via
       // evidenceEnvelope() directly with an explicit corporate privacy_
       // class for exactly this reason; this one now matches.
-      return tasks.open.map((task) => {
+      return rows.map((task) => {
         const fact = taskOpenFact(task);
         return evidenceEnvelope({
           evidence_id: `capability:${fact.fact_id}`,
@@ -644,8 +663,8 @@ function officeTasksQueryReadModule(): CapabilityModule {
       }
       const message = normalizeMessage(context);
       const wantsOverdueOnly = /\boverdue\b/i.test(message);
-      const { open: allOpen, total_open: totalOpen } = snapshot.tasks;
-      const rows = wantsOverdueOnly ? allOpen.filter((task) => task.overdue) : allOpen;
+      const { total_open: totalOpen } = snapshot.tasks;
+      const rows = officeTasksQueryRows(snapshot.tasks, message);
       if (!rows.length) {
         return {
           status: "empty",
