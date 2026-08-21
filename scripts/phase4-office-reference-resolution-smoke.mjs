@@ -75,6 +75,13 @@ assert.equal(secondResolution.ref.canonical_id, "task-2");
 const pronounIntent = parseFollowUpIntent("tell me more about that");
 assert.deepEqual(pronounIntent, { type: "detail" });
 
+// --- Hotfix regression: "the first two" is a COUNT reference (batch),
+// not a single-ordinal one -- found live in production swallowing
+// office_tasks.write's own batch-target parser before it ever ran. ---
+assert.deepEqual(parseFollowUpIntent("the first one"), { type: "ordinal", ordinal: "first" }, "single-ordinal phrasing must still work");
+assert.equal(parseFollowUpIntent("move the first two to Monday"), null, "a count phrase must not be claimed by the single-ordinal resolver");
+assert.equal(parseFollowUpIntent("the first 3"), null, "a numeric count phrase must not be claimed either");
+
 // --- Reused filter continuity ("only the high priority ones") against Office attributes ---
 const filterIntent = parseFollowUpIntent("show only the high priority ones");
 assert.equal(filterIntent.type, "filter");

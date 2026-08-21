@@ -93,7 +93,18 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   if (/\bhighest\s+one\b|\bthe highest\b/.test(m)) return { type: "attribute", attribute: "highest" };
   if (/\bopen\s+one\b|\bonly the open\b/.test(m)) return { type: "attribute", attribute: "open" };
 
-  if (/\bfirst\s+one\b|\bthe first\b/.test(m)) return { type: "ordinal", ordinal: "first" };
+  // Negative lookahead added in Phase 4 (Oyi Conversational Runtime
+  // Completion Programme) -- found live in production: "the first" alone
+  // matched "the first two"/"the first 3", a COUNT reference, not a
+  // single-ordinal one, so a genuine batch request ("move the first two
+  // to Monday") was being swallowed here as "give me the first item" and
+  // never reaching the capability that actually handles multi-target
+  // batches (office_tasks.write's own parseBatchTargetIntent). This
+  // generic resolver only ever narrows to ONE object, so it must not
+  // claim a phrase that names a count.
+  if (/\bfirst\s+one\b/.test(m) || /\bthe first\b(?!\s+(?:two|three|four|five|six|seven|eight|nine|ten|\d+)\b)/.test(m)) {
+    return { type: "ordinal", ordinal: "first" };
+  }
   if (/\bsecond\s+one\b|\bthe second\b/.test(m)) return { type: "ordinal", ordinal: "second" };
   if (/\bthird\s+one\b|\bthe third\b/.test(m)) return { type: "ordinal", ordinal: "third" };
   if (/\boldest\b/.test(m)) return { type: "ordinal", ordinal: "oldest" };
