@@ -29,8 +29,9 @@ import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
-import { readModule, resultPresentation } from "./ReadCapabilityModules";
+import { readModule, resultPresentation, evidenceFromFact } from "./ReadCapabilityModules";
 import { parseTaskMutationIntent, parseMeetingMutationIntent, parseSupportMutationIntent } from "../context/officeActionProposal";
+import type { IntelligenceFact } from "../contracts/canonicalConversation";
 
 type OperationalSnapshot = {
   generated_at: string | null;
@@ -40,6 +41,15 @@ type OperationalSnapshot = {
   } | null;
   opportunities: {
     stale: Array<{ id: string; name: string; stage: string; days_since_activity: number | null; owner: string | null }>;
+    total_open: number;
+  } | null;
+  // Phase 4, PR 2 (Oyi Conversational Runtime Completion Programme) — an
+  // aggregate list, distinct from the single-selected-record task_context
+  // slot below. Mirrors leads/opportunities exactly: Office computes and
+  // permission-gates this itself (see oyi-core-gateway.js's
+  // buildTasksSnapshot()), Backend only ever reads it as evidence.
+  tasks: {
+    open: Array<{ id: string; title: string; status: string; priority: string | null; owner: string | null; due_at: string | null; overdue: boolean }>;
     total_open: number;
   } | null;
   reports: {
@@ -428,6 +438,19 @@ function financialSummaryReadModule(): CapabilityModule {
 // than invented — crm_tasks carries no such link field in this system,
 // and Office does not send task history over this contract yet.
 // ---------------------------------------------------------------------
+// Phase 4, PR 2 -- distinguishes "show me my overdue tasks" (a list query,
+// claimed by officeTasksQueryReadModule below) from "is this task overdue"
+// (a question about the one currently-selected record, claimed by
+// officeTasksReadModule). Anchored on plural "tasks" specifically: every
+// single-record phrasing in officeTasksReadModule's own answer() branches
+// below ("owner", "due", "priority" of *this* task) is naturally singular,
+// and the domain classifier itself already accepts singular "task" for
+// that capability. Mutual exclusion by construction, same pattern as the
+// read/write split -- no score tie-break to reason about.
+function isTaskListIntent(message: string): boolean {
+  return /\btasks\b/i.test(message);
+}
+
 function officeTasksReadModule(): CapabilityModule {
   return readModule({
     key: "office_tasks.read",
@@ -437,10 +460,12 @@ function officeTasksReadModule(): CapabilityModule {
     permissions: ["tasks.read"],
     evidenceRequirements: [{ domain: "office_tasks", evidence_type: "office_task_selected", freshness: ["fresh", "unknown"], required: false }],
     // Mutually exclusive with office_tasks.write's own supports() (Phase 3)
-    // by construction -- a mutation-intent message ("move this to in
-    // progress") is claimed by the write capability instead, so there's
-    // no tie-break to reason about.
-    supports: (frame: SemanticFrame) => frame.domain === "office_tasks" && !parseTaskMutationIntent(frame.normalizedText),
+    // and office_tasks.query.read's own supports() (Phase 4) by
+    // construction -- a mutation-intent message ("move this to in
+    // progress") is claimed by the write capability, a plural list query
+    // ("show my overdue tasks") is claimed by the query capability, so
+    // there's no tie-break to reason about.
+    supports: (frame: SemanticFrame) => frame.domain === "office_tasks" && !parseTaskMutationIntent(frame.normalizedText) && !isTaskListIntent(frame.normalizedText),
     collect: async (context) => {
       const task = taskContextSlot(context);
       if (!task || !(task.safe_summary || task.title)) return [];
@@ -518,6 +543,105 @@ function officeTasksReadModule(): CapabilityModule {
 
 function normalizeMessage(context: CapabilityContext): string {
   return String(context.input.message ?? "").toLowerCase();
+}
+
+// ---------------------------------------------------------------------
+// office_internal — Tasks list (Phase 4, PR 2). Answers "show me my
+// overdue tasks" / "what tasks are open" -- an aggregate the single-
+// selected-record officeTasksReadModule above cannot answer (it only
+// ever sees one task_context slot). Reuses evidenceFromFact() (the same
+// helper Consumer/Facility's own read modules use) so each task
+// participates in the same generic evidence -> IntelligenceFact ->
+// ResultSetContext pipeline as any other capability, which is what lets
+// a later turn ("move the first two to Monday") resolve an ordinal
+// reference against this list without any Office-specific plumbing.
+// ---------------------------------------------------------------------
+function taskOpenFact(task: NonNullable<OperationalSnapshot["tasks"]>["open"][number]): IntelligenceFact {
+  return {
+    fact_id: `office_task_open:${task.id}`,
+    domain: "office_tasks",
+    fact_type: "office_task_open",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "task", canonical_id: task.id, label: task.title },
+    statement: `${task.title} — ${task.status}`,
+    value: { status: task.status, priority: task.priority, owner: task.owner, due_at: task.due_at, overdue: task.overdue },
+    previous_value: null,
+    occurred_at: task.due_at,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: task.id,
+    truth_state: "observed",
+    confidence: 0.85,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
+function officeTasksQueryReadModule(): CapabilityModule {
+  return readModule({
+    key: "office_tasks.query.read",
+    domain: "office_tasks",
+    operations: readOperations,
+    supportedSurfaces: ["office_internal"],
+    permissions: ["tasks.read"],
+    evidenceRequirements: [{ domain: "office_tasks", evidence_type: "office_task_open", freshness: ["fresh", "unknown"], required: false }],
+    supports: (frame: SemanticFrame) =>
+      frame.domain === "office_tasks" && !parseTaskMutationIntent(frame.normalizedText) && isTaskListIntent(frame.normalizedText),
+    collect: async (context) => {
+      const snapshot = officeSnapshot(context);
+      const tasks = snapshot?.tasks;
+      if (!tasks) return [];
+      return tasks.open.map((task) => evidenceFromFact(taskOpenFact(task)));
+    },
+    answer: (context) => {
+      const snapshot = officeSnapshot(context);
+      if (!snapshot?.tasks) {
+        return unavailableResult("I don't have a current read on tasks for this session — the Office tasks snapshot wasn't attached to this request.");
+      }
+      const message = normalizeMessage(context);
+      const wantsOverdueOnly = /\boverdue\b/i.test(message);
+      const { open: allOpen, total_open: totalOpen } = snapshot.tasks;
+      const rows = wantsOverdueOnly ? allOpen.filter((task) => task.overdue) : allOpen;
+      if (!rows.length) {
+        return {
+          status: "empty",
+          answer: wantsOverdueOnly
+            ? `No open tasks are overdue right now. There ${totalOpen === 1 ? "is" : "are"} ${totalOpen} open task${totalOpen === 1 ? "" : "s"} in total.`
+            : "No open tasks right now.",
+          presentation_policy: resultPresentation("list"),
+          metadata: { total_open: totalOpen },
+        };
+      }
+      const label = wantsOverdueOnly ? "overdue task" : "open task";
+      const lines = rows
+        .slice(0, 10)
+        .map((task) => `${task.title} — ${task.status}${task.owner ? `, ${task.owner}` : ""}${task.due_at ? `, due ${task.due_at}` : ""}${task.overdue ? " (overdue)" : ""}`);
+      return {
+        status: "answered",
+        answer: `${rows.length} ${label}${rows.length === 1 ? "" : "s"}${wantsOverdueOnly ? "" : ` out of ${totalOpen} total`}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        blocks: [
+          {
+            type: "record_list",
+            title: wantsOverdueOnly ? "Overdue Tasks" : "Open Tasks",
+            columns: [
+              { key: "title", label: "Task" },
+              { key: "status", label: "Status" },
+              { key: "owner", label: "Owner" },
+              { key: "due_at", label: "Due" },
+            ],
+            rows: rows.map((task) => ({ id: task.id, title: task.title, status: task.status, owner: task.owner, due_at: task.due_at })),
+            total_count: totalOpen,
+            truncated: rows.length < totalOpen,
+          },
+        ],
+        presentation_policy: resultPresentation("list"),
+        metadata: { total_open: totalOpen },
+      };
+    },
+    primary: "list",
+  });
 }
 
 // ---------------------------------------------------------------------
@@ -1563,7 +1687,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
 }
 
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
-  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule(), officePortfolioReadModule(), officePartnershipsReadModule(), officeDocumentsReadModule(), officeContentReadModule()];
+  return [crmLeadsReadModule(), crmOpportunitiesReadModule(), reportsApprovalsReadModule(), developmentStatusReadModule(), financialSummaryReadModule(), officeTasksReadModule(), officeTasksQueryReadModule(), officeAutomationsReadModule(), officeMeetingsReadModule(), officeSupportReadModule(), officePortfolioReadModule(), officePartnershipsReadModule(), officeDocumentsReadModule(), officeContentReadModule()];
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {
