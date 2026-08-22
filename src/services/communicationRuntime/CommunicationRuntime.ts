@@ -16,8 +16,10 @@
 // the hint doesn't carry a genuinely usable address for the chosen
 // channel.
 import { randomUUID } from "crypto";
+import axios from "axios";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import { emitAuditEvent } from "../../core/foundation/audit";
+import { resolveOfficeSyncKey } from "../../middleware/officeCredential";
 import type {
   CommunicationAdapterValidation,
 } from "./adapters/CommunicationAdapter";
@@ -290,6 +292,10 @@ export class CommunicationRuntime {
         failure_reason: result.failure_reason,
       },
     } as any);
+    // Additive CRM linkage only (Phase 13) -- never mutates lead/contact
+    // stage or status from a delivery event; a plain activity log entry,
+    // best-effort (a failed CRM write must never fail the send itself).
+    void recordCrmActivity(persisted).catch(() => null);
     return persisted;
   }
 
@@ -440,6 +446,49 @@ function rowToRecord(row: any): CommunicationRecord {
     delivery_metadata: row.delivery_metadata,
     audit_metadata: row.audit_metadata,
   };
+}
+
+// Phase 13 -- communication outcomes -> CRM activity. Calls Office's
+// communications/activity bridge (same shared secret as the WhatsApp/
+// recipient-resolution bridges) when the recipient has a known lead/
+// contact/organisation linkage. A no-op when there's no linkage
+// (explicit-address sends to someone not in the CRM at all).
+async function recordCrmActivity(record: CommunicationRecord): Promise<void> {
+  const { lead_id, contact_id, organization_id } = record.recipient;
+  if (!lead_id && !contact_id && !organization_id) return;
+  const key = resolveOfficeSyncKey();
+  if (!key) return;
+  const to = record.recipient.email || record.recipient.whatsapp_phone || record.recipient.phone || "recipient";
+  const title = record.status === "sent" ? `${titleCaseChannel(record.channel)} sent` : `${titleCaseChannel(record.channel)} failed`;
+  const bodySummary = record.subject || String(record.body || "").slice(0, 200);
+  try {
+    await axios.post(
+      `${resolveOfficeBaseUrlForActivity()}/api/lead-agents/admin/communications/activity`,
+      {
+        lead_id,
+        contact_id,
+        organization_id,
+        activity_type: record.status === "sent" ? "communication_sent" : "communication_failed",
+        title: `${title} to ${to}`,
+        body: bodySummary,
+        actor: record.actor_id || "oyi",
+        occurred_at: record.sent_at || record.created_at,
+      },
+      { headers: { "x-office-api-key": key, "content-type": "application/json" }, timeout: 8000, validateStatus: () => true }
+    );
+  } catch {
+    // Best-effort -- a CRM activity write failure never fails the send.
+  }
+}
+
+function titleCaseChannel(channel: string): string {
+  return channel === "whatsapp" ? "WhatsApp message" : channel === "email" ? "Email" : channel === "sms" ? "SMS" : channel === "voice_call" ? "Call" : "Message";
+}
+
+function resolveOfficeBaseUrlForActivity(): string {
+  const configured = process.env.OFFICE_APP_URL || "";
+  const first = configured.split(",")[0]?.trim();
+  return (first || "https://ochiga-lead-agents.onrender.com").replace(/\/$/, "");
 }
 
 export const communicationRuntime = new CommunicationRuntime();
