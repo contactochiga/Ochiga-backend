@@ -24,6 +24,9 @@ import type { IntelligenceAgentId } from "../intelligence-core/types";
 import {
   cleanWorkflowActions,
   validateWorkflowActions,
+  cleanCommunicationActions,
+  validateCommunicationActions,
+  isCommunicationActionItem,
   isAutomationSurfaceEnabled,
   officeAutomationActor,
   executeConsumerAutomation,
@@ -1583,9 +1586,19 @@ router.post("/automations", requireOfficeExportKey, async (req: Request, res: Re
   const triggerResult = validateAutomationTrigger(body.trigger);
   if (!triggerResult.ok) return res.status(422).json({ ok: false, error: triggerResult.error, code: triggerResult.code });
   const rawActions = Array.isArray(body.actions) ? body.actions : [];
-  const workflowActions = cleanWorkflowActions(rawActions);
-  const validation = validateWorkflowActions(workflowActions);
-  if (!validation.ok) return res.status(422).json({ ok: false, error: validation.error, code: validation.code });
+  const requestedCommunicationActions = rawActions.length > 0 && rawActions.every(isCommunicationActionItem);
+  let finalActions: any[];
+  if (requestedCommunicationActions) {
+    const communicationActions = cleanCommunicationActions(rawActions);
+    const validation = validateCommunicationActions(communicationActions);
+    if (!validation.ok) return res.status(422).json({ ok: false, error: validation.error, code: validation.code });
+    finalActions = communicationActions.map((action) => ({ action_type: "communication_action", ...action }));
+  } else {
+    const workflowActions = cleanWorkflowActions(rawActions);
+    const validation = validateWorkflowActions(workflowActions);
+    if (!validation.ok) return res.status(422).json({ ok: false, error: validation.error, code: validation.code });
+    finalActions = workflowActions.map((action) => ({ action_type: "workflow_action", ...action }));
+  }
   if (!name) return res.status(400).json({ ok: false, error: "A name is required" });
   const trigger = triggerResult.trigger;
   const nextRun = body.enabled === false ? null : nextAutomationRunAt(trigger);
@@ -1598,7 +1611,7 @@ router.post("/automations", requireOfficeExportKey, async (req: Request, res: Re
     surface: OFFICE_AUTOMATION_SURFACE,
     trigger,
     condition: body.condition && typeof body.condition === "object" ? body.condition : {},
-    actions: workflowActions.map((action) => ({ action_type: "workflow_action", ...action })),
+    actions: finalActions,
     enabled: body.enabled !== false,
     timezone: trigger.timezone,
     schedule_version: 1,
@@ -1635,10 +1648,19 @@ router.patch("/automations/:id", requireOfficeExportKey, async (req: Request, re
     updates.schedule_version = 1;
   }
   if (body.actions != null) {
-    const workflowActions = cleanWorkflowActions(Array.isArray(body.actions) ? body.actions : []);
-    const validation = validateWorkflowActions(workflowActions);
-    if (!validation.ok) return res.status(422).json({ ok: false, error: validation.error, code: validation.code });
-    updates.actions = workflowActions.map((action) => ({ action_type: "workflow_action", ...action }));
+    const rawActions = Array.isArray(body.actions) ? body.actions : [];
+    const requestedCommunicationActions = rawActions.length > 0 && rawActions.every(isCommunicationActionItem);
+    if (requestedCommunicationActions) {
+      const communicationActions = cleanCommunicationActions(rawActions);
+      const validation = validateCommunicationActions(communicationActions);
+      if (!validation.ok) return res.status(422).json({ ok: false, error: validation.error, code: validation.code });
+      updates.actions = communicationActions.map((action) => ({ action_type: "communication_action", ...action }));
+    } else {
+      const workflowActions = cleanWorkflowActions(rawActions);
+      const validation = validateWorkflowActions(workflowActions);
+      if (!validation.ok) return res.status(422).json({ ok: false, error: validation.error, code: validation.code });
+      updates.actions = workflowActions.map((action) => ({ action_type: "workflow_action", ...action }));
+    }
   }
   const triggerForNext = validatedTrigger || validateAutomationTrigger(current.data.trigger);
   const enabledForNext = updates.enabled == null ? current.data.enabled !== false : updates.enabled === true;

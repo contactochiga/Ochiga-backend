@@ -25,6 +25,10 @@ import {
   workflowContractFor,
   type WorkflowCanonicalAction,
 } from "../services/workflowActionBatchExecutionService";
+import {
+  executeCommunicationActionBatch,
+  type CommunicationCanonicalAction,
+} from "../services/communicationActionBatchExecutionService";
 import { WORKFLOW_STATUSES } from "../intelligence-core/workflows";
 import {
   automationOccurrenceKey,
@@ -224,6 +228,51 @@ export function validateWorkflowActions(actions: CleanWorkflowAction[]) {
       if (!action.status || !(WORKFLOW_STATUSES as readonly string[]).includes(action.status)) {
         return { ok: false as const, error: `${action.status || "(missing)"} is not a supported workflow status.`, code: "unsupported_workflow_status" };
       }
+    }
+  }
+  return { ok: true as const };
+}
+
+// Shared Automation Runtime — the Communication action shape (Phase M/N
+// of the Communication Runtime programme). Dispatches through
+// CommunicationRuntime.plan/authorize/dispatch — the SAME runtime the
+// conversational propose/confirm path uses (ConversationOrchestrator.ts).
+// No email/WhatsApp-specific logic here; one channel field, same as
+// workflow_action's own operation field distinguishing sub-behavior
+// within a single homogeneous lane.
+export function isCommunicationActionItem(item: any): boolean {
+  return Boolean(item && typeof item === "object" && item.action_type === "communication_action");
+}
+
+const COMMUNICATION_ACTION_CHANNELS = new Set(["email", "whatsapp", "sms", "auto"]);
+
+export function cleanCommunicationActions(value: unknown): CommunicationCanonicalAction[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isCommunicationActionItem)
+    .slice(0, SCENE_ACTION_LIMIT)
+    .map((item: any) => ({
+      channel: COMMUNICATION_ACTION_CHANNELS.has(String(item?.channel)) ? item.channel : "auto",
+      recipient_email: item?.recipient_email ? String(item.recipient_email).trim() : null,
+      recipient_phone: item?.recipient_phone ? String(item.recipient_phone).trim() : null,
+      subject: item?.subject ? String(item.subject).trim().slice(0, 180) : null,
+      body: item?.body ? String(item.body).trim().slice(0, 4000) : "",
+      label: item?.label ? String(item.label).trim() : null,
+    }));
+}
+
+// Structural validation only — no send, no DB lookup. Real recipient/
+// channel resolution and adapter-level validation happen inside
+// CommunicationRuntime.plan()/validate() at execution time (the same
+// checks the conversational path relies on), not duplicated here.
+export function validateCommunicationActions(actions: CommunicationCanonicalAction[]) {
+  if (!actions.length) return { ok: false as const, error: "At least one action is required.", code: "automation_action_required" };
+  for (const action of actions) {
+    if (!action.body) {
+      return { ok: false as const, error: "communication_action requires a message body.", code: "communication_body_required" };
+    }
+    if (!action.recipient_email && !action.recipient_phone) {
+      return { ok: false as const, error: "communication_action requires an explicit recipient_email or recipient_phone — it cannot resolve \"him/her/them\" outside a live conversation.", code: "communication_recipient_required" };
     }
   }
   return { ok: true as const };
@@ -860,6 +909,7 @@ export async function executeConsumerAutomation(input: {
   const rawActions = Array.isArray(automation.actions) ? automation.actions : [];
   const isRegisteredActionAutomation = rawActions.length > 0 && rawActions.every(isRegisteredActionItem);
   const isWorkflowActionAutomation = rawActions.length > 0 && rawActions.every(isWorkflowActionItem);
+  const isCommunicationActionAutomation = rawActions.length > 0 && rawActions.every(isCommunicationActionItem);
 
   let results: any[];
   if (isRegisteredActionAutomation) {
@@ -925,6 +975,37 @@ export async function executeConsumerAutomation(input: {
       actions: workflowActions as WorkflowCanonicalAction[],
       requestedAt,
       scope: { estateId: automation.estate_id, homeId: automation.home_id },
+    });
+  } else if (isCommunicationActionAutomation) {
+    const communicationActions = cleanCommunicationActions(automation.actions);
+    const validation = validateCommunicationActions(communicationActions);
+    if (!validation.ok) {
+      const completedAt = new Date().toISOString();
+      const failedActions = communicationActions.map((action, index) => ({
+        action_index: index,
+        channel: action.channel,
+        recipient: action.recipient_email || action.recipient_phone || null,
+        status: "skipped",
+        error: validation.error,
+      }));
+      const failed = {
+        status: "failed",
+        completed_at: completedAt,
+        counts: { total: communicationActions.length, completed: 0, failed: communicationActions.length || 1 },
+        actions: failedActions,
+        error_code: validation.code,
+        error_message: validation.error,
+      };
+      await supabaseAdmin.from("consumer_automation_runs").update(failed as any).eq("id", runId);
+      await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
+      logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code, surface: automation.surface || "consumer" });
+      return { ...runRow, ...failed };
+    }
+    results = await executeCommunicationActionBatch({
+      actor,
+      runId,
+      actions: communicationActions,
+      requestedAt,
     });
   } else {
     const actions = cleanActions(automation.actions);
@@ -1127,11 +1208,15 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
   const rawActions = Array.isArray(req.body?.actions) ? req.body.actions : [];
   const requestedRegisteredActions = rawActions.length > 0 && rawActions.every(isRegisteredActionItem);
   const requestedWorkflowActions = rawActions.length > 0 && rawActions.every(isWorkflowActionItem);
+  const requestedCommunicationActions = rawActions.length > 0 && rawActions.every(isCommunicationActionItem);
   if (requestedRegisteredActions && surface !== "facility") {
     return res.status(422).json({ error: "Registered actions (visitor/maintenance) are currently only supported on the facility surface.", code: "registered_action_surface_mismatch" });
   }
   if (requestedWorkflowActions && surface !== "office") {
     return res.status(422).json({ error: "Workflow actions are currently only supported on the office surface.", code: "workflow_action_surface_mismatch" });
+  }
+  if (requestedCommunicationActions && surface !== "office") {
+    return res.status(422).json({ error: "Communication actions are currently only supported on the office surface.", code: "communication_action_surface_mismatch" });
   }
   let finalActions: any[];
   let actionCount: number;
@@ -1147,6 +1232,12 @@ router.post("/automations", requirePermission("devices.control"), async (req, re
     if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
     finalActions = workflowActions.map((action) => ({ action_type: "workflow_action", ...action }));
     actionCount = workflowActions.length;
+  } else if (requestedCommunicationActions) {
+    const communicationActions = cleanCommunicationActions(rawActions);
+    const validation = validateCommunicationActions(communicationActions);
+    if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
+    finalActions = communicationActions.map((action) => ({ action_type: "communication_action", ...action }));
+    actionCount = communicationActions.length;
   } else {
     const actions = cleanActions(rawActions);
     if (!name || !trigger || !actions.length) return res.status(400).json({ error: "A name, trigger, and at least one device action are required" });
@@ -1208,11 +1299,15 @@ router.patch("/automations/:id", requirePermission("devices.control"), async (re
     const rawActions = Array.isArray(req.body.actions) ? req.body.actions : [];
     const requestedRegisteredActions = rawActions.length > 0 && rawActions.every(isRegisteredActionItem);
     const requestedWorkflowActions = rawActions.length > 0 && rawActions.every(isWorkflowActionItem);
+    const requestedCommunicationActions = rawActions.length > 0 && rawActions.every(isCommunicationActionItem);
     if (requestedRegisteredActions && effectiveSurface !== "facility") {
       return res.status(422).json({ error: "Registered actions (visitor/maintenance) are currently only supported on the facility surface.", code: "registered_action_surface_mismatch" });
     }
     if (requestedWorkflowActions && effectiveSurface !== "office") {
       return res.status(422).json({ error: "Workflow actions are currently only supported on the office surface.", code: "workflow_action_surface_mismatch" });
+    }
+    if (requestedCommunicationActions && effectiveSurface !== "office") {
+      return res.status(422).json({ error: "Communication actions are currently only supported on the office surface.", code: "communication_action_surface_mismatch" });
     }
     if (requestedRegisteredActions) {
       const registeredActions = cleanRegisteredActions(rawActions);
@@ -1224,6 +1319,11 @@ router.patch("/automations/:id", requirePermission("devices.control"), async (re
       const validation = validateWorkflowActions(workflowActions);
       if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
       updates.actions = workflowActions.map((action) => ({ action_type: "workflow_action", ...action }));
+    } else if (requestedCommunicationActions) {
+      const communicationActions = cleanCommunicationActions(rawActions);
+      const validation = validateCommunicationActions(communicationActions);
+      if (!validation.ok) return res.status(422).json({ error: validation.error, code: validation.code });
+      updates.actions = communicationActions.map((action) => ({ action_type: "communication_action", ...action }));
     } else {
       const actions = cleanActions(rawActions);
       if (!actions.length) return res.status(400).json({ error: "At least one device action is required" });
