@@ -201,5 +201,11 @@ export function capabilityDomainResultToConversationResponse(input: {
     ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "pending_communication")
       ? { pending_communication: input.result.metadata!.pending_communication as Record<string, unknown> | null }
       : {}),
+    ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "resolved_person_context")
+      ? { resolved_person_context: input.result.metadata!.resolved_person_context as Record<string, unknown> | null }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "pending_recipient_disambiguation")
+      ? { pending_recipient_disambiguation: input.result.metadata!.pending_recipient_disambiguation as Record<string, unknown> | null }
+      : {}),
   };
 }

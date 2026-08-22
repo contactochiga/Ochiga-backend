@@ -63,8 +63,27 @@ import {
   buildPendingCommunicationPointer,
 } from "../context/communicationProposal";
 import { communicationRuntime } from "../../services/communicationRuntime/CommunicationRuntime";
-import type { CommunicationRequest } from "../../contracts/communication";
-import { parseCommunicationSendIntent, resolveCommunicationRecipientTokenHint, isCommunicationHistoryQuery } from "../interpretation/communicationIntentParser";
+import type { CommunicationRequest, CommunicationRecord, CommunicationRecipient } from "../../contracts/communication";
+import {
+  parseCommunicationSendIntent,
+  resolveCommunicationRecipientTokenHint,
+  isCommunicationHistoryQuery,
+  parseChannelReuseIntent,
+  parseCommunicationRevisionIntent,
+  parsePersonLookupIntent,
+  isPersonLookupToken,
+  isPronounToken,
+} from "../interpretation/communicationIntentParser";
+import {
+  loadPersonContext,
+  buildPersonContext,
+  loadPendingRecipientDisambiguation,
+  buildPendingRecipientDisambiguation,
+  matchDisambiguationReply,
+  type PendingRecipientDisambiguation,
+} from "../context/personContext";
+import { resolveRecipientByQuery } from "../../services/recipientResolutionService";
+import type { ResolvedRecipient } from "../../contracts/recipientResolution";
 
 let registered = false;
 
@@ -504,6 +523,12 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
       : undefined,
     pendingCommunication: Object.prototype.hasOwnProperty.call(response, "pending_communication")
       ? (response as any).pending_communication
+      : undefined,
+    resolvedPersonContext: Object.prototype.hasOwnProperty.call(response, "resolved_person_context")
+      ? (response as any).resolved_person_context
+      : undefined,
+    pendingRecipientDisambiguation: Object.prototype.hasOwnProperty.call(response, "pending_recipient_disambiguation")
+      ? (response as any).pending_recipient_disambiguation
       : undefined,
   });
   response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
@@ -1039,19 +1064,107 @@ async function handleOfficeActionProposalTurn(
 // communication.ts/CommunicationRuntime.ts header notes.
 // ---------------------------------------------------------------------
 
-function resolveCommunicationRecipientHint(
+function draftCommunicationResult(record: CommunicationRecord, pointer: ReturnType<typeof buildPendingCommunicationPointer>, extraMetadata: Record<string, unknown> = {}): DomainResult {
+  const channelLabel = record.channel === "whatsapp" ? "WhatsApp message" : record.channel === "email" ? "email" : record.channel === "voice_call" ? "call" : "message";
+  return {
+    status: "awaiting_confirmation",
+    answer: `Ready to send this ${channelLabel} to ${record.recipient.email || record.recipient.whatsapp_phone || record.recipient.phone}. Reply "yes" to send, or "no" to cancel.`,
+    presentation_policy: resultPresentation("approval"),
+    blocks: [
+      {
+        type: "key_value",
+        title: "Draft communication",
+        items: [
+          { label: "Channel", value: titleCaseWord(record.channel) },
+          { label: "To", value: record.recipient.email || record.recipient.whatsapp_phone || record.recipient.phone || "—" },
+          ...(record.subject ? [{ label: "Subject", value: record.subject }] : []),
+          { label: "Message", value: record.body },
+        ],
+      },
+    ],
+    metadata: { pending_communication: pointer, ...extraMetadata },
+  };
+}
+
+async function planAndProposeCommunication(
+  threadId: string,
+  actorId: string | null,
+  request: CommunicationRequest,
+  extraMetadata: Record<string, unknown> = {}
+): Promise<DomainResult> {
+  const plan = await communicationRuntime.plan(request);
+  if (plan.status === "clarification_required") {
+    return { status: "answered", answer: `I need a bit more to send that: ${plan.reason}`, presentation_policy: resultPresentation("text"), metadata: extraMetadata };
+  }
+  if (plan.status === "rejected") {
+    return { status: "answered", answer: `I can't send that: ${humanizeFailureReason(plan.reason)}.`, presentation_policy: resultPresentation("text"), metadata: extraMetadata };
+  }
+  const record = plan.record;
+  const pointer = buildPendingCommunicationPointer({
+    communicationId: record.communication_id,
+    threadId,
+    actorId: actorId || "",
+    channel: record.channel,
+    summary: record.subject || text(record.body).slice(0, 80),
+  });
+  return draftCommunicationResult(record, pointer, extraMetadata);
+}
+
+type RecipientLookupOutcome =
+  | { kind: "hint"; hint: Partial<CommunicationRecipient>; personContext?: ReturnType<typeof buildPersonContext> }
+  | { kind: "ambiguous"; candidates: ResolvedRecipient[]; query: string }
+  | { kind: "not_found"; query: string }
+  | { kind: "unresolved" };
+
+// Central recipient-token resolution: explicit address/"me" (synchronous,
+// existing behaviour) -> pronoun against active person_context -> bare
+// name/role phrase against Office's staff/CRM directory (async, may be
+// ambiguous). Never invents a contact detail.
+async function resolveCommunicationRecipient(
   recipientToken: string,
-  context: CanonicalConversationRequestContext
-): CommunicationRequest["recipient_hint"] | null {
-  // "him"/"her"/"them" referring to a selected CRM lead/contact would
-  // resolve here -- not yet possible: no Leads/Contacts single-record
-  // continuity slot exists in this codebase today (only operational
-  // record domains -- tasks/meetings/support/automations/portfolio/
-  // partnerships -- have a context slot; none of those are people).
-  // Honest gap, not fabricated -- resolveCommunicationRecipientTokenHint
-  // returns null so the caller asks for an explicit address instead of
-  // inventing one.
-  return resolveCommunicationRecipientTokenHint(recipientToken, context.actor || null);
+  context: CanonicalConversationRequestContext,
+  threadId: string,
+  actorId: string | null
+): Promise<RecipientLookupOutcome> {
+  const directHint = resolveCommunicationRecipientTokenHint(recipientToken, context.actor || null);
+  if (directHint) return { kind: "hint", hint: directHint };
+
+  if (isPronounToken(recipientToken)) {
+    const personCtx = await loadPersonContext(threadId, actorId);
+    if (!personCtx) return { kind: "unresolved" };
+    return { kind: "hint", hint: recipientHintFromResolved(personCtx.recipient) };
+  }
+
+  if (isPersonLookupToken(recipientToken)) {
+    const result = await resolveRecipientByQuery(recipientToken, "auto");
+    if (result.status === "resolved") {
+      return { kind: "hint", hint: recipientHintFromResolved(result.recipient), personContext: buildPersonContext(result.recipient) };
+    }
+    if (result.status === "ambiguous") return { kind: "ambiguous", candidates: result.candidates, query: recipientToken };
+    return { kind: "not_found", query: recipientToken };
+  }
+
+  return { kind: "unresolved" };
+}
+
+function recipientHintFromResolved(recipient: ResolvedRecipient): Partial<CommunicationRecipient> {
+  return {
+    contact_id: recipient.entity_type === "contact" ? recipient.entity_id : null,
+    lead_id: recipient.entity_type === "lead" ? recipient.entity_id : null,
+    user_id: recipient.entity_type === "staff" ? recipient.entity_id : null,
+    organization_id: recipient.organisation_id,
+    name: recipient.display_name,
+    email: recipient.email,
+    phone: recipient.phone,
+    whatsapp_phone: recipient.whatsapp,
+  };
+}
+
+function disambiguationQuestion(query: string, candidates: ResolvedRecipient[]): string {
+  const options = candidates
+    .map((c) => (c.organisation_name ? `${c.display_name} at ${c.organisation_name}` : c.display_name || "an unnamed match"))
+    .join(candidates.length > 2 ? ", " : " or ");
+  return `I found ${candidates.length} ${candidates.length === 1 ? "match" : "matches"} for "${query}". Do you mean ${options}?`;
 }
 
 async function handleCommunicationTurn(
@@ -1063,6 +1176,55 @@ async function handleCommunicationTurn(
   const threadId = context.input.thread_id;
   const actorId = context.actor?.id || null;
   const message = context.input.message;
+
+  // 0) A disambiguation question is pending ("I found two contacts named
+  // David...") -- try to match the reply before anything else. This
+  // state only exists BEFORE a communication draft is created, so it
+  // never overlaps with a pending_communication confirm/cancel below.
+  const pendingDisambiguation = await loadPendingRecipientDisambiguation(threadId, actorId);
+  if (pendingDisambiguation) {
+    if (isOfficeCancellationText(message)) {
+      const capability = syntheticOfficeActionCapability("communication.disambiguation_cancelled", "communications");
+      const result: DomainResult = { status: "answered", answer: "Cancelled. Nothing was sent.", presentation_policy: resultPresentation("text"), metadata: { pending_recipient_disambiguation: null } };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const matched = matchDisambiguationReply(message, pendingDisambiguation.candidates);
+    if (!matched) {
+      const capability = syntheticOfficeActionCapability("communication.disambiguation_unresolved", "communications");
+      const result: DomainResult = {
+        status: "answered",
+        answer: disambiguationQuestion(pendingDisambiguation.query, pendingDisambiguation.candidates),
+        presentation_policy: resultPresentation("text"),
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const personCtx = buildPersonContext(matched);
+    const capability = syntheticOfficeActionCapability("communication.disambiguation_resolved", "communications");
+    if (!pendingDisambiguation.resume) {
+      // The disambiguation was for a bare "open the X" lookup, not a
+      // pending send -- just set continuity and confirm who was meant.
+      const result: DomainResult = {
+        status: "answered",
+        answer: `Got it — ${matched.display_name}${matched.organisation_name ? ` at ${matched.organisation_name}` : ""}.`,
+        presentation_policy: resultPresentation("text"),
+        metadata: { resolved_person_context: personCtx, pending_recipient_disambiguation: null },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const request: CommunicationRequest = {
+      conversation_thread_id: threadId,
+      actor_id: actorId,
+      surface: "office_internal",
+      source: "conversation",
+      intent: "office_conversation_message",
+      channel: pendingDisambiguation.resume.channel as any,
+      recipient_hint: recipientHintFromResolved(matched),
+      subject: pendingDisambiguation.resume.subject,
+      body: pendingDisambiguation.resume.body,
+    };
+    const result = await planAndProposeCommunication(threadId, actorId, request, { resolved_person_context: personCtx, pending_recipient_disambiguation: null });
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
 
   const pending = await loadPendingCommunicationPointer(threadId, actorId);
   if (pending) {
@@ -1122,6 +1284,32 @@ async function handleCommunicationTurn(
       };
       return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
     }
+    // Revision: "actually add that the meeting is Thursday." Appends to
+    // the pending draft's body rather than replacing it or being read
+    // as a fresh send request -- the old draft is superseded (cancelled)
+    // and re-planned with the combined body under the SAME recipient/
+    // channel, so a later "yes" sends the merged content exactly once.
+    const revision = parseCommunicationRevisionIntent(message);
+    if (revision) {
+      const draft = await communicationRuntime.loadDraft(pending.communication_id);
+      if (draft) {
+        await communicationRuntime.cancel(pending.communication_id).catch(() => null);
+        const request: CommunicationRequest = {
+          conversation_thread_id: threadId,
+          actor_id: actorId,
+          surface: "office_internal",
+          source: "conversation",
+          intent: "office_conversation_message",
+          channel: draft.channel,
+          recipient_hint: { email: draft.recipient.email, phone: draft.recipient.phone, whatsapp_phone: draft.recipient.whatsapp_phone, contact_id: draft.recipient.contact_id, lead_id: draft.recipient.lead_id, user_id: draft.recipient.user_id, organization_id: draft.recipient.organization_id, name: draft.recipient.name },
+          subject: draft.subject,
+          body: `${draft.body} ${revision.additionalText}`.trim(),
+        };
+        const result = await planAndProposeCommunication(threadId, actorId, request);
+        const capability = syntheticOfficeActionCapability("communication.revised", "communications");
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+    }
     // Neither confirm nor cancel while a communication is pending. If
     // this message is itself a NEW, distinct send request, the old
     // unconfirmed draft is superseded (cancelled) rather than silently
@@ -1174,18 +1362,99 @@ async function handleCommunicationTurn(
     return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
   }
 
+  // Channel-reuse / content-reuse: "send it on WhatsApp too", "send the
+  // same to Ada". Reuses the last confirmed communication's body/
+  // subject (and usually its recipient) rather than requiring the user
+  // to repeat the message.
+  const reuseIntent = parseChannelReuseIntent(message);
+  if (reuseIntent && actorId) {
+    const lastSent = await communicationRuntime.mostRecentForActor(actorId, threadId);
+    if (!lastSent || !lastSent.body) {
+      const capability = syntheticOfficeActionCapability("communication.reuse_unavailable", "communications");
+      const result: DomainResult = { status: "answered", answer: "I don't have a previous message in this conversation to reuse — tell me what to send.", presentation_policy: resultPresentation("text") };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    let recipientHint: Partial<CommunicationRecipient> | null = {
+      email: lastSent.recipient.email, phone: lastSent.recipient.phone, whatsapp_phone: lastSent.recipient.whatsapp_phone,
+      contact_id: lastSent.recipient.contact_id, lead_id: lastSent.recipient.lead_id, user_id: lastSent.recipient.user_id,
+      organization_id: lastSent.recipient.organization_id, name: lastSent.recipient.name,
+    };
+    let extraMetadata: Record<string, unknown> = {};
+    if (reuseIntent.recipientToken) {
+      const lookup = await resolveCommunicationRecipient(reuseIntent.recipientToken, context, threadId, actorId);
+      if (lookup.kind === "ambiguous") {
+        const pointer = buildPendingRecipientDisambiguation({ threadId, actorId, query: lookup.query, candidates: lookup.candidates, resume: { channel: reuseIntent.channel, subject: lastSent.subject, body: lastSent.body } });
+        const capability = syntheticOfficeActionCapability("communication.disambiguation_required", "communications");
+        const result: DomainResult = { status: "answered", answer: disambiguationQuestion(lookup.query, lookup.candidates), presentation_policy: resultPresentation("text"), metadata: { pending_recipient_disambiguation: pointer } };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+      if (lookup.kind === "not_found" || lookup.kind === "unresolved") {
+        const capability = syntheticOfficeActionCapability("communication.clarification_required", "communications");
+        const result: DomainResult = { status: "answered", answer: `I couldn't find "${reuseIntent.recipientToken}" — give me an explicit email address or phone number instead.`, presentation_policy: resultPresentation("text") };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+      recipientHint = lookup.hint;
+      if (lookup.personContext) extraMetadata = { resolved_person_context: lookup.personContext };
+    }
+    const request: CommunicationRequest = {
+      conversation_thread_id: threadId, actor_id: actorId, surface: "office_internal", source: "conversation",
+      intent: "office_conversation_message", channel: reuseIntent.channel, recipient_hint: recipientHint,
+      subject: lastSent.subject, body: lastSent.body,
+    };
+    const result = await planAndProposeCommunication(threadId, actorId, request, extraMetadata);
+    const capability = syntheticOfficeActionCapability("communication.proposed", "communications");
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  // Person lookup: "Open the Daniel lead." / "Who is David Okoro?" --
+  // resolves and sets continuity without sending anything.
+  const lookupIntent = parsePersonLookupIntent(message);
+  if (lookupIntent) {
+    const lookupResult = await resolveRecipientByQuery(lookupIntent.query, lookupIntent.queryType);
+    const capability = syntheticOfficeActionCapability("communication.person_lookup", "communications");
+    if (lookupResult.status === "resolved") {
+      const personCtx = buildPersonContext(lookupResult.recipient);
+      const r = lookupResult.recipient;
+      const summary = [r.organisation_name ? `Company: ${r.organisation_name}` : null, r.email ? `Email: ${r.email}` : null, (r.whatsapp || r.phone) ? `Phone: ${r.whatsapp || r.phone}` : null].filter(Boolean).join(" · ");
+      const result: DomainResult = {
+        status: "answered",
+        answer: `${r.display_name}${summary ? ` — ${summary}` : ""}`,
+        presentation_policy: resultPresentation("text"),
+        metadata: { resolved_person_context: personCtx },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    if (lookupResult.status === "ambiguous" && actorId) {
+      const pointer = buildPendingRecipientDisambiguation({ threadId, actorId, query: lookupIntent.query, candidates: lookupResult.candidates, resume: null });
+      const result: DomainResult = { status: "answered", answer: disambiguationQuestion(lookupIntent.query, lookupResult.candidates), presentation_policy: resultPresentation("text"), metadata: { pending_recipient_disambiguation: pointer } };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const result: DomainResult = { status: "answered", answer: `I couldn't find "${lookupIntent.query}" in the staff directory or CRM.`, presentation_policy: resultPresentation("text") };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
   const intent = parseCommunicationSendIntent(message);
   if (!intent) return null;
 
-  const recipientHint = resolveCommunicationRecipientHint(intent.recipientToken, context);
-  if (!recipientHint) {
+  const lookup = await resolveCommunicationRecipient(intent.recipientToken, context, threadId, actorId);
+  if (lookup.kind === "unresolved" || lookup.kind === "not_found") {
     const capability = syntheticOfficeActionCapability("communication.clarification_required", "communications");
     const result: DomainResult = {
       status: "answered",
-      answer: `I couldn't tell who to send that to. Give me an explicit email address or phone number (e.g. "email idoko@ochiga.com.ng saying ...").`,
+      answer: lookup.kind === "not_found"
+        ? `I couldn't find "${intent.recipientToken}" in the staff directory or CRM. Give me an explicit email address or phone number instead.`
+        : `I couldn't tell who to send that to. Give me an explicit email address or phone number (e.g. "email idoko@ochiga.com.ng saying ...").`,
       presentation_policy: resultPresentation("text"),
-      blocks: [{ type: "limitation", text: "Resolving \"him/her/them\" against a previously-viewed CRM lead or contact isn't supported yet — no lead/contact selection exists in this conversation surface." }],
+      ...(lookup.kind === "unresolved" ? { blocks: [{ type: "limitation", text: "\"him/her/them\" only resolves once a person has been identified earlier in this conversation (e.g. by opening a lead or naming them explicitly)." }] } : {}),
     };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+  if (lookup.kind === "ambiguous") {
+    if (!actorId) return null;
+    const subject = intent.body.length > 60 ? `${intent.body.slice(0, 57)}...` : intent.body;
+    const pointer = buildPendingRecipientDisambiguation({ threadId, actorId, query: lookup.query, candidates: lookup.candidates, resume: { channel: intent.channel, subject, body: intent.body } });
+    const capability = syntheticOfficeActionCapability("communication.disambiguation_required", "communications");
+    const result: DomainResult = { status: "answered", answer: disambiguationQuestion(lookup.query, lookup.candidates), presentation_policy: resultPresentation("text"), metadata: { pending_recipient_disambiguation: pointer } };
     return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
   }
 
@@ -1196,59 +1465,13 @@ async function handleCommunicationTurn(
     source: "conversation",
     intent: "office_conversation_message",
     channel: intent.channel,
-    recipient_hint: recipientHint,
+    recipient_hint: lookup.hint,
     subject: intent.body.length > 60 ? `${intent.body.slice(0, 57)}...` : intent.body,
     body: intent.body,
   };
-
-  const plan = await communicationRuntime.plan(request);
-  if (plan.status === "clarification_required") {
-    const capability = syntheticOfficeActionCapability("communication.clarification_required", "communications");
-    const result: DomainResult = {
-      status: "answered",
-      answer: `I need a bit more to send that: ${plan.reason}`,
-      presentation_policy: resultPresentation("text"),
-    };
-    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
-  }
-  if (plan.status === "rejected") {
-    const capability = syntheticOfficeActionCapability("communication.rejected", "communications");
-    const result: DomainResult = {
-      status: "answered",
-      answer: `I can't send that: ${humanizeFailureReason(plan.reason)}.`,
-      presentation_policy: resultPresentation("text"),
-    };
-    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
-  }
-
-  const record = plan.record;
-  const pointer = buildPendingCommunicationPointer({
-    communicationId: record.communication_id,
-    threadId,
-    actorId: actorId || "",
-    channel: record.channel,
-    summary: record.subject || text(record.body).slice(0, 80),
-  });
+  const extraMetadata = lookup.personContext ? { resolved_person_context: lookup.personContext } : {};
+  const result = await planAndProposeCommunication(threadId, actorId, request, extraMetadata);
   const capability = syntheticOfficeActionCapability("communication.proposed", "communications");
-  const channelLabel = record.channel === "whatsapp" ? "WhatsApp message" : record.channel === "email" ? "email" : "message";
-  const result: DomainResult = {
-    status: "awaiting_confirmation",
-    answer: `Ready to send this ${channelLabel} to ${record.recipient.email || record.recipient.whatsapp_phone || record.recipient.phone}. Reply "yes" to send, or "no" to cancel.`,
-    presentation_policy: resultPresentation("approval"),
-    blocks: [
-      {
-        type: "key_value",
-        title: "Draft communication",
-        items: [
-          { label: "Channel", value: titleCaseWord(record.channel) },
-          { label: "To", value: record.recipient.email || record.recipient.whatsapp_phone || record.recipient.phone || "—" },
-          ...(record.subject ? [{ label: "Subject", value: record.subject }] : []),
-          { label: "Message", value: record.body },
-        ],
-      },
-    ],
-    metadata: { pending_communication: pointer },
-  };
   return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
 }
 
