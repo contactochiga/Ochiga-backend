@@ -39,10 +39,23 @@ assert.deepEqual(parseCommunicationSendIntent("message him saying call me back")
 assert.equal(parseCommunicationSendIntent("what's his email?"), null, "a question must never be read as a send request");
 assert.equal(parseCommunicationSendIntent("show me the email templates"), null, "no recipient/content structure -- must not fire");
 assert.equal(parseCommunicationSendIntent(""), null);
+// Regression -- production bug found on first live verification run:
+// "send an SMS to +234... saying test" was misparsed as recipientToken
+// "an SMS to +234..." (channel stayed "auto"/fell back to whatsapp
+// upstream) because "sms" wasn't a recognized object noun.
+assert.deepEqual(parseCommunicationSendIntent("send an SMS to +2348100373353 saying test"), {
+  channel: "sms",
+  recipientToken: "+2348100373353",
+  body: "test",
+});
 
 // ========================= Recipient resolution =========================
 assert.deepEqual(resolveCommunicationRecipientTokenHint("idoko@ochiga.com.ng", null), { email: "idoko@ochiga.com.ng" });
 assert.deepEqual(resolveCommunicationRecipientTokenHint("+2348100373353", null), { phone: "+2348100373353", whatsapp_phone: "+2348100373353" });
+// Regression -- the phone check must apply to the WHOLE token, not
+// "contains digits somewhere in a longer phrase" (production bug: "an
+// SMS to +234..." was previously extracted down to a phone number).
+assert.equal(resolveCommunicationRecipientTokenHint("an SMS to +2348100373353", null), null, "a messy multi-word token must never be treated as a bare phone number");
 assert.deepEqual(
   resolveCommunicationRecipientTokenHint("me", { id: "actor-1", email: "contactochiga@gmail.com" }),
   { email: "contactochiga@gmail.com", user_id: "actor-1" }

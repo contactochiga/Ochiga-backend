@@ -35,11 +35,12 @@ export function parseCommunicationSendIntent(rawMessage: string): CommunicationS
   if (verb === "email") channel = "email";
   else if (verb === "whatsapp") channel = "whatsapp";
 
-  const objectMatch = rest.match(/^(?:an?\s+)?(email|whatsapp(?:\s+message)?|message|text)\s+(?:to\s+)?(.*)$/i);
+  const objectMatch = rest.match(/^(?:an?\s+)?(email|whatsapp(?:\s+message)?|sms|text message|message|text)\s+(?:to\s+)?(.*)$/i);
   if (objectMatch) {
     const obj = objectMatch[1].toLowerCase();
     if (obj.startsWith("email")) channel = "email";
     else if (obj.startsWith("whatsapp")) channel = "whatsapp";
+    else if (obj === "sms") channel = "sms";
     rest = text(objectMatch[2]);
   } else {
     rest = rest.replace(/^to\s+/i, "");
@@ -74,13 +75,16 @@ export function resolveCommunicationRecipientTokenHint(
   recipientToken: string,
   actor: { id?: string | null; email?: string | null } | null
 ): Partial<CommunicationRecipient> | null {
-  const token = recipientToken.toLowerCase();
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientToken)) {
-    return { email: recipientToken };
+  const trimmed = recipientToken.trim();
+  const token = trimmed.toLowerCase();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return { email: trimmed };
   }
-  const digits = recipientToken.replace(/[^\d+]/g, "");
-  if (/^\+?\d{8,15}$/.test(digits)) {
-    return { phone: recipientToken, whatsapp_phone: recipientToken };
+  // The WHOLE trimmed token must be phone-shaped -- not "contains
+  // digits somewhere" (e.g. "an SMS to +234..." must NOT resolve to a
+  // phone number; only an unambiguous bare number does).
+  if (/^\+?[\d][\d\s-]{6,16}\d$/.test(trimmed)) {
+    return { phone: trimmed, whatsapp_phone: trimmed };
   }
   if (token === "me") {
     const email = actor?.email || null;

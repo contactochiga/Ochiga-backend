@@ -1122,9 +1122,15 @@ async function handleCommunicationTurn(
       };
       return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
     }
-    // Neither confirm nor cancel while a communication is pending --
-    // fall through to normal routing rather than guessing.
-    return null;
+    // Neither confirm nor cancel while a communication is pending. If
+    // this message is itself a NEW, distinct send request, the old
+    // unconfirmed draft is superseded (cancelled) rather than silently
+    // swallowing the new request -- otherwise a stale pending draft
+    // would block every later communication turn until its 10-minute
+    // TTL expires. Anything else (an unrelated question) falls through
+    // to normal routing, leaving the pending draft intact.
+    if (!parseCommunicationSendIntent(message)) return null;
+    await communicationRuntime.cancel(pending.communication_id).catch(() => null);
   }
 
   const intent = parseCommunicationSendIntent(message);
