@@ -73,6 +73,7 @@ import {
   parsePersonLookupIntent,
   isPersonLookupToken,
   isPronounToken,
+  parseReplyOrThreadQuery,
 } from "../interpretation/communicationIntentParser";
 import {
   loadPersonContext,
@@ -1359,6 +1360,77 @@ async function handleCommunicationTurn(
         },
       ],
     };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  // Reply/thread queries: "has he replied?", "what did she say?", "show
+  // me our WhatsApp conversation with this lead" -- answered from real
+  // persisted inbound/outbound rows (Phase 5/7), never fabricated.
+  const replyQuery = parseReplyOrThreadQuery(message);
+  if (replyQuery && actorId) {
+    let hint: Partial<CommunicationRecipient> | null = null;
+    let extraMetadata: Record<string, unknown> = {};
+    if (replyQuery.recipientToken) {
+      const lookup = await resolveCommunicationRecipient(replyQuery.recipientToken, context, threadId, actorId);
+      if (lookup.kind === "ambiguous") {
+        const pointer = buildPendingRecipientDisambiguation({ threadId, actorId, query: lookup.query, candidates: lookup.candidates, resume: null });
+        const capability = syntheticOfficeActionCapability("communication.disambiguation_required", "communications");
+        const result: DomainResult = { status: "answered", answer: disambiguationQuestion(lookup.query, lookup.candidates), presentation_policy: resultPresentation("text"), metadata: { pending_recipient_disambiguation: pointer } };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+      if (lookup.kind === "not_found" || lookup.kind === "unresolved") {
+        const capability = syntheticOfficeActionCapability("communication.clarification_required", "communications");
+        const result: DomainResult = { status: "answered", answer: `I couldn't tell who you mean by "${replyQuery.recipientToken}".`, presentation_policy: resultPresentation("text") };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+      hint = lookup.hint;
+      if (lookup.personContext) extraMetadata = { resolved_person_context: lookup.personContext };
+    } else {
+      const personCtx = await loadPersonContext(threadId, actorId);
+      if (!personCtx) {
+        const capability = syntheticOfficeActionCapability("communication.clarification_required", "communications");
+        const result: DomainResult = { status: "answered", answer: "I don't have anyone in focus in this conversation yet — say who you mean.", presentation_policy: resultPresentation("text") };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+      hint = recipientHintFromResolved(personCtx.recipient);
+    }
+    const whatsappPhone = hint?.whatsapp_phone || hint?.phone || null;
+    const capability = syntheticOfficeActionCapability("communication.reply_query", "communications");
+    if (!whatsappPhone) {
+      const result: DomainResult = { status: "answered", answer: "I don't have a WhatsApp number on file for them, so I can't check.", presentation_policy: resultPresentation("text"), metadata: extraMetadata };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const threadReference = `whatsapp:${whatsappPhone}`;
+    const thread = await communicationRuntime.getThread(threadReference, 20);
+    if (replyQuery.kind === "thread_history") {
+      const rows = thread.slice(0, 10).map((m) => ({
+        id: m.communication_id,
+        direction: titleCaseWord(m.direction),
+        message: (m.body || "").slice(0, 80),
+        status: titleCaseWord(m.status),
+        time: m.direction === "inbound" ? m.delivered_at || m.created_at : m.sent_at || m.created_at,
+      }));
+      const result: DomainResult = {
+        status: "answered",
+        answer: rows.length ? `Here's our WhatsApp conversation with ${whatsappPhone} (${rows.length} most recent messages).` : `No WhatsApp conversation with ${whatsappPhone} yet.`,
+        presentation_policy: resultPresentation("table"),
+        blocks: rows.length
+          ? [{ type: "record_list", title: "WhatsApp conversation", columns: [{ key: "direction", label: "Direction" }, { key: "message", label: "Message" }, { key: "status", label: "Status" }, { key: "time", label: "Time" }], rows, total_count: rows.length }]
+          : [],
+        metadata: extraMetadata,
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const lastInbound = thread.find((m) => m.direction === "inbound");
+    const answer =
+      replyQuery.kind === "reply_status"
+        ? lastInbound
+          ? `Yes — they replied on WhatsApp${lastInbound.delivered_at ? ` at ${lastInbound.delivered_at}` : ""}.`
+          : "No reply yet."
+        : lastInbound
+          ? `"${lastInbound.body}"`
+          : "No reply yet, so there's nothing to show.";
+    const result: DomainResult = { status: "answered", answer, presentation_policy: resultPresentation("text"), metadata: extraMetadata };
     return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
   }
 

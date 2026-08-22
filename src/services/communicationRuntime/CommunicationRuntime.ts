@@ -46,6 +46,20 @@ function mapValidationReason(reason: string | null): CommunicationFailureReason 
   return "unknown";
 }
 
+// Phase 5 (threading) -- a stable key shared by every communication with
+// the SAME other party on the SAME channel, regardless of direction, so
+// an outbound send and a later inbound reply land in the same logical
+// conversation without a separate "thread" table. Exported so the
+// inbound webhook-event route (officeExport.ts) computes the identical
+// key for a reply.
+export function computeThreadReference(channel: CommunicationChannel, recipient: CommunicationRecipient): string | null {
+  if (channel === "whatsapp" && recipient.whatsapp_phone) return `whatsapp:${recipient.whatsapp_phone}`;
+  if (channel === "sms" && recipient.phone) return `sms:${recipient.phone}`;
+  if (channel === "voice_call" && recipient.phone) return `voice_call:${recipient.phone}`;
+  if (channel === "email" && recipient.email) return `email:${recipient.email.toLowerCase()}`;
+  return null;
+}
+
 const EMPTY_RECIPIENT: CommunicationRecipient = {
   contact_id: null,
   lead_id: null,
@@ -167,7 +181,7 @@ export class CommunicationRuntime {
       template_variables: request.template_variables ?? null,
       attachments: null,
       reply_to_message_id: request.reply_to_message_id ?? null,
-      thread_reference: null,
+      thread_reference: computeThreadReference(channel, recipient),
       priority: request.priority || "normal",
       schedule: {
         mode: request.schedule?.mode || "now",
@@ -320,6 +334,21 @@ export class CommunicationRuntime {
     const { data, error } = await query.maybeSingle();
     if (error || !data) return null;
     return rowToRecord(data);
+  }
+
+  // Phase 5/7 -- the full logical conversation (both directions) with
+  // one other party on one channel, newest first. Powers "has he
+  // replied?", "what did she say?", "show me our WhatsApp conversation
+  // with this lead" from real persisted state -- never fabricated.
+  async getThread(threadReference: string, limit = 20): Promise<CommunicationRecord[]> {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_communications")
+      .select("*")
+      .eq("thread_reference", threadReference)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error || !data) return [];
+    return data.map(rowToRecord);
   }
 
   private async persist(record: CommunicationRecord): Promise<CommunicationRecord> {

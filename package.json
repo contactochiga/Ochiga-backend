@@ -31,6 +31,7 @@
     "smoke:communication-runtime": "npm run build && node scripts/communication-runtime-smoke.mjs",
     "smoke:communication-automation-action": "npm run build && node scripts/communication-automation-action-smoke.mjs",
     "smoke:communication-recipient-resolution": "npm run build && node scripts/communication-recipient-resolution-smoke.mjs",
+    "smoke:communication-threading": "npm run build && node scripts/communication-threading-smoke.mjs",
     "smoke:communications-layer": "npm run build && node scripts/communications-layer-smoke.mjs",
     "smoke:communications-handoff": "npm run build && node scripts/communications-durability-handoff-smoke.mjs",
     "smoke:communications-speech-visual": "npm run build && node scripts/communications-speech-visual-smoke.mjs",
