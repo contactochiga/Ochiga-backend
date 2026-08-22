@@ -35,6 +35,7 @@ assert.deepEqual(cleaned[0], {
   channel: "email",
   recipient_email: "contactochiga@gmail.com",
   recipient_phone: null,
+  recipient_role_query: null,
   subject: "Weekly digest",
   body: "Automated summary.",
   label: null,
@@ -57,6 +58,15 @@ assert.equal(missingBody.code, "communication_body_required");
 
 const valid = validateCommunicationActions([{ channel: "email", recipient_email: "a@b.com", recipient_phone: null, body: "hi", subject: null, label: null }]);
 assert.equal(valid.ok, true);
+
+// ============================= Phase 15: dynamic role-based recipient =============================
+// "Email the Head of Sales every Monday" stores the ROLE, not a fixed
+// person -- valid with no recipient_email/phone at all as long as
+// recipient_role_query is present.
+const roleAction = cleanCommunicationActions([{ action_type: "communication_action", channel: "email", recipient_role_query: "Head of Sales", body: "Weekly summary" }]);
+assert.equal(roleAction[0].recipient_role_query, "Head of Sales");
+assert.equal(validateCommunicationActions(roleAction).ok, true, "a role-query recipient must be accepted without an explicit email/phone");
+assert.equal(validateCommunicationActions([{ channel: "email", recipient_email: null, recipient_phone: null, recipient_role_query: null, body: "hi", subject: null, label: null }]).ok, false, "still rejected with no recipient of any kind");
 
 console.log("communication-automation-action-smoke: PASS");
 process.exit(0);

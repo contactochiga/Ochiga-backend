@@ -255,6 +255,10 @@ export function cleanCommunicationActions(value: unknown): CommunicationCanonica
       channel: COMMUNICATION_ACTION_CHANNELS.has(String(item?.channel)) ? item.channel : "auto",
       recipient_email: item?.recipient_email ? String(item.recipient_email).trim() : null,
       recipient_phone: item?.recipient_phone ? String(item.recipient_phone).trim() : null,
+      // Phase 15 -- a role phrase ("Head of Sales") instead of a fixed
+      // person, resolved fresh at every run (see
+      // communicationActionBatchExecutionService.ts's runOne).
+      recipient_role_query: item?.recipient_role_query ? String(item.recipient_role_query).trim().slice(0, 120) : null,
       subject: item?.subject ? String(item.subject).trim().slice(0, 180) : null,
       body: item?.body ? String(item.body).trim().slice(0, 4000) : "",
       label: item?.label ? String(item.label).trim() : null,
@@ -271,8 +275,8 @@ export function validateCommunicationActions(actions: CommunicationCanonicalActi
     if (!action.body) {
       return { ok: false as const, error: "communication_action requires a message body.", code: "communication_body_required" };
     }
-    if (!action.recipient_email && !action.recipient_phone) {
-      return { ok: false as const, error: "communication_action requires an explicit recipient_email or recipient_phone — it cannot resolve \"him/her/them\" outside a live conversation.", code: "communication_recipient_required" };
+    if (!action.recipient_email && !action.recipient_phone && !action.recipient_role_query) {
+      return { ok: false as const, error: "communication_action requires an explicit recipient_email/recipient_phone, or a recipient_role_query (e.g. \"Head of Sales\") — it cannot resolve \"him/her/them\" outside a live conversation.", code: "communication_recipient_required" };
     }
   }
   return { ok: true as const };
