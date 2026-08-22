@@ -86,6 +86,19 @@ import {
 } from "../context/personContext";
 import { resolveRecipientByQuery } from "../../services/recipientResolutionService";
 import type { ResolvedRecipient } from "../../contracts/recipientResolution";
+import { randomUUID } from "crypto";
+import { goalRuntime } from "../../services/goalRuntime/GoalRuntime";
+import { GOAL_DUE_STATUSES, GOAL_TERMINAL_STATUSES, type GoalRecord, type GoalPlanStep, type GoalTargetEntities } from "../../contracts/goal";
+import {
+  parseGoalCreationIntent,
+  resolveGoalDeadline,
+  parseGoalQueryIntent,
+  parseGoalControlIntent,
+  isGoalListQuery,
+  type GoalCreationIntent,
+  type StagedChannelStep,
+} from "../interpretation/goalIntentParser";
+import { loadPendingGoalPointer, buildPendingGoalPointer } from "../context/goalProposal";
 
 let registered = false;
 
@@ -1066,13 +1079,30 @@ async function handleOfficeActionProposalTurn(
 // communication.ts/CommunicationRuntime.ts header notes.
 // ---------------------------------------------------------------------
 
+// Part G -- every voice_call proposal carries an explicit, honest
+// capability note distinguishing "Oyi dials the number" from "Oyi holds
+// a live two-way conversation on the call." No AI voice/telephony
+// provider is configured anywhere in this environment (confirmed by
+// direct audit of both repos' env), so the second capability genuinely
+// does not exist -- this note is added at PROPOSAL time (not just
+// surfaced as a failure after confirm) so the distinction is never
+// ambiguous to the person asking, regardless of how the request is
+// phrased ("call and ask him about X" vs "call and tell him Y").
+function voiceCallCapabilityNote(): string {
+  const configured = communicationRuntime.adapterFor("voice_call").isConfigured();
+  if (configured) return "I can dial this number, but I still can't hold a live two-way conversation on the call myself.";
+  return "No calling provider is connected yet, so I can't actually place this call — I can only prepare it. I also can't hold a live conversation on a call; at most I could deliver a fixed message once a provider is connected.";
+}
+
 function draftCommunicationResult(record: CommunicationRecord, pointer: ReturnType<typeof buildPendingCommunicationPointer>, extraMetadata: Record<string, unknown> = {}): DomainResult {
   const channelLabel = record.channel === "whatsapp" ? "WhatsApp message" : record.channel === "email" ? "email" : record.channel === "voice_call" ? "call" : "message";
+  const capabilityNote = record.channel === "voice_call" ? ` ${voiceCallCapabilityNote()}` : "";
   return {
     status: "awaiting_confirmation",
-    answer: `Ready to send this ${channelLabel} to ${recipientDisplayAddress(record.recipient, record.channel)}. Reply "yes" to send, or "no" to cancel.`,
+    answer: `Ready to send this ${channelLabel} to ${recipientDisplayAddress(record.recipient, record.channel)}.${capabilityNote} Reply "yes" to send, or "no" to cancel.`,
     presentation_policy: resultPresentation("approval"),
     blocks: [
+      ...(record.channel === "voice_call" ? [{ type: "limitation", text: voiceCallCapabilityNote() }] : []),
       {
         type: "key_value",
         title: "Draft communication",
@@ -1615,6 +1645,435 @@ async function handleCommunicationTurn(
   const extraMetadata = lookup.personContext ? { resolved_person_context: lookup.personContext } : {};
   const result = await planAndProposeCommunication(threadId, actorId, request, extraMetadata);
   const capability = syntheticOfficeActionCapability("communication.proposed", "communications");
+  return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+}
+
+// ---------------------------------------------------------------------
+// Oyi Autonomous Work Runtime -- conversational goal propose/confirm,
+// status queries, and safety controls. Orchestrates the EXISTING
+// CommunicationRuntime/recipient-resolution/scheduler machinery (via
+// goalRuntime/goalEvaluator/goalScheduler) rather than duplicating any
+// of it -- this function only ever builds a plan and a pointer; actual
+// execution happens on the scheduler tick or an event-driven wake, same
+// as an automation. Same precedence tier as handleCommunicationTurn
+// above (checked right after it in run()).
+// ---------------------------------------------------------------------
+
+function recipientLabelFromTargetEntities(t: GoalTargetEntities): string {
+  return t.name || t.email || t.whatsapp_phone || t.phone || "them";
+}
+
+function describeGoalPlanSteps(plan: GoalPlanStep[]): string {
+  return plan
+    .map((s, i) => {
+      if (s.action_type === "escalate") return `${i + 1}. escalate to you`;
+      const waitLabel = s.wait_hours === 0 ? "now" : s.wait_hours % 24 === 0 ? `after ${s.wait_hours / 24} day${s.wait_hours / 24 === 1 ? "" : "s"}` : `after ${s.wait_hours} hours`;
+      return `${i + 1}. ${titleCaseWord(s.channel)} ${waitLabel}`;
+    })
+    .join(", ");
+}
+
+function goalStatusSummaryLine(goal: GoalRecord, who: string): string {
+  if (goal.status === "completed") return `Done — the follow-up with ${who} completed. ${goal.completion_reason || ""}`.trim();
+  if (goal.status === "cancelled") return `That follow-up with ${who} was cancelled. ${goal.completion_reason || ""}`.trim();
+  if (goal.status === "expired") return `That follow-up with ${who} expired before it succeeded. ${goal.completion_reason || ""}`.trim();
+  if (goal.status === "blocked" || goal.status === "needs_human") return `That follow-up with ${who} needs your attention. ${goal.completion_reason || ""}`.trim();
+  if (goal.status === "paused") return `Paused — I'm not currently following up with ${who}.`;
+  const step = goal.plan[goal.current_step_index];
+  return `Still in progress — ${goal.attempts_completed} of ${goal.max_attempts} attempts so far${step ? `, next up: ${titleCaseWord(step.channel)}` : ""}.`;
+}
+
+// Builds the staged plan itself: an explicit "email now, then whatsapp
+// in 2 days" phrase wins outright; otherwise a single-channel repeating
+// plan on the recipient's best verified contact method (SAME priority
+// CommunicationRuntime.resolveChannel("auto", ...) already uses for a
+// one-off send), recurring on the parsed/default interval, up to a
+// bounded number of attempts.
+function buildGoalPlanSteps(intent: GoalCreationIntent, resolvedRecipient: CommunicationRecipient): { plan: GoalPlanStep[]; maxAttempts: number } {
+  const skipIf: GoalPlanStep["skip_if"] = intent.successCondition.type === "positive_reply" ? "positive_reply" : intent.successCondition.type === "reply_received" ? "reply_received" : null;
+  const firstBody = intent.messageBody || "Just checking in — following up on this.";
+  const laterBody = intent.messageBody ? `Following up again: ${intent.messageBody}` : "Just checking in again.";
+
+  let channelSteps: StagedChannelStep[];
+  if (intent.stagedPlan) {
+    channelSteps = intent.stagedPlan;
+  } else {
+    const defaultChannel = intent.requestedChannel || communicationRuntime.resolveChannel("auto", resolvedRecipient) || "email";
+    const waitHours = intent.recurrenceHours || 48;
+    channelSteps = Array.from({ length: 5 }, (_, i) => ({ channel: defaultChannel as GoalPlanStep["channel"], waitHours: i === 0 ? 0 : waitHours }));
+  }
+
+  const plan: GoalPlanStep[] = channelSteps.map((step, index) => ({
+    step_index: index,
+    channel: step.channel,
+    action_type: "send_communication",
+    body: index === 0 ? firstBody : laterBody,
+    wait_hours: step.waitHours,
+    skip_if: skipIf,
+    status: "pending",
+    executed_at: null,
+    result: null,
+  }));
+
+  if (intent.escalateAtEnd) {
+    plan.push({
+      step_index: plan.length,
+      channel: "escalation",
+      action_type: "escalate",
+      body: null,
+      wait_hours: plan.length ? plan[plan.length - 1].wait_hours : 0,
+      skip_if: null,
+      status: "pending",
+      executed_at: null,
+      result: null,
+    });
+  }
+
+  // A genuine safety cap distinct from "how many steps are in my plan" --
+  // headroom so the plan's own final step (including a trailing escalate,
+  // which evaluateGoal() never counts against attempts_completed) is
+  // always reachable before the hard attempts cap fires prematurely.
+  const maxAttempts = plan.filter((s) => s.action_type !== "escalate").length + 1;
+  return { plan, maxAttempts };
+}
+
+function draftGoalResult(goal: GoalRecord, pointer: ReturnType<typeof buildPendingGoalPointer>, extraMetadata: Record<string, unknown> = {}): DomainResult {
+  const who = recipientLabelFromTargetEntities(goal.target_entities);
+  const successLabel = goal.success_condition.type === "positive_reply" ? "a positive reply" : goal.success_condition.type === "reply_received" ? "a reply" : "you tell me it's done";
+  const planLabel = describeGoalPlanSteps(goal.plan);
+  const hasCallStep = goal.plan.some((s) => s.channel === "voice_call");
+  const capabilityNote = hasCallStep ? ` ${voiceCallCapabilityNote()}` : "";
+  return {
+    status: "awaiting_confirmation",
+    answer: `Ready to start following up with ${who} until ${successLabel}. Plan: ${planLabel}${goal.schedule.deadline ? `, deadline ${goal.schedule.deadline}` : ""}.${capabilityNote} Reply "yes" to start, or "no" to cancel.`,
+    presentation_policy: resultPresentation("approval"),
+    blocks: [
+      ...(hasCallStep ? [{ type: "limitation", text: voiceCallCapabilityNote() }] : []),
+      {
+        type: "key_value",
+        title: "Follow-up goal",
+        items: [
+          { label: "Target", value: who },
+          { label: "Success condition", value: successLabel },
+          { label: "Plan", value: planLabel },
+          ...(goal.schedule.deadline ? [{ label: "Deadline", value: goal.schedule.deadline }] : []),
+        ],
+      },
+    ],
+    metadata: { pending_goal: pointer, ...extraMetadata },
+  };
+}
+
+// Resolves which goal a control/query turn is about: an explicit
+// recipient token is matched against every non-terminal goal's own
+// target_entities (reusing resolveCommunicationRecipient -- the SAME
+// directory/CRM/pronoun resolution every communication turn already
+// uses); no token falls back to thread continuity (the goal just
+// discussed in this conversation), mirroring personContext.ts's own
+// pronoun-continuity reasoning.
+async function findGoalForControlOrQuery(
+  recipientToken: string | null,
+  context: CanonicalConversationRequestContext,
+  threadId: string,
+  actorId: string
+): Promise<GoalRecord | null> {
+  if (!recipientToken) return goalRuntime.mostRecentForThread(actorId, threadId);
+  const lookup = await resolveCommunicationRecipient(recipientToken, context, threadId, actorId);
+  if (lookup.kind !== "hint") return goalRuntime.mostRecentForThread(actorId, threadId);
+  const hint = lookup.hint;
+  const candidates = await goalRuntime.listForActor(actorId, undefined, [...GOAL_DUE_STATUSES, "paused"]);
+  return (
+    candidates.find(
+      (g) =>
+        (hint.lead_id && g.target_entities.lead_id === hint.lead_id) ||
+        (hint.contact_id && g.target_entities.contact_id === hint.contact_id) ||
+        (hint.user_id && g.target_entities.user_id === hint.user_id) ||
+        (hint.email && g.target_entities.email === hint.email) ||
+        (hint.whatsapp_phone && g.target_entities.whatsapp_phone === hint.whatsapp_phone) ||
+        (hint.phone && g.target_entities.phone === hint.phone)
+    ) || null
+  );
+}
+
+async function handleGoalConversationTurn(
+  context: CanonicalConversationRequestContext,
+  resolvedTurn: ResolvedTurn,
+  tracer: ConversationTracer
+): Promise<ConversationRunResult | null> {
+  if (context.input.surface !== "office_internal" || !context.input.thread_id) return null;
+  const threadId = context.input.thread_id;
+  const actorId = context.actor?.id || null;
+  const message = context.input.message;
+
+  // 0) A pending (unconfirmed) goal proposal -- same propose->confirm
+  // split as a communication draft, TTL-bound pointer in thread metadata.
+  const pendingGoal = await loadPendingGoalPointer(threadId, actorId);
+  if (pendingGoal) {
+    if (isOfficeCancellationText(message)) {
+      const goal = await goalRuntime.get(pendingGoal.goal_id);
+      if (goal) await goalRuntime.persist({ ...goal, status: "cancelled", completion_reason: "Cancelled before starting.", next_evaluation_at: null });
+      const capability = syntheticOfficeActionCapability("goal.cancelled", "communications");
+      const result: DomainResult = { status: "answered", answer: "Cancelled. I won't follow up.", presentation_policy: resultPresentation("text"), metadata: { pending_goal: null } };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    if (isOfficeConfirmationText(message)) {
+      const goal = await goalRuntime.get(pendingGoal.goal_id);
+      if (!goal || goal.status !== "proposed") {
+        const capability = syntheticOfficeActionCapability("goal.confirm_failed", "communications");
+        const result: DomainResult = { status: "answered", answer: "I couldn't find that follow-up plan anymore — please ask me to set it up again.", presentation_policy: resultPresentation("text"), metadata: { pending_goal: null } };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+      // next_evaluation_at = now, not an inline dispatch here -- the
+      // scheduler tick picks it up within 30s, the SAME exactly-once CAS
+      // claim path a scheduled automation run already goes through.
+      const activated = await goalRuntime.persist({ ...goal, status: "active", next_evaluation_at: new Date().toISOString() });
+      const capability = syntheticOfficeActionCapability("goal.started", "communications");
+      const result: DomainResult = {
+        status: "answered",
+        answer: `Started. I'll follow up with ${recipientLabelFromTargetEntities(activated.target_entities)}: ${describeGoalPlanSteps(activated.plan)}.`,
+        presentation_policy: resultPresentation("text"),
+        blocks: [{ type: "status", label: "Active", tone: "positive" }],
+        metadata: { pending_goal: null },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    // Neither confirm nor cancel. A genuinely new, distinct goal-creation
+    // request supersedes the stale draft (same rule handleCommunicationTurn
+    // applies to a pending communication) -- anything else falls through
+    // with the draft left intact.
+    if (!parseGoalCreationIntent(message)) return null;
+    const stale = await goalRuntime.get(pendingGoal.goal_id);
+    if (stale) await goalRuntime.persist({ ...stale, status: "cancelled", completion_reason: "Superseded by a new follow-up request.", next_evaluation_at: null });
+  }
+
+  // 1) Safety controls (Part N) -- pause/resume/cancel/channel changes.
+  // Checked before status queries and creation so "stop contacting him"
+  // never gets misread as a new follow-up request.
+  const controlIntent = parseGoalControlIntent(message);
+  if (controlIntent && actorId) {
+    const goal = await findGoalForControlOrQuery(controlIntent.recipientToken, context, threadId, actorId);
+    const capability = syntheticOfficeActionCapability(`goal.control_${controlIntent.kind}`, "communications");
+    if (!goal) {
+      const result: DomainResult = { status: "answered", answer: "I don't have an active follow-up in focus to change — say who you mean.", presentation_policy: resultPresentation("text") };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const who = recipientLabelFromTargetEntities(goal.target_entities);
+    if (GOAL_TERMINAL_STATUSES.includes(goal.status)) {
+      const result: DomainResult = { status: "answered", answer: `That follow-up with ${who} has already ${goal.status === "completed" ? "finished" : goal.status}.`, presentation_policy: resultPresentation("text") };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    if (controlIntent.kind === "pause") {
+      if (goal.status === "paused") {
+        const result: DomainResult = { status: "answered", answer: `That follow-up with ${who} is already paused.`, presentation_policy: resultPresentation("text") };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+      await goalRuntime.persist({ ...goal, status: "paused", next_evaluation_at: null });
+      const result: DomainResult = { status: "answered", answer: `Paused. I won't follow up with ${who} until you resume it.`, presentation_policy: resultPresentation("text"), blocks: [{ type: "status", label: "Paused", tone: "neutral" }] };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    if (controlIntent.kind === "resume") {
+      if (goal.status !== "paused") {
+        const result: DomainResult = { status: "answered", answer: `That follow-up with ${who} isn't paused.`, presentation_policy: resultPresentation("text") };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+      await goalRuntime.persist({ ...goal, status: "active", next_evaluation_at: new Date().toISOString() });
+      const result: DomainResult = { status: "answered", answer: `Resumed. I'll pick up following up with ${who} shortly.`, presentation_policy: resultPresentation("text"), blocks: [{ type: "status", label: "Active", tone: "positive" }] };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    if (controlIntent.kind === "cancel") {
+      await goalRuntime.persist({ ...goal, status: "cancelled", completion_reason: "Cancelled by request.", next_evaluation_at: null });
+      const result: DomainResult = { status: "answered", answer: `Stopped. I won't contact ${who} again as part of this follow-up.`, presentation_policy: resultPresentation("text"), blocks: [{ type: "status", label: "Cancelled", tone: "neutral" }] };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    // restrict_to_channel / block_channel -- narrows the channel rather
+    // than stopping the goal outright; any not-yet-executed plan step on
+    // a now-disallowed channel is skipped, and the goal is re-checked
+    // immediately so the effect is visible right away, not after the
+    // next scheduled wait.
+    const allowed =
+      controlIntent.kind === "restrict_to_channel"
+        ? [controlIntent.channel]
+        : goal.communication_preferences.allowed_channels.filter((c) => c !== controlIntent.channel);
+    const now = new Date().toISOString();
+    const updatedPlan = goal.plan.map((step) =>
+      (step.status === "pending" || step.status === "due") && step.action_type !== "escalate" && !allowed.includes(step.channel)
+        ? { ...step, status: "skipped" as const, executed_at: now, result: { ok: false, detail: `Skipped: ${step.channel} no longer allowed for this follow-up.` } }
+        : step
+    );
+    await goalRuntime.persist({
+      ...goal,
+      plan: updatedPlan,
+      communication_preferences: { ...goal.communication_preferences, allowed_channels: allowed },
+      next_evaluation_at: now,
+    });
+    const answer =
+      controlIntent.kind === "restrict_to_channel"
+        ? `Got it — I'll only reach ${who} by ${titleCaseWord(controlIntent.channel)} from now on.`
+        : `Got it — I won't ${controlIntent.channel === "voice_call" ? "call" : titleCaseWord(controlIntent.channel).toLowerCase()} ${who} again.`;
+    const result: DomainResult = { status: "answered", answer, presentation_policy: resultPresentation("text") };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  // 2) List query -- "show me my active follow-ups" (Part M: visibility
+  // through this SAME existing office_internal chat surface, no new
+  // dashboard). Checked before the single-goal query below so a bare
+  // "show me my follow-ups" is never misread as asking about one
+  // specific goal.
+  if (isGoalListQuery(message) && actorId) {
+    const goals = await goalRuntime.listForActor(actorId, undefined, [...GOAL_DUE_STATUSES, "paused"]);
+    const capability = syntheticOfficeActionCapability("goal.list_query", "communications");
+    if (!goals.length) {
+      const result: DomainResult = { status: "answered", answer: "You don't have any active follow-ups right now.", presentation_policy: resultPresentation("text") };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const rows = goals.map((g) => {
+      const step = g.plan[g.current_step_index];
+      return {
+        id: g.id,
+        target: recipientLabelFromTargetEntities(g.target_entities),
+        status: titleCaseWord(g.status),
+        attempts: `${g.attempts_completed}/${g.max_attempts}`,
+        next: g.status === "paused" ? "—" : step ? titleCaseWord(step.channel) : "—",
+      };
+    });
+    const result: DomainResult = {
+      status: "answered",
+      answer: `You have ${goals.length} active follow-up${goals.length === 1 ? "" : "s"}.`,
+      presentation_policy: resultPresentation("table"),
+      blocks: [
+        {
+          type: "record_list",
+          title: "Active follow-ups",
+          columns: [
+            { key: "target", label: "Target" },
+            { key: "status", label: "Status" },
+            { key: "attempts", label: "Attempts" },
+            { key: "next", label: "Next step" },
+          ],
+          rows,
+          total_count: rows.length,
+        },
+      ],
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  // 3) Status queries -- "how's the follow-up with David going?".
+  const queryIntent = parseGoalQueryIntent(message);
+  if (queryIntent && actorId) {
+    const goal = await findGoalForControlOrQuery(queryIntent.recipientToken, context, threadId, actorId);
+    const capability = syntheticOfficeActionCapability("goal.status_query", "communications");
+    if (!goal) {
+      const result: DomainResult = { status: "answered", answer: "I don't have a follow-up goal in focus — say who you mean, or ask me to set one up.", presentation_policy: resultPresentation("text") };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const who = recipientLabelFromTargetEntities(goal.target_entities);
+    const lastObservation = goal.observations.at(-1);
+    const nextStep = goal.plan[goal.current_step_index];
+    const showNextStep = Boolean(nextStep) && !GOAL_TERMINAL_STATUSES.includes(goal.status) && goal.status !== "paused";
+    const result: DomainResult = {
+      status: "answered",
+      answer: goalStatusSummaryLine(goal, who),
+      presentation_policy: resultPresentation("text"),
+      blocks: [
+        {
+          type: "key_value",
+          title: "Follow-up status",
+          items: [
+            { label: "Target", value: who },
+            { label: "Status", value: titleCaseWord(goal.status) },
+            { label: "Attempts", value: `${goal.attempts_completed} of ${goal.max_attempts}` },
+            ...(showNextStep ? [{ label: "Next step", value: `${titleCaseWord(nextStep.channel)}${goal.next_evaluation_at ? ` around ${goal.next_evaluation_at}` : ""}` }] : []),
+            ...(lastObservation ? [{ label: "Last activity", value: `${lastObservation.kind === "inbound_reply" ? "Reply received" : titleCaseWord(lastObservation.kind)} — ${lastObservation.detail.slice(0, 100)}` }] : []),
+            ...(goal.completion_reason ? [{ label: "Outcome", value: goal.completion_reason }] : []),
+          ],
+        },
+      ],
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  // 4) A fresh goal-creation request.
+  const creationIntent = parseGoalCreationIntent(message);
+  if (!creationIntent || !actorId) return null;
+
+  const lookup = await resolveCommunicationRecipient(creationIntent.recipientToken, context, threadId, actorId);
+  if (lookup.kind === "unresolved" || lookup.kind === "not_found") {
+    const capability = syntheticOfficeActionCapability("goal.clarification_required", "communications");
+    const result: DomainResult = {
+      status: "answered",
+      answer:
+        lookup.kind === "not_found"
+          ? `I couldn't find "${creationIntent.recipientToken}" in the staff directory or CRM.`
+          : `I couldn't tell who to follow up with. Give me a name, email address, or phone number.`,
+      presentation_policy: resultPresentation("text"),
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+  if (lookup.kind === "ambiguous") {
+    const pointer = buildPendingRecipientDisambiguation({ threadId, actorId, query: lookup.query, candidates: lookup.candidates, resume: null });
+    const capability = syntheticOfficeActionCapability("goal.disambiguation_required", "communications");
+    const result: DomainResult = { status: "answered", answer: disambiguationQuestion(lookup.query, lookup.candidates), presentation_policy: resultPresentation("text"), metadata: { pending_recipient_disambiguation: pointer } };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  const { recipient: resolvedRecipient } = communicationRuntime.resolveRecipient(lookup.hint);
+  const { plan, maxAttempts } = buildGoalPlanSteps(creationIntent, resolvedRecipient);
+  if (!plan.some((s) => s.action_type !== "escalate")) {
+    const capability = syntheticOfficeActionCapability("goal.channel_unresolved", "communications");
+    const result: DomainResult = { status: "answered", answer: "I don't have a verified way to reach them (no email, WhatsApp, or phone on file), so I can't set up a follow-up.", presentation_policy: resultPresentation("text") };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  const targetEntities: GoalTargetEntities = {
+    lead_id: lookup.hint.lead_id ?? null,
+    contact_id: lookup.hint.contact_id ?? null,
+    user_id: lookup.hint.user_id ?? null,
+    organization_id: lookup.hint.organization_id ?? null,
+    name: lookup.hint.name ?? null,
+    email: lookup.hint.email ?? null,
+    phone: lookup.hint.phone ?? null,
+    whatsapp_phone: lookup.hint.whatsapp_phone ?? null,
+  };
+
+  const goal = await goalRuntime.create({
+    correlation_id: tracer.correlationId || randomUUID(),
+    requesting_actor_id: actorId,
+    surface: "office_internal",
+    conversation_thread_id: threadId,
+    organization_scope: null,
+    objective: creationIntent.rawObjective,
+    target_entities: targetEntities,
+    status: "proposed",
+    success_condition: creationIntent.successCondition,
+    stop_condition: creationIntent.successCondition.type === "positive_reply" ? { type: "negative_reply" } : { type: "none" },
+    plan,
+    current_step_index: 0,
+    schedule: { deadline: resolveGoalDeadline(creationIntent.deadlineHint), recurrence: null, timezone: null },
+    event_conditions: [],
+    communication_preferences: {
+      allowed_channels: Array.from(new Set(plan.filter((s) => s.action_type !== "escalate").map((s) => s.channel))),
+      escalation_policy: creationIntent.escalateAtEnd ? "notify_requester" : "none",
+    },
+    max_attempts: maxAttempts,
+    attempts_completed: 0,
+    observations: [],
+    evidence: [],
+    linked_crm_records: {},
+    linked_tasks: [],
+    linked_meetings: [],
+    linked_automations: [],
+    linked_communication_threads: [],
+    execution_history: [],
+    last_evaluated_at: null,
+    next_evaluation_at: null,
+    completion_reason: null,
+  });
+
+  const pointer = buildPendingGoalPointer({ goalId: goal.id, threadId, actorId, summary: goal.objective });
+  const extraMetadata = lookup.personContext ? { resolved_person_context: lookup.personContext } : {};
+  const result = draftGoalResult(goal, pointer, extraMetadata);
+  const capability = syntheticOfficeActionCapability("goal.proposed", "communications");
   return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
 }
 
@@ -2308,6 +2767,24 @@ export class ConversationOrchestrator {
     if (communicationResponse) {
       tracer.finish({ thread_id: communicationResponse.thread_id || null, response_state: communicationResponse.persistence_saved === false ? "unsaved" : "returned" });
       return communicationResponse;
+    }
+    // Oyi Autonomous Work Runtime -- same precedence tier as the
+    // communication-turn check above (a separate mechanism; a pending
+    // goal proposal and a pending communication/Task mutation can
+    // coexist, checked independently). Returns null when there's
+    // nothing to handle.
+    const goalResponse = await handleGoalConversationTurn(context, resolvedTurn, tracer).catch((error) => {
+      logger.warn("oyi_goal_conversation_turn_failed", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
+    if (goalResponse) {
+      tracer.finish({ thread_id: goalResponse.thread_id || null, response_state: goalResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return goalResponse;
     }
     // Generic follow-up resolution runs before normal capability routing —
     // a pending device-action confirmation (handled above) always wins, but

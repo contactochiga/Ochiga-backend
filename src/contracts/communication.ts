@@ -71,10 +71,15 @@ export type CommunicationMessageOutcome =
   | "bounced"
   | "blocked"
   | "opted_out"
+  | "unreachable" // number/address is real but not currently reachable (e.g. carrier-reported dead line) -- distinct from "bounced" (provider rejected the send outright) and "failed" (send attempt itself errored).
   | "unknown";
 
-// Call-channel outcomes (voice_call).
+// Call-channel outcomes (voice_call). "ringing" is the one non-terminal
+// value here -- kept in the outcome vocabulary (not just the event
+// stream) so a goal/automation checking mid-call status has a value to
+// read, matching CommunicationEventType's own "call.ringing".
 export type CommunicationCallOutcome =
+  | "ringing"
   | "answered"
   | "no_answer"
   | "busy"
@@ -85,6 +90,21 @@ export type CommunicationCallOutcome =
   | "unknown";
 
 export type CommunicationOutcome = CommunicationMessageOutcome | CommunicationCallOutcome;
+
+// voice_call's delivery_metadata shape -- documented here (not a new DB
+// column) so every caller reads/writes the same keys instead of each
+// inventing its own, same reuse-the-generic-bag pattern every other
+// channel's provider-specific extras already use. recording_consent_disclosed
+// must be true before recording_url is ever populated (Part I governance --
+// a call is never recorded without disclosure being recorded first).
+export type CommunicationCallDeliveryMetadata = {
+  duration_seconds: number | null;
+  ring_duration_seconds: number | null;
+  recording_url: string | null;
+  recording_consent_disclosed: boolean;
+  dial_attempt_count: number;
+  voicemail_left: boolean;
+};
 
 // Normalized provider failure reasons -- CommunicationRuntime/adapters
 // translate every provider-specific error into one of these; nothing
