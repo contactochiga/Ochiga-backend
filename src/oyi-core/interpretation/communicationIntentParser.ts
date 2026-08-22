@@ -226,6 +226,42 @@ export function isCommunicationHistoryQuery(rawMessage: string): boolean {
   );
 }
 
+export type CallStatusQueryKind = "went_through" | "answered" | "duration";
+
+// "Did the call go through?" / "Did he answer?" / "How long did we
+// speak?" -- Programme G, status queries about a CALL specifically
+// (distinct from parseReplyOrThreadQuery's "did he reply?", which is
+// about a WhatsApp message).
+export function parseCallStatusQuery(rawMessage: string): CallStatusQueryKind | null {
+  const message = text(rawMessage).toLowerCase();
+  if (!message) return null;
+  if (/^did (?:the call|it) go through\??$/.test(message)) return "went_through";
+  if (/^did (?:he|she|they) (?:answer|pick up|pick)\??$/.test(message)) return "answered";
+  if (/^how long did (?:we|i) (?:speak|talk)(?: for)?\??$/.test(message)) return "duration";
+  return null;
+}
+
+// "Show me the calls made today." -- Programme G.
+export function isCallsTodayQuery(rawMessage: string): boolean {
+  const message = text(rawMessage).toLowerCase();
+  if (!message) return false;
+  return /^show me (?:the )?calls (?:made )?today\??$/.test(message) || /^what calls (?:did (?:i|we) make|were made) today\??$/.test(message);
+}
+
+// "Show me everyone who replied today." / "Who replied today?" / "Show
+// me today's replies." -- Programme B, an aggregate business view
+// across ALL contacts, not one thread. Deliberately distinct from
+// isCommunicationHistoryQuery (which asks about ONE just-sent message).
+export function isRepliedTodayQuery(rawMessage: string): boolean {
+  const message = text(rawMessage).toLowerCase();
+  if (!message) return false;
+  return (
+    /^(?:show me\s+)?(?:everyone|everybody|who|which leads?|which contacts?)\s+(?:that\s+|who\s+)?(?:has\s+|have\s+)?repl(?:y|ied)(?:\s+today)?/.test(message) ||
+    /^show me (?:today'?s|the)\s+repl(?:y|ies)/.test(message) ||
+    /^(?:what|who)\s+repl(?:y|ies|ied)\s+today\??$/.test(message)
+  );
+}
+
 // "Who is this?" / "Open the Daniel lead." / "Who is handling this
 // partnership?" -- a person-lookup-and-set-context turn, not a send.
 // Distinguishes a genuine lookup from an ordinary question by requiring

@@ -34,7 +34,22 @@ export type GoalCreationIntent = {
   escalateAtEnd: boolean;
   deadlineHint: string | null; // raw phrase, resolved to an ISO date by resolveGoalDeadline()
   recurrenceHours: number | null; // "every 2 days" / "every 48 hours" -- used for the default plan's wait_hours when no staged plan is given
+  interestedTaskTitle: string | null; // "...if he says he's interested, create a task to call him" -- non-null means a reply_branches entry should be built
 };
+
+// "...if he says he's interested, create a task for me to call him." --
+// a branch, not a plan step: doesn't fire on a schedule, fires when the
+// classified reply outcome is interested/positive_reply (see
+// GoalReplyBranch in contracts/goal.ts). Stripped before the escalate/
+// saying/until clauses since it can appear anywhere in the phrase.
+function stripInterestedTaskClause(input: string): { rest: string; interestedTaskTitle: string | null } {
+  const match = input.match(/^(.*?)[.,]?\s*if\s+(?:he|she|they)\s+(?:says?|is|are)\s+interested,?\s*create\s+a\s+task(?:\s+for\s+me)?(?:\s+to\s+(.+?))?\.?$/i);
+  if (match && text(match[1])) {
+    const taskAction = text(match[2]);
+    return { rest: text(match[1]), interestedTaskTitle: taskAction ? `${taskAction.charAt(0).toUpperCase()}${taskAction.slice(1)}` : "Follow up -- they're interested" };
+  }
+  return { rest: input, interestedTaskTitle: null };
+}
 
 function stripEscalateClause(input: string): { rest: string; escalateAtEnd: boolean } {
   const match = input.match(/^(.*?)[,.]?\s*(?:otherwise|and if (?:that|there's|there is) no (?:reply|response|luck))?\s*(?:then\s+)?(?:escalate(?: it)?(?: to me)?|let me know|flag it for me|notify me)\.?$/i);
@@ -109,6 +124,8 @@ export function parseGoalCreationIntent(rawMessage: string): GoalCreationIntent 
 
   const rawObjective = `follow up with ${rest}`;
 
+  const interestedTaskStripped = stripInterestedTaskClause(rest);
+  rest = interestedTaskStripped.rest;
   const escalateStripped = stripEscalateClause(rest);
   rest = escalateStripped.rest;
   const sayingStripped = stripSayingClause(rest);
@@ -164,6 +181,7 @@ export function parseGoalCreationIntent(rawMessage: string): GoalCreationIntent 
     escalateAtEnd: escalateStripped.escalateAtEnd,
     deadlineHint: deadlineParsed.deadlineHint,
     recurrenceHours: recurrenceParsed.recurrenceHours,
+    interestedTaskTitle: interestedTaskStripped.interestedTaskTitle,
   };
 }
 
@@ -237,6 +255,20 @@ export function isGoalListQuery(rawMessage: string): boolean {
   );
 }
 
+// "Which leads have not replied?" / "Who hasn't replied yet?" -- Programme
+// B. Reuses the SAME goal-list mechanism as isGoalListQuery, filtered to
+// goals with zero inbound_reply observations, rather than a new
+// aggregate query system.
+export function isNoReplyGoalsQuery(rawMessage: string): boolean {
+  const message = text(rawMessage).toLowerCase();
+  if (!message) return false;
+  return (
+    /^which\s+(?:leads?|contacts?|people)\s+(?:have\s+not|haven'?t)\s+repl(?:y|ied)/.test(message) ||
+    /^who\s+(?:has(?:n'?t| not)|hasn'?t)\s+repl(?:y|ied)/.test(message) ||
+    /^(?:show me\s+)?(?:leads?|contacts?|people)\s+(?:that|who)\s+(?:have\s+not|haven'?t)\s+repl(?:y|ied)/.test(message)
+  );
+}
+
 export type GoalControlIntent =
   | { kind: "pause"; recipientToken: string | null }
   | { kind: "resume"; recipientToken: string | null }
@@ -270,8 +302,16 @@ export function parseGoalControlIntent(rawMessage: string): GoalControlIntent | 
     return { kind: "cancel", recipientToken: m ? text(m[1]) : null };
   }
 
-  const dontChannelAgain = message.match(new RegExp(`^don'?t\\s+(${Object.keys(CHANNEL_WORD).join("|")})\\s+(?:him|her|them|[a-z][a-z .'-]{1,40})?\\s*(?:again|anymore)\\b`, "i"));
-  if (dontChannelAgain) return { kind: "block_channel", channel: CHANNEL_WORD[dontChannelAgain[1].toLowerCase()], recipientToken };
+  const dontChannelAgain = message.match(new RegExp(`^don'?t\\s+(${Object.keys(CHANNEL_WORD).join("|")})\\s+(him|her|them|[a-z][a-z .'-]{1,40})?\\s*(?:again|anymore)\\b`, "i"));
+  if (dontChannelAgain) return { kind: "block_channel", channel: CHANNEL_WORD[dontChannelAgain[1].toLowerCase()], recipientToken: dontChannelAgain[2] ? text(dontChannelAgain[2]) : recipientToken };
+
+  // "Stop calling this person." / "Stop calling David." / "Stop emailing her."
+  const stopChannelWord = message.match(/^stop\s+(calling|emailing|texting|messaging)\s*(him|her|them|this person|[a-z][a-z .'-]{1,40})?\b/i);
+  if (stopChannelWord) {
+    const channel = stopChannelWord[1].toLowerCase() === "calling" ? "voice_call" : stopChannelWord[1].toLowerCase() === "emailing" ? "email" : "sms";
+    const named = stopChannelWord[2] && stopChannelWord[2].toLowerCase() !== "this person" ? text(stopChannelWord[2]) : null;
+    return { kind: "block_channel", channel, recipientToken: named || recipientToken };
+  }
 
   const onlyChannel = message.match(new RegExp(`^only\\s+(${Object.keys(CHANNEL_WORD).join("|")})\\s+(?:him|her|them|[a-z][a-z .'-]{1,40})?\\s*from\\s+now\\s+on\\b`, "i"));
   if (onlyChannel) return { kind: "restrict_to_channel", channel: CHANNEL_WORD[onlyChannel[1].toLowerCase()], recipientToken };

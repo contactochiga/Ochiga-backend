@@ -69,6 +69,9 @@ import {
   parseCommunicationSendIntent,
   resolveCommunicationRecipientTokenHint,
   isCommunicationHistoryQuery,
+  isRepliedTodayQuery,
+  parseCallStatusQuery,
+  isCallsTodayQuery,
   parseChannelReuseIntent,
   parseCommunicationRevisionIntent,
   parsePersonLookupIntent,
@@ -95,6 +98,7 @@ import {
   parseGoalQueryIntent,
   parseGoalControlIntent,
   isGoalListQuery,
+  isNoReplyGoalsQuery,
   type GoalCreationIntent,
   type StagedChannelStep,
 } from "../interpretation/goalIntentParser";
@@ -1415,6 +1419,109 @@ async function handleCommunicationTurn(
     await communicationRuntime.cancel(pending.communication_id).catch(() => null);
   }
 
+  // Programme B -- "Show me everyone who replied today." An aggregate
+  // business view across every contact, rendered as a table, not a wall
+  // of prose (per the spec's own example).
+  if (isRepliedTodayQuery(message)) {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const replies = await communicationRuntime.inboundRepliesSince(startOfToday.toISOString(), 30);
+    const capability = syntheticOfficeActionCapability("communication.replied_today_query", "communications");
+    if (!replies.length) {
+      const result: DomainResult = { status: "answered", answer: "No one has replied yet today.", presentation_policy: resultPresentation("text") };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const rows = replies.map((r) => ({
+      id: r.communication_id,
+      person: r.recipient.name || recipientDisplayAddress(r.recipient, r.channel),
+      channel: titleCaseWord(r.channel),
+      received: r.delivered_at || r.created_at,
+      outcome: r.outcome_classification ? titleCaseWord(r.outcome_classification) : "—",
+    }));
+    const result: DomainResult = {
+      status: "answered",
+      answer: `${replies.length} ${replies.length === 1 ? "person has" : "people have"} replied today.`,
+      presentation_policy: resultPresentation("table"),
+      blocks: [
+        {
+          type: "record_list",
+          title: "Today's replies",
+          columns: [
+            { key: "person", label: "Person" },
+            { key: "channel", label: "Channel" },
+            { key: "received", label: "Received" },
+            { key: "outcome", label: "Outcome" },
+          ],
+          rows,
+          total_count: rows.length,
+        },
+      ],
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  // Programme G -- call-specific status queries and "calls made today."
+  if (isCallsTodayQuery(message)) {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const calls = await communicationRuntime.outboundCallsSince(startOfToday.toISOString(), 30);
+    const capability = syntheticOfficeActionCapability("communication.calls_today_query", "communications");
+    if (!calls.length) {
+      const result: DomainResult = { status: "answered", answer: "No calls have been made today.", presentation_policy: resultPresentation("text") };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const rows = calls.map((c) => ({
+      id: c.communication_id,
+      person: c.recipient.name || recipientDisplayAddress(c.recipient, c.channel),
+      status: titleCaseWord(c.status),
+      outcome: c.outcome ? titleCaseWord(c.outcome) : "—",
+      duration: c.delivery_metadata && typeof c.delivery_metadata.duration_seconds === "number" ? `${c.delivery_metadata.duration_seconds}s` : "—",
+      time: c.sent_at || c.created_at,
+    }));
+    const result: DomainResult = {
+      status: "answered",
+      answer: `${calls.length} call${calls.length === 1 ? "" : "s"} made today.`,
+      presentation_policy: resultPresentation("table"),
+      blocks: [
+        {
+          type: "record_list",
+          title: "Calls today",
+          columns: [
+            { key: "person", label: "Person" },
+            { key: "status", label: "Status" },
+            { key: "outcome", label: "Outcome" },
+            { key: "duration", label: "Duration" },
+            { key: "time", label: "Time" },
+          ],
+          rows,
+          total_count: rows.length,
+        },
+      ],
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  const callStatusQuery = parseCallStatusQuery(message);
+  if (callStatusQuery && actorId) {
+    const lastCall = await communicationRuntime.mostRecentForActor(actorId, threadId, "voice_call");
+    const capability = syntheticOfficeActionCapability("communication.call_status_query", "communications");
+    if (!lastCall) {
+      const result: DomainResult = { status: "answered", answer: "I haven't made a call in this conversation yet.", presentation_policy: resultPresentation("text") };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const durationSeconds = lastCall.delivery_metadata && typeof lastCall.delivery_metadata.duration_seconds === "number" ? lastCall.delivery_metadata.duration_seconds : null;
+    let answer: string;
+    if (callStatusQuery === "went_through") {
+      answer = lastCall.status === "failed" ? `No -- that call failed (${humanizeFailureReason(lastCall.failure_reason)}).` : lastCall.outcome === "answered" || lastCall.outcome === "completed" ? "Yes, the call connected." : "The call was placed, but I don't have a final outcome yet.";
+    } else if (callStatusQuery === "answered") {
+      answer = lastCall.outcome === "answered" || lastCall.outcome === "completed" ? "Yes, they answered." : lastCall.outcome === "no_answer" ? "No, there was no answer." : lastCall.outcome === "busy" ? "No, the line was busy." : "I don't have a final outcome for that call yet.";
+    } else {
+      answer = durationSeconds !== null ? `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s.` : "I don't have a call duration recorded for that call.";
+    }
+    const result: DomainResult = { status: "answered", answer, presentation_policy: resultPresentation("text") };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
   if (isCommunicationHistoryQuery(message) && actorId) {
     const recent = await communicationRuntime.mostRecentForActor(actorId, threadId);
     const capability = syntheticOfficeActionCapability("communication.history_query", "communications");
@@ -1534,7 +1641,26 @@ async function handleCommunicationTurn(
         : lastInbound
           ? `"${lastInbound.body}"`
           : "No reply yet, so there's nothing to show.";
-    const result: DomainResult = { status: "answered", answer, presentation_policy: resultPresentation("text"), metadata: extraMetadata };
+    // Programme B -- a compact business-shaped card alongside the
+    // natural-language answer, not a second WhatsApp-clone view: person,
+    // channel, received time, classified outcome, related lead.
+    const who = hint?.name || whatsappPhone;
+    const blocks = lastInbound
+      ? [
+          {
+            type: "key_value",
+            title: "Communication",
+            items: [
+              { label: "Person", value: who },
+              { label: "Channel", value: "WhatsApp" },
+              { label: "Received", value: lastInbound.delivered_at || lastInbound.created_at },
+              ...(lastInbound.outcome_classification ? [{ label: "Outcome", value: titleCaseWord(lastInbound.outcome_classification) }] : []),
+              ...(lastInbound.recipient?.lead_id ? [{ label: "Related lead", value: lastInbound.recipient.lead_id }] : []),
+            ],
+          },
+        ]
+      : [];
+    const result: DomainResult = { status: "answered", answer, presentation_policy: resultPresentation("text"), blocks, metadata: extraMetadata };
     return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
   }
 
@@ -1922,6 +2048,46 @@ async function handleGoalConversationTurn(
     return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
   }
 
+  // 1b) "Which leads have not replied?" -- Programme B, reusing the SAME
+  // goal-list mechanism filtered to goals with no inbound reply yet,
+  // rather than a new aggregate query system. Checked before the
+  // general list query since its phrasing is a subset/superset overlap
+  // risk otherwise.
+  if (isNoReplyGoalsQuery(message) && actorId) {
+    const allGoals = await goalRuntime.listForActor(actorId, undefined, [...GOAL_DUE_STATUSES, "paused"]);
+    const goals = allGoals.filter((g) => !g.observations.some((o) => o.kind === "inbound_reply"));
+    const capability = syntheticOfficeActionCapability("goal.no_reply_query", "communications");
+    if (!goals.length) {
+      const result: DomainResult = { status: "answered", answer: "Everyone you're following up with has replied.", presentation_policy: resultPresentation("text") };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const rows = goals.map((g) => ({
+      id: g.id,
+      target: recipientLabelFromTargetEntities(g.target_entities),
+      status: titleCaseWord(g.status),
+      attempts: `${g.attempts_completed}/${g.max_attempts}`,
+    }));
+    const result: DomainResult = {
+      status: "answered",
+      answer: `${goals.length} ${goals.length === 1 ? "person hasn't" : "people haven't"} replied yet.`,
+      presentation_policy: resultPresentation("table"),
+      blocks: [
+        {
+          type: "record_list",
+          title: "No reply yet",
+          columns: [
+            { key: "target", label: "Target" },
+            { key: "status", label: "Status" },
+            { key: "attempts", label: "Attempts" },
+          ],
+          rows,
+          total_count: rows.length,
+        },
+      ],
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
   // 2) List query -- "show me my active follow-ups" (Part M: visibility
   // through this SAME existing office_internal chat surface, no new
   // dashboard). Checked before the single-goal query below so a bare
@@ -2055,6 +2221,9 @@ async function handleGoalConversationTurn(
     status: "proposed",
     success_condition: creationIntent.successCondition,
     stop_condition: creationIntent.successCondition.type === "positive_reply" ? { type: "negative_reply" } : { type: "none" },
+    reply_branches: creationIntent.interestedTaskTitle
+      ? [{ on_outcomes: ["interested", "positive_reply"], action: "create_task", task_title: creationIntent.interestedTaskTitle }]
+      : [],
     plan,
     current_step_index: 0,
     schedule: { deadline: resolveGoalDeadline(creationIntent.deadlineHint), recurrence: null, timezone: null },

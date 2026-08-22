@@ -6,6 +6,8 @@
 // through it, dispatching each step through the system that already
 // owns that kind of action.
 
+import type { InboundReplyOutcome } from "./communication";
+
 export type GoalStatus =
   | "understood"
   | "proposed"
@@ -107,6 +109,20 @@ export type GoalCommunicationPreferences = {
   escalation_policy: "notify_requester" | "none";
 };
 
+// Live Reply Loop programme -- lets a reply BRANCH the goal instead of
+// only advancing/completing it linearly ("if he says he's interested,
+// create a task for me to call him"; "stop contacting him if he says
+// he's not interested"). Checked against the classified
+// InboundReplyOutcome (replyClassifier.ts) before the plain success/
+// stop-condition checks in evaluateGoal(). "unsubscribe" is handled
+// UNCONDITIONALLY by evaluateGoal() regardless of whether a goal
+// declares a branch for it -- that one is governance, not preference.
+export type GoalReplyBranch = {
+  on_outcomes: InboundReplyOutcome[];
+  action: "complete" | "stop" | "escalate" | "create_task";
+  task_title: string | null; // required when action === "create_task"
+};
+
 export type GoalRecord = {
   id: string;
   correlation_id: string;
@@ -121,6 +137,7 @@ export type GoalRecord = {
   status: GoalStatus;
   success_condition: GoalSuccessCondition;
   stop_condition: GoalStopCondition;
+  reply_branches: GoalReplyBranch[];
 
   plan: GoalPlanStep[];
   current_step_index: number;
