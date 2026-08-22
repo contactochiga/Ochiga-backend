@@ -61,7 +61,9 @@ export class WhatsAppAdapter implements CommunicationAdapter {
   validate(record: CommunicationRecord): CommunicationAdapterValidation {
     const normalized = normalizeToE164(record.recipient.whatsapp_phone || record.recipient.phone);
     if (!normalized) return { valid: false, reason: "invalid_recipient" };
-    if (!record.body) return { valid: false, reason: "missing_body" };
+    // A template send has no free-form body -- content comes from the
+    // approved template itself.
+    if (!record.body && !record.template_id) return { valid: false, reason: "missing_body" };
     return { valid: true, reason: null };
   }
 
@@ -75,14 +77,27 @@ export class WhatsAppAdapter implements CommunicationAdapter {
       return { status: "failed", provider: this.provider, provider_message_id: null, failure_reason: "invalid_recipient", failure_detail: "No valid WhatsApp-reachable phone number.", delivery_metadata: null };
     }
     try {
+      // template_id (Phase 2 -- customer-service-window fallback):
+      // "<name>@<language>" (e.g. "hello_world@en_US"), built by
+      // proposeWhatsAppTemplateRetry() in ConversationOrchestrator.ts.
+      // No free-form body when sending a template -- content comes from
+      // the approved template itself.
+      const [templateName, templateLanguage] = record.template_id ? record.template_id.split("@") : [null, null];
       const response = await axios.post(
         `${resolveOfficeBaseUrl()}/api/lead-agents/admin/communications/whatsapp/send`,
-        {
-          to,
-          body: record.body,
-          context_message_id: record.reply_to_message_id ? record.provider_conversation_id : undefined,
-          communication_id: record.communication_id,
-        },
+        templateName
+          ? {
+              to,
+              template_name: templateName,
+              template_language: templateLanguage || "en_US",
+              communication_id: record.communication_id,
+            }
+          : {
+              to,
+              body: record.body,
+              context_message_id: record.reply_to_message_id ? record.provider_conversation_id : undefined,
+              communication_id: record.communication_id,
+            },
         { headers: { "x-office-api-key": key, "content-type": "application/json" }, timeout: 15000, validateStatus: () => true }
       );
       if (response.status === 401 || response.status === 503) {
@@ -123,6 +138,27 @@ export class WhatsAppAdapter implements CommunicationAdapter {
   // /webhooks/whatsapp handler, not a pull API -- see Phase J (inbound
   // webhook normalization), not implemented as part of this file.
   normalizeWebhook(_payload: unknown): CommunicationEvent[] {
+    return [];
+  }
+}
+
+export type WhatsAppTemplate = { name: string; language: string; category: string };
+
+// Phase 2 -- what Oyi offers instead of just reporting "template
+// required" is whatever Meta ACTUALLY has approved right now, never a
+// hard-coded template name.
+export async function listApprovedWhatsAppTemplates(): Promise<WhatsAppTemplate[]> {
+  const key = resolveOfficeSyncKey();
+  if (!key) return [];
+  try {
+    const response = await axios.post(
+      `${resolveOfficeBaseUrl()}/api/lead-agents/admin/communications/whatsapp/templates`,
+      {},
+      { headers: { "x-office-api-key": key, "content-type": "application/json" }, timeout: 10000, validateStatus: () => true }
+    );
+    if (response.status !== 200 || !response.data?.ok) return [];
+    return Array.isArray(response.data.templates) ? response.data.templates : [];
+  } catch {
     return [];
   }
 }
