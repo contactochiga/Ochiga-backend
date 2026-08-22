@@ -1784,7 +1784,12 @@ async function findGoalForControlOrQuery(
   const lookup = await resolveCommunicationRecipient(recipientToken, context, threadId, actorId);
   if (lookup.kind !== "hint") return goalRuntime.mostRecentForThread(actorId, threadId);
   const hint = lookup.hint;
-  const candidates = await goalRuntime.listForActor(actorId, undefined, [...GOAL_DUE_STATUSES, "paused"]);
+  // Deliberately unfiltered by status: a query turn ("how's it going?")
+  // needs to find a goal that JUST completed/was cancelled in this same
+  // conversation, not only an in-progress one -- the control-intent
+  // caller already rejects a terminal match with its own clear message,
+  // so narrowing the candidate pool here would only break that case.
+  const candidates = await goalRuntime.listForActor(actorId, undefined);
   return (
     candidates.find(
       (g) =>

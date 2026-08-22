@@ -83,6 +83,7 @@ async function executeStep(goal: GoalRecord, step: GoalPlanStep): Promise<{ ok: 
     // The plan step itself is real; the dispatch honestly fails rather
     // than pretending a call happened.
     const request: CommunicationRequest = {
+      conversation_thread_id: goal.conversation_thread_id,
       actor_id: goal.requesting_actor_id,
       surface: goal.surface,
       source: "automation",
@@ -112,6 +113,7 @@ async function executeStep(goal: GoalRecord, step: GoalPlanStep): Promise<{ ok: 
   // the requester (no redundant per-step confirmation, matching the
   // automation runtime's own rule).
   const request: CommunicationRequest = {
+    conversation_thread_id: goal.conversation_thread_id,
     actor_id: goal.requesting_actor_id,
     surface: goal.surface,
     source: "automation",
