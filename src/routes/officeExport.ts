@@ -4,6 +4,8 @@ import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
 import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
 import { logger } from "../observability/logger";
 import { computeThreadReference } from "../services/communicationRuntime/CommunicationRuntime";
+import { goalRuntime } from "../services/goalRuntime/GoalRuntime";
+import { claimAndEvaluateGoal } from "../services/goalRuntime/goalScheduler";
 import type { AuthUser } from "../middleware/auth";
 import {
   officeCredentialTimingSafeEqual,
@@ -1844,6 +1846,21 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
         thread_reference: threadReference,
         matched_outbound: Boolean(lastOutbound),
       });
+      // Event-driven goal wake (Part C -- prefer events over polling):
+      // any goal watching this thread gets reevaluated immediately
+      // instead of waiting for the next 30s scheduler tick. Fire-and-
+      // forget so it never delays the webhook's response to Meta; the
+      // scheduler tick remains the fallback if this fails for any reason.
+      if (threadReference) void goalRuntime
+        .findGoalsWatchingThread(threadReference)
+        .then((goals) => {
+          for (const goal of goals) {
+            void claimAndEvaluateGoal(goal).catch((error) =>
+              logger.error("goal_evaluation_failed", { error, goal_id: goal.id, source: "event_wake", thread_reference: threadReference })
+            );
+          }
+        })
+        .catch((error) => logger.error("goal_wake_lookup_failed", { error, thread_reference: threadReference }));
       return res.status(200).json({ ok: true, thread_reference: threadReference, matched_outbound: Boolean(lastOutbound) });
     } catch (err: any) {
       logger.error("communication_webhook_inbound_failed", { provider_message_id: providerMessageId, error: err?.message || String(err) });

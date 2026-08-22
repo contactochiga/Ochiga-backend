@@ -214,6 +214,22 @@ export class CommunicationRuntime {
     if (!validation.valid) {
       return { status: "rejected", reason: mapValidationReason(validation.reason), detail: validation.reason || "Validation failed." };
     }
+    // Part I -- calls are the most intrusive channel this runtime has
+    // (they interrupt a person in real time, unlike a message they read
+    // whenever), so voice_call gets its own stricter rate limit on top of
+    // the generic dispatch()-idempotency guard every channel already has.
+    // Bounds both a rapid-fire redial and repeated same-day dialing of
+    // the same person, regardless of whether the call was proposed by a
+    // conversation turn, an automation, or a goal's plan -- there is no
+    // separate "bulk call" primitive in this system (every
+    // CommunicationRequest targets exactly one recipient), so limiting
+    // per-recipient call frequency IS the bulk-calling governance: no
+    // path exists to dial many people at once without going through this
+    // same per-recipient check for each one.
+    if (channel === "voice_call" && record.thread_reference) {
+      const rateLimited = await this.checkCallRateLimit(record.thread_reference);
+      if (rateLimited) return { status: "rejected", reason: "rate_limited", detail: rateLimited };
+    }
     // Persisted immediately, even in draft/awaiting_confirmation state --
     // Phase V wants a full audit trail per communication, including ones
     // never confirmed, not just ones that were sent.
@@ -223,6 +239,34 @@ export class CommunicationRuntime {
 
   validate(record: CommunicationRecord): CommunicationAdapterValidation {
     return this.adapterFor(record.channel).validate(record);
+  }
+
+  // Returns a human-readable rejection reason when the recipient has
+  // been called too recently/too often; null when the call is within
+  // bounds. Two independent windows: a short cooldown against rapid
+  // redialing, and a daily cap against repeated same-day dialing.
+  private async checkCallRateLimit(threadReference: string): Promise<string | null> {
+    const COOLDOWN_MINUTES = 15;
+    const COOLDOWN_MAX = 1;
+    const DAILY_MAX = 5;
+    const dayAgo = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const { data, error } = await supabaseAdmin
+      .from("oyi_communications")
+      .select("created_at")
+      .eq("channel", "voice_call")
+      .eq("direction", "outbound")
+      .eq("thread_reference", threadReference)
+      .in("status", ["queued", "sending", "sent", "confirmed"])
+      .gte("created_at", dayAgo);
+    if (error || !data) return null; // fail open on a lookup error -- never block a legitimate call because of a transient DB read issue
+    const recentCooldown = data.filter((row: any) => Date.parse(row.created_at) > Date.now() - COOLDOWN_MINUTES * 60_000);
+    if (recentCooldown.length >= COOLDOWN_MAX) {
+      return `This number was called in the last ${COOLDOWN_MINUTES} minutes -- wait before calling again.`;
+    }
+    if (data.length >= DAILY_MAX) {
+      return `This number has already been called ${data.length} times in the last 24 hours -- the daily limit is ${DAILY_MAX}.`;
+    }
+    return null;
   }
 
   async loadDraft(communicationId: string): Promise<CommunicationRecord | null> {

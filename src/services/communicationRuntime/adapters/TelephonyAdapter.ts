@@ -28,6 +28,12 @@ export class TelephonyAdapter implements CommunicationAdapter {
   }
 
   async send(_record: CommunicationRecord): Promise<CommunicationDispatchResult> {
+    // The honest failure path -- never a fabricated "sent"/"ringing". Once
+    // a real provider is wired, this returns { status: "sent", ... ,
+    // delivery_metadata: <CommunicationCallDeliveryMetadata> } instead,
+    // with dial_attempt_count/ring_duration_seconds/duration_seconds
+    // filled in as the call actually progresses (via normalizeWebhook
+    // below, once there's a real provider payload shape to translate).
     return {
       status: "failed",
       provider: this.provider,
@@ -38,6 +44,12 @@ export class TelephonyAdapter implements CommunicationAdapter {
     };
   }
 
+  // Cannot be honestly implemented without a real provider's webhook
+  // payload shape to translate from -- returning [] here (rather than
+  // guessing at a shape) is the honest behavior, not a stub to "finish
+  // later" silently. CommunicationEventType already carries the full
+  // call.started/call.ringing/call.answered/call.completed/call.failed
+  // vocabulary this would emit once a provider exists.
   normalizeWebhook(_payload: unknown): CommunicationEvent[] {
     return [];
   }
