@@ -2,6 +2,8 @@ import { Router, Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
 import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
+import { logger } from "../observability/logger";
+import { computeThreadReference } from "../services/communicationRuntime/CommunicationRuntime";
 import type { AuthUser } from "../middleware/auth";
 import {
   officeCredentialTimingSafeEqual,
@@ -1742,9 +1744,98 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
   const channel = String(body.channel || "");
   const providerMessageId = String(body.provider_message_id || "").trim();
   const providerEventType = String(body.provider_event_type || "");
+  logger.info("communication_webhook_event_received", {
+    channel,
+    provider_event_type: providerEventType,
+    has_provider_message_id: Boolean(providerMessageId),
+    status: body.status || null,
+  });
   if (channel !== "whatsapp" || !providerMessageId) {
     return res.status(200).json({ ok: false, reason: "unsupported_or_missing_fields" });
   }
+
+  if (providerEventType === "message") {
+    const from = String(body.from || "").trim();
+    if (!from) {
+      logger.warn("communication_webhook_event_missing_sender", { provider_message_id: providerMessageId });
+      return res.status(200).json({ ok: false, reason: "missing_sender" });
+    }
+    try {
+      // Idempotency -- a Meta webhook retry must never create a second
+      // inbound row for the same provider message id.
+      const { data: existingInbound } = await supabaseAdmin
+        .from("oyi_communications")
+        .select("id")
+        .eq("provider_message_id", providerMessageId)
+        .eq("channel", "whatsapp")
+        .eq("direction", "inbound")
+        .maybeSingle();
+      if (existingInbound) {
+        logger.info("communication_webhook_inbound_duplicate", { provider_message_id: providerMessageId });
+        return res.status(200).json({ ok: true, duplicate: true });
+      }
+      const threadReference = computeThreadReference("whatsapp", {
+        contact_id: null,
+        lead_id: null,
+        user_id: null,
+        organization_id: null,
+        name: null,
+        email: null,
+        phone: null,
+        whatsapp_phone: from,
+      });
+      // Correlate to the most recent OUTBOUND message on the same thread,
+      // if any, so a reply can be traced back to what prompted it.
+      const { data: lastOutbound } = await supabaseAdmin
+        .from("oyi_communications")
+        .select("id")
+        .eq("thread_reference", threadReference)
+        .eq("direction", "outbound")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const now = new Date().toISOString();
+      const { error: insertError } = await supabaseAdmin.from("oyi_communications").insert({
+        correlation_id: `inbound-${providerMessageId}`,
+        surface: "whatsapp_inbound",
+        source: "inbound_webhook",
+        source_record_type: body.lead_id ? "lead" : null,
+        source_record_id: body.lead_id || null,
+        intent: "inbound_reply",
+        channel: "whatsapp",
+        direction: "inbound",
+        recipient_whatsapp_phone: from,
+        recipient_lead_id: body.lead_id || null,
+        recipient_resolution_source: body.lead_id ? "selected_record" : "explicit_address",
+        body: String(body.text || ""),
+        plain_text: String(body.text || ""),
+        reply_to_message_id: lastOutbound?.id || null,
+        thread_reference: threadReference,
+        priority: "normal",
+        schedule_mode: "now",
+        requires_confirmation: false,
+        permission_scope: "communication.receive",
+        risk_class: "low_risk_action",
+        provider: "whatsapp_cloud_api",
+        provider_message_id: providerMessageId,
+        status: "delivered",
+        outcome: "received",
+        created_at: body.occurred_at || now,
+        delivered_at: body.occurred_at || now,
+      } as any);
+      if (insertError) throw insertError;
+      logger.info("communication_webhook_inbound_persisted", {
+        provider_message_id: providerMessageId,
+        thread_reference: threadReference,
+        matched_outbound: Boolean(lastOutbound),
+      });
+      return res.status(200).json({ ok: true, thread_reference: threadReference, matched_outbound: Boolean(lastOutbound) });
+    } catch (err: any) {
+      logger.error("communication_webhook_inbound_failed", { provider_message_id: providerMessageId, error: err?.message || String(err) });
+      return res.status(200).json({ ok: false, error: err?.message || "inbound_processing_failed" });
+    }
+  }
+
   const canonicalStatus = WHATSAPP_STATUS_TO_CANONICAL[String(body.status || "").toLowerCase()];
   if (!canonicalStatus) {
     return res.status(200).json({ ok: false, reason: "unrecognized_status" });
@@ -1776,8 +1867,10 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
       if (canonicalStatus === "delivered") patch.delivered_at = body.occurred_at || new Date().toISOString();
       await supabaseAdmin.from("oyi_communications").update(patch).eq("id", existing.id);
     }
+    logger.info("communication_webhook_status_processed", { provider_message_id: providerMessageId, canonical_status: canonicalStatus, matched: Boolean(existing) });
     return res.status(200).json({ ok: true, matched: Boolean(existing) });
   } catch (err: any) {
+    logger.error("communication_webhook_status_failed", { provider_message_id: providerMessageId, error: err?.message || String(err) });
     return res.status(200).json({ ok: false, error: err?.message || "webhook_event_processing_failed" });
   }
 });

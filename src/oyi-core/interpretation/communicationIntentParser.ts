@@ -50,8 +50,15 @@ const CHANNEL_NOUN: Record<string, CommunicationChannelSelector> = {
 // ordinary question mentioning "email" ("what's his email?") is never
 // misread as a send request.
 export function parseCommunicationSendIntent(rawMessage: string): CommunicationSendIntent | null {
-  const message = text(rawMessage);
+  let message = text(rawMessage);
   if (!message || /\?\s*$/.test(message)) return null;
+  // "Reply and tell him I'll call later." / "Reply to her: on my way." --
+  // normalize to the existing "tell X Y" shape (channel auto) rather
+  // than a separate parsing path. The reply's actual channel is decided
+  // by the caller (handleCommunicationTurn), which knows which thread
+  // is in focus.
+  const replyPrefix = message.match(/^reply\s+(?:and\s+)?(?:tell\s+|to\s+)?(.+)$/i);
+  if (replyPrefix) message = `tell ${text(replyPrefix[1])}`;
 
   // "Give her a call" / "Give him a ring" -- idiom, not the verb-first
   // shape the rest of this parser expects.
@@ -225,5 +232,32 @@ export function parsePersonLookupIntent(rawMessage: string): { query: string; qu
   if (whoIs) return null; // resolved from active context elsewhere, not a fresh directory search
   const whoIsNamed = message.match(/^who\s+is\s+(?!this\b|he\b|she\b|it\b)([a-z][a-z .'-]{1,40})\??$/i);
   if (whoIsNamed) return { query: text(whoIsNamed[1]), queryType: "auto" };
+  return null;
+}
+
+export type ReplyOrThreadQuery =
+  | { kind: "reply_status"; recipientToken: string | null }
+  | { kind: "reply_content"; recipientToken: string | null }
+  | { kind: "thread_history"; recipientToken: string | null };
+
+const REPLY_TOKEN = "(him|her|them|he|she|they|the\\s+[a-z][a-z\\s]{1,40}?|[a-z][a-z .'-]{1,40})";
+
+// "Has he replied?" / "Did she reply?" / "Has the lead responded?" --
+// distinct from isCommunicationHistoryQuery (which asks about the
+// runtime's own OUTBOUND send/delivery state), this asks about a real
+// INBOUND reply from the other party.
+export function parseReplyOrThreadQuery(rawMessage: string): ReplyOrThreadQuery | null {
+  const message = text(rawMessage);
+  if (!message) return null;
+
+  const threadHistory = message.match(/^(?:show\s+me\s+|show\s+)?(?:our|the)\s+(?:whatsapp\s+)?conversation\s+with\s+(.+?)\.?\??$/i);
+  if (threadHistory) return { kind: "thread_history", recipientToken: text(threadHistory[1]) };
+
+  const statusMatch = message.match(new RegExp(`^(?:has|did)\\s+${REPLY_TOKEN}\\s+repl(?:y|ied)\\??$`, "i"));
+  if (statusMatch) return { kind: "reply_status", recipientToken: text(statusMatch[1]) };
+
+  const contentMatch = message.match(new RegExp(`^what\\s+(?:did|was)\\s+${REPLY_TOKEN}(?:'s)?\\s+(?:say|reply|response)\\??$`, "i"));
+  if (contentMatch) return { kind: "reply_content", recipientToken: text(contentMatch[1]) };
+
   return null;
 }
