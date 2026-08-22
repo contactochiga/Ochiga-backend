@@ -64,7 +64,7 @@ import {
 } from "../context/communicationProposal";
 import { communicationRuntime } from "../../services/communicationRuntime/CommunicationRuntime";
 import type { CommunicationRequest } from "../../contracts/communication";
-import { parseCommunicationSendIntent, resolveCommunicationRecipientTokenHint } from "../interpretation/communicationIntentParser";
+import { parseCommunicationSendIntent, resolveCommunicationRecipientTokenHint, isCommunicationHistoryQuery } from "../interpretation/communicationIntentParser";
 
 let registered = false;
 
@@ -1131,6 +1131,47 @@ async function handleCommunicationTurn(
     // to normal routing, leaving the pending draft intact.
     if (!parseCommunicationSendIntent(message)) return null;
     await communicationRuntime.cancel(pending.communication_id).catch(() => null);
+  }
+
+  if (isCommunicationHistoryQuery(message) && actorId) {
+    const recent = await communicationRuntime.mostRecentForActor(actorId, threadId);
+    const capability = syntheticOfficeActionCapability("communication.history_query", "communications");
+    if (!recent) {
+      const result: DomainResult = {
+        status: "answered",
+        answer: "I haven't sent anything in this conversation yet.",
+        presentation_policy: resultPresentation("text"),
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const to = recent.recipient.email || recent.recipient.whatsapp_phone || recent.recipient.phone || "—";
+    const statusLine =
+      recent.status === "sent"
+        ? `Sent to ${to} via ${titleCaseWord(recent.channel)}.`
+        : recent.status === "failed"
+        ? `That ${titleCaseWord(recent.channel)} to ${to} failed to send (${humanizeFailureReason(recent.failure_reason)}).`
+        : recent.status === "cancelled"
+        ? `That ${titleCaseWord(recent.channel)} to ${to} was cancelled before it sent.`
+        : `That ${titleCaseWord(recent.channel)} to ${to} is still ${titleCaseWord(recent.status)}.`;
+    const result: DomainResult = {
+      status: "answered",
+      answer: statusLine,
+      presentation_policy: resultPresentation("text"),
+      blocks: [
+        {
+          type: "key_value",
+          title: "Last communication",
+          items: [
+            { label: "Channel", value: titleCaseWord(recent.channel) },
+            { label: "To", value: to },
+            { label: "Status", value: titleCaseWord(recent.status) },
+            ...(recent.provider_message_id ? [{ label: "Provider ID", value: recent.provider_message_id }] : []),
+            { label: "Sent at", value: recent.sent_at || "—" },
+          ],
+        },
+      ],
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
   }
 
   const intent = parseCommunicationSendIntent(message);

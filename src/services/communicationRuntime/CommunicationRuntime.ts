@@ -286,6 +286,17 @@ export class CommunicationRuntime {
     return this.persist({ ...draft, status: "cancelled" });
   }
 
+  // Phase K/L -- "what did you just send?" / "was that delivered?".
+  // Scoped to the actor, and to the thread when given, so this never
+  // surfaces another staff member's communications.
+  async mostRecentForActor(actorId: string, threadId?: string | null): Promise<CommunicationRecord | null> {
+    let query = supabaseAdmin.from("oyi_communications").select("*").eq("actor_id", actorId).order("created_at", { ascending: false }).limit(1);
+    if (threadId) query = query.eq("conversation_thread_id", threadId);
+    const { data, error } = await query.maybeSingle();
+    if (error || !data) return null;
+    return rowToRecord(data);
+  }
+
   private async persist(record: CommunicationRecord): Promise<CommunicationRecord> {
     const row = recordToRow(record);
     const { data, error } = await supabaseAdmin.from("oyi_communications").upsert(row, { onConflict: "id" }).select("*").single();

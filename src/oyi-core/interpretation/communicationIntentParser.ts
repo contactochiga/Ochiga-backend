@@ -93,3 +93,17 @@ export function resolveCommunicationRecipientTokenHint(
   }
   return null;
 }
+
+// "What did you just send?" / "was that delivered?" / "did that email
+// go through?" -- Phase K/L, a status lookup against the most recently
+// dispatched communication, not a new send request.
+export function isCommunicationHistoryQuery(rawMessage: string): boolean {
+  const message = text(rawMessage).toLowerCase();
+  if (!message) return false;
+  return (
+    /\b(what did (you|i) (just )?send)\b/.test(message) ||
+    /\b(was (that|it|the (email|message|whatsapp|text)) (sent|delivered))\b/.test(message) ||
+    /\b(did (that|it|the) (email|message|whatsapp|text)?\s*(go through|send|deliver|get sent|get delivered))\b/.test(message) ||
+    /\b(is (that|it) delivered)\b/.test(message)
+  );
+}

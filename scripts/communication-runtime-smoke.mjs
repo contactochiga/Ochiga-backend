@@ -6,7 +6,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "communication-runtime-smoke-service-r
 // Pure-logic parsing/adapter checks only (no ConversationOrchestrator.js
 // import in this process -- see other *-smoke.mjs header notes on the
 // Redis-reconnect hang that import path triggers).
-const { parseCommunicationSendIntent, resolveCommunicationRecipientTokenHint } = await import(
+const { parseCommunicationSendIntent, resolveCommunicationRecipientTokenHint, isCommunicationHistoryQuery } = await import(
   "../dist/oyi-core/interpretation/communicationIntentParser.js"
 );
 const { normalizeToE164 } = await import("../dist/services/communicationRuntime/adapters/WhatsAppAdapter.js");
@@ -56,6 +56,13 @@ assert.deepEqual(resolveCommunicationRecipientTokenHint("+2348100373353", null),
 // "contains digits somewhere in a longer phrase" (production bug: "an
 // SMS to +234..." was previously extracted down to a phone number).
 assert.equal(resolveCommunicationRecipientTokenHint("an SMS to +2348100373353", null), null, "a messy multi-word token must never be treated as a bare phone number");
+
+// ===================== History query detection =====================
+assert.equal(isCommunicationHistoryQuery("what did you just send?"), true);
+assert.equal(isCommunicationHistoryQuery("was that delivered?"), true);
+assert.equal(isCommunicationHistoryQuery("did that email go through?"), true);
+assert.equal(isCommunicationHistoryQuery("email idoko@ochiga.com.ng saying hi"), false, "a send request must never be misread as a status query");
+assert.equal(isCommunicationHistoryQuery("what's the weather"), false);
 assert.deepEqual(
   resolveCommunicationRecipientTokenHint("me", { id: "actor-1", email: "contactochiga@gmail.com" }),
   { email: "contactochiga@gmail.com", user_id: "actor-1" }
