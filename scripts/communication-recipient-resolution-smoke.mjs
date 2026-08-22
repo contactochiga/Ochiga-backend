@@ -81,6 +81,13 @@ assert.equal(isPersonLookupToken("him"), true, "a pronoun also routes through th
 assert.equal(isPersonLookupToken("me"), false, "already resolvable from the token itself");
 assert.equal(isPersonLookupToken("idoko@ochiga.com.ng"), false, "already resolvable from the token itself");
 assert.equal(isPersonLookupToken("+2348100373353"), false, "already resolvable from the token itself");
+// Regression -- found via live testing: "Has HE replied?" ("he", not
+// "him") was misclassified as a fresh-directory-search name instead of
+// a pronoun, causing an ilike substring search that matched unrelated
+// records purely by coincidence (e.g. "he" inside "Check").
+assert.equal(isPronounToken("he"), true);
+assert.equal(isPronounToken("she"), true);
+assert.equal(isPronounToken("they"), true);
 
 // ============================= Disambiguation reply matching =============================
 const candidates = [

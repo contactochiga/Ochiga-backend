@@ -191,17 +191,24 @@ export function resolveCommunicationRecipientTokenHint(
 // rather than being resolvable from the token text alone -- pronouns
 // referring to the person currently "in focus", or a bare name/role
 // phrase ("Daniel", "the Head of Sales", "David Okoro").
+const PRONOUN_TOKENS = ["him", "her", "them", "he", "she", "they"];
+
 export function isPersonLookupToken(recipientToken: string): boolean {
   const token = recipientToken.trim().toLowerCase();
   if (!token) return false;
-  if (["him", "her", "them"].includes(token)) return true;
+  if (PRONOUN_TOKENS.includes(token)) return true;
   if (resolveCommunicationRecipientTokenHint(recipientToken, null)) return false;
   if (token === "me") return false;
+  // A bare 1-2 letter token ("he" already handled above as a pronoun,
+  // but guards any other short leftover) is too short to be a genuine
+  // directory search -- a substring ilike match against it would hit
+  // unrelated records purely by coincidence (e.g. "he" inside "Check").
+  if (token.length < 3) return false;
   return true;
 }
 
 export function isPronounToken(recipientToken: string): boolean {
-  return ["him", "her", "them"].includes(recipientToken.trim().toLowerCase());
+  return PRONOUN_TOKENS.includes(recipientToken.trim().toLowerCase());
 }
 
 // "What did you just send?" / "was that delivered?" / "did that email
