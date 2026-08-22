@@ -62,7 +62,18 @@ const STATUS_KEYS = ["status", "last_run_status", "account_status"];
 // also have an owner and a due-by concept), not Tasks-specific. Purely
 // additive: existing domains that never populate these keys are
 // unaffected.
-const ATTRIBUTE_KEYS = ["status", "priority", "severity", "category", "last_run_status", "account_status", "is_official", "owner", "due_at", "overdue"];
+//
+// "enabled" added in Milestone 2 -- production bug found in live
+// verification: automationOpenFact (OfficeCorporateCapabilityModules.ts)
+// always populated a fact.value.enabled string, but this list never
+// included the key, so extractAttributes() silently dropped it every
+// time. office_automations.write's batch pause/resume then read
+// ref.attributes.enabled as always undefined, which its no-op guard
+// (`currentlyEnabled === intent.canonicalValue`) treated as `false` --
+// meaning EVERY automation, regardless of its real state, was reported
+// as "already paused" the instant a batch pause was attempted, and a
+// resume would have silently recorded the wrong previous_state.
+const ATTRIBUTE_KEYS = ["status", "priority", "severity", "category", "last_run_status", "account_status", "is_official", "owner", "due_at", "overdue", "enabled"];
 
 function extractMetric(value: Record<string, unknown>): { metric: string | null; metric_value: number | null } {
   for (const key of NUMERIC_METRIC_KEYS) {

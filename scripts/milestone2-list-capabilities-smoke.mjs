@@ -9,6 +9,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "milestone2-list-capabilities-smoke-se
 // directly (unit-level, no Supabase/network touched), mutual exclusion
 // against the single-record module verified by construction.
 const { buildOfficeInternalReadCapabilities } = await import("../dist/oyi-core/capabilities/OfficeCorporateCapabilityModules.js");
+const { objectRefFromFact } = await import("../dist/oyi-core/context/resultSetContext.js");
 
 const modules = buildOfficeInternalReadCapabilities();
 function moduleByKey(key) {
@@ -173,6 +174,24 @@ function factsFrom(evidence) {
   const answer = await list.buildReadResponse(emptyCtx, []);
   assert.equal(answer.status, "unavailable");
   assert.ok(!/undefined|null/i.test(answer.answer), "must never leak a raw undefined/null into the answer text");
+}
+
+// ==================== "enabled" attribute regression ====================
+// Production bug found in live verification: automationOpenFact always
+// populated fact.value.enabled, but ATTRIBUTE_KEYS (resultSetContext.ts)
+// never listed "enabled", so extractAttributes() silently dropped it --
+// office_automations.write's batch pause/resume then read
+// ref.attributes.enabled as always undefined, which its no-op guard
+// treated as "always already paused", so a batch pause against a
+// genuinely ACTIVE automation was incorrectly refused every time.
+{
+  const list = moduleByKey("office_automations.query.read");
+  const automations = { items: [{ id: "auto-1", name: "Weekly sweep", enabled: true, trigger_summary: "Weekly on Fri at 09:00", last_run_status: null, last_run_at: null }], total: 1 };
+  const ctx = contextWithSnapshot("show me the automations", "automations", automations);
+  const evidence = await list.collectEvidence(ctx);
+  const fact = evidence[0].payload.fact;
+  const ref = objectRefFromFact(fact);
+  assert.equal(ref.attributes.enabled, "true", "the ref's attributes must actually carry 'enabled' now, not silently drop it");
 }
 
 console.log("milestone2-list-capabilities-smoke: PASS");
