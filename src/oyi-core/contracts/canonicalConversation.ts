@@ -277,6 +277,12 @@ export type CanonicalConversationResponse = {
   // turn can reference what was just verified. See
   // officeAutomationSuggestion.ts.
   last_verified_office_action?: Record<string, unknown> | null;
+  // Oyi Communication Actions Runtime -- same three-state convention as
+  // pending_action_proposal, for a communication awaiting send
+  // confirmation (see communicationProposal.ts). A separate key so a
+  // pending Task/Meeting mutation and a pending communication can be
+  // in flight on the same thread without colliding.
+  pending_communication?: Record<string, unknown> | null;
 };
 
 export type ConversationBuilderKey =
