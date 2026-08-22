@@ -1732,6 +1732,20 @@ router.post("/automations/:id/test", requireOfficeExportKey, async (req: Request
 // index on oyi_communication_events means a duplicate delivery is a
 // no-op insert, not a double-processed event. Never touches CRM lead/
 // contact/opportunity state -- delivery is not evidence of engagement.
+// Meta's real WhatsApp Cloud API error codes for a failed send -- mapped
+// to the canonical failure-reason vocabulary so "template required" is
+// a real, provider-confirmed limitation, not a guess (Phase 2). Source:
+// Meta's documented WhatsApp Business Platform error codes.
+function mapWhatsAppErrorCode(code: unknown): string {
+  const numeric = Number(code);
+  if (numeric === 131047 || numeric === 470) return "template_required"; // outside the 24h customer-service window
+  if (numeric === 131026 || numeric === 131053) return "delivery_failed"; // undeliverable / media error
+  if (numeric === 131021) return "invalid_recipient"; // recipient cannot receive messages
+  if (numeric === 131031 || numeric === 190) return "authentication_failed";
+  if (numeric === 131048 || numeric === 131056) return "rate_limited";
+  return "unknown";
+}
+
 const WHATSAPP_STATUS_TO_CANONICAL: Record<string, string> = {
   sent: "sent",
   delivered: "delivered",
@@ -1749,6 +1763,7 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
     provider_event_type: providerEventType,
     has_provider_message_id: Boolean(providerMessageId),
     status: body.status || null,
+    error_code: body.error_code ?? null,
   });
   if (channel !== "whatsapp" || !providerMessageId) {
     return res.status(200).json({ ok: false, reason: "unsupported_or_missing_fields" });
@@ -1865,6 +1880,10 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
     if (existing && !["failed", "cancelled"].includes(existing.status)) {
       const patch: Record<string, unknown> = { status: canonicalStatus, outcome: canonicalStatus };
       if (canonicalStatus === "delivered") patch.delivered_at = body.occurred_at || new Date().toISOString();
+      if (canonicalStatus === "failed") {
+        patch.failure_reason = mapWhatsAppErrorCode(body.error_code);
+        patch.failure_detail = body.error_title ? String(body.error_title).slice(0, 500) : "WhatsApp delivery failed.";
+      }
       await supabaseAdmin.from("oyi_communications").update(patch).eq("id", existing.id);
     }
     logger.info("communication_webhook_status_processed", { provider_message_id: providerMessageId, canonical_status: canonicalStatus, matched: Boolean(existing) });
