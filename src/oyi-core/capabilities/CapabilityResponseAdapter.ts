@@ -197,5 +197,9 @@ export function capabilityDomainResultToConversationResponse(input: {
     ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "last_verified_office_action")
       ? { last_verified_office_action: input.result.metadata!.last_verified_office_action as Record<string, unknown> | null }
       : {}),
+    // Oyi Communication Actions Runtime -- same three-state convention.
+    ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "pending_communication")
+      ? { pending_communication: input.result.metadata!.pending_communication as Record<string, unknown> | null }
+      : {}),
   };
 }

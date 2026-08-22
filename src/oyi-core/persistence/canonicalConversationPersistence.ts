@@ -19,6 +19,7 @@ import { buildResultSetContext, loadThreadResultSetsContext, type ResultSetConte
 import { loadOfficeActiveContext } from "../context/officeConversationContext";
 import { loadAnyOfficeActionProposal } from "../context/officeActionProposal";
 import { loadLastVerifiedOfficeAction } from "../context/officeAutomationSuggestionStore";
+import { loadAnyCommunicationPointer } from "../context/communicationProposal";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -169,6 +170,10 @@ export async function persistCanonicalConversationTurn(input: {
   // every Friday" to reference the just-verified operation on a LATER
   // turn (see officeAutomationSuggestion.ts).
   lastVerifiedOfficeAction?: Record<string, unknown> | null;
+  // Oyi Communication Actions Runtime -- same undefined/null/value
+  // convention, for a communication awaiting send confirmation (see
+  // communicationProposal.ts).
+  pendingCommunication?: Record<string, unknown> | null;
 }) {
   const { actor, contract, object, request, response, truth } = input;
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
@@ -283,6 +288,12 @@ export async function persistCanonicalConversationTurn(input: {
   } else {
     lastVerifiedOfficeAction = await loadLastVerifiedOfficeAction(threadId, actor?.id || null).catch(() => null);
   }
+  let pendingCommunication: Record<string, unknown> | null = null;
+  if (input.pendingCommunication !== undefined) {
+    pendingCommunication = input.pendingCommunication;
+  } else {
+    pendingCommunication = await loadAnyCommunicationPointer(threadId, actor?.id || null).catch(() => null);
+  }
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
@@ -291,6 +302,7 @@ export async function persistCanonicalConversationTurn(input: {
     business_active_context: businessActiveContext,
     pending_action_proposal: pendingActionProposal,
     last_verified_office_action: lastVerifiedOfficeAction,
+    pending_communication: pendingCommunication,
     conversation_state: {
       version: 1,
       entities: [],

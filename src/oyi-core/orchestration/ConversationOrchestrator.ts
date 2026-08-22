@@ -58,6 +58,13 @@ import {
 } from "../context/officeActionProposal";
 import { buildLastVerifiedOfficeAction } from "../context/officeAutomationSuggestion";
 import type { GovernedActionProposal } from "../../contracts/governedAction";
+import {
+  loadPendingCommunicationPointer,
+  buildPendingCommunicationPointer,
+} from "../context/communicationProposal";
+import { communicationRuntime } from "../../services/communicationRuntime/CommunicationRuntime";
+import type { CommunicationRequest } from "../../contracts/communication";
+import { parseCommunicationSendIntent, resolveCommunicationRecipientTokenHint } from "../interpretation/communicationIntentParser";
 
 let registered = false;
 
@@ -494,6 +501,9 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
       : undefined,
     lastVerifiedOfficeAction: Object.prototype.hasOwnProperty.call(response, "last_verified_office_action")
       ? (response as any).last_verified_office_action
+      : undefined,
+    pendingCommunication: Object.prototype.hasOwnProperty.call(response, "pending_communication")
+      ? (response as any).pending_communication
       : undefined,
   });
   response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
@@ -1018,6 +1028,190 @@ async function handleOfficeActionProposalTurn(
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------
+// Oyi Communication Actions Runtime -- conversational propose/confirm.
+// Execution (CommunicationRuntime.dispatch()) happens on BACKEND itself,
+// not via an Office-frontend PATCH round-trip like
+// handleOfficeActionProposalTurn above -- so confirmation is a single
+// server-side call, not a two-turn propose->execute->verify split. See
+// communication.ts/CommunicationRuntime.ts header notes.
+// ---------------------------------------------------------------------
+
+function resolveCommunicationRecipientHint(
+  recipientToken: string,
+  context: CanonicalConversationRequestContext
+): CommunicationRequest["recipient_hint"] | null {
+  // "him"/"her"/"them" referring to a selected CRM lead/contact would
+  // resolve here -- not yet possible: no Leads/Contacts single-record
+  // continuity slot exists in this codebase today (only operational
+  // record domains -- tasks/meetings/support/automations/portfolio/
+  // partnerships -- have a context slot; none of those are people).
+  // Honest gap, not fabricated -- resolveCommunicationRecipientTokenHint
+  // returns null so the caller asks for an explicit address instead of
+  // inventing one.
+  return resolveCommunicationRecipientTokenHint(recipientToken, context.actor || null);
+}
+
+async function handleCommunicationTurn(
+  context: CanonicalConversationRequestContext,
+  resolvedTurn: ResolvedTurn,
+  tracer: ConversationTracer
+): Promise<ConversationRunResult | null> {
+  if (context.input.surface !== "office_internal" || !context.input.thread_id) return null;
+  const threadId = context.input.thread_id;
+  const actorId = context.actor?.id || null;
+  const message = context.input.message;
+
+  const pending = await loadPendingCommunicationPointer(threadId, actorId);
+  if (pending) {
+    if (isOfficeCancellationText(message)) {
+      await communicationRuntime.cancel(pending.communication_id).catch(() => null);
+      const capability = syntheticOfficeActionCapability("communication.cancelled", "communications");
+      const result: DomainResult = {
+        status: "answered",
+        answer: "Cancelled. Nothing was sent.",
+        presentation_policy: resultPresentation("text"),
+        metadata: { pending_communication: null },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    if (isOfficeConfirmationText(message)) {
+      const draft = await communicationRuntime.loadDraft(pending.communication_id);
+      if (!draft) {
+        const capability = syntheticOfficeActionCapability("communication.confirm_failed", "communications");
+        const result: DomainResult = {
+          status: "answered",
+          answer: "I couldn't find that draft anymore — please ask me to send it again.",
+          presentation_policy: resultPresentation("text"),
+          metadata: { pending_communication: null },
+        };
+        return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      }
+      const authorized = communicationRuntime.authorize(draft, { confirmed: true, confirmationId: pending.communication_id });
+      const { record: finalRecord, result: dispatchResult } = await communicationRuntime.dispatch(authorized);
+      const capability = syntheticOfficeActionCapability("communication.sent", "communications");
+      const channelLabel = finalRecord.channel === "whatsapp" ? "WhatsApp message" : finalRecord.channel === "email" ? "email" : "message";
+      const answer =
+        dispatchResult.status === "sent"
+          ? `Sent. Your ${channelLabel} to ${finalRecord.recipient.email || finalRecord.recipient.whatsapp_phone || finalRecord.recipient.phone} went out.`
+          : `That ${channelLabel} could not be sent (${humanizeFailureReason(dispatchResult.failure_reason)}). Nothing was delivered.`;
+      const result: DomainResult = {
+        status: "answered",
+        answer,
+        presentation_policy: resultPresentation("text"),
+        blocks: [
+          {
+            type: "status",
+            label: dispatchResult.status === "sent" ? "Sent" : "Failed",
+            tone: dispatchResult.status === "sent" ? "positive" : "critical",
+          },
+          {
+            type: "key_value",
+            title: "Communication",
+            items: [
+              { label: "Channel", value: titleCaseWord(finalRecord.channel) },
+              { label: "To", value: finalRecord.recipient.email || finalRecord.recipient.whatsapp_phone || finalRecord.recipient.phone || "—" },
+              ...(finalRecord.subject ? [{ label: "Subject", value: finalRecord.subject }] : []),
+              { label: "Status", value: titleCaseWord(finalRecord.status) },
+            ],
+          },
+        ],
+        metadata: { pending_communication: null },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    // Neither confirm nor cancel while a communication is pending --
+    // fall through to normal routing rather than guessing.
+    return null;
+  }
+
+  const intent = parseCommunicationSendIntent(message);
+  if (!intent) return null;
+
+  const recipientHint = resolveCommunicationRecipientHint(intent.recipientToken, context);
+  if (!recipientHint) {
+    const capability = syntheticOfficeActionCapability("communication.clarification_required", "communications");
+    const result: DomainResult = {
+      status: "answered",
+      answer: `I couldn't tell who to send that to. Give me an explicit email address or phone number (e.g. "email idoko@ochiga.com.ng saying ...").`,
+      presentation_policy: resultPresentation("text"),
+      blocks: [{ type: "limitation", text: "Resolving \"him/her/them\" against a previously-viewed CRM lead or contact isn't supported yet — no lead/contact selection exists in this conversation surface." }],
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  const request: CommunicationRequest = {
+    conversation_thread_id: threadId,
+    actor_id: actorId,
+    surface: "office_internal",
+    source: "conversation",
+    intent: "office_conversation_message",
+    channel: intent.channel,
+    recipient_hint: recipientHint,
+    subject: intent.body.length > 60 ? `${intent.body.slice(0, 57)}...` : intent.body,
+    body: intent.body,
+  };
+
+  const plan = await communicationRuntime.plan(request);
+  if (plan.status === "clarification_required") {
+    const capability = syntheticOfficeActionCapability("communication.clarification_required", "communications");
+    const result: DomainResult = {
+      status: "answered",
+      answer: `I need a bit more to send that: ${plan.reason}`,
+      presentation_policy: resultPresentation("text"),
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+  if (plan.status === "rejected") {
+    const capability = syntheticOfficeActionCapability("communication.rejected", "communications");
+    const result: DomainResult = {
+      status: "answered",
+      answer: `I can't send that: ${humanizeFailureReason(plan.reason)}.`,
+      presentation_policy: resultPresentation("text"),
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+
+  const record = plan.record;
+  const pointer = buildPendingCommunicationPointer({
+    communicationId: record.communication_id,
+    threadId,
+    actorId: actorId || "",
+    channel: record.channel,
+    summary: record.subject || text(record.body).slice(0, 80),
+  });
+  const capability = syntheticOfficeActionCapability("communication.proposed", "communications");
+  const channelLabel = record.channel === "whatsapp" ? "WhatsApp message" : record.channel === "email" ? "email" : "message";
+  const result: DomainResult = {
+    status: "awaiting_confirmation",
+    answer: `Ready to send this ${channelLabel} to ${record.recipient.email || record.recipient.whatsapp_phone || record.recipient.phone}. Reply "yes" to send, or "no" to cancel.`,
+    presentation_policy: resultPresentation("approval"),
+    blocks: [
+      {
+        type: "key_value",
+        title: "Draft communication",
+        items: [
+          { label: "Channel", value: titleCaseWord(record.channel) },
+          { label: "To", value: record.recipient.email || record.recipient.whatsapp_phone || record.recipient.phone || "—" },
+          ...(record.subject ? [{ label: "Subject", value: record.subject }] : []),
+          { label: "Message", value: record.body },
+        ],
+      },
+    ],
+    metadata: { pending_communication: pointer },
+  };
+  return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+}
+
+function titleCaseWord(value: string) {
+  return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function humanizeFailureReason(reason: string | null) {
+  if (!reason) return "an unknown error";
+  return String(reason).replace(/_/g, " ");
 }
 
 function factFromHydration(hydration: Awaited<ReturnType<typeof hydrateCanonicalTarget>>): IntelligenceFact | null {
@@ -1671,6 +1865,24 @@ export class ConversationOrchestrator {
     if (officeActionResponse) {
       tracer.finish({ thread_id: officeActionResponse.thread_id || null, response_state: officeActionResponse.persistence_saved === false ? "unsaved" : "returned" });
       return officeActionResponse;
+    }
+    // Oyi Communication Actions Runtime -- same precedence tier as the
+    // governed action proposal check above (a separate mechanism; a
+    // pending communication and a pending Task/Meeting mutation can
+    // coexist, checked independently). Returns null when there's
+    // nothing to handle.
+    const communicationResponse = await handleCommunicationTurn(context, resolvedTurn, tracer).catch((error) => {
+      logger.warn("oyi_communication_turn_failed", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
+    if (communicationResponse) {
+      tracer.finish({ thread_id: communicationResponse.thread_id || null, response_state: communicationResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return communicationResponse;
     }
     // Generic follow-up resolution runs before normal capability routing —
     // a pending device-action confirmation (handled above) always wins, but

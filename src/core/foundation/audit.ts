@@ -37,6 +37,8 @@ export const FOUNDATION_EVENT_NAMES = [
   "auth.invite.activation_failed",
   "resident.invite.revoked",
   "resident.invite.resent",
+  "communication.sent",
+  "communication.failed",
 ] as const;
 
 function requestIp(req?: Request) {

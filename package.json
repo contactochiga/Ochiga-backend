@@ -28,6 +28,7 @@
     "smoke:milestone2-ordinal-mutation-and-filter-fix": "npm run build && node scripts/milestone2-ordinal-mutation-and-filter-fix-smoke.mjs",
     "smoke:office-export-auth-compat": "npm run build && node scripts/office-export-auth-compat-smoke.mjs",
     "smoke:communications-office-auth-compat": "npm run build && node scripts/communications-office-auth-compat-smoke.mjs",
+    "smoke:communication-runtime": "npm run build && node scripts/communication-runtime-smoke.mjs",
     "smoke:communications-layer": "npm run build && node scripts/communications-layer-smoke.mjs",
     "smoke:communications-handoff": "npm run build && node scripts/communications-durability-handoff-smoke.mjs",
     "smoke:communications-speech-visual": "npm run build && node scripts/communications-speech-visual-smoke.mjs",
