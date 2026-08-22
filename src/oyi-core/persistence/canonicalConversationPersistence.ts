@@ -20,6 +20,7 @@ import { loadOfficeActiveContext } from "../context/officeConversationContext";
 import { loadAnyOfficeActionProposal } from "../context/officeActionProposal";
 import { loadLastVerifiedOfficeAction } from "../context/officeAutomationSuggestionStore";
 import { loadAnyCommunicationPointer } from "../context/communicationProposal";
+import { loadPersonContext, loadPendingRecipientDisambiguation } from "../context/personContext";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -174,6 +175,9 @@ export async function persistCanonicalConversationTurn(input: {
   // convention, for a communication awaiting send confirmation (see
   // communicationProposal.ts).
   pendingCommunication?: Record<string, unknown> | null;
+  // Generic person/recipient continuity (see personContext.ts).
+  resolvedPersonContext?: Record<string, unknown> | null;
+  pendingRecipientDisambiguation?: Record<string, unknown> | null;
 }) {
   const { actor, contract, object, request, response, truth } = input;
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
@@ -294,6 +298,20 @@ export async function persistCanonicalConversationTurn(input: {
   } else {
     pendingCommunication = await loadAnyCommunicationPointer(threadId, actor?.id || null).catch(() => null);
   }
+  let resolvedPersonContext: Record<string, unknown> | null = null;
+  if (input.resolvedPersonContext !== undefined) {
+    resolvedPersonContext = input.resolvedPersonContext;
+  } else {
+    const stored = await loadPersonContext(threadId, actor?.id || null).catch(() => null);
+    resolvedPersonContext = stored as unknown as Record<string, unknown> | null;
+  }
+  let pendingRecipientDisambiguation: Record<string, unknown> | null = null;
+  if (input.pendingRecipientDisambiguation !== undefined) {
+    pendingRecipientDisambiguation = input.pendingRecipientDisambiguation;
+  } else {
+    const stored = await loadPendingRecipientDisambiguation(threadId, actor?.id || null).catch(() => null);
+    pendingRecipientDisambiguation = stored as unknown as Record<string, unknown> | null;
+  }
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
@@ -303,6 +321,8 @@ export async function persistCanonicalConversationTurn(input: {
     pending_action_proposal: pendingActionProposal,
     last_verified_office_action: lastVerifiedOfficeAction,
     pending_communication: pendingCommunication,
+    resolved_person_context: resolvedPersonContext,
+    pending_recipient_disambiguation: pendingRecipientDisambiguation,
     conversation_state: {
       version: 1,
       entities: [],

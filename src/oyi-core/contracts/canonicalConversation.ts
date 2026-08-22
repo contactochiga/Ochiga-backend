@@ -283,6 +283,14 @@ export type CanonicalConversationResponse = {
   // pending Task/Meeting mutation and a pending communication can be
   // in flight on the same thread without colliding.
   pending_communication?: Record<string, unknown> | null;
+  // Generic person/recipient continuity (see personContext.ts). Same
+  // three-state convention -- the person currently "in focus" for this
+  // thread, so "email him"/"whatsapp her" on a later turn resolves
+  // without the name being repeated.
+  resolved_person_context?: Record<string, unknown> | null;
+  // Short-TTL state while Oyi is waiting for the user to disambiguate
+  // between multiple plausible name matches.
+  pending_recipient_disambiguation?: Record<string, unknown> | null;
 };
 
 export type ConversationBuilderKey =
