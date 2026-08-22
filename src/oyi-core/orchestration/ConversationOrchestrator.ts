@@ -1068,7 +1068,7 @@ function draftCommunicationResult(record: CommunicationRecord, pointer: ReturnTy
   const channelLabel = record.channel === "whatsapp" ? "WhatsApp message" : record.channel === "email" ? "email" : record.channel === "voice_call" ? "call" : "message";
   return {
     status: "awaiting_confirmation",
-    answer: `Ready to send this ${channelLabel} to ${record.recipient.email || record.recipient.whatsapp_phone || record.recipient.phone}. Reply "yes" to send, or "no" to cancel.`,
+    answer: `Ready to send this ${channelLabel} to ${recipientDisplayAddress(record.recipient, record.channel)}. Reply "yes" to send, or "no" to cancel.`,
     presentation_policy: resultPresentation("approval"),
     blocks: [
       {
@@ -1076,7 +1076,7 @@ function draftCommunicationResult(record: CommunicationRecord, pointer: ReturnTy
         title: "Draft communication",
         items: [
           { label: "Channel", value: titleCaseWord(record.channel) },
-          { label: "To", value: record.recipient.email || record.recipient.whatsapp_phone || record.recipient.phone || "—" },
+          { label: "To", value: recipientDisplayAddress(record.recipient, record.channel) },
           ...(record.subject ? [{ label: "Subject", value: record.subject }] : []),
           { label: "Message", value: record.body },
         ],
@@ -1257,7 +1257,7 @@ async function handleCommunicationTurn(
       const channelLabel = finalRecord.channel === "whatsapp" ? "WhatsApp message" : finalRecord.channel === "email" ? "email" : "message";
       const answer =
         dispatchResult.status === "sent"
-          ? `Sent. Your ${channelLabel} to ${finalRecord.recipient.email || finalRecord.recipient.whatsapp_phone || finalRecord.recipient.phone} went out.`
+          ? `Sent. Your ${channelLabel} to ${recipientDisplayAddress(finalRecord.recipient, finalRecord.channel)} went out.`
           : `That ${channelLabel} could not be sent (${humanizeFailureReason(dispatchResult.failure_reason)}). Nothing was delivered.`;
       const result: DomainResult = {
         status: "answered",
@@ -1274,7 +1274,7 @@ async function handleCommunicationTurn(
             title: "Communication",
             items: [
               { label: "Channel", value: titleCaseWord(finalRecord.channel) },
-              { label: "To", value: finalRecord.recipient.email || finalRecord.recipient.whatsapp_phone || finalRecord.recipient.phone || "—" },
+              { label: "To", value: recipientDisplayAddress(finalRecord.recipient, finalRecord.channel) },
               ...(finalRecord.subject ? [{ label: "Subject", value: finalRecord.subject }] : []),
               { label: "Status", value: titleCaseWord(finalRecord.status) },
             ],
@@ -1332,7 +1332,7 @@ async function handleCommunicationTurn(
       };
       return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
     }
-    const to = recent.recipient.email || recent.recipient.whatsapp_phone || recent.recipient.phone || "—";
+    const to = recipientDisplayAddress(recent.recipient, recent.channel);
     const statusLine =
       recent.status === "sent"
         ? `Sent to ${to} via ${titleCaseWord(recent.channel)}.`
@@ -1477,6 +1477,18 @@ async function handleCommunicationTurn(
 
 function titleCaseWord(value: string) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// The recipient object often carries more than one address (a resolved
+// CRM lead can have email AND whatsapp_phone AND phone at once) -- the
+// address actually reachable on the record's OWN channel must be shown,
+// not whichever field happens to be non-null first. A channel-reuse
+// send ("send it on WhatsApp too") is exactly the case where email is
+// set but the send genuinely went out over WhatsApp.
+function recipientDisplayAddress(recipient: CommunicationRecord["recipient"], channel: string): string {
+  if (channel === "whatsapp") return recipient.whatsapp_phone || recipient.phone || recipient.email || "—";
+  if (channel === "sms" || channel === "voice_call") return recipient.phone || recipient.whatsapp_phone || recipient.email || "—";
+  return recipient.email || recipient.whatsapp_phone || recipient.phone || "—";
 }
 
 function humanizeFailureReason(reason: string | null) {
