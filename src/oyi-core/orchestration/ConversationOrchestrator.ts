@@ -63,6 +63,7 @@ import {
   buildPendingCommunicationPointer,
 } from "../context/communicationProposal";
 import { communicationRuntime } from "../../services/communicationRuntime/CommunicationRuntime";
+import { listApprovedWhatsAppTemplates } from "../../services/communicationRuntime/adapters/WhatsAppAdapter";
 import type { CommunicationRequest, CommunicationRecord, CommunicationRecipient } from "../../contracts/communication";
 import {
   parseCommunicationSendIntent,
@@ -1168,6 +1169,65 @@ function disambiguationQuestion(query: string, candidates: ResolvedRecipient[]):
   return `I found ${candidates.length} ${candidates.length === 1 ? "match" : "matches"} for "${query}". Do you mean ${options}?`;
 }
 
+// Phase 2 -- when a WhatsApp send failed specifically because the
+// recipient is outside Meta's 24h customer-service window, offer the
+// legitimate fallback (an approved template) instead of just reporting
+// the provider error. Never invents a template name -- queries Meta's
+// own approved list; a single match is proposed directly (still
+// requires confirmation, same governed flow as any other send); 2+
+// matches are named so the user can pick; 0 is reported honestly as a
+// real remaining provider limitation.
+async function buildTemplateRetryOffer(
+  failedRecord: CommunicationRecord,
+  threadId: string,
+  actorId: string
+): Promise<{ answerSuffix: string; extraMetadata: Record<string, unknown> }> {
+  const templates = await listApprovedWhatsAppTemplates();
+  if (!templates.length) {
+    return { answerSuffix: " No approved WhatsApp template is available to retry with — that's a genuine provider-side limitation, not something I can work around.", extraMetadata: {} };
+  }
+  if (templates.length > 1) {
+    const names = templates.map((t) => t.name).join(", ");
+    return { answerSuffix: ` I can retry using an approved template instead — available: ${names}. Say which one to use.`, extraMetadata: {} };
+  }
+  const template = templates[0];
+  const request: CommunicationRequest = {
+    conversation_thread_id: threadId,
+    actor_id: actorId,
+    surface: "office_internal",
+    source: "conversation",
+    intent: "whatsapp_template_retry",
+    channel: "whatsapp",
+    recipient_hint: {
+      email: failedRecord.recipient.email,
+      phone: failedRecord.recipient.phone,
+      whatsapp_phone: failedRecord.recipient.whatsapp_phone,
+      contact_id: failedRecord.recipient.contact_id,
+      lead_id: failedRecord.recipient.lead_id,
+      user_id: failedRecord.recipient.user_id,
+      organization_id: failedRecord.recipient.organization_id,
+      name: failedRecord.recipient.name,
+    },
+    template_id: `${template.name}@${template.language}`,
+    body: `[Approved template: ${template.name}]`,
+  };
+  const plan = await communicationRuntime.plan(request);
+  if (plan.status !== "ready") {
+    return { answerSuffix: ` I found an approved template ("${template.name}") but couldn't prepare it to resend (${plan.status === "rejected" ? humanizeFailureReason(plan.reason) : plan.reason}).`, extraMetadata: {} };
+  }
+  const pointer = buildPendingCommunicationPointer({
+    communicationId: plan.record.communication_id,
+    threadId,
+    actorId,
+    channel: "whatsapp",
+    summary: `Template retry: ${template.name}`,
+  });
+  return {
+    answerSuffix: ` I can retry using the approved "${template.name}" template instead. Reply "yes" to send it.`,
+    extraMetadata: { pending_communication: pointer },
+  };
+}
+
 async function handleCommunicationTurn(
   context: CanonicalConversationRequestContext,
   resolvedTurn: ResolvedTurn,
@@ -1334,7 +1394,7 @@ async function handleCommunicationTurn(
       return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
     }
     const to = recipientDisplayAddress(recent.recipient, recent.channel);
-    const statusLine =
+    let statusLine =
       recent.status === "sent"
         ? `Sent to ${to} via ${titleCaseWord(recent.channel)}.`
         : recent.status === "failed"
@@ -1342,6 +1402,12 @@ async function handleCommunicationTurn(
         : recent.status === "cancelled"
         ? `That ${titleCaseWord(recent.channel)} to ${to} was cancelled before it sent.`
         : `That ${titleCaseWord(recent.channel)} to ${to} is still ${titleCaseWord(recent.status)}.`;
+    let templateOfferMetadata: Record<string, unknown> = {};
+    if (recent.channel === "whatsapp" && recent.status === "failed" && recent.failure_reason === "template_required") {
+      const offer = await buildTemplateRetryOffer(recent, threadId, actorId);
+      statusLine += offer.answerSuffix;
+      templateOfferMetadata = offer.extraMetadata;
+    }
     const result: DomainResult = {
       status: "answered",
       answer: statusLine,
@@ -1359,6 +1425,7 @@ async function handleCommunicationTurn(
           ],
         },
       ],
+      metadata: templateOfferMetadata,
     };
     return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
   }
