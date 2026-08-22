@@ -1718,4 +1718,68 @@ router.post("/automations/:id/test", requireOfficeExportKey, async (req: Request
   }
 });
 
+// Communication delivery/outcome normalization (Phase 7/9 of the
+// Communication Runtime programme). Office's EXISTING WhatsApp webhook
+// (/webhooks/whatsapp, already live and receiving real Meta callbacks)
+// forwards status events here, in the NORMAL Office->Backend direction
+// (requireOfficeExportKey, same as every other officeExport.ts route) --
+// this is not a new inbound webhook surface, just the missing link that
+// turns an already-arriving provider event into a canonical
+// oyi_communication_events row and an oyi_communications status update.
+// Idempotent by construction: the (provider, provider_event_id) unique
+// index on oyi_communication_events means a duplicate delivery is a
+// no-op insert, not a double-processed event. Never touches CRM lead/
+// contact/opportunity state -- delivery is not evidence of engagement.
+const WHATSAPP_STATUS_TO_CANONICAL: Record<string, string> = {
+  sent: "sent",
+  delivered: "delivered",
+  read: "read",
+  failed: "failed",
+};
+
+router.post("/communications/webhook-event", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const body = req.body || {};
+  const channel = String(body.channel || "");
+  const providerMessageId = String(body.provider_message_id || "").trim();
+  const providerEventType = String(body.provider_event_type || "");
+  if (channel !== "whatsapp" || !providerMessageId) {
+    return res.status(200).json({ ok: false, reason: "unsupported_or_missing_fields" });
+  }
+  const canonicalStatus = WHATSAPP_STATUS_TO_CANONICAL[String(body.status || "").toLowerCase()];
+  if (!canonicalStatus) {
+    return res.status(200).json({ ok: false, reason: "unrecognized_status" });
+  }
+  try {
+    const eventId = `whatsapp:${providerMessageId}:${canonicalStatus}`;
+    const { error: eventError } = await supabaseAdmin.from("oyi_communication_events").insert({
+      communication_id: null,
+      event_type: `communication.${canonicalStatus}`,
+      channel: "whatsapp",
+      provider: "whatsapp_cloud_api",
+      provider_event_id: eventId,
+      occurred_at: body.occurred_at || new Date().toISOString(),
+      metadata: { provider_event_type: providerEventType, provider_message_id: providerMessageId },
+    } as any);
+    // A unique-constraint violation here means this exact status event
+    // was already recorded -- idempotent no-op, not an error.
+    if (eventError && !String(eventError.message || "").toLowerCase().includes("duplicate")) {
+      throw eventError;
+    }
+    const { data: existing } = await supabaseAdmin
+      .from("oyi_communications")
+      .select("id,status")
+      .eq("provider_message_id", providerMessageId)
+      .eq("channel", "whatsapp")
+      .maybeSingle();
+    if (existing && !["failed", "cancelled"].includes(existing.status)) {
+      const patch: Record<string, unknown> = { status: canonicalStatus, outcome: canonicalStatus };
+      if (canonicalStatus === "delivered") patch.delivered_at = body.occurred_at || new Date().toISOString();
+      await supabaseAdmin.from("oyi_communications").update(patch).eq("id", existing.id);
+    }
+    return res.status(200).json({ ok: true, matched: Boolean(existing) });
+  } catch (err: any) {
+    return res.status(200).json({ ok: false, error: err?.message || "webhook_event_processing_failed" });
+  }
+});
+
 export default router;
