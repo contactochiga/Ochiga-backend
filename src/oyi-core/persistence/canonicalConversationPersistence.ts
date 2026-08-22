@@ -21,6 +21,7 @@ import { loadAnyOfficeActionProposal } from "../context/officeActionProposal";
 import { loadLastVerifiedOfficeAction } from "../context/officeAutomationSuggestionStore";
 import { loadAnyCommunicationPointer } from "../context/communicationProposal";
 import { loadPersonContext, loadPendingRecipientDisambiguation } from "../context/personContext";
+import { loadPendingGoalPointer } from "../context/goalProposal";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -178,6 +179,9 @@ export async function persistCanonicalConversationTurn(input: {
   // Generic person/recipient continuity (see personContext.ts).
   resolvedPersonContext?: Record<string, unknown> | null;
   pendingRecipientDisambiguation?: Record<string, unknown> | null;
+  // Oyi Autonomous Work Runtime -- same undefined/null/value convention,
+  // for a goal awaiting start confirmation (see goalProposal.ts).
+  pendingGoal?: Record<string, unknown> | null;
 }) {
   const { actor, contract, object, request, response, truth } = input;
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
@@ -312,6 +316,13 @@ export async function persistCanonicalConversationTurn(input: {
     const stored = await loadPendingRecipientDisambiguation(threadId, actor?.id || null).catch(() => null);
     pendingRecipientDisambiguation = stored as unknown as Record<string, unknown> | null;
   }
+  let pendingGoal: Record<string, unknown> | null = null;
+  if (input.pendingGoal !== undefined) {
+    pendingGoal = input.pendingGoal;
+  } else {
+    const stored = await loadPendingGoalPointer(threadId, actor?.id || null).catch(() => null);
+    pendingGoal = stored as unknown as Record<string, unknown> | null;
+  }
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
@@ -323,6 +334,7 @@ export async function persistCanonicalConversationTurn(input: {
     pending_communication: pendingCommunication,
     resolved_person_context: resolvedPersonContext,
     pending_recipient_disambiguation: pendingRecipientDisambiguation,
+    pending_goal: pendingGoal,
     conversation_state: {
       version: 1,
       entities: [],

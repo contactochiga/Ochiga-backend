@@ -291,6 +291,11 @@ export type CanonicalConversationResponse = {
   // Short-TTL state while Oyi is waiting for the user to disambiguate
   // between multiple plausible name matches.
   pending_recipient_disambiguation?: Record<string, unknown> | null;
+  // Oyi Autonomous Work Runtime -- same three-state convention, for a
+  // goal awaiting start confirmation (see goalProposal.ts). A separate
+  // key so a pending goal and a pending communication/Task mutation can
+  // be in flight on the same thread without colliding.
+  pending_goal?: Record<string, unknown> | null;
 };
 
 export type ConversationBuilderKey =

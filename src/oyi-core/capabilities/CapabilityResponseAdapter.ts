@@ -207,5 +207,10 @@ export function capabilityDomainResultToConversationResponse(input: {
     ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "pending_recipient_disambiguation")
       ? { pending_recipient_disambiguation: input.result.metadata!.pending_recipient_disambiguation as Record<string, unknown> | null }
       : {}),
+    // Oyi Autonomous Work Runtime -- same three-state convention, for a
+    // goal awaiting start confirmation (see goalProposal.ts).
+    ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "pending_goal")
+      ? { pending_goal: input.result.metadata!.pending_goal as Record<string, unknown> | null }
+      : {}),
   };
 }

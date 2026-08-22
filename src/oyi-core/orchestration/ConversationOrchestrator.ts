@@ -545,6 +545,9 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
     pendingRecipientDisambiguation: Object.prototype.hasOwnProperty.call(response, "pending_recipient_disambiguation")
       ? (response as any).pending_recipient_disambiguation
       : undefined,
+    pendingGoal: Object.prototype.hasOwnProperty.call(response, "pending_goal")
+      ? (response as any).pending_goal
+      : undefined,
   });
   response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
   response.persistence_saved = Boolean(persistedThreadId);
