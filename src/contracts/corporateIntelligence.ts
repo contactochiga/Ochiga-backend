@@ -429,15 +429,14 @@ export type OfficeInternalOyiCoreRequest = {
   // one rebuilt entry per child here (same shape as task_context, no
   // safe_summary required) so the following VERIFY turn can check each
   // child independently instead of assuming a single selected record.
-  task_batch_context: Array<{
-    task_ref: string | null;
-    title?: string | null;
-    status?: string | null;
-    priority?: string | null;
-    owner?: string | null;
-    due_at?: string | null;
-    overdue?: boolean;
-  }> | null;
+  //
+  // Milestone 2 -- widened from a Task-only shape to a generic record.
+  // Each domain's own *OyiContext() (office.js) keys its ref by a
+  // different field name (task_ref/support_case_ref/automation_ref/
+  // meeting_ref/portfolio_ref/partnership_ref); a Task-only type here
+  // masked a real bug where officeExport.ts's normalizer silently
+  // dropped every non-Task entry (see that file's own note on this).
+  task_batch_context: Array<Record<string, unknown>> | null;
   // Phase 4, PR 5 -- lifecycle precision. Office reports a client-side
   // PATCH failure (network error, permission denial at Office's own
   // layer) directly rather than leaving Oyi Core to assume success or
