@@ -228,7 +228,26 @@ export class CommunicationRuntime {
     };
   }
 
+  // Idempotency guard -- a retry after a client timeout (the confirm
+  // request genuinely reached the server and dispatched, but the
+  // response was lost) must never send the same email/message twice.
+  // The authoritative source of truth is the DB row's CURRENT status,
+  // not the in-memory record the caller passed in -- re-read it first.
   async dispatch(record: CommunicationRecord): Promise<{ record: CommunicationRecord; result: CommunicationDispatchResult }> {
+    const current = await this.verify(record.communication_id);
+    if (current && (current.status === "sent" || current.status === "sending" || current.status === "delivered" || current.status === "read")) {
+      return {
+        record: current,
+        result: {
+          status: current.status === "sending" ? "failed" : "sent",
+          provider: current.provider,
+          provider_message_id: current.provider_message_id,
+          failure_reason: current.status === "sending" ? "provider_unavailable" : null,
+          failure_detail: current.status === "sending" ? "A send for this communication is already in progress." : null,
+          delivery_metadata: current.delivery_metadata,
+        },
+      };
+    }
     const persisted = await this.persist({ ...record, status: "sending" });
     const adapter = this.adapterFor(persisted.channel);
     if (!adapter.isConfigured()) {

@@ -197,4 +197,31 @@ const { result: smsDispatch } = await runtime.dispatch({
 assert.equal(smsDispatch.status, "failed");
 assert.equal(smsDispatch.failure_reason, "not_configured");
 
+// ========================= Idempotency (Phase W, mandatory) =========================
+// A retry after a client timeout (the confirm request genuinely reached
+// the server and dispatched, but the response was lost) must never send
+// the same email/message twice. verify() is monkey-patched here since
+// this offline smoke run has no live Supabase to persist a real "sent"
+// row against -- the guard logic itself (dispatch() re-checking the
+// authoritative DB status before calling the adapter) is what's under
+// test, not persistence.
+{
+  const idempotentRuntime = new CommunicationRuntime();
+  let sendCallCount = 0;
+  idempotentRuntime.adapterFor = () => ({ isConfigured: () => true, send: async () => { sendCallCount += 1; return { status: "sent", provider: "resend", provider_message_id: "should-not-be-called-twice", failure_reason: null, failure_detail: null, delivery_metadata: null }; } });
+  idempotentRuntime.verify = async () => ({
+    communication_id: "already-sent-id",
+    channel: "email",
+    status: "sent",
+    provider: "resend",
+    provider_message_id: "original-send-id",
+    delivery_metadata: null,
+    recipient: { email: "a@b.com" },
+  });
+  const { result: dupe } = await idempotentRuntime.dispatch({ communication_id: "already-sent-id", channel: "email" });
+  assert.equal(dupe.status, "sent");
+  assert.equal(dupe.provider_message_id, "original-send-id", "a retry must report the ORIGINAL send's provider id, not attempt a new send");
+  assert.equal(sendCallCount, 0, "adapter.send() must never be called again for an already-sent communication");
+}
+
 console.log("communication-runtime-smoke: PASS");
