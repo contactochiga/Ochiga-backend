@@ -142,7 +142,7 @@ const officeWorkflowActor = {
   permission_scopes: [],
 } as unknown as AuthUser;
 
-function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInternalOyiCoreRequest {
+export function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInternalOyiCoreRequest {
   const staff = recordOf(body.staff);
   const page = recordOf(body.page_context);
   const crm = recordOf(body.crm_context);
@@ -229,21 +229,29 @@ function normalizeOfficeInternalRequest(body: any, requestId: string): OfficeInt
       due_at: safeText(task.due_at) || null,
       overdue: Boolean(task.overdue),
     } : null,
+    // Milestone 2 bug found in live production verification: this used
+    // to hardcode the remap to Task's own field shape (task_ref/title/
+    // status/priority/owner/due_at/overdue) and then FILTER OUT any
+    // entry lacking task_ref -- which is every non-Task domain's entry,
+    // since each domain's own *OyiContext() (office.js) keys its ref by
+    // a different field name entirely (support_case_ref/automation_ref/
+    // meeting_ref/portfolio_ref/partnership_ref). Every batch confirm
+    // for a non-Task domain silently arrived at Backend with an EMPTY
+    // task_batch_context regardless of what Office actually sent,
+    // making respondFromBatchVerification (ConversationOrchestrator.ts)
+    // report 0/N verified even though the underlying PATCH had
+    // genuinely succeeded (confirmed directly against the API).
+    // Generalized to a plain pass-through of whatever object shape each
+    // domain's own context builder produced -- recordOf() already
+    // guarantees a safe plain object per entry (same helper used for
+    // every other *_context field on this same request), and this is
+    // an authenticated office_internal-only route where these entries
+    // are Office's own already-computed output, not raw user input.
     task_batch_context: Array.isArray(body.task_batch_context)
       ? body.task_batch_context
-          .map((item: any) => {
-            const entry = recordOf(item);
-            return {
-              task_ref: safeText(entry.task_ref) || null,
-              title: safeText(entry.title).slice(0, 180) || null,
-              status: safeText(entry.status) || null,
-              priority: safeText(entry.priority) || null,
-              owner: safeText(entry.owner) || null,
-              due_at: safeText(entry.due_at) || null,
-              overdue: Boolean(entry.overdue),
-            };
-          })
-          .filter((entry: { task_ref: string | null }) => Boolean(entry.task_ref))
+          .slice(0, 50)
+          .map((item: any) => recordOf(item))
+          .filter((entry: Record<string, unknown>) => Object.keys(entry).length > 0)
       : null,
     execution_failed: Boolean(body.execution_failed),
     execution_failure_reason: safeText(body.execution_failure_reason).slice(0, 300) || null,
