@@ -1397,6 +1397,10 @@ async function handleCommunicationTurn(
     let statusLine =
       recent.status === "sent"
         ? `Sent to ${to} via ${titleCaseWord(recent.channel)}.`
+        : recent.status === "delivered"
+        ? `Delivered to ${to} via ${titleCaseWord(recent.channel)}.`
+        : recent.status === "read"
+        ? `Delivered and read by ${to} via ${titleCaseWord(recent.channel)}.`
         : recent.status === "failed"
         ? `That ${titleCaseWord(recent.channel)} to ${to} failed to send (${humanizeFailureReason(recent.failure_reason)}).`
         : recent.status === "cancelled"
