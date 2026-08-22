@@ -3,9 +3,8 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
 import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
 import { logger } from "../observability/logger";
-import { computeThreadReference } from "../services/communicationRuntime/CommunicationRuntime";
-import { goalRuntime } from "../services/goalRuntime/GoalRuntime";
-import { claimAndEvaluateGoal } from "../services/goalRuntime/goalScheduler";
+import { processInboundEvent } from "../services/communicationRuntime/inboundEventPipeline";
+import type { CanonicalInboundCommunicationEvent } from "../contracts/inboundCommunicationEvent";
 import type { AuthUser } from "../middleware/auth";
 import {
   officeCredentialTimingSafeEqual,
@@ -1778,90 +1777,45 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
       return res.status(200).json({ ok: false, reason: "missing_sender" });
     }
     try {
-      // Idempotency -- a Meta webhook retry must never create a second
-      // inbound row for the same provider message id.
-      const { data: existingInbound } = await supabaseAdmin
-        .from("oyi_communications")
-        .select("id")
-        .eq("provider_message_id", providerMessageId)
-        .eq("channel", "whatsapp")
-        .eq("direction", "inbound")
-        .maybeSingle();
-      if (existingInbound) {
-        logger.info("communication_webhook_inbound_duplicate", { provider_message_id: providerMessageId });
-        return res.status(200).json({ ok: true, duplicate: true });
-      }
-      const threadReference = computeThreadReference("whatsapp", {
-        contact_id: null,
-        lead_id: null,
-        user_id: null,
-        organization_id: null,
-        name: null,
-        email: null,
-        phone: null,
-        whatsapp_phone: from,
-      });
-      // Correlate to the most recent OUTBOUND message on the same thread,
-      // if any, so a reply can be traced back to what prompted it.
-      const { data: lastOutbound } = await supabaseAdmin
-        .from("oyi_communications")
-        .select("id")
-        .eq("thread_reference", threadReference)
-        .eq("direction", "outbound")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const now = new Date().toISOString();
-      const { error: insertError } = await supabaseAdmin.from("oyi_communications").insert({
-        correlation_id: `inbound-${providerMessageId}`,
-        surface: "whatsapp_inbound",
-        source: "inbound_webhook",
-        source_record_type: body.lead_id ? "lead" : null,
-        source_record_id: body.lead_id || null,
-        intent: "inbound_reply",
-        channel: "whatsapp",
-        direction: "inbound",
-        recipient_whatsapp_phone: from,
-        recipient_lead_id: body.lead_id || null,
-        recipient_resolution_source: body.lead_id ? "selected_record" : "explicit_address",
-        body: String(body.text || ""),
-        plain_text: String(body.text || ""),
-        reply_to_message_id: lastOutbound?.id || null,
-        thread_reference: threadReference,
-        priority: "normal",
-        schedule_mode: "now",
-        requires_confirmation: false,
-        permission_scope: "communication.receive",
-        risk_class: "low_risk_action",
+      // Thin normalization into the ONE canonical inbound event contract
+      // -- everything else (atomic persist, classification, opt-out
+      // governance, decision-trail logging, goal wake) lives in
+      // inboundEventPipeline.ts, shared by every provider, not
+      // WhatsApp-specific business logic bolted onto this route.
+      const leadId = body.lead_id ? String(body.lead_id) : null;
+      const canonicalEvent: CanonicalInboundCommunicationEvent = {
         provider: "whatsapp_cloud_api",
-        provider_message_id: providerMessageId,
-        status: "delivered",
-        outcome: "received",
-        created_at: body.occurred_at || now,
-        delivered_at: body.occurred_at || now,
-      } as any);
-      if (insertError) throw insertError;
+        provider_event_id: providerMessageId,
+        channel: "whatsapp",
+        sender_identifier: from,
+        recipient_business_identifier: body.phone_number_id ? String(body.phone_number_id) : null,
+        resolved_contact_id: null,
+        resolved_lead_id: leadId,
+        resolved_customer_id: null,
+        organization_id: null,
+        thread_reference: null,
+        related_opportunity_id: null,
+        related_task_id: null,
+        related_goal_id: null,
+        previous_communication_id: null,
+        body: String(body.text || ""),
+        message_type: "text",
+        attachments: null,
+        occurred_at: body.occurred_at || new Date().toISOString(),
+        provider_delivery_state: null,
+        source_surface: "whatsapp_inbound",
+        resolution_confidence: leadId ? "high" : "unresolved",
+        resolution_evidence: leadId ? `Matched an existing CRM lead by whatsapp_phone (${from}).` : `No CRM lead found for whatsapp_phone ${from}.`,
+      };
+      const result = await processInboundEvent(canonicalEvent);
       logger.info("communication_webhook_inbound_persisted", {
         provider_message_id: providerMessageId,
-        thread_reference: threadReference,
-        matched_outbound: Boolean(lastOutbound),
+        thread_reference: result.thread_reference,
+        duplicate: result.duplicate,
+        outcome_classification: result.outcome_classification,
+        woke_goal_count: result.woke_goal_ids.length,
       });
-      // Event-driven goal wake (Part C -- prefer events over polling):
-      // any goal watching this thread gets reevaluated immediately
-      // instead of waiting for the next 30s scheduler tick. Fire-and-
-      // forget so it never delays the webhook's response to Meta; the
-      // scheduler tick remains the fallback if this fails for any reason.
-      if (threadReference) void goalRuntime
-        .findGoalsWatchingThread(threadReference)
-        .then((goals) => {
-          for (const goal of goals) {
-            void claimAndEvaluateGoal(goal).catch((error) =>
-              logger.error("goal_evaluation_failed", { error, goal_id: goal.id, source: "event_wake", thread_reference: threadReference })
-            );
-          }
-        })
-        .catch((error) => logger.error("goal_wake_lookup_failed", { error, thread_reference: threadReference }));
-      return res.status(200).json({ ok: true, thread_reference: threadReference, matched_outbound: Boolean(lastOutbound) });
+      return res.status(200).json({ ok: result.ok, thread_reference: result.thread_reference, duplicate: result.duplicate, matched_outbound: Boolean(result.communication_id) });
     } catch (err: any) {
       logger.error("communication_webhook_inbound_failed", { provider_message_id: providerMessageId, error: err?.message || String(err) });
       return res.status(200).json({ ok: false, error: err?.message || "inbound_processing_failed" });

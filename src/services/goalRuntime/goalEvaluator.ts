@@ -6,17 +6,18 @@
 // caller to persist. Never loops unboundedly: every path either
 // advances the plan, completes, or stops -- bounded by max_attempts and
 // the plan's own fixed length.
-import OpenAI from "openai";
 import { communicationRuntime } from "../communicationRuntime/CommunicationRuntime";
+import { classifyInboundReply, coarseSentimentFromOutcome } from "../communicationRuntime/replyClassifier";
+import { resolveRecipientByEntity } from "../recipientResolutionService";
+import { createFollowUpTask } from "../officeTaskBridgeService";
 import type {
   GoalRecord,
   GoalPlanStep,
+  GoalReplyBranch,
   GoalExecutionHistoryItem,
   GoalEvidenceItem,
 } from "../../contracts/goal";
-import type { CommunicationRequest } from "../../contracts/communication";
-
-const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+import type { CommunicationRequest, InboundReplyOutcome } from "../../contracts/communication";
 
 function nowIso() {
   return new Date().toISOString();
@@ -24,33 +25,6 @@ function nowIso() {
 
 function addHours(iso: string, hours: number): string {
   return new Date(new Date(iso).getTime() + hours * 3600_000).toISOString();
-}
-
-// Best-effort reply sentiment via the SAME OpenAI credential Backend
-// already holds (src/utils/ai.ts uses the identical env var). Never
-// fabricates a classification -- "unknown" when the model is
-// unreachable/unconfigured, and a stop/success decision never treats
-// "unknown" as a positive signal.
-async function classifyReplySentiment(text: string): Promise<"positive" | "negative" | "neutral" | "unknown"> {
-  if (!openaiClient || !text.trim()) return "unknown";
-  try {
-    const response = await openaiClient.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "Classify the sentiment of a business reply as exactly one word: positive, negative, or neutral. Positive means agreement, interest, or a next step (e.g. \"yes\", \"sounds good\", \"let's talk\"). Negative means decline or disinterest. Neutral means ambiguous or purely informational. Reply with ONLY the single word." },
-        { role: "user", content: text.slice(0, 1000) },
-      ],
-      max_tokens: 5,
-      temperature: 0,
-    });
-    const word = response.choices[0]?.message?.content?.trim().toLowerCase() || "";
-    if (word.startsWith("positive")) return "positive";
-    if (word.startsWith("negative")) return "negative";
-    if (word.startsWith("neutral")) return "neutral";
-    return "unknown";
-  } catch {
-    return "unknown";
-  }
 }
 
 async function latestInboundAcross(threadReferences: string[], sinceIso: string | null) {
@@ -77,6 +51,20 @@ async function executeStep(goal: GoalRecord, step: GoalPlanStep): Promise<{ ok: 
     // visibility, Part M); nothing to dispatch here.
     return { ok: true, detail: "Escalated to requester.", providerMessageId: null };
   }
+  if (step.action_type === "create_task") {
+    let assigneeEmail: string | null = null;
+    if (goal.requesting_actor_id) {
+      const staff = await resolveRecipientByEntity("staff", goal.requesting_actor_id).catch(() => null);
+      assigneeEmail = staff?.email || null;
+    }
+    const result = await createFollowUpTask({
+      title: step.body || `Follow up: ${goal.objective}`,
+      description: `Auto-created by Oyi as a step in this goal: ${goal.objective}`,
+      leadId: goal.target_entities.lead_id,
+      assigneeEmail,
+    });
+    return { ok: result.ok, detail: result.ok ? `Task ${result.taskId} created.` : result.reason || "Task creation failed.", providerMessageId: null };
+  }
   if (step.channel === "voice_call") {
     // Telephony (Part F) -- honest, not fabricated: no provider is
     // configured anywhere in this environment (confirmed via audit).
@@ -87,7 +75,7 @@ async function executeStep(goal: GoalRecord, step: GoalPlanStep): Promise<{ ok: 
       actor_id: goal.requesting_actor_id,
       surface: goal.surface,
       source: "automation",
-      source_record_type: null,
+      source_record_type: "goal",
       source_record_id: goal.id,
       intent: "goal_plan_step",
       channel: "voice_call",
@@ -117,7 +105,7 @@ async function executeStep(goal: GoalRecord, step: GoalPlanStep): Promise<{ ok: 
     actor_id: goal.requesting_actor_id,
     surface: goal.surface,
     source: "automation",
-    source_record_type: null,
+    source_record_type: "goal",
     source_record_id: goal.id,
     intent: "goal_plan_step",
     channel: step.channel as CommunicationRequest["channel"],
@@ -140,6 +128,50 @@ async function executeStep(goal: GoalRecord, step: GoalPlanStep): Promise<{ ok: 
   return { ok: result.status === "sent", detail: result.failure_detail || "Sent.", providerMessageId: result.provider_message_id };
 }
 
+// Applies a matched GoalReplyBranch (contracts/goal.ts) -- lets a
+// classified reply BRANCH the goal instead of only advancing/completing
+// it linearly. create_task calls the REAL Office Task bridge
+// (officeTaskBridgeService.ts -> crm_tasks); never claims a task was
+// created when the bridge call actually failed.
+async function applyReplyBranch(goal: GoalRecord, branch: GoalReplyBranch, now: string): Promise<GoalRecord> {
+  if (branch.action === "complete") {
+    return { ...goal, status: "completed", completion_reason: "Reply matched a completion condition.", next_evaluation_at: null };
+  }
+  if (branch.action === "stop") {
+    return { ...goal, status: "blocked", completion_reason: "Reply matched a stop condition.", next_evaluation_at: null };
+  }
+  if (branch.action === "escalate") {
+    return { ...goal, status: "needs_human", completion_reason: "Reply matched an escalation condition.", next_evaluation_at: null };
+  }
+  // create_task
+  let assigneeEmail: string | null = null;
+  if (goal.requesting_actor_id) {
+    const staff = await resolveRecipientByEntity("staff", goal.requesting_actor_id).catch(() => null);
+    assigneeEmail = staff?.email || null;
+  }
+  const taskTitle = branch.task_title || `Follow up: ${goal.objective}`;
+  const taskResult = await createFollowUpTask({
+    title: taskTitle,
+    description: `Auto-created by Oyi following a reply on this goal: ${goal.objective}`,
+    leadId: goal.target_entities.lead_id,
+    assigneeEmail,
+  });
+  return {
+    ...goal,
+    status: taskResult.ok ? "completed" : "needs_human",
+    completion_reason: taskResult.ok ? `Reply matched -- created task "${taskTitle}".` : `Reply matched a create_task branch, but task creation failed: ${taskResult.reason}`,
+    linked_tasks: taskResult.taskId ? [...goal.linked_tasks, taskResult.taskId] : goal.linked_tasks,
+    execution_history: pushHistory(goal.execution_history, {
+      occurred_at: now,
+      step_index: null,
+      action: "reply_branch.create_task",
+      outcome: taskResult.ok ? "success" : "failed",
+      detail: taskResult.ok ? `Task ${taskResult.taskId} created.` : taskResult.reason || "unknown error",
+    }),
+    next_evaluation_at: null,
+  };
+}
+
 // Evaluates one due goal and returns the updated (NOT YET PERSISTED)
 // record. The caller (goalScheduler.ts) persists it. Bounded: every
 // branch below either completes the goal, stops it, or advances exactly
@@ -158,22 +190,49 @@ export async function evaluateGoal(goal: GoalRecord): Promise<GoalRecord> {
     return { ...updated, status: "blocked", completion_reason: "Maximum attempts reached without meeting the success condition.", next_evaluation_at: null };
   }
 
-  // 3) Check success condition against real evidence -- never fabricated.
+  // 3) Check success condition / reply branches against real evidence --
+  // never fabricated. The classification itself was already computed
+  // ONCE by the inbound event pipeline at receive time
+  // (inboundEventPipeline.ts) and stored on the communication row;
+  // read it rather than re-classifying (never a second, parallel
+  // intelligence system). The lazy classifyInboundReply() fallback below
+  // only fires for a row some other, non-pipeline path persisted without
+  // ever classifying it.
   if (updated.linked_communication_threads.length) {
     const inbound = await latestInboundAcross(updated.linked_communication_threads, updated.observations.at(-1)?.observed_at || updated.created_at);
     if (inbound) {
       const alreadyObserved = updated.observations.some((o) => o.source_reference === inbound.communication_id);
       if (!alreadyObserved) {
+        const outcome: InboundReplyOutcome = inbound.outcome_classification || (await classifyInboundReply(inbound.body || "")).outcome;
         updated = {
           ...updated,
           observations: [...updated.observations, { observed_at: now, kind: "inbound_reply", detail: inbound.body || "", source_reference: inbound.communication_id }],
-          evidence: pushEvidence(updated.evidence, { recorded_at: now, kind: "inbound_reply", summary: (inbound.body || "").slice(0, 200), reference: inbound.communication_id }),
+          evidence: pushEvidence(updated.evidence, { recorded_at: now, kind: `inbound_reply:${outcome}`, summary: (inbound.body || "").slice(0, 200), reference: inbound.communication_id }),
         };
+
+        // Unconditional governance -- a real unsubscribe reply stops
+        // THIS goal outright, regardless of its own success/stop
+        // conditions or reply_branches. The opt-out record itself was
+        // already written by the inbound pipeline at receive time, so
+        // future sends to this recipient are already blocked at
+        // CommunicationRuntime.plan() -- this just makes sure the goal
+        // stops trying too, instead of hitting that rejection on its
+        // next scheduled step.
+        if (outcome === "unsubscribe") {
+          return { ...updated, status: "cancelled", completion_reason: "The recipient asked not to be contacted again.", next_evaluation_at: null };
+        }
+
+        // Explicit branch -- "if he says he's interested, create a task."
+        const branch = updated.reply_branches.find((b) => b.on_outcomes.includes(outcome));
+        if (branch) {
+          return applyReplyBranch(updated, branch, now);
+        }
+
         if (updated.success_condition.type === "reply_received") {
           return { ...updated, status: "completed", completion_reason: "A reply was received.", next_evaluation_at: null };
         }
         if (updated.success_condition.type === "positive_reply") {
-          const sentiment = await classifyReplySentiment(inbound.body || "");
+          const sentiment = coarseSentimentFromOutcome(outcome);
           if (sentiment === "positive") {
             return { ...updated, status: "completed", completion_reason: "A positive reply was received.", next_evaluation_at: null };
           }

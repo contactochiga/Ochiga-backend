@@ -108,7 +108,9 @@ check("19 control pause-with", parseGoalControlIntent("Pause the follow-up with 
 check("20 control resume", parseGoalControlIntent("Resume the follow-up"), { kind: "resume", recipientToken: null });
 check("21 control cancel stop-following", parseGoalControlIntent("Stop following up with David"), { kind: "cancel", recipientToken: "David" });
 check("22 control cancel stop-contacting", parseGoalControlIntent("Stop contacting him"), { kind: "cancel", recipientToken: "him" });
-check("23 control dont-call-again narrows channel, not a full cancel", parseGoalControlIntent("Don't call him again"), { kind: "block_channel", channel: "voice_call", recipientToken: null });
+check("23 control dont-call-again narrows channel, not a full cancel", parseGoalControlIntent("Don't call him again"), { kind: "block_channel", channel: "voice_call", recipientToken: "him" });
+check("23b control stop-calling narrows channel with a named recipient", parseGoalControlIntent("Stop calling David"), { kind: "block_channel", channel: "voice_call", recipientToken: "David" });
+check("23c control stop-calling generic", parseGoalControlIntent("Stop calling this person"), { kind: "block_channel", channel: "voice_call", recipientToken: null });
 check("24 control only-email restricts channel", parseGoalControlIntent("Only email him from now on"), { kind: "restrict_to_channel", channel: "email", recipientToken: null });
 
 // 25. Telephony -- never fabricates a call; honest not_configured failure.

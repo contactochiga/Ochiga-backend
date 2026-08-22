@@ -19,6 +19,7 @@ function rowToRecord(row: any): GoalRecord {
     status: row.status,
     success_condition: row.success_condition || { type: "manual" },
     stop_condition: row.stop_condition || { type: "none" },
+    reply_branches: row.reply_branches || [],
     plan: row.plan || [],
     current_step_index: row.current_step_index ?? 0,
     schedule: row.schedule || { deadline: null, recurrence: null, timezone: null },
@@ -46,7 +47,7 @@ function recordToRow(record: Partial<GoalRecord> & { id: string }): Record<strin
   const row: Record<string, unknown> = { id: record.id, updated_at: new Date().toISOString() };
   const map: Array<keyof GoalRecord> = [
     "correlation_id", "requesting_actor_id", "surface", "conversation_thread_id", "organization_scope",
-    "objective", "target_entities", "status", "success_condition", "stop_condition", "plan",
+    "objective", "target_entities", "status", "success_condition", "stop_condition", "reply_branches", "plan",
     "current_step_index", "schedule", "event_conditions", "communication_preferences",
     "max_attempts", "attempts_completed", "observations", "evidence", "linked_crm_records",
     "linked_tasks", "linked_meetings", "linked_automations", "linked_communication_threads",

@@ -41,6 +41,7 @@ export type CommunicationSourceRecordType =
   | "automation"
   | "workflow"
   | "support_case"
+  | "goal"
   | null;
 
 // Every state a communication can be in end to end. Not every channel
@@ -90,6 +91,40 @@ export type CommunicationCallOutcome =
   | "unknown";
 
 export type CommunicationOutcome = CommunicationMessageOutcome | CommunicationCallOutcome;
+
+// Business-reply outcome classification (Live Reply Loop programme) --
+// distinct from `outcome` above (the coarse PROVIDER delivery state:
+// sent/delivered/read/failed). This is what the reply actually says in
+// business terms. Produced by ONE shared classifier
+// (replyClassifier.ts), reused by both the general inbound pipeline and
+// goal evaluation's success/stop-condition checks -- never a second,
+// parallel intelligence system.
+export type InboundReplyOutcome =
+  | "acknowledgement"
+  | "interested"
+  | "not_interested"
+  | "positive_reply"
+  | "negative_reply"
+  | "request_more_info"
+  | "request_proposal_or_document"
+  | "callback_request"
+  | "reschedule_request"
+  | "meeting_request"
+  | "payment_confirmation"
+  | "complaint"
+  | "support_request"
+  | "unsubscribe"
+  | "wrong_person"
+  | "identity_question"
+  | "human_required"
+  | "ambiguous"
+  | "unknown";
+
+export type InboundReplyClassification = {
+  outcome: InboundReplyOutcome;
+  confidence: number; // 0-1, honestly low/0 when the classifier itself is unavailable -- never a confident-looking fabricated number
+  evidence: string; // short excerpt/reasoning grounded in the actual message text
+};
 
 // voice_call's delivery_metadata shape -- documented here (not a new DB
 // column) so every caller reads/writes the same keys instead of each
@@ -211,6 +246,13 @@ export type CommunicationRecord = {
 
   status: CommunicationStatus;
   outcome: CommunicationOutcome | null;
+  // Business-reply classification (inbound only) -- see
+  // InboundReplyOutcome above. Set ONCE by the canonical inbound event
+  // pipeline (inboundEventPipeline.ts) at persist time; goal evaluation
+  // and Office presentation both READ this rather than re-classifying.
+  outcome_classification: InboundReplyOutcome | null;
+  outcome_confidence: number | null;
+  outcome_evidence: string | null;
   failure_reason: CommunicationFailureReason | null;
   failure_detail: string | null;
 

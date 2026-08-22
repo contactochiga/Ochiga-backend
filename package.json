@@ -30,6 +30,7 @@
     "smoke:communications-office-auth-compat": "npm run build && node scripts/communications-office-auth-compat-smoke.mjs",
     "smoke:communication-runtime": "npm run build && node scripts/communication-runtime-smoke.mjs",
     "smoke:goal-runtime": "npm run build && node scripts/goal-runtime-smoke.mjs",
+    "smoke:reply-loop-telephony": "npm run build && node scripts/reply-loop-telephony-smoke.mjs",
     "smoke:communication-automation-action": "npm run build && node scripts/communication-automation-action-smoke.mjs",
     "smoke:communication-recipient-resolution": "npm run build && node scripts/communication-recipient-resolution-smoke.mjs",
     "smoke:communication-threading": "npm run build && node scripts/communication-threading-smoke.mjs",

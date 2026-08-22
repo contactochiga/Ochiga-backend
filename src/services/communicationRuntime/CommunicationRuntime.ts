@@ -28,6 +28,19 @@ import { EmailAdapter } from "./adapters/EmailAdapter";
 import { WhatsAppAdapter } from "./adapters/WhatsAppAdapter";
 import { SmsAdapter } from "./adapters/SmsAdapter";
 import { TelephonyAdapter } from "./adapters/TelephonyAdapter";
+import { TwilioVoiceAdapter } from "./adapters/TwilioVoiceAdapter";
+import { isOptedOut } from "./optOutService";
+
+// Provider selection happens ONCE, here, based on config -- Oyi's
+// reasoning layer and every conversational/automation/goal caller only
+// ever see the voice_call channel, never "Twilio" specifically. Falls
+// back to the honest not_configured TelephonyAdapter when Twilio isn't
+// configured, exactly the same fallback shape every other channel
+// already has.
+function selectVoiceAdapter(): CommunicationAdapter {
+  const twilio = new TwilioVoiceAdapter();
+  return twilio.isConfigured() ? twilio : new TelephonyAdapter();
+}
 import type {
   CommunicationChannel,
   CommunicationChannelSelector,
@@ -99,7 +112,7 @@ export class CommunicationRuntime {
       email: new EmailAdapter(),
       whatsapp: new WhatsAppAdapter(),
       sms: new SmsAdapter(),
-      voice_call: new TelephonyAdapter(),
+      voice_call: selectVoiceAdapter(),
       internal_message: new InternalMessageAdapter(),
     };
   }
@@ -157,6 +170,14 @@ export class CommunicationRuntime {
     if (!request.body || !request.body.trim()) {
       return { status: "clarification_required", reason: "No message content was provided.", missing: ["body"] };
     }
+    // Governance (Live Reply Loop programme) -- a real STOP/unsubscribe
+    // reply must immediately affect EVERY future send, not just be
+    // labeled. This is the one chokepoint every send (conversational,
+    // automation, or goal-driven) already passes through, so checking
+    // here means there is no path that bypasses it.
+    if (await isOptedOut(channel, recipient)) {
+      return { status: "rejected", reason: "recipient_opted_out", detail: "This recipient has opted out of this channel and must not be contacted through it again." };
+    }
 
     const now = new Date().toISOString();
     const record: CommunicationRecord = {
@@ -200,6 +221,9 @@ export class CommunicationRuntime {
       provider_conversation_id: null,
       status: request.pre_authorized ? "confirmed" : "awaiting_confirmation",
       outcome: null,
+      outcome_classification: null,
+      outcome_confidence: null,
+      outcome_evidence: null,
       failure_reason: null,
       failure_detail: null,
       created_at: now,
@@ -372,12 +396,31 @@ export class CommunicationRuntime {
   // Phase K/L -- "what did you just send?" / "was that delivered?".
   // Scoped to the actor, and to the thread when given, so this never
   // surfaces another staff member's communications.
-  async mostRecentForActor(actorId: string, threadId?: string | null): Promise<CommunicationRecord | null> {
+  async mostRecentForActor(actorId: string, threadId?: string | null, channel?: CommunicationChannel): Promise<CommunicationRecord | null> {
     let query = supabaseAdmin.from("oyi_communications").select("*").eq("actor_id", actorId).order("created_at", { ascending: false }).limit(1);
     if (threadId) query = query.eq("conversation_thread_id", threadId);
+    if (channel) query = query.eq("channel", channel);
     const { data, error } = await query.maybeSingle();
     if (error || !data) return null;
     return rowToRecord(data);
+  }
+
+  // Programme G (calls as natural Oyi actions) -- "show me the calls
+  // made today," the OUTBOUND voice_call counterpart of
+  // inboundRepliesSince(). One row per call attempt (not deduped by
+  // thread -- unlike replies, several distinct call ATTEMPTS to the same
+  // person in one day are each their own event worth showing).
+  async outboundCallsSince(sinceIso: string, limit = 30): Promise<CommunicationRecord[]> {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_communications")
+      .select("*")
+      .eq("channel", "voice_call")
+      .eq("direction", "outbound")
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error || !data) return [];
+    return data.map(rowToRecord);
   }
 
   // Phase 5/7 -- the full logical conversation (both directions) with
@@ -393,6 +436,32 @@ export class CommunicationRuntime {
       .limit(limit);
     if (error || !data) return [];
     return data.map(rowToRecord);
+  }
+
+  // Programme B (Office customer-conversation shaping) -- "show me
+  // everyone who replied today," an aggregate view across every thread,
+  // deduped to the most recent inbound message per thread so the same
+  // person doesn't appear twice for multiple replies in the window.
+  async inboundRepliesSince(sinceIso: string, limit = 30): Promise<CommunicationRecord[]> {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_communications")
+      .select("*")
+      .eq("direction", "inbound")
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error || !data) return [];
+    const seenThreads = new Set<string>();
+    const deduped: CommunicationRecord[] = [];
+    for (const row of data) {
+      const record = rowToRecord(row);
+      const key = record.thread_reference || record.communication_id;
+      if (seenThreads.has(key)) continue;
+      seenThreads.add(key);
+      deduped.push(record);
+      if (deduped.length >= limit) break;
+    }
+    return deduped;
   }
 
   private async persist(record: CommunicationRecord): Promise<CommunicationRecord> {
@@ -510,6 +579,9 @@ function rowToRecord(row: any): CommunicationRecord {
     provider_conversation_id: row.provider_conversation_id,
     status: row.status,
     outcome: row.outcome,
+    outcome_classification: row.outcome_classification ?? null,
+    outcome_confidence: row.outcome_confidence ?? null,
+    outcome_evidence: row.outcome_evidence ?? null,
     failure_reason: row.failure_reason,
     failure_detail: row.failure_detail,
     created_at: row.created_at,

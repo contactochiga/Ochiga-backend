@@ -39,6 +39,7 @@ import roomsRoutes from "./routes/rooms";
 import geoRoutes from "./routes/geo";
 import proximityRoutes from "./routes/proximityRoutes";
 import officeExportRoutes from "./routes/officeExport";
+import twilioWebhooksRoutes from "./routes/twilioWebhooks";
 import communicationsRoutes from "./routes/communications";
 
 // ✅ OTP routes (email verification)
@@ -228,6 +229,7 @@ app.use("/facility", facilityRoutes);
 app.use("/signals", signalIngressRateLimit, signalRoutes);
 app.use("/office", officeExportRoutes);
 app.use("/communications", communicationsRoutes);
+app.use("/webhooks/twilio", twilioWebhooksRoutes);
 
 // ✅ EXTRA SAFE: force CORP on camera endpoints (m3u8 + ts)
 app.use("/cameras", (_req, res, next) => {
