@@ -2,6 +2,7 @@ import crypto from "crypto";
 import type { AuthUser } from "../middleware/auth";
 import { communicationRuntime } from "./communicationRuntime/CommunicationRuntime";
 import type { CommunicationChannelSelector } from "../contracts/communication";
+import { resolveRecipientByQuery } from "./recipientResolutionService";
 import { logger } from "../observability/logger";
 
 // Shared Automation Runtime -- the Communication action shape (Phase M/N
@@ -20,6 +21,14 @@ export type CommunicationCanonicalAction = {
   channel: CommunicationChannelSelector;
   recipient_email?: string | null;
   recipient_phone?: string | null;
+  // Phase 15 -- "email the Head of Sales every Monday" stores the ROLE,
+  // not a person, so a personnel change is picked up automatically:
+  // resolved fresh against the staff directory at EACH run, never at
+  // creation time. Mutually exclusive with recipient_email/phone in
+  // practice (validateCommunicationActions requires exactly one kind of
+  // recipient) -- "email Daniel every Monday" instead stores Daniel's
+  // own stable recipient_email/phone, unaffected by staff changes.
+  recipient_role_query?: string | null;
   subject?: string | null;
   body: string;
   label?: string | null;
@@ -68,6 +77,19 @@ export function stableCommunicationActionExecutionId(runId: string, index: numbe
 }
 
 async function runOne(actor: AuthUser, action: CommunicationCanonicalAction, runId: string) {
+  let recipientEmail = action.recipient_email || null;
+  let recipientPhone = action.recipient_phone || null;
+  if (!recipientEmail && !recipientPhone && action.recipient_role_query) {
+    // Dynamic role resolution -- freshly queried against the staff
+    // directory on EVERY run, so a personnel change is picked up
+    // automatically without editing the automation.
+    const roleResult = await resolveRecipientByQuery(action.recipient_role_query, "role");
+    if (roleResult.status !== "resolved") {
+      return { ok: false, reason: roleResult.status === "ambiguous" ? "role_recipient_ambiguous" : "role_recipient_unresolved" };
+    }
+    recipientEmail = roleResult.recipient.email;
+    recipientPhone = roleResult.recipient.phone || roleResult.recipient.whatsapp;
+  }
   const plan = await communicationRuntime.plan({
     actor_id: actor.id,
     surface: "automation",
@@ -76,7 +98,7 @@ async function runOne(actor: AuthUser, action: CommunicationCanonicalAction, run
     source_record_id: runId,
     intent: "automation_action",
     channel: action.channel,
-    recipient_hint: { email: action.recipient_email || null, phone: action.recipient_phone || null, whatsapp_phone: action.recipient_phone || null },
+    recipient_hint: { email: recipientEmail, phone: recipientPhone, whatsapp_phone: recipientPhone },
     subject: action.subject || null,
     body: action.body,
     pre_authorized: true,
