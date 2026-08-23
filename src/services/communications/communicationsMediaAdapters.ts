@@ -39,6 +39,30 @@ export type CommunicationVisualObservationAnalysis = {
   frame_retention: "ephemeral";
 };
 
+export type CommunicationDocumentAnalysis = {
+  observation_id: string;
+  summary: string;
+  key_points: string[];
+  document_type_guess: string | null;
+  uncertainty: string | null;
+  provider: "openai_multimodal";
+  model: string;
+  filename: string;
+};
+
+const MAX_DOCUMENT_BYTES = 15 * 1024 * 1024;
+const DOCUMENT_MIME_KIND: Record<string, "file" | "text" | "image"> = {
+  "application/pdf": "file",
+  "text/plain": "text",
+  "text/csv": "text",
+  "text/markdown": "text",
+  "application/json": "text",
+  "image/jpeg": "image",
+  "image/jpg": "image",
+  "image/png": "image",
+  "image/webp": "image",
+};
+
 function openAiKey() {
   return process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "";
 }
@@ -208,5 +232,79 @@ export async function analyzeCommunicationFrame(input: {
     provider: "openai_multimodal",
     model,
     frame_retention: "ephemeral",
+  };
+}
+
+// Reuses the exact same proven OpenAI Responses multimodal pattern as
+// analyzeCommunicationFrame (same endpoint, same model family, same
+// auth) -- extended to file input instead of a camera frame. PDFs go
+// through as input_file (the model reads the document directly, no
+// separate OCR step); plain text-shaped files are decoded and sent as
+// input_text; images are accepted as a convenience via input_image.
+// Any other MIME type is honestly rejected -- never claims to have
+// read a file type it cannot actually understand.
+export async function analyzeCommunicationDocument(input: {
+  file_data_url: string;
+  filename: string;
+  prompt?: string | null;
+  surface: CommunicationSurface;
+}): Promise<CommunicationDocumentAnalysis> {
+  const apiKey = requireOpenAi();
+  const model = process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MULTIMODAL_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  const match = String(input.file_data_url || "").match(/^data:([^;]+);base64,([a-z0-9+/=\s]+)$/i);
+  if (!match) throw new Error("document_data_url_required");
+  const mimeType = match[1].toLowerCase();
+  const kind = DOCUMENT_MIME_KIND[mimeType];
+  if (!kind) throw new Error(`document_type_unsupported:${mimeType}`);
+  const buffer = Buffer.from(match[2].replace(/\s+/g, ""), "base64");
+  if (!buffer.length) throw new Error("document_empty");
+  if (buffer.byteLength > MAX_DOCUMENT_BYTES) throw new Error("document_too_large");
+
+  const instruction = [
+    "Analyze this single staff-supplied file for an Oyi Office Intelligence conversation.",
+    "Return compact JSON only with keys: summary, key_points (array), document_type_guess, uncertainty.",
+    "If the file appears to relate to a lead, proposal, project, financial, task, report, or customer record, say so in the summary so Office staff can decide what to do next — but never claim to have taken any action on it.",
+    input.prompt ? `User question/context: ${input.prompt}` : "",
+    `Surface: ${input.surface}.`,
+  ].filter(Boolean).join("\n");
+
+  const content: Record<string, unknown>[] = [{ type: "input_text", text: instruction }];
+  if (kind === "file") {
+    content.push({ type: "input_file", filename: input.filename || "document.pdf", file_data: input.file_data_url });
+  } else if (kind === "image") {
+    content.push({ type: "input_image", image_url: input.file_data_url });
+  } else {
+    const text = buffer.toString("utf8").slice(0, 40_000);
+    content.push({ type: "input_text", text: `File contents (${input.filename || "file"}):\n${text}` });
+  }
+
+  const response = await fetch(`${OPENAI_API_BASE}/responses`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, input: [{ role: "user", content }] }),
+  });
+  if (!response.ok) throw new Error(`document_analysis_failed:${response.status}`);
+  const payload = await response.json() as Record<string, any>;
+  const output = Array.isArray(payload.output) ? payload.output : [];
+  const outputText = output
+    .flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
+    .map((part: any) => String(part?.text || part?.output_text || ""))
+    .filter(Boolean)
+    .join("\n");
+  const text = String(payload.output_text || outputText || "");
+  const parsed = safeJsonObject(text);
+  const asStrings = (value: unknown) => Array.isArray(value) ? value.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20) : [];
+  return {
+    observation_id: `doc_obs_${crypto.randomUUID()}`,
+    summary: String(parsed.summary || text || "The file was analyzed, but no reliable summary was returned.").slice(0, 1500),
+    key_points: asStrings(parsed.key_points),
+    document_type_guess: parsed.document_type_guess ? String(parsed.document_type_guess).slice(0, 120) : null,
+    uncertainty: parsed.uncertainty ? String(parsed.uncertainty).slice(0, 500) : null,
+    provider: "openai_multimodal",
+    model,
+    filename: input.filename || "document",
   };
 }
