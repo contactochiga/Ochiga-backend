@@ -17,6 +17,7 @@ import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest }
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
 import { loadLastVerifiedOfficeAction } from "../oyi-core/context/officeAutomationSuggestionStore";
 import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
+import { analyzeCommunicationFrame, analyzeCommunicationDocument, synthesizeOyiSpeech } from "../services/communications/communicationsMediaAdapters";
 import { createWorkflow, transitionWorkflow, listWorkflows, getWorkflow, type WorkflowStatus } from "../intelligence-core/workflows";
 import type { IntelligenceAgentId } from "../intelligence-core/types";
 // Tasks Domain UI (Office) — reuses the Shared Automation Runtime's own
@@ -567,6 +568,67 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
   }
 
   const actor = officeInternalActor(internalRequest);
+
+  // Oyi Office Intelligence Interaction Repositioning — a photo or file
+  // attached to this turn is analyzed here, once, and folded into the
+  // SAME message the orchestrator already reasons over (identical
+  // pattern to visualObservationTurn() in communications.ts). On
+  // failure, the orchestrator still answers the text-only portion of
+  // the message normally, and a clean, honest note is prepended to the
+  // real response afterward — never a raw provider error surfaced to
+  // Office staff, and the real technical failure is still logged.
+  let effectiveMessage = internalRequest.message;
+  let mediaFailureNote: string | null = null;
+  const rawImageDataUrl = safeText((req.body || {}).image_data_url);
+  const rawDocumentDataUrl = safeText((req.body || {}).document_data_url);
+  if (rawImageDataUrl) {
+    try {
+      const observation = await analyzeCommunicationFrame({
+        image_data_url: rawImageDataUrl,
+        prompt: internalRequest.message || null,
+        surface: "office_internal",
+        communications_session_id: internalRequest.office_session_id,
+        source_participant_id: actor.id,
+      });
+      effectiveMessage = [
+        internalRequest.message,
+        "",
+        "Authorized visual observation from this Office conversation:",
+        `Summary: ${observation.summary}`,
+        observation.visible_objects.length ? `Visible objects: ${observation.visible_objects.join(", ")}` : "",
+        observation.visible_text.length ? `Visible text: ${observation.visible_text.join("; ")}` : "",
+        observation.uncertainty ? `Uncertainty: ${observation.uncertainty}` : "",
+      ].filter(Boolean).join("\n");
+    } catch (error: any) {
+      logger.error("office_internal.visual_analysis_failed", { request_id: requestId, detail: safeText(error?.message, "visual_analysis_failed") });
+      mediaFailureNote = "Oyi couldn't complete the visual analysis right now. Try again in a moment.";
+    }
+  } else if (rawDocumentDataUrl) {
+    try {
+      const analysis = await analyzeCommunicationDocument({
+        file_data_url: rawDocumentDataUrl,
+        filename: safeText((req.body || {}).document_filename, "document"),
+        prompt: internalRequest.message || null,
+        surface: "office_internal",
+      });
+      effectiveMessage = [
+        internalRequest.message,
+        "",
+        `Authorized file analysis from this Office conversation (${analysis.filename}):`,
+        `Summary: ${analysis.summary}`,
+        analysis.key_points.length ? `Key points: ${analysis.key_points.join("; ")}` : "",
+        analysis.document_type_guess ? `Likely document type: ${analysis.document_type_guess}` : "",
+        analysis.uncertainty ? `Uncertainty: ${analysis.uncertainty}` : "",
+      ].filter(Boolean).join("\n");
+    } catch (error: any) {
+      logger.error("office_internal.document_analysis_failed", { request_id: requestId, detail: safeText(error?.message, "document_analysis_failed") });
+      const unsupported = /document_type_unsupported/.test(safeText(error?.message));
+      mediaFailureNote = unsupported
+        ? "Oyi can't read that file type yet — try a PDF, plain text file, or image."
+        : "Oyi couldn't finish analysing that file right now. Try again in a moment.";
+    }
+  }
+
   const canonical = await conversationOrchestrator.run({
     actor,
     oisContext: {
@@ -577,7 +639,7 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
     role: internalRequest.staff.role,
   } as any,
     input: {
-    message: internalRequest.message,
+    message: effectiveMessage,
     surface: "office_internal" as any,
     role: internalRequest.staff.role,
     module: "office_internal",
@@ -632,6 +694,9 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
   // null on any failure -- never blocks the response.
   const lastVerifiedAction = await loadLastVerifiedOfficeAction(internalRequest.conversation_thread_id, actor.id);
   const response = buildOfficeInternalResponse(internalRequest, canonical, lastVerifiedAction);
+  if (mediaFailureNote) {
+    response.answer = response.answer ? `${mediaFailureNote}\n\n${response.answer}` : mediaFailureNote;
+  }
   void emitAuditEvent({
     actorId: actor.id,
     actorRole: internalRequest.staff.role,
@@ -649,6 +714,38 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
     req,
   });
   return res.status(200).json(response);
+});
+
+// Oyi Office Intelligence Interaction Repositioning — speech synthesis
+// for the turn-based Voice Chat shell (record -> existing transcribe
+// route -> existing /conversation/internal -> this route -> playback).
+// Reuses synthesizeOyiSpeech() verbatim (same function already proven
+// live on the consumer website's voice turns) behind the SAME
+// requireOfficeExportKey gate Office already authenticates every other
+// call with -- no new auth boundary, no new voice capability.
+router.post("/conversation/speech", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const requestId = safeText(req.headers["x-request-id"], crypto.randomUUID());
+  const text = safeText(req.body?.text).slice(0, 4000);
+  if (!text) {
+    return res.status(400).json({ ok: false, error: "text_required", request_id: requestId });
+  }
+  try {
+    const audio = await synthesizeOyiSpeech({ text });
+    return res.status(200).json({
+      ok: true,
+      request_id: requestId,
+      audio_data_url: audio.audio_data_url,
+      mime_type: audio.mime_type,
+    });
+  } catch (error: any) {
+    logger.error("office_internal.speech_synthesis_failed", { request_id: requestId, detail: safeText(error?.message, "speech_synthesis_failed") });
+    return res.status(502).json({
+      ok: false,
+      error: "speech_synthesis_failed",
+      message: "Oyi couldn't generate speech for that reply right now.",
+      request_id: requestId,
+    });
+  }
 });
 
 function groupBuildings(homes: Row[], devices: Row[], nowIso: string) {

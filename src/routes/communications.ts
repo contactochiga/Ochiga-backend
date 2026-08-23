@@ -417,10 +417,23 @@ async function visualObservationTurn(req: Request, res: Response, surface: Commu
       source_participant_id: safeText(body.participant_id || body.participantId, session.public_session_id || session.owner_id || "participant"),
     });
   } catch (error: any) {
+    // The real technical failure (e.g. "visual_analysis_failed:429" from
+    // a rate-limited upstream call) belongs in server logs and `detail`
+    // for API debugging, never as the only text handed to an end user —
+    // confirmed live in production that a raw code like that WAS
+    // reaching the chat thread verbatim. `message` is the clean copy
+    // every client should prefer for display.
+    console.error("communications.visual_observation.failed", {
+      surface,
+      session_id: session.session_id,
+      request_id: requestId,
+      detail: safeText(error?.message, "visual_analysis_failed"),
+    });
     return res.status(422).json({
       ok: false,
       contract: "oyi_communications.visual_observation.v1",
       error: "visual_analysis_failed",
+      message: "Oyi couldn't complete the visual analysis right now. Try again in a moment.",
       detail: safeText(error?.message, "visual_analysis_failed"),
       request_id: requestId,
       canonical_turn_created: false,
