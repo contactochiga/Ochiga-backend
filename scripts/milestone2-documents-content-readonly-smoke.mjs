@@ -52,8 +52,9 @@ assert.ok(!actionModules.some((m) => m.domain === "office_content"), "Content mu
   assert.equal(evidence.length, 2);
   const answer = await list.buildReadResponse(ctx, evidence);
   assert.equal(answer.status, "answered");
-  assert.ok(answer.answer.includes("Greenview MSA"));
-  assert.ok(answer.answer.includes("Havana proposal"));
+  const titles = answer.blocks?.[0]?.rows?.map((row) => row.title) || [];
+  assert.ok(titles.includes("Greenview MSA"));
+  assert.ok(titles.includes("Havana proposal"));
   assert.equal(answer.blocks[0].type, "record_list");
 }
 
@@ -75,7 +76,8 @@ assert.ok(!actionModules.some((m) => m.domain === "office_content"), "Content mu
   const evidence = await list.collectEvidence(ctx);
   assert.equal(evidence.length, 1);
   const answer = await list.buildReadResponse(ctx, evidence);
-  assert.ok(answer.answer.includes("Ochiga launches Facility OS"));
+  const titles = answer.blocks?.[0]?.rows?.map((row) => row.title) || [];
+  assert.ok(titles.includes("Ochiga launches Facility OS"));
 }
 
 // ==================== Absent-snapshot honesty ====================

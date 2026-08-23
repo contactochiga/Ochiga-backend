@@ -86,7 +86,14 @@ assert.equal(evidence[0].privacy_class, "corporate_private", "task evidence must
 
 const overdueResult = await queryModule.buildReadResponse(overdueContext, evidence);
 assert.equal(overdueResult.status, "answered");
-assert.ok(/Follow up with vendor/.test(overdueResult.answer));
+// Oyi Office Conversational Interaction programme, Phase 4/5 — `answer`
+// no longer restates task titles in prose (that duplicated the
+// record_list table below it); filtering correctness is verified
+// against the table's own rows instead, and the prose is checked only
+// for NOT leaking the excluded task's title.
+const overdueTitles = overdueResult.blocks?.[0]?.rows?.map((row) => row.title) || [];
+assert.ok(overdueTitles.includes("Follow up with vendor"));
+assert.ok(!overdueTitles.includes("Prepare site report"), "overdue-only phrasing must not list the non-overdue task in the table");
 assert.ok(!/Prepare site report/.test(overdueResult.answer), "overdue-only phrasing must not list the non-overdue task in the text answer");
 assert.equal(overdueResult.blocks?.[0]?.type, "record_list");
 assert.equal(overdueResult.blocks[0].rows.length, 1);

@@ -27,6 +27,13 @@ function contextWithSnapshot(message, section, value) {
 function factsFrom(evidence) {
   return evidence.map((e) => e.payload.fact);
 }
+// Oyi Office Conversational Interaction programme, Phase 4/5 — `answer`
+// no longer restates every record's name in prose (that's what
+// duplicated the record_list table below it); filtering correctness is
+// now verified against the table's own rows instead.
+function blockRowValues(answer, key) {
+  return (answer.blocks?.[0]?.rows || []).map((row) => row[key]);
+}
 
 // ============================= Automations =============================
 {
@@ -55,14 +62,15 @@ function factsFrom(evidence) {
 
   const answer = await list.buildReadResponse(ctx, evidence);
   assert.equal(answer.status, "answered");
-  assert.ok(answer.answer.includes("Weekly follow-up sweep"));
-  assert.ok(!answer.answer.includes("Stale lead nudge"), "a paused automation must not appear when 'active' was asked");
+  assert.ok(blockRowValues(answer, "name").includes("Weekly follow-up sweep"));
+  assert.ok(!blockRowValues(answer, "name").includes("Stale lead nudge"), "a paused automation must not appear when 'active' was asked");
+  assert.ok(!answer.answer.includes("Stale lead nudge"), "the prose summary must never restate individual records either");
   assert.equal(answer.blocks[0].type, "record_list");
 
   const failedCtx = contextWithSnapshot("which ones failed this week", "automations", automations);
   const failedAnswer = await list.buildReadResponse(failedCtx, await list.collectEvidence(failedCtx));
-  assert.ok(failedAnswer.answer.includes("Stale lead nudge"), "'failed' phrasing must surface the failed automation");
-  assert.ok(!failedAnswer.answer.includes("Weekly follow-up sweep"));
+  assert.ok(blockRowValues(failedAnswer, "name").includes("Stale lead nudge"), "'failed' phrasing must surface the failed automation");
+  assert.ok(!blockRowValues(failedAnswer, "name").includes("Weekly follow-up sweep"));
 }
 
 // ============================== Meetings ================================
@@ -88,8 +96,8 @@ function factsFrom(evidence) {
   assert.equal(evidence.length, 1, "collect() must filter to tomorrow-only, matching what's displayed");
   assert.equal(evidence[0].object_id, "meet-1");
   const answer = await list.buildReadResponse(ctx, evidence);
-  assert.ok(answer.answer.includes("Deployment review"));
-  assert.ok(!answer.answer.includes("Unrelated next-week sync"));
+  assert.ok(blockRowValues(answer, "title").includes("Deployment review"));
+  assert.ok(!blockRowValues(answer, "title").includes("Unrelated next-week sync"));
 }
 
 // =============================== Support ================================
@@ -113,8 +121,8 @@ function factsFrom(evidence) {
   assert.equal(evidence.length, 1);
   assert.equal(evidence[0].object_id, "case-1");
   const answer = await list.buildReadResponse(ctx, evidence);
-  assert.ok(answer.answer.includes("Escalation for Havana deployment"));
-  assert.ok(!answer.answer.includes("Minor billing question"));
+  assert.ok(blockRowValues(answer, "title").includes("Escalation for Havana deployment"));
+  assert.ok(!blockRowValues(answer, "title").includes("Minor billing question"));
 }
 
 // =============================== Portfolio ==============================
@@ -138,8 +146,8 @@ function factsFrom(evidence) {
   assert.equal(evidence.length, 1);
   assert.equal(evidence[0].object_id, "pf-1");
   const answer = await list.buildReadResponse(ctx, evidence);
-  assert.ok(answer.answer.includes("Greenview Tower B"));
-  assert.ok(!answer.answer.includes("Havana Court"));
+  assert.ok(blockRowValues(answer, "name").includes("Greenview Tower B"));
+  assert.ok(!blockRowValues(answer, "name").includes("Havana Court"));
 
   const topCtx = contextWithSnapshot("give me the top 1 portfolio projects", "portfolio", portfolio);
   const topAnswer = await list.buildReadResponse(topCtx, await list.collectEvidence(topCtx));
@@ -164,7 +172,7 @@ function factsFrom(evidence) {
   assert.equal(evidence.length, 1);
   assert.equal(evidence[0].object_id, "pt-1");
   const answer = await list.buildReadResponse(ctx, evidence);
-  assert.ok(answer.answer.includes("technology_integrator"));
+  assert.ok(blockRowValues(answer, "name").includes("technology_integrator"));
 }
 
 // ==================== Absent-snapshot honesty (no permission) ====================

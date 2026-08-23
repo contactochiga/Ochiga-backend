@@ -134,6 +134,43 @@ function officeSnapshot(context: CapabilityContext): OperationalSnapshot | null 
   return snapshot && typeof snapshot === "object" ? (snapshot as OperationalSnapshot) : null;
 }
 
+// Oyi Office Conversational Interaction programme, Phase 4/5 — every
+// list-read capability below used to build its `answer` as a full
+// per-record bullet dump (one line per item), duplicating exactly what
+// its own `blocks` record_list table already shows underneath. Real bug
+// found on audit: this was systemic across every list-read capability in
+// this file, not an isolated case. summarizeListAnswer() replaces that
+// with a genuine interpretation -- a count, and (only when the caller
+// passes REAL already-computed per-item categories, never invented here)
+// a short "why" breakdown -- matching the acceptance shape "N leads
+// require attention. Two are overdue and two have had no recent
+// communication." The structured block is the only place the actual
+// records appear; this sentence never repeats them.
+function summarizeListAnswer(input: {
+  count: number;
+  totalCount?: number | null;
+  itemLabel: string;
+  itemLabelPlural?: string;
+  totalQualifier?: string;
+  categories?: Array<{ label: string; count: number }>;
+}): string {
+  const plural = input.itemLabelPlural || `${input.itemLabel}s`;
+  const noun = input.count === 1 ? input.itemLabel : plural;
+  let sentence = `${input.count} ${noun}`;
+  if (input.totalCount != null && input.totalCount !== input.count) {
+    sentence += ` out of ${input.totalCount} ${input.totalQualifier || plural}`;
+  }
+  sentence += ".";
+  const categories = (input.categories || []).filter((c) => c.count > 0);
+  if (categories.length === 1) {
+    sentence += ` All ${categories[0].label}.`;
+  } else if (categories.length >= 2) {
+    const parts = categories.slice(0, 3).map((c) => `${c.count} ${c.label}`);
+    sentence += ` ${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}.`;
+  }
+  return sentence;
+}
+
 // Tasks reads the currently-SELECTED task's context slot (a specific
 // record the staff member has open), not an aggregate snapshot section —
 // there is no tasks list in operational_snapshot today, and adding one is
@@ -256,10 +293,24 @@ function crmLeadsReadModule(): CapabilityModule {
           metadata: { total_open: totalOpen },
         };
       }
-      const lines = items.slice(0, 10).map((lead) => `${lead.name} — ${lead.reason} (${lead.status})`);
+      // Real per-lead reason strings (leadAttentionReason() in Office's
+      // oyi-core-gateway.js) fall into three genuine categories -- bucket
+      // them for an honest "why" breakdown instead of restating every
+      // lead's own reason text in prose (that's what the table is for).
+      const overdueCount = items.filter((lead) => /^next action overdue/i.test(lead.reason)).length;
+      const noRecentContactCount = items.filter((lead) => !/^next action overdue/i.test(lead.reason)).length;
       return {
         status: "answered",
-        answer: `${items.length} lead${items.length === 1 ? "" : "s"} need${items.length === 1 ? "s" : ""} attention out of ${totalOpen} open:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({
+          count: items.length,
+          totalCount: totalOpen,
+          itemLabel: "lead",
+          totalQualifier: "open",
+          categories: [
+            { label: overdueCount === 1 ? "has an overdue follow-up" : "have overdue follow-ups", count: overdueCount },
+            { label: noRecentContactCount === 1 ? "has had no recent communication" : "have had no recent communication", count: noRecentContactCount },
+          ],
+        }),
         blocks: [
           {
             type: "record_list",
@@ -328,10 +379,17 @@ function crmOpportunitiesReadModule(): CapabilityModule {
           metadata: { total_open: totalOpen },
         };
       }
-      const lines = items.slice(0, 10).map((o) => `${o.name} — ${o.stage}${o.days_since_activity != null ? `, ${o.days_since_activity}d since last activity` : ""}${o.owner ? ` (owner: ${o.owner})` : ""}`);
+      const longStaleCount = items.filter((o) => (o.days_since_activity ?? 0) >= 14).length;
       return {
         status: "answered",
-        answer: `${items.length} opportunit${items.length === 1 ? "y hasn't" : "ies haven't"} been followed up this week:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({
+          count: items.length,
+          itemLabel: "opportunity",
+          itemLabelPlural: "opportunities",
+          categories: longStaleCount
+            ? [{ label: longStaleCount === 1 ? "hasn't had activity in over two weeks" : "haven't had activity in over two weeks", count: longStaleCount }]
+            : [],
+        }),
         blocks: [
           {
             type: "record_list",
@@ -395,10 +453,9 @@ function reportsApprovalsReadModule(): CapabilityModule {
       if (!items.length) {
         return { status: "empty", answer: "No reports are currently awaiting approval.", presentation_policy: resultPresentation("list") };
       }
-      const lines = items.slice(0, 10).map((r) => `${r.title}${r.submitted_by ? ` — submitted by ${r.submitted_by}` : ""}`);
       return {
         status: "answered",
-        answer: `${items.length} report${items.length === 1 ? "" : "s"} awaiting approval:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: items.length, itemLabel: "report awaiting approval", itemLabelPlural: "reports awaiting approval" }),
         blocks: [
           {
             type: "record_list",
@@ -468,7 +525,7 @@ function developmentStatusReadModule(): CapabilityModule {
       });
       return {
         status: "answered",
-        answer: `Across ${items.length} development project${items.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: items.length, itemLabel: "development project" }),
         blocks: [
           {
             type: "record_list",
@@ -541,13 +598,12 @@ function financialSummaryReadModule(): CapabilityModule {
         return { status: "empty", answer: "No estate financial records are available right now.", presentation_policy: resultPresentation("text") };
       }
       const fmt = (value: number) => `${portfolio.currency} ${Number(value || 0).toLocaleString("en-NG")}`;
-      const lines = financial.estates
-        .slice(0, 10)
-        .map((estate) => `${estate.name} — balance ${fmt(estate.current_balance ?? 0)}, revenue ${fmt(estate.revenue_period)}, ${estate.transaction_count} transaction${estate.transaction_count === 1 ? "" : "s"}`);
+      // Aggregate insight only -- the per-estate breakdown the old bullet
+      // dump repeated here already lives in the record_list table below.
       const summary =
         `Across ${portfolio.estate_count} estate${portfolio.estate_count === 1 ? "" : "s"}: current balance ${fmt(portfolio.current_balance_total)}, ` +
         `period revenue ${fmt(portfolio.revenue_period_total)} (utility sales ${fmt(portfolio.utility_sales_period_total)}, service charges ${fmt(portfolio.service_charge_period_total)}), ` +
-        `${portfolio.transaction_count_total} completed transaction${portfolio.transaction_count_total === 1 ? "" : "s"}.\n${lines.map((line) => `• ${line}`).join("\n")}`;
+        `${portfolio.transaction_count_total} completed transaction${portfolio.transaction_count_total === 1 ? "" : "s"}.`;
       return {
         status: "answered",
         answer: summary,
@@ -854,12 +910,16 @@ function officeTasksQueryReadModule(): CapabilityModule {
         };
       }
       const label = wantsOverdueOnly ? "overdue task" : "open task";
-      const lines = rows
-        .slice(0, 10)
-        .map((task) => `${task.title} — ${task.status}${task.owner ? `, ${task.owner}` : ""}${task.due_at ? `, due ${task.due_at}` : ""}${task.overdue ? " (overdue)" : ""}`);
+      const overdueCount = rows.filter((task) => task.overdue).length;
       return {
         status: "answered",
-        answer: `${rows.length} ${label}${rows.length === 1 ? "" : "s"}${wantsOverdueOnly ? "" : ` out of ${totalOpen} total`}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({
+          count: rows.length,
+          totalCount: wantsOverdueOnly ? null : totalOpen,
+          itemLabel: label,
+          totalQualifier: "total",
+          categories: !wantsOverdueOnly && overdueCount ? [{ label: overdueCount === 1 ? "is overdue" : "are overdue", count: overdueCount }] : [],
+        }),
         blocks: [
           {
             type: "record_list",
@@ -1139,7 +1199,7 @@ function officeAutomationsQueryReadModule(): CapabilityModule {
       const lines = rows.slice(0, 10).map((a) => `${a.name} — ${a.enabled ? "active" : "paused"}, ${a.trigger_summary}${a.last_run_status === "failed" ? " (last run failed)" : ""}`);
       return {
         status: "answered",
-        answer: `${rows.length} automation${rows.length === 1 ? "" : "s"} out of ${total} total:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: rows.length, totalCount: total, itemLabel: "automation", totalQualifier: "total" }),
         blocks: [
           {
             type: "record_list",
@@ -1393,7 +1453,7 @@ function officeMeetingsQueryReadModule(): CapabilityModule {
       const lines = rows.slice(0, 10).map((m) => `${m.title}${m.scheduled_at ? ` — ${m.scheduled_at}` : ""}${m.owner ? `, ${m.owner}` : ""}`);
       return {
         status: "answered",
-        answer: `${rows.length} meeting${rows.length === 1 ? "" : "s"}${rows.length === total ? "" : ` out of ${total} total`}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: rows.length, totalCount: total, itemLabel: "meeting", totalQualifier: "total" }),
         blocks: [
           {
             type: "record_list",
@@ -1646,7 +1706,7 @@ function officeSupportQueryReadModule(): CapabilityModule {
       const lines = rows.slice(0, 10).map((s) => `${s.title} — ${s.status}${s.severity ? `, ${s.severity} severity` : ""}${s.owner ? `, ${s.owner}` : ""}`);
       return {
         status: "answered",
-        answer: `${rows.length} case${rows.length === 1 ? "" : "s"}${rows.length === total ? "" : ` out of ${total} open total`}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: rows.length, totalCount: total, itemLabel: "case", totalQualifier: "open total" }),
         blocks: [
           {
             type: "record_list",
@@ -1914,7 +1974,7 @@ function officePortfolioQueryReadModule(): CapabilityModule {
       const lines = rows.slice(0, 10).map((p) => `${p.name} — ${p.status}${p.health_summary ? `, ${p.health_summary}` : ", no health summary recorded"}`);
       return {
         status: "answered",
-        answer: `${rows.length} portfolio entr${rows.length === 1 ? "y" : "ies"} out of ${total} total:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: rows.length, totalCount: total, itemLabel: "portfolio entry", itemLabelPlural: "portfolio entries", totalQualifier: "total" }),
         blocks: [
           {
             type: "record_list",
@@ -2139,7 +2199,7 @@ function officePartnershipsQueryReadModule(): CapabilityModule {
       const lines = items.slice(0, 10).map((p) => `${p.name} — ${p.status}${p.owner ? `, managed by ${p.owner}` : ""}`);
       return {
         status: "answered",
-        answer: `${items.length} partnership${items.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: items.length, itemLabel: "partnership" }),
         blocks: [
           {
             type: "record_list",
@@ -2348,7 +2408,7 @@ function officeDocumentsQueryReadModule(): CapabilityModule {
       const lines = items.slice(0, 10).map((d) => `${d.title}${d.document_type ? ` — ${d.document_type}` : ""}${d.status ? `, ${d.status}` : ""}`);
       return {
         status: "answered",
-        answer: `${items.length} document${items.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: items.length, itemLabel: "document" }),
         blocks: [
           {
             type: "record_list",
@@ -2563,7 +2623,7 @@ function officeContentQueryReadModule(): CapabilityModule {
       const lines = items.slice(0, 10).map((c) => `${c.title}${c.workflow_status ? ` — ${c.workflow_status}` : ""}${c.category ? `, ${c.category}` : ""}`);
       return {
         status: "answered",
-        answer: `${items.length} content item${items.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: items.length, itemLabel: "content item" }),
         blocks: [
           {
             type: "record_list",
@@ -2769,7 +2829,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
       const lines = projects.map((p) => `${p.name}${p.location ? ` (${p.location})` : ""}${p.status ? ` — ${p.status}` : ""}${p.oneLiner ? `: ${p.oneLiner}` : ""}`);
       return {
         status: "answered",
-        answer: `Ochiga currently has ${projects.length} development${projects.length === 1 ? "" : "s"}:\n${lines.map((line) => `• ${line}`).join("\n")}`,
+        answer: summarizeListAnswer({ count: projects.length, itemLabel: "development" }),
         blocks: [{ type: "list", items: projects }],
         presentation_policy: resultPresentation("list"),
       };
