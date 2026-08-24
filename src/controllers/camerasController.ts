@@ -1,7 +1,6 @@
 // src/controllers/camerasController.ts
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { scanCameras } from "../device/cameras/cameraOrchestrator";
 import { canAccessCamera } from "../modules/cameras/cameraAccess.policy";
 import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.service";
 import { sanitizeCameraRecord } from "../modules/cameras/cameraSerialization";
@@ -49,42 +48,6 @@ async function assertEstateMember(user: any, estateId: string) {
   if (!membership) return { status: 403, error: "Unauthorized (not a member of this estate)" };
   if (membership.status && membership.status !== "active") return { status: 403, error: "Unauthorized (membership not active)" };
   return null;
-}
-
-/**
- * POST /cameras/scan
- * body: { cidr?: "192.168.100.0/24", username?: "admin", password?: "admin" }
- * Scans LAN for ONVIF cameras + returns RTSP URIs where possible.
- */
-export async function scan(req: Request, res: Response) {
-  const user = req.user as any;
-  if (!user) return res.status(401).json({ error: "Not authenticated" });
-
-  if (process.env.ALLOW_CLOUD_CAMERA_SCAN !== "true") {
-    return res.status(409).json({
-      error: "edge_discovery_required",
-      message: "Camera discovery must be executed by an authorized Oyi Edge node on the local network.",
-    });
-  }
-
-  const { cidr, username, password } = req.body || {};
-
-  try {
-    const devices = await scanCameras({
-      estateId: user.estate_id,
-      homeId: user.home_id,
-      userId: user.id,
-      credentials: {
-        cidr,
-        username,
-        password,
-      },
-    });
-
-    return res.json({ ok: true, items: devices });
-  } catch (err: any) {
-    return res.status(500).json({ error: pickError(err, "Scan failed") });
-  }
 }
 
 /**
@@ -498,7 +461,7 @@ export async function validateStream(req: Request, res: Response) {
   const access = canAccessCamera(camera, user);
   if (!access.ok) return res.status(403).json({ error: "Permission denied", code: access.reason });
 
-  const playback = buildCameraPlaybackContract(req, camera, user, 0);
+  const playback = buildCameraPlaybackContract(req, camera, user);
   const rtspReady = Boolean(camera.rtsp_url || camera.credential_ref);
   const hlsReady = Boolean(playback.hls_url);
   const status = rtspReady && hlsReady ? "healthy" : rtspReady ? "warning" : "failed";

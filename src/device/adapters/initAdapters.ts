@@ -4,7 +4,6 @@ import { adapterRegistry } from "./registry";
 
 import { TuyaAdapter } from "./tuya/TuyaAdapter";
 import { SSDPAdapter } from "./network/SSDPAdapter";
-import { OnvifAdapter } from "./onvif/OnvifAdapter";
 import { providerHealthRegistry } from "../../observability/providerHealth";
 import { logger } from "../../observability/logger";
 
@@ -37,11 +36,7 @@ export function initAdaptersOnce() {
     logger.warn("ssdp_adapter_registration_failed", { error });
   }
 
-  try {
-    adapterRegistry.register(new OnvifAdapter());
-    providerHealthRegistry.markConfigured("onvif", { note: "adapter_registered" });
-  } catch (error) {
-    providerHealthRegistry.markOffline("onvif", error instanceof Error ? error.message : "adapter_registration_failed");
-    logger.warn("onvif_adapter_registration_failed", { error });
-  }
+  // Camera discovery is executed only by authenticated Oyi Edge nodes.
+  // Keep provider observability truthful without registering a cloud LAN scanner.
+  providerHealthRegistry.markPlaceholder("onvif", "edge_runtime_only");
 }

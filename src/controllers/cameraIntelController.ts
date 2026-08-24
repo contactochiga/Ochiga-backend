@@ -6,8 +6,6 @@ import { canAccessCamera, requireCameraAccess } from "../modules/cameras/cameraA
 import { normalizeIntelligenceEvent, publishIntelligenceEvent } from "../intelligence-core";
 import { mediaReference } from "../modules/cameras/cameraMedia.service";
 
-const MAX_REWIND_SECONDS = 24 * 60 * 60; // 24h
-const DEFAULT_REWIND_SECONDS = 0;
 const DEFAULT_REPORT_LIMIT = 2000;
 
 function clamp(n: number, min: number, max: number) {
@@ -96,8 +94,8 @@ async function resolveCamera(cameraId: string) {
 }
 
 /**
- * GET /cameras/:cameraId/playback?rewind=300
- * Returns an HLS URL that can start from rewind offset if edge supports it.
+ * GET /cameras/:cameraId/playback
+ * Returns an authorized live HLS session. Historical playback uses Camera Media.
  */
 export async function getPlaybackUrl(req: Request, res: Response) {
   const user = req.user as any;
@@ -105,17 +103,13 @@ export async function getPlaybackUrl(req: Request, res: Response) {
   const { cameraId } = req.params;
   if (!cameraId) return res.status(400).json({ error: "cameraId is required" });
 
-  const rewindInput = parseIntSafe(req.query.rewind, DEFAULT_REWIND_SECONDS);
-  const rewind = clamp(rewindInput, 0, MAX_REWIND_SECONDS);
-  if (rewind > 0) return res.status(409).json({ error:"recording_unavailable", message:"Historical playback requires a recorded media segment. Use the camera media timeline." });
-
   const { data: cam, error } = await resolveCamera(cameraId);
   if (error) return res.status(500).json({ error: error.message });
   if (!cam) return res.status(404).json({ error: "Camera not found" });
   const access = canAccessCamera(cam, user);
   if (!access.ok) return res.status(403).json({ error: "Permission denied", code: access.reason });
 
-  const playback = buildCameraPlaybackContract(req, cam, user, rewind);
+  const playback = buildCameraPlaybackContract(req, cam, user);
   if (!playback.hls_url) return res.status(409).json(playback);
   return res.json(playback);
 }
@@ -320,17 +314,23 @@ export async function createEvent(req: Request, res: Response) {
 export async function getAnalyticsCapabilities(_req: Request, res: Response) {
   return res.json({
     ok: true,
-    capabilities: [
-      "face_recognition",
-      "animal_detection",
-      "person_detection",
-      "vehicle_detection",
-      "suspicious_motion",
-      "line_crossing",
-      "zone_intrusion",
-      "smoke_alert",
-    ],
-    note: "Use /cameras/:cameraId/events to ingest edge detections into timeline.",
+    capabilities: ["motion_detection", "person_detection", "vehicle_detection"],
+    availability: {
+      motion_detection: "unknown",
+      person_detection: "unknown",
+      vehicle_detection: "unknown",
+      animal_detection: "unknown",
+      line_crossing: "unknown",
+      zone_intrusion: "unknown",
+      occupancy: "unknown",
+      tamper_detection: "unknown",
+      smoke_detection: "unknown",
+      fire_detection: "unknown",
+      face_detection: "unavailable",
+      face_recognition: "unavailable",
+      plate_recognition: "unavailable",
+    },
+    note: "Availability is camera/provider-specific. Detection ingestion is performed by authenticated Oyi Edge providers.",
   });
 }
 

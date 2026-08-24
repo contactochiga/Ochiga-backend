@@ -1,3 +1,4 @@
+// DO NOT EDIT FRONTEND COPIES DIRECTLY — generated from canonical Oyi Camera Core.
 export const CAMERA_DETECTION_CONTRACT_VERSION="5.0.0-phase5";
 export const CAMERA_DETECTION_TYPES=["motion","person","vehicle","animal","object","line_crossing","zone_intrusion","occupancy","tamper","smoke","fire","unknown"] as const;
 export type CameraDetectionType=typeof CAMERA_DETECTION_TYPES[number];

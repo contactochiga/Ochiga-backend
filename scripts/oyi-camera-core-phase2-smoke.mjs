@@ -9,15 +9,18 @@ const source = fs.readFileSync(path.join(root, "packages/oyi-camera-core/src/cor
 const mediaSource = fs.readFileSync(path.join(root, "packages/oyi-camera-core/src/media.ts"), "utf8");
 const mediaJs = ts.transpileModule(mediaSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const mediaMod = { exports: {} }; new Function("module", "exports", mediaJs)(mediaMod, mediaMod.exports);
+const detectionSource = fs.readFileSync(path.join(root, "packages/oyi-camera-core/src/detection.ts"), "utf8");
+const detectionJs = ts.transpileModule(detectionSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+const detectionMod = { exports: {} }; new Function("module", "exports", detectionJs)(detectionMod, detectionMod.exports);
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const mod = { exports: {} };
-new Function("module", "exports", "require", js)(mod, mod.exports, (specifier) => { if (specifier === "./media") return mediaMod.exports; throw new Error(`Unexpected require: ${specifier}`); });
+new Function("module", "exports", "require", js)(mod, mod.exports, (specifier) => { if (specifier === "./media") return mediaMod.exports; if (specifier === "./detection") return detectionMod.exports; throw new Error(`Unexpected require: ${specifier}`); });
 const core = mod.exports;
 
 const raw = { id:"cam-1", name:"Gate", privacy_scope:"home", estate_id:"estate-a", home_id:"home-a", status:"active", stream_status:"ready", health:{ online:true, status:"healthy", last_seen_at:"2026-08-24T10:00:00Z" }, capabilities:{ live_view:{availability:"available"}, anpr:"unexpected" }, rtsp_url:"rtsp://user:secret@10.0.0.2/live", credential_ref:"secret:camera", edge_hls_url:"http://10.0.0.2/live.m3u8" };
 const camera = core.normalizeCamera(raw);
 assert.equal(camera.id, "cam-1"); assert.equal(camera.scope, "home"); assert.equal(camera.runtimeState, "online"); assert.equal(core.isCameraStreamHealthy(camera), true);
-assert.equal(camera.capabilities.liveView.availability, "available"); assert.equal(camera.capabilities.anpr.availability, "unknown");
+assert.equal(camera.capabilities.liveView.availability, "available"); assert.equal(camera.capabilities.anpr.availability, "unavailable");
 const serialized = JSON.stringify(camera); for (const forbidden of ["rtsp", "secret:camera", "10.0.0.2", "credential_ref", "edge_hls_url"]) assert.equal(serialized.includes(forbidden), false);
 const degraded = core.normalizeCamera({ id:"cam-2", health:{online:true,status:"healthy",provider_error:"timeout"}, stream_status:"ready" }); assert.equal(degraded.runtimeState,"degraded");
 const offline = core.normalizeCamera({ id:"cam-3", health:{online:false,status:"offline"}, stream_status:"failed" }); assert.equal(offline.runtimeState,"offline");
@@ -31,5 +34,5 @@ const calls=[]; const client=core.createCameraReadClient({get:async(p,o)=>{calls
 await client.listCameras({scope:"home",homeId:"home/a"}); assert.equal(calls[0][0],"/cameras/home/home%2Fa");
 await client.listCameras({scope:"facility",estateId:"estate/a"}); assert.equal(calls[1][0],"/cameras/estate/estate%2Fa");
 await client.getCameraEvents("cam/1"); assert.equal(calls[2][0],"/cameras/cam%2F1/events");
-await client.createPlaybackSession("cam/1",{rewindSeconds:61.9}); assert.deepEqual(calls[3][1].params,{rewind:61});
+await client.createPlaybackSession("cam/1"); assert.equal(calls[3][0],"/cameras/cam%2F1/playback"); assert.equal(calls[3][1],undefined);
 console.log("Oyi Camera Core Phase 2 contract smoke passed");

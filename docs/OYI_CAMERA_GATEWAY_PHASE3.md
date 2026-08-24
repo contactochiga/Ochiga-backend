@@ -14,6 +14,6 @@ Candidates live in `discovered_devices` and cannot become canonical cameras impl
 
 Commands are delivered through the existing Edge config poll and are bound to the authenticated estate/node. They expire and use acknowledgement/completion state to prevent replay. Consumer discovery additionally requires matching home scope and explicit node opt-in.
 
-Cloud-side ONVIF scanning is disabled by default (`ALLOW_CLOUD_CAMERA_SCAN` is a diagnostic compatibility escape hatch). Offline Edge nodes keep already configured local media running; discovery synchronization resumes through the authenticated command/outbox path.
+Cloud-side ONVIF scanning has been removed. Oyi Edge is the only private-LAN camera discovery executor. Offline Edge nodes keep already configured local media running; discovery synchronization resumes through the authenticated command/outbox path.
 
 Phase 4 may add snapshots, clips, recording references and retention without changing canonical camera identity or the Edge/private-network boundary.

@@ -18,7 +18,7 @@ const publicProjection=gateway.split("export function publicDiscoveryCandidate")
 assert(publicProjection && !publicProjection.includes("ipAddress:") && !publicProjection.includes("xaddrIdentity:"),"public candidate must hide LAN coordinates");
 assert.match(realtime,/if \(!scoped\) io\.emit/);
 assert.match(realtime,/home:\$\{homeId\}/);
-assert.match(scan,/ALLOW_CLOUD_CAMERA_SCAN/);
+assert.doesNotMatch(scan,/ALLOW_CLOUD_CAMERA_SCAN/);
 assert.match(migration,/create table if not exists public\.edge_commands/);
 assert.match(migration,/revoke all on public\.discovered_devices from anon, authenticated/);
 console.log("camera gateway phase3 smoke: ok");

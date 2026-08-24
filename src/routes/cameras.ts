@@ -10,14 +10,6 @@ import * as CameraDetectionCtrl from "../controllers/cameraDetectionController";
 
 const router = Router();
 
-router.post(
-  "/scan",
-  requireAuth,
-  requirePermission("cameras.manage"),
-  auditOnSuccess("camera.action.requested", "camera_scan", "scan"),
-  CamerasCtrl.scan
-);
-
 router.get(
   "/estate/:estateId",
   requireAuth,
@@ -95,18 +87,6 @@ router.get(
   requireAuth,
   requirePermission("cameras.view"),
   CameraIntelCtrl.getSecurityReport
-);
-
-/**
- * ✅ NEW: issue short-lived HLS token for this camera
- * UI calls this with Bearer token, then appends ?token=... to playlist/segments.
- */
-router.get(
-  "/:cameraId/hls-token",
-  requireAuth,
-  requirePermission("cameras.view"),
-  auditOnSuccess("camera.viewed", "camera", "cameraId"),
-  CameraStreamCtrl.issueHlsToken
 );
 
 router.get(
