@@ -34,6 +34,8 @@ assert.match(command, /camera_events"[\s\S]{0,140}order\("created_at"/);
 assert.match(migration, /camera_infrastructure_canonical_camera_fk/);
 assert.match(migration, /not valid/i);
 assert.match(migration, /enable row level security/);
+assert.match(migration, /to_regclass\('public\.' \|\| relation_name\)/);
+assert.match(migration, /revoke all on table public\.%I from anon, authenticated/);
 assert.match(serializer, /password/);
 assert.match(serializer, /rtsp_url/);
 

@@ -45,10 +45,20 @@ alter table if exists public.discovered_devices enable row level security;
 -- These operational tables are server-authoritative. The service role bypasses
 -- RLS; authenticated browser clients receive no direct table policy and must use
 -- the audited Backend APIs, where estate/home/RBAC checks are applied.
-revoke all on public.facility_cameras, public.camera_events, public.camera_ai_profiles,
-  public.camera_dvrs, public.camera_infrastructure, public.camera_health_history,
-  public.edge_nodes, public.edge_heartbeats, public.discovered_devices
-from anon, authenticated;
+do $$
+declare
+  relation_name text;
+begin
+  foreach relation_name in array array[
+    'facility_cameras', 'camera_events', 'camera_ai_profiles', 'camera_dvrs',
+    'camera_infrastructure', 'camera_health_history', 'edge_nodes',
+    'edge_heartbeats', 'discovered_devices'
+  ] loop
+    if to_regclass('public.' || relation_name) is not null then
+      execute format('revoke all on table public.%I from anon, authenticated', relation_name);
+    end if;
+  end loop;
+end $$;
 
 revoke all on public.camera_infrastructure_unresolved_legacy from anon, authenticated;
 grant select on public.camera_infrastructure_unresolved_legacy to service_role;
