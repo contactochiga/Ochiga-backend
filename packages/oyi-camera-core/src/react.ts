@@ -1,12 +1,14 @@
 "use client";
 
+// DO NOT EDIT FRONTEND COPIES DIRECTLY — generated from canonical Oyi Camera Core.
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CameraPlaybackSession } from "./core";
 
 export type CameraPlaybackStatus = "idle" | "loading" | "ready" | "refreshing" | "unavailable" | "error";
 export type CameraPlaybackOptions = {
-  cameraId: string | null; rewindSeconds?: number; enabled?: boolean; autoPlay?: boolean;
-  createSession: (cameraId: string, options?: { rewindSeconds?: number }) => Promise<CameraPlaybackSession>;
+  cameraId: string | null; enabled?: boolean; autoPlay?: boolean;
+  createSession: (cameraId: string) => Promise<CameraPlaybackSession>;
 };
 
 function refreshDelay(session: CameraPlaybackSession) {
@@ -14,7 +16,7 @@ function refreshDelay(session: CameraPlaybackSession) {
   return Number.isFinite(expiry) ? Math.max(5_000, expiry - Date.now() - 15_000) : 60_000;
 }
 
-export function useCameraPlayback({ cameraId, rewindSeconds = 0, enabled = true, autoPlay = true, createSession }: CameraPlaybackOptions) {
+export function useCameraPlayback({ cameraId, enabled = true, autoPlay = true, createSession }: CameraPlaybackOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const generation = useRef(0);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,7 +36,7 @@ export function useCameraPlayback({ cameraId, rewindSeconds = 0, enabled = true,
     if (!enabled || !cameraId) { setStatus("idle"); setSession(null); return; }
     const current = ++generation.current; clearTimers(); setStatus(refreshing ? "refreshing" : "loading"); setError(null);
     try {
-      const next = await createSession(cameraId, { rewindSeconds });
+      const next = await createSession(cameraId);
       if (generation.current !== current) return;
       failureCount.current = 0; setSession(next); setStatus("ready");
       refreshTimer.current = setTimeout(() => void loadSession(true), refreshDelay(next));
@@ -46,7 +48,7 @@ export function useCameraPlayback({ cameraId, rewindSeconds = 0, enabled = true,
         setStatus("refreshing"); retryTimer.current = setTimeout(() => void loadSession(true), delay);
       } else setStatus(reason?.response?.status === 409 ? "unavailable" : "error");
     }
-  }, [cameraId, clearTimers, createSession, enabled, rewindSeconds]);
+  }, [cameraId, clearTimers, createSession, enabled]);
 
   useEffect(() => { failureCount.current = 0; void loadSession(false); return () => { generation.current += 1; clearTimers(); }; }, [loadSession, clearTimers]);
 

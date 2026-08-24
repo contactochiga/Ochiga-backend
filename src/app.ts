@@ -66,7 +66,7 @@ import facilityMaintenanceRoutes from "./routes/facilityMaintenanceRoutes";
 // ✅ Facility visitors routes
 import facilityVisitorsRoutes from "./routes/facilityVisitorsRoutes";
 
-// ✅ Cameras routes (scan/bind/stream)
+// Canonical camera routes (registry, authorized playback, media and detections)
 import camerasRoutes from "./routes/cameras";
 
 // ✅ Edge Discovery (agent push + UI pull)
@@ -237,7 +237,7 @@ app.use("/cameras", (_req, res, next) => {
   next();
 });
 
-// ✅ cameras (scan/bind/HLS)
+// Cameras and Edge-orchestrated discovery
 app.use("/cameras", camerasRoutes);
 
 // ✅ edge discovery (agent push + UI pull)

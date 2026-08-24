@@ -1,3 +1,4 @@
+// DO NOT EDIT FRONTEND COPIES DIRECTLY — generated from canonical Oyi Camera Core.
 export const CAMERA_MEDIA_CONTRACT_VERSION="4.0.0-phase4";
 export type CameraMediaKind="snapshot"|"event_snapshot"|"thumbnail"|"clip"|"recording_segment"|"recording";
 export type CameraMediaRetention="ephemeral"|"standard"|"security"|"evidence";

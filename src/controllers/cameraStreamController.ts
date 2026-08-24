@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { canAccessCamera } from "../modules/cameras/cameraAccess.policy";
-import { issueCameraPlaybackToken, playbackExpiry, verifyCameraPlaybackToken } from "../modules/cameras/cameraPlayback.service";
+import { verifyCameraPlaybackToken } from "../modules/cameras/cameraPlayback.service";
 import { assertAuthorizedMediaUrl } from "../modules/cameras/cameraMediaPolicy";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
@@ -45,23 +45,6 @@ function resolveUrl(base: string, maybeRelative: string) {
     return new URL(maybeRelative, base).toString();
   } catch {
     return maybeRelative;
-  }
-}
-
-function parseRewindSeconds(v: any) {
-  const n = Number.parseInt(String(v ?? ""), 10);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.min(n, 24 * 60 * 60);
-}
-
-function withQuery(url: string, key: string, value: string | number) {
-  try {
-    const u = new URL(url);
-    u.searchParams.set(key, String(value));
-    return u.toString();
-  } catch {
-    const sep = url.includes("?") ? "&" : "?";
-    return `${url}${sep}${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`;
   }
 }
 
@@ -125,46 +108,6 @@ function rewritePlaylistToBackend(opts: {
 }
 
 /**
- * GET /cameras/:cameraId/hls-token
- * Issues a short-lived token for HLS playback.
- *
- * This route SHOULD be protected by requireAuth middleware.
- */
-export async function issueHlsToken(req: Request, res: Response) {
-  const user = req.user as any;
-  if (!user) return res.status(401).json({ error: "Not authenticated" });
-
-  if (!APP_JWT_SECRET) {
-    return res.status(500).json({ error: "APP_JWT_SECRET missing" });
-  }
-
-  const { cameraId } = req.params;
-  if (user.camera_id && String(user.camera_id) !== String(cameraId)) {
-    return res.status(403).json({ error: "Playback token is not valid for this camera" });
-  }
-  if (!cameraId) return res.status(400).json({ error: "cameraId is required" });
-
-  const { data: cam, error } = await supabaseAdmin
-    .from("facility_cameras")
-    .select("id, estate_id, metadata")
-    .eq("id", cameraId)
-    .maybeSingle();
-
-  if (error) return res.status(500).json({ error: error.message });
-  if (!cam) return res.status(404).json({ error: "Camera not found" });
-
-  const access = canAccessCamera(cam, user);
-  if (!access.ok) {
-    return res.status(403).json({ error: "Permission denied", code: access.reason });
-  }
-
-  const token = issueCameraPlaybackToken(user, cam, APP_JWT_SECRET);
-  if (!token) return res.status(500).json({ error: "Token generation failed" });
-
-  return res.json({ ok: true, token, expires_in: 120, expires_at: playbackExpiry() });
-}
-
-/**
  * GET /cameras/:cameraId/hls.m3u8
  * Proxies the EDGE playlist and rewrites it to same-origin backend URLs.
  */
@@ -193,13 +136,7 @@ export async function hlsPlaylist(req: Request, res: Response) {
     return res.status(409).json({ error: "Camera has no edge_hls_url set" });
   }
 
-  let edgeUrl = String(cam.edge_hls_url);
-  const rewind = parseRewindSeconds(req.query.rewind);
-  if (rewind > 0) {
-    // Edge can choose which query params to honor.
-    edgeUrl = withQuery(edgeUrl, "rewind", rewind);
-    edgeUrl = withQuery(edgeUrl, "start_offset", rewind);
-  }
+  const edgeUrl = String(cam.edge_hls_url);
   let edgePlaylistUrl: string;
   try {
     edgePlaylistUrl = assertAuthorizedMediaUrl(edgeUrl, String(cam.edge_hls_url));

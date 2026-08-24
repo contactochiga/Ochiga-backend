@@ -41,7 +41,7 @@ export function playbackExpiry() {
   return new Date(Date.now() + PLAYBACK_TOKEN_SECONDS * 1000).toISOString();
 }
 
-export function buildCameraPlaybackContract(req: Request, camera: any, user: any, rewind = 0) {
+export function buildCameraPlaybackContract(req: Request, camera: any, user: any) {
   const access = canAccessCamera(camera, user);
   const edgeUrl = String(camera?.edge_hls_url || camera?.hls_url || "").trim();
   const streamStatus = String(camera?.stream_status || camera?.health_status || camera?.status || (edgeUrl ? "ready" : "pending_stream_details"));
@@ -49,7 +49,7 @@ export function buildCameraPlaybackContract(req: Request, camera: any, user: any
   const token = issueCameraPlaybackToken(user, camera);
   const baseUrl = requestBaseUrl(req);
   const hlsUrl = token
-    ? `${baseUrl}/cameras/${encodeURIComponent(String(camera.id))}/hls.m3u8?token=${encodeURIComponent(token)}${rewind > 0 ? `&rewind=${encodeURIComponent(String(rewind))}` : ""}`
+    ? `${baseUrl}/cameras/${encodeURIComponent(String(camera.id))}/hls.m3u8?token=${encodeURIComponent(token)}`
     : "";
 
   return {
@@ -76,6 +76,5 @@ export function buildCameraPlaybackContract(req: Request, camera: any, user: any
       privacy_scope: cameraPrivacyScope(camera),
       edge_node_id: camera.edge_node_id || null,
     },
-    rewind,
   };
 }

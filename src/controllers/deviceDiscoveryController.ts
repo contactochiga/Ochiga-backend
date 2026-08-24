@@ -73,13 +73,7 @@ export async function discoverDevices(req: Request, res: Response) {
         apiKey: process.env.TUYA_ACCESS_ID,
         apiSecret: process.env.TUYA_ACCESS_SECRET,
         tuyaUid,
-        cidr: req.query.cidr ? String(req.query.cidr) : undefined,
         timeoutMs: req.query.timeoutMs ? Number(req.query.timeoutMs) : undefined,
-
-        onvifUser: req.query.onvifUser ? String(req.query.onvifUser) : undefined,
-        onvifPass: req.query.onvifPass ? String(req.query.onvifPass) : undefined,
-        username: req.query.onvifUser ? String(req.query.onvifUser) : undefined,
-        password: req.query.onvifPass ? String(req.query.onvifPass) : undefined,
       } as any,
     };
 

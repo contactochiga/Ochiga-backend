@@ -108,7 +108,12 @@ function normalizeCameraEvent(row: any): IntelligenceEvent {
     summary: text(row.message || row.metadata?.core_event?.summary, `${titleFromEvent(row.event_type)} detected.`),
     confidence: Number.isFinite(confidenceScore) && confidenceScore >= 0.8 ? "confirmed" : Number.isFinite(confidenceScore) && confidenceScore >= 0.5 ? "probable" : "possible",
     source: text(row.metadata?.source, "camera_events"),
-    metadata: { ...(row.metadata || {}), source_table: "camera_events", source_event_id: row.id, snapshot_url: row.snapshot_url || null },
+    metadata: {
+      ...(row.metadata || {}),
+      source_table: "camera_events",
+      source_event_id: row.id,
+      media_available: Boolean(row.snapshot_url || (Array.isArray(row.metadata?.media_evidence) && row.metadata.media_evidence.length)),
+    },
     occurred_at: row.created_at || new Date().toISOString(),
   });
 }

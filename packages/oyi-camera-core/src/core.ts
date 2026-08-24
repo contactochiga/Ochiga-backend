@@ -1,4 +1,5 @@
 // Canonical source. Generated frontend copies must retain CAMERA_CORE_VERSION.
+// DO NOT EDIT FRONTEND COPIES DIRECTLY — generated from canonical Oyi Camera Core.
 export * from "./media";
 export * from "./detection";
 import { normalizeCameraMedia } from "./media";
@@ -49,7 +50,7 @@ export type CameraEvent = {
 };
 export type CameraPlaybackSession = {
   cameraId: string; protocol: "hls"; url: string; expiresAt?: string | null;
-  sessionId?: string | null; rewindSeconds?: number | null;
+  sessionId?: string | null;
 };
 export type CameraContext = { scope: "facility"; estateId: string } | { scope: "home"; homeId: string };
 export type CameraOyiContext = {
@@ -121,7 +122,7 @@ export function normalizeCameraEvent(raw: unknown): CameraEvent {
 }
 export function normalizePlaybackSession(raw: unknown, fallbackCameraId = ""): CameraPlaybackSession {
   const value = record(raw); const protocol = text(value.protocol ?? value.playback_type ?? value.type, "hls").toLowerCase(); const url = text(value.url ?? value.hls_url); if (protocol !== "hls" || !url) throw new Error("Camera playback is unavailable");
-  return { cameraId:text(value.cameraId ?? value.camera_id, fallbackCameraId), protocol:"hls", url, expiresAt:date(value.expiresAt ?? value.expires_at), sessionId:nullableText(value.sessionId ?? value.session_id), rewindSeconds:finite(value.rewindSeconds ?? value.rewind) };
+  return { cameraId:text(value.cameraId ?? value.camera_id, fallbackCameraId), protocol:"hls", url, expiresAt:date(value.expiresAt ?? value.expires_at), sessionId:nullableText(value.sessionId ?? value.session_id) };
 }
 export function serializeCameraOyiContext(camera: Camera): CameraOyiContext { return { type:"camera", id:camera.id, name:camera.name, scope:camera.scope, location:camera.location, estateId:camera.estateId, homeId:camera.homeId, status:camera.runtimeState }; }
 
@@ -130,7 +131,7 @@ export function createCameraReadClient(transport: CameraTransport) {
   return {
     async listCameras(context: CameraContext) { const path = context.scope === "home" ? `/cameras/home/${encodeURIComponent(context.homeId)}` : `/cameras/estate/${encodeURIComponent(context.estateId)}`; const response = await transport.get(path); return (response.data?.items || []).map(normalizeCamera); },
     async getCameraEvents(cameraId: string, options?: { limit?: number; sinceMinutes?: number }) { const response = await transport.get(`/cameras/${encodeURIComponent(cameraId)}/events`, { params:{ limit:options?.limit ?? 50, sinceMinutes:options?.sinceMinutes ?? 1440 } }); return (response.data?.events || []).map(normalizeCameraEvent); },
-    async createPlaybackSession(cameraId: string, options?: { rewindSeconds?: number }) { const rewind = Math.max(0, Math.floor(options?.rewindSeconds || 0)); const response = await transport.get(`/cameras/${encodeURIComponent(cameraId)}/playback`, { params:{ rewind } }); return normalizePlaybackSession(response.data, cameraId); },
+    async createPlaybackSession(cameraId: string) { const response = await transport.get(`/cameras/${encodeURIComponent(cameraId)}/playback`); return normalizePlaybackSession(response.data, cameraId); },
   };
 }
 export type CameraReadClient = ReturnType<typeof createCameraReadClient>;

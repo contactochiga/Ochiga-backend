@@ -26,7 +26,7 @@ const router = express.Router();
  * Discovery example:
  *   GET /facility/devices/discover?adapter=tuya
  *   GET /facility/devices/discover?adapter=ssdp
- *   GET /facility/devices/discover?adapter=onvif&cidr=192.168.1.0/24
+ * Camera/ONVIF discovery is intentionally excluded: Oyi Edge executes private-LAN discovery.
  */
 
 /** Discover */

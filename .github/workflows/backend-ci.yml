@@ -55,6 +55,9 @@ jobs:
       - name: Validate security release gate
         run: npm run validate:security
 
+      - name: Validate canonical camera runtime
+        run: npm run smoke:camera-runtime-canonicalization
+
       - name: Validate release docs and workflow gates
         run: npm run validate:release
 

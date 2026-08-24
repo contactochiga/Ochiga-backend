@@ -1,11 +1,6 @@
 # Use Node 20 (Debian-based so apt-get works)
 FROM node:22-bookworm-slim
 
-# Install ffmpeg (needed for RTSP -> HLS)
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg \
-  && rm -rf /var/lib/apt/lists/*
-
 # Set working directory
 WORKDIR /app
 
