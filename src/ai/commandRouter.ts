@@ -1112,7 +1112,7 @@ async function summarizeModuleTool(actor: AuthUser, prompt: string, args: Record
   } else if (module === "cameras") {
     const [cameras, events] = await Promise.all([
       selectRows("facility_cameras", (q) => applyScope(q.select("*").order("updated_at", { ascending: false }).limit(50), false)),
-      selectRows("camera_events", (q) => applyScope(q.select("*").order("occurred_at", { ascending: false }).limit(50), false)),
+      selectRows("camera_events", (q) => applyScope(q.select("*").order("created_at", { ascending: false }).limit(50), false)),
     ]);
     result = { available: cameras.available || events.available, rows: [...cameras.rows, ...events.rows], error: cameras.error || events.error };
     entities = [

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "dist/server.js",
   "scripts": {
+    "smoke:camera-runtime-phase1": "node scripts/camera-runtime-phase1-smoke.mjs",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "dev:workers": "ts-node-dev --respawn --transpile-only src/worker.ts",
     "dev:events": "ts-node-dev --respawn --transpile-only src/events.ts",

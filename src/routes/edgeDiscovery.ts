@@ -23,6 +23,13 @@ function asNumber(value: any, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function boundEdgeContext(req: any, payload: any = {}) {
+  return {
+    siteId: asString(req.edgeAgent?.siteId || payload.site_id || payload.estate_id),
+    agentId: asString(req.edgeAgent?.id || payload.agent_id || payload.edge_node_id),
+  };
+}
+
 
 const SUPPORTED_CAMERA_PROVIDERS = new Set(["generic_rtsp", "onvif", "hikvision", "dahua", "uniview", "tuya_camera", "other"]);
 const SUPPORTED_CAMERA_PROTOCOLS = new Set(["rtsp", "onvif", "hls", "mjpeg", "http_snapshot"]);
@@ -37,10 +44,15 @@ function normalizeProtocol(value: any) {
   return SUPPORTED_CAMERA_PROTOCOLS.has(protocol) ? protocol : "rtsp";
 }
 
-function safeMeta(value: any) {
-  if (!value || typeof value !== "object") return {};
-  const { password, pass, secret, token, username, ...rest } = value;
-  return rest;
+function safeMeta(value: any): any {
+  if (Array.isArray(value)) return value.slice(0, 100).map(safeMeta);
+  if (!value || typeof value !== "object") {
+    if (typeof value !== "string") return value;
+    return value.replace(/(rtsp|https?):\/\/[^:@/]+:[^@/]+@/gi, "$1://***:***@");
+  }
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !["password", "pass", "secret", "token", "username"].includes(key.toLowerCase()))
+    .map(([key, nested]) => [key, safeMeta(nested)]));
 }
 
 function sanitizeDevice(device: any) {
@@ -236,11 +248,10 @@ function emitEdgeSignal(type: string, payload: any) {
 
 edgeDiscoveryRouter.post("/edge/agent/register", requireEdgeToken, async (req, res) => {
   const payload = req.body || {};
-  const siteId = asString(payload.site_id || payload.estate_id);
-  const agentId = asString(payload.agent_id || payload.edge_node_id);
+  const { siteId, agentId } = boundEdgeContext(req, payload);
   if (!siteId || !agentId) return res.status(400).json({ error: "site_id and agent_id required" });
 
-  const node = await upsertEdgeNode({ ...payload, camera_count: asNumber(payload.camera_count, 0), device_count: asNumber(payload.device_count, 0) }, "online");
+  const node = await upsertEdgeNode({ ...payload, site_id: siteId, agent_id: agentId, camera_count: asNumber(payload.camera_count, 0), device_count: asNumber(payload.device_count, 0) }, "online");
   await safeInsert("deployment_milestones", {
     estate_id: siteId,
     milestone_type: "edge.agent.registered",
@@ -266,12 +277,12 @@ edgeDiscoveryRouter.post("/edge/agent/register", requireEdgeToken, async (req, r
 
 edgeDiscoveryRouter.post("/edge/agent/heartbeat", requireEdgeToken, async (req, res) => {
   const payload = req.body || {};
-  const siteId = asString(payload.site_id || payload.estate_id);
-  const agentId = asString(payload.agent_id || payload.edge_node_id);
+  const { siteId, agentId } = boundEdgeContext(req, payload);
   if (!siteId || !agentId) return res.status(400).json({ error: "site_id and agent_id required" });
 
-  const result = await recordHeartbeat(payload);
-  emitEdgeSignal("edge.heartbeat", payload);
+  const boundPayload = { ...payload, site_id: siteId, agent_id: agentId };
+  const result = await recordHeartbeat(boundPayload);
+  emitEdgeSignal("edge.heartbeat", boundPayload);
   void emitAuditEvent({
     actorId: agentId,
     actorEmail: "edge-agent@oyi.local",
@@ -289,8 +300,7 @@ edgeDiscoveryRouter.post("/edge/agent/heartbeat", requireEdgeToken, async (req, 
 });
 
 edgeDiscoveryRouter.get("/edge/agent/config", requireEdgeToken, async (req, res) => {
-  const siteId = asString(req.query.site_id);
-  const agentId = asString(req.query.agent_id || req.headers["x-edge-agent-id"]);
+  const { siteId, agentId } = boundEdgeContext(req, req.query);
   if (!siteId || !agentId) return res.status(400).json({ error: "site_id and agent_id required" });
 
   return res.json({
@@ -309,9 +319,8 @@ edgeDiscoveryRouter.get("/edge/agent/config", requireEdgeToken, async (req, res)
 });
 
 edgeDiscoveryRouter.post("/edge/discovery/push", requireEdgeToken, async (req, res) => {
-  const { site_id, agent_id, devices } = req.body || {};
-  const siteId = asString(site_id);
-  const agentId = asString(agent_id);
+  const { devices } = req.body || {};
+  const { siteId, agentId } = boundEdgeContext(req, req.body || {});
 
   if (!siteId || !agentId || !Array.isArray(devices)) {
     return res.status(400).json({ error: "site_id, agent_id, devices[] required" });
@@ -374,8 +383,7 @@ edgeDiscoveryRouter.post("/edge/discovery/push", requireEdgeToken, async (req, r
 edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeToken, async (req, res) => {
   const cameraId = asString(req.params.cameraId);
   const payload = req.body || {};
-  const siteId = asString(payload.site_id || payload.estate_id);
-  const agentId = asString(payload.agent_id || payload.edge_node_id);
+  const { siteId, agentId } = boundEdgeContext(req, payload);
   const status = asString(payload.status || payload.stream_status || "pending");
   if (!cameraId || !siteId || !agentId) return res.status(400).json({ error: "cameraId, site_id and agent_id required" });
 
@@ -383,6 +391,12 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeTok
     status,
     health_status: asString(payload.health_status || status),
     last_seen_at: status === "online" ? nowIso() : undefined,
+    last_health_check_at: nowIso(),
+    last_success_at: payload.last_success_at || (status === "online" ? nowIso() : undefined),
+    last_failure_at: payload.last_failure_at || (status === "online" ? undefined : nowIso()),
+    latency_ms: Number.isFinite(Number(payload.latency_ms)) ? Number(payload.latency_ms) : undefined,
+    reconnect_count: Number.isFinite(Number(payload.reconnect_count)) ? Number(payload.reconnect_count) : undefined,
+    provider_error: asString(payload.provider_error || payload.error_message) || null,
     edge_hls_url: asString(payload.edge_hls_url || payload.hls_url) || undefined,
     metadata: {
       edge_node_id: agentId,
@@ -434,8 +448,7 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeTok
 edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, async (req, res) => {
   const cameraRef = asString(req.params.cameraId);
   const payload = req.body || {};
-  const siteId = asString(payload.site_id || payload.estate_id);
-  const agentId = asString(payload.agent_id || payload.edge_node_id || (req as any).edgeAgent?.id);
+  const { siteId, agentId } = boundEdgeContext(req, payload);
   const eventType = asString(payload.event_type || payload.type).toLowerCase();
   if (!cameraRef || !siteId || !agentId || !eventType) {
     return res.status(400).json({ error: "cameraId, site_id, agent_id and event_type required" });
@@ -491,6 +504,7 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, asy
       confidence,
       snapshot_url: asString(payload.snapshot_url) || null,
       message: asString(payload.message || coreEvent.summary) || null,
+      source_timestamp: asString(payload.source_timestamp || payload.occurred_at) || null,
       metadata: {
         ...safeMeta(payload.metadata || {}),
         source: "edge_camera_ai",

@@ -193,6 +193,7 @@ export async function createEvent(req: Request, res: Response) {
     confidence,
     snapshot_url: req.body?.snapshot_url ? String(req.body.snapshot_url) : null,
     message: req.body?.message ? String(req.body.message) : null,
+    source_timestamp: req.body?.source_timestamp || req.body?.occurred_at || null,
     metadata: req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {},
     created_by: user.id,
   };
@@ -303,7 +304,7 @@ export async function createEvent(req: Request, res: Response) {
       camera_name: cam.name || null,
       ...(payload.metadata || {}),
     },
-    occurred_at: String(data?.created_at || new Date().toISOString()),
+    occurred_at: String(data?.source_timestamp || data?.created_at || new Date().toISOString()),
   });
   const intelligenceBus = await publishIntelligenceEvent(coreEvent, {
     source_table: "camera_events",

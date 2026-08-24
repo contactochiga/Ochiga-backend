@@ -11,7 +11,7 @@ const router = Router();
 router.post(
   "/scan",
   requireAuth,
-  requirePermission("cameras.view"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera_scan", "scan"),
   CamerasCtrl.scan
 );
@@ -58,7 +58,7 @@ router.get(
 router.post(
   "/dvrs/test",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "dvr", "estateId"),
   CamerasCtrl.testDvrConnection
 );
@@ -66,7 +66,7 @@ router.post(
 router.post(
   "/dvrs/import",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "dvr", "estateId"),
   CamerasCtrl.importDvr
 );
@@ -74,7 +74,7 @@ router.post(
 router.post(
   "/bind",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CamerasCtrl.bind
 );
@@ -83,7 +83,7 @@ router.post(
 router.post(
   "/bind-from-discovery",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CamerasCtrl.bindFromDiscovery
 );
@@ -118,7 +118,7 @@ router.get(
 router.post(
   "/:cameraId/validate-stream",
   requireAuth,
-  requirePermission("cameras.view"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CamerasCtrl.validateStream
 );
@@ -133,7 +133,7 @@ router.get(
 router.post(
   "/:cameraId/events",
   requireAuth,
-  requirePermission("cameras.view"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CameraIntelCtrl.createEvent
 );
@@ -155,7 +155,7 @@ router.get(
 router.put(
   "/:cameraId/ai/profile",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CameraIntelCtrl.upsertAiProfile
 );

@@ -1,9 +1,9 @@
 // src/controllers/cameraStreamController.ts
 import { Request, Response } from "express";
-import jwt from "jsonwebtoken";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { canAccessCamera } from "../modules/cameras/cameraAccess.policy";
-import { issueCameraPlaybackToken, playbackExpiry } from "../modules/cameras/cameraPlayback.service";
+import { issueCameraPlaybackToken, playbackExpiry, verifyCameraPlaybackToken } from "../modules/cameras/cameraPlayback.service";
+import { assertAuthorizedMediaUrl } from "../modules/cameras/cameraMediaPolicy";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
 
@@ -23,10 +23,7 @@ function verifyHlsToken(req: Request): any | null {
     const token = (req.query.token as string) || "";
     if (!token) return null;
 
-    const decoded = jwt.verify(token, APP_JWT_SECRET) as any;
-    if (!decoded?.id || !decoded?.estate_id || !decoded?.role) return null;
-
-    return decoded;
+    return verifyCameraPlaybackToken(token, APP_JWT_SECRET);
   } catch {
     return null;
   }
@@ -68,15 +65,28 @@ function withQuery(url: string, key: string, value: string | number) {
   }
 }
 
-async function fetchText(url: string) {
-  const r = await fetch(url, { redirect: "follow" });
+async function fetchBound(url: string, configuredPlaylistUrl: string, redirects = 0): Promise<globalThis.Response> {
+  const authorized = assertAuthorizedMediaUrl(url, configuredPlaylistUrl);
+  const response = await fetch(authorized, { redirect: "manual" });
+  if (response.status >= 300 && response.status < 400) {
+    if (redirects >= 3) throw new Error("media_redirect_limit");
+    const location = response.headers.get("location");
+    if (!location) throw new Error("media_redirect_without_location");
+    const redirected = new URL(location, authorized).toString();
+    assertAuthorizedMediaUrl(redirected, configuredPlaylistUrl);
+    return fetchBound(redirected, configuredPlaylistUrl, redirects + 1);
+  }
+  return response;
+}
+
+async function fetchText(url: string, configuredPlaylistUrl: string) {
+  const r = await fetchBound(url, configuredPlaylistUrl);
   const text = await r.text();
   return { ok: r.ok, status: r.status, text, headers: r.headers };
 }
 
-async function fetchStream(url: string) {
-  const r = await fetch(url, { redirect: "follow" });
-  return r;
+async function fetchStream(url: string, configuredPlaylistUrl: string) {
+  return fetchBound(url, configuredPlaylistUrl);
 }
 
 /**
@@ -98,18 +108,17 @@ function rewritePlaylistToBackend(opts: {
 
   const lines = playlistText.split("\n").map((line) => line.trimEnd());
 
+  const proxyUrl = (uri: string) => {
+    const absolute = assertAuthorizedMediaUrl(resolveUrl(playlistUrl, uri), playlistUrl);
+    return `${baseUrl}/cameras/${cameraId}/hls/${encodeURIComponent(absolute)}?token=${encodeURIComponent(token)}`;
+  };
+
   const out = lines.map((line) => {
-    if (!line || line.startsWith("#")) return line;
-
-    // Turn relative segment/playlist URI into ABSOLUTE url
-    const absolute = resolveUrl(playlistUrl, line);
-
-    // Encode absolute url into our proxy route
-    const encoded = encodeURIComponent(absolute);
-
-    return `${baseUrl}/cameras/${cameraId}/hls/${encoded}?token=${encodeURIComponent(
-      token
-    )}`;
+    if (!line) return line;
+    if (line.startsWith("#")) {
+      return line.replace(/URI="([^"]+)"/g, (_match, uri) => `URI="${proxyUrl(uri)}"`);
+    }
+    return proxyUrl(line);
   });
 
   return out.join("\n");
@@ -191,7 +200,13 @@ export async function hlsPlaylist(req: Request, res: Response) {
     edgeUrl = withQuery(edgeUrl, "rewind", rewind);
     edgeUrl = withQuery(edgeUrl, "start_offset", rewind);
   }
-  const { ok, status, text } = await fetchText(edgeUrl);
+  let edgePlaylistUrl: string;
+  try {
+    edgePlaylistUrl = assertAuthorizedMediaUrl(edgeUrl, String(cam.edge_hls_url));
+  } catch {
+    return res.status(409).json({ error: "Camera media source is invalid" });
+  }
+  const { ok, status, text } = await fetchText(edgePlaylistUrl, String(cam.edge_hls_url));
 
   if (!ok) {
     return res.status(502).json({
@@ -206,7 +221,7 @@ export async function hlsPlaylist(req: Request, res: Response) {
   // Rewrite master playlist -> backend routes
   const rewritten = rewritePlaylistToBackend({
     playlistText: text,
-    playlistUrl: edgeUrl, // IMPORTANT
+    playlistUrl: edgePlaylistUrl,
     cameraId: String(cameraId),
     token,
     baseUrl,
@@ -235,11 +250,11 @@ export async function hlsSegment(req: Request, res: Response) {
   const rawSeg = (req.params as any).seg as string;
   if (!rawSeg) return res.status(400).end();
 
-  let targetUrl = rawSeg;
+  let targetUrl: string;
   try {
     targetUrl = decodeURIComponent(rawSeg);
   } catch {
-    // keep as-is
+    return res.status(400).json({ error: "Malformed media resource" });
   }
 
   const { data: cam, error } = await supabaseAdmin
@@ -257,11 +272,26 @@ export async function hlsSegment(req: Request, res: Response) {
   const baseUrl = reqBaseUrl(req);
 
   // If somehow we received a relative url, resolve against the camera's edge playlist url
-  if (!/^https?:\/\//i.test(targetUrl)) {
-    targetUrl = resolveUrl(String(cam.edge_hls_url), targetUrl);
+  try {
+    targetUrl = assertAuthorizedMediaUrl(targetUrl, String(cam.edge_hls_url));
+  } catch (error: any) {
+    console.warn("camera_media_resource_rejected", {
+      camera_id: cameraId,
+      reason: String(error?.message || "invalid_media_resource"),
+    });
+    return res.status(403).json({ error: "Media resource is not authorized for this camera" });
   }
 
-  const r = await fetchStream(targetUrl);
+  let r: globalThis.Response;
+  try {
+    r = await fetchStream(targetUrl, String(cam.edge_hls_url));
+  } catch (error: any) {
+    console.warn("camera_media_redirect_rejected", {
+      camera_id: cameraId,
+      reason: String(error?.message || "invalid_media_redirect"),
+    });
+    return res.status(403).json({ error: "Media redirect is not authorized for this camera" });
+  }
   if (!r.ok) return res.status(502).end();
 
   const ct = r.headers.get("content-type") || "";

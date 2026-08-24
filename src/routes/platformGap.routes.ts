@@ -38,7 +38,7 @@ router.get("/handovers", requirePermission("support.read"), wrap((req) => platfo
 router.post("/handovers", requirePermission("support.assign"), wrap((req) => platformGapService.createHandover(req)));
 
 router.get("/camera-infrastructure", requirePermission("cameras.view"), wrap((req) => platformGapService.cameraInfrastructure(req)));
-router.put("/camera-infrastructure", requirePermission("cameras.view"), wrap((req) => platformGapService.upsertCameraInfrastructure(req)));
+router.put("/camera-infrastructure", requirePermission("cameras.manage"), wrap((req) => platformGapService.upsertCameraInfrastructure(req)));
 
 router.get("/realtime-audit", requirePermission("audit.read"), wrap(() => platformGapService.realtimeAudit()));
 router.get("/deployment-readiness", requirePermission("settings.manage"), wrap(() => platformGapService.deploymentReadiness()));
