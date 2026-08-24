@@ -17,5 +17,23 @@ export function canonicalCameraHealth(camera: any) {
 }
 
 export function withCanonicalCameraHealth(camera: any) {
-  return { ...camera, health: canonicalCameraHealth(camera) };
+  const health = canonicalCameraHealth(camera);
+  const mediaConfigured = Boolean(camera?.edge_hls_url || camera?.hls_url);
+  const mediaAvailability = mediaConfigured ? (health.online ? "available" : "configured") : "unavailable";
+  const metadata = camera?.metadata && typeof camera.metadata === "object" ? camera.metadata : {};
+  const configuredDetection = (key: string) => ({ availability: camera?.ai_enabled && metadata[key] === true ? "configured" : "unknown", source: "camera_profile" });
+  return {
+    ...camera,
+    health,
+    capabilities: {
+      liveView: { availability: mediaAvailability, source: "edge_hls" },
+      playback: { availability: mediaAvailability, source: "edge_hls" },
+      snapshots: { availability: "unknown" }, audio: { availability: "unknown" }, ptz: { availability: "unknown" },
+      motionDetection: configuredDetection("detect_motion"), personDetection: configuredDetection("detect_person"),
+      vehicleDetection: configuredDetection("detect_vehicle"), lineCrossing: configuredDetection("detect_line_crossing"),
+      zoneIntrusion: configuredDetection("detect_zone_intrusion"), faceDetection: configuredDetection("detect_face"),
+      faceRecognition: { availability: "unavailable", source: "runtime" }, anpr: { availability: "unavailable", source: "runtime" },
+      recording: { availability: "unavailable", source: "runtime" },
+    },
+  };
 }
