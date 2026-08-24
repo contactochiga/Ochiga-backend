@@ -88,7 +88,7 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   // capability routing with no domain noun to match a list capability's
   // supports() -- landing on the single-record module instead, which
   // honestly (but wrongly) reported no record was open.
-  if ((/\b(only|just)\b/.test(m) && /\bones?\b/.test(m)) || /^which\s+(ones?\s+)?(are|is)\b/.test(m)) {
+  if ((/\b(only|just)\b/.test(m) && /\bones?\b/.test(m)) || /^which\s+(?:ones\s+are|are)\b/.test(m)) {
     const keyword = m
       .replace(/^(show|give|list)?\s*(me\s+)?(only|just)\s+(the\s+)?/, "")
       .replace(/^which\s+(ones?\s+)?(are|is)\s+/, "")
