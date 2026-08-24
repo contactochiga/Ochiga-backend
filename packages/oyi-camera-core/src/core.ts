@@ -1,7 +1,9 @@
 // Canonical source. Generated frontend copies must retain CAMERA_CORE_VERSION.
 export * from "./media";
+export * from "./detection";
 import { normalizeCameraMedia } from "./media";
-export const CAMERA_CORE_VERSION = "4.0.0-phase4";
+import { normalizeCameraDetection } from "./detection";
+export const CAMERA_CORE_VERSION = "5.0.0-phase5";
 
 export type CameraScope = "facility" | "home" | "office" | "unknown";
 export type CameraRuntimeState = "online" | "degraded" | "offline" | "unknown";
@@ -11,6 +13,8 @@ export type CameraCapabilities = {
   liveView: CameraCapability; playback: CameraCapability; snapshots: CameraCapability;
   audio: CameraCapability; ptz: CameraCapability; motionDetection: CameraCapability;
   personDetection: CameraCapability; vehicleDetection: CameraCapability;
+  animalDetection: CameraCapability; occupancy: CameraCapability; tamperDetection: CameraCapability;
+  smokeDetection: CameraCapability; fireDetection: CameraCapability;
   lineCrossing: CameraCapability; zoneIntrusion: CameraCapability;
   faceDetection: CameraCapability; faceRecognition: CameraCapability;
   anpr: CameraCapability; recording: CameraCapability;
@@ -31,7 +35,7 @@ export type Camera = {
   runtimeState: CameraRuntimeState; createdAt?: string | null; updatedAt?: string | null;
 };
 export type LegacyCameraMediaReference = { kind:"snapshot"|"clip"|"recording";url?:string;trust:"oyi_authorized"|"legacy_external";expiresAt?:string|null;capturedAt?:string|null };
-export type CameraDetection = {
+export type LegacyCameraDetection = {
   id?: string; type: string; confidence?: number | null; label?: string | null;
   zone?: string | null; occurredAt?: string | null;
   boundingBox?: { x: number; y: number; width: number; height: number } | null;
@@ -41,7 +45,7 @@ export type CameraEvent = {
   id: string; cameraId: string; type: string; severity: string;
   confidence?: number | null; createdAt: string; sourceTimestamp?: string | null;
   metadata: Record<string, unknown>; snapshot?: LegacyCameraMediaReference | null;
-  clip?: LegacyCameraMediaReference | null; media?: import("./media").CameraMediaReference[]; detections: CameraDetection[];
+  clip?: LegacyCameraMediaReference | null; media?: import("./media").CameraMediaReference[]; detections: import("./detection").CameraDetection[];
 };
 export type CameraPlaybackSession = {
   cameraId: string; protocol: "hls"; url: string; expiresAt?: string | null;
@@ -74,10 +78,11 @@ const capability = (value: unknown): CameraCapability => {
   return { availability: "unknown" };
 };
 
-const CAPABILITY_KEYS: (keyof CameraCapabilities)[] = ["liveView","playback","snapshots","audio","ptz","motionDetection","personDetection","vehicleDetection","lineCrossing","zoneIntrusion","faceDetection","faceRecognition","anpr","recording"];
+const CAPABILITY_KEYS: (keyof CameraCapabilities)[] = ["liveView","playback","snapshots","audio","ptz","motionDetection","personDetection","vehicleDetection","animalDetection","occupancy","tamperDetection","smokeDetection","fireDetection","lineCrossing","zoneIntrusion","faceDetection","faceRecognition","anpr","recording"];
 export function normalizeCameraCapabilities(raw: unknown): CameraCapabilities {
   const source = record(raw); const out: any = {};
   for (const key of CAPABILITY_KEYS) out[key] = capability(source[key] ?? source[key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)]);
+  for (const key of ["faceDetection","faceRecognition","anpr"]) out[key]={availability:"unavailable",source:"phase5_scope"};
   return out as CameraCapabilities;
 }
 export function normalizeCameraHealth(raw: unknown): CameraHealth | null {
@@ -104,9 +109,9 @@ export const isCameraStreamHealthy = (camera: Camera) => camera.runtimeState ===
 export const getCameraHealthLabel = (camera: Camera) => camera.runtimeState;
 export const getCameraLastActivity = (camera: Camera) => camera.health?.frameFreshnessAt || camera.health?.lastSuccessAt || camera.health?.lastSeenAt || null;
 
-export function extractCameraDetections(rawEvent: unknown): CameraDetection[] {
+export function extractCameraDetections(rawEvent: unknown): import("./detection").CameraDetection[] {
   const event = record(rawEvent); const metadata = record(event.metadata); const values = Array.isArray(event.detections) ? event.detections : Array.isArray(metadata.detections) ? metadata.detections : [];
-  return values.slice(0, 100).map((item: any) => { const box = record(item.boundingBox ?? item.bounding_box ?? item.box); return { id: nullableText(item.id) || undefined, type: text(item.type ?? item.event_type ?? item.class, "unknown"), confidence: finite(item.confidence), label: nullableText(item.label), zone: nullableText(item.zone), occurredAt: date(item.occurredAt ?? item.occurred_at), boundingBox: [box.x,box.y,box.width,box.height].every((v) => Number.isFinite(Number(v))) ? { x:Number(box.x), y:Number(box.y), width:Number(box.width), height:Number(box.height) } : null, attributes: record(item.attributes) }; });
+  return values.slice(0,100).map((item:any)=>normalizeCameraDetection(item));
 }
 export function getCameraEventOccurrenceTime(event: Pick<CameraEvent,"sourceTimestamp"|"createdAt">) { return date(event.sourceTimestamp) || event.createdAt; }
 export function normalizeCameraEvent(raw: unknown): CameraEvent {

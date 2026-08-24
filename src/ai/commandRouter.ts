@@ -1110,14 +1110,16 @@ async function summarizeModuleTool(actor: AuthUser, prompt: string, args: Record
     entities = result.rows.map((row: any) => moduleEntity("security", row, "facility_incidents", "Security incident"));
     label = "security incidents";
   } else if (module === "cameras") {
-    const [cameras, events] = await Promise.all([
+    const [cameras, events, detections] = await Promise.all([
       selectRows("facility_cameras", (q) => applyScope(q.select("*").order("updated_at", { ascending: false }).limit(50), false)),
       selectRows("camera_events", (q) => applyScope(q.select("*").order("created_at", { ascending: false }).limit(50), false)),
+      selectRows("camera_detections", (q) => applyScope(q.select("id,camera_id,estate_id,home_id,event_id,media_id,detection_type,observed_at,confidence,visual_zone_id,attributes,provider,model").order("observed_at", { ascending: false }).limit(50), false)),
     ]);
-    result = { available: cameras.available || events.available, rows: [...cameras.rows, ...events.rows], error: cameras.error || events.error };
+    result = { available: cameras.available || events.available || detections.available, rows: [...cameras.rows, ...events.rows, ...detections.rows], error: cameras.error || events.error || detections.error };
     entities = [
       ...cameras.rows.map((row: any) => moduleEntity("camera", row, "facility_cameras", row.name || "Camera", { location: row.location || null, last_seen_at: row.last_seen_at || null, health_status: row.health_status || null })),
       ...events.rows.map((row: any) => moduleEntity("camera", row, "camera_events", "Camera event")),
+      ...detections.rows.map((row: any) => moduleEntity("camera", row, "camera_detections", `${row.detection_type || "Unknown"} detection`, { observed_at: row.observed_at, confidence: row.confidence, media_available: Boolean(row.media_id), identity_recognized: false })),
     ];
     label = /event/.test(requested) ? "camera events" : "cameras";
   } else if (module === "sensors" || (module === "utilities" && scope.facility)) {

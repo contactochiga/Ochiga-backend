@@ -1,8 +1,8 @@
 {
   "name": "@ochiga/oyi-camera-core",
-  "version": "4.0.0-phase4",
+  "version": "5.0.0-phase5",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/core.ts", "./react": "./src/react.ts", "./media": "./src/media.ts" },
+  "exports": { ".": "./src/core.ts", "./react": "./src/react.ts", "./media": "./src/media.ts", "./detection": "./src/detection.ts" },
   "peerDependencies": { "hls.js": "^1.6.16", "react": "^19.0.0" }
 }
