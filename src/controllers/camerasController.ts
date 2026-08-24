@@ -60,6 +60,13 @@ export async function scan(req: Request, res: Response) {
   const user = req.user as any;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
 
+  if (process.env.ALLOW_CLOUD_CAMERA_SCAN !== "true") {
+    return res.status(409).json({
+      error: "edge_discovery_required",
+      message: "Camera discovery must be executed by an authorized Oyi Edge node on the local network.",
+    });
+  }
+
   const { cidr, username, password } = req.body || {};
 
   try {
