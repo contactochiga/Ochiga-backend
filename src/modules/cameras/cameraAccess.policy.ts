@@ -50,7 +50,7 @@ export function canAccessCamera(camera: any, user: CameraAccessUser | null | und
 
   const cameraEstateId = clean(camera.estate_id);
   const userEstateId = clean(user.estate_id);
-  if (cameraEstateId && userEstateId && cameraEstateId !== userEstateId) {
+  if (cameraEstateId && cameraEstateId !== userEstateId) {
     return { ok: false, reason: "estate_scope_mismatch" };
   }
 

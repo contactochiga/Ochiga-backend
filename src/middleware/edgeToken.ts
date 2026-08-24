@@ -1,19 +1,6 @@
-import crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
 import { emitAuditEvent } from "../core/foundation";
-
-function tokenList() {
-  return String(process.env.OYI_EDGE_AGENT_TOKENS || process.env.OYI_EDGE_AGENT_TOKEN || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function secureEqual(a: string, b: string) {
-  const left = Buffer.from(String(a || ""));
-  const right = Buffer.from(String(b || ""));
-  return left.length === right.length && crypto.timingSafeEqual(left, right);
-}
+import { resolveEdgeIdentity } from "../modules/cameras/edgeIdentityPolicy";
 
 function extractEdgeToken(req: Request) {
   const auth = String(req.headers.authorization || "");
@@ -23,27 +10,28 @@ function extractEdgeToken(req: Request) {
 
 export function requireEdgeToken(req: Request, res: Response, next: NextFunction) {
   const token = extractEdgeToken(req);
-  const allowed = tokenList();
-  const ok = Boolean(token && allowed.length && allowed.some((candidate) => secureEqual(candidate, token)));
+  const requestedAgentId = String(req.body?.agent_id || req.body?.edge_node_id || req.query?.agent_id || req.headers["x-edge-agent-id"] || "").trim();
+  const requestedSiteId = String(req.body?.site_id || req.body?.estate_id || req.query?.site_id || req.query?.estate_id || req.headers["x-edge-site-id"] || "").trim();
+  const identity = token ? resolveEdgeIdentity(token, requestedAgentId, requestedSiteId) : null;
 
-  if (!ok) {
+  if (!identity) {
     void emitAuditEvent({
       actorId: null,
       actorEmail: "edge-agent@unknown",
       actorRole: "edge_agent",
       action: "auth.failed",
       resourceType: "edge_agent",
-      resourceId: String(req.body?.agent_id || req.params?.agentId || "edge_discovery"),
+      resourceId: requestedAgentId || "edge_discovery",
+      estateId: requestedSiteId || undefined,
       status: "denied",
-      metadata: { method: req.method, path: req.path, reason: token ? "invalid_edge_token" : "missing_edge_token" },
+      metadata: { method: req.method, path: req.path, reason: token ? "edge_identity_mismatch_or_unknown" : "missing_edge_token" },
       req,
     });
-    return res.status(401).json({ error: "Invalid or missing edge token" });
+    console.warn("edge_identity_rejected", { agent_id: requestedAgentId || null, site_id: requestedSiteId || null, path: req.path });
+    return res.status(401).json({ error: "Invalid or mismatched edge identity" });
   }
 
-  (req as any).edgeAgent = {
-    id: String(req.body?.agent_id || req.headers["x-edge-agent-id"] || "edge_agent"),
-    role: "edge_agent",
-  };
+  if (identity.legacy) console.warn("edge_legacy_identity_accepted", { agent_id: identity.id, site_id: identity.siteId });
+  (req as any).edgeAgent = identity;
   next();
 }

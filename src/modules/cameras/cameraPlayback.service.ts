@@ -26,6 +26,17 @@ export function issueCameraPlaybackToken(user: any, camera: any, secret = proces
   );
 }
 
+export function verifyCameraPlaybackToken(token: string, secret = process.env.APP_JWT_SECRET) {
+  if (!secret || !token) return null;
+  try {
+    const decoded = jwt.verify(token, secret) as any;
+    if (!decoded?.id || !decoded?.estate_id || !decoded?.role || !decoded?.camera_id) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 export function playbackExpiry() {
   return new Date(Date.now() + PLAYBACK_TOKEN_SECONDS * 1000).toISOString();
 }

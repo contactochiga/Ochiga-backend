@@ -4,9 +4,10 @@ import { NotificationService } from "../services/NotificationService";
 import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.service";
 import { canAccessCamera, requireCameraAccess } from "../modules/cameras/cameraAccess.policy";
 import { normalizeIntelligenceEvent, publishIntelligenceEvent } from "../intelligence-core";
+import { mediaReference } from "../modules/cameras/cameraMedia.service";
 
 const MAX_REWIND_SECONDS = 24 * 60 * 60; // 24h
-const DEFAULT_REWIND_SECONDS = 5 * 60;
+const DEFAULT_REWIND_SECONDS = 0;
 const DEFAULT_REPORT_LIMIT = 2000;
 
 function clamp(n: number, min: number, max: number) {
@@ -106,6 +107,7 @@ export async function getPlaybackUrl(req: Request, res: Response) {
 
   const rewindInput = parseIntSafe(req.query.rewind, DEFAULT_REWIND_SECONDS);
   const rewind = clamp(rewindInput, 0, MAX_REWIND_SECONDS);
+  if (rewind > 0) return res.status(409).json({ error:"recording_unavailable", message:"Historical playback requires a recorded media segment. Use the camera media timeline." });
 
   const { data: cam, error } = await resolveCamera(cameraId);
   if (error) return res.status(500).json({ error: error.message });
@@ -156,7 +158,8 @@ export async function listEvents(req: Request, res: Response) {
     return res.status(500).json({ error: qErr.message });
   }
 
-  return res.json({ ok: true, events: data || [] });
+  const eventIds=(data||[]).map((event:any)=>event.id);const [{data:links},{data:detections}]=eventIds.length?await Promise.all([supabaseAdmin.from("camera_event_media").select("event_id,relationship,camera_media(*)").in("event_id",eventIds),supabaseAdmin.from("camera_detections").select("id,camera_id,event_id,media_id,detection_type,observed_at,confidence,bounding_box,visual_zone_id,tracking_id,attributes,provider,model,model_version,created_at").in("event_id",eventIds).order("observed_at",{ascending:true})]):[{data:[] as any[]},{data:[] as any[]}];const byEvent=new Map<string,any[]>();for(const link of links||[]){const list=byEvent.get((link as any).event_id)||[];list.push({...mediaReference((link as any).camera_media),relationship:(link as any).relationship});byEvent.set((link as any).event_id,list);}const detectionByEvent=new Map<string,any[]>();for(const detection of detections||[]){const list=detectionByEvent.get((detection as any).event_id)||[];list.push(detection);detectionByEvent.set((detection as any).event_id,list)}const events=(data||[]).map((event:any)=>({...event,media:byEvent.get(event.id)||[],detections:detectionByEvent.get(event.id)||[]}));
+  return res.json({ ok: true, events });
 }
 
 /**
@@ -193,6 +196,7 @@ export async function createEvent(req: Request, res: Response) {
     confidence,
     snapshot_url: req.body?.snapshot_url ? String(req.body.snapshot_url) : null,
     message: req.body?.message ? String(req.body.message) : null,
+    source_timestamp: req.body?.source_timestamp || req.body?.occurred_at || null,
     metadata: req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {},
     created_by: user.id,
   };
@@ -303,7 +307,7 @@ export async function createEvent(req: Request, res: Response) {
       camera_name: cam.name || null,
       ...(payload.metadata || {}),
     },
-    occurred_at: String(data?.created_at || new Date().toISOString()),
+    occurred_at: String(data?.source_timestamp || data?.created_at || new Date().toISOString()),
   });
   const intelligenceBus = await publishIntelligenceEvent(coreEvent, {
     source_table: "camera_events",

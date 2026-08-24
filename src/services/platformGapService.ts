@@ -320,6 +320,14 @@ export const platformGapService = {
     const body = req.body || {};
     const camera_id = String(body.camera_id || "").trim();
     if (!camera_id) throw new Error("camera_id is required");
+    const { data: canonicalCamera, error: cameraError } = await supabaseAdmin
+      .from("facility_cameras")
+      .select("id,estate_id")
+      .eq("id", camera_id)
+      .eq("estate_id", estate_id)
+      .maybeSingle();
+    if (cameraError) throw cameraError;
+    if (!canonicalCamera) throw new Error("Canonical facility camera is required for this projection");
     const payload = { estate_id, camera_id, placement_id: body.placement_id || null, zone: body.zone || null, area_owner: body.area_owner || null, infrastructure_relationship: body.infrastructure_relationship || null, health_state: body.health_state || "awaiting_telemetry", metadata: cleanObject(body.metadata), updated_at: new Date().toISOString() };
     const { data, error } = await supabaseAdmin.from("camera_infrastructure").upsert(payload as any, { onConflict: "estate_id,camera_id" }).select("*").single();
     if (error) throw error;

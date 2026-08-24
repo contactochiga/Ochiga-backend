@@ -10,6 +10,7 @@ export async function emitSignal(signal: Signal) {
   const anySig: any = signal;
   const estateId = anySig.estateId || anySig.estate_id;
   const roomId = anySig.roomId || anySig.room_id;
+  const homeId = anySig.homeId || anySig.home_id;
   const deviceId = anySig.deviceId || anySig.device_id;
   const userId = anySig?.requestedBy?.userId || anySig?.requestedBy?.user_id;
 
@@ -18,6 +19,7 @@ export async function emitSignal(signal: Signal) {
   const enriched = { ...anySig, ...envelope };
   if (estateId) io.to(`estate:${estateId}`).emit("signal", enriched);
   if (roomId) io.to(`room:${roomId}`).emit("signal", enriched);
+  if (homeId) io.to(`home:${homeId}`).emit("signal", enriched);
   if (userId) io.to(`user:${userId}`).emit("signal", enriched);
   if (deviceId) io.to(`device:${deviceId}`).emit("signal", enriched);
 
@@ -28,8 +30,10 @@ export async function emitSignal(signal: Signal) {
       event: standardEvent,
       timestamp: anySig.timestamp || new Date().toISOString(),
     };
-    io.emit(standardEvent, payload);
+    const scoped = Boolean(estateId || homeId || roomId || userId || deviceId);
+    if (!scoped) io.emit(standardEvent, payload);
     if (estateId) io.to(`estate:${estateId}`).emit(standardEvent, payload);
+    if (homeId) io.to(`home:${homeId}`).emit(standardEvent, payload);
     if (roomId) io.to(`room:${roomId}`).emit(standardEvent, payload);
     if (userId) io.to(`user:${userId}`).emit(standardEvent, payload);
     if (deviceId) io.to(`device:${deviceId}`).emit(standardEvent, payload);
@@ -49,6 +53,9 @@ export function standardRealtimeEvent(type?: string | null) {
   if (value === "home.updated") return "home.updated";
   if (value === "edge.heartbeat") return "edge.heartbeat";
   if (value === "camera.status.updated") return "camera.status.updated";
+  if (value === "camera.event") return "camera.event.created";
+  if (value === "camera.discovery.updated") return "camera.discovery.updated";
+  if (value === "camera.media.created") return "camera.media.created";
   if (value === "incident.created") return "incident.created";
   if (value === "incident.updated") return "incident.updated";
   if (value === "maintenance.updated") return "maintenance.updated";

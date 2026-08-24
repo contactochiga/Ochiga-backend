@@ -5,13 +5,15 @@ import { auditOnSuccess } from "../middleware/audit";
 import * as CamerasCtrl from "../controllers/camerasController";
 import * as CameraStreamCtrl from "../controllers/cameraStreamController";
 import * as CameraIntelCtrl from "../controllers/cameraIntelController";
+import * as CameraMediaCtrl from "../controllers/cameraMediaController";
+import * as CameraDetectionCtrl from "../controllers/cameraDetectionController";
 
 const router = Router();
 
 router.post(
   "/scan",
   requireAuth,
-  requirePermission("cameras.view"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera_scan", "scan"),
   CamerasCtrl.scan
 );
@@ -58,7 +60,7 @@ router.get(
 router.post(
   "/dvrs/test",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "dvr", "estateId"),
   CamerasCtrl.testDvrConnection
 );
@@ -66,7 +68,7 @@ router.post(
 router.post(
   "/dvrs/import",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "dvr", "estateId"),
   CamerasCtrl.importDvr
 );
@@ -74,7 +76,7 @@ router.post(
 router.post(
   "/bind",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CamerasCtrl.bind
 );
@@ -83,7 +85,7 @@ router.post(
 router.post(
   "/bind-from-discovery",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CamerasCtrl.bindFromDiscovery
 );
@@ -118,7 +120,7 @@ router.get(
 router.post(
   "/:cameraId/validate-stream",
   requireAuth,
-  requirePermission("cameras.view"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CamerasCtrl.validateStream
 );
@@ -129,11 +131,22 @@ router.get(
   requirePermission("cameras.view"),
   CameraIntelCtrl.listEvents
 );
+router.get("/:cameraId/media",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.listCameraMedia);
+router.get("/:cameraId/detections",requireAuth,requirePermission("cameras.view"),CameraDetectionCtrl.listCameraDetections);
+router.get("/:cameraId/detection-zones",requireAuth,requirePermission("cameras.view"),CameraDetectionCtrl.listDetectionZones);
+router.put("/:cameraId/detection-zones",requireAuth,requirePermission("cameras.manage"),CameraDetectionCtrl.upsertDetectionZone);
+router.post("/:cameraId/snapshot",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.requestSnapshot);
+router.get("/events/:eventId/media",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.listEventMedia);
+router.get("/events/:eventId/detections",requireAuth,requirePermission("cameras.view"),CameraDetectionCtrl.listEventDetections);
+router.post("/media/:mediaId/access",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.createMediaAccess);
+router.post("/media/:mediaId/preserve",requireAuth,requirePermission("cameras.manage"),CameraMediaCtrl.preserveMedia);
+router.get("/:cameraId/recording-policy",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.getRecordingPolicy);
+router.put("/:cameraId/recording-policy",requireAuth,requirePermission("cameras.manage"),CameraMediaCtrl.putRecordingPolicy);
 
 router.post(
   "/:cameraId/events",
   requireAuth,
-  requirePermission("cameras.view"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CameraIntelCtrl.createEvent
 );
@@ -155,7 +168,7 @@ router.get(
 router.put(
   "/:cameraId/ai/profile",
   requireAuth,
-  requirePermission("devices.control"),
+  requirePermission("cameras.manage"),
   auditOnSuccess("camera.action.requested", "camera", "cameraId"),
   CameraIntelCtrl.upsertAiProfile
 );

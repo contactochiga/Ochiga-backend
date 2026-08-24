@@ -4,6 +4,8 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { scanCameras } from "../device/cameras/cameraOrchestrator";
 import { canAccessCamera } from "../modules/cameras/cameraAccess.policy";
 import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.service";
+import { sanitizeCameraRecord } from "../modules/cameras/cameraSerialization";
+import { withCanonicalCameraHealth } from "../modules/cameras/cameraHealth";
 import {
   buildChannelRows,
   buildCredentialRef,
@@ -57,6 +59,13 @@ async function assertEstateMember(user: any, estateId: string) {
 export async function scan(req: Request, res: Response) {
   const user = req.user as any;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  if (process.env.ALLOW_CLOUD_CAMERA_SCAN !== "true") {
+    return res.status(409).json({
+      error: "edge_discovery_required",
+      message: "Camera discovery must be executed by an authorized Oyi Edge node on the local network.",
+    });
+  }
 
   const { cidr, username, password } = req.body || {};
 
@@ -120,7 +129,7 @@ export async function listByEstate(req: Request, res: Response) {
     .order("created_at", { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
-  const items = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok);
+  const items = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok).map(withCanonicalCameraHealth).map(sanitizeCameraRecord);
   return res.json({ ok: true, items });
 }
 
@@ -143,7 +152,7 @@ export async function listByHome(req: Request, res: Response) {
   const { data, error } = await query;
 
   if (error) return res.status(500).json({ error: error.message });
-  const items = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok);
+  const items = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok).map(withCanonicalCameraHealth).map(sanitizeCameraRecord);
   return res.json({ ok: true, items });
 }
 
@@ -211,7 +220,7 @@ export async function bind(req: Request, res: Response) {
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
-    return res.json({ ok: true, camera: data });
+    return res.json({ ok: true, camera: sanitizeCameraRecord(withCanonicalCameraHealth(data)) });
   }
 
   const { data, error } = await supabaseAdmin
@@ -238,7 +247,7 @@ export async function bind(req: Request, res: Response) {
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
-  return res.json({ ok: true, camera: data });
+  return res.json({ ok: true, camera: sanitizeCameraRecord(withCanonicalCameraHealth(data)) });
 }
 
 export async function testDvrConnection(req: Request, res: Response) {
@@ -402,7 +411,7 @@ export async function importDvr(req: Request, res: Response) {
   return res.status(errors.length ? 207 : 200).json({
     ok: errors.length === 0,
     dvr,
-    cameras,
+    cameras: cameras.map(withCanonicalCameraHealth).map(sanitizeCameraRecord),
     errors,
     edge_registry_ready: cameras.length > 0,
     message: errors.length ? "DVR imported with some channel errors." : "DVR imported and channel cameras prepared.",
@@ -435,7 +444,7 @@ export async function inventoryByEstate(req: Request, res: Response) {
   ]);
   if (dvrs.error) return res.status(500).json({ error: dvrs.error.message });
   if (cameras.error) return res.status(500).json({ error: cameras.error.message });
-  const cameraItems = (cameras.data || []).filter((camera: any) => canAccessCamera(camera, user).ok);
+  const cameraItems = (cameras.data || []).filter((camera: any) => canAccessCamera(camera, user).ok).map(withCanonicalCameraHealth).map(sanitizeCameraRecord);
   const healthy = cameraItems.filter((camera: any) => ["online", "active", "healthy", "ok"].includes(clean(camera.stream_status || camera.health_status || camera.status).toLowerCase())).length;
   const offline = cameraItems.filter((camera: any) => ["offline", "error", "failed", "degraded"].includes(clean(camera.stream_status || camera.health_status || camera.status).toLowerCase())).length;
   const edgeNodes = new Set(cameraItems.map((camera: any) => clean(camera.edge_node_id)).filter(Boolean));
