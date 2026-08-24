@@ -28,6 +28,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       REDIS_ENABLED: "false"
+      SMART_ACCESS_SKIP_LINKED: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
