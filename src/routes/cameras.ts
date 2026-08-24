@@ -5,6 +5,7 @@ import { auditOnSuccess } from "../middleware/audit";
 import * as CamerasCtrl from "../controllers/camerasController";
 import * as CameraStreamCtrl from "../controllers/cameraStreamController";
 import * as CameraIntelCtrl from "../controllers/cameraIntelController";
+import * as CameraMediaCtrl from "../controllers/cameraMediaController";
 
 const router = Router();
 
@@ -129,6 +130,13 @@ router.get(
   requirePermission("cameras.view"),
   CameraIntelCtrl.listEvents
 );
+router.get("/:cameraId/media",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.listCameraMedia);
+router.post("/:cameraId/snapshot",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.requestSnapshot);
+router.get("/events/:eventId/media",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.listEventMedia);
+router.post("/media/:mediaId/access",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.createMediaAccess);
+router.post("/media/:mediaId/preserve",requireAuth,requirePermission("cameras.manage"),CameraMediaCtrl.preserveMedia);
+router.get("/:cameraId/recording-policy",requireAuth,requirePermission("cameras.view"),CameraMediaCtrl.getRecordingPolicy);
+router.put("/:cameraId/recording-policy",requireAuth,requirePermission("cameras.manage"),CameraMediaCtrl.putRecordingPolicy);
 
 router.post(
   "/:cameraId/events",

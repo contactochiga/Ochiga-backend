@@ -55,6 +55,7 @@ export function standardRealtimeEvent(type?: string | null) {
   if (value === "camera.status.updated") return "camera.status.updated";
   if (value === "camera.event") return "camera.event.created";
   if (value === "camera.discovery.updated") return "camera.discovery.updated";
+  if (value === "camera.media.created") return "camera.media.created";
   if (value === "incident.created") return "incident.created";
   if (value === "incident.updated") return "incident.updated";
   if (value === "maintenance.updated") return "maintenance.updated";

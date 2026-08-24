@@ -7,6 +7,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
 import { normalizeIntelligenceEvent, publishIntelligenceEvent } from "../intelligence-core";
 import { publicDiscoveryCandidate, safeGatewayError, sanitizeDiscoveryCandidate, validateDiscoveryRequest } from "../modules/cameras/cameraGateway";
+import { ingestEdgeMedia } from "../modules/cameras/cameraMedia.service";
 
 export const edgeDiscoveryRouter = Router();
 
@@ -565,6 +566,8 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, asy
   return res.json({ ok: true, event: data, intelligence_event: coreEvent, intelligence_bus: bus });
 });
 
+edgeDiscoveryRouter.post("/edge/cameras/:cameraId/media",requireEdgeToken,async(req,res)=>{const {siteId,agentId}=boundEdgeContext(req,req.body||{});const cameraId=asString(req.params.cameraId);if(!siteId||!agentId||!cameraId)return res.status(400).json({error:"media_upload_failed"});const result=await ingestEdgeMedia({cameraId,siteId,nodeId:agentId,kind:asString(req.body?.kind),mimeType:asString(req.body?.mime_type),base64:asString(req.body?.data_base64),capturedAt:asString(req.body?.captured_at)||undefined,durationMs:Number.isFinite(Number(req.body?.duration_ms))?Number(req.body.duration_ms):undefined,eventId:asString(req.body?.event_id)||undefined,idempotencyKey:asString(req.body?.idempotency_key),retention:req.body?.retention_class,metadata:safeMeta(req.body?.metadata)});if(!result.ok){console.warn(JSON.stringify({event:"camera_media.ingest_rejected",site_id:siteId,edge_node_id:agentId,camera_id:cameraId,code:result.code}));return res.status(result.code==="media_access_denied"?403:400).json({error:result.code});}emitEdgeSignal("camera.media.created",{site_id:siteId,home_id:result.media.home_id,agent_id:agentId,camera_id:cameraId,media_id:result.media.id,event_id:asString(req.body?.event_id)||null,kind:result.media.kind,captured_at:result.media.captured_at});return res.status(result.created?201:200).json({ok:true,created:result.created,reference:result.reference});});
+
 edgeDiscoveryRouter.post("/edge/camera-discovery/commands", requireAuth, requirePermission("cameras.manage"), async (req, res) => {
   const user=(req as any).user; const estateId=asString(req.body?.estateId || user?.estate_id); const edgeNodeId=asString(req.body?.edgeNodeId); const surface=asString(req.body?.surface || "facility"); const homeId=asString(req.body?.homeId || user?.home_id) || null;
   if(!estateId||!edgeNodeId)return res.status(400).json({error:"estateId and edgeNodeId are required"});
@@ -599,7 +602,7 @@ edgeDiscoveryRouter.post("/edge/commands/:commandId/complete", requireEdgeToken,
   if(!command)return res.status(404).json({error:"camera_not_found"}); if(command.status!=="running")return res.status(409).json({error:"command_replay"}); if(Date.parse(command.expires_at)<=Date.now())return res.status(409).json({error:"expired_command"});
   const candidates=Array.isArray(req.body?.result?.candidates)?req.body.result.candidates.slice(0,256):[]; const persisted=[] as any[];
   if(status==="completed")for(const candidate of candidates)persisted.push(await persistCameraCandidate(siteId,agentId,commandId,candidate,command.home_id));
-  const safeResult={requestId:command.payload?.requestId,candidateCount:candidates.length,persistedCount:persisted.filter((item)=>item.ok).length,startedAt:req.body?.result?.startedAt||null,completedAt:req.body?.result?.completedAt||now,durationMs:asNumber(req.body?.duration_ms??req.body?.result?.durationMs,0)};
+  const safeResult={requestId:command.payload?.requestId,candidateCount:candidates.length,persistedCount:persisted.filter((item)=>item.ok).length,media:req.body?.result?.media&&typeof req.body.result.media==="object"?safeMeta(req.body.result.media):null,startedAt:req.body?.result?.startedAt||null,completedAt:req.body?.result?.completedAt||now,durationMs:asNumber(req.body?.duration_ms??req.body?.result?.durationMs,0)};
   const errorCode=status==="failed"?safeGatewayError(req.body?.error?.code):null;
   const {error}=await supabaseAdmin.from("edge_commands").update({status,result:safeResult,error_code:errorCode,completed_at:now,updated_at:now}).eq("id",commandId).eq("estate_id",siteId).eq("edge_node_id",agentId);
   emitEdgeSignal("camera.discovery.updated",{site_id:siteId,home_id:command.home_id,agent_id:agentId,status,command_id:commandId,candidates_found:candidates.length,persisted:safeResult.persistedCount});

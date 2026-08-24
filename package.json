@@ -5,6 +5,9 @@
   "scripts": {
     "smoke:camera-runtime-phase1": "node scripts/camera-runtime-phase1-smoke.mjs",
     "smoke:camera-gateway-phase3": "node scripts/camera-gateway-phase3-smoke.mjs",
+    "verify:camera-media-distribution": "node scripts/verify-camera-media-distribution.mjs",
+    "sync:camera-media-distribution": "node scripts/sync-camera-media-distribution.mjs",
+    "smoke:camera-media-phase4": "node scripts/camera-media-phase4-smoke.mjs",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "dev:workers": "ts-node-dev --respawn --transpile-only src/worker.ts",
     "dev:events": "ts-node-dev --respawn --transpile-only src/events.ts",

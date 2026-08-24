@@ -1,5 +1,7 @@
 // Canonical source. Generated frontend copies must retain CAMERA_CORE_VERSION.
-export const CAMERA_CORE_VERSION = "2.0.0-phase2";
+export * from "./media";
+import { normalizeCameraMedia } from "./media";
+export const CAMERA_CORE_VERSION = "4.0.0-phase4";
 
 export type CameraScope = "facility" | "home" | "office" | "unknown";
 export type CameraRuntimeState = "online" | "degraded" | "offline" | "unknown";
@@ -28,10 +30,7 @@ export type Camera = {
   capabilities: CameraCapabilities; health?: CameraHealth | null;
   runtimeState: CameraRuntimeState; createdAt?: string | null; updatedAt?: string | null;
 };
-export type CameraMediaReference = {
-  kind: "snapshot" | "clip" | "recording"; url?: string;
-  trust: "oyi_authorized" | "legacy_external"; expiresAt?: string | null; capturedAt?: string | null;
-};
+export type LegacyCameraMediaReference = { kind:"snapshot"|"clip"|"recording";url?:string;trust:"oyi_authorized"|"legacy_external";expiresAt?:string|null;capturedAt?:string|null };
 export type CameraDetection = {
   id?: string; type: string; confidence?: number | null; label?: string | null;
   zone?: string | null; occurredAt?: string | null;
@@ -41,8 +40,8 @@ export type CameraDetection = {
 export type CameraEvent = {
   id: string; cameraId: string; type: string; severity: string;
   confidence?: number | null; createdAt: string; sourceTimestamp?: string | null;
-  metadata: Record<string, unknown>; snapshot?: CameraMediaReference | null;
-  clip?: CameraMediaReference | null; detections: CameraDetection[];
+  metadata: Record<string, unknown>; snapshot?: LegacyCameraMediaReference | null;
+  clip?: LegacyCameraMediaReference | null; media?: import("./media").CameraMediaReference[]; detections: CameraDetection[];
 };
 export type CameraPlaybackSession = {
   cameraId: string; protocol: "hls"; url: string; expiresAt?: string | null;
@@ -113,7 +112,7 @@ export function getCameraEventOccurrenceTime(event: Pick<CameraEvent,"sourceTime
 export function normalizeCameraEvent(raw: unknown): CameraEvent {
   const value = record(raw); const metadataBase = safeValue(record(value.metadata)); const metadata = nullableText(value.message) ? { ...metadataBase, message: nullableText(value.message) } : metadataBase; const createdAt = date(value.createdAt ?? value.created_at) || new Date(0).toISOString(); const sourceTimestamp = date(value.sourceTimestamp ?? value.source_timestamp);
   const snapshotUrl = safeMediaUrl(value.snapshot?.url ?? value.snapshot_url); const snapshot = snapshotUrl ? { kind:"snapshot" as const, url:snapshotUrl, trust:"legacy_external" as const, capturedAt:sourceTimestamp || createdAt } : null;
-  return { id:text(value.id), cameraId:text(value.cameraId ?? value.camera_id), type:text(value.type ?? value.event_type, "unknown"), severity:text(value.severity ?? metadata.severity, "unknown"), confidence:finite(value.confidence), createdAt, sourceTimestamp, metadata, snapshot, clip:null, detections:extractCameraDetections(value) };
+  return { id:text(value.id), cameraId:text(value.cameraId ?? value.camera_id), type:text(value.type ?? value.event_type, "unknown"), severity:text(value.severity ?? metadata.severity, "unknown"), confidence:finite(value.confidence), createdAt, sourceTimestamp, metadata, snapshot, clip:null, media:Array.isArray(value.media)?value.media.map(normalizeCameraMedia):[], detections:extractCameraDetections(value) };
 }
 export function normalizePlaybackSession(raw: unknown, fallbackCameraId = ""): CameraPlaybackSession {
   const value = record(raw); const protocol = text(value.protocol ?? value.playback_type ?? value.type, "hls").toLowerCase(); const url = text(value.url ?? value.hls_url); if (protocol !== "hls" || !url) throw new Error("Camera playback is unavailable");

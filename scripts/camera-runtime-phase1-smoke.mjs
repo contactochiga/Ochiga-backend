@@ -21,7 +21,7 @@ assert.match(stream, /URI="\(\[\^"\]\+\)"/);
 assert.doesNotMatch(stream, /fetch\(url, \{ redirect: "follow" \}\)/);
 
 for (const path of ["/dvrs/test", "/dvrs/import", "/bind", "/bind-from-discovery", "/:cameraId/validate-stream", "/:cameraId/events"]) {
-  const at = routes.indexOf(`"${path}"`);
+  const at = path === "/:cameraId/events" ? routes.lastIndexOf(`"${path}"`) : routes.indexOf(`"${path}"`);
   assert(at >= 0, `missing ${path}`);
   assert.match(routes.slice(at, at + 240), /requirePermission\("cameras\.manage"\)/, `${path} must require camera management`);
 }

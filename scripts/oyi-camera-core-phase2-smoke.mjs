@@ -6,9 +6,12 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const source = fs.readFileSync(path.join(root, "packages/oyi-camera-core/src/core.ts"), "utf8");
+const mediaSource = fs.readFileSync(path.join(root, "packages/oyi-camera-core/src/media.ts"), "utf8");
+const mediaJs = ts.transpileModule(mediaSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+const mediaMod = { exports: {} }; new Function("module", "exports", mediaJs)(mediaMod, mediaMod.exports);
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const mod = { exports: {} };
-new Function("module", "exports", js)(mod, mod.exports);
+new Function("module", "exports", "require", js)(mod, mod.exports, (specifier) => { if (specifier === "./media") return mediaMod.exports; throw new Error(`Unexpected require: ${specifier}`); });
 const core = mod.exports;
 
 const raw = { id:"cam-1", name:"Gate", privacy_scope:"home", estate_id:"estate-a", home_id:"home-a", status:"active", stream_status:"ready", health:{ online:true, status:"healthy", last_seen_at:"2026-08-24T10:00:00Z" }, capabilities:{ live_view:{availability:"available"}, anpr:"unexpected" }, rtsp_url:"rtsp://user:secret@10.0.0.2/live", credential_ref:"secret:camera", edge_hls_url:"http://10.0.0.2/live.m3u8" };
