@@ -46,6 +46,15 @@ export const FOUNDATION_EVENT_NAMES = [
   "facility.invitation.accepted",
   "facility.invitation.activation_failed",
   "auth.signup",
+  "team.member.invited",
+  "team.member.invite_failed",
+  "team.member.invite_revoked",
+  "team.member.invite_resent",
+  "team.member.updated",
+  "team.member.removed",
+  "facility.profile.updated",
+  "facility.profile.update_failed",
+  "automation.policy.changed",
 ] as const;
 
 function requestIp(req?: Request) {

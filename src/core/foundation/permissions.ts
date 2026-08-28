@@ -111,6 +111,18 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, readonly PermissionKey[]> = 
     "community.manage_announcements",
     "notifications.read",
     "notifications.manage",
+    // Phase 2 commercial-hardening: previously granted to NO tenant role at
+    // all (only super_admin/ochiga_admin via the blanket PERMISSION_KEYS
+    // grant), meaning a facility owner could not administer their own
+    // Facility Profile or see even their own tenant's audit trail. Adding
+    // these here only unlocks tenant-SCOPED endpoints (updateEstate,
+    // the new /facility/audit-events) -- the platform-wide, unscoped
+    // /super-admin/audit-logs route is separately hard-gated to
+    // super_admin/ochiga_admin regardless of this permission (see
+    // src/routes/superAdmin.ts), so this grant cannot leak another
+    // tenant's data.
+    "settings.manage",
+    "audit.read",
   ],
   facility_manager: [
     "estates.read",
@@ -136,6 +148,11 @@ export const ROLE_PERMISSIONS: Record<PlatformRole, readonly PermissionKey[]> = 
     "community.manage_announcements",
     "notifications.read",
     "notifications.manage",
+    // Phase 2: read-only visibility into their own tenant's audit trail,
+    // same tenant-scoping guarantee as estate_admin above. Deliberately NOT
+    // granted settings.manage -- Facility Profile identity edits stay
+    // reserved for estate_admin.
+    "audit.read",
   ],
   security_operator: [
     "estates.read",
