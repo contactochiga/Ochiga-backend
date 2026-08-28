@@ -149,48 +149,38 @@ router.post("/signup", async (req, res) => {
 
     if (createErr) return res.status(500).json({ error: createErr.message });
 
-    // 3) Create estate for the user
-    const estateName = `${full_name} Estate`;
-
-    const { data: estate, error: estateErr } = await supabaseAdmin
-      .from("estates")
-      .insert({
-        name: estateName,
-        owner_id: createdUser.id,
-      })
-      .select()
-      .single();
-
-    if (estateErr) return res.status(500).json({ error: estateErr.message });
-
-    // 4) Link user -> estate and upgrade role
-    const { data: updatedUser, error: linkErr } = await supabaseAdmin
-      .from("users")
-      .update({
-        estate_id: estate.id,
-        role: "estate_admin",
-      })
-      .eq("id", createdUser.id)
-      .select()
-      .single();
-
-    if (linkErr) return res.status(500).json({ error: linkErr.message });
-
-    // 5) Issue session token
+    // Commercial production-hardening: public signup used to unconditionally
+    // create a brand-new estate here and immediately promote the signing-up
+    // user to estate_admin on it -- meaning any anonymous, OTP-verified email
+    // could self-authorize as the administrator of a production facility with
+    // no invitation, approval, or Office involvement. Signup now only ever
+    // creates an identity (role: "resident", no estate_id/home_id -- a normal,
+    // already-supported "not yet attached to anything" state per
+    // estate_memberships/home_memberships being the real relationship tables).
+    // Becoming an estate_admin now requires an Office-issued facility
+    // provisioning invite (see inviteActivation.ts / the estate-invite RPCs),
+    // or a facility/home invite from an existing, already-authorized admin.
     const token = signToken({
-      id: updatedUser.id,
-      role: updatedUser.role,
-      email: updatedUser.email,
-      estate_id: updatedUser.estate_id,
-      home_id: updatedUser.home_id,
-      permission_scopes: Array.isArray((updatedUser as any).permission_scopes) ? (updatedUser as any).permission_scopes : [],
+      id: createdUser.id,
+      role: createdUser.role,
+      email: createdUser.email,
+      estate_id: createdUser.estate_id || null,
+      home_id: createdUser.home_id || null,
+      permission_scopes: Array.isArray((createdUser as any).permission_scopes) ? (createdUser as any).permission_scopes : [],
     });
+
+    await auditAuthEvent(
+      "auth.signup",
+      "success",
+      { email: cleanEmail, role: createdUser.role },
+      req,
+      { id: createdUser.id, email: createdUser.email, role: createdUser.role }
+    );
 
     return res.json({
       message: "Signup successful",
-      user: updatedUser,
+      user: createdUser,
       token,
-      estate,
     });
   } catch (err) {
     console.error("signup error:", err);

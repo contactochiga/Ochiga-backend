@@ -4,7 +4,7 @@ import crypto from "crypto";
 import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
-import { hasPermission } from "../core/foundation";
+import { hasPermission, canonicalRole } from "../core/foundation";
 import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
 import { provisionHomeServices } from "../services/homeServiceProvisioning";
 
@@ -180,6 +180,18 @@ function normalizeMembershipRole(input?: string) {
  */
 export async function createEstate(req: any, res: Response) {
   try {
+    // Commercial production-hardening: estates.write is legitimately held by
+    // estate_admin/facility_manager for managing their OWN existing estate,
+    // but that same permission previously let any of them self-create
+    // ADDITIONAL brand-new estates and self-grant themselves ownership --
+    // the secondary, latent form of the self-provisioning hole closed at
+    // signup. New production facility deployments are now Ochiga-authorized
+    // only (see the Office-driven provisioning intake endpoint); this route
+    // stays reachable solely for platform-level operators.
+    const callerRole = canonicalRole(req.user?.role);
+    if (callerRole !== "super_admin" && callerRole !== "ochiga_admin") {
+      return res.status(403).json({ error: "Only Ochiga platform staff may provision a new facility deployment." });
+    }
     const { name, address, lat, lng, type } = req.body;
     if (!name) return res.status(400).json({ error: "name is required" });
 

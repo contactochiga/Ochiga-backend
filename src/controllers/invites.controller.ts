@@ -19,9 +19,20 @@ function signToken(payload: any) {
   return jwt.sign(payload, APP_JWT_SECRET, { expiresIn: "30d" });
 }
 
+// Home-level roles this legacy compatibility route may still grant. Estate/
+// tenant-staff-level roles (owner, admin, manager, security, staff) must only
+// ever be granted through an authorized, tenant-scoped path -- this route
+// previously accepted ANY membership_role value with no ownership check at
+// all (see the tenancy guard below), letting any staff.manage holder grant
+// themselves or anyone else "owner" on a home/estate they had no authority
+// over.
+const LEGACY_INVITE_ALLOWED_ROLES = new Set(["resident", "member", "guest"]);
+
 /**
  * POST /invites
- * Facility/Admin creates an invite for a home
+ * Legacy compatibility route -- creates an invite for a home. New resident
+ * onboarding should use POST /facility/homes/:homeId/invite instead (it has
+ * stronger replay protection and the same tenancy guard enforced below).
  * Body: { estate_id, home_id, invited_email, role?, expires_at? }
  */
 export async function createInviteHandler(req: Request, res: Response) {
@@ -35,16 +46,48 @@ export async function createInviteHandler(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Optional: strict tenancy guard
-    // if (user.estate_id && user.estate_id !== estate_id) {
-    //   return res.status(403).json({ error: "Estate mismatch" });
-    // }
+    // Commercial production-hardening: this tenancy guard was previously
+    // written but commented out, and the role parameter was passed straight
+    // through to the DB with no restriction -- together, any authenticated
+    // user holding "staff.manage" (any estate_admin/facility_manager
+    // anywhere) could invite an arbitrary email into a DIFFERENT tenant's
+    // estate/home with role "owner"/"admin", a real cross-tenant privilege
+    // escalation. Both checks are now enforced.
+    const requestedRole = role ? String(role) : "resident";
+    if (!LEGACY_INVITE_ALLOWED_ROLES.has(requestedRole)) {
+      return res.status(403).json({ error: "This route may only invite resident-tier members. Use the estate/staff invitation flow for elevated roles." });
+    }
+
+    const { data: membership, error: memErr } = await supabaseAdmin
+      .from("estate_memberships")
+      .select("role, status")
+      .eq("estate_id", String(estate_id))
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (memErr) return res.status(500).json({ error: memErr.message });
+    const membershipRole = String(membership?.role || "");
+    const canManageEstate =
+      membership?.status === "active" &&
+      ["owner", "admin", "manager", "security", "estate_admin", "operator"].includes(membershipRole);
+    if (!canManageEstate) {
+      return res.status(403).json({ error: "You are not authorized to invite members into this estate." });
+    }
+
+    const { data: home, error: homeErr } = await supabaseAdmin
+      .from("homes")
+      .select("id, estate_id")
+      .eq("id", String(home_id))
+      .maybeSingle();
+    if (homeErr) return res.status(500).json({ error: homeErr.message });
+    if (!home || home.estate_id !== String(estate_id)) {
+      return res.status(400).json({ error: "That home does not belong to the specified estate." });
+    }
 
     const result = await createInvite({
       estate_id: String(estate_id),
       home_id: String(home_id),
       invited_email: String(invited_email),
-      role: role as any,
+      role: requestedRole as any,
       created_by: user.id,
       expires_at: expires_at ? String(expires_at) : undefined,
     });

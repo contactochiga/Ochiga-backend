@@ -18,6 +18,7 @@ import residentsRoutes from "./routes/residents";
 import devicesRoutes from "./routes/devices";
 import onboardingRoutes from "./routes/onboarding";
 import inviteActivationRoutes from "./routes/inviteActivation";
+import estateOwnerInviteActivationRoutes from "./routes/estateOwnerInviteActivation";
 import visitorRoutes from "./routes/visitors";
 import signalRoutes from "./routes/signals";
 import facilityRoutes from "./routes/facility.routes";
@@ -170,6 +171,7 @@ app.get("/metrics", attachUser, requireInternalAccess, metricsHandler);
 app.use("/auth", authRateLimit, authRoutes);
 app.use("/auth/onboard", authRateLimit, onboardingRoutes);
 app.use("/auth/invites", authRateLimit, inviteActivationRoutes);
+app.use("/auth/estate-invites", authRateLimit, estateOwnerInviteActivationRoutes);
 app.use("/auth/otp", authRateLimit, otpRoutes);
 
 app.use("/invites", invitesRoutes);
