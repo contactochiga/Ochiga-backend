@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import nodeCrypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
 import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
@@ -745,6 +746,98 @@ router.post("/conversation/speech", requireOfficeExportKey, async (req: Request,
       message: "Oyi couldn't generate speech for that reply right now.",
       request_id: requestId,
     });
+  }
+});
+
+// Commercial production-hardening: this is the ONLY way a new production
+// estate/facility deployment gets created now that POST /auth/signup no
+// longer auto-provisions one. Gated by the same requireOfficeExportKey
+// machine trust every other Office<->Backend call already uses -- Office is
+// the sole authorized provisioning caller. Creates the estate plus a
+// pending, hashed-token, estate-scoped owner invite (reusing the invites
+// table + validate_estate_owner_invite/activate_estate_owner_invite RPCs);
+// returns the raw activation token ONCE so Office can build/send its own
+// branded invitation email (mirroring exactly how Office's existing staff-
+// invite flow already works) -- Backend never sends this email itself.
+router.post("/facility/provision", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const requestId = safeText(req.headers["x-request-id"], nodeCrypto.randomUUID());
+  const body = req.body || {};
+  const name = safeText(body.name);
+  const adminEmail = safeText(body.admin_email).toLowerCase();
+  if (!name) return res.status(400).json({ ok: false, error: "name_required", request_id: requestId });
+  if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
+    return res.status(400).json({ ok: false, error: "valid_admin_email_required", request_id: requestId });
+  }
+
+  try {
+    const { data: estate, error: estateErr } = await supabaseAdmin
+      .from("estates")
+      .insert({
+        name,
+        address: safeText(body.address) || null,
+        lat: typeof body.lat === "number" ? body.lat : null,
+        lng: typeof body.lng === "number" ? body.lng : null,
+        type: safeText(body.type, "estate"),
+      })
+      .select()
+      .single();
+    if (estateErr) throw new Error(estateErr.message);
+
+    const rawToken = nodeCrypto.randomBytes(32).toString("hex");
+    const tokenHash = nodeCrypto.createHash("sha256").update(rawToken).digest("hex");
+    const expiresInDays = Math.min(30, Math.max(1, Number(body.expires_in_days) || 14));
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: invite, error: inviteErr } = await supabaseAdmin
+      .from("invites")
+      .insert({
+        estate_id: estate.id,
+        home_id: null,
+        room_id: null,
+        role: "owner",
+        invite_type: "email",
+        token_hash: tokenHash,
+        invited_email: adminEmail,
+        status: "pending",
+        expires_at: expiresAt,
+      })
+      .select()
+      .single();
+    if (inviteErr) throw new Error(inviteErr.message);
+
+    void emitAuditEvent({
+      actorId: null,
+      actorRole: "office_staff",
+      action: "facility.provisioned",
+      resourceType: "estate",
+      resourceId: estate.id,
+      estateId: estate.id,
+      status: "success",
+      metadata: { request_id: requestId, name, invited_by_office: safeText(body.requested_by) || null },
+      req,
+    } as any);
+    void emitAuditEvent({
+      actorId: null,
+      actorRole: "office_staff",
+      action: "facility.invitation.created",
+      resourceType: "invite",
+      resourceId: invite.id,
+      estateId: estate.id,
+      status: "success",
+      metadata: { request_id: requestId, invited_email: adminEmail, expires_at: expiresAt },
+      req,
+    } as any);
+
+    return res.status(200).json({
+      ok: true,
+      request_id: requestId,
+      estate: { id: estate.id, name: estate.name },
+      invite: { id: invite.id, expires_at: expiresAt },
+      activation_token: rawToken,
+    });
+  } catch (error: any) {
+    logger.error("office.facility_provision_failed", { request_id: requestId, detail: safeText(error?.message, "facility_provision_failed") });
+    return res.status(500).json({ ok: false, error: "facility_provision_failed", request_id: requestId });
   }
 });
 
