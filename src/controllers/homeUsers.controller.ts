@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { sendResidentInviteEmail } from "../services/residentInviteEmailService";
+import { rankOfMembershipRole } from "../services/estateMembershipRoles";
 
 /**
  * Rules:
@@ -186,10 +187,16 @@ async function assertHomeAccess(userId: string, homeId: string): Promise<AccessR
   const estateRole = String(estMem?.role || "");
   const estateActive = estMem?.status === "active";
 
-  // ✅ FIX: include estate_admin + operator too
-  const estateCanManage =
-    estateActive &&
-    ["owner", "admin", "manager", "security", "estate_admin", "operator"].includes(estateRole);
+  // Phase 2 fix: the previous hardcoded list mixed legacy role strings with
+  // exactly one canonical value ("estate_admin") and one value that has
+  // never existed in either vocabulary ("operator"), so
+  // maintenance_operator/security_operator/finance_operator accounts were
+  // silently excluded from home management despite being legitimate estate
+  // staff. Rank-based check (>= 50, i.e. any real staff tier: estate_admin,
+  // facility_manager, or an operator role) replaces the stale list and
+  // stays correct as new roles are added, via
+  // src/services/estateMembershipRoles.ts (shared with estateUsers.controller.ts).
+  const estateCanManage = estateActive && rankOfMembershipRole(estateRole) >= 50;
 
   // 3) Home membership (owner)
   const { data: homeMem, error: homeErr2 } = await supabaseAdmin

@@ -4,9 +4,19 @@ import crypto from "crypto";
 import QRCode from "qrcode";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
-import { hasPermission, canonicalRole } from "../core/foundation";
+import { hasPermission, canonicalRole, emitAuditEvent } from "../core/foundation";
 import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
 import { provisionHomeServices } from "../services/homeServiceProvisioning";
+import { rankOfMembershipRole } from "../services/estateMembershipRoles";
+
+// Platform-level staff (super_admin/ochiga_admin) bypass tenant-membership
+// checks entirely -- the previous fallback compared req.user.role to the
+// literal string "admin", which no real canonical role value has ever
+// been, so it silently never granted this bypass to anyone; this replaces
+// it with the real check.
+function isPlatformStaff(role: string) {
+  return role === "super_admin" || role === "ochiga_admin";
+}
 
 // ---------------------------
 // Helpers
@@ -28,9 +38,12 @@ async function assertCanManageEstate(userId: string, estateId: string) {
   if (error) throw new Error(error.message);
   if (!data || data.status !== "active") return false;
 
-  // ✅ Your DB enum roles that can manage
-  const manageRoles = ["owner", "admin", "manager", "security"];
-  return manageRoles.includes(String(data.role));
+  // Phase 2 fix: this list was legacy-vocabulary-only (owner/admin/manager/
+  // security) and silently rejected canonical estate_admin/facility_manager/
+  // *_operator values -- rank-based check via the shared helper (also used
+  // by estateUsers.controller.ts / homeUsers.controller.ts) stays correct
+  // as roles are added.
+  return rankOfMembershipRole(String(data.role)) >= 50;
 }
 
 // Drop undefined keys so we don’t send junk to Supabase
@@ -225,6 +238,74 @@ export async function createEstate(req: any, res: Response) {
 }
 
 /**
+ * PATCH /facility/estates/:estateId
+ * Phase 2 -- Facility Profile editing. Customer-editable metadata only
+ * (name/type/address/lat/lng/timezone/contact_email/contact_phone) --
+ * deliberately excludes any commercial/deployment/subscription field,
+ * because none currently exist as real columns on `estates` (confirmed by
+ * audit); if/when Office-owned commercial fields are added to this table,
+ * they must never be included in this endpoint's writable field list.
+ */
+export async function updateEstate(req: any, res: Response) {
+  try {
+    const { estateId } = req.params;
+    if (!estateId || estateId !== req.user?.estate_id) {
+      // 404, not 403 -- never confirm another estate's ID exists.
+      return res.status(404).json({ error: "Estate not found" });
+    }
+    const canManage = await assertCanManageEstate(req.user.id, estateId);
+    if (!canManage && !isPlatformStaff(req.user.role)) {
+      return res.status(403).json({ error: "You are not authorized to update this Facility's profile." });
+    }
+
+    const { name, type, address, lat, lng, timezone, contact_email, contact_phone } = req.body || {};
+    const patch = compact({
+      name: typeof name === "string" ? name.trim() || undefined : undefined,
+      type: typeof type === "string" ? type.trim() || undefined : undefined,
+      address: typeof address === "string" ? address.trim() : undefined,
+      lat: typeof lat === "number" ? lat : undefined,
+      lng: typeof lng === "number" ? lng : undefined,
+      timezone: typeof timezone === "string" ? timezone.trim() : undefined,
+      contact_email: typeof contact_email === "string" ? contact_email.trim().toLowerCase() : undefined,
+      contact_phone: typeof contact_phone === "string" ? contact_phone.trim() : undefined,
+    });
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "Nothing to update" });
+    }
+
+    const estate = await updateWithSchemaFallback<any>("estates", { id: estateId }, patch);
+
+    void emitAuditEvent({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: "facility.profile.updated",
+      resourceType: "estate",
+      resourceId: estateId,
+      estateId,
+      status: "success",
+      metadata: { fields: Object.keys(patch) },
+      req,
+    } as any);
+
+    return res.json({ message: "Facility profile updated", estate });
+  } catch (e: any) {
+    console.error("updateEstate error:", e);
+    void emitAuditEvent({
+      actorId: req.user?.id || null,
+      actorRole: req.user?.role || "guest",
+      action: "facility.profile.update_failed",
+      resourceType: "estate",
+      resourceId: req.params?.estateId || "",
+      estateId: req.user?.estate_id || null,
+      status: "denied",
+      metadata: { reason: e?.message || "unknown" },
+      req,
+    } as any);
+    return res.status(500).json({ error: e.message || "Server error" });
+  }
+}
+
+/**
  * GET /facility/estates
  */
 export async function listMyEstates(req: any, res: Response) {
@@ -281,7 +362,7 @@ export async function createBuilding(req: any, res: Response) {
     const name = String(req.body?.name || "").trim();
     if (!estateId || !name) return res.status(400).json({ error: "Property and building name are required." });
     const canManage = await assertCanManageEstate(req.user.id, estateId);
-    if (!canManage && req.user.role !== "admin") return res.status(403).json({ error: "You cannot manage buildings in this property." });
+    if (!canManage && !isPlatformStaff(req.user.role)) return res.status(403).json({ error: "You cannot manage buildings in this property." });
 
     const reference = buildingReference(req.body?.building_ref || req.body?.block || name);
     if (!reference) return res.status(400).json({ error: "Enter a valid building name or reference." });
@@ -354,7 +435,7 @@ export async function createHome(req: any, res: Response) {
     }
 
     const canManage = await assertCanManageEstate(req.user.id, estate_id);
-    if (!canManage && req.user.role !== "admin") {
+    if (!canManage && !isPlatformStaff(req.user.role)) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
@@ -490,7 +571,7 @@ export async function updateHome(req: any, res: Response) {
     if (!existing?.id) return res.status(404).json({ error: "Home not found" });
 
     const canManage = await assertCanManageEstate(req.user.id, existing.estate_id);
-    if (!canManage && req.user.role !== "admin") {
+    if (!canManage && !isPlatformStaff(req.user.role)) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
@@ -777,7 +858,7 @@ export async function createRoom(req: any, res: Response) {
     }
 
     const canManage = await assertCanManageEstate(req.user.id, estate_id);
-    if (!canManage && req.user.role !== "admin") {
+    if (!canManage && !isPlatformStaff(req.user.role)) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
@@ -816,7 +897,7 @@ export async function updateRoom(req: any, res: Response) {
     if (!existing) return res.status(404).json({ error: "Room not found" });
 
     const canManage = await assertCanManageEstate(req.user.id, existing.estate_id);
-    if (!canManage && req.user.role !== "admin") {
+    if (!canManage && !isPlatformStaff(req.user.role)) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
     const room = await updateWithSchemaFallback<any>(
@@ -905,7 +986,7 @@ export async function inviteUser(req: any, res: Response) {
 
     if (estate_id) {
       const canManage = await assertCanManageEstate(req.user.id, estate_id);
-      if (!canManage && req.user.role !== "admin") {
+      if (!canManage && !isPlatformStaff(req.user.role)) {
         return res.status(403).json({ error: "Not allowed to invite to this estate" });
       }
     }
@@ -1088,7 +1169,7 @@ export async function assignUserToRoom(req: any, res: Response) {
     if (roomErr || !room) return res.status(404).json({ error: "Room not found" });
 
     const canManage = await assertCanManageEstate(req.user.id, room.estate_id);
-    if (!canManage && req.user.role !== "admin") {
+    if (!canManage && !isPlatformStaff(req.user.role)) {
       return res.status(403).json({ error: "Not allowed to manage this estate" });
     }
 
