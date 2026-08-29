@@ -18,6 +18,7 @@ export type RegisteredCanonicalAction = {
   assignee?: string | null;
   label?: string | null;
   action_label: string;
+  command?: Record<string, unknown> | null;
 };
 
 async function withTimeout<T>(promise: Promise<T>, ms: number) {
@@ -79,8 +80,9 @@ export async function executeRegisteredActionBatch(input: {
         executeRegisteredAction({
           action_id: action.action_id,
           actor,
-          entity_id: action.entity_id,
+          entity_id: action.entity_id || null,
           assignee: action.assignee || undefined,
+          command: action.command || null,
           source: "automation",
           confirmed: true,
         }),

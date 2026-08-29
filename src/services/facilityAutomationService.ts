@@ -35,16 +35,27 @@ const APPROVAL_EXPIRY_HOURS = 24;
 const DUPLICATE_WINDOW_HOURS = 72;
 const VISITOR_STALE_GRACE_HOURS = 2;
 
+// Cross-Domain Operational Automation -- widened to also accept proposals
+// raised from a scheduled custom automation (src/routes/scenes.ts), not
+// only the two built-in detectors below. entityType/entityId gained
+// "notification"/null because notification.notify (the one new
+// registered action this pass adds) has no single target row to
+// reference -- entity_id is nullable at the DB level for exactly this
+// case (see the accompanying migration). requestedBy lets a
+// automation-sourced proposal record the real human who configured the
+// automation, instead of defaulting to "system".
 type ProposalInput = {
   estateId: string;
   detectorId: string;
   actionId: string;
-  entityType: "maintenance_request" | "visitor_access";
-  entityId: string;
+  entityType: "maintenance_request" | "visitor_access" | "notification";
+  entityId: string | null;
   targetLabel: string;
   reason: string;
   evidence: Record<string, unknown>[];
-  expectedStatus: string;
+  expectedStatus?: string;
+  requestedBy?: string;
+  command?: Record<string, unknown> | null;
 };
 
 async function listEligibleApproverIds(estateId: string): Promise<string[]> {
@@ -80,7 +91,7 @@ async function notifyApprovers(estateId: string, title: string, message: string,
 // operation exists but Oyi must not execute" from the spec's execution-
 // level taxonomy. Relies on the DB's automation_approvals_one_pending_per_
 // target unique index for idempotency against duplicate detector runs.
-async function proposeAutomationApproval(input: ProposalInput) {
+export async function proposeAutomationApproval(input: ProposalInput) {
   const policy = await resolveAutomationPolicy({ estateId: input.estateId, actorRole: null, actionId: input.actionId });
   if (policy.executionLevel !== "approval_required" && policy.executionLevel !== "auto_allowed") return null;
 
@@ -88,7 +99,8 @@ async function proposeAutomationApproval(input: ProposalInput) {
     action_id: input.actionId,
     entity_type: input.entityType,
     entity_id: input.entityId,
-    expected_status: input.expectedStatus,
+    expected_status: input.expectedStatus || null,
+    command: input.command || null,
     proposed_at: new Date().toISOString(),
   };
   const expiresAt = new Date(Date.now() + APPROVAL_EXPIRY_HOURS * 3600 * 1000).toISOString();
@@ -106,7 +118,7 @@ async function proposeAutomationApproval(input: ProposalInput) {
       evidence: input.evidence,
       plan_snapshot: planSnapshot,
       status: "pending_approval",
-      requested_by: "system",
+      requested_by: input.requestedBy || "system",
       expires_at: expiresAt,
     })
     .select("*")
@@ -246,7 +258,8 @@ export async function listAutomationApprovals(estateId: string, status?: string)
 // too), this precondition check runs here, immediately before execution,
 // so "the recommendation existed five minutes ago" is never treated as
 // sufficient justification on its own.
-async function validatePrecondition(actionId: string, entityId: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+async function validatePrecondition(actionId: string, entityId: string | null): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!entityId) return { ok: true };
   if (actionId === "visitor.expire" || actionId === "visitor.revoke") {
     const { data, error } = await supabaseAdmin.from("visitor_access").select("status").eq("id", entityId).maybeSingle();
     if (error || !data) return { ok: false, reason: "target_not_found" };
@@ -352,10 +365,15 @@ export async function decideAutomationApproval(input: {
   await supabaseAdmin.from("automation_approvals").update({ status: "executing", approver_id: input.actor.id, approver_role: input.actor.role, decision_note: input.note || null, decided_at: new Date().toISOString(), execution_id: executionId }).eq("id", approval.id);
 
   const expectedStatus = expectedStatusFor(approval.action_id) || (approval.plan_snapshot as any)?.expected_status;
+  // plan_snapshot.command is the frozen, approved payload for actions with
+  // no single target entity (notification.notify) -- execution always
+  // re-reads it from the snapshot rather than trusting anything sent at
+  // approve-time, same as every other field on this row.
   const result = await executeRegisteredAction({
     action_id: approval.action_id,
     actor: input.actor,
     entity_id: approval.entity_id,
+    command: (approval.plan_snapshot as any)?.command || null,
     source: "automation",
     confirmed: true,
   });
@@ -367,7 +385,16 @@ export async function decideAutomationApproval(input: {
     return { ok: false, code: "execution_failed" as const, reason: (result as any).reason || result.status };
   }
 
-  const verification = expectedStatus ? await runVerification(approval.action_id, approval.entity_id, expectedStatus) : { state: "pending" as const, summary: "No expected status to verify against.", metadata: {} };
+  // notification.notify (and any future entity-less action) has nothing
+  // to re-read after execution -- the execution's own success/failure
+  // result is authoritative, so treat it as verified rather than falling
+  // through to the generic "no expected status" pending state, which
+  // would otherwise misreport a successful send as verification_failed.
+  const verification = !approval.entity_id
+    ? { state: "verified" as const, summary: "No target entity to verify -- execution result is authoritative.", metadata: {} }
+    : expectedStatus
+      ? await runVerification(approval.action_id, approval.entity_id, expectedStatus)
+      : { state: "pending" as const, summary: "No expected status to verify against.", metadata: {} };
   const verified = verification.state === "verified";
 
   await supabaseAdmin

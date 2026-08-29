@@ -30,6 +30,7 @@ import {
 import { getEstateAuditLog } from "../services/auditQueryService";
 import { resolveAutomationPolicy } from "../services/automationPolicyResolver";
 import { listAutomationApprovals, decideAutomationApproval, scanStaleVisitorAuthorizations } from "../services/facilityAutomationService";
+import { EXECUTION_REGISTRY } from "../intelligence-core/executionRegistry";
 
 // ✅ FACILITY DEVICE ROUTES (discover, command, geo)
 import facilityDevicesRoutes from "./facilityDevices.routes";
@@ -185,9 +186,93 @@ router.delete("/home-users/:membershipId", requireAuth, requirePermission("staff
 router.get("/automation/policy", requireAuth, async (req: any, res) => {
   const estateId = req.user?.estate_id;
   if (!estateId) return res.status(400).json({ error: "User has no estate" });
-  const actions = ["visitor.approve", "visitor.revoke", "visitor.expire", "maintenance.assign", "maintenance.complete", "maintenance.cancel", "device.on", "device.off", "device.toggle"];
+  const actions = EXECUTION_REGISTRY.filter((action) => action.available).map((action) => action.id);
   const policy = await Promise.all(actions.map((actionId) => resolveAutomationPolicy({ estateId, actorRole: req.user?.role || null, actionId })));
   return res.json({ estate_id: estateId, policy });
+});
+
+// Cross-Domain Operational Automation -- the capability/action registry
+// Create Automation is generated from, instead of a hardcoded per-domain
+// list on the client. This does not invent anything: it's a read-only
+// projection of EXECUTION_REGISTRY (intelligence-core/executionRegistry.ts,
+// the single canonical execution allowlist) merged with each action's
+// real resolved execution level (automationPolicyResolver, the same
+// resolver the approval queue and governance table already use) and a
+// small, honest target_type/requires_assignee descriptor that mirrors
+// exactly what validateRegisteredActions/executeRegisteredAction already
+// require structurally -- not new capability, just making existing
+// structure discoverable. Unavailable actions are still listed, with
+// their real disclosed reason, so the client can show them as truthfully
+// unsupported rather than omitting them silently.
+const DOMAIN_LABELS: Record<string, string> = {
+  visitors: "Access",
+  maintenance: "Maintenance",
+  devices: "Assets",
+  notifications: "Notifications",
+  community: "Community",
+  services: "Services",
+  wallet: "Finance",
+};
+const ACTION_TARGET_TYPES: Record<string, { target_type: string; requires_assignee?: boolean; label: string }> = {
+  "visitor.approve": { target_type: "visitor_access", label: "Approve visitor" },
+  "visitor.revoke": { target_type: "visitor_access", label: "Revoke visitor access" },
+  "visitor.expire": { target_type: "visitor_access", label: "Expire visitor access" },
+  "maintenance.assign": { target_type: "maintenance_request", requires_assignee: true, label: "Assign maintenance" },
+  "maintenance.complete": { target_type: "maintenance_request", label: "Complete maintenance" },
+  "maintenance.cancel": { target_type: "maintenance_request", label: "Cancel maintenance" },
+  "maintenance.create": { target_type: "none", label: "Create work order" },
+  "device.on": { target_type: "device", label: "Turn device on" },
+  "device.off": { target_type: "device", label: "Turn device off" },
+  "device.toggle": { target_type: "device", label: "Toggle device" },
+  "notification.notify": { target_type: "notification_target", label: "Send notification" },
+  "community.approve": { target_type: "none", label: "Approve community post" },
+  "community.reject": { target_type: "none", label: "Reject community post" },
+  "community.post_announcement": { target_type: "none", label: "Post announcement" },
+  "service.assign": { target_type: "none", label: "Assign service" },
+  "service.complete": { target_type: "none", label: "Complete service" },
+  "wallet.approve": { target_type: "none", label: "Approve wallet transaction" },
+  "wallet.cancel": { target_type: "none", label: "Cancel wallet transaction" },
+};
+
+router.get("/automation/capabilities", requireAuth, async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+
+  const resolved = await Promise.all(
+    EXECUTION_REGISTRY.map(async (action) => {
+      const meta = ACTION_TARGET_TYPES[action.id] || { target_type: "none", label: action.id };
+      const policy = action.available
+        ? await resolveAutomationPolicy({ estateId, actorRole: req.user?.role || null, actionId: action.id })
+        : null;
+      return {
+        id: action.id,
+        domain: action.domain,
+        label: meta.label,
+        target_type: meta.target_type,
+        requires_assignee: Boolean(meta.requires_assignee),
+        available: action.available,
+        execution_level: action.available ? policy?.executionLevel || "unsupported" : "unsupported",
+        required_permission: policy?.requiredPermission || null,
+        reason: action.available ? policy?.reason || null : action.reason || "Not implemented yet.",
+      };
+    })
+  );
+
+  const domains = Array.from(new Set(EXECUTION_REGISTRY.map((action) => action.domain))).map((domain) => ({
+    domain,
+    label: DOMAIN_LABELS[domain] || domain,
+    actions: resolved.filter((action) => action.domain === domain),
+  }));
+
+  // The one real trigger type that exists anywhere in the platform today
+  // (src/services/automationScheduleService.ts's validateAutomationTrigger)
+  // -- no condition/event/threshold trigger engine exists yet. Disclosed
+  // here, not hidden behind a client-side assumption.
+  const triggers = [
+    { type: "schedule", label: "Schedule", schedule_types: ["daily", "weekdays", "once"] },
+  ];
+
+  return res.json({ estate_id: estateId, triggers, domains });
 });
 
 router.get("/automation/approvals", requireAuth, async (req: any, res) => {
