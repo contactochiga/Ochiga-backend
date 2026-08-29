@@ -1190,10 +1190,20 @@ async function claimAndRunAutomation(automation: any) {
   await executeConsumerAutomation({ automation: claim.data, actor, req, source: "scheduled", scheduledFor, occurrenceKey });
 }
 
+// Automation Workspace UI/UX completion -- scoped(req) only filters by
+// estate_id/home_id, never by surface. A Facility-staff caller typically
+// has an estate_id but no home_id, so the home_id clause never applies to
+// them -- without this filter they would receive every automation in the
+// estate, including residents' own personal consumer-surface automations
+// (a real, pre-existing cross-surface exposure, not one this pass
+// introduces). Optional and additive: omitting ?surface= preserves the
+// exact prior behavior for any existing caller.
 router.get("/automations", requirePermission("devices.read"), async (req, res) => {
   if (!hasWatchScope(req.user!)) return res.status(403).json({ error: "Home or estate context required" });
-  const { data, error } = await scoped(supabaseAdmin.from("consumer_automations").select("*"), req)
-    .order("created_at", { ascending: false });
+  let query = scoped(supabaseAdmin.from("consumer_automations").select("*"), req);
+  const surfaceFilter = String(req.query?.surface || "");
+  if (AUTOMATION_SURFACES.includes(surfaceFilter as AutomationSurface)) query = query.eq("surface", surfaceFilter);
+  const { data, error } = await query.order("created_at", { ascending: false });
   if (error) return res.json({ available: false, automations: [], error: error.message });
   res.json({ available: true, automations: data || [] });
 });

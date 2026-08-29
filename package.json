@@ -331,7 +331,8 @@
     "smoke:programme4-authority-privacy-closure": "npm run build && node scripts/oyi-programme4-authority-privacy-closure-smoke.mjs",
     "smoke:programme4-proactive-scheduler": "node scripts/oyi-programme4-proactive-scheduler-smoke.mjs",
     "smoke:programme4-learning-proposal": "npm run build && node scripts/oyi-programme4-learning-proposal-smoke.mjs",
-    "smoke:programme4-schema-hydration": "node scripts/oyi-programme4-schema-hydration-smoke.mjs"
+    "smoke:programme4-schema-hydration": "node scripts/oyi-programme4-schema-hydration-smoke.mjs",
+    "smoke:automation-workspace-uiux": "node scripts/automation-workspace-uiux-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
