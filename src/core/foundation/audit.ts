@@ -55,6 +55,12 @@ export const FOUNDATION_EVENT_NAMES = [
   "facility.profile.updated",
   "facility.profile.update_failed",
   "automation.policy.changed",
+  "automation.approval.requested",
+  "automation.approval.rejected",
+  "automation.approval.denied",
+  "automation.execution.failed",
+  "automation.execution.succeeded",
+  "automation.execution.verification_failed",
 ] as const;
 
 function requestIp(req?: Request) {

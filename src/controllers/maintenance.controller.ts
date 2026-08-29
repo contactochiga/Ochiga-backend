@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { NotificationService, type NotificationType } from "../services/NotificationService";
+import { detectDuplicateMaintenanceRequest } from "../services/facilityAutomationService";
 
 type AuthReq = Request & {
   user?: { id: string; estate_id?: string; home_id?: string; role?: string };
@@ -272,6 +273,13 @@ export async function createMaintenance(req: AuthReq, res: Response) {
       payload: { status: request.status || "open", priority: request.priority || priority || "medium", category: request.category || category || null, membership_id: membershipId || null },
       occurred_at: request.created_at,
     }, { source_table: "maintenance_requests", source_event_id: `${request.id}:maintenance.created` });
+
+    // PHASE 3 (Milestone 1) -- event-driven duplicate-work-order detector,
+    // fired right after creation rather than on a schedule (spec Section
+    // 19 prefers event triggers over polling where a canonical event
+    // exists, and one already does: this insert). Best-effort, never
+    // blocks the response.
+    void detectDuplicateMaintenanceRequest({ id: request.id, estate_id: estateId, home_id: homeId || null, category: request.category || category || null, title: request.title || title || null, created_at: request.created_at });
 
     const opsUserIds = await listEstateOpsUserIds(estateId);
 
