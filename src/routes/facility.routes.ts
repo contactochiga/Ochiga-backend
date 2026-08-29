@@ -28,6 +28,8 @@ import {
   resendEstateInvite,
 } from "../controllers/estateInvites.controller";
 import { getEstateAuditLog } from "../services/auditQueryService";
+import { resolveAutomationPolicy } from "../services/automationPolicyResolver";
+import { listAutomationApprovals, decideAutomationApproval, scanStaleVisitorAuthorizations } from "../services/facilityAutomationService";
 
 // ✅ FACILITY DEVICE ROUTES (discover, command, geo)
 import facilityDevicesRoutes from "./facilityDevices.routes";
@@ -163,5 +165,64 @@ router.get("/audit-events", requireAuth, requirePermission("audit.read"), async 
 router.use("/homes", homeUsersRoutes);
 router.patch("/home-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("home.member.updated", "home_membership", "membershipId"), updateHomeUser);
 router.delete("/home-users/:membershipId", requireAuth, requirePermission("staff.manage"), auditOnSuccess("home.member.removed", "home_membership", "membershipId"), removeHomeUser);
+
+/**
+ * ---------------------------
+ * AUTOMATION (Phase 3, Milestone 1)
+ * Base: /facility/automation
+ * Read routes are broad (requireAuth + own-estate scope only) because
+ * eligible approvers span three different permissions (visitors.manage,
+ * support.assign, devices.control) -- no single requirePermission() call
+ * covers all of them. The real, per-action authorization boundary is
+ * enforced inside facilityAutomationService.decideAutomationApproval()
+ * (actorMayActOnAction), the same way intelligence-core/executionRegistry.
+ * ts's executeRegisteredAction already enforces its own scope/role checks
+ * rather than relying on route middleware. A frontend toggle or route can
+ * never itself authorize execution -- that check happens server-side,
+ * inside the service, every time.
+ * ---------------------------
+ */
+router.get("/automation/policy", requireAuth, async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+  const actions = ["visitor.approve", "visitor.revoke", "visitor.expire", "maintenance.assign", "maintenance.complete", "maintenance.cancel", "device.on", "device.off", "device.toggle"];
+  const policy = await Promise.all(actions.map((actionId) => resolveAutomationPolicy({ estateId, actorRole: req.user?.role || null, actionId })));
+  return res.json({ estate_id: estateId, policy });
+});
+
+router.get("/automation/approvals", requireAuth, async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+  if (typeof req.query?.status !== "string" || req.query.status === "pending_approval") {
+    await scanStaleVisitorAuthorizations(estateId);
+  }
+  const status = typeof req.query?.status === "string" ? req.query.status : undefined;
+  const approvals = await listAutomationApprovals(estateId, status);
+  return res.json({ estate_id: estateId, approvals });
+});
+
+router.post("/automation/approvals/:approvalId/approve", requireAuth, async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+  const result = await decideAutomationApproval({ approvalId: req.params.approvalId, estateId, actor: req.user, decision: "approve", note: typeof req.body?.note === "string" ? req.body.note : null });
+  if (!result.ok) {
+    const code = (result as any).code;
+    const httpStatus = code === "not_found" ? 404 : code === "forbidden" ? 403 : code === "not_pending" ? 409 : code === "policy_denied" ? 403 : 422;
+    return res.status(httpStatus).json({ error: code, reason: (result as any).reason || null, status: (result as any).status || null });
+  }
+  return res.json({ approval: result.approval });
+});
+
+router.post("/automation/approvals/:approvalId/reject", requireAuth, async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+  const result = await decideAutomationApproval({ approvalId: req.params.approvalId, estateId, actor: req.user, decision: "reject", note: typeof req.body?.note === "string" ? req.body.note : null });
+  if (!result.ok) {
+    const code = (result as any).code;
+    const httpStatus = code === "not_found" ? 404 : code === "forbidden" ? 403 : code === "not_pending" ? 409 : 422;
+    return res.status(httpStatus).json({ error: code });
+  }
+  return res.json({ approval: result.approval });
+});
 
 export default router;
