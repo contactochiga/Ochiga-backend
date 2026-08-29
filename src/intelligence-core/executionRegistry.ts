@@ -3,7 +3,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishSourceIntelligenceEvent } from "./sourceEventPublisher";
 
 export type RegisteredExecutionAction = {
-  id: "visitor.approve" | "visitor.revoke" | "visitor.expire" | "maintenance.assign" | "maintenance.complete" | "maintenance.cancel" | "device.on" | "device.off" | "device.toggle" | "community.approve" | "community.reject" | "service.assign" | "service.complete" | "wallet.approve" | "wallet.cancel";
+  id: "visitor.approve" | "visitor.revoke" | "visitor.expire" | "maintenance.assign" | "maintenance.complete" | "maintenance.cancel" | "device.on" | "device.off" | "device.toggle" | "notification.notify" | "community.approve" | "community.reject" | "community.post_announcement" | "maintenance.create" | "service.assign" | "service.complete" | "wallet.approve" | "wallet.cancel";
   domain: string;
   confirmation_required: true;
   available: boolean;
@@ -20,6 +20,22 @@ export const EXECUTION_REGISTRY: RegisteredExecutionAction[] = [
   { id: "device.on", domain: "devices", confirmation_required: true, available: true },
   { id: "device.off", domain: "devices", confirmation_required: true, available: true },
   { id: "device.toggle", domain: "devices", confirmation_required: true, available: true },
+  // Cross-Domain Operational Automation -- the one new domain action this
+  // pass wires. NotificationService.sendToRole/sendToUser/sendToHome/
+  // sendToEstate (src/services/NotificationService.ts) is a real, already
+  // generic, already-used-everywhere primitive -- not new notification
+  // logic, only a new registered entry point onto it.
+  { id: "notification.notify", domain: "notifications", confirmation_required: true, available: true },
+  // Audited but deliberately not wired this pass -- both would require a
+  // new, facility-staff-scoped core function distinct from the existing
+  // req/res-coupled, resident/consumer-facing controller endpoints
+  // (createMaintenance in maintenance.controller.ts is the resident
+  // complaint-submission path, not a generic facility create-work-order
+  // primitive; createPost in communityController.ts has no extracted
+  // core function separate from its Express handler). Wiring either
+  // safely is a real, scoped follow-up, not fabricated here.
+  { id: "maintenance.create", domain: "maintenance", confirmation_required: true, available: false, reason: "No facility-staff-scoped create-work-order primitive exists yet, distinct from the resident complaint-submission endpoint." },
+  { id: "community.post_announcement", domain: "community", confirmation_required: true, available: false, reason: "createPost has no extractable core function separate from its Express route handler yet." },
   { id: "community.approve", domain: "community", confirmation_required: true, available: false, reason: "Use the existing community moderation workflow." },
   { id: "community.reject", domain: "community", confirmation_required: true, available: false, reason: "Use the existing community moderation workflow." },
   { id: "service.assign", domain: "services", confirmation_required: true, available: false, reason: "Use the existing service workflow." },
@@ -70,7 +86,9 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
   const action = getRegisteredExecutionAction(input.action_id);
   if (!action) return safeFailure("action_not_registered");
   if (!input.confirmed) return { ok: false, status: "confirmation_required", reason: "explicit_confirmation_required" };
-  if (!input.entity_id) return safeFailure("entity_required");
+  // notification.notify is the one registered action with no single
+  // target row -- it addresses a role/user/home/estate, not an entity_id.
+  if (!input.entity_id && action.id !== "notification.notify") return safeFailure("entity_required");
   if (["visitor.approve", "visitor.revoke", "visitor.expire"].includes(action.id)) {
     const { data: visitor, error } = await supabaseAdmin.from("visitor_access").select("*").eq("id", input.entity_id).maybeSingle();
     if (error || !visitor) return safeFailure("visitor_lookup_failed");
@@ -98,12 +116,50 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
     void publishSourceIntelligenceEvent({ source: "facility", surface: "facility", event_type: eventType, category: "maintenance", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "maintenance_request", entity_id: updated.id, entity_label: updated.title || "Maintenance request", severity: "info", title: updated.title || "Maintenance request updated", summary: `Maintenance request is ${updated.status || "updated"}.`, payload: { status: updated.status, assigned_to: updated.assigned_to || null } }, { source_table: "maintenance_requests", source_event_id: `${updated.id}:${eventType}` });
     return { ok: true, status: "executed", result: updated };
   }
+  if (action.id === "notification.notify") {
+    const command = (input.command || {}) as { target?: string; target_value?: string; title?: string; message?: string; notification_type?: string };
+    const target = String(command.target || "").toLowerCase();
+    const title = String(command.title || "").trim();
+    const message = String(command.message || "").trim();
+    if (!title || !message) return safeFailure("notification_title_and_message_required");
+    const estateId = input.actor.estate_id ? String(input.actor.estate_id) : null;
+    if (!estateId) return safeFailure("estate_context_required");
+    if (!operationalRole(input.actor)) return { ok: false, status: "denied", reason: "notification_operation_not_permitted" };
+    const NOTIFICATION_TYPES = ["visitor", "maintenance", "device", "room", "home", "estate", "community", "message", "security", "intelligence", "wallet", "system"];
+    const notificationType = (NOTIFICATION_TYPES.includes(String(command.notification_type)) ? command.notification_type : "system") as any;
+    const { NotificationService } = await import("../services/NotificationService");
+    let sendError: any = null;
+    if (target === "role") {
+      const role = String(command.target_value || "").trim().toLowerCase();
+      if (!role) return safeFailure("notification_role_required");
+      ({ error: sendError } = await NotificationService.sendToRole(estateId, role, { title, message, type: notificationType }));
+    } else if (target === "estate") {
+      ({ error: sendError } = await NotificationService.sendToEstate(estateId, { title, message, type: notificationType }));
+    } else if (target === "user") {
+      const userId = String(command.target_value || "").trim();
+      if (!userId) return safeFailure("notification_user_required");
+      const { data: membership } = await supabaseAdmin.from("estate_memberships").select("user_id").eq("estate_id", estateId).eq("user_id", userId).eq("status", "active").maybeSingle();
+      if (!membership) return { ok: false, status: "denied", reason: "scope_mismatch" };
+      ({ error: sendError } = await NotificationService.sendToUser(userId, { title, message, type: notificationType }));
+    } else if (target === "home") {
+      const homeId = String(command.target_value || "").trim();
+      if (!homeId) return safeFailure("notification_home_required");
+      const { data: home } = await supabaseAdmin.from("homes").select("id, estate_id").eq("id", homeId).maybeSingle();
+      if (!home || String(home.estate_id) !== estateId) return { ok: false, status: "denied", reason: "scope_mismatch" };
+      ({ error: sendError } = await NotificationService.sendToHome(homeId, { title, message, type: notificationType }));
+    } else {
+      return safeFailure("notification_target_invalid");
+    }
+    if (sendError) return safeFailure("notification_send_failed");
+    void publishSourceIntelligenceEvent({ source: "facility", surface: "facility", event_type: "notification.sent", category: "notification", estate_id: estateId, home_id: target === "home" ? String(command.target_value) : null, actor_id: input.actor.id, entity_type: "notification", entity_id: null, entity_label: title, severity: "info", title, summary: message, payload: { target, target_value: command.target_value || null } }, { source_table: "notifications", source_event_id: `notify:${input.actor.id}:${estateId}:${target}:${command.target_value || ""}` });
+    return { ok: true, status: "executed", result: { target, target_value: command.target_value || null, title, message } };
+  }
   if (!action.available) return { ok: false, status: "validation_required", reason: action.reason || "action_not_available" };
   if (!input.command) return safeFailure("command_required");
   try {
     // Load the legacy command boundary only for a confirmed device action.
     const { executeDeviceCommandForActor } = await import("../controllers/deviceCommandController");
-    const result = await executeDeviceCommandForActor({ actor: input.actor, deviceId: input.entity_id, command: input.command as Record<string, any>, source: (input.source || "app") as any });
+    const result = await executeDeviceCommandForActor({ actor: input.actor, deviceId: String(input.entity_id), command: input.command as Record<string, any>, source: (input.source || "app") as any });
     return { ok: Boolean(result?.ok), status: result?.status || "failed", result };
   } catch (error: any) {
     return safeFailure("execution_failed");

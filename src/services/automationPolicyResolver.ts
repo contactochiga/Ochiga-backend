@@ -39,6 +39,12 @@ const REQUIRED_PERMISSION: Record<string, PermissionKey> = {
   "device.on": "devices.control",
   "device.off": "devices.control",
   "device.toggle": "devices.control",
+  // Cross-Domain Operational Automation -- matches
+  // NotificationService.sendToRole/sendToUser/sendToHome/sendToEstate's
+  // real underlying permission expectation (notifications.manage is the
+  // dedicated key for triggering notification sends, distinct from
+  // notifications.read).
+  "notification.notify": "notifications.manage",
 };
 
 // Conservative-by-design: every in-scope action defaults to

@@ -20,6 +20,8 @@ import {
   type RegisteredCanonicalAction,
 } from "../services/registeredActionBatchExecutionService";
 import { getRegisteredExecutionAction } from "../intelligence-core/executionRegistry";
+import { resolveAutomationPolicy } from "../services/automationPolicyResolver";
+import { proposeAutomationApproval } from "../services/facilityAutomationService";
 import {
   executeWorkflowActionBatch,
   workflowContractFor,
@@ -111,6 +113,16 @@ export function officeAutomationActor(automation: any): AuthUser {
 // endpoint were both found during this pass's audit but are
 // synchronous/interactive-only with no automation-shaped delivery
 // target or registry entry yet — named as follow-ups, not wired in.
+// Cross-Domain Operational Automation -- notification.notify added
+// alongside the existing visitor.*/maintenance.* actions. It's the one
+// new domain action wired this pass: NotificationService.sendToRole/
+// sendToUser/sendToHome/sendToEstate (src/services/NotificationService.ts)
+// is a real, already-generic, already-used-everywhere primitive -- no new
+// notification logic was written, only registered. Unlike device.on/off/
+// toggle it has no single target entity, so it's the one registered
+// action that legitimately carries no entity_id -- see the relaxed
+// filter/validation below and the matching relaxation in
+// executionRegistry.ts's entity_id guard.
 const FACILITY_REGISTERED_ACTION_IDS = [
   "visitor.approve",
   "visitor.revoke",
@@ -118,6 +130,7 @@ const FACILITY_REGISTERED_ACTION_IDS = [
   "maintenance.assign",
   "maintenance.complete",
   "maintenance.cancel",
+  "notification.notify",
 ] as const;
 
 type CleanRegisteredAction = {
@@ -125,6 +138,7 @@ type CleanRegisteredAction = {
   entity_id: string;
   assignee?: string | null;
   label?: string | null;
+  command?: Record<string, unknown> | null;
 };
 
 function isRegisteredActionItem(item: any): boolean {
@@ -141,8 +155,9 @@ function cleanRegisteredActions(value: unknown): CleanRegisteredAction[] {
       entity_id: String(item?.entity_id || "").trim(),
       assignee: item?.assignee ? String(item.assignee).trim() : null,
       label: item?.label ? String(item.label).trim() : null,
+      command: item?.command && typeof item.command === "object" ? item.command : null,
     }))
-    .filter((item) => item.action_id && item.entity_id);
+    .filter((item) => item.action_id && (item.entity_id || item.action_id === "notification.notify"));
 }
 
 // Structural validation only — no DB lookup, no execution. Full
@@ -161,6 +176,23 @@ function validateRegisteredActions(actions: CleanRegisteredAction[]) {
     }
     if (action.action_id === "maintenance.assign" && !action.assignee) {
       return { ok: false as const, error: "maintenance.assign requires an assignee.", code: "assignee_required" };
+    }
+    if (action.action_id === "notification.notify") {
+      const command = action.command || {};
+      const target = String((command as any).target || "");
+      const title = String((command as any).title || "").trim();
+      const message = String((command as any).message || "").trim();
+      if (!["role", "user", "home", "estate"].includes(target)) {
+        return { ok: false as const, error: "notification.notify requires a target of role, user, home or estate.", code: "notification_target_required" };
+      }
+      if (target !== "estate" && !String((command as any).target_value || "").trim()) {
+        return { ok: false as const, error: "notification.notify requires a target_value for this target type.", code: "notification_target_value_required" };
+      }
+      if (!title || !message) {
+        return { ok: false as const, error: "notification.notify requires a title and message.", code: "notification_content_required" };
+      }
+    } else if (!action.entity_id) {
+      return { ok: false as const, error: `${action.action_id} requires an entity_id.`, code: "entity_id_required" };
     }
   }
   return { ok: true as const };
@@ -941,6 +973,84 @@ export async function executeConsumerAutomation(input: {
       logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code, surface: automation.surface || "consumer" });
       return { ...runRow, ...failed };
     }
+
+    // Cross-Domain Operational Automation -- the governance boundary a
+    // custom (user-created) automation must never bypass. Every
+    // registered_action item is policy-checked here, on every run
+    // (scheduled or manual test), before any execution is attempted --
+    // the exact same resolver (resolveAutomationPolicy) and default
+    // (approval_required unless a Facility explicitly overrides it) the
+    // system-detector approval queue already uses. This closes the gap
+    // disclosed in the two prior Automation Workspace passes: this lane
+    // previously executed visitor.*/maintenance.* directly on schedule
+    // with no approval gate at all. device_command automations (the
+    // separate, older lane below `cleanActions`) are untouched -- they
+    // keep executing directly, exactly as Consumer's own device scenes
+    // always have.
+    const uniqueActionIds = Array.from(new Set(registeredActions.map((action) => action.action_id)));
+    const resolutions = await Promise.all(
+      uniqueActionIds.map((actionId) => resolveAutomationPolicy({ estateId: automation.estate_id, actorRole: null, actionId }))
+    );
+    const resolutionByAction = new Map(uniqueActionIds.map((actionId, index) => [actionId, resolutions[index]]));
+    const blocked = resolutions.find((resolution) => resolution.executionLevel !== "auto_allowed");
+
+    if (blocked) {
+      const completedAt = new Date().toISOString();
+      if (blocked.executionLevel === "approval_required") {
+        const queued: Array<{ action_index: number; registered_action_id: string; entity_id: string | null; approval_id: string | null; status: string }> = [];
+        for (let index = 0; index < registeredActions.length; index += 1) {
+          const action = registeredActions[index];
+          const resolution = resolutionByAction.get(action.action_id);
+          if (resolution?.executionLevel !== "approval_required") continue;
+          const isNotification = action.action_id === "notification.notify";
+          const approval = await proposeAutomationApproval({
+            estateId: automation.estate_id,
+            detectorId: `automation:${automation.id}`,
+            actionId: action.action_id,
+            entityType: isNotification ? "notification" : action.action_id.startsWith("visitor.") ? "visitor_access" : "maintenance_request",
+            entityId: isNotification ? null : action.entity_id,
+            targetLabel: action.label || action.action_id,
+            reason: `Scheduled automation "${automation.name}" requested this action.`,
+            evidence: [{ automation_id: automation.id, automation_name: automation.name, trigger: automation.trigger }],
+            requestedBy: automation.created_by || "system",
+            command: isNotification ? action.command || null : null,
+          }).catch(() => null);
+          queued.push({ action_index: index, registered_action_id: action.action_id, entity_id: action.entity_id || null, approval_id: approval?.id || null, status: "pending_approval" });
+        }
+        const skipped = {
+          status: "skipped",
+          completed_at: completedAt,
+          counts: { total: registeredActions.length, completed: 0, failed: 0 },
+          actions: queued,
+          error_code: "approval_required",
+          error_message: "This automation's action requires operator approval before it can run. Check the Approvals tab.",
+        };
+        await supabaseAdmin.from("consumer_automation_runs").update(skipped as any).eq("id", runId);
+        await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "skipped" }).eq("id", automation.id);
+        logger.info("automation_run_requires_approval", { automation_id: automation.id, automation_run_id: runId, surface: automation.surface || "consumer" });
+        return { ...runRow, ...skipped };
+      }
+      const failedActions = registeredActions.map((action, index) => ({
+        action_index: index,
+        registered_action_id: action.action_id,
+        entity_id: action.entity_id || null,
+        status: "skipped",
+        error: `governance_level_${blocked.executionLevel}`,
+      }));
+      const governanceFailed = {
+        status: "failed",
+        completed_at: completedAt,
+        counts: { total: registeredActions.length, completed: 0, failed: registeredActions.length || 1 },
+        actions: failedActions,
+        error_code: "governance_denied",
+        error_message: `This action's current governance level (${blocked.executionLevel}) does not allow automated execution.`,
+      };
+      await supabaseAdmin.from("consumer_automation_runs").update(governanceFailed as any).eq("id", runId);
+      await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
+      logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: governanceFailed.error_code, surface: automation.surface || "consumer" });
+      return { ...runRow, ...governanceFailed };
+    }
+
     results = await executeRegisteredActionBatch({
       actor,
       runId,
