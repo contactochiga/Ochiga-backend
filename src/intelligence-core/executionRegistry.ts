@@ -3,7 +3,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishSourceIntelligenceEvent } from "./sourceEventPublisher";
 
 export type RegisteredExecutionAction = {
-  id: "visitor.approve" | "visitor.revoke" | "visitor.expire" | "maintenance.assign" | "maintenance.complete" | "maintenance.cancel" | "device.on" | "device.off" | "device.toggle" | "notification.notify" | "community.approve" | "community.reject" | "community.post_announcement" | "maintenance.create" | "service.assign" | "service.complete" | "wallet.approve" | "wallet.cancel";
+  id: "visitor.approve" | "visitor.revoke" | "visitor.expire" | "maintenance.assign" | "maintenance.complete" | "maintenance.cancel" | "device.on" | "device.off" | "device.toggle" | "notification.notify" | "community.approve" | "community.reject" | "community.post_announcement" | "maintenance.create" | "security.create_incident" | "service.assign" | "service.complete" | "wallet.approve" | "wallet.cancel";
   domain: string;
   confirmation_required: true;
   available: boolean;
@@ -26,16 +26,16 @@ export const EXECUTION_REGISTRY: RegisteredExecutionAction[] = [
   // generic, already-used-everywhere primitive -- not new notification
   // logic, only a new registered entry point onto it.
   { id: "notification.notify", domain: "notifications", confirmation_required: true, available: true },
-  // Audited but deliberately not wired this pass -- both would require a
-  // new, facility-staff-scoped core function distinct from the existing
-  // req/res-coupled, resident/consumer-facing controller endpoints
-  // (createMaintenance in maintenance.controller.ts is the resident
-  // complaint-submission path, not a generic facility create-work-order
-  // primitive; createPost in communityController.ts has no extracted
-  // core function separate from its Express handler). Wiring either
-  // safely is a real, scoped follow-up, not fabricated here.
-  { id: "maintenance.create", domain: "maintenance", confirmation_required: true, available: false, reason: "No facility-staff-scoped create-work-order primitive exists yet, distinct from the resident complaint-submission endpoint." },
-  { id: "community.post_announcement", domain: "community", confirmation_required: true, available: false, reason: "createPost has no extractable core function separate from its Express route handler yet." },
+  // Cross-Domain Fabric Closure -- the three new adapters this pass wires.
+  // Each extracts a real, facility-staff/automation-scoped core function
+  // (createFacilityMaintenanceOrder, postCommunityAnnouncement,
+  // createFacilityIncident) distinct from the resident/staff-facing
+  // req/res-coupled controller endpoint it sits alongside, exactly the
+  // "real, scoped follow-up" the previous unavailable reasons here
+  // described rather than promised.
+  { id: "maintenance.create", domain: "maintenance", confirmation_required: true, available: true },
+  { id: "community.post_announcement", domain: "community", confirmation_required: true, available: true },
+  { id: "security.create_incident", domain: "security", confirmation_required: true, available: true },
   { id: "community.approve", domain: "community", confirmation_required: true, available: false, reason: "Use the existing community moderation workflow." },
   { id: "community.reject", domain: "community", confirmation_required: true, available: false, reason: "Use the existing community moderation workflow." },
   { id: "service.assign", domain: "services", confirmation_required: true, available: false, reason: "Use the existing service workflow." },
@@ -86,9 +86,12 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
   const action = getRegisteredExecutionAction(input.action_id);
   if (!action) return safeFailure("action_not_registered");
   if (!input.confirmed) return { ok: false, status: "confirmation_required", reason: "explicit_confirmation_required" };
-  // notification.notify is the one registered action with no single
-  // target row -- it addresses a role/user/home/estate, not an entity_id.
-  if (!input.entity_id && action.id !== "notification.notify") return safeFailure("entity_required");
+  // notification.notify and the three "create a new entity" actions below
+  // have no single existing target row to reference -- they either address
+  // a role/user/home/estate, or create the entity_id that will exist only
+  // after execution.
+  const ENTITY_LESS_ACTIONS = ["notification.notify", "maintenance.create", "community.post_announcement", "security.create_incident"];
+  if (!input.entity_id && !ENTITY_LESS_ACTIONS.includes(action.id)) return safeFailure("entity_required");
   if (["visitor.approve", "visitor.revoke", "visitor.expire"].includes(action.id)) {
     const { data: visitor, error } = await supabaseAdmin.from("visitor_access").select("*").eq("id", input.entity_id).maybeSingle();
     if (error || !visitor) return safeFailure("visitor_lookup_failed");
@@ -97,7 +100,7 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
     const status = action.id === "visitor.approve" ? "approved" : action.id === "visitor.expire" ? "expired" : "denied";
     const { data: updated, error: updateError } = await updateVisitorAccessStatus(visitor.id, status);
     if (updateError) return { ok: false, status: "failed", reason: "visitor_access_update_failed" };
-    void publishSourceIntelligenceEvent({ source: operationalRole(input.actor) ? "facility" : "consumer", surface: operationalRole(input.actor) ? "facility" : "consumer", event_type: `visitor_access.${status}`, category: "visitor", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "visitor_access", entity_id: updated.id, entity_label: updated.visitor_name || "Visitor", severity: status === "denied" ? "attention" : "info", title: `Visitor access ${status}`, summary: `${updated.visitor_name || "Visitor"} access is ${status}.`, payload: { status } }, { source_table: "visitor_access", source_event_id: `${updated.id}:visitor_access.${status}` });
+    void publishSourceIntelligenceEvent({ source: operationalRole(input.actor) ? "facility" : "consumer", surface: operationalRole(input.actor) ? "facility" : "consumer", event_type: `visitor_access.${status}`, category: "visitor", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "visitor_access", entity_id: updated.id, entity_label: updated.visitor_name || "Visitor", severity: status === "denied" ? "attention" : "info", title: `Visitor access ${status}`, summary: `${updated.visitor_name || "Visitor"} access is ${status}.`, payload: { status }, automation_origin: input.source === "automation" }, { source_table: "visitor_access", source_event_id: `${updated.id}:visitor_access.${status}` });
     return { ok: true, status: "executed", result: updated };
   }
   if (["maintenance.complete", "maintenance.cancel", "maintenance.assign"].includes(action.id)) {
@@ -105,16 +108,57 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
     if (error || !request) return safeFailure("maintenance_lookup_failed");
     if (!inActorScope(input.actor, request)) return { ok: false, status: "denied", reason: "scope_mismatch" };
     if (!operationalRole(input.actor) && !(action.id === "maintenance.cancel" && String(request.resident_id || "") === String(input.actor.id))) return { ok: false, status: "denied", reason: "maintenance_operation_not_permitted" };
-    if (action.id === "maintenance.assign" && !String(input.assignee || "").trim()) return { ok: false, status: "validation_required", reason: "assignee_required" };
+    // Fabric Closure fix -- executeApprovalRow (facilityAutomationService.ts)
+    // only ever threads the approved plan_snapshot's `command` through to
+    // this function, never a top-level `assignee` (that field only gets a
+    // value on a direct executeRegisteredAction call, e.g. a synchronous
+    // consumer-surface command, not the approval/event-rule path). Reading
+    // command?.assignee as a fallback means maintenance.assign actually
+    // works when reached via approval, not only when called directly.
+    const assignee = String(input.assignee || (input.command as any)?.assignee || "").trim();
+    if (action.id === "maintenance.assign" && !assignee) return { ok: false, status: "validation_required", reason: "assignee_required" };
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (action.id === "maintenance.complete") patch.status = "completed";
     if (action.id === "maintenance.cancel") patch.status = "cancelled";
-    if (action.id === "maintenance.assign") { patch.status = "assigned"; patch.assigned_to = String(input.assignee); }
+    if (action.id === "maintenance.assign") { patch.status = "assigned"; patch.assigned_to = assignee; }
     const { data: updated, error: updateError } = await supabaseAdmin.from("maintenance_requests").update(patch as any).eq("id", request.id).select("*").single();
     if (updateError) return safeFailure("maintenance_update_failed");
     const eventType = `maintenance.${updated.status || "updated"}`;
-    void publishSourceIntelligenceEvent({ source: "facility", surface: "facility", event_type: eventType, category: "maintenance", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "maintenance_request", entity_id: updated.id, entity_label: updated.title || "Maintenance request", severity: "info", title: updated.title || "Maintenance request updated", summary: `Maintenance request is ${updated.status || "updated"}.`, payload: { status: updated.status, assigned_to: updated.assigned_to || null } }, { source_table: "maintenance_requests", source_event_id: `${updated.id}:${eventType}` });
+    void publishSourceIntelligenceEvent({ source: "facility", surface: "facility", event_type: eventType, category: "maintenance", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "maintenance_request", entity_id: updated.id, entity_label: updated.title || "Maintenance request", severity: "info", title: updated.title || "Maintenance request updated", summary: `Maintenance request is ${updated.status || "updated"}.`, payload: { status: updated.status, assigned_to: updated.assigned_to || null }, automation_origin: input.source === "automation" }, { source_table: "maintenance_requests", source_event_id: `${updated.id}:${eventType}` });
     return { ok: true, status: "executed", result: updated };
+  }
+  if (action.id === "maintenance.create") {
+    if (!operationalRole(input.actor)) return { ok: false, status: "denied", reason: "maintenance_operation_not_permitted" };
+    const estateId = input.actor.estate_id ? String(input.actor.estate_id) : null;
+    if (!estateId) return safeFailure("estate_context_required");
+    const command = (input.command || {}) as { title?: string; description?: string; priority?: string; category?: string; home_id?: string | null };
+    const title = String(command.title || "").trim();
+    if (!title) return safeFailure("maintenance_title_required");
+    const { createFacilityMaintenanceOrder } = await import("../controllers/maintenance.controller");
+    const request = await createFacilityMaintenanceOrder({ estateId, homeId: command.home_id || input.actor.home_id || null, title, description: command.description || null, priority: command.priority || "medium", category: command.category || null, actorId: input.actor.id, automationOrigin: input.source === "automation" });
+    return { ok: true, status: "executed", result: request };
+  }
+  if (action.id === "community.post_announcement") {
+    if (!operationalRole(input.actor)) return { ok: false, status: "denied", reason: "community_operation_not_permitted" };
+    const estateId = input.actor.estate_id ? String(input.actor.estate_id) : null;
+    if (!estateId) return safeFailure("estate_context_required");
+    const command = (input.command || {}) as { title?: string; body?: string };
+    const title = String(command.title || "").trim();
+    if (!title) return safeFailure("announcement_title_required");
+    const { postCommunityAnnouncement } = await import("../controllers/communityController");
+    const post = await postCommunityAnnouncement({ estateId, actorId: input.actor.id, title, body: String(command.body || ""), notifyEstate: true, automationOrigin: input.source === "automation" });
+    return { ok: true, status: "executed", result: post };
+  }
+  if (action.id === "security.create_incident") {
+    if (!operationalRole(input.actor)) return { ok: false, status: "denied", reason: "security_operation_not_permitted" };
+    const estateId = input.actor.estate_id ? String(input.actor.estate_id) : null;
+    if (!estateId) return safeFailure("estate_context_required");
+    const command = (input.command || {}) as { title?: string; description?: string; severity?: string; incident_type?: string; home_id?: string | null };
+    const title = String(command.title || "").trim();
+    if (!title) return safeFailure("incident_title_required");
+    const { createFacilityIncident } = await import("../services/platformGapService");
+    const incident = await createFacilityIncident({ estateId, homeId: command.home_id || input.actor.home_id || null, title, description: command.description || null, severity: command.severity || "medium", incidentType: command.incident_type || "operational", actorId: input.actor.id, automationOrigin: input.source === "automation" });
+    return { ok: true, status: "executed", result: incident };
   }
   if (action.id === "notification.notify") {
     const command = (input.command || {}) as { target?: string; target_value?: string; title?: string; message?: string; notification_type?: string };
@@ -151,7 +195,7 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
       return safeFailure("notification_target_invalid");
     }
     if (sendError) return safeFailure("notification_send_failed");
-    void publishSourceIntelligenceEvent({ source: "facility", surface: "facility", event_type: "notification.sent", category: "notification", estate_id: estateId, home_id: target === "home" ? String(command.target_value) : null, actor_id: input.actor.id, entity_type: "notification", entity_id: null, entity_label: title, severity: "info", title, summary: message, payload: { target, target_value: command.target_value || null } }, { source_table: "notifications", source_event_id: `notify:${input.actor.id}:${estateId}:${target}:${command.target_value || ""}` });
+    void publishSourceIntelligenceEvent({ source: "facility", surface: "facility", event_type: "notification.sent", category: "notification", estate_id: estateId, home_id: target === "home" ? String(command.target_value) : null, actor_id: input.actor.id, entity_type: "notification", entity_id: null, entity_label: title, severity: "info", title, summary: message, payload: { target, target_value: command.target_value || null }, automation_origin: input.source === "automation" }, { source_table: "notifications", source_event_id: `notify:${input.actor.id}:${estateId}:${target}:${command.target_value || ""}` });
     return { ok: true, status: "executed", result: { target, target_value: command.target_value || null, title, message } };
   }
   if (!action.available) return { ok: false, status: "validation_required", reason: action.reason || "action_not_available" };

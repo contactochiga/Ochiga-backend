@@ -378,6 +378,76 @@ async function hasEstateAccess(user: any, estateId: string) {
  * POSTS
  * ================================================= */
 
+// Facility Automation -- Cross-Domain Fabric Closure. The facility-staff/
+// automation-scoped counterpart to createPost's resident/staff web-form
+// path below -- extracted so EXECUTION_REGISTRY's community.
+// post_announcement action has a real, non-req-coupled function to call,
+// per the registry's own previously-disclosed reason for excluding it.
+// notifyEstate is an explicit parameter here instead of createPost's
+// looksLikeAnnouncement title-text heuristic -- an automation-authored
+// announcement always notifies, it is never inferred from wording.
+export async function postCommunityAnnouncement(input: {
+  estateId: string;
+  actorId: string;
+  title: string;
+  body: string;
+  notifyEstate: boolean;
+  automationOrigin?: boolean;
+}) {
+  const normalizedTitle = String(input.title || "").trim() || "Facility announcement";
+  const normalizedBody = String(input.body || "").trim();
+
+  const payload: any = {
+    estate_id: input.estateId,
+    author_id: input.actorId,
+    title: normalizedTitle,
+    body: normalizedBody || null,
+    status: "active",
+    category: "announcement",
+    is_pinned: false,
+    audience_type: "all_estate",
+  };
+
+  const data = await insertCommunityPostWithFallback(payload);
+
+  if (input.notifyEstate) {
+    try {
+      await NotificationService.sendToEstate(input.estateId, {
+        title: normalizedTitle,
+        message: normalizedBody ? normalizedBody.slice(0, 220) : "New estate announcement.",
+        type: "community",
+        payload: { estate_id: input.estateId, post_id: String((data as any)?.id || ""), kind: "community.announcement" },
+        entityId: String((data as any)?.id || ""),
+      });
+    } catch (notifyErr) {
+      console.warn("community announcement notify failed:", notifyErr);
+    }
+  }
+
+  void publishSourceIntelligenceEvent(
+    {
+      source: "facility",
+      surface: "facility",
+      event_type: "community.post.created",
+      category: "community",
+      estate_id: input.estateId,
+      actor_id: input.actorId,
+      entity_type: "community_post",
+      entity_id: String(data?.id || ""),
+      entity_label: normalizedTitle,
+      severity: "info",
+      title: normalizedTitle,
+      summary: normalizedBody || "Facility announcement posted.",
+      payload: { category: "announcement", status: "active", audience_type: "all_estate" },
+      occurred_at: data?.created_at,
+      automation_origin: Boolean(input.automationOrigin),
+    },
+    { source_table: "community_posts", source_event_id: String(data?.id || "") }
+  );
+
+  return data;
+}
+
 export async function createPost(req: Request, res: Response) {
   const user = req.user as any;
   if (!user) return res.status(401).json({ error: "Not authenticated" });

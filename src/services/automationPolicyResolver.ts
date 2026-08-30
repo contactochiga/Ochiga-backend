@@ -45,6 +45,16 @@ const REQUIRED_PERMISSION: Record<string, PermissionKey> = {
   // dedicated key for triggering notification sends, distinct from
   // notifications.read).
   "notification.notify": "notifications.manage",
+  // Cross-Domain Fabric Closure -- the three new adapters. community.
+  // manage_announcements is a real, dedicated permission key that
+  // pre-dates this pass. maintenance.create/security.create_incident
+  // reuse support.assign, matching the existing maintenance.assign/
+  // complete/cancel and the real POST /facility/platform/incidents route
+  // (platformGap.routes.ts), which already gates incident creation on the
+  // same permission.
+  "maintenance.create": "support.assign",
+  "community.post_announcement": "community.manage_announcements",
+  "security.create_incident": "support.assign",
 };
 
 // Conservative-by-design: every in-scope action defaults to
