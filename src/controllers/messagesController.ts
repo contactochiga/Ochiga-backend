@@ -379,6 +379,7 @@ export async function listInbox(req: Request, res: Response) {
     .from("dm_threads")
     .select("*")
     .in("id", threadIds)
+    .eq("is_archived", false)
     .order("last_message_at", { ascending: false, nullsFirst: false });
   threadQuery = homeId ? threadQuery.eq("home_id", homeId) : threadQuery.is("home_id", null);
   const { data: threads, error: tErr } = await threadQuery;
@@ -704,6 +705,42 @@ export async function markThreadRead(req: Request, res: Response) {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true });
+}
+
+// Messages workspace consolidation -- dm_threads.is_archived has existed
+// since the original messaging migration but was never wired to a route.
+// A member-only, self-service toggle -- not a moderation action -- so any
+// active thread member may archive/unarchive their own view of it.
+export async function setThreadArchived(req: Request, res: Response) {
+  const user = req.user as any;
+  if (!user?.id) return res.status(401).json({ error: "Not authenticated" });
+  if (!(await ensureMessageTables(res))) return;
+
+  const threadId = clean(req.params.threadId);
+  const archived = Boolean(req.body?.archived);
+  if (!threadId) return res.status(400).json({ error: "threadId is required" });
+
+  const { data: thread, error: threadErr } = await getThreadById(threadId);
+  if (threadErr) return res.status(500).json({ error: threadErr.message });
+  if (!thread?.id) return res.status(404).json({ error: "Thread not found" });
+  try {
+    await assertThreadInActiveScope(req, user, thread);
+  } catch (error: any) {
+    return res.status(error?.statusCode || 403).json({ error: error?.message || "Thread is outside the selected context" });
+  }
+  const { data: member, error: mErr } = await getMember(threadId, user.id);
+  if (mErr) return res.status(500).json({ error: mErr.message });
+  if (!member?.id) return res.status(403).json({ error: "Not a member of this thread" });
+
+  const { data: updated, error } = await supabaseAdmin
+    .from("dm_threads")
+    .update({ is_archived: archived, updated_at: new Date().toISOString() } as any)
+    .eq("id", threadId)
+    .select("id,is_archived")
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ ok: true, thread: updated });
 }
 
 export async function pingPresence(req: Request, res: Response) {

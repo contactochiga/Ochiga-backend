@@ -333,7 +333,8 @@
     "smoke:programme4-learning-proposal": "npm run build && node scripts/oyi-programme4-learning-proposal-smoke.mjs",
     "smoke:programme4-schema-hydration": "node scripts/oyi-programme4-schema-hydration-smoke.mjs",
     "smoke:automation-workspace-uiux": "node scripts/automation-workspace-uiux-smoke.mjs",
-    "smoke:cross-domain-automation": "node scripts/cross-domain-automation-smoke.mjs"
+    "smoke:cross-domain-automation": "node scripts/cross-domain-automation-smoke.mjs",
+    "smoke:messages-archive": "node scripts/messages-archive-smoke.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
