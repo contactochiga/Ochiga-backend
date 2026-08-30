@@ -38,6 +38,7 @@ import {
   type AutomationSurface,
 } from "./scenes";
 import { validateAutomationTrigger, nextAutomationRunAt } from "../services/automationScheduleService";
+import { rotateEstateInviteToken, revokeEstateInviteById, findPendingOwnerInvite } from "../services/estateInviteMutationService";
 
 const router = Router();
 
@@ -778,6 +779,7 @@ router.post("/facility/provision", requireOfficeExportKey, async (req: Request, 
         lat: typeof body.lat === "number" ? body.lat : null,
         lng: typeof body.lng === "number" ? body.lng : null,
         type: safeText(body.type, "estate"),
+        timezone: safeText(body.timezone) || null,
       })
       .select()
       .single();
@@ -839,6 +841,79 @@ router.post("/facility/provision", requireOfficeExportKey, async (req: Request, 
     logger.error("office.facility_provision_failed", { request_id: requestId, detail: safeText(error?.message, "facility_provision_failed") });
     return res.status(500).json({ ok: false, error: "facility_provision_failed", request_id: requestId });
   }
+});
+
+// Office-callable owner-invite resend/revoke -- reuses the exact same
+// rotate/revoke SQL estateInvites.controller.ts already uses for team
+// invites (estateInviteMutationService.ts), the only difference is
+// authorization: there is no Facility session yet for a not-yet-activated
+// estate, so these are gated by the same requireOfficeExportKey machine
+// trust as /facility/provision, scoped to the estate Office already knows
+// about (never a client-guessable invite id). Mirrors the provision
+// route's own boundary: Backend never sends this email -- it only rotates
+// the token and returns it once, so Office can build/send its own branded
+// resend email exactly like it does for the original invite.
+router.post("/facility/estates/:estateId/owner-invite/resend", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const requestId = safeText(req.headers["x-request-id"], nodeCrypto.randomUUID());
+  const estateId = safeText(req.params.estateId);
+  if (!estateId) return res.status(400).json({ ok: false, error: "estate_id_required", request_id: requestId });
+
+  const pending = await findPendingOwnerInvite(estateId);
+  if (!pending.ok) return res.status(404).json({ ok: false, error: pending.error, request_id: requestId });
+
+  const rotated = await rotateEstateInviteToken(pending.invite.id);
+  if (!rotated.ok) {
+    logger.error("office.facility_owner_invite_resend_failed", { request_id: requestId, estate_id: estateId, detail: rotated.error });
+    return res.status(500).json({ ok: false, error: "resend_failed", request_id: requestId });
+  }
+
+  void emitAuditEvent({
+    actorId: null,
+    actorRole: "office_staff",
+    action: "facility.invitation.resent",
+    resourceType: "invite",
+    resourceId: pending.invite.id,
+    estateId,
+    status: "success",
+    metadata: { request_id: requestId, invited_email: pending.invite.invited_email, expires_at: rotated.expiresAt },
+    req,
+  } as any);
+
+  return res.status(200).json({
+    ok: true,
+    request_id: requestId,
+    invite: { id: pending.invite.id, invited_email: pending.invite.invited_email, expires_at: rotated.expiresAt },
+    activation_token: rotated.rawToken,
+  });
+});
+
+router.post("/facility/estates/:estateId/owner-invite/revoke", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const requestId = safeText(req.headers["x-request-id"], nodeCrypto.randomUUID());
+  const estateId = safeText(req.params.estateId);
+  if (!estateId) return res.status(400).json({ ok: false, error: "estate_id_required", request_id: requestId });
+
+  const pending = await findPendingOwnerInvite(estateId);
+  if (!pending.ok) return res.status(404).json({ ok: false, error: pending.error, request_id: requestId });
+
+  const revoked = await revokeEstateInviteById(pending.invite.id, null);
+  if (!revoked.ok) {
+    logger.error("office.facility_owner_invite_revoke_failed", { request_id: requestId, estate_id: estateId, detail: revoked.error });
+    return res.status(500).json({ ok: false, error: "revoke_failed", request_id: requestId });
+  }
+
+  void emitAuditEvent({
+    actorId: null,
+    actorRole: "office_staff",
+    action: "facility.invitation.revoked",
+    resourceType: "invite",
+    resourceId: pending.invite.id,
+    estateId,
+    status: "success",
+    metadata: { request_id: requestId, invited_email: pending.invite.invited_email },
+    req,
+  } as any);
+
+  return res.status(200).json({ ok: true, request_id: requestId, invite: { id: pending.invite.id } });
 });
 
 function groupBuildings(homes: Row[], devices: Row[], nowIso: string) {
@@ -1315,18 +1390,27 @@ router.get("/portfolio/projection", requireOfficeExportKey, async (req: Request,
   const estateIdFilter = safeText(req.query.estate_id as string) || null;
   const buildingIdFilter = safeText(req.query.building_id as string) || null;
 
-  const [estatesResult, homesResult, devicesResult, maintenanceResult, incidentsResult] = await Promise.all([
+  const [estatesResult, homesResult, devicesResult, maintenanceResult, incidentsResult, membershipsResult] = await Promise.all([
     safeSelectWithStatus("estates"),
     safeSelectWithStatus("homes"),
     safeSelectWithStatus("devices"),
     safeSelectWithStatus("maintenance_requests"),
     safeSelectWithStatus("incidents"),
+    safeSelectWithStatus("estate_memberships"),
   ]);
 
   const estates = estatesResult.rows;
   const homes = homesResult.rows;
   const devices = devicesResult.rows;
   const escalationRows = [...maintenanceResult.rows, ...incidentsResult.rows];
+  // Office-provisioning lifecycle: the one signal Office needs to learn a
+  // just-invited owner actually activated -- reusing this already-polled-
+  // on-every-Portfolio-list-load aggregate rather than a new webhook lane.
+  const activeOwnerEstateIds = new Set(
+    membershipsResult.rows
+      .filter((m) => ["owner", "admin"].includes(String(m.role || "").toLowerCase()) && String(m.status || "").toLowerCase() === "active")
+      .map((m) => String(m.estate_id))
+  );
 
   const buildingMap = new Map<string, Row>();
   for (const home of homes) {
@@ -1418,6 +1502,7 @@ router.get("/portfolio/projection", requireOfficeExportKey, async (req: Request,
         location: estate.address || estate.location || "",
         status: estate.status || estate.membership_status || "active",
         subscription_status: estate.subscription_status || "unknown",
+        owner_activated: activeOwnerEstateIds.has(estateId),
         homes_total: estateHomes.length,
         homes_active: estateHomes.filter((h) => toNumber(h.residents_count || h.users_count) > 0).length,
         devices_total: estateDevices.length,

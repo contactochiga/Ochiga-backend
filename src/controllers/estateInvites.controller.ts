@@ -18,12 +18,9 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitAuditEvent } from "../core/foundation";
 import { canGrantMembershipRole, isValidMembershipRole } from "../services/estateMembershipRoles";
 import { sendEmail } from "../services/emailService";
+import { hashInviteToken as hashToken, rotateEstateInviteToken, revokeEstateInviteById } from "../services/estateInviteMutationService";
 
 const INVITE_EXPIRY_DAYS = 14;
-
-function hashToken(token: string) {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
 
 function facilityInviteUrl(rawToken: string) {
   const base = process.env.FACILITY_APP_BASE || process.env.VISITOR_LINK_BASE || "https://facility.oyi.com";
@@ -227,11 +224,8 @@ export async function revokeEstateInvite(req: any, res: Response) {
     if (invite.status !== "pending") {
       return res.status(400).json({ error: "Only a pending invite can be revoked" });
     }
-    const { error } = await supabaseAdmin
-      .from("invites")
-      .update({ status: "revoked", revoked_at: new Date().toISOString(), revoked_by: req.user.id, updated_at: new Date().toISOString() })
-      .eq("id", invite.id);
-    if (error) return res.status(500).json({ error: error.message });
+    const revoked = await revokeEstateInviteById(invite.id, req.user.id);
+    if (!revoked.ok) return res.status(500).json({ error: revoked.error });
 
     void emitAuditEvent({
       actorId: req.user.id,
@@ -265,15 +259,9 @@ export async function resendEstateInvite(req: any, res: Response) {
 
     // Rotate the token on resend -- the previous link stops working, which
     // is the correct behavior if it was sent to the wrong place or leaked.
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
-    const { error } = await supabaseAdmin
-      .from("invites")
-      .update({ token_hash: tokenHash, expires_at: expiresAt, last_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", invite.id);
-    if (error) return res.status(500).json({ error: error.message });
+    const rotated = await rotateEstateInviteToken(invite.id);
+    if (!rotated.ok) return res.status(500).json({ error: rotated.error });
+    const { rawToken, expiresAt } = rotated;
 
     const { data: estate } = await supabaseAdmin.from("estates").select("name").eq("id", req.user.estate_id).maybeSingle();
     const inviteUrl = facilityInviteUrl(rawToken);

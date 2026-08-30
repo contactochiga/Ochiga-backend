@@ -82,4 +82,59 @@ function readDist(relativePath) {
   assert.ok(/\/office\/facility\/provision|facility\/provision/.test(readDist("routes/officeExport.js")), "the Office-authenticated provisioning intake route must exist");
 }
 
+// 7) Office->Facility provisioning lifecycle -- owner-invite resend/revoke
+// are Office-key-gated (never a Facility session), scoped by estate_id
+// (never a client-guessable invite id), and share the exact rotate/revoke
+// SQL estateInvites.controller.ts already uses -- no duplicated logic.
+{
+  const src = readDist("routes/officeExport.js");
+  assert.ok(/facility\/estates\/:estateId\/owner-invite\/resend/.test(src), "owner-invite resend route must exist");
+  assert.ok(/facility\/estates\/:estateId\/owner-invite\/revoke/.test(src), "owner-invite revoke route must exist");
+  const resendMatch = src.match(/router\.post\("\/facility\/estates\/:estateId\/owner-invite\/resend"[\s\S]*?\n\}\);/);
+  const revokeMatch = src.match(/router\.post\("\/facility\/estates\/:estateId\/owner-invite\/revoke"[\s\S]*?\n\}\);/);
+  assert.ok(resendMatch && /requireOfficeExportKey/.test(resendMatch[0]), "resend must be gated by requireOfficeExportKey, not a Facility session");
+  assert.ok(revokeMatch && /requireOfficeExportKey/.test(revokeMatch[0]), "revoke must be gated by requireOfficeExportKey, not a Facility session");
+  assert.ok(resendMatch && /findPendingOwnerInvite/.test(resendMatch[0]), "resend must resolve the invite from the estate_id Office already knows, never a client-submitted invite id");
+  assert.ok(revokeMatch && /findPendingOwnerInvite/.test(revokeMatch[0]), "revoke must resolve the invite from the estate_id Office already knows, never a client-submitted invite id");
+
+  const mutationSrc = readDist("services/estateInviteMutationService.js");
+  assert.ok(/function rotateEstateInviteToken/.test(mutationSrc) && /function revokeEstateInviteById/.test(mutationSrc), "shared mutation service must exist");
+  const controllerSrc = readDist("controllers/estateInvites.controller.js");
+  assert.ok(/rotateEstateInviteToken|revokeEstateInviteById/.test(controllerSrc), "estateInvites.controller.js must call the shared service, not reimplement token rotation/revocation");
+}
+
+// 8) Portfolio projection now surfaces a real owner_activated signal (how
+// Office learns activation completed), computed from a real
+// estate_memberships read -- not a new webhook, not a fabricated field.
+{
+  const src = readDist("routes/officeExport.js");
+  assert.ok(/safeSelectWithStatus\("estate_memberships"\)/.test(src), "projection must read real estate_memberships rows");
+  assert.ok(/owner_activated/.test(src), "projection must expose owner_activated per estate");
+  assert.ok(/activeOwnerEstateIds/.test(src), "owner_activated must be derived from an actual active owner/admin membership, not hardcoded");
+}
+
+// 9) Generic invite-conflict response -- must not flatly confirm account
+// existence for a specific email anymore.
+{
+  const migrationSql = fs.readFileSync(new URL("../supabase/migrations/20260901090000_soften_estate_owner_invite_conflict_message.sql", import.meta.url), "utf8");
+  assert.ok(!/An account already exists for this email/.test(migrationSql), "the account-existence-confirming message must be gone");
+  assert.ok(/This invitation could not be completed/.test(migrationSql), "a generic, still-actionable message must replace it");
+  const routeSrc = readDist("routes/estateOwnerInviteActivation.js");
+  assert.ok(!/already exists/.test(routeSrc), "the route's error-status mapping must not still key off the removed leaking phrase");
+}
+
+// 10) Tenant isolation / adversarial coverage already proven at the RPC
+// level (row-locking, email-match check, single-use token, estate-scoped
+// lookup) -- re-assert these hold across both migrations.
+{
+  const baseSql = fs.readFileSync(new URL("../supabase/migrations/20260828120000_estate_owner_invite_activation.sql", import.meta.url), "utf8");
+  const softenedSql = fs.readFileSync(new URL("../supabase/migrations/20260901090000_soften_estate_owner_invite_conflict_message.sql", import.meta.url), "utf8");
+  for (const sql of [baseSql, softenedSql]) {
+    assert.ok(/for update/.test(sql), "invite row must be locked to prevent concurrent double-accept (replay/concurrent-acceptance safety)");
+  }
+  assert.ok(/for update/.test(softenedSql), "the re-created function must still row-lock, not silently drop that protection on re-create");
+  assert.ok(/lower\(v_user\.email\) <> lower\(v_invite\.invited_email\)/.test(softenedSql), "existing-user path must still verify the authenticated email matches the invite (wrong-email/cross-account misuse protection)");
+  assert.ok(/i\.estate_id = v_invite\.estate_id/.test(softenedSql) || /estate_id = v_invite\.estate_id/.test(softenedSql), "membership write must stay scoped to the invite's own estate_id (cross-Facility invitation misuse protection)");
+}
+
 console.log("commercial-provisioning-security-smoke: ALL PASSED");
