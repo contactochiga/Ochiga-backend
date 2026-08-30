@@ -161,4 +161,20 @@ function readDist(relativePath) {
   assert.ok(!/\.from\(["']users["']\)\s*\n?\s*\.delete/.test(eligibilitySrc), "eligibility check must never itself delete anything, including users");
 }
 
+// 12) Production incident: /office/facility/provision's estate insert
+// (and facility.controller.ts's createEstate) both write a `type` field
+// that had never actually been migrated -- undetected until this route's
+// first real end-to-end UI-driven use, which failed with
+// facility_provision_failed. The migration restoring the column must
+// exist, be additive, and match the "estate" default the insert code has
+// always assumed.
+{
+  const migrationSql = fs.readFileSync(new URL("../supabase/migrations/20260830180000_estates_add_type_column.sql", import.meta.url), "utf8");
+  assert.ok(/alter table estates add column if not exists type/.test(migrationSql), "the migration must additively restore the missing estates.type column");
+  assert.ok(/default 'estate'/.test(migrationSql), "the column default must match the insert code's own \"estate\" fallback");
+
+  const provisionSrc = readDist("routes/officeExport.js");
+  assert.ok(/type:\s*safeText\(body\.type/.test(provisionSrc), "the provisioning insert must still write type -- this fix restores the column, it does not strip the field");
+}
+
 console.log("commercial-provisioning-security-smoke: ALL PASSED");

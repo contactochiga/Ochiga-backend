@@ -1,0 +1,13 @@
+-- Production incident: both estate-creation code paths
+-- (POST /office/facility/provision in officeExport.ts and POST
+-- /facility/estates's createEstate in facility.controller.ts) have always
+-- inserted a `type` field into estates, and several read paths
+-- (superAdminController.ts's getEstateSummary, geoController.ts) select
+-- it back -- but the column itself was never migrated. This went
+-- undetected because /office/facility/provision had no real UI caller
+-- until the Office->Facility provisioning lifecycle work shipped; its
+-- first genuine end-to-end production use (Office -> Portfolio -> New)
+-- failed with "facility_provision_failed" because the insert violated a
+-- column that doesn't exist. Additive/backward-compatible: existing rows
+-- get the same "estate" default the application code has always assumed.
+alter table estates add column if not exists type text default 'estate';
