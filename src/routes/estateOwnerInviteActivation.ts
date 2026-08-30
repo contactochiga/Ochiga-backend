@@ -21,7 +21,7 @@ function errorStatus(message: string) {
   if (lower.includes("not found")) return 404;
   if (lower.includes("expired") || lower.includes("revoked") || lower.includes("accepted") || lower.includes("pending")) return 410;
   if (lower.includes("not sent to your account email")) return 403;
-  if (lower.includes("username") || lower.includes("password") || lower.includes("token") || lower.includes("already exists")) return 400;
+  if (lower.includes("username") || lower.includes("password") || lower.includes("token") || lower.includes("please sign in instead")) return 400;
   return 500;
 }
 
