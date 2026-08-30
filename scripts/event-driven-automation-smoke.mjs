@@ -79,6 +79,14 @@ need(executionRegistry.includes('automation_origin: input.source === "automation
 // compare-and-swap, not a read-then-write race.
 need(automationService.includes('.eq("status", "pending_approval")') && automationService.includes('.update({ status: "executing"'), "the executing-transition must be a CAS guarded by the current status, closing the double-execution race");
 
+// 7b. Found via live production verification: the CAS update's synthetic
+// system actor (id "system:automation") isn't a valid UUID, but
+// approver_id is a uuid FK column -- writing it directly caused a silent
+// Postgres type-cast failure that was indistinguishable from a legitimate
+// lost race (no error check, no audit trail). Both must now be fixed.
+need(automationService.includes("approverFieldsFor(actor)"), "approver_id must never be written directly from a possibly-non-UUID actor.id -- auto-executed runs must record no approver, not a fabricated one");
+need(automationService.includes("const { data: claimed, error: claimError }") && automationService.includes("if (claimError)"), "a genuine DB error on the claim update must be distinguished from a legitimate lost race, not silently swallowed as if no row matched");
+
 // 8. The three new action adapters are real, extracted, facility-scoped
 // primitives -- not the resident/staff-facing controller endpoints
 // reused verbatim, and not fabricated.
