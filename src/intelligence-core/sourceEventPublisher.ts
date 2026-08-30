@@ -20,6 +20,15 @@ export type SourceIntelligenceEvent = {
   summary?: string | null;
   payload?: Record<string, unknown> | null;
   occurred_at?: string;
+  // Facility Automation -- Cross-Domain Fabric Closure loop protection. Set
+  // true only when this event is itself the direct result of an automation
+  // action executing (see intelligence-core/executionRegistry.ts's
+  // input.source === "automation"). The event-driven trigger matcher
+  // (facilityAutomationEventRuleService.ts) refuses to match rules against
+  // any event carrying this flag, so an automation-caused mutation can
+  // never re-enter the matcher and chain into further automation --
+  // zero-hop chaining by construction, not by convention.
+  automation_origin?: boolean;
 };
 
 const VALID_SEVERITIES = new Set(["normal", "info", "attention", "warning", "critical"]);
@@ -57,6 +66,7 @@ export function publishSourceIntelligenceEvent(input: SourceIntelligenceEvent, o
     entity_label: input.entity_label || null,
     severity: normalizedSeverity(input.severity),
     payload: input.payload || {},
+    automation_origin: Boolean(input.automation_origin),
   };
 
   return publishIntelligenceEvent({

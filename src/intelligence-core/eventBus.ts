@@ -131,6 +131,21 @@ export async function publishIntelligenceEvent(eventInput: IntelligenceEvent, op
     return { ok: false, reason: error.message };
   }
 
+  // Facility Automation -- Cross-Domain Fabric Closure. This is the one
+  // true canonical event choke point -- every domain (weather, visitor,
+  // maintenance, device, camera detections, community, wallet) already
+  // funnels through this function, and a duplicate/replayed insert already
+  // short-circuits above (23505 -> skipped:true) before reaching here, so
+  // the dispatcher gets idempotency for free rather than needing its own
+  // dedup table. Dynamic import (matching the pattern executionRegistry.ts
+  // already uses for NotificationService/deviceCommandController) avoids a
+  // circular import: the event-rule service imports back into
+  // intelligence-core via executionRegistry.ts/sourceEventPublisher.ts.
+  // Fire-and-forget -- must never affect the caller's successful publish.
+  void import("../services/facilityAutomationEventRuleService")
+    .then(({ matchEventDrivenAutomationRules }) => matchEventDrivenAutomationRules(data as any))
+    .catch((importError: any) => console.warn("[facility-automation-event-rules] dispatch import failed", importError?.message || String(importError)));
+
   return { ok: true, event: data || row };
 }
 

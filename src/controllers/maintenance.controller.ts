@@ -228,6 +228,96 @@ export async function listMyMaintenance(req: AuthReq, res: Response) {
   }
 }
 
+// Facility Automation -- Cross-Domain Fabric Closure. The facility-staff/
+// automation-scoped counterpart to createMaintenance below -- that
+// function derives "the complainant" from req.user, which has no meaning
+// for a system/staff-initiated work order (e.g. a security-signal- or
+// weather-triggered automation opening a proactive WO with no resident
+// complaint behind it). Deliberately does NOT set resident_id -- the
+// initiating actor is recorded on the maintenance_request_timeline row
+// instead, so a facility-initiated order is never misrepresented as a
+// resident complaint.
+export async function createFacilityMaintenanceOrder(input: {
+  estateId: string;
+  homeId?: string | null;
+  title: string;
+  description?: string | null;
+  priority?: string;
+  category?: string | null;
+  actorId: string;
+  automationOrigin?: boolean;
+}) {
+  const request = await insertWithSchemaFallback<any>("maintenance_requests", {
+    estate_id: input.estateId,
+    home_id: input.homeId || null,
+    title: input.title || "Maintenance request",
+    description: input.description || null,
+    category: input.category || null,
+    priority: input.priority || "medium",
+    status: "open",
+    created_at: new Date().toISOString(),
+  });
+
+  await supabaseAdmin.from("maintenance_request_timeline").insert({
+    maintenance_request_id: request.id,
+    estate_id: input.estateId,
+    actor_id: input.actorId,
+    action: "maintenance_created_by_facility",
+    from_status: null,
+    to_status: "open",
+    note: "Created by Facility automation, not a resident complaint.",
+    metadata: {},
+  } as any);
+
+  void publishSourceIntelligenceEvent(
+    {
+      source: "facility",
+      surface: "facility",
+      event_type: "maintenance.created",
+      category: "maintenance",
+      estate_id: input.estateId,
+      home_id: input.homeId || null,
+      actor_id: input.actorId,
+      entity_type: "maintenance_request",
+      entity_id: request.id,
+      entity_label: request.title || "Maintenance request",
+      severity: String(request.priority || input.priority || "").toLowerCase() === "critical" ? "critical" : "attention",
+      title: request.title || "Maintenance request created",
+      summary: request.description || "A facility-initiated maintenance request was created.",
+      payload: { status: request.status || "open", priority: request.priority || input.priority || "medium", category: request.category || input.category || null },
+      occurred_at: request.created_at,
+      automation_origin: Boolean(input.automationOrigin),
+    },
+    { source_table: "maintenance_requests", source_event_id: `${request.id}:maintenance.created` }
+  );
+
+  void detectDuplicateMaintenanceRequest({ id: request.id, estate_id: input.estateId, home_id: input.homeId || null, category: request.category || input.category || null, title: request.title || input.title || null, created_at: request.created_at });
+
+  const opsUserIds = await listEstateOpsUserIds(input.estateId);
+  if (opsUserIds.length) {
+    await notifyUsers(opsUserIds, {
+      estate_id: input.estateId,
+      home_id: input.homeId || null,
+      type: "maintenance_request",
+      title: "New maintenance request",
+      message: `${request.title || "Maintenance request"} raised by Facility automation`,
+      entity_type: "maintenance",
+      entity_id: request.id,
+    });
+  } else {
+    await notifyEstate(input.estateId, {
+      home_id: input.homeId || null,
+      type: "maintenance_request",
+      title: "New maintenance request",
+      message: `${request.title || "Maintenance request"} raised by Facility automation`,
+      entity_type: "maintenance",
+      entity_id: request.id,
+    });
+  }
+
+  return request;
+}
+
 /**
  * CONSUMER: POST /maintenance
  * Creates maintenance request and notifies facility ops + requester

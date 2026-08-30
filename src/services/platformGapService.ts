@@ -2,6 +2,7 @@ import { Request } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
 import { emitAuditEvent } from "../core/foundation/audit";
+import { publishSourceIntelligenceEvent } from "../intelligence-core";
 
 type Actor = { id: string; role?: string; estate_id?: string | null; home_id?: string | null; permissions?: string[]; permission_scopes?: string[] };
 
@@ -56,6 +57,77 @@ async function scopedEstate(req: Request) {
   const current = actor(req);
   const { data } = await supabaseAdmin.from("estate_memberships").select("estate_id").eq("user_id", current.id).eq("status", "active").limit(1).maybeSingle();
   return String((data as any)?.estate_id || "");
+}
+
+// Facility Automation -- Cross-Domain Fabric Closure. Extracted from
+// platformGapService.createIncident below so EXECUTION_REGISTRY's new
+// security.create_incident action has a real, req-independent function to
+// call. Adds the one thing createIncident was previously missing to be a
+// viable automation trigger source too: a publishSourceIntelligenceEvent
+// call, consistent with every other domain's mutation-publishes-an-event
+// convention (visitor/maintenance/community/weather all already do this;
+// incident creation/update did not).
+export async function createFacilityIncident(input: {
+  estateId: string;
+  homeId?: string | null;
+  roomId?: string | null;
+  title: string;
+  description?: string | null;
+  incidentType?: string;
+  severity?: string;
+  status?: string;
+  assignedTo?: string | null;
+  location?: string | null;
+  source?: string;
+  metadata?: Record<string, any>;
+  actorId: string;
+  note?: string | null;
+  automationOrigin?: boolean;
+}) {
+  const payload = {
+    estate_id: input.estateId,
+    home_id: input.homeId || null,
+    room_id: input.roomId || null,
+    title: input.title || "Operational incident",
+    description: input.description || null,
+    incident_type: input.incidentType || "operational",
+    severity: input.severity || "medium",
+    status: input.status || "open",
+    assigned_to: input.assignedTo || null,
+    location: input.location || null,
+    source: input.source || "facility",
+    metadata: cleanObject(input.metadata),
+    created_by: input.actorId,
+  };
+  const { data, error } = await supabaseAdmin.from("facility_incidents").insert(payload as any).select("*").single();
+  if (error) throw error;
+
+  await supabaseAdmin.from("facility_incident_timeline").insert({ incident_id: data.id, estate_id: input.estateId, actor_id: input.actorId, action: "created", status: data.status, note: input.note || null, metadata: {} } as any);
+  emit("incident.created", input.estateId, { incident: data });
+
+  void publishSourceIntelligenceEvent(
+    {
+      source: "facility",
+      surface: "facility",
+      event_type: "security.incident.created",
+      category: "security",
+      estate_id: input.estateId,
+      home_id: input.homeId || null,
+      actor_id: input.actorId,
+      entity_type: "facility_incident",
+      entity_id: data.id,
+      entity_label: data.title || "Facility incident",
+      severity: String(data.severity || "").toLowerCase() === "critical" ? "critical" : String(data.severity || "").toLowerCase() === "high" ? "warning" : "attention",
+      title: data.title || "Facility incident created",
+      summary: data.description || "A facility incident was recorded.",
+      payload: { status: data.status, severity: data.severity, incident_type: data.incident_type },
+      occurred_at: data.created_at,
+      automation_origin: Boolean(input.automationOrigin),
+    },
+    { source_table: "facility_incidents", source_event_id: `${data.id}:security.incident.created` }
+  );
+
+  return data;
 }
 
 export const platformGapService = {
@@ -215,13 +287,24 @@ export const platformGapService = {
     const estate_id = await scopedEstate(req);
     if (!estate_id) throw new Error("No estate context");
     const body = req.body || {};
-    const payload = { estate_id, home_id: body.home_id || null, room_id: body.room_id || null, title: String(body.title || "Operational incident"), description: body.description || null, incident_type: body.incident_type || "operational", severity: body.severity || "medium", status: body.status || "open", assigned_to: body.assigned_to || null, location: body.location || null, source: body.source || "facility", metadata: cleanObject(body.metadata), created_by: current.id };
-    const { data, error } = await supabaseAdmin.from("facility_incidents").insert(payload as any).select("*").single();
-    if (error) throw error;
-    await supabaseAdmin.from("facility_incident_timeline").insert({ incident_id: data.id, estate_id, actor_id: current.id, action: "created", status: data.status, note: body.note || null, metadata: {} } as any);
-    await audit(current, "incident.created", data.id, { severity: data.severity, status: data.status }, req);
-    emit("incident.created", estate_id, { incident: data });
-    return { ok: true, incident: data };
+    const incident = await createFacilityIncident({
+      estateId: estate_id,
+      homeId: body.home_id || null,
+      roomId: body.room_id || null,
+      title: String(body.title || "Operational incident"),
+      description: body.description || null,
+      incidentType: body.incident_type || "operational",
+      severity: body.severity || "medium",
+      status: body.status || "open",
+      assignedTo: body.assigned_to || null,
+      location: body.location || null,
+      source: body.source || "facility",
+      metadata: cleanObject(body.metadata),
+      actorId: current.id,
+      note: body.note || null,
+    });
+    await audit(current, "incident.created", incident.id, { severity: incident.severity, status: incident.status }, req);
+    return { ok: true, incident };
   },
 
   async updateIncident(req: Request) {

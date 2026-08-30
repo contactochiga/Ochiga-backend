@@ -24,10 +24,19 @@ router.post(
   async (req, res) => {
     try {
       const parsed = AutomationInputSchema.parse(req.body);
+      // Cross-Domain Fabric Closure security fix -- estate_id must be
+      // derived from the authenticated session, never trusted from the
+      // request body. Previously a client could submit any estate_id and
+      // this route would insert it verbatim, letting an authenticated
+      // user create an automation row attributed to a Facility they have
+      // no membership in.
+      const estateId = (req as any).user?.estate_id;
+      if (!estateId) return res.status(400).json({ error: "User has no estate" });
+      const record = { ...parsed, estate_id: estateId };
 
       const { data, error } = await supabaseAdmin
         .from("automations")
-        .insert([parsed])
+        .insert([record])
         .select()
         .single();
 
@@ -136,6 +145,16 @@ router.post(
     const id = req.params.id;
 
     try {
+      // Cross-Domain Fabric Closure security fix -- previously this route
+      // enqueued a job for any automation id with no ownership check at
+      // all. Confirm the automation actually belongs to the caller's own
+      // estate before triggering it.
+      const estateId = (req as any).user?.estate_id;
+      if (!estateId) return res.status(400).json({ error: "User has no estate" });
+      const { data: automation, error } = await supabaseAdmin.from("automations").select("id, estate_id").eq("id", id).maybeSingle();
+      if (error) return res.status(500).json({ error: error.message });
+      if (!automation || String(automation.estate_id) !== String(estateId)) return res.status(404).json({ error: "not_found" });
+
       const { enqueueAutomation } = await import("../workers/automationWorker");
       await enqueueAutomation(id);
       return res.json({ ok: true, message: "Automation enqueued" });

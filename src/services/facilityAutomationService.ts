@@ -30,9 +30,28 @@ import { rankOfMembershipRole } from "./estateMembershipRoles";
 import { executeRegisteredAction } from "../intelligence-core/executionRegistry";
 import { verifyVisitorStatus, verifyMaintenanceStatus, verifyDeviceAction } from "../intelligence-core/verificationService";
 import { resolveAutomationPolicy, actorMayActOnAction, registeredActionRequiredPermission } from "./automationPolicyResolver";
+import { getIO } from "../realtime/io";
 
 const APPROVAL_EXPIRY_HOURS = 24;
 const DUPLICATE_WINDOW_HOURS = 72;
+
+// Cross-Domain Fabric Closure -- closes a real, confirmed gap: the
+// facility:automation RuntimeChannel (oyi-core/runtime/runtimeSubscriptions.ts)
+// was declared and fed but nothing ever delivered it (runtimeSubscription
+// Engine.register() was never called anywhere), so the Automation
+// workspace's realtime listener only ever fired incidentally, off
+// unrelated generic domain events. This is the one place that actually
+// emits it, mirroring the exact getIO()/estate-room pattern oyi-core/
+// service.ts's emitRealtime already uses -- no new realtime mechanism.
+export function emitFacilityAutomationRealtime(estateId: string, event: string, payload: Record<string, unknown>) {
+  try {
+    const io = getIO();
+    if (!io || !estateId) return;
+    io.to(`estate:${estateId}`).emit("facility:automation", { event, estate_id: estateId, ...payload });
+  } catch {
+    // Realtime is best-effort and must never affect the operation it's reporting on.
+  }
+}
 const VISITOR_STALE_GRACE_HOURS = 2;
 
 // Cross-Domain Operational Automation -- widened to also accept proposals
@@ -48,7 +67,7 @@ type ProposalInput = {
   estateId: string;
   detectorId: string;
   actionId: string;
-  entityType: "maintenance_request" | "visitor_access" | "notification";
+  entityType: "maintenance_request" | "visitor_access" | "notification" | "none";
   entityId: string | null;
   targetLabel: string;
   reason: string;
@@ -143,6 +162,7 @@ export async function proposeAutomationApproval(input: ProposalInput) {
       metadata: { action_id: input.actionId, entity_type: input.entityType, entity_id: input.entityId, detector_id: input.detectorId },
     } as any);
     void notifyApprovers(input.estateId, "Automation approval requested", `${input.reason} (${input.targetLabel})`, { approval_id: data.id, action_id: input.actionId, entity_id: input.entityId });
+    emitFacilityAutomationRealtime(input.estateId, "approval.queued", { approval_id: data.id, action_id: input.actionId, target_label: input.targetLabel });
   }
   return data;
 }
@@ -303,9 +323,105 @@ async function runVerification(actionId: string, entityId: string, expectedStatu
   return { state: "timeout" as const, summary: "No verification strategy for this action.", metadata: {} };
 }
 
-// The one place approval decisions are made. APPROVE immediately attempts
-// execution (matching the spec's "Approve & Execute" framing) -- there is
-// no separate "approved but not yet executed" human step in this
+// Facility Automation -- Cross-Domain Fabric Closure. Extracted out of what
+// used to be the tail of decideAutomationApproval so the exact same
+// precondition -> claim(CAS) -> execute -> verify -> audit -> notify
+// sequence runs identically whether a human just approved this row or the
+// event-driven dispatcher (facilityAutomationEventRuleService.ts) is
+// executing it directly because policy resolved auto_allowed. No second
+// execution path was written -- this is the one, shared, path.
+export async function executeApprovalRow(approval: any, actor: AuthUser, note?: string | null) {
+  const precondition = await validatePrecondition(approval.action_id, approval.entity_id);
+  if (!precondition.ok) {
+    await supabaseAdmin.from("automation_approvals").update({ status: "failed", approver_id: actor.id, approver_role: actor.role, decision_note: note || null, decided_at: new Date().toISOString() }).eq("id", approval.id);
+    void emitAuditEvent({ actorId: actor.id, actorRole: actor.role, action: "automation.execution.failed", resourceType: "automation_approval", resourceId: approval.id, estateId: approval.estate_id, status: "failed", metadata: { action_id: approval.action_id, reason: precondition.reason } } as any);
+    void notifyApprovers(approval.estate_id, "Automation execution skipped", `${approval.target_label || "Action"} was not executed: ${precondition.reason}.`, { approval_id: approval.id });
+    emitFacilityAutomationRealtime(approval.estate_id, "execution.failed", { approval_id: approval.id, action_id: approval.action_id, reason: precondition.reason });
+    return { ok: false, code: "execution_failed" as const, reason: precondition.reason };
+  }
+
+  const executionId = `automation_approval:${approval.id}`;
+  // Compare-and-swap on the pending->executing transition -- closes a real
+  // gap found during the Cross-Domain Fabric Closure audit: two concurrent
+  // decision calls on the same approval (a doubled client request, or now
+  // also a human approving the instant the event-driven dispatcher reaches
+  // the same row) could otherwise both pass the earlier pending_approval
+  // read-check before either write landed, and both then call
+  // executeRegisteredAction. The scheduler's claimAndRunAutomation
+  // (src/routes/scenes.ts) already proves this exact CAS pattern.
+  const { data: claimed } = await supabaseAdmin
+    .from("automation_approvals")
+    .update({ status: "executing", approver_id: actor.id, approver_role: actor.role, decision_note: note || null, decided_at: new Date().toISOString(), execution_id: executionId })
+    .eq("id", approval.id)
+    .eq("status", "pending_approval")
+    .select("*")
+    .maybeSingle();
+  if (!claimed) return { ok: false, code: "not_pending" as const, status: "already_claimed" };
+  emitFacilityAutomationRealtime(approval.estate_id, "execution.started", { approval_id: approval.id, action_id: approval.action_id, execution_id: executionId });
+
+  const expectedStatus = expectedStatusFor(approval.action_id) || (approval.plan_snapshot as any)?.expected_status;
+  // plan_snapshot.command is the frozen, approved payload for actions with
+  // no single target entity (notification.notify) -- execution always
+  // re-reads it from the snapshot rather than trusting anything sent at
+  // approve-time, same as every other field on this row.
+  const result = await executeRegisteredAction({
+    action_id: approval.action_id,
+    actor,
+    entity_id: approval.entity_id,
+    command: (approval.plan_snapshot as any)?.command || null,
+    source: "automation",
+    confirmed: true,
+  });
+
+  if (!result.ok) {
+    await supabaseAdmin.from("automation_approvals").update({ status: "failed" }).eq("id", approval.id);
+    void emitAuditEvent({ actorId: actor.id, actorRole: actor.role, action: "automation.execution.failed", resourceType: "automation_approval", resourceId: approval.id, estateId: approval.estate_id, status: "failed", metadata: { action_id: approval.action_id, reason: (result as any).reason || result.status } } as any);
+    void notifyApprovers(approval.estate_id, "Automation execution failed", `${approval.target_label || "Action"} could not be executed: ${(result as any).reason || result.status}.`, { approval_id: approval.id });
+    emitFacilityAutomationRealtime(approval.estate_id, "execution.failed", { approval_id: approval.id, action_id: approval.action_id, reason: (result as any).reason || result.status });
+    return { ok: false, code: "execution_failed" as const, reason: (result as any).reason || result.status };
+  }
+
+  // notification.notify (and any future entity-less action) has nothing
+  // to re-read after execution -- the execution's own success/failure
+  // result is authoritative, so treat it as verified rather than falling
+  // through to the generic "no expected status" pending state, which
+  // would otherwise misreport a successful send as verification_failed.
+  const verification = !approval.entity_id
+    ? { state: "verified" as const, summary: "No target entity to verify -- execution result is authoritative.", metadata: {} }
+    : expectedStatus
+      ? await runVerification(approval.action_id, approval.entity_id, expectedStatus)
+      : { state: "pending" as const, summary: "No expected status to verify against.", metadata: {} };
+  const verified = verification.state === "verified";
+
+  await supabaseAdmin
+    .from("automation_approvals")
+    .update({ status: verified ? "succeeded" : "verification_failed", verification, executed_at: new Date().toISOString() })
+    .eq("id", approval.id);
+
+  void emitAuditEvent({
+    actorId: actor.id,
+    actorRole: actor.role,
+    action: verified ? "automation.execution.succeeded" : "automation.execution.verification_failed",
+    resourceType: "automation_approval",
+    resourceId: approval.id,
+    estateId: approval.estate_id,
+    status: verified ? "success" : "failed",
+    metadata: { action_id: approval.action_id, entity_id: approval.entity_id, verification, execution_id: executionId },
+  } as any);
+  void notifyApprovers(
+    approval.estate_id,
+    verified ? "Automation action executed" : "Automation action executed, verification failed",
+    `${approval.target_label || "Action"}: ${approval.action_id} ${verified ? "completed and verified" : "completed but could not be verified"}.`,
+    { approval_id: approval.id, execution_id: executionId }
+  );
+  emitFacilityAutomationRealtime(approval.estate_id, verified ? "execution.succeeded" : "execution.verification_failed", { approval_id: approval.id, action_id: approval.action_id, execution_id: executionId });
+
+  return { ok: true, approval: { ...approval, status: verified ? "succeeded" : "verification_failed", verification, execution_id: executionId } };
+}
+
+// The one place human approval decisions are made. APPROVE immediately
+// attempts execution (matching the spec's "Approve & Execute" framing) --
+// there is no separate "approved but not yet executed" human step in this
 // milestone, since every in-scope action is fast/synchronous already.
 export async function decideAutomationApproval(input: {
   approvalId: string;
@@ -339,6 +455,7 @@ export async function decideAutomationApproval(input: {
       .select("*")
       .maybeSingle();
     void emitAuditEvent({ actorId: input.actor.id, actorRole: input.actor.role, action: "automation.approval.rejected", resourceType: "automation_approval", resourceId: approval.id, estateId: input.estateId, status: "success", metadata: { action_id: approval.action_id, note: input.note || null } } as any);
+    emitFacilityAutomationRealtime(input.estateId, "approval.decided", { approval_id: approval.id, action_id: approval.action_id, decision: "rejected" });
     return { ok: true, approval: updated };
   }
 
@@ -353,73 +470,7 @@ export async function decideAutomationApproval(input: {
     return { ok: false, code: "policy_denied" as const, reason: policy.reason };
   }
 
-  const precondition = await validatePrecondition(approval.action_id, approval.entity_id);
-  if (!precondition.ok) {
-    await supabaseAdmin.from("automation_approvals").update({ status: "failed", approver_id: input.actor.id, approver_role: input.actor.role, decision_note: input.note || null, decided_at: new Date().toISOString() }).eq("id", approval.id);
-    void emitAuditEvent({ actorId: input.actor.id, actorRole: input.actor.role, action: "automation.execution.failed", resourceType: "automation_approval", resourceId: approval.id, estateId: input.estateId, status: "failed", metadata: { action_id: approval.action_id, reason: precondition.reason } } as any);
-    void notifyApprovers(input.estateId, "Automation execution skipped", `${approval.target_label || "Action"} was not executed: ${precondition.reason}.`, { approval_id: approval.id });
-    return { ok: false, code: "execution_failed" as const, reason: precondition.reason };
-  }
-
-  const executionId = `automation_approval:${approval.id}`;
-  await supabaseAdmin.from("automation_approvals").update({ status: "executing", approver_id: input.actor.id, approver_role: input.actor.role, decision_note: input.note || null, decided_at: new Date().toISOString(), execution_id: executionId }).eq("id", approval.id);
-
-  const expectedStatus = expectedStatusFor(approval.action_id) || (approval.plan_snapshot as any)?.expected_status;
-  // plan_snapshot.command is the frozen, approved payload for actions with
-  // no single target entity (notification.notify) -- execution always
-  // re-reads it from the snapshot rather than trusting anything sent at
-  // approve-time, same as every other field on this row.
-  const result = await executeRegisteredAction({
-    action_id: approval.action_id,
-    actor: input.actor,
-    entity_id: approval.entity_id,
-    command: (approval.plan_snapshot as any)?.command || null,
-    source: "automation",
-    confirmed: true,
-  });
-
-  if (!result.ok) {
-    await supabaseAdmin.from("automation_approvals").update({ status: "failed" }).eq("id", approval.id);
-    void emitAuditEvent({ actorId: input.actor.id, actorRole: input.actor.role, action: "automation.execution.failed", resourceType: "automation_approval", resourceId: approval.id, estateId: input.estateId, status: "failed", metadata: { action_id: approval.action_id, reason: (result as any).reason || result.status } } as any);
-    void notifyApprovers(input.estateId, "Automation execution failed", `${approval.target_label || "Action"} could not be executed: ${(result as any).reason || result.status}.`, { approval_id: approval.id });
-    return { ok: false, code: "execution_failed" as const, reason: (result as any).reason || result.status };
-  }
-
-  // notification.notify (and any future entity-less action) has nothing
-  // to re-read after execution -- the execution's own success/failure
-  // result is authoritative, so treat it as verified rather than falling
-  // through to the generic "no expected status" pending state, which
-  // would otherwise misreport a successful send as verification_failed.
-  const verification = !approval.entity_id
-    ? { state: "verified" as const, summary: "No target entity to verify -- execution result is authoritative.", metadata: {} }
-    : expectedStatus
-      ? await runVerification(approval.action_id, approval.entity_id, expectedStatus)
-      : { state: "pending" as const, summary: "No expected status to verify against.", metadata: {} };
-  const verified = verification.state === "verified";
-
-  await supabaseAdmin
-    .from("automation_approvals")
-    .update({ status: verified ? "succeeded" : "verification_failed", verification, executed_at: new Date().toISOString() })
-    .eq("id", approval.id);
-
-  void emitAuditEvent({
-    actorId: input.actor.id,
-    actorRole: input.actor.role,
-    action: verified ? "automation.execution.succeeded" : "automation.execution.verification_failed",
-    resourceType: "automation_approval",
-    resourceId: approval.id,
-    estateId: input.estateId,
-    status: verified ? "success" : "failed",
-    metadata: { action_id: approval.action_id, entity_id: approval.entity_id, verification, execution_id: executionId },
-  } as any);
-  void notifyApprovers(
-    input.estateId,
-    verified ? "Automation action executed" : "Automation action executed, verification failed",
-    `${approval.target_label || "Action"}: ${approval.action_id} ${verified ? "completed and verified" : "completed but could not be verified"}.`,
-    { approval_id: approval.id, execution_id: executionId }
-  );
-
-  return { ok: true, approval: { ...approval, status: verified ? "succeeded" : "verification_failed", verification, execution_id: executionId } };
+  return executeApprovalRow(approval, input.actor, input.note);
 }
 
 export function requiredPermissionForAction(actionId: string) {

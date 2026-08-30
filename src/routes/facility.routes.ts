@@ -30,6 +30,8 @@ import {
 import { getEstateAuditLog } from "../services/auditQueryService";
 import { resolveAutomationPolicy } from "../services/automationPolicyResolver";
 import { listAutomationApprovals, decideAutomationApproval, scanStaleVisitorAuthorizations } from "../services/facilityAutomationService";
+import { createEventRule, listEventRules, updateEventRule, deleteEventRule } from "../services/facilityAutomationEventRuleService";
+import { TRIGGER_REGISTRY } from "../intelligence-core/triggerRegistry";
 import { EXECUTION_REGISTRY } from "../intelligence-core/executionRegistry";
 import { getFacilityWeather } from "../services/weather/weatherService";
 
@@ -213,6 +215,9 @@ const DOMAIN_LABELS: Record<string, string> = {
   community: "Community",
   services: "Services",
   wallet: "Finance",
+  security: "Security",
+  environment: "Environment",
+  buildings: "Buildings",
 };
 const ACTION_TARGET_TYPES: Record<string, { target_type: string; requires_assignee?: boolean; label: string }> = {
   "visitor.approve": { target_type: "visitor_access", label: "Approve visitor" },
@@ -229,6 +234,7 @@ const ACTION_TARGET_TYPES: Record<string, { target_type: string; requires_assign
   "community.approve": { target_type: "none", label: "Approve community post" },
   "community.reject": { target_type: "none", label: "Reject community post" },
   "community.post_announcement": { target_type: "none", label: "Post announcement" },
+  "security.create_incident": { target_type: "none", label: "Create security incident" },
   "service.assign": { target_type: "none", label: "Assign service" },
   "service.complete": { target_type: "none", label: "Complete service" },
   "wallet.approve": { target_type: "none", label: "Approve wallet transaction" },
@@ -265,12 +271,15 @@ router.get("/automation/capabilities", requireAuth, async (req: any, res) => {
     actions: resolved.filter((action) => action.domain === domain),
   }));
 
-  // The one real trigger type that exists anywhere in the platform today
-  // (src/services/automationScheduleService.ts's validateAutomationTrigger)
-  // -- no condition/event/threshold trigger engine exists yet. Disclosed
-  // here, not hidden behind a client-side assumption.
+  // Cross-Domain Fabric Closure -- triggers is no longer a single hardcoded
+  // schedule entry. "schedule" is still the one real schedule-type trigger
+  // (src/services/automationScheduleService.ts's validateAutomationTrigger);
+  // "event" entries are a genuine, derived projection of
+  // intelligence-core/triggerRegistry.ts -- real event_type strings already
+  // flowing through publishIntelligenceEvent, not a fabricated list.
   const triggers = [
     { type: "schedule", label: "Schedule", schedule_types: ["daily", "weekdays", "once"] },
+    ...TRIGGER_REGISTRY.map((t) => ({ type: "event" as const, event_type: t.event_type, domain: t.domain, label: t.label, description: t.description, fields: t.fields || [] })),
   ];
 
   return res.json({ estate_id: estateId, triggers, domains });
@@ -296,7 +305,7 @@ router.post("/automation/approvals/:approvalId/approve", requireAuth, async (req
     const httpStatus = code === "not_found" ? 404 : code === "forbidden" ? 403 : code === "not_pending" ? 409 : code === "policy_denied" ? 403 : 422;
     return res.status(httpStatus).json({ error: code, reason: (result as any).reason || null, status: (result as any).status || null });
   }
-  return res.json({ approval: result.approval });
+  return res.json({ approval: (result as any).approval });
 });
 
 router.post("/automation/approvals/:approvalId/reject", requireAuth, async (req: any, res) => {
@@ -308,7 +317,77 @@ router.post("/automation/approvals/:approvalId/reject", requireAuth, async (req:
     const httpStatus = code === "not_found" ? 404 : code === "forbidden" ? 403 : code === "not_pending" ? 409 : 422;
     return res.status(httpStatus).json({ error: code });
   }
-  return res.json({ approval: result.approval });
+  return res.json({ approval: (result as any).approval });
+});
+
+/**
+ * ---------------------------
+ * AUTOMATION -- EVENT-DRIVEN RULES (Cross-Domain Fabric Closure)
+ * Base: /facility/automation/event-rules
+ * Same requirePermission convention already used by /scenes/automations*
+ * (devices.control for writes, devices.read for reads) -- one consistent
+ * RBAC story across the schedule-rule surface and this event-rule surface,
+ * no new permission scheme invented. Real authorization of what a rule can
+ * actually DO still happens where it always has: automationPolicyResolver
+ * + executeRegisteredAction's own scope checks, at match/execute time.
+ * ---------------------------
+ */
+router.get("/automation/event-rules", requireAuth, requirePermission("devices.read"), async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+  const rules = await listEventRules(estateId);
+  return res.json({ estate_id: estateId, rules });
+});
+
+router.post("/automation/event-rules", requireAuth, requirePermission("devices.control"), async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+  const body = req.body || {};
+  if (!String(body.name || "").trim()) return res.status(400).json({ error: "name_required" });
+  if (!String(body.trigger_event_type || "").trim()) return res.status(400).json({ error: "trigger_event_type_required" });
+  if (!String(body.action_id || "").trim()) return res.status(400).json({ error: "action_id_required" });
+  try {
+    const rule = await createEventRule({
+      estateId,
+      actorId: req.user?.id || null,
+      name: String(body.name),
+      triggerEventType: String(body.trigger_event_type),
+      conditions: Array.isArray(body.conditions) ? body.conditions : [],
+      actionId: String(body.action_id),
+      actionParams: body.action_params && typeof body.action_params === "object" ? body.action_params : {},
+    });
+    return res.status(201).json({ rule });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message || "Unable to create rule" });
+  }
+});
+
+router.patch("/automation/event-rules/:ruleId", requireAuth, requirePermission("devices.control"), async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+  const body = req.body || {};
+  try {
+    const rule = await updateEventRule(req.params.ruleId, estateId, {
+      name: typeof body.name === "string" ? body.name : undefined,
+      triggerEventType: typeof body.trigger_event_type === "string" ? body.trigger_event_type : undefined,
+      conditions: Array.isArray(body.conditions) ? body.conditions : undefined,
+      actionId: typeof body.action_id === "string" ? body.action_id : undefined,
+      actionParams: body.action_params && typeof body.action_params === "object" ? body.action_params : undefined,
+      enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
+    });
+    if (!rule) return res.status(404).json({ error: "not_found" });
+    return res.json({ rule });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message || "Unable to update rule" });
+  }
+});
+
+router.delete("/automation/event-rules/:ruleId", requireAuth, requirePermission("devices.control"), async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+  const removed = await deleteEventRule(req.params.ruleId, estateId);
+  if (!removed) return res.status(404).json({ error: "not_found" });
+  return res.json({ ok: true });
 });
 
 /**
