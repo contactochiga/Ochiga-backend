@@ -39,6 +39,7 @@ import {
 } from "./scenes";
 import { validateAutomationTrigger, nextAutomationRunAt } from "../services/automationScheduleService";
 import { rotateEstateInviteToken, revokeEstateInviteById, findPendingOwnerInvite } from "../services/estateInviteMutationService";
+import { checkEstateDeletionEligibility } from "../services/estateDeletionEligibility";
 
 const router = Router();
 
@@ -914,6 +915,106 @@ router.post("/facility/estates/:estateId/owner-invite/revoke", requireOfficeExpo
   } as any);
 
   return res.status(200).json({ ok: true, request_id: requestId, invite: { id: pending.invite.id } });
+});
+
+// Office -> Facility provisioning lifecycle -- governed Portfolio delete.
+// Only ever removes an estate that has NEVER been activated (zero
+// estate_memberships -- the same signal every activation path upserts in
+// the same transaction as users.estate_id, so this is the true "has
+// anyone ever done anything here" gate) and has none of the real
+// operational dependencies a genuine live Facility would have. This is
+// intentionally NOT a general-purpose estate-deletion capability -- it
+// exists only to let Office clean up abandoned/failed provisioning
+// attempts, never an activated tenant. Idempotent: deleting an estate
+// that is already gone returns ok:true rather than erroring, so a
+// repeated click from Office's UI can never be a dangerous failure.
+router.delete("/facility/estates/:estateId", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const requestId = safeText(req.headers["x-request-id"], nodeCrypto.randomUUID());
+  const estateId = safeText(req.params.estateId);
+  if (!estateId) return res.status(400).json({ ok: false, error: "estate_id_required", request_id: requestId });
+
+  const { data: estate, error: estateErr } = await supabaseAdmin
+    .from("estates")
+    .select("id, name")
+    .eq("id", estateId)
+    .maybeSingle();
+  if (estateErr) {
+    logger.error("office.facility_delete_lookup_failed", { request_id: requestId, estate_id: estateId, detail: safeText(estateErr.message) });
+    return res.status(500).json({ ok: false, error: "facility_delete_failed", request_id: requestId });
+  }
+  if (!estate) {
+    return res.status(200).json({ ok: true, request_id: requestId, already_deleted: true, estate_id: estateId });
+  }
+
+  let eligibility;
+  try {
+    eligibility = await checkEstateDeletionEligibility(estateId);
+  } catch (error: any) {
+    logger.error("office.facility_delete_eligibility_failed", { request_id: requestId, estate_id: estateId, detail: safeText(error?.message) });
+    return res.status(500).json({ ok: false, error: "facility_delete_failed", request_id: requestId });
+  }
+  if (!eligibility.eligible) {
+    return res.status(409).json({
+      ok: false,
+      error: "facility_has_operational_dependencies",
+      blocking: eligibility.blocking,
+      request_id: requestId,
+    });
+  }
+
+  const { data: invites, error: invitesErr } = await supabaseAdmin
+    .from("invites")
+    .select("id, invited_email, status")
+    .eq("estate_id", estateId);
+  if (invitesErr) {
+    logger.error("office.facility_delete_invites_lookup_failed", { request_id: requestId, estate_id: estateId, detail: safeText(invitesErr.message) });
+    return res.status(500).json({ ok: false, error: "facility_delete_failed", request_id: requestId });
+  }
+
+  const { error: deleteInvitesErr } = await supabaseAdmin.from("invites").delete().eq("estate_id", estateId);
+  if (deleteInvitesErr) {
+    logger.error("office.facility_delete_invites_failed", { request_id: requestId, estate_id: estateId, detail: safeText(deleteInvitesErr.message) });
+    return res.status(500).json({ ok: false, error: "facility_delete_failed", request_id: requestId });
+  }
+
+  const { error: deleteEstateErr } = await supabaseAdmin.from("estates").delete().eq("id", estateId);
+  if (deleteEstateErr) {
+    logger.error("office.facility_delete_estate_failed", { request_id: requestId, estate_id: estateId, detail: safeText(deleteEstateErr.message) });
+    return res.status(500).json({ ok: false, error: "facility_delete_failed", request_id: requestId });
+  }
+
+  for (const invite of invites || []) {
+    void emitAuditEvent({
+      actorId: null,
+      actorRole: "office_staff",
+      action: "facility.invitation.revoked",
+      resourceType: "invite",
+      resourceId: invite.id,
+      estateId,
+      status: "success",
+      metadata: { request_id: requestId, invited_email: invite.invited_email, reason: "facility_provisioning_deleted" },
+      req,
+    } as any);
+  }
+  void emitAuditEvent({
+    actorId: null,
+    actorRole: "office_staff",
+    action: "facility.deleted",
+    resourceType: "estate",
+    resourceId: estateId,
+    estateId,
+    status: "success",
+    metadata: { request_id: requestId, name: estate.name, invites_removed: (invites || []).length },
+    req,
+  } as any);
+
+  return res.status(200).json({
+    ok: true,
+    request_id: requestId,
+    deleted: true,
+    estate_id: estateId,
+    invites_removed: (invites || []).length,
+  });
 });
 
 function groupBuildings(homes: Row[], devices: Row[], nowIso: string) {

@@ -137,4 +137,28 @@ function readDist(relativePath) {
   assert.ok(/i\.estate_id = v_invite\.estate_id/.test(softenedSql) || /estate_id = v_invite\.estate_id/.test(softenedSql), "membership write must stay scoped to the invite's own estate_id (cross-Facility invitation misuse protection)");
 }
 
+// 11) Governed Portfolio-delete: only ever removes a never-activated
+// estate, is idempotent, never touches the users table, and always
+// audits both the invite removal and the estate deletion.
+{
+  const src = readDist("routes/officeExport.js");
+  assert.ok(/facility\/estates\/:estateId["']/.test(src), "delete-estate route must exist");
+  const deleteMatch = src.match(/router\.delete\("\/facility\/estates\/:estateId"[\s\S]*?\n\}\);/);
+  assert.ok(deleteMatch, "DELETE /facility/estates/:estateId handler must exist");
+  const body = deleteMatch[0];
+  assert.ok(/requireOfficeExportKey/.test(body), "delete must be gated by requireOfficeExportKey, not a Facility session");
+  assert.ok(/already_deleted/.test(body), "delete must be idempotent -- a repeat call on an already-gone estate must not error");
+  assert.ok(/checkEstateDeletionEligibility/.test(body), "delete must run the real eligibility check before removing anything");
+  assert.ok(/409/.test(body) && /facility_has_operational_dependencies/.test(body), "an ineligible Facility must be blocked with a clear reason, not silently deleted");
+  assert.ok(!/\.from\(["']users["']\)\s*\n?\s*\.delete/.test(body), "delete must never issue a DELETE against the users table -- shared identities must survive");
+  assert.ok(/\.from\(["']invites["']\)\s*\n?\s*\.delete/.test(body), "delete must explicitly remove the estate's outstanding invite(s)");
+  assert.ok(/\.from\(["']estates["']\)\s*\n?\s*\.delete/.test(body), "delete must remove the estate row itself once eligible");
+  assert.ok(/facility\.invitation\.revoked/.test(body) && /facility\.deleted/.test(body), "delete must audit both the invitation removal and the estate deletion");
+
+  const eligibilitySrc = readDist("services/estateDeletionEligibility.js");
+  assert.ok(/estate_memberships/.test(eligibilitySrc), "eligibility must gate on real membership activation, not a fabricated status field");
+  assert.ok(/homes/.test(eligibilitySrc) && /devices/.test(eligibilitySrc) && /maintenance_requests/.test(eligibilitySrc), "eligibility must check real Buildings/Homes/devices/maintenance dependency tables");
+  assert.ok(!/\.from\(["']users["']\)\s*\n?\s*\.delete/.test(eligibilitySrc), "eligibility check must never itself delete anything, including users");
+}
+
 console.log("commercial-provisioning-security-smoke: ALL PASSED");
