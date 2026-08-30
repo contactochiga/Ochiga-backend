@@ -13,6 +13,7 @@ import {
   reportMessage,
   resolveModerationReport,
   sendMessage,
+  setThreadArchived,
   uploadMessageMedia,
 } from "../controllers/messagesController";
 
@@ -26,6 +27,7 @@ router.post("/media/upload", requireAuth, resolveRequestContext, requirePermissi
 router.get("/thread/:threadId/messages", requireAuth, resolveRequestContext, requirePermission("community.read"), listThreadMessages);
 router.post("/thread/:threadId/messages", requireAuth, resolveRequestContext, requirePermission("community.write"), auditOnSuccess("message.sent", "thread", "threadId"), sendMessage);
 router.post("/thread/:threadId/read", requireAuth, resolveRequestContext, requirePermission("community.read"), markThreadRead);
+router.post("/thread/:threadId/archive", requireAuth, resolveRequestContext, requirePermission("community.write"), auditOnSuccess("message.thread_archived", "thread", "threadId"), setThreadArchived);
 
 router.post("/message/:messageId/report", requireAuth, resolveRequestContext, requirePermission("community.write"), auditOnSuccess("message.moderated", "message", "messageId"), reportMessage);
 
