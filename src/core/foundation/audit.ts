@@ -47,6 +47,7 @@ export const FOUNDATION_EVENT_NAMES = [
   "facility.invitation.activation_failed",
   "facility.invitation.resent",
   "facility.invitation.revoked",
+  "facility.deleted",
   "auth.signup",
   "team.member.invited",
   "team.member.invite_failed",
