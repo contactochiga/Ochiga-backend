@@ -88,6 +88,11 @@ export const ENV_VALIDATION_RULES: EnvValidationRule[] = [
       String(process.env.MQTT_ENABLED || "").toLowerCase() === "true" ||
       Boolean(process.env.MQTT_URL),
   },
+  {
+    name: "WEATHER_API_KEY",
+    required: false,
+    description: "OpenWeatherMap API key for Facility Environment weather (src/services/weather). Absence is handled gracefully -- Environment reports weather as unavailable rather than failing.",
+  },
 ];
 
 export function getEnvValidationReport() {

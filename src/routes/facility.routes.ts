@@ -31,6 +31,7 @@ import { getEstateAuditLog } from "../services/auditQueryService";
 import { resolveAutomationPolicy } from "../services/automationPolicyResolver";
 import { listAutomationApprovals, decideAutomationApproval, scanStaleVisitorAuthorizations } from "../services/facilityAutomationService";
 import { EXECUTION_REGISTRY } from "../intelligence-core/executionRegistry";
+import { getFacilityWeather } from "../services/weather/weatherService";
 
 // ✅ FACILITY DEVICE ROUTES (discover, command, geo)
 import facilityDevicesRoutes from "./facilityDevices.routes";
@@ -308,6 +309,26 @@ router.post("/automation/approvals/:approvalId/reject", requireAuth, async (req:
     return res.status(httpStatus).json({ error: code });
   }
   return res.json({ approval: result.approval });
+});
+
+/**
+ * ---------------------------
+ * ENVIRONMENT -- LIVE WEATHER
+ * Base: /facility/environment
+ * The caller never submits a Facility/estate id -- location is always
+ * resolved server-side from the authenticated session's own estate_id
+ * (req.user.estate_id), same tenant-scoping shape as every other
+ * /facility/* route. getFacilityWeather owns location resolution,
+ * caching, provider dispatch, and graceful degradation; this route only
+ * translates its result into the right HTTP status.
+ * ---------------------------
+ */
+router.get("/environment/weather", requireAuth, requirePermission("devices.read"), async (req: any, res) => {
+  const estateId = req.user?.estate_id;
+  if (!estateId) return res.status(400).json({ error: "User has no estate" });
+  const result = await getFacilityWeather(estateId);
+  if (!result.available && result.code === "provider_unavailable") return res.status(502).json(result);
+  return res.json(result);
 });
 
 export default router;
