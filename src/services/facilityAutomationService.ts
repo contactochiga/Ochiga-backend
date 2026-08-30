@@ -330,10 +330,29 @@ async function runVerification(actionId: string, entityId: string, expectedStatu
 // event-driven dispatcher (facilityAutomationEventRuleService.ts) is
 // executing it directly because policy resolved auto_allowed. No second
 // execution path was written -- this is the one, shared, path.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Found via live production verification of the Cross-Domain Fabric
+// Closure pass: the event-driven dispatcher's synthetic system actor
+// (facilityAutomationEventRuleService.ts's systemActor(), id:
+// "system:automation") is not a valid UUID, but automation_approvals.
+// approver_id is a uuid column with a foreign key to users(id). Writing
+// actor.id there for an auto_allowed execution silently failed the CAS
+// update with a Postgres type-cast error that the old code never checked
+// for (it only checked whether a row came back, so a real DB error and a
+// legitimate "someone else already claimed it" race were indistinguishable
+// -- the approval was left stuck at pending_approval with zero audit
+// trail). approver_id is only ever meaningful for a real human decision;
+// for a system-executed auto_allowed run there is no approver to record.
+function approverFieldsFor(actor: AuthUser) {
+  if (UUID_PATTERN.test(actor.id)) return { approver_id: actor.id, approver_role: actor.role };
+  return { approver_id: null, approver_role: "system" };
+}
+
 export async function executeApprovalRow(approval: any, actor: AuthUser, note?: string | null) {
   const precondition = await validatePrecondition(approval.action_id, approval.entity_id);
   if (!precondition.ok) {
-    await supabaseAdmin.from("automation_approvals").update({ status: "failed", approver_id: actor.id, approver_role: actor.role, decision_note: note || null, decided_at: new Date().toISOString() }).eq("id", approval.id);
+    await supabaseAdmin.from("automation_approvals").update({ status: "failed", ...approverFieldsFor(actor), decision_note: note || null, decided_at: new Date().toISOString() }).eq("id", approval.id);
     void emitAuditEvent({ actorId: actor.id, actorRole: actor.role, action: "automation.execution.failed", resourceType: "automation_approval", resourceId: approval.id, estateId: approval.estate_id, status: "failed", metadata: { action_id: approval.action_id, reason: precondition.reason } } as any);
     void notifyApprovers(approval.estate_id, "Automation execution skipped", `${approval.target_label || "Action"} was not executed: ${precondition.reason}.`, { approval_id: approval.id });
     emitFacilityAutomationRealtime(approval.estate_id, "execution.failed", { approval_id: approval.id, action_id: approval.action_id, reason: precondition.reason });
@@ -349,13 +368,21 @@ export async function executeApprovalRow(approval: any, actor: AuthUser, note?: 
   // read-check before either write landed, and both then call
   // executeRegisteredAction. The scheduler's claimAndRunAutomation
   // (src/routes/scenes.ts) already proves this exact CAS pattern.
-  const { data: claimed } = await supabaseAdmin
+  const { data: claimed, error: claimError } = await supabaseAdmin
     .from("automation_approvals")
-    .update({ status: "executing", approver_id: actor.id, approver_role: actor.role, decision_note: note || null, decided_at: new Date().toISOString(), execution_id: executionId })
+    .update({ status: "executing", ...approverFieldsFor(actor), decision_note: note || null, decided_at: new Date().toISOString(), execution_id: executionId })
     .eq("id", approval.id)
     .eq("status", "pending_approval")
     .select("*")
     .maybeSingle();
+  if (claimError) {
+    // A genuine DB error, not a lost race -- must never be silently
+    // indistinguishable from "someone else already claimed it" (that gap
+    // is exactly what caused this bug to be invisible in the first place).
+    void emitAuditEvent({ actorId: actor.id, actorRole: actor.role, action: "automation.execution.failed", resourceType: "automation_approval", resourceId: approval.id, estateId: approval.estate_id, status: "failed", metadata: { action_id: approval.action_id, reason: `claim_update_failed: ${claimError.message}` } } as any);
+    emitFacilityAutomationRealtime(approval.estate_id, "execution.failed", { approval_id: approval.id, action_id: approval.action_id, reason: "claim_update_failed" });
+    return { ok: false, code: "execution_failed" as const, reason: `claim_update_failed: ${claimError.message}` };
+  }
   if (!claimed) return { ok: false, code: "not_pending" as const, status: "already_claimed" };
   emitFacilityAutomationRealtime(approval.estate_id, "execution.started", { approval_id: approval.id, action_id: approval.action_id, execution_id: executionId });
 
