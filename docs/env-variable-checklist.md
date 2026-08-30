@@ -16,6 +16,8 @@
 - MQTT:
   - `MQTT_ENABLED=true` requires `MQTT_URL`
   - if broker auth is enabled, also provide `MQTT_USERNAME` and `MQTT_PASSWORD`
+- Weather (Facility Environment live weather):
+  - `WEATHER_API_KEY` -- OpenWeatherMap One Call API 3.0 key. Optional: absent means Facility Environment reports weather as unavailable rather than failing.
 
 ## Optional Push Variables
 
