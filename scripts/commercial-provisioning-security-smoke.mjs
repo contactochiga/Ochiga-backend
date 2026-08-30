@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import crypto from "node:crypto";
 
 // Commercial production-hardening -- Phase 12 security regression checks.
@@ -175,6 +176,101 @@ function readDist(relativePath) {
 
   const provisionSrc = readDist("routes/officeExport.js");
   assert.ok(/type:\s*safeText\(body\.type/.test(provisionSrc), "the provisioning insert must still write type -- this fix restores the column, it does not strip the field");
+}
+
+// 13) Production regression: 20260901090000's message-softening migration
+// re-created activate_estate_owner_invite() from a stale (pre-role-
+// promotion-fix) function body via `create or replace`, silently
+// discarding 20260829090000's already-shipped fix -- every estate owner
+// who activated in between was left at users.role='resident', unable to
+// perform any owner-tier action. Nothing caught this because every
+// earlier check here only asserted properties of ONE named migration
+// file at a time, never "whichever migration currently defines this
+// function is actually correct". This check is deliberately robust
+// against that whole class of regression: it finds every migration that
+// contains a `create or replace function activate_estate_owner_invite`
+// definition, takes the LEXICALLY LAST one (migration filenames are
+// timestamp-prefixed, so this is really "whichever definition Postgres
+// has live right now"), and asserts THAT ONE -- not any specific
+// filename -- still promotes the platform role. Any future migration
+// that touches this function and drops the promotion logic will fail
+// this check immediately, regardless of what the file is named.
+{
+  const migrationsDir = new URL("../supabase/migrations/", import.meta.url);
+  const migrationFiles = fs
+    .readdirSync(migrationsDir)
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
+  const definingFiles = migrationFiles.filter((name) => {
+    const sql = fs.readFileSync(new URL(name, migrationsDir), "utf8");
+    return /create or replace function activate_estate_owner_invite/.test(sql);
+  });
+  assert.ok(definingFiles.length >= 1, "at least one migration must define activate_estate_owner_invite");
+  const latestFile = definingFiles[definingFiles.length - 1];
+  const latestSql = fs.readFileSync(new URL(latestFile, migrationsDir), "utf8");
+
+  assert.ok(
+    /estate_membership_role_to_platform_role/.test(latestSql),
+    `${latestFile}: the currently-live activate_estate_owner_invite must promote the platform role -- a new activated owner (or an existing identity accepting ownership) must never be left at the default resident role`
+  );
+  assert.ok(
+    /update users u set role = v_platform_role/.test(latestSql),
+    `${latestFile}: the existing-identity branch must explicitly promote users.role -- an already-registered user accepting Facility ownership must not stay permission-less on their new estate`
+  );
+  assert.ok(
+    /values \(lower\(v_invite\.invited_email\), btrim\(p_username\), p_password_hash, v_platform_role,/.test(latestSql),
+    `${latestFile}: the new-identity branch must insert the promoted platform role directly, never a hardcoded 'resident'`
+  );
+  assert.ok(
+    !/values \(lower\(v_invite\.invited_email\), btrim\(p_username\), p_password_hash, 'resident',/.test(latestSql),
+    `${latestFile}: must not hardcode 'resident' for a brand-new activated owner`
+  );
+  // Multi-Facility safety: the membership write must stay scoped to
+  // (estate_id, user_id) -- an existing identity's memberships on any
+  // other estate must never be touched by this activation.
+  assert.ok(
+    /where em\.estate_id = v_invite\.estate_id and em\.user_id = v_user\.id/.test(latestSql),
+    `${latestFile}: the estate_memberships write must stay scoped to this invite's own estate_id, never overwriting a membership on a different Facility`
+  );
+
+  // The role-mapping function itself (separate from the activation RPC,
+  // untouched by the regression) must still map an intentional resident-
+  // tier invite (role "member") to the resident platform role, not
+  // silently escalate it -- this is the "resident invitations still work
+  // where intentionally used" guarantee.
+  const roleMapFile = migrationFiles.find((name) => {
+    const sql = fs.readFileSync(new URL(name, migrationsDir), "utf8");
+    return /create or replace function estate_membership_role_to_platform_role/.test(sql);
+  });
+  assert.ok(roleMapFile, "estate_membership_role_to_platform_role must be defined somewhere");
+  const roleMapSql = fs.readFileSync(new URL(roleMapFile, migrationsDir), "utf8");
+  assert.ok(/when 'owner' then 'estate_admin'/.test(roleMapSql), "an owner-role invite must map to estate_admin");
+  assert.ok(/when 'member' then 'resident'/.test(roleMapSql), "a member-role invite must still map to resident -- promotion must not be blanket");
+  assert.ok(/else 'resident'/.test(roleMapSql), "an unrecognized role must safely default to resident, never silently escalate");
+}
+
+// 14) Bootstrap permissions: the platform role an activated owner is
+// promoted to must actually carry the permissions Office provisioned
+// them to exercise -- Facility workspace access, building/home
+// creation, staff invitation with role assignment, and operational
+// configuration. Verified against the real, server-enforced permission
+// table and the real route gates, not assumed.
+{
+  const permissionsSrc = readDist("core/foundation/permissions.js");
+  const estateAdminMatch = permissionsSrc.match(/estate_admin:\s*\[[\s\S]*?\]/);
+  assert.ok(estateAdminMatch, "estate_admin permission set must exist");
+  const estateAdminPermissions = estateAdminMatch[0];
+  for (const permission of ["estates.read", "estates.write", "homes.write", "staff.manage", "settings.manage"]) {
+    assert.ok(estateAdminPermissions.includes(`"${permission}"`), `estate_admin must carry ${permission} -- required for the Facility bootstrap actions Office provisions an owner for`);
+  }
+
+  const facilityRoutesSrc = readDist("routes/facility.routes.js");
+  const buildingsRouteMatch = facilityRoutesSrc.match(/router\.post\("\/buildings",[\s\S]*?\);/);
+  assert.ok(buildingsRouteMatch, "the building-creation route must exist");
+  assert.ok(
+    /requirePermission\)\("homes\.write"\)/.test(buildingsRouteMatch[0]),
+    "Building creation must be gated by homes.write, which estate_admin holds -- an activated owner must be able to bootstrap their Facility's building hierarchy"
+  );
 }
 
 console.log("commercial-provisioning-security-smoke: ALL PASSED");
