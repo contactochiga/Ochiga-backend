@@ -87,50 +87,17 @@ export async function validateResidentInvite(token: string) {
   };
 }
 
-export async function activateResidentInvite(input: {
-  token: string;
-  username: string;
-  password: string;
-  confirmPassword: string;
-}) {
-  const token = String(input.token || "").trim();
-  const username = String(input.username || "").trim();
-  const password = String(input.password || "");
-  if (!token) throw new Error("Invite token is required");
-  if (password !== String(input.confirmPassword || "")) throw new Error("Passwords do not match");
-
-  const usernameError = validateUsername(username);
-  if (usernameError) throw new Error(usernameError);
-  const passwordError = validateActivationPassword(password);
-  if (passwordError) throw new Error(passwordError);
-
-  const passwordHash = await bcrypt.hash(password, 10);
-  const { data, error } = await supabaseAdmin.rpc("activate_resident_invite", {
-    p_token_hash: hashInviteToken(token),
-    p_username: username,
-    p_password_hash: passwordHash,
-  });
-
-  if (error) throw new Error(error.message);
-  const result = Array.isArray(data) ? data[0] : data;
-  if (!result?.user_id) throw new Error("Invite activation failed");
-
-  const { data: user, error: userError } = await supabaseAdmin
+async function loadActivatedUser(userId: string) {
+  const { data: user, error } = await supabaseAdmin
     .from("users")
     .select("id,email,username,full_name,phone,avatar_url,profile_image_url,role,estate_id,home_id,permission_scopes")
-    .eq("id", result.user_id)
+    .eq("id", userId)
     .single();
-  if (userError || !user) throw new Error(userError?.message || "Activated profile could not be loaded");
+  if (error || !user) throw new Error(error?.message || "Activated profile could not be loaded");
+  return user;
+}
 
-  void sendResidentWelcomeEmail({
-    to: user.email,
-    residentName: user.full_name || user.username,
-    estateName: result.estate_name,
-    homeLabel: result.home_name || [result.home_block, result.home_unit].filter(Boolean).join(" / "),
-  }).catch((error) => {
-    console.warn("Resident welcome email failed:", error);
-  });
-
+function shapeResult(user: any, result: { estate_id: string; estate_name: string; home_id: string; home_name: string; home_block: string; home_unit: string; role: string }) {
   return {
     ok: true,
     token: signAppToken(user),
@@ -153,4 +120,86 @@ export async function activateResidentInvite(input: {
     }],
     onboarding_complete: true,
   };
+}
+
+// NEW IDENTITY: sets their own username/password on this same screen.
+// activate_resident_invite() itself refuses this path (raising "please
+// sign in instead") if the matched email already has a password set --
+// invitation possession alone can never overwrite an existing identity's
+// credentials, on this path or any other.
+export async function activateResidentInvite(input: {
+  token: string;
+  username: string;
+  password: string;
+  confirmPassword: string;
+}) {
+  const token = String(input.token || "").trim();
+  const username = String(input.username || "").trim();
+  const password = String(input.password || "");
+  if (!token) throw new Error("Invite token is required");
+  if (password !== String(input.confirmPassword || "")) throw new Error("Passwords do not match");
+
+  const usernameError = validateUsername(username);
+  if (usernameError) throw new Error(usernameError);
+  const passwordError = validateActivationPassword(password);
+  if (passwordError) throw new Error(passwordError);
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const { data, error } = await supabaseAdmin.rpc("activate_resident_invite", {
+    p_token_hash: hashInviteToken(token),
+    p_username: username,
+    p_password_hash: passwordHash,
+    p_existing_user_id: null,
+  });
+
+  if (error) throw new Error(error.message);
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.user_id) throw new Error("Invite activation failed");
+
+  const user = await loadActivatedUser(result.user_id);
+
+  void sendResidentWelcomeEmail({
+    to: user.email,
+    residentName: user.full_name || user.username,
+    estateName: result.estate_name,
+    homeLabel: result.home_name || [result.home_block, result.home_unit].filter(Boolean).join(" / "),
+  }).catch((error) => {
+    console.warn("Resident welcome email failed:", error);
+  });
+
+  return shapeResult(user, result);
+}
+
+// EXISTING OYI IDENTITY: already authenticated (verified by the caller/
+// route via requireAuth) -- accepts an additional Home invitation without
+// ever touching username/password_hash. The RPC itself also verifies the
+// authenticated identity's email matches the invitation recipient, so an
+// invite can never be claimed while authenticated as a different identity.
+export async function acceptResidentInviteAsExistingUser(input: { token: string; userId: string }) {
+  const token = String(input.token || "").trim();
+  if (!token) throw new Error("Invite token is required");
+  if (!input.userId) throw new Error("Not authenticated");
+
+  const { data, error } = await supabaseAdmin.rpc("activate_resident_invite", {
+    p_token_hash: hashInviteToken(token),
+    p_username: null,
+    p_password_hash: null,
+    p_existing_user_id: input.userId,
+  });
+  if (error) throw new Error(error.message);
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.user_id) throw new Error("Invite activation failed");
+
+  const user = await loadActivatedUser(result.user_id);
+
+  void sendResidentWelcomeEmail({
+    to: user.email,
+    residentName: user.full_name || user.username,
+    estateName: result.estate_name,
+    homeLabel: result.home_name || [result.home_block, result.home_unit].filter(Boolean).join(" / "),
+  }).catch((error) => {
+    console.warn("Resident welcome email failed:", error);
+  });
+
+  return shapeResult(user, result);
 }
