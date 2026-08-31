@@ -8,6 +8,7 @@ import { hasPermission, canonicalRole, emitAuditEvent } from "../core/foundation
 import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
 import { provisionHomeServices } from "../services/homeServiceProvisioning";
 import { rankOfMembershipRole } from "../services/estateMembershipRoles";
+import { buildConsumerHomeInviteUrl } from "../config/publicUrls";
 
 // Platform-level staff (super_admin/ochiga_admin) bypass tenant-membership
 // checks entirely -- the previous fallback compared req.user.role to the
@@ -1060,8 +1061,7 @@ export async function inviteUser(req: any, res: Response) {
 
     if (inviteInsert.error) return res.status(500).json({ error: inviteInsert.error.message });
 
-    const base = process.env.VISITOR_LINK_BASE || "https://oyi.com";
-    const inviteUrl = `${base}/auth/invite?token=${rawToken}`;
+    const inviteUrl = buildConsumerHomeInviteUrl(rawToken);
     const qrDataUrl = await QRCode.toDataURL(inviteUrl);
 
     return res.json({

@@ -5,6 +5,7 @@ import { requireAuth, requirePermission } from "../middleware/auth";
 import { auditOnSuccess } from "../middleware/audit";
 import crypto from "crypto";
 import QRCode from "qrcode";
+import { buildConsumerHomeInviteUrl } from "../config/publicUrls";
 
 const router = Router();
 
@@ -153,9 +154,7 @@ router.post(
       return res.status(500).json({ error: inviteErr.message });
     }
 
-    // 🔥 Your consumer/facility frontend URL should handle this route:
-    // e.g. https://oyi.com/auth/invite?token=...
-    const inviteUrl = `${process.env.VISITOR_LINK_BASE || "https://oyi.com"}/auth/invite?token=${rawToken}`;
+    const inviteUrl = buildConsumerHomeInviteUrl(rawToken);
     const qrDataUrl = await QRCode.toDataURL(inviteUrl);
 
     return res.json({

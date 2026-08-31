@@ -19,12 +19,16 @@ import { emitAuditEvent } from "../core/foundation";
 import { canGrantMembershipRole, isValidMembershipRole } from "../services/estateMembershipRoles";
 import { sendEmail } from "../services/emailService";
 import { hashInviteToken as hashToken, rotateEstateInviteToken, revokeEstateInviteById } from "../services/estateInviteMutationService";
+import { buildFacilityStaffInviteUrl } from "../config/publicUrls";
 
 const INVITE_EXPIRY_DAYS = 14;
 
+// Was chaining through FACILITY_APP_BASE (defined nowhere) and
+// VISITOR_LINK_BASE (a real var, but scoped to visitor-pass links) before
+// falling back to the dead domain facility.oyi.com. See
+// src/config/publicUrls.ts for the canonical builder.
 function facilityInviteUrl(rawToken: string) {
-  const base = process.env.FACILITY_APP_BASE || process.env.VISITOR_LINK_BASE || "https://facility.oyi.com";
-  return `${String(base).replace(/\/+$/, "")}/facility-invite?token=${rawToken}`;
+  return buildFacilityStaffInviteUrl(rawToken);
 }
 
 function escapeHtml(value?: string | null) {

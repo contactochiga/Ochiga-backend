@@ -6,6 +6,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { sendResidentInviteEmail } from "../services/residentInviteEmailService";
 import { rankOfMembershipRole } from "../services/estateMembershipRoles";
+import { buildConsumerHomeInviteUrl } from "../config/publicUrls";
 
 /**
  * Rules:
@@ -82,10 +83,14 @@ function makeInviteToken() {
   };
 }
 
+// Production incident: this used to chain through CONSUMER_APP_BASE
+// (defined nowhere) and VISITOR_LINK_BASE (a real var, but scoped to
+// visitor-pass deep links, not Consumer onboarding) before falling back
+// to the hardcoded literal "https://oyi.com" -- a third-party domain-
+// parking page, not ours. buildConsumerHomeInviteUrl is the one
+// canonical builder now; see src/config/publicUrls.ts.
 function makeResidentInviteUrl(rawToken: string) {
-  const base =
-    process.env.CONSUMER_APP_BASE || process.env.VISITOR_LINK_BASE || "https://oyi.com";
-  return `${base}/auth/invite?token=${rawToken}`;
+  return buildConsumerHomeInviteUrl(rawToken);
 }
 
 function homeDisplayLabel(home: { block?: string | null; unit?: string | null; name?: string | null }) {
