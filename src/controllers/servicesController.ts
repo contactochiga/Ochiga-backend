@@ -332,7 +332,67 @@ type ServiceConfigRow = {
   updated_at?: string;
   metadata?: Record<string, any> | null;
   created_at?: string;
+  // Typed pricing (Facility <-> Consumer Utilities acceptance): the
+  // canonical rate/plan data for this service, read from
+  // service_pricing_plans. unit_cost/unit_name above remain untouched for
+  // legacy readers; this is the authoritative source going forward.
+  // Empty array is the honest "not yet configured" state -- never
+  // fabricated.
+  pricing_plans?: PricingPlanRow[];
 };
+
+type PricingPlanRow = {
+  id: string;
+  estate_id: string;
+  service_key: ServiceKey;
+  pricing_type: "usage_based" | "fixed" | "recurring" | "subscription";
+  plan_name: string | null;
+  unit_name: string | null;
+  currency: string;
+  rate_amount: number;
+  billing_frequency: string | null;
+  payment_timing: string | null;
+  provider: string | null;
+  effective_from: string;
+  effective_to: string | null;
+  active: boolean;
+};
+
+const PRICING_PLAN_COLUMNS =
+  "id, estate_id, service_key, pricing_type, plan_name, unit_name, currency, rate_amount, billing_frequency, payment_timing, provider, effective_from, effective_to, active";
+
+async function readActivePricingPlansForEstate(estateId: string): Promise<Map<ServiceKey, PricingPlanRow[]>> {
+  const byKey = new Map<ServiceKey, PricingPlanRow[]>();
+  const { data, error } = await supabaseAdmin
+    .from("service_pricing_plans")
+    .select(PRICING_PLAN_COLUMNS)
+    .eq("estate_id", estateId)
+    .eq("active", true);
+  if (error) {
+    // Table not migrated yet in this environment, or a transient read
+    // error -- degrade to "no typed pricing configured" rather than
+    // failing the whole config read. Never fabricate a plan.
+    return byKey;
+  }
+  for (const row of (data || []) as PricingPlanRow[]) {
+    const key = String(row.service_key || "") as ServiceKey;
+    if (!VALID_SERVICE_KEYS.has(key)) continue;
+    const list = byKey.get(key) || [];
+    list.push(row);
+    byKey.set(key, list);
+  }
+  return byKey;
+}
+
+// The single, unambiguous current rate for a non-subscription service
+// (usage_based/fixed/recurring only ever have one active row at a time,
+// enforced by the DB's partial unique index). Subscription intentionally
+// returns null here -- callers needing plan options read pricing_plans
+// directly.
+function primaryPricingPlan(plans?: PricingPlanRow[] | null): PricingPlanRow | null {
+  if (!plans || !plans.length) return null;
+  return plans.find((plan) => plan.pricing_type !== "subscription") || null;
+}
 
 type ServiceTransactionStatus =
   | "pending"
@@ -381,7 +441,8 @@ function extractMissingColumnName(msg: string): string | null {
 function normalizeServiceConfig(
   estateId: string,
   serviceKey: ServiceKey,
-  row?: Partial<ServiceConfigRow> | null
+  row?: Partial<ServiceConfigRow> | null,
+  pricingPlans?: PricingPlanRow[]
 ): ServiceConfigRow {
   const fallback = SERVICE_CONFIG_DEFAULTS[serviceKey];
   const domainFallback = SERVICE_DOMAIN_DEFAULTS[serviceKey];
@@ -416,6 +477,7 @@ function normalizeServiceConfig(
     },
     created_at: row?.created_at,
     updated_at: row?.updated_at,
+    pricing_plans: pricingPlans || [],
   };
 }
 
@@ -442,11 +504,13 @@ async function readServiceConfigsForEstate(estateId: string) {
     }
   }
 
+  const pricingByKey = await readActivePricingPlansForEstate(estateId);
+
   if (error) {
     if (tableMissing(error)) {
       return {
         configs: (Object.keys(SERVICE_CONFIG_DEFAULTS) as ServiceKey[]).map((serviceKey) =>
-          normalizeServiceConfig(estateId, serviceKey)
+          normalizeServiceConfig(estateId, serviceKey, null, pricingByKey.get(serviceKey))
         ),
         usingFallback: true,
       };
@@ -462,7 +526,7 @@ async function readServiceConfigsForEstate(estateId: string) {
 
   return {
     configs: (Object.keys(SERVICE_CONFIG_DEFAULTS) as ServiceKey[]).map((serviceKey) =>
-      normalizeServiceConfig(estateId, serviceKey, byKey.get(serviceKey))
+      normalizeServiceConfig(estateId, serviceKey, byKey.get(serviceKey), pricingByKey.get(serviceKey))
     ),
     usingFallback: false,
   };
@@ -588,10 +652,23 @@ function money(value: unknown) {
   return Number((Math.round(asNumber(value) * 100) / 100).toFixed(2));
 }
 
-function electricityPolicyFromConfig(config: ServiceConfigRow | null) {
+// Exported for direct unit testing (no HTTP/DB mocking required -- these
+// are pure functions of their inputs). See
+// scripts/typed-utility-pricing-smoke.mjs.
+export function electricityPolicyFromConfig(config: ServiceConfigRow | null) {
   const metadata = config?.metadata && typeof config.metadata === "object" ? config.metadata : {};
   const electricity = metadata?.electricity && typeof metadata.electricity === "object" ? metadata.electricity : {};
-  const tariff = asNumber(electricity.tariff_per_kwh ?? config?.unit_cost, 0);
+  // Typed pricing (service_pricing_plans) is now the authoritative rate
+  // source; metadata.electricity.tariff_per_kwh and the legacy unit_cost
+  // column remain only as a fallback for an estate that hasn't been
+  // migrated/configured through the typed model yet.
+  const plan = primaryPricingPlan(config?.pricing_plans);
+  const tariff = asNumber(plan?.rate_amount ?? electricity.tariff_per_kwh ?? config?.unit_cost, 0);
+  const unitName = String(plan?.unit_name || config?.unit_name || "kWh");
+  const provider = plan?.provider || null;
+  const effectiveFrom = String(
+    plan?.effective_from || electricity.effective_from || metadata?.policy?.effective_from || config?.updated_at || config?.created_at || ""
+  );
   return {
     residentPurchasesEnabled: electricity.resident_purchases_enabled == null ? Boolean(config?.active && tariff > 0) : Boolean(electricity.resident_purchases_enabled),
     minimumAmount: money(electricity.minimum_purchase_amount ?? 1000),
@@ -600,15 +677,17 @@ function electricityPolicyFromConfig(config: ServiceConfigRow | null) {
     percentageFee: asNumber(electricity.percentage_fee, 0),
     taxPercentage: asNumber(electricity.tax_percentage, 0),
     tariffPerKwh: money(tariff),
+    unitName,
+    provider,
     fulfilmentMethod: String(electricity.fulfilment_method || "token"),
     vendingMode: String(electricity.vending_mode || "facility"),
     issuerName: String(electricity.issuer_name || "Oyi"),
     supportContact: String(electricity.support_contact || ""),
-    effectiveFrom: String(electricity.effective_from || metadata?.policy?.effective_from || config?.updated_at || config?.created_at || ""),
+    effectiveFrom,
   };
 }
 
-function buildElectricityQuote(input: {
+export function buildElectricityQuote(input: {
   amount: number;
   config: ServiceConfigRow | null;
   meterId: string;
@@ -656,13 +735,14 @@ function buildElectricityQuote(input: {
     net_service_amount: netServiceAmount,
     currency: String(input.wallet?.currency || input.config?.currency || "NGN"),
     units,
-    unit_name: input.config?.unit_name || "kWh",
+    unit_name: policy.unitName,
     tariff: {
       rate: policy.tariffPerKwh,
-      unit_name: input.config?.unit_name || "kWh",
+      unit_name: policy.unitName,
       effective_from: policy.effectiveFrom || null,
       issuer_name: policy.issuerName,
       support_contact: policy.supportContact || null,
+      provider: policy.provider,
     },
     meter: {
       meter_id: input.meterId || input.accountRef,
@@ -1075,10 +1155,55 @@ function statusSemantics(enabled: boolean, linked: boolean, health: ProviderHeal
     : health.supported
     ? "available"
     : "temporarily_unavailable";
+  // Honest, explicit reason so Consumer can render a real explanation
+  // (Setup required / Provider unavailable / Coming soon) instead of a
+  // dead button with no explanation -- never fabricated, always derived
+  // from the same signals transaction_availability itself uses.
+  const unavailableReason = !enabled
+    ? "service_disabled"
+    : !linked
+    ? "setup_required"
+    : !health.supported
+    ? "provider_not_integrated"
+    : null;
   return {
     provisioning_status: linked ? "provisioned" : "not_provisioned",
     provider_status: providerStatus,
     transaction_availability: transactionAvailability,
+    unavailable_reason: unavailableReason,
+  };
+}
+
+// Typed pricing summary attached to a registry entry -- Part E's "Consumer
+// must render the commercial service according to its actual type"
+// without exposing a purchase action for services that don't have one yet.
+export function pricingSummaryFor(config: ServiceConfigRow | null | undefined) {
+  if (!config) return null;
+  const plans = config.pricing_plans || [];
+  if (!plans.length) return null;
+  const primary = primaryPricingPlan(plans);
+  if (primary) {
+    return {
+      pricing_type: primary.pricing_type,
+      rate_amount: Number(primary.rate_amount),
+      unit_name: primary.unit_name,
+      currency: primary.currency,
+      billing_frequency: primary.billing_frequency,
+      payment_timing: primary.payment_timing,
+      provider: primary.provider,
+      effective_from: primary.effective_from,
+    };
+  }
+  // subscription: no single "the" rate -- surface the plan list instead.
+  return {
+    pricing_type: "subscription",
+    plans: plans.map((plan) => ({
+      plan_name: plan.plan_name,
+      rate_amount: Number(plan.rate_amount),
+      currency: plan.currency,
+      billing_frequency: plan.billing_frequency,
+      provider: plan.provider,
+    })),
   };
 }
 
@@ -1541,15 +1666,32 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
   const generatorHealth = providerHealthFor("generator_recovery", generatorLinked);
   const solarHealth = providerHealthFor("solar_battery_service", solarLinked);
   const electricityPolicy = electricityPolicyFromConfig(configByKey.get("utility_token") || null);
+  const electricityTransactionAvailable =
+    configEnabled("utility_token") &&
+    electricityLinked &&
+    electricityPolicy.vendingMode === "test" &&
+    electricityPolicy.residentPurchasesEnabled &&
+    electricityPolicy.tariffPerKwh > 0;
   const electricitySemantics = {
     ...statusSemantics(configEnabled("utility_token"), electricityLinked, electricityHealth),
     provider_status: electricityLinked ? (electricityPolicy.vendingMode === "test" ? "available" : "pending") : "not_required",
-    transaction_availability: !configEnabled("utility_token") || !electricityLinked
-      ? "not_supported"
-      : electricityPolicy.vendingMode === "test" && electricityPolicy.residentPurchasesEnabled && electricityPolicy.tariffPerKwh > 0
-      ? "available"
-      : "temporarily_unavailable",
+    transaction_availability: electricityTransactionAvailable ? "available" : "temporarily_unavailable",
+    unavailable_reason: electricityTransactionAvailable
+      ? null
+      : !configEnabled("utility_token")
+      ? "service_disabled"
+      : !electricityLinked
+      ? "setup_required"
+      : electricityPolicy.tariffPerKwh <= 0
+      ? "tariff_not_configured"
+      : !electricityPolicy.residentPurchasesEnabled
+      ? "resident_purchases_disabled"
+      : "provider_not_configured",
   };
+  const serviceChargeConfig = configByKey.get("service_charge") || null;
+  const serviceChargePricing = pricingSummaryFor(serviceChargeConfig);
+  const serviceChargeRateConfigured = Boolean(serviceChargePricing && "rate_amount" in serviceChargePricing && Number((serviceChargePricing as any).rate_amount) > 0);
+  const estateFeesTransactionAvailable = serviceChargeEnabled && serviceChargeRateConfigured;
 
   const response: any = {
     ok: true,
@@ -1573,6 +1715,7 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
 	      provider_health: electricityHealth.status,
 	      ...electricitySemantics,
 	      ...profileFrom(accounts, "utility_token"),
+	      pricing: pricingSummaryFor(configByKey.get("utility_token")),
 	    },
     water: {
       enabled: configEnabled("water_service"),
@@ -1586,6 +1729,7 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
 	      provider_health: waterHealth.status,
 	      ...statusSemantics(configEnabled("water_service"), waterLinked, waterHealth),
 	      ...profileFrom(accounts, "water_service"),
+	      pricing: pricingSummaryFor(configByKey.get("water_service")),
 	    },
     gas: {
       enabled: configEnabled("gas_service"),
@@ -1600,6 +1744,7 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
 	      provider_health: gasHealth.status,
 	      ...statusSemantics(configEnabled("gas_service"), gasLinked, gasHealth),
 	      ...profileFrom(accounts, "gas_service"),
+	      pricing: pricingSummaryFor(configByKey.get("gas_service")),
 	    },
     internet: {
       enabled: configEnabled("internet_service") || configEnabled("fiber_internet"),
@@ -1613,6 +1758,7 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
 	      provider_health: internetHealth.status,
 	      ...statusSemantics(configEnabled("internet_service") || configEnabled("fiber_internet"), internetLinked, internetHealth),
 	      ...profileFrom(accounts, "internet_service"),
+	      pricing: pricingSummaryFor(configByKey.get("internet_service")) || pricingSummaryFor(configByKey.get("fiber_internet")),
 	    },
     generator_recovery: {
       enabled: configEnabled("generator_recovery"),
@@ -1645,12 +1791,22 @@ async function buildHomeServiceRegistry(user: any, requested?: { homeId?: string
       status: String(accountValue(accounts, "service_charge", "status", serviceChargeEnabled ? "active" : "unavailable") || "active"),
       due_date: accountValue(accounts, "service_charge", "due_date", null),
       last_payment_at: lastPaid("service_charge"),
+      account_id: String(accountValue(accounts, "service_charge", "account_ref", null) || String(home.id)),
+      provisioning_status: serviceChargeEnabled ? "provisioned" : "not_provisioned",
+      transaction_availability: estateFeesTransactionAvailable ? "available" : "not_supported",
+      unavailable_reason: estateFeesTransactionAvailable
+        ? null
+        : !serviceChargeEnabled
+        ? "service_disabled"
+        : "setup_required",
+      pricing: serviceChargePricing,
     },
     facility_services: {
       enabled: facilityEnabled,
       available_count: facilityCount,
       status: facilityEnabled ? "available" : "unavailable",
       last_payment_at: lastPaid("other_facility_fees"),
+      pricing: pricingSummaryFor(configByKey.get("other_facility_fees")),
     },
   };
 
@@ -1721,6 +1877,136 @@ export async function listServiceConfigs(req: Request, res: Response) {
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || "Failed to load service configs" });
   }
+}
+
+const PRICING_TYPES = new Set(["usage_based", "fixed", "recurring", "subscription"]);
+const BILLING_FREQUENCIES = new Set(["once", "monthly", "quarterly", "yearly"]);
+const PAYMENT_TIMINGS = new Set(["prepaid", "postpaid"]);
+
+type PricingPlanInput = {
+  plan_name?: string | null;
+  unit_name?: string | null;
+  currency?: string | null;
+  rate_amount: number | string;
+  billing_frequency?: string | null;
+  payment_timing?: string | null;
+  provider?: string | null;
+  effective_from?: string | null;
+};
+
+function normalizePricingPlanInput(raw: any): { ok: true; value: PricingPlanInput } | { ok: false; error: string } {
+  const rate = Number(raw?.rate_amount);
+  if (!Number.isFinite(rate) || rate < 0) return { ok: false, error: "pricing.rate_amount must be zero or greater" };
+  const billingFrequency = raw?.billing_frequency ? String(raw.billing_frequency).trim() : null;
+  if (billingFrequency && !BILLING_FREQUENCIES.has(billingFrequency)) {
+    return { ok: false, error: `pricing.billing_frequency must be one of ${[...BILLING_FREQUENCIES].join(", ")}` };
+  }
+  const paymentTiming = raw?.payment_timing ? String(raw.payment_timing).trim() : null;
+  if (paymentTiming && !PAYMENT_TIMINGS.has(paymentTiming)) {
+    return { ok: false, error: `pricing.payment_timing must be one of ${[...PAYMENT_TIMINGS].join(", ")}` };
+  }
+  return {
+    ok: true,
+    value: {
+      plan_name: raw?.plan_name ? String(raw.plan_name).trim() : null,
+      unit_name: raw?.unit_name ? String(raw.unit_name).trim() : null,
+      currency: raw?.currency ? String(raw.currency).trim() : "NGN",
+      rate_amount: money(rate),
+      billing_frequency: billingFrequency,
+      payment_timing: paymentTiming,
+      provider: raw?.provider ? String(raw.provider).trim() : null,
+      effective_from: raw?.effective_from || null,
+    },
+  };
+}
+
+// Facility <-> Consumer Utilities acceptance: applies a typed pricing save
+// as part of the SAME "Save policy" action the Facility UI already has --
+// one API call, not a second form/endpoint. Non-subscription pricing
+// (usage_based/fixed/recurring) supersedes the previous active rate,
+// preserving it as history (active=false, effective_to stamped) rather
+// than mutating it in place, so "Effective Period" is a real, queryable
+// concept. Subscription is a full-replace of the plan list, since Internet
+// can carry multiple simultaneous active plans and a diff-based partial
+// update would be needless complexity for a Facility admin clicking Save.
+async function applyServicePricingUpdate(
+  estateId: string,
+  serviceKey: ServiceKey,
+  pricingInput: any
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const pricingType = String(pricingInput?.pricing_type || "").trim();
+  if (!PRICING_TYPES.has(pricingType)) {
+    return { ok: false, error: `pricing.pricing_type must be one of ${[...PRICING_TYPES].join(", ")}` };
+  }
+
+  if (pricingType === "subscription") {
+    const rawPlans = Array.isArray(pricingInput?.plans) ? pricingInput.plans : [];
+    if (!rawPlans.length) return { ok: false, error: "pricing.plans must include at least one plan for a subscription service" };
+    const normalizedPlans: PricingPlanInput[] = [];
+    for (const raw of rawPlans) {
+      const normalized = normalizePricingPlanInput(raw);
+      if (!normalized.ok) return normalized;
+      normalizedPlans.push(normalized.value);
+    }
+
+    const { error: deactivateError } = await supabaseAdmin
+      .from("service_pricing_plans")
+      .update({ active: false, effective_to: new Date().toISOString() })
+      .eq("estate_id", estateId)
+      .eq("service_key", serviceKey)
+      .eq("pricing_type", "subscription")
+      .eq("active", true);
+    if (deactivateError) return { ok: false, error: deactivateError.message };
+
+    const { error: insertError } = await supabaseAdmin.from("service_pricing_plans").insert(
+      normalizedPlans.map((plan) => ({
+        estate_id: estateId,
+        service_key: serviceKey,
+        pricing_type: "subscription",
+        plan_name: plan.plan_name,
+        unit_name: plan.unit_name,
+        currency: plan.currency,
+        rate_amount: plan.rate_amount,
+        billing_frequency: plan.billing_frequency,
+        payment_timing: plan.payment_timing,
+        provider: plan.provider,
+        effective_from: plan.effective_from || new Date().toISOString(),
+        active: true,
+      }))
+    );
+    if (insertError) return { ok: false, error: insertError.message };
+    return { ok: true };
+  }
+
+  const normalized = normalizePricingPlanInput(pricingInput);
+  if (!normalized.ok) return normalized;
+  const plan = normalized.value;
+
+  const { error: supersedeError } = await supabaseAdmin
+    .from("service_pricing_plans")
+    .update({ active: false, effective_to: new Date().toISOString() })
+    .eq("estate_id", estateId)
+    .eq("service_key", serviceKey)
+    .neq("pricing_type", "subscription")
+    .eq("active", true);
+  if (supersedeError) return { ok: false, error: supersedeError.message };
+
+  const { error: insertError } = await supabaseAdmin.from("service_pricing_plans").insert({
+    estate_id: estateId,
+    service_key: serviceKey,
+    pricing_type: pricingType,
+    plan_name: plan.plan_name,
+    unit_name: plan.unit_name,
+    currency: plan.currency,
+    rate_amount: plan.rate_amount,
+    billing_frequency: plan.billing_frequency,
+    payment_timing: plan.payment_timing,
+    provider: plan.provider,
+    effective_from: plan.effective_from || new Date().toISOString(),
+    active: true,
+  });
+  if (insertError) return { ok: false, error: insertError.message };
+  return { ok: true };
 }
 
 export async function upsertServiceConfig(req: Request, res: Response) {
@@ -1805,7 +2091,13 @@ export async function upsertServiceConfig(req: Request, res: Response) {
     return res.status(500).json({ error: error.message });
   }
 
-  const config = normalizeServiceConfig(estateId, serviceKey, data as any);
+  if (req.body?.pricing) {
+    const pricingResult = await applyServicePricingUpdate(estateId, serviceKey, req.body.pricing);
+    if (!pricingResult.ok) return res.status(400).json({ error: pricingResult.error });
+  }
+
+  const pricingByKey = await readActivePricingPlansForEstate(estateId);
+  const config = normalizeServiceConfig(estateId, serviceKey, data as any, pricingByKey.get(serviceKey));
   await emitServiceRegistryEvent({
     event: "service.config.updated",
     estate_id: estateId,
@@ -1826,6 +2118,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   const amount = Number(req.body?.amount);
   const bundleName = req.body?.bundle_name ? String(req.body.bundle_name).trim() : null;
   const periodLabel = req.body?.period_label ? String(req.body.period_label).trim() : null;
+  const idempotencyKey = String(req.body?.idempotency_key || req.headers["x-idempotency-key"] || "").trim() || null;
 
   if (!VALID_SERVICE_KEYS.has(serviceKey)) {
     return res.status(400).json({ error: "Invalid service_key" });
@@ -1880,57 +2173,140 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     return res.status(500).json({ error: e?.message || "Failed to load wallet" });
   }
 
-  const current = Number(wallet.balance || 0);
-  if (current < amount) return res.status(400).json({ error: "Insufficient funds" });
-  if (Boolean(wallet?.is_frozen)) return res.status(403).json({ error: "Wallet is frozen" });
+  // Idempotency: a retried/duplicate submission with the same key must
+  // never debit the wallet twice -- mirrors confirmElectricityPurchase's
+  // exact pattern (same service_transactions unique index, same
+  // pre-charge lookup).
+  const existing = await findServiceTransactionByIdempotency({
+    estateId,
+    homeId: String(home.id),
+    userId: String(user.id),
+    idempotencyKey,
+  });
+  if (existing?.id) {
+    return res.json({
+      ok: true,
+      balance: existing.metadata?.wallet_debit?.balance ?? null,
+      receipt: existing.receipt || existing.metadata?.receipt || null,
+      idempotent: true,
+    });
+  }
 
-  const nextBalance = current - amount;
+  if (Boolean(wallet?.is_frozen)) return res.status(403).json({ error: "Wallet is frozen" });
+  if (Number(wallet.balance || 0) < amount) return res.status(400).json({ error: "Insufficient funds" });
+
   const reference = `svc_${Date.now()}_${randomBytes(4).toString("hex")}`;
   const now = new Date().toISOString();
+  const fulfillmentStatus = providerFulfillmentStatus(serviceKey);
+  const receiptDetails = buildReceiptDetails(activeConfig, serviceKey, amount, {
+    bundle_name: bundleName,
+    period_label: periodLabel,
+  });
 
-  const { error: updateErr } = await supabaseAdmin
-    .from("wallets")
-    .update({ balance: nextBalance })
-    .eq("id", wallet.id);
-  if (updateErr) return res.status(500).json({ error: updateErr.message });
+  // Record the attempt before touching money, exactly like electricity --
+  // if the debit below fails partway, there is still a durable "pending"
+  // row to reconcile against instead of a charge with no record.
+  let transaction = await insertServiceTransactionRecord({
+    estateId,
+    homeId: String(home.id),
+    residentId: String(user.id),
+    membershipId: walletScope.membershipId || null,
+    walletAccountId: wallet.id,
+    serviceKey,
+    provider: activeConfig?.metadata?.provider || null,
+    accountRef,
+    amount,
+    totalDeduction: amount,
+    netServiceAmount: amount,
+    currency: String(wallet.currency || "NGN"),
+    status: "pending",
+    transactionType: transactionTypeForService(serviceKey),
+    settlementStatus: fulfillmentStatus === "completed" ? "pending" : "unsupported",
+    fulfilmentType: fulfillmentStatus,
+    idempotencyKey,
+    metadata: {
+      source: "services_api",
+      service_key: serviceKey,
+      bundle_name: bundleName,
+      period_label: periodLabel,
+      receipt: receiptDetails,
+      wallet_charged: false,
+    },
+  });
 
-  const metadata = {
+  // Atomic, race-safe debit -- a single UPDATE ... WHERE balance >= amount,
+  // never the read-then-write the old non-atomic path used here.
+  let debit: any;
+  try {
+    debit = await debitHomeWallet({
+      walletId: String(wallet.id),
+      userId: String(user.id),
+      amount,
+      reference,
+      type: SERVICE_TX_TYPE[serviceKey],
+      reason: `service_payment:${serviceKey}`,
+    });
+  } catch (debitError: any) {
+    await supabaseAdmin
+      .from("service_transactions")
+      .update({
+        status: "failed",
+        settlement_status: "failed",
+        failure_code: debitError?.code || "wallet_debit_failed",
+        safe_failure_message: "This payment could not be completed. Your wallet has not been charged.",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", transaction.id);
+    const statusCode = debitError?.statusCode || 500;
+    return res.status(statusCode).json({ error: debitError?.message || "Failed to debit wallet" });
+  }
+
+  const receipt = {
+    id: String(transaction.id),
+    reference,
     service_key: serviceKey,
+    service_title: receiptDetails.title,
     account_ref: accountRef,
+    amount,
+    status: fulfillmentStatus,
+    created_at: now,
     home_id: String(home.id),
     estate_id: estateId || null,
     membership_id: walletScope.membershipId || null,
     wallet_account_id: wallet.id,
-    source: "services_api",
-    direction: "debit",
-    receipt: buildReceiptDetails(activeConfig, serviceKey, amount, {
-      bundle_name: bundleName,
-      period_label: periodLabel,
-    }),
+    unit_cost: receiptDetails.unit_cost,
+    unit_name: receiptDetails.unit_name,
+    computed_units: receiptDetails.computed_units,
+    billing_mode: receiptDetails.billing_mode,
+    bundle_name: receiptDetails.bundle_name,
+    period_label: receiptDetails.period_label,
   };
 
-  const fulfillmentStatus = providerFulfillmentStatus(serviceKey);
-
-  let txRow: any;
-  try {
-    txRow = await insertWalletTransactionWithFallback({
-      wallet_id: wallet.id,
-      wallet_account_id: wallet.id,
-      estate_id: estateId || null,
-      home_id: String(home.id),
-      membership_id: walletScope.membershipId || null,
-      direction: "debit",
-      type: SERVICE_TX_TYPE[serviceKey],
-      amount,
-      reference,
+  const { data: completed, error: updateError } = await supabaseAdmin
+    .from("service_transactions")
+    .update({
       status: fulfillmentStatus,
-      metadata,
-      created_at: now,
-    });
-  } catch (e: any) {
-    return res.status(500).json({ error: e?.message || "Failed to record wallet transaction" });
-  }
+      settlement_status: fulfillmentStatus === "completed" ? "settled" : "unsupported",
+      wallet_transaction_id: debit.transaction_id || null,
+      provider_reference: reference,
+      receipt_reference: reference,
+      completed_at: fulfillmentStatus === "completed" ? now : null,
+      receipt,
+      metadata: {
+        ...(transaction.metadata || {}),
+        receipt,
+        wallet_charged: true,
+        wallet_debit: debit,
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", transaction.id)
+    .select("*")
+    .single();
+  if (!updateError && completed) transaction = completed;
 
+  // Legacy transaction table, still read by some older Facility views --
+  // best-effort, matches the prior behavior of this endpoint.
   try {
     await supabaseAdmin.from("service_provider_transactions").insert([
       {
@@ -1940,7 +2316,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
         membership_id: walletScope.membershipId || null,
         wallet_account_id: wallet.id,
         user_id: String(user.id),
-        wallet_transaction_id: txRow?.id || null,
+        wallet_transaction_id: debit.transaction_id || null,
         provider: activeConfig?.metadata?.provider || null,
         account_ref: accountRef,
         amount,
@@ -1959,46 +2335,26 @@ export async function payServiceFromWallet(req: Request, res: Response) {
   }
 
   await handleSignal({
-      type: "wallet.debited",
-      schemaVersion: SIGNAL_SCHEMA_VERSION,
-      source: "user",
-      walletId: wallet.id,
-      userId: user.id,
-      amount,
-      currency: "NGN",
-      reason: `service_payment:${serviceKey}`,
-      metadata: {
-        estate_id: estateId || null,
-        home_id: String(home.id),
-        membership_id: walletScope.membershipId || null,
-      },
-      timestamp: now,
-    });
-
-  const receipt = {
-    id: String(txRow?.id || reference),
-    reference,
-    service_key: serviceKey,
-    service_title: metadata.receipt.title,
-    account_ref: accountRef,
+    type: "wallet.debited",
+    schemaVersion: SIGNAL_SCHEMA_VERSION,
+    source: "user",
+    walletId: wallet.id,
+    userId: user.id,
     amount,
-    status: fulfillmentStatus,
-    created_at: now,
-    home_id: String(home.id),
-    estate_id: estateId || null,
-    membership_id: walletScope.membershipId || null,
-    wallet_account_id: wallet.id,
-    unit_cost: metadata.receipt.unit_cost,
-    unit_name: metadata.receipt.unit_name,
-    computed_units: metadata.receipt.computed_units,
-    billing_mode: metadata.receipt.billing_mode,
-    bundle_name: metadata.receipt.bundle_name,
-    period_label: metadata.receipt.period_label,
-  };
+    currency: "NGN",
+    reason: `service_payment:${serviceKey}`,
+    metadata: {
+      estate_id: estateId || null,
+      home_id: String(home.id),
+      membership_id: walletScope.membershipId || null,
+      transaction_id: transaction.id,
+    },
+    timestamp: now,
+  });
 
   try {
     await NotificationService.sendToUser(String(user.id), {
-      title: `${metadata.receipt.title} payment recorded`,
+      title: `${receiptDetails.title} payment recorded`,
       message: fulfillmentStatus === "completed"
         ? `Receipt ${reference} for NGN ${amount.toLocaleString("en-NG")} is ready.`
         : `Payment ${reference} is recorded and awaiting provider confirmation.`,
@@ -2008,7 +2364,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
         kind: "service.receipt",
         receipt,
       },
-      entityId: String(txRow?.id || reference),
+      entityId: String(transaction.id),
     });
   } catch (notifyErr) {
     console.warn("service payment notification failed:", notifyErr);
@@ -2018,7 +2374,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     await notifyFacilityOpsOfPayment(estateId, receipt, user, home);
   }
 
-  await notifyLowWalletBalance(user, nextBalance);
+  await notifyLowWalletBalance(user, Number(debit.balance || 0));
 
   try {
     await sendServiceReceiptEmail(user, receipt);
@@ -2033,7 +2389,7 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     service_key: serviceKey,
     user_id: String(user.id),
     actor_id: String(user.id),
-    payload: { receipt, balance: nextBalance },
+    payload: { receipt, balance: debit.balance, transaction_id: transaction.id },
   });
   await emitServiceRegistryEvent({
     event: "home.service_registry.updated",
@@ -2054,19 +2410,20 @@ export async function payServiceFromWallet(req: Request, res: Response) {
     home_id: String(home.id),
     actor_id: String(user.id),
     entity_type: "wallet_transaction",
-    entity_id: String(txRow?.id || reference),
-    entity_label: metadata.receipt.title,
+    entity_id: String(transaction.id),
+    entity_label: receiptDetails.title,
     severity: fulfillmentStatus === "completed" ? "info" : "attention",
-    title: `${metadata.receipt.title} payment recorded`,
+    title: `${receiptDetails.title} payment recorded`,
     summary: fulfillmentStatus === "completed" ? "Service payment was completed." : "Service payment is awaiting provider confirmation.",
-    payload: { service_key: serviceKey, receipt, balance: nextBalance, fulfillment_status: fulfillmentStatus },
+    payload: { service_key: serviceKey, receipt, balance: debit.balance, fulfillment_status: fulfillmentStatus },
     occurred_at: now,
-  }, { source_table: "wallet_transactions", source_event_id: String(txRow?.id || reference) });
+  }, { source_table: "wallet_transactions", source_event_id: String(transaction.id) });
 
   return res.json({
     ok: true,
-    balance: nextBalance,
+    balance: debit.balance,
     receipt,
+    transaction,
   });
 }
 
