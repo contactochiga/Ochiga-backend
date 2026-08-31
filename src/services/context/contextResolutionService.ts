@@ -25,33 +25,95 @@ function surfaceFor(value: unknown): OisSurface {
     : "consumer";
 }
 
+// Production incident: these used to select via PostgREST's embedded-
+// relation syntax (estate_memberships.select("estate_id,role,estates(id,
+// name)")) and destructure only `{ data }`, discarding `error`. Two
+// compounding defects: (1) any query failure was silently indistinguish-
+// able from "this user has zero memberships", producing exactly the
+// reported symptoms ("join an estate" on Community, a 403 on
+// POST /maintenance) for a resident whose estate_memberships/
+// home_memberships rows were 100% correct and active -- confirmed
+// directly against production; (2) Profile's own membership check
+// (getResidentVerificationContext, src/routes/me.routes.ts) queries the
+// SAME tables for the SAME user with a flat, non-embedded
+// `.select("role,status")` and succeeds where this embedded query did
+// not -- strong evidence the embedded-relation shape itself was the
+// less reliable path in this environment, not just an unlucky one-off.
+// Rewritten below to the same flat, two-step shape Profile's check
+// already uses successfully: fetch the membership rows, then fetch the
+// referenced estates/homes by id. Never swallow the error either way.
 async function availableEstates(actor: AuthUser): Promise<OisContextEstate[]> {
-  const { data } = await supabaseAdmin
+  const { data: memberships, error: membershipError } = await supabaseAdmin
     .from("estate_memberships")
-    .select("estate_id,role,estates(id,name)")
+    .select("estate_id,role")
     .eq("user_id", actor.id)
     .eq("status", "active");
-  const rows = (data || []).map((row: any) => {
-    const estate = Array.isArray(row.estates) ? row.estates[0] : row.estates;
-    return estate?.id ? { id: String(estate.id), name: estate.name || null, role: row.role || null } : null;
-  }).filter(Boolean) as OisContextEstate[];
+  if (membershipError) throw new ContextResolutionError(`Unable to resolve estate memberships: ${membershipError.message}`, 500);
+
+  const roleByEstateId = new Map<string, string | null>();
+  const estateIds: string[] = [];
+  for (const row of memberships || []) {
+    const id = String((row as any)?.estate_id || "");
+    if (!id) continue;
+    if (!roleByEstateId.has(id)) estateIds.push(id);
+    roleByEstateId.set(id, (row as any)?.role ?? null);
+  }
+
+  const rows: OisContextEstate[] = [];
+  if (estateIds.length) {
+    const { data: estates, error: estatesError } = await supabaseAdmin.from("estates").select("id,name").in("id", estateIds);
+    if (estatesError) throw new ContextResolutionError(`Unable to resolve estates: ${estatesError.message}`, 500);
+    for (const estate of estates || []) {
+      const id = String((estate as any)?.id || "");
+      if (!id) continue;
+      rows.push({ id, name: (estate as any)?.name || null, role: roleByEstateId.get(id) ?? null });
+    }
+  }
+
   if (actor.estate_id && !rows.some((estate) => estate.id === String(actor.estate_id))) {
-    const { data: estate } = await supabaseAdmin.from("estates").select("id,name").eq("id", actor.estate_id).maybeSingle();
+    const { data: estate, error } = await supabaseAdmin.from("estates").select("id,name").eq("id", actor.estate_id).maybeSingle();
+    if (error) throw new ContextResolutionError(`Unable to resolve estate ${actor.estate_id}: ${error.message}`, 500);
     if (estate?.id) rows.push({ id: String(estate.id), name: estate.name || null, role: actor.role });
   }
   return rows;
 }
 
 async function availableHomes(actor: AuthUser): Promise<OisContextHome[]> {
-  const { data } = await supabaseAdmin
+  const { data: memberships, error: membershipError } = await supabaseAdmin
     .from("home_memberships")
-    .select("id,home_id,homes(id,name,block,unit,estate_id,electricity_meter,water_meter,internet_id,gate_code)")
+    .select("id,home_id")
     .eq("user_id", actor.id)
     .eq("status", "active");
-  return (data || []).map((row: any) => {
-    const home = Array.isArray(row.homes) ? row.homes[0] : row.homes;
-    return home?.id ? { id: String(home.id), membership_id: row.id ? String(row.id) : null, name: home.name || null, block: home.block || null, unit: home.unit || null, estate_id: String(home.estate_id || ""), electricity_meter: home.electricity_meter || null, water_meter: home.water_meter || null, internet_id: home.internet_id || null, gate_code: home.gate_code || null } : null;
-  }).filter(Boolean) as OisContextHome[];
+  if (membershipError) throw new ContextResolutionError(`Unable to resolve home memberships: ${membershipError.message}`, 500);
+
+  const membershipIdByHomeId = new Map<string, string | null>();
+  const homeIds: string[] = [];
+  for (const row of memberships || []) {
+    const id = String((row as any)?.home_id || "");
+    if (!id) continue;
+    if (!membershipIdByHomeId.has(id)) homeIds.push(id);
+    membershipIdByHomeId.set(id, (row as any)?.id ? String((row as any).id) : null);
+  }
+  if (!homeIds.length) return [];
+
+  const { data: homes, error: homesError } = await supabaseAdmin
+    .from("homes")
+    .select("id,name,block,unit,estate_id,electricity_meter,water_meter,internet_id,gate_code")
+    .in("id", homeIds);
+  if (homesError) throw new ContextResolutionError(`Unable to resolve homes: ${homesError.message}`, 500);
+
+  return (homes || []).map((home: any) => ({
+    id: String(home.id),
+    membership_id: membershipIdByHomeId.get(String(home.id)) ?? null,
+    name: home.name || null,
+    block: home.block || null,
+    unit: home.unit || null,
+    estate_id: String(home.estate_id || ""),
+    electricity_meter: home.electricity_meter || null,
+    water_meter: home.water_meter || null,
+    internet_id: home.internet_id || null,
+    gate_code: home.gate_code || null,
+  }));
 }
 
 async function facilityHome(homeId: string, estateIds: Set<string>): Promise<OisContextHome | null> {
