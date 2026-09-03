@@ -485,7 +485,7 @@ export async function markExit(req: Request, res: Response) {
 }
 
 /**
- * GET VISITOR INFO (with analytics)
+ * GET VISITOR INFO
  */
 export async function getVisitorInfo(req: Request, res: Response) {
   const ctx = readUserContext(req);
@@ -494,9 +494,15 @@ export async function getVisitorInfo(req: Request, res: Response) {
     const id = String(req.params.id || "");
     if (!id) throw createPublicApiError(400, "id_required", "id is required");
 
-    // Security: verify the caller owns this visitor row, returning the
-    // analytics-joined projection.
-    const data = await authorizeVisitorForUser(id, ctx, "*, visitor_analytics(*)");
+    // Security: verify the caller owns this visitor row. The embedded
+    // "visitor_analytics(*)" projection was removed here -- no migration
+    // ever declared a foreign-key relationship from visitor_access to
+    // visitor_analytics, so PostgREST could not resolve the embed and this
+    // request failed for every visitor row with a generic "Visitor could
+    // not be verified." error, independent of the row's actual validity.
+    // The frontend's VisitorAccess type also never read an analytics field,
+    // so nothing depended on the embed succeeding.
+    const data = await authorizeVisitorForUser(id, ctx, "*");
 
     return res.json({ visitor: data });
   } catch (err: any) {
