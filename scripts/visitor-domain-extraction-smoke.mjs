@@ -168,4 +168,30 @@ check("visitor controller preserves resident home and estate operator boundaries
   assert.match(visitorController, /access_code: String\(accessCode\)/);
 });
 
+const getVisitorInfoStart = visitorController.indexOf("export async function getVisitorInfo");
+assert.notEqual(getVisitorInfoStart, -1, "getVisitorInfo not found in visitorController.ts");
+const getVisitorInfoEnd = visitorController.indexOf("\n}\n", getVisitorInfoStart);
+assert.notEqual(getVisitorInfoEnd, -1, "getVisitorInfo function close brace not found");
+const getVisitorInfoBody = visitorController.slice(getVisitorInfoStart, getVisitorInfoEnd);
+
+check("visitor info lookup does not re-introduce the unresolvable visitor_analytics embed", () => {
+  // Regression for the "Visitor could not be verified." failure on every
+  // visitor detail open: no migration ever declares a foreign key from
+  // visitor_access to a visitor_analytics table, so PostgREST could never
+  // resolve an embedded "visitor_analytics(*)" select and authorizeVisitorForUser
+  // threw its generic 500 for every row, valid or not.
+  assert.doesNotMatch(getVisitorInfoBody, /,\s*visitor_analytics\(/);
+  assert.match(getVisitorInfoBody, /authorizeVisitorForUser\(id, ctx, "\*"\)/);
+});
+
+check("visitor info lookup still enforces ownership scope, not a suppressed error", () => {
+  // The fix must route through the same authorizeVisitorForUser() IDOR gate
+  // as every other visitor endpoint -- a real listed visitor resolves, an
+  // invalid/unrelated visitor id is denied or not-found, never silently
+  // swallowed into a generic success.
+  assert.match(getVisitorInfoBody, /authorizeVisitorForUser/);
+  assert.match(visitorController, /visitor_not_found", "Visitor not found"/);
+  assert.match(visitorController, /visitor_access_denied", "You are not authorized to access this visitor\."/);
+});
+
 console.log("visitor-domain-extraction-smoke passed");
