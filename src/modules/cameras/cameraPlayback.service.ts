@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import type { Request } from "express";
-import { canAccessCamera, cameraPrivacyScope } from "./cameraAccess.policy";
+import { canAccessCamera, cameraAccessActor, cameraPrivacyScope } from "./cameraAccess.policy";
 
 const PLAYBACK_TOKEN_SECONDS = 120;
 
@@ -42,11 +42,12 @@ export function playbackExpiry() {
 }
 
 export function buildCameraPlaybackContract(req: Request, camera: any, user: any) {
-  const access = canAccessCamera(camera, user);
+  const actor = cameraAccessActor(user, (req as any).oisContext);
+  const access = canAccessCamera(camera, actor);
   const edgeUrl = String(camera?.edge_hls_url || camera?.hls_url || "").trim();
   const streamStatus = String(camera?.stream_status || camera?.health_status || camera?.status || (edgeUrl ? "ready" : "pending_stream_details"));
   const edgeStatus = edgeUrl ? "available" : "missing_hls";
-  const token = issueCameraPlaybackToken(user, camera);
+  const token = issueCameraPlaybackToken(actor, camera);
   const baseUrl = requestBaseUrl(req);
   const hlsUrl = token
     ? `${baseUrl}/cameras/${encodeURIComponent(String(camera.id))}/hls.m3u8?token=${encodeURIComponent(token)}`
