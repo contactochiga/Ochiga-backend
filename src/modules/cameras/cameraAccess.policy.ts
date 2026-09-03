@@ -7,6 +7,20 @@ type CameraAccessUser = {
   home_id?: string | null;
 };
 
+/**
+ * Camera requests are resolved through the same membership-aware OIS context as
+ * every other Consumer domain.  Do not use users.home_id as the active Home:
+ * it is only a login/default convenience and is stale for a multi-Home user
+ * after a context switch.
+ */
+export function cameraAccessActor(user: CameraAccessUser | null | undefined, context?: { estate_id?: string | null; home_id?: string | null } | null): CameraAccessUser {
+  return {
+    ...(user || {}),
+    estate_id: clean(context?.estate_id) || clean(user?.estate_id) || null,
+    home_id: clean(context?.home_id) || clean(user?.home_id) || null,
+  };
+}
+
 function clean(value: any) {
   return String(value || "").trim();
 }
@@ -23,9 +37,32 @@ export function cameraPrivacyScope(camera: any): CameraPrivacyScope {
   return "facility";
 }
 
-export function cameraHomeId(camera: any) {
+export function cameraHomeAssociation(camera: any) {
   const meta = metadata(camera);
-  return clean(camera?.home_id || meta.home_id || meta.homeId || meta.bound_home_id || meta.private_home_id);
+  // The database column is authoritative.  Legacy metadata is read only when
+  // that column is absent, in this explicit order.  A conflicting legacy value
+  // never overrides a bound camera.home_id.
+  const candidates = [
+    ["column", camera?.home_id],
+    ["metadata.home_id", meta.home_id],
+    ["metadata.homeId", meta.homeId],
+    ["metadata.bound_home_id", meta.bound_home_id],
+    ["metadata.private_home_id", meta.private_home_id],
+  ] as const;
+  const selected = candidates.find(([, value]) => clean(value));
+  const id = clean(selected?.[1]);
+  return {
+    id,
+    source: selected?.[0] || null,
+    conflicts: candidates
+      .slice(1)
+      .map(([source, value]) => ({ source, id: clean(value) }))
+      .filter((item) => Boolean(id && item.id && item.id !== id)),
+  };
+}
+
+export function cameraHomeId(camera: any) {
+  return cameraHomeAssociation(camera).id;
 }
 
 export function cameraOfficeAllowedUserIds(camera: any) {
