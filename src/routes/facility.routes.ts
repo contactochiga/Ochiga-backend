@@ -21,6 +21,7 @@ import {
   acceptInvite,
   assignUserToRoom,
   getFacilitySpatialReadiness,
+  getSpatialFacilityContext,
 } from "../controllers/facility.controller";
 import {
   listEstateInvites,
@@ -81,6 +82,16 @@ router.get("/estates/:estateId/buildings", requireAuth, requirePermission("homes
  * call to the Twin Engine; composes existing persisted Twin state only.
  */
 router.get("/estates/:estateId/spatial-readiness", requireAuth, requirePermission("twin.view"), getFacilitySpatialReadiness);
+
+/**
+ * Facility Spatial Mode Convergence, Foundation Slice 3: Spatial Facility
+ * Read Path. Resolves a canonical_ref to its Backend entity and projects
+ * the same live Facility operational truth Standard Mode already sees --
+ * read-only, no Twin Engine call, no mutation. twin.view only opens this
+ * surface; each attached domain (maintenance/incidents/devices/cameras)
+ * still enforces its own existing Facility permission.
+ */
+router.get("/estates/:estateId/spatial-context/:canonicalRef", requireAuth, requirePermission("twin.view"), getSpatialFacilityContext);
 
 /**
  * Homes

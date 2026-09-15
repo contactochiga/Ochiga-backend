@@ -10,6 +10,7 @@ import { provisionHomeServices } from "../services/homeServiceProvisioning";
 import { rankOfMembershipRole } from "../services/estateMembershipRoles";
 import { buildConsumerHomeInviteUrl } from "../config/publicUrls";
 import { resolveFacilitySpatialReadiness } from "../services/facilitySpatialReadiness";
+import { resolveSpatialFacilityContext } from "../services/spatialFacilityContextService";
 
 // Platform-level staff (super_admin/ochiga_admin) bypass tenant-membership
 // checks entirely -- the previous fallback compared req.user.role to the
@@ -452,6 +453,48 @@ export async function getFacilitySpatialReadiness(req: any, res: Response) {
       return res.status(400).json({ error: error.message });
     }
     return res.status(500).json({ error: "Unable to resolve spatial readiness right now." });
+  }
+}
+
+/**
+ * GET /facility/estates/:estateId/spatial-context/:canonicalRef
+ *
+ * Facility Spatial Mode Convergence, Foundation Slice 3. Read-only,
+ * additive. Resolves a canonical_ref to its Backend entity (Slice 2's
+ * resolver) and projects the SAME live operational truth Standard Mode
+ * already sees for that entity -- no second state store, no Twin Engine
+ * call, no mutation. twin.view gates entry to this surface only; each
+ * attached related-record domain (maintenance/incidents/devices/cameras)
+ * still enforces its own existing Facility permission, so this endpoint
+ * can never become a bypass for those domains.
+ */
+export async function getSpatialFacilityContext(req: any, res: Response) {
+  try {
+    const estateId = String(req.params?.estateId || "").trim();
+    const canonicalRef = String(req.params?.canonicalRef || "").trim();
+    if (!estateId || !canonicalRef) return res.status(400).json({ error: "estateId and canonicalRef are required" });
+
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from("estate_memberships")
+      .select("id,status")
+      .eq("estate_id", estateId)
+      .eq("user_id", req.user.id)
+      .maybeSingle();
+    if (membershipError) throw membershipError;
+    if ((!membership || membership.status !== "active") && !isPlatformStaff(req.user.role)) {
+      // 404, not 403 -- a canonical_ref outside the caller's own estate
+      // must never confirm the estate itself exists.
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    const result = await resolveSpatialFacilityContext(estateId, canonicalRef, req.user);
+    if (result.status === "not_found") return res.status(404).json({ error: "Not found" });
+    if (result.status === "ambiguous") return res.status(409).json({ error: "This reference is ambiguous and cannot be safely resolved." });
+    if (result.status === "permission_denied") return res.status(403).json({ error: "You are not authorized to view this object." });
+    return res.json(result.context);
+  } catch (error: any) {
+    console.error("getSpatialFacilityContext error:", error);
+    return res.status(500).json({ error: "Unable to resolve spatial context right now." });
   }
 }
 
