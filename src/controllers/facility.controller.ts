@@ -9,6 +9,7 @@ import { emitServiceRegistryEvent } from "../services/serviceRegistryEvents";
 import { provisionHomeServices } from "../services/homeServiceProvisioning";
 import { rankOfMembershipRole } from "../services/estateMembershipRoles";
 import { buildConsumerHomeInviteUrl } from "../config/publicUrls";
+import { resolveFacilitySpatialReadiness } from "../services/facilitySpatialReadiness";
 
 // Platform-level staff (super_admin/ochiga_admin) bypass tenant-membership
 // checks entirely -- the previous fallback compared req.user.role to the
@@ -405,6 +406,52 @@ export async function listEstateBuildings(req: any, res: Response) {
   } catch (error) {
     console.error("listEstateBuildings error:", error);
     return res.status(500).json({ error: "Unable to load buildings right now." });
+  }
+}
+
+/**
+ * GET /facility/estates/:estateId/spatial-readiness
+ *
+ * Facility Spatial Mode Convergence, Foundation Slice 2. Composes only
+ * Backend's own existing persisted twin_models/twin_entity_placements
+ * truth -- it makes no call to the separate Twin Engine. Optional
+ * `?building_id=` scopes the answer to one building within the estate
+ * (validated via resolveEstateBuilding, the same "must belong to this
+ * property" check createBuilding already uses); without it, readiness is
+ * estate-wide, which is what today's schema can support when no specific
+ * building is being asked about.
+ */
+export async function getFacilitySpatialReadiness(req: any, res: Response) {
+  try {
+    const estateId = String(req.params?.estateId || "").trim();
+    if (!estateId) return res.status(400).json({ error: "estateId is required" });
+
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from("estate_memberships")
+      .select("id,status")
+      .eq("estate_id", estateId)
+      .eq("user_id", req.user.id)
+      .maybeSingle();
+    if (membershipError) throw membershipError;
+    if ((!membership || membership.status !== "active") && !isPlatformStaff(req.user.role)) {
+      return res.status(403).json({ error: "You do not have access to this property." });
+    }
+
+    let buildingId: string | null = null;
+    const rawBuildingId = String(req.query?.building_id || "").trim();
+    if (rawBuildingId) {
+      const building = await resolveEstateBuilding(estateId, rawBuildingId);
+      buildingId = building!.id;
+    }
+
+    const readiness = await resolveFacilitySpatialReadiness(estateId, buildingId);
+    return res.json(readiness);
+  } catch (error: any) {
+    console.error("getFacilitySpatialReadiness error:", error);
+    if (error?.message === "The selected building is not part of this property.") {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.status(500).json({ error: "Unable to resolve spatial readiness right now." });
   }
 }
 

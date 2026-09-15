@@ -20,6 +20,7 @@ import {
   inviteUser,
   acceptInvite,
   assignUserToRoom,
+  getFacilitySpatialReadiness,
 } from "../controllers/facility.controller";
 import {
   listEstateInvites,
@@ -73,6 +74,13 @@ router.patch("/estates/:estateId", requireAuth, requirePermission("settings.mana
  */
 router.post("/buildings", requireAuth, requirePermission("homes.write"), auditOnSuccess("building.created", "building", "building_id"), createBuilding);
 router.get("/estates/:estateId/buildings", requireAuth, requirePermission("homes.read"), listEstateBuildings);
+
+/**
+ * Facility Spatial Mode Convergence, Foundation Slice 2: readiness only
+ * -- "should this building offer Standard Mode or Spatial Mode?" Makes no
+ * call to the Twin Engine; composes existing persisted Twin state only.
+ */
+router.get("/estates/:estateId/spatial-readiness", requireAuth, requirePermission("twin.view"), getFacilitySpatialReadiness);
 
 /**
  * Homes

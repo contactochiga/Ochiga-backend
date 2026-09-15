@@ -102,6 +102,7 @@
     "smoke:supabase-schema-auth-classification": "node scripts/supabase-schema-auth-classification-smoke.mjs",
     "smoke:facility-spatial-mode-foundation-slice1": "npm run build && node scripts/facility-spatial-mode-foundation-slice1-smoke.mjs",
     "smoke:facility-canonical-ref-resolver": "npm run build && node scripts/facility-canonical-ref-resolver-smoke.mjs",
+    "smoke:facility-spatial-readiness": "npm run build && node scripts/facility-spatial-readiness-smoke.mjs",
     "smoke:infrastructure-intelligence": "npm run build && node scripts/infrastructure-event-intelligence-smoke.mjs",
     "smoke:infrastructure-onboarding": "npm run build && node scripts/infrastructure-onboarding-smoke.mjs",
     "smoke:execution-ledger": "npm run build && node scripts/execution-ledger-smoke.mjs",
