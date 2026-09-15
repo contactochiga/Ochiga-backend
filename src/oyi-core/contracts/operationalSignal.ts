@@ -28,7 +28,15 @@ export type SignalOrigin =
   | "provider"
   | "backend"
   | "scheduler"
-  | "system";
+  | "system"
+  // Facility Spatial Mode Convergence, Foundation Slice 1 -- a signal
+  // genuinely originating from the Oyi Twin Engine (e.g. a spatial
+  // interaction or observation the Twin itself made), distinct from the
+  // "digital_twin" OyiDomain (see runtime/languageUnderstanding.ts) which
+  // names the CONCERN a signal is about, not the SYSTEM that emitted it.
+  // A Twin-originated event must self-identify as "twin_engine" rather
+  // than impersonating "facility_app".
+  | "twin_engine";
 export type SignalInitiatorType =
   | "resident"
   | "operator"
@@ -67,6 +75,11 @@ export type SignalSource =
   | "ai"
   | "automation"
   | "future_module"
+  // Facility Spatial Mode Convergence, Foundation Slice 1 -- the one
+  // canonical source value for anything sourced from the digital twin
+  // (spatial UI interaction, twin-observed state). Paired with
+  // origin: "twin_engine" above.
+  | "digital_twin"
   | string;
 
 export type SignalEntity = {
@@ -196,7 +209,7 @@ function scopeFrom(value: unknown): SignalScope {
 
 function originFrom(input: Partial<NormalizedSignal> & Record<string, unknown>, metadata: Record<string, unknown>, domain: string, source: string): SignalOrigin {
   const explicit = text(input.origin || metadata.origin || input.executionSource || metadata.executionSource).toLowerCase();
-  if (explicit === "consumer_app" || explicit === "facility_app" || explicit === "office_app" || explicit === "automation" || explicit === "edge_agent" || explicit === "voice_assistant" || explicit === "api" || explicit === "provider" || explicit === "backend" || explicit === "scheduler" || explicit === "system" || explicit === "physical") {
+  if (explicit === "consumer_app" || explicit === "facility_app" || explicit === "office_app" || explicit === "automation" || explicit === "edge_agent" || explicit === "voice_assistant" || explicit === "api" || explicit === "provider" || explicit === "backend" || explicit === "scheduler" || explicit === "system" || explicit === "physical" || explicit === "twin_engine") {
     return explicit;
   }
   const haystack = `${source} ${domain} ${text(input.type)} ${JSON.stringify(metadata)}`.toLowerCase();

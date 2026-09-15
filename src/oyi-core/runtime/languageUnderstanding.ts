@@ -47,7 +47,22 @@ export type OyiDomain =
   | "corporate_development"
   | "corporate_oyi"
   | "corporate_private"
-  | "corporate_partnerships";
+  | "corporate_partnerships"
+  // Facility Spatial Mode Convergence, Foundation Slice 1 -- the ONE
+  // canonical domain name for the digital-twin/spatial concern (matches
+  // the value already used, inconsistently, in
+  // interpretation/conversationIntentRouting.ts's SEMANTIC_DESTINATIONS,
+  // contracts/canonicalConversation.ts's "twin_node" object type,
+  // policy/intelligencePolicyResolver.ts, runtime/universalSignalRuntime.ts
+  // and runtime/runtimeSubscriptions.ts's "future:digital-twin" channel).
+  // Deliberately not "spatial", "twin", or "spatial_twin" -- one name,
+  // consistent with the vocabulary those other files already chose. See
+  // contracts/target.ts for how this differs from the Twin Engine's own
+  // CanonicalRef / this backend's canonical_ref column. No executable
+  // capability is registered against this domain yet (see
+  // domainCapabilityRegistry.ts's own entry for it, read-only/unsupported
+  // "execute" until a real Spatial capability module ships).
+  | "digital_twin";
 
 // Domains that are unambiguously office_internal/public_corporate
 // business phrasing (per classifyDomain's own ordering intent, see the

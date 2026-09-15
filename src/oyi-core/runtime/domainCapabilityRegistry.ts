@@ -54,6 +54,14 @@ export const DOMAIN_CAPABILITIES: DomainCapability[] = [
   { domain: "cameras", supported_operations: READ_OPS, inline_reads: ["status", "offline", "recent_motion", "event_detail"], details: ["camera_detail"], drafts: [], mutations: [], requires_clarification: ["which_camera"], requires_approval: [], secure_handoff: ["live_view", "clip"], unsupported: ["unrestricted_stream"], authority_tier: 0, presentation_primary: "navigation", semantic_destinations: [{ key: "cameras.module", operation: "handoff" }] },
   { domain: "notifications", supported_operations: READ_OPS, inline_reads: ["unread", "recent", "detail"], details: ["notification_detail"], drafts: [], mutations: [], requires_clarification: [], requires_approval: [], secure_handoff: [], unsupported: ["push_mutation"], authority_tier: 0, presentation_primary: "list", semantic_destinations: [{ key: "notifications.module", operation: "navigate" }] },
   { domain: "incidents", supported_operations: READ_OPS, inline_reads: ["active", "recent", "detail", "evidence"], details: ["incident_detail"], drafts: [], mutations: [], requires_clarification: ["which_incident"], requires_approval: [], secure_handoff: [], unsupported: ["resolve_facility_incident"], authority_tier: 0, presentation_primary: "detail", semantic_destinations: [{ key: "incidents.detail", operation: "navigate" }] },
+  // Facility Spatial Mode Convergence, Foundation Slice 1 -- formal
+  // domain registration only. No capability module implements this
+  // domain yet (see src/oyi-core/domains/ -- there is no domains/spatial/
+  // or domains/digital_twin/ folder in this slice), so every mutation/
+  // execution-shaped field stays empty and "execute"/"control" stay
+  // explicitly unsupported. A future Spatial-capability slice fills this
+  // entry in rather than replacing it.
+  { domain: "digital_twin", supported_operations: READ_OPS, inline_reads: [], details: [], drafts: [], mutations: [], requires_clarification: [], requires_approval: [], secure_handoff: [], unsupported: ["execute", "control"], authority_tier: 0, presentation_primary: "detail", semantic_destinations: [] },
   { domain: "global", supported_operations: ["inform", "summarize", "list", "inspect", "navigate"], inline_reads: ["capabilities", "help"], details: [], drafts: [], mutations: [], requires_clarification: [], requires_approval: [], secure_handoff: [], unsupported: ["execute"], authority_tier: 0, presentation_primary: "text", semantic_destinations: [] },
 ];
 

@@ -100,6 +100,7 @@
     "smoke:device-conversation": "npm run build && node scripts/device-conversation-smoke.mjs",
     "smoke:device-schema": "node scripts/device-schema-release-smoke.mjs",
     "smoke:supabase-schema-auth-classification": "node scripts/supabase-schema-auth-classification-smoke.mjs",
+    "smoke:facility-spatial-mode-foundation-slice1": "npm run build && node scripts/facility-spatial-mode-foundation-slice1-smoke.mjs",
     "smoke:infrastructure-intelligence": "npm run build && node scripts/infrastructure-event-intelligence-smoke.mjs",
     "smoke:infrastructure-onboarding": "npm run build && node scripts/infrastructure-onboarding-smoke.mjs",
     "smoke:execution-ledger": "npm run build && node scripts/execution-ledger-smoke.mjs",
