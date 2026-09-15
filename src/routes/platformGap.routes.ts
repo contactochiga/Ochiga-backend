@@ -19,6 +19,7 @@ function wrap(fn: (req: any) => Promise<any>) {
 }
 
 router.get("/twin", requirePermission("twin.view"), wrap((req) => platformGapService.twin(req)));
+router.get("/canonical-ref/:canonicalRef", requirePermission("twin.view"), wrap((req) => platformGapService.canonicalRef(req)));
 router.post("/twin/models", requirePermission("twin.control"), wrap((req) => platformGapService.registerModel(req)));
 router.patch("/twin/models/:modelId", requirePermission("twin.control"), wrap((req) => platformGapService.updateModel(req)));
 router.put("/twin/placements", requirePermission("twin.control"), wrap((req) => platformGapService.upsertPlacement(req)));

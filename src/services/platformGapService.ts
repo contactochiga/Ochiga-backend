@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
 import { emitAuditEvent } from "../core/foundation/audit";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
+import { resolveCanonicalRef } from "./canonicalReferenceResolver";
 
 type Actor = { id: string; role?: string; estate_id?: string | null; home_id?: string | null; permissions?: string[]; permission_scopes?: string[] };
 
@@ -147,6 +148,18 @@ export const platformGapService = {
         placements: source((placements.data || []).length ? "Location assigned" : "Location pending", !!(placements.data || []).length, placements.error?.message),
       },
     };
+  },
+
+  // Diagnostic, read-only canonical-ref resolution -- internal
+  // Facility/Twin integration lookup, not a public identity API. Scoped
+  // to the caller's own estate via the same scopedEstate() helper every
+  // other route in this service uses; a canonical_ref belonging to a
+  // different estate simply resolves as not_found, never leaked.
+  async canonicalRef(req: Request) {
+    const estate_id = await scopedEstate(req);
+    if (!estate_id) throw new Error("No estate context");
+    const resolution = await resolveCanonicalRef(estate_id, req.params.canonicalRef);
+    return { ok: true, resolution };
   },
 
   async registerModel(req: Request) {
