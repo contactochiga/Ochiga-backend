@@ -180,7 +180,11 @@ export const SEMANTIC_DESTINATIONS: Record<string, OyiDestinationDefinition> = {
   "camera.private_live_view": { key: "camera.private_live_view", domain: "cameras", object_type: "camera", mode: "live_view", supported_surfaces: ["consumer"], required_parameters: ["camera_id"], required_permission: "cameras.private.read", label: "Camera live view" },
   "camera.shared_live_view": { key: "camera.shared_live_view", domain: "cameras", object_type: "camera", mode: "live_view", supported_surfaces: ["facility"], required_parameters: ["camera_id"], required_permission: "cameras.shared.read", label: "Shared camera live view" },
   "incident.detail": { key: "incident.detail", domain: "incidents", object_type: "operational_incident", mode: "detail", supported_surfaces: ["consumer", "facility"], required_parameters: ["incident_id"], required_permission: "incidents.read", label: "Incident" },
-  "digital_twin.object": { key: "digital_twin.object", domain: "digital_twin", object_type: "twin_node", mode: "detail", supported_surfaces: ["facility"], required_parameters: ["node_id"], required_permission: "digital_twin.read", label: "Digital twin object" },
+  // required_permission corrected from the dormant "digital_twin.read" (never a
+  // real permission key) to the actual permission vocabulary already used by
+  // platformGap.routes.ts for every Twin-facing route -- Foundation Slice 2,
+  // Facility Spatial Mode Convergence, Section 9.
+  "digital_twin.object": { key: "digital_twin.object", domain: "digital_twin", object_type: "twin_node", mode: "detail", supported_surfaces: ["facility"], required_parameters: ["node_id"], required_permission: "twin.view", label: "Digital twin object" },
 };
 
 const MODULE_DOMAIN_ALIASES: Array<{ domain: string; destination: string; pattern: RegExp }> = [
