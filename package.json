@@ -104,6 +104,7 @@
     "smoke:facility-canonical-ref-resolver": "npm run build && node scripts/facility-canonical-ref-resolver-smoke.mjs",
     "smoke:facility-spatial-readiness": "npm run build && node scripts/facility-spatial-readiness-smoke.mjs",
     "smoke:facility-spatial-context": "npm run build && node scripts/facility-spatial-context-smoke.mjs",
+    "smoke:facility-spatial-device-action": "npm run build && node scripts/facility-spatial-device-action-smoke.mjs",
     "smoke:infrastructure-intelligence": "npm run build && node scripts/infrastructure-event-intelligence-smoke.mjs",
     "smoke:infrastructure-onboarding": "npm run build && node scripts/infrastructure-onboarding-smoke.mjs",
     "smoke:execution-ledger": "npm run build && node scripts/execution-ledger-smoke.mjs",
