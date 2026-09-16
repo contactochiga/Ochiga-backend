@@ -24,9 +24,12 @@ export async function handleSignal(signal: Signal): Promise<RuntimeEnvelope | nu
     console.error("❌ Notification subscriber failed", { signalType: signal.type, err });
   }
 
-  // ✅ realtime emit
+  // ✅ realtime emit -- reuses runtimeEnvelope (already produced above by
+  // the one receiveSignal() call this function makes) instead of letting
+  // realtimeSubscriber re-run Core reasoning a second time. See
+  // realtimeSubscriber.ts.
   try {
-    realtimeSubscriber(signal);
+    realtimeSubscriber(signal, runtimeEnvelope);
   } catch (err) {
     console.error("❌ Realtime subscriber failed", { signalType: signal.type, err });
   }
