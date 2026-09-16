@@ -93,8 +93,13 @@ function buildToolProposals(request: CorporateOyiCoreRequest, signal: CorporateC
     });
   }
   if (signal === "qualification" || signal === "proposal") {
+    // Wave 3B: renamed from "crm.create_opportunity" -- this proposal
+    // only ever advances the lead's own status/stage (see
+    // office-tool-governance.js::leadPatchForProposal), it never creates
+    // an office_opportunities row. See CorporateToolProposal's own note
+    // in corporateIntelligence.ts.
     proposals.push({
-      tool: "crm.create_opportunity",
+      tool: "crm.qualify_opportunity",
       governance: "office_validates_before_execution",
       reason: signal === "proposal" ? "proposal_interest_detected" : "qualification_signal_detected",
       parameters: {

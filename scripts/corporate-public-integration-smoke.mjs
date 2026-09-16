@@ -68,7 +68,10 @@ assert.equal(response.qualification_signal, "high");
 assert.equal(response.canonical.source, "oyi_canonical_runtime");
 assert.equal(response.canonical.thread_id, "thread_1");
 assert.ok(response.tool_proposals.some((proposal) => proposal.tool === "crm.create_or_update_lead"));
-assert.ok(response.tool_proposals.some((proposal) => proposal.tool === "crm.create_opportunity"));
+// Wave 3B: renamed from "crm.create_opportunity" -- this proposal only
+// ever advances the lead's own status/stage, never creates an
+// office_opportunities row (see corporateIntelligence.ts's note).
+assert.ok(response.tool_proposals.some((proposal) => proposal.tool === "crm.qualify_opportunity"));
 assert.ok(response.tool_proposals.every((proposal) => proposal.governance === "office_validates_before_execution"));
 
 const voiceRequest = { ...request, engagement_mode: "voice_conversation" };

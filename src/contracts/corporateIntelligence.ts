@@ -117,9 +117,25 @@ export type CorporateCommercialSignal =
   | "proposal"
   | "handoff";
 
+// Office Intelligence Convergence, Wave 3B -- "crm.create_opportunity"
+// audited and found to NEVER create an office_opportunities row despite
+// its name: office-tool-governance.js's leadPatchForProposal() only ever
+// PATCHes the existing Lead (owner, status, commercial_stage) -- a real
+// Opportunity record is created through a completely separate,
+// deterministic path (office-intake.js's shouldCreateOpportunity() at
+// public-form intake time). The name was misleading; the actual, correct
+// contract is "advance this lead to an opportunity-qualified state".
+// Renamed to crm.qualify_opportunity to say what it actually does.
+// "crm.create_opportunity" is kept here, deprecated, ONLY because
+// Office's governance whitelist still accepts it as an alias during the
+// transition (both names execute the identical lead-qualification patch,
+// see office-tool-governance.js) -- Backend itself no longer emits it
+// (see corporatePublicConversationPolicy.ts). Safe to delete from both
+// sides together once no deployed Backend build can still be emitting
+// the old name.
 export type CorporateToolProposal = {
   proposal_id?: string;
-  tool: "crm.update_journey" | "crm.create_or_update_lead" | "crm.create_opportunity" | "office.create_followup_task" | "office.prepare_commercial_document" | "office.request_handoff" | "office.review_meeting_context" | "office.create_automation";
+  tool: "crm.update_journey" | "crm.create_or_update_lead" | "crm.qualify_opportunity" | "crm.create_opportunity" | "office.create_followup_task" | "office.prepare_commercial_document" | "office.request_handoff" | "office.review_meeting_context" | "office.create_automation";
   governance: "office_validates_before_execution";
   reason: string;
   parameters: Record<string, unknown>;
