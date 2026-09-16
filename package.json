@@ -129,6 +129,7 @@
     "smoke:oyi-workflow-durable-continuation": "npm run build && node scripts/oyi-workflow-durable-continuation-smoke.mjs",
     "smoke:oyi-canonical-signal-ingress": "npm run build && node scripts/oyi-canonical-signal-ingress-smoke.mjs",
     "smoke:oyi-handle-signal-one-ingress": "npm run build && node scripts/oyi-handle-signal-one-ingress-smoke.mjs",
+    "smoke:oyi-camera-intelligence-convergence": "npm run build && node scripts/oyi-camera-intelligence-convergence-smoke.mjs",
     "smoke:wallet-funding": "node scripts/wallet-funding-smoke.mjs",
     "smoke:wallet-webhook-idempotency": "node scripts/wallet-webhook-idempotency-smoke.mjs",
     "smoke:wallet-receipt": "node scripts/wallet-receipt-smoke.mjs",
