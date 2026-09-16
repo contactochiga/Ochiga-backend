@@ -142,6 +142,7 @@ function resetStore() {
   twinEntityPlacements = [];
 }
 resetStore();
+const genericTables = new Map();
 function fakeFrom(table) {
   const tables = {
     facility_incidents: facilityIncidents,
@@ -150,7 +151,12 @@ function fakeFrom(table) {
     twin_entity_placements: twinEntityPlacements,
   };
   if (tables[table]) return makeTable(tables[table]);
-  return { select: () => ({ eq: () => ({ limit: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }) };
+  // Any other table (audit_events, utility_telemetry, estate_memberships,
+  // etc.) -- a generic in-memory store via the same makeTable() builder,
+  // so incidental writes from shared helpers (e.g. emitAuditEvent) never
+  // crash the test instead of a hand-limited read-only stub.
+  if (!genericTables.has(table)) genericTables.set(table, []);
+  return makeTable(genericTables.get(table));
 }
 const originalFrom = supabaseModule.supabaseAdmin.from.bind(supabaseModule.supabaseAdmin);
 supabaseModule.supabaseAdmin.from = fakeFrom;
@@ -258,7 +264,13 @@ await check("twin model registration: existing behaviour intact + reaches Core e
   const result = await platformGapService.registerModel(fakeReq({ body: { name: "Luna Model", source_type: "glb", state: "uploaded" } }));
 
   need(twinModels.length === 1, "existing twin_models write must be unaffected");
-  need(emitSpy.calls.length === 1 && emitSpy.calls[0][0].type === "twin.state.updated", "existing twin.state.updated broadcast must still fire");
+  // registerModel's own audit() call legitimately emits a separate
+  // "audit.recorded" signal too (pre-existing, unrelated behaviour) --
+  // assert the twin.state.updated broadcast is present exactly once
+  // among whatever emitSignal() calls occurred, not that it's the only
+  // call.
+  const twinBroadcasts = emitSpy.calls.filter((args) => args[0]?.type === "twin.state.updated");
+  need(twinBroadcasts.length === 1, `existing twin.state.updated broadcast must still fire exactly once, got ${twinBroadcasts.length} (total emitSignal calls: ${emitSpy.calls.length})`);
   need(receiveSpy.calls.length === 1, `canonical Core ingress must fire exactly once, got ${receiveSpy.calls.length}`);
   const signal = receiveSpy.calls[0][0];
   need(signal.type === "twin.state.updated", "canonical type must be twin.state.updated");
@@ -283,7 +295,8 @@ await check("twin placement upsert: existing behaviour intact + reaches Core exa
   const result = await platformGapService.upsertPlacement(fakeReq({ body: { entity_type: "device", entity_id: "device-9", coordinates: { x: 1, y: 2, z: 0 }, home_id: "home-1" } }));
 
   need(twinEntityPlacements.length === 1, "existing twin_entity_placements write must be unaffected");
-  need(emitSpy.calls.length === 1 && emitSpy.calls[0][0].type === "twin.state.updated", "existing twin.state.updated broadcast must still fire");
+  const twinBroadcasts = emitSpy.calls.filter((args) => args[0]?.type === "twin.state.updated");
+  need(twinBroadcasts.length === 1, `existing twin.state.updated broadcast must still fire exactly once, got ${twinBroadcasts.length} (total emitSignal calls: ${emitSpy.calls.length})`);
   need(receiveSpy.calls.length === 1, `canonical Core ingress must fire exactly once, got ${receiveSpy.calls.length}`);
   const signal = receiveSpy.calls[0][0];
   need(signal.entity?.type === "twin_entity_placement", "canonical entity type must be twin_entity_placement");
@@ -328,35 +341,129 @@ await check("no duplicate NotificationService delivery or device execution is in
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
 });
 
-// 6. DISCLOSURE, not a regression of this slice: with a live socket.io
-// instance attached (the normal production condition -- setIO() is
-// called once at server boot and stays set for the process lifetime),
-// the PRE-EXISTING emitSignal() -> oyiCoreRuntime.decorateRealtimePayload()
-// -> receiveSignal() chain ALSO reaches Core, independently of and in
-// addition to this slice's new explicit canonical ingress call. This is
-// demonstrated here, not fixed -- decorateRealtimePayload()/emitSignal()
-// are shared by every domain in the codebase, fixing them is out of
-// scope for this two-producer slice (see this slice's report).
-await check("DISCLOSURE: live-IO emitSignal already reaches receiveSignal independently of this slice's new call", async () => {
+// 6. ONE-INGRESS INVARIANT, live IO: attaching a live Socket.IO server
+// (the normal production condition) must NOT cause a second Core
+// observation of a migrated producer's event. Before this slice,
+// createFacilityIncident under live IO produced TWO receiveSignal()
+// calls (the explicit high-fidelity one, plus an ambient low-fidelity
+// one via emitSignal() -> decorateRealtimePayload()). This test proves
+// exactly one now, and that the surviving observation is the explicit,
+// high-fidelity signal (real entity identity), not the generic
+// realtime-derived one.
+await check("one-ingress invariant: live Socket.IO does not cause a second Core observation of a migrated producer", async () => {
   resetStore();
   const receiveSpy = spy({ receipt: { accepted: true } });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpy;
   intelligenceCoreModule.publishSourceIntelligenceEvent = spy({ ok: true });
-  // A minimal fake Socket.IO server -- just enough for emitSignal()'s
-  // `if (!io) return` guard to pass and its `.to(...).emit(...)` calls
-  // to be safe no-ops.
+  // A minimal fake Socket.IO server, simulating 10 connected clients --
+  // client count must never change how many times Core observes the
+  // event. `.to(room)` is called once per targeted room regardless of
+  // how many sockets are actually in it; none of this touches Core.
+  let roomEmitCount = 0;
+  const fakeIo = { to: () => ({ emit: () => { roomEmitCount += 1; } }), emit: () => { roomEmitCount += 1; } };
+  ioModule.setIO(fakeIo);
+  emitSignalModule.emitSignal = originalEmitSignal; // use the REAL emitSignal for this test
+
+  const data = await createFacilityIncident({ estateId: ESTATE_ID, title: "Live IO incident", actorId: ACTOR_ID });
+
+  need(receiveSpy.calls.length === 1, `expected exactly one Core observation under live IO, got ${receiveSpy.calls.length}`);
+  const signal = receiveSpy.calls[0][0];
+  need(signal.source === "facility_incident_registry", "the surviving observation must be the explicit high-fidelity canonical signal, not the ambient embit-derived one");
+  need(signal.entity?.id === data.id, "the surviving observation must carry the real incident entity id");
+  need(roomEmitCount > 0, "the realtime broadcast must still have happened (client count/broadcast must be independent of Core ingestion count)");
+
+  ioModule.setIO(null);
+  intelligenceCoreModule.publishSourceIntelligenceEvent = originalPublish;
+  oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
+});
+
+// 7. Broadcasting failure must not erase a successful canonical
+// ingestion -- canonical ingestion (submitCanonicalSignal ->
+// receiveSignal) and realtime broadcast (emitSignal) are independent,
+// parallel, fire-and-forget calls; one failing must not affect the
+// other or the underlying write.
+await check("broadcast failure does not erase a successful canonical ingestion", async () => {
+  resetStore();
+  const receiveSpy = spy({ receipt: { accepted: true } });
+  oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpy;
+  intelligenceCoreModule.publishSourceIntelligenceEvent = spy({ ok: true });
+  // The real emitSignal() is an async function -- a thrown/rejected
+  // failure inside it always surfaces as a rejected Promise, never a
+  // synchronous throw to the caller (emit() calls it without awaiting,
+  // exactly like production). Attach a no-op .catch() so this
+  // deliberately-unhandled-by-the-caller rejection doesn't crash the
+  // test process itself, matching real emitSignal()'s actual contract.
+  emitSignalModule.emitSignal = () => {
+    const failed = Promise.reject(new Error("socket.io broadcast failed"));
+    failed.catch(() => {});
+    return failed;
+  };
+
+  const data = await createFacilityIncident({ estateId: ESTATE_ID, title: "Broadcast failure incident", actorId: ACTOR_ID });
+
+  need(!!data?.id, "the incident row must still be created even if the realtime broadcast throws");
+  need(receiveSpy.calls.length === 1, `canonical ingestion must still have happened exactly once despite the broadcast failure, got ${receiveSpy.calls.length}`);
+
+  emitSignalModule.emitSignal = originalEmitSignal;
+  intelligenceCoreModule.publishSourceIntelligenceEvent = originalPublish;
+  oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
+});
+
+// 8. Core ingestion failure must not become dependent on Socket.IO --
+// re-run the "unavailable Core ingress" case with a live IO attached, to
+// prove the failure-does-not-break-the-write guarantee holds regardless
+// of realtime transport state.
+await check("Core ingestion failure semantics are independent of Socket.IO state", async () => {
+  resetStore();
   const fakeIo = { to: () => ({ emit: () => {} }), emit: () => {} };
   ioModule.setIO(fakeIo);
-  emitSignalModule.emitSignal = originalEmitSignal; // use the REAL emitSignal for this one test
+  emitSignalModule.emitSignal = originalEmitSignal;
+  intelligenceCoreModule.publishSourceIntelligenceEvent = spy({ ok: true });
+  oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = () => Promise.reject(new Error("core_unavailable"));
 
-  await createFacilityIncident({ estateId: ESTATE_ID, title: "Live IO incident", actorId: ACTOR_ID });
+  const data = await createFacilityIncident({ estateId: ESTATE_ID, title: "Live IO + Core failure incident", actorId: ACTOR_ID });
+  need(!!data?.id, "the incident row must still be created even with live IO and a failing Core ingestion");
 
-  need(receiveSpy.calls.length === 2, `expected receiveSignal to fire twice under live IO (1 pre-existing ambient call via emitSignal, 1 from this slice's explicit call) -- got ${receiveSpy.calls.length}. If this is now 1, the ambient path may have already been fixed elsewhere; if >2, a new duplicate was introduced.`);
-  const ambient = receiveSpy.calls.find((args) => args[0].source === "facility.platform");
-  const canonical = receiveSpy.calls.find((args) => args[0].source === "facility_incident_registry");
-  need(!!ambient, "the pre-existing low-fidelity ambient signal (source: facility.platform) must be present -- confirms this is pre-existing, not something this slice added");
-  need(!!canonical, "this slice's high-fidelity canonical signal (source: facility_incident_registry) must also be present");
-  need(!ambient?.[0]?.entity?.id, "the pre-existing ambient path does not carry a real entity id -- confirms it is low-fidelity, distinct from this slice's canonical signal");
+  ioModule.setIO(null);
+  intelligenceCoreModule.publishSourceIntelligenceEvent = originalPublish;
+  oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
+});
+
+// 9. Compatibility preserved: an AMBIENT-ONLY producer NOT migrated to
+// submitCanonicalSignal() in this slice -- updateIncident()'s
+// emit("incident.updated", ...) -- must still reach Core exactly once
+// under live IO (preserved, not silently disconnected), and zero times
+// with no IO attached. This is unchanged prior behaviour, not something
+// this slice added or fixed: incident.updated has always depended on
+// live IO for its only route to Core, and still does after this slice
+// -- migrating it to explicit canonical ingress is out of scope here
+// (see this slice's report).
+await check("compatibility: an unmigrated ambient-only producer (incident.updated) still reaches Core exactly once under live IO, zero with none", async () => {
+  resetStore();
+  emitSignalModule.emitSignal = originalEmitSignal;
+  intelligenceCoreModule.publishSourceIntelligenceEvent = spy({ ok: true });
+  oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = spy({ receipt: { accepted: true } });
+
+  const created = await createFacilityIncident({ estateId: ESTATE_ID, title: "Ambient compatibility incident", actorId: ACTOR_ID });
+
+  // No IO attached: updateIncident's emit("incident.updated", ...) must
+  // reach Core zero times (its only route to Core is the ambient path,
+  // which requires live IO -- unchanged prior behaviour).
+  const receiveSpyNoIo = spy({ receipt: { accepted: true } });
+  oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpyNoIo;
+  await platformGapService.updateIncident(fakeReq({ params: { incidentId: created.id }, body: { status: "acknowledged", note: "ack" } }));
+  need(receiveSpyNoIo.calls.length === 0, `expected zero Core observations for incident.updated with no IO attached, got ${receiveSpyNoIo.calls.length}`);
+
+  // Live IO attached: the same call must now reach Core exactly once
+  // (preserved compatibility -- not silently disconnected, not
+  // duplicated).
+  const receiveSpyLiveIo = spy({ receipt: { accepted: true } });
+  oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpyLiveIo;
+  const fakeIo = { to: () => ({ emit: () => {} }), emit: () => {} };
+  ioModule.setIO(fakeIo);
+  await platformGapService.updateIncident(fakeReq({ params: { incidentId: created.id }, body: { status: "resolved", note: "resolved" } }));
+  const incidentUpdatedCalls = receiveSpyLiveIo.calls.filter((args) => args[0]?.type === "incident.updated");
+  need(incidentUpdatedCalls.length === 1, `expected exactly one Core observation of incident.updated under live IO, got ${incidentUpdatedCalls.length}`);
 
   ioModule.setIO(null);
   intelligenceCoreModule.publishSourceIntelligenceEvent = originalPublish;
