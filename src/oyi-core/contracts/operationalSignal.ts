@@ -245,7 +245,15 @@ function initiatorTypeFrom(input: Partial<NormalizedSignal> & Record<string, unk
 
 export function signalSeverity(value: unknown): SignalSeverity {
   const next = text(value).toLowerCase();
-  if (/critical|emergency|panic|intrusion|fire/.test(next)) return "critical";
+  // Oyi Intelligence Convergence, Camera Intelligence Convergence Wave --
+  // "smoke" and "tamper" added alongside the existing "fire"/"intrusion"
+  // so a raw camera detector classification (not a pre-computed camera-
+  // domain severity label) can be fed straight into this ALREADY-canonical,
+  // domain-agnostic classifier and get a correct answer -- see
+  // oyi-core/domains/camera/cameraCanonicalSignal.ts. Both are physical
+  // security/safety conditions of the same class as fire/intrusion, not
+  // camera-specific concepts; this stays a general-purpose classifier.
+  if (/critical|emergency|panic|intrusion|fire|smoke|tamper/.test(next)) return "critical";
   if (/warning|high|failed|offline|unreachable|blocked|overdue|error|degraded/.test(next)) return "warning";
   if (/attention|pending|review|unknown|medium/.test(next)) return "attention";
   return "info";
