@@ -166,25 +166,33 @@ export type CorporateMaterialEventType =
   | "followup_overdue"
   | "human_handoff_requested";
 
+// Office Intelligence Convergence, Wave 3 -- reconciled against Office's
+// REAL wire payload (ochiga-office's backend-events.js::buildMaterialCrmEvent),
+// not the earlier speculative shape this type previously described
+// (which used crm.contact_ref/organization_ref/opportunity_ref/lead_ref
+// and required agent_role/conversation -- neither matched what Office
+// actually sends). subject/request_id/source were previously missing
+// entirely. agent_role/conversation are now optional since Office's
+// current builder does not populate them; a future producer may.
 export type CorporateMaterialEvent = {
   event_id: string;
   event_type: CorporateMaterialEventType;
   idempotency_key: string;
   occurred_at: string;
   source_system: "ochiga-office";
+  request_id: string;
+  subject: { type: string; id: string; label: string };
   business_unit: CorporateBusinessUnit;
   inquiry_type: CorporateInquiryType;
-  agent_role: CorporateAgentRole;
+  agent_role?: CorporateAgentRole | null;
+  source: { channel: string; site: string; page: string; form: string };
   crm: {
-    contact_ref: string | null;
-    organization_ref: string | null;
-    opportunity_ref: string | null;
-    lead_ref: string | null;
+    lead_id: string | null;
+    status: string | null;
+    stage: string | null;
+    owner: string | null;
   };
-  conversation: {
-    public_session_id: string | null;
-    oyi_thread_id: string | null;
-  };
+  conversation?: { public_session_id: string | null; oyi_thread_id: string | null } | null;
   metadata: Record<string, unknown>;
 };
 
@@ -531,6 +539,32 @@ export type OfficeInternalOyiCoreRequest = {
     excerpt?: string | null;
     scheduled_publish_at?: string | null;
     sanity_live_url?: string | null;
+  } | null;
+  // Office Intelligence Convergence, Wave 3 -- mirrors task_context/
+  // partnership_context's exact pattern (permission-gated, Office-
+  // computed, null means "not computed for this request", never
+  // fabricated by Core). Populated from Office's real, existing Lead
+  // fields (location/city/country, property_size, project_type,
+  // budget_range, unit_count, timeline, decision_maker_status) -- Office
+  // has no dedicated JV schema yet, so structure_offered/
+  // landowner_expectation/title_document_status are honestly null until
+  // Office grows that schema; the JV capability (see
+  // oyi-core/domains/development/developmentJv.ts) reports those as
+  // missing_information rather than guessing them from free text.
+  development_context: {
+    opportunity_ref: string | null;
+    safe_summary: string | null;
+    opportunity_type?: string | null;
+    location?: string | null;
+    land_size?: string | null;
+    structure_offered?: string | null;
+    landowner_expectation?: string | null;
+    title_document_status?: string | null;
+    commercial_terms?: string | null;
+    timeline?: string | null;
+    scale_units?: number | null;
+    source_channel?: string | null;
+    decision_maker_status?: string | null;
   } | null;
   requested_capability: string | null;
   knowledge_context: CorporateKnowledgeReference[];

@@ -12,8 +12,9 @@ import {
   resolveOfficeCredential,
   resolveOfficeSyncKey,
 } from "../middleware/officeCredential";
-import type { CorporateBusinessUnit, CorporateOyiCoreRequest, OfficeInternalOyiCoreRequest } from "../contracts/corporateIntelligence";
+import type { CorporateAgentRole, CorporateBusinessUnit, CorporateInquiryType, CorporateMaterialEvent, CorporateMaterialEventType, CorporateOyiCoreRequest, OfficeInternalOyiCoreRequest } from "../contracts/corporateIntelligence";
 import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLICY } from "../contracts/corporateIntelligence";
+import { submitOfficeMaterialEventCanonicalSignal } from "../oyi-core/ingress/officeMaterialEventAdapter";
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
 import { loadLastVerifiedOfficeAction } from "../oyi-core/context/officeAutomationSuggestionStore";
@@ -62,6 +63,91 @@ export function requireOfficeExportKey(req: Request, res: Response, next: NextFu
 function safeText(value: any, fallback = "") {
   const result = String(value ?? "").trim();
   return result || fallback;
+}
+
+// Office Intelligence Convergence, Wave 3 -- the canonical set of Office
+// material event types Backend will actually ingest. Deliberately closed
+// (matches CorporateMaterialEventType exactly): "Do not migrate noisy
+// CRUD/audit events blindly" -- an event type outside this set is
+// rejected below rather than silently accepted and forwarded to Core.
+const CORPORATE_MATERIAL_EVENT_TYPES: ReadonlySet<CorporateMaterialEventType> = new Set([
+  "lead_created",
+  "lead_qualified",
+  "opportunity_created",
+  "opportunity_stage_changed",
+  "membership_requested",
+  "membership_reviewed",
+  "technology_deployment_requested",
+  "development_enquiry_received",
+  "partnership_enquiry_received",
+  "proposal_created",
+  "proposal_accepted",
+  "followup_overdue",
+  "human_handoff_requested",
+]);
+
+type MaterialEventValidation = { ok: true; event: CorporateMaterialEvent } | { ok: false; error: string };
+
+// Validates and normalizes an inbound POST /office/events/material body
+// into the exact CorporateMaterialEvent shape ochiga-office's
+// backend-events.js::buildMaterialCrmEvent() actually produces. Rejects
+// (400, no Core call) anything structurally malformed -- Office's own
+// publisher does not retry a 4xx, so a genuinely malformed payload does
+// not become a retry storm, only a real transient failure does.
+export function validateMaterialEvent(body: any): MaterialEventValidation {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: "request body must be a JSON object" };
+  const eventId = safeText(body.event_id);
+  const eventType = safeText(body.event_type);
+  const idempotencyKey = safeText(body.idempotency_key);
+  const occurredAt = safeText(body.occurred_at);
+  const sourceSystem = safeText(body.source_system);
+  const requestId = safeText(body.request_id);
+  const subject = recordOf(body.subject);
+  const source = recordOf(body.source);
+  const crm = recordOf(body.crm);
+  const conversationRaw = recordOf(body.conversation);
+
+  if (!eventId) return { ok: false, error: "event_id is required" };
+  if (!CORPORATE_MATERIAL_EVENT_TYPES.has(eventType as CorporateMaterialEventType)) {
+    return { ok: false, error: `event_type must be one of the known material event types, got "${eventType || "(missing)"}"` };
+  }
+  if (!idempotencyKey) return { ok: false, error: "idempotency_key is required" };
+  if (!occurredAt || !Number.isFinite(Date.parse(occurredAt))) return { ok: false, error: "occurred_at must be a valid timestamp" };
+  if (sourceSystem !== "ochiga-office") return { ok: false, error: 'source_system must be "ochiga-office"' };
+  if (!requestId) return { ok: false, error: "request_id is required" };
+  if (!safeText(subject.type) || !safeText(subject.id)) return { ok: false, error: "subject.type and subject.id are required" };
+
+  return {
+    ok: true,
+    event: {
+      event_id: eventId,
+      event_type: eventType as CorporateMaterialEventType,
+      idempotency_key: idempotencyKey,
+      occurred_at: occurredAt,
+      source_system: "ochiga-office",
+      request_id: requestId,
+      subject: { type: safeText(subject.type), id: safeText(subject.id), label: safeText(subject.label) },
+      business_unit: safeText(body.business_unit, "corporate") as CorporateBusinessUnit,
+      inquiry_type: safeText(body.inquiry_type, "general_enquiry") as CorporateInquiryType,
+      agent_role: (safeText(body.agent_role) as CorporateAgentRole) || null,
+      source: {
+        channel: safeText(source.channel, "website"),
+        site: safeText(source.site),
+        page: safeText(source.page),
+        form: safeText(source.form),
+      },
+      crm: {
+        lead_id: safeText(crm.lead_id) || null,
+        status: safeText(crm.status) || null,
+        stage: safeText(crm.stage) || null,
+        owner: safeText(crm.owner) || null,
+      },
+      conversation: Object.keys(conversationRaw).length
+        ? { public_session_id: safeText(conversationRaw.public_session_id) || null, oyi_thread_id: safeText(conversationRaw.oyi_thread_id) || null }
+        : null,
+      metadata: recordOf(body.metadata),
+    },
+  };
 }
 
 function safeNumber(value: any): number | null {
@@ -165,6 +251,7 @@ export function normalizeOfficeInternalRequest(body: any, requestId: string): Of
   const partnership = recordOf(body.partnership_context);
   const documentCtx = recordOf(body.document_context);
   const content = recordOf(body.content_context);
+  const development = recordOf(body.development_context);
   return {
     request_id: safeText(body.request_id, requestId),
     message: safeText(body.message),
@@ -323,6 +410,25 @@ export function normalizeOfficeInternalRequest(body: any, requestId: string): Of
       scheduled_publish_at: safeText(content.scheduled_publish_at) || null,
       sanity_live_url: safeText(content.sanity_live_url) || null,
     } : null,
+    // Office Intelligence Convergence, Wave 3 -- mirrors partnership_context's
+    // exact normalization pattern. Every field is honest pass-through of
+    // whatever Office actually computed; nothing here is inferred or
+    // fabricated by Backend.
+    development_context: Object.keys(development).length ? {
+      opportunity_ref: safeText(development.opportunity_ref) || null,
+      safe_summary: safeText(development.safe_summary).slice(0, 800) || null,
+      opportunity_type: safeText(development.opportunity_type) || null,
+      location: safeText(development.location) || null,
+      land_size: safeText(development.land_size) || null,
+      structure_offered: safeText(development.structure_offered) || null,
+      landowner_expectation: safeText(development.landowner_expectation).slice(0, 500) || null,
+      title_document_status: safeText(development.title_document_status) || null,
+      commercial_terms: safeText(development.commercial_terms).slice(0, 500) || null,
+      timeline: safeText(development.timeline) || null,
+      scale_units: safeNumber(development.scale_units),
+      source_channel: safeText(development.source_channel) || null,
+      decision_maker_status: safeText(development.decision_maker_status) || null,
+    } : null,
     requested_capability: safeText(body.requested_capability) || null,
     knowledge_context: knowledgeContext(body.knowledge_context),
     metadata: recordOf(body.metadata),
@@ -437,6 +543,60 @@ function makePackage(estate: Row, nowIso: string) {
     updated_at: estate.updated_at || nowIso,
   };
 }
+
+// Office Intelligence Convergence, Wave 3 -- canonical Office -> Core
+// event ingress. Office's backend-events.js::publishBackendMaterialEvent
+// already POSTs here (this exact path is its default
+// officeBackendEventPath) with x-office-event-id/x-idempotency-key
+// headers and retries on 408/429/5xx up to 5 times; this route does not
+// need its own idempotency table for that -- see
+// officeMaterialEventAdapter.ts's header comment for why the durable
+// canonicalIntelligenceStore dedup already makes a retry a no-op.
+// Backend never writes to Office's database here or anywhere else --
+// this route only reads the event and forwards ONE canonical signal to
+// Core; Office already persisted the underlying CRM record before ever
+// calling this endpoint.
+router.post("/events/material", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const requestId = safeText(req.headers["x-request-id"] || req.headers["x-office-event-id"], nodeCrypto.randomUUID());
+  const validation = validateMaterialEvent(req.body || {});
+  if (!validation.ok) {
+    logger.warn("office_material_event_rejected", { reason: validation.error, request_id: requestId });
+    return res.status(400).json({ ok: false, error: validation.error, request_id: requestId });
+  }
+  const { event } = validation;
+
+  // Fire-and-forget from this route's perspective, same contract as
+  // submitCanonicalSignal() itself: never throws. A Core-side failure is
+  // logged inside the adapter and reported here as accepted:false --
+  // never as an HTTP error -- so it cannot corrupt or roll back the CRM
+  // truth Office already established, and does not trigger Office's
+  // retryable-status retry loop for what would be a Core-internal issue,
+  // not a transport failure.
+  const envelope = await submitOfficeMaterialEventCanonicalSignal(event);
+  const duplicate = envelope?.receipt?.duplicate === true;
+  const accepted = Boolean(envelope?.receipt?.accepted);
+
+  void emitAuditEvent({
+    actorId: null,
+    actorEmail: "office-material-event@ochiga.local",
+    actorRole: "office_system",
+    action: "office.material_event.ingested",
+    resourceType: "office_material_event",
+    resourceId: event.event_id,
+    status: "success",
+    metadata: { event_type: event.event_type, business_unit: event.business_unit, inquiry_type: event.inquiry_type, duplicate, accepted },
+    req,
+  });
+
+  return res.status(200).json({
+    ok: true,
+    event_id: event.event_id,
+    idempotency_key: event.idempotency_key,
+    duplicate,
+    accepted,
+    request_id: requestId,
+  });
+});
 
 router.post("/conversation/corporate", requireOfficeExportKey, async (req: Request, res: Response) => {
   const requestId = safeText(req.headers["x-request-id"], crypto.randomUUID());
