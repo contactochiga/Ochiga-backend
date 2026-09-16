@@ -3,7 +3,42 @@ import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import type { Signal } from "../core/control-plane/contracts/signal.types";
 import { oyiCoreRuntime } from "../oyi-core/service";
 
-export async function emitSignal(signal: Signal) {
+export type EmitSignalOptions = {
+  // Oyi Intelligence Convergence, Signal Transport Convergence Slice --
+  // when the caller has ALREADY submitted this same domain event to Core
+  // canonically (via oyi-core/ingress/canonicalSignalIngress.ts's
+  // submitCanonicalSignal()), pass true here so this broadcast does NOT
+  // also trigger legacyAmbientCanonicalIngress() below. Without this,
+  // every emitSignal() call ambiently reaches oyiCoreRuntime.
+  // receiveSignal() a second time via decorateRealtimePayload() -- see
+  // legacyAmbientCanonicalIngress()'s comment for why that path still
+  // exists for every OTHER caller.
+  skipCanonicalIngress?: boolean;
+};
+
+// Oyi Intelligence Convergence, Signal Transport Convergence Slice --
+// COMPATIBILITY ONLY, not a decoration step. A number of existing
+// emitSignal() callers (audit.recorded via core/foundation/audit.ts's
+// emitAuditEvent, infrastructure onboarding, device registry, edge
+// discovery, Tuya registry sync, and several platformGapService.ts event
+// types not yet migrated: utility.telemetry.updated, edge.heartbeat,
+// incident.updated, facility.handover.updated, camera.status.updated)
+// have NO other route into Core today -- this call, via
+// oyiCoreRuntime.decorateRealtimePayload()'s internal receiveSignal()
+// call, is their ONLY canonical ingestion. Removing it outright would
+// silently disconnect them from Core (this slice's audit found and was
+// explicitly instructed not to do that). Named and isolated here so that
+// behavior is an explicit, visible, INTENTIONALLY SKIPPABLE step (see
+// EmitSignalOptions.skipCanonicalIngress above) rather than a hidden
+// side effect of "decorating a realtime payload" -- it should be retired
+// producer-by-producer as each is migrated to an explicit
+// submitCanonicalSignal() call in a future wave, not migrated in bulk
+// here (see this slice's report for the full caller list).
+async function legacyAmbientCanonicalIngress(event: string, signal: Record<string, unknown>) {
+  return oyiCoreRuntime.decorateRealtimePayload(event, signal, []);
+}
+
+export async function emitSignal(signal: Signal, options: EmitSignalOptions = {}) {
   const io = getIO();
   if (!io) return;
 
@@ -14,8 +49,14 @@ export async function emitSignal(signal: Signal) {
   const deviceId = anySig.deviceId || anySig.device_id;
   const userId = anySig?.requestedBy?.userId || anySig?.requestedBy?.user_id;
 
-  // Broadcast to the most relevant scopes
-  const envelope = await oyiCoreRuntime.decorateRealtimePayload(String(anySig.type || "signal"), anySig, []);
+  // Broadcast to the most relevant scopes. Canonical ingestion (Core
+  // observing this event) is NOT what this envelope is for -- see
+  // legacyAmbientCanonicalIngress()'s comment. A caller that already
+  // submitted canonically opts out via options.skipCanonicalIngress, so
+  // Core is only ever observed once for that event.
+  const envelope = options.skipCanonicalIngress
+    ? {}
+    : await legacyAmbientCanonicalIngress(String(anySig.type || "signal"), anySig);
   const enriched = { ...anySig, ...envelope };
   if (estateId) io.to(`estate:${estateId}`).emit("signal", enriched);
   if (roomId) io.to(`room:${roomId}`).emit("signal", enriched);

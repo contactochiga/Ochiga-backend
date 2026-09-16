@@ -57,8 +57,21 @@ async function audit(actorValue: Actor, action: string, resourceId: string, meta
   }
 }
 
+// Oyi Intelligence Convergence, Signal Transport Convergence Slice --
+// incident.created and twin.state.updated already reach Core explicitly
+// via submitCanonicalSignal() (below); skip emitSignal()'s legacy
+// ambient ingestion for exactly those two event types so Core observes
+// each event once, not twice. Every other event this helper broadcasts
+// (utility.telemetry.updated, edge.heartbeat, incident.updated,
+// facility.handover.updated, camera.status.updated) has not been
+// migrated to explicit canonical ingress in this slice, so it keeps
+// relying on that ambient path unchanged -- see this slice's report.
+const CANONICALLY_MIGRATED_EVENTS = new Set(["incident.created", "twin.state.updated"]);
 function emit(event: string, estateId: string | null | undefined, payload: Record<string, any>) {
-  emitSignal(makeBaseSignal({ type: event, source: "facility.platform", estateId: estateId || undefined, payload } as any));
+  emitSignal(
+    makeBaseSignal({ type: event, source: "facility.platform", estateId: estateId || undefined, payload } as any),
+    CANONICALLY_MIGRATED_EVENTS.has(event) ? { skipCanonicalIngress: true } : undefined
+  );
 }
 
 // Oyi Intelligence Convergence, Wave 0 -- additive canonical Core signal
