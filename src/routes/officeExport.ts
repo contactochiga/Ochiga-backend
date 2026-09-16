@@ -106,6 +106,7 @@ export function validateMaterialEvent(body: any): MaterialEventValidation {
   const source = recordOf(body.source);
   const crm = recordOf(body.crm);
   const conversationRaw = recordOf(body.conversation);
+  const communicationRaw = recordOf(body.communication_context);
 
   if (!eventId) return { ok: false, error: "event_id is required" };
   if (!CORPORATE_MATERIAL_EVENT_TYPES.has(eventType as CorporateMaterialEventType)) {
@@ -144,6 +145,21 @@ export function validateMaterialEvent(body: any): MaterialEventValidation {
       },
       conversation: Object.keys(conversationRaw).length
         ? { public_session_id: safeText(conversationRaw.public_session_id) || null, oyi_thread_id: safeText(conversationRaw.oyi_thread_id) || null }
+        : null,
+      // Oyi Communications Convergence, Slice 1 -- contactability is
+      // never trusted as "allowed" from the wire; only a producer that
+      // explicitly sends the literal string "allowed" or "denied" gets
+      // anything other than "unknown". This is the conservative-by-
+      // construction guard against consent_present silently becoming
+      // allowed, enforced here (not just by convention in the producer).
+      communication_context: Object.keys(communicationRaw).length
+        ? {
+            primary_channel: safeText(communicationRaw.primary_channel) || null,
+            email: safeText(communicationRaw.email) || null,
+            phone: safeText(communicationRaw.phone) || null,
+            whatsapp_phone: safeText(communicationRaw.whatsapp_phone) || null,
+            contactability: (["allowed", "denied"] as const).includes(communicationRaw.contactability) ? communicationRaw.contactability : "unknown",
+          }
         : null,
       metadata: recordOf(body.metadata),
     },
@@ -2351,7 +2367,16 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
         outcome_classification: result.outcome_classification,
         woke_goal_count: result.woke_goal_ids.length,
       });
-      return res.status(200).json({ ok: result.ok, thread_reference: result.thread_reference, duplicate: result.duplicate, matched_outbound: Boolean(result.communication_id) });
+      // Oyi Communications Convergence, Slice 1 -- goal_active tells
+      // Office whether an autonomous follow-up Goal is already watching
+      // this thread (findGoalsWatchingThread ran synchronously inside
+      // processInboundEvent above; only the goal's own evaluation/
+      // dispatch is fire-and-forget). Office's direct AI-reply path
+      // (processWhatsAppEvent) must defer to the Goal rather than also
+      // replying -- this is the single field that makes "at most one
+      // Oyi outbound reply per inbound message" enforceable without a
+      // second round trip.
+      return res.status(200).json({ ok: result.ok, thread_reference: result.thread_reference, duplicate: result.duplicate, matched_outbound: Boolean(result.communication_id), goal_active: result.woke_goal_ids.length > 0 });
     } catch (err: any) {
       logger.error("communication_webhook_inbound_failed", { provider_message_id: providerMessageId, error: err?.message || String(err) });
       return res.status(200).json({ ok: false, error: err?.message || "inbound_processing_failed" });

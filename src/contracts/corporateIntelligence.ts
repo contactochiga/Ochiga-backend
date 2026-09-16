@@ -182,6 +182,28 @@ export type CorporateMaterialEventType =
   | "followup_overdue"
   | "human_handoff_requested";
 
+// Oyi Communications Convergence, Slice 1 -- the communication context
+// Office already has (primary_channel/email/phone/whatsapp_phone,
+// persisted on the Lead) was being silently dropped at exactly this
+// hop (confirmed by the Slice 1 audit: Office intake -> primary_channel
+// persisted -> material event -> DROPPED -> Core). contactability is
+// deliberately a tri-state, never a fabricated "allowed": Office's
+// current schema has no structured consent column (raw JSON only, per
+// the audit), so a producer that cannot show real evidence of an
+// explicit grant or denial MUST send "unknown" -- never inferred from
+// mere field presence. Core-side policy code must treat "unknown"
+// exactly like "denied" for any autonomous outbound decision (see
+// relationshipCommunicationPolicy.ts), never like "allowed".
+export type CommunicationContactability = "unknown" | "allowed" | "denied";
+
+export type CorporateCommunicationContext = {
+  primary_channel: string | null;
+  email: string | null;
+  phone: string | null;
+  whatsapp_phone: string | null;
+  contactability: CommunicationContactability;
+};
+
 // Office Intelligence Convergence, Wave 3 -- reconciled against Office's
 // REAL wire payload (ochiga-office's backend-events.js::buildMaterialCrmEvent),
 // not the earlier speculative shape this type previously described
@@ -209,6 +231,7 @@ export type CorporateMaterialEvent = {
     owner: string | null;
   };
   conversation?: { public_session_id: string | null; oyi_thread_id: string | null } | null;
+  communication_context?: CorporateCommunicationContext | null;
   metadata: Record<string, unknown>;
 };
 
