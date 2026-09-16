@@ -11,6 +11,7 @@ import { rankOfMembershipRole } from "../services/estateMembershipRoles";
 import { buildConsumerHomeInviteUrl } from "../config/publicUrls";
 import { resolveFacilitySpatialReadiness } from "../services/facilitySpatialReadiness";
 import { resolveSpatialFacilityContext } from "../services/spatialFacilityContextService";
+import { initiateSpatialDeviceAction, SPATIAL_DEVICE_OPERATIONS, type SpatialDeviceOperation } from "../oyi-core/actions/SpatialDeviceActionService";
 
 // Platform-level staff (super_admin/ochiga_admin) bypass tenant-membership
 // checks entirely -- the previous fallback compared req.user.role to the
@@ -495,6 +496,67 @@ export async function getSpatialFacilityContext(req: any, res: Response) {
   } catch (error: any) {
     console.error("getSpatialFacilityContext error:", error);
     return res.status(500).json({ error: "Unable to resolve spatial context right now." });
+  }
+}
+
+const SPATIAL_DEVICE_OPERATION_SET = new Set<string>(SPATIAL_DEVICE_OPERATIONS);
+
+/**
+ * POST /facility/estates/:estateId/spatial-actions
+ *
+ * Facility Spatial Mode Convergence, Foundation Slice 4. Governed spatial
+ * device actions only. Resolves canonical_ref -> device, then hands off
+ * entirely to initiateSpatialDeviceAction, which composes the SAME
+ * ActionService/CapabilityService/DeviceConversationActionAdapter
+ * pipeline every conversational device command already runs through --
+ * this controller never calls Tuya/Edge/a provider directly, never
+ * mutates any local Twin state, and never fabricates a confirmed outcome.
+ * twin.control only opens this surface; the underlying devices.control
+ * permission, home scope, and devices.power.control's own
+ * explicit-confirmation policy are enforced identically to an equivalent
+ * conversational command.
+ */
+export async function createSpatialDeviceAction(req: any, res: Response) {
+  try {
+    const estateId = String(req.params?.estateId || "").trim();
+    const canonicalRef = String(req.body?.canonical_ref || "").trim();
+    const operation = String(req.body?.operation || "").trim() as SpatialDeviceOperation;
+    if (!estateId || !canonicalRef) return res.status(400).json({ error: "estateId and canonical_ref are required" });
+    if (!SPATIAL_DEVICE_OPERATION_SET.has(operation)) {
+      return res.status(400).json({ error: `operation must be one of: ${SPATIAL_DEVICE_OPERATIONS.join(", ")}` });
+    }
+
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from("estate_memberships")
+      .select("id,status")
+      .eq("estate_id", estateId)
+      .eq("user_id", req.user.id)
+      .maybeSingle();
+    if (membershipError) throw membershipError;
+    if ((!membership || membership.status !== "active") && !isPlatformStaff(req.user.role)) {
+      // 404, not 403 -- a canonical_ref outside the caller's own estate
+      // must never confirm the estate itself exists.
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    const result = await initiateSpatialDeviceAction({
+      estateId,
+      canonicalRef,
+      operation,
+      channelCode: req.body?.channel_code ? String(req.body.channel_code) : null,
+      confirm: req.body?.confirm === true,
+      idempotencyKey: req.body?.idempotency_key ? String(req.body.idempotency_key) : null,
+      actor: req.user,
+    });
+
+    if (result.status === "not_found") return res.status(404).json({ error: "Not found" });
+    if (result.status === "ambiguous") return res.status(409).json({ error: "This reference is ambiguous and cannot be safely resolved." });
+    if (result.status === "unsupported") return res.status(422).json({ error: result.reason });
+    if (result.status === "permission_denied") return res.status(403).json({ error: "You are not authorized to perform this device action.", reason: result.reason });
+    return res.json(result.outcome);
+  } catch (error: any) {
+    console.error("createSpatialDeviceAction error:", error);
+    return res.status(500).json({ error: "Unable to process this spatial device action right now." });
   }
 }
 

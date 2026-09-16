@@ -22,6 +22,7 @@ import {
   assignUserToRoom,
   getFacilitySpatialReadiness,
   getSpatialFacilityContext,
+  createSpatialDeviceAction,
 } from "../controllers/facility.controller";
 import {
   listEstateInvites,
@@ -92,6 +93,17 @@ router.get("/estates/:estateId/spatial-readiness", requireAuth, requirePermissio
  * still enforces its own existing Facility permission.
  */
 router.get("/estates/:estateId/spatial-context/:canonicalRef", requireAuth, requirePermission("twin.view"), getSpatialFacilityContext);
+
+/**
+ * Facility Spatial Mode Convergence, Foundation Slice 4: Governed Spatial
+ * Actions. Devices only. twin.control opens this surface; the SAME
+ * underlying devices.control permission, home scope and
+ * devices.power.control explicit-confirmation policy an equivalent
+ * conversational command requires are enforced identically inside
+ * initiateSpatialDeviceAction. Never mutates local Twin state, never
+ * calls a provider directly from this layer.
+ */
+router.post("/estates/:estateId/spatial-actions", requireAuth, requirePermission("twin.control"), createSpatialDeviceAction);
 
 /**
  * Homes
