@@ -13,6 +13,10 @@ import { resolveCanonicalRef } from "./canonicalReferenceResolver";
 // calls oyiCoreRuntime.receiveSignal() rather than control-plane's
 // handleSignal() wrapper.
 import { submitCanonicalSignal } from "../oyi-core/ingress/canonicalSignalIngress";
+// Camera Intelligence Convergence Wave -- additive canonical health
+// ingress for upsertCameraInfrastructure() below. See
+// oyi-core/domains/camera/cameraCanonicalSignal.ts.
+import { classifyCameraHealthTransition, submitCameraHealthCanonicalSignal } from "../oyi-core/domains/camera/cameraCanonicalSignal";
 
 type Actor = { id: string; role?: string; estate_id?: string | null; home_id?: string | null; permissions?: string[]; permission_scopes?: string[] };
 
@@ -506,18 +510,49 @@ export const platformGapService = {
     if (!camera_id) throw new Error("camera_id is required");
     const { data: canonicalCamera, error: cameraError } = await supabaseAdmin
       .from("facility_cameras")
-      .select("id,estate_id")
+      .select("id,estate_id,name")
       .eq("id", camera_id)
       .eq("estate_id", estate_id)
       .maybeSingle();
     if (cameraError) throw cameraError;
     if (!canonicalCamera) throw new Error("Canonical facility camera is required for this projection");
+    // Additive: read the PRIOR projection row before the (unchanged)
+    // upsert below, solely to classify whether health_state genuinely
+    // changed. See classifyCameraHealthTransition().
+    const { data: priorInfrastructure } = await supabaseAdmin
+      .from("camera_infrastructure")
+      .select("health_state,metadata")
+      .eq("estate_id", estate_id)
+      .eq("camera_id", camera_id)
+      .maybeSingle();
     const payload = { estate_id, camera_id, placement_id: body.placement_id || null, zone: body.zone || null, area_owner: body.area_owner || null, infrastructure_relationship: body.infrastructure_relationship || null, health_state: body.health_state || "awaiting_telemetry", metadata: cleanObject(body.metadata), updated_at: new Date().toISOString() };
     const { data, error } = await supabaseAdmin.from("camera_infrastructure").upsert(payload as any, { onConflict: "estate_id,camera_id" }).select("*").single();
     if (error) throw error;
     if (body.health_state) await supabaseAdmin.from("camera_health_history").insert({ estate_id, camera_id, health_state: body.health_state, stream_state: body.stream_state || null, event_type: body.event_type || "health", metadata: cleanObject(body.history_metadata) } as any);
     await audit(current, "camera.infrastructure.updated", data.id, { camera_id }, req);
     emit("camera.status.updated", estate_id, { camera_infrastructure: data });
+    // Additive canonical Core ingress -- only for a genuine health_state
+    // transition, never every projection write. Everything above
+    // (upsert, history insert, audit, realtime emit) is unchanged.
+    // Only classify when a prior projection row genuinely existed --
+    // otherwise there is nothing real to diff against, and treating "no
+    // prior state" as a "connectivity_restored" transition would be a
+    // fabricated transition.
+    const healthTransition = priorInfrastructure
+      ? classifyCameraHealthTransition(priorInfrastructure.health_state, data.health_state)
+      : null;
+    if (healthTransition) {
+      void submitCameraHealthCanonicalSignal({
+        cameraId: camera_id,
+        cameraName: canonicalCamera.name || null,
+        estateId: estate_id,
+        homeId: (data.metadata as any)?.home_id || (priorInfrastructure?.metadata as any)?.home_id || null,
+        transition: healthTransition,
+        previousStatus: priorInfrastructure?.health_state || null,
+        nextStatus: data.health_state,
+        observedAt: new Date().toISOString(),
+      });
+    }
     return { ok: true, camera_infrastructure: data };
   },
 

@@ -9,6 +9,11 @@ import { normalizeIntelligenceEvent, publishIntelligenceEvent } from "../intelli
 import { publicDiscoveryCandidate, safeGatewayError, sanitizeDiscoveryCandidate, validateDiscoveryRequest } from "../modules/cameras/cameraGateway";
 import { ingestEdgeMedia } from "../modules/cameras/cameraMedia.service";
 import { ingestEdgeDetections } from "../modules/cameras/cameraDetection.service";
+// Oyi Intelligence Convergence, Camera Intelligence Convergence Wave --
+// additive canonical Core ingress alongside the existing emitEdgeSignal()
+// realtime broadcast below, which stays UNCHANGED. See
+// oyi-core/domains/camera/cameraCanonicalSignal.ts.
+import { classifyCameraHealthTransition, submitCameraHealthCanonicalSignal } from "../oyi-core/domains/camera/cameraCanonicalSignal";
 
 export const edgeDiscoveryRouter = Router();
 
@@ -442,10 +447,29 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeTok
   } as any;
   Object.keys(update).forEach((key) => update[key] === undefined && delete update[key]);
 
-  let data: any = null;
-  let error: any = null;
   const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cameraId);
   const matchers = uuidLike ? ["id", "camera_id", "ip"] : ["camera_id", "ip"];
+
+  // Additive: read the PRIOR status before the (unchanged) update below,
+  // solely to classify whether this heartbeat is an intelligence-worthy
+  // transition or routine transport noise. See classifyCameraHealthTransition().
+  let priorCamera: any = null;
+  for (const field of matchers) {
+    const result = await supabaseAdmin
+      .from("facility_cameras")
+      .select("id,status,health_status,name,metadata")
+      .eq("estate_id", siteId)
+      .eq("edge_node_id", agentId)
+      .eq(field, cameraId)
+      .maybeSingle();
+    if (result.data) {
+      priorCamera = result.data;
+      break;
+    }
+  }
+
+  let data: any = null;
+  let error: any = null;
   for (const field of matchers) {
     const result = await supabaseAdmin
       .from("facility_cameras")
@@ -465,6 +489,33 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeTok
   }
 
   emitEdgeSignal("camera.status.updated", { ...payload, site_id: siteId, home_id:data?.metadata?.home_id, agent_id:agentId, camera_id:cameraId, status });
+
+  // Additive canonical Core ingress -- only for a genuine health
+  // transition, never every heartbeat. Everything above (facility_cameras
+  // update, realtime broadcast) is unchanged.
+  // Only classify when a prior row genuinely existed -- otherwise there
+  // is nothing real to diff against, and treating "no prior state" as a
+  // "connectivity_restored" transition would be a fabricated transition.
+  const healthTransition = priorCamera
+    ? classifyCameraHealthTransition(priorCamera.status, status, {
+        tamper: /tamper/i.test(String(payload.provider_error || payload.error_message || "")),
+        recorderFailure: /recorder|nvr|dvr/i.test(String(payload.provider_error || payload.error_message || "")),
+      })
+    : null;
+  if (healthTransition) {
+    void submitCameraHealthCanonicalSignal({
+      cameraId: (data || priorCamera)?.id || cameraId,
+      cameraName: (data || priorCamera)?.name || null,
+      estateId: siteId,
+      homeId: priorCamera?.metadata?.home_id || null,
+      transition: healthTransition,
+      previousStatus: priorCamera?.status || null,
+      nextStatus: status,
+      observedAt: nowIso(),
+      latencyMs: Number.isFinite(Number(payload.latency_ms)) ? Number(payload.latency_ms) : null,
+      providerError: asString(payload.provider_error || payload.error_message) || null,
+    });
+  }
 
   return res.status(error ? 202 : 200).json({
     ok: !error,
