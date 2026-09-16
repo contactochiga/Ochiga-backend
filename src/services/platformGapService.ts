@@ -4,6 +4,15 @@ import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
 import { emitAuditEvent } from "../core/foundation/audit";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { resolveCanonicalRef } from "./canonicalReferenceResolver";
+// Oyi Intelligence Convergence, Wave 0 -- additive canonical Core signal
+// ingress for the two producers in scope for this slice (Facility
+// incident creation, Twin state updates). Existing realtime broadcast
+// (emit()/emitSignal()) and legacy publication (publishSourceIntelligenceEvent)
+// below are UNCHANGED; this only adds a third, canonical path alongside
+// them. See src/oyi-core/ingress/canonicalSignalIngress.ts for why this
+// calls oyiCoreRuntime.receiveSignal() rather than control-plane's
+// handleSignal() wrapper.
+import { submitCanonicalSignal } from "../oyi-core/ingress/canonicalSignalIngress";
 
 type Actor = { id: string; role?: string; estate_id?: string | null; home_id?: string | null; permissions?: string[]; permission_scopes?: string[] };
 
@@ -50,6 +59,42 @@ async function audit(actorValue: Actor, action: string, resourceId: string, meta
 
 function emit(event: string, estateId: string | null | undefined, payload: Record<string, any>) {
   emitSignal(makeBaseSignal({ type: event, source: "facility.platform", estateId: estateId || undefined, payload } as any));
+}
+
+// Oyi Intelligence Convergence, Wave 0 -- additive canonical Core signal
+// ingress for the "twin.state.updated" producer (registerModel/
+// updateModel/upsertPlacement below, the one meaningful operational Twin
+// state producer in scope for this slice -- not every UI selection/
+// navigation/camera movement, which never reaches this backend service
+// at all). Called ALONGSIDE the existing emit("twin.state.updated", ...)
+// broadcast above, never instead of it.
+function emitTwinStateCanonicalSignal(input: {
+  estateId: string | null | undefined;
+  kind: "model" | "placement";
+  record: Record<string, any>;
+  actorId?: string | null;
+}) {
+  const record = input.record || {};
+  void submitCanonicalSignal({
+    type: "twin.state.updated",
+    domain: "twin",
+    source: "digital_twin",
+    origin: "facility_app",
+    estateId: input.estateId || record.estate_id || null,
+    buildingId: record.building_id || null,
+    unitId: record.home_id || record.room_id || null,
+    entity: {
+      id: record.id || null,
+      type: input.kind === "model" ? "twin_model" : "twin_entity_placement",
+      name: record.name || record.label || record.entity_type || null,
+      status: record.state || record.location_state || null,
+    },
+    actor: { id: input.actorId || record.created_by || record.assigned_by || null },
+    triggerReason: input.kind === "model" ? "twin_model_state_changed" : "twin_entity_placement_changed",
+    correlationId: `twin_state:${input.kind}:${record.id || "unknown"}`,
+    verified: true,
+    metadata: { kind: input.kind, source_table: input.kind === "model" ? "twin_models" : "twin_entity_placements" },
+  });
 }
 
 async function scopedEstate(req: Request) {
@@ -128,6 +173,28 @@ export async function createFacilityIncident(input: {
     { source_table: "facility_incidents", source_event_id: `${data.id}:security.incident.created` }
   );
 
+  // Additive canonical Core ingress -- ALSO submits this incident into
+  // oyiCoreRuntime.receiveSignal() so Facility incidents are reachable by
+  // Core's awareness/reasoning, without touching the emit()/
+  // publishSourceIntelligenceEvent() calls above. Never blocks or throws
+  // back into this write (see canonicalSignalIngress.ts).
+  void submitCanonicalSignal({
+    type: "facility.incident.created",
+    domain: "security",
+    source: "facility_incident_registry",
+    origin: "facility_app",
+    estateId: input.estateId,
+    unitId: input.homeId || input.roomId || null,
+    entity: { id: data.id, type: "facility_incident", name: data.title, status: data.status },
+    actor: { id: input.actorId, type: "operator" },
+    severity: data.severity,
+    triggerReason: data.description || null,
+    correlationId: `facility_incident:${data.id}`,
+    verified: true,
+    evidence: [{ type: "facility_incident_row", source: "facility_incidents", summary: data.title, timestamp: data.created_at }],
+    metadata: { incident_type: data.incident_type, source_table: "facility_incidents" },
+  });
+
   return data;
 }
 
@@ -184,6 +251,7 @@ export const platformGapService = {
     if (error) throw error;
     await audit(current, "twin.model.registered", data.id, { source_type: payload.source_type, state: payload.state }, req);
     emit("twin.state.updated", estate_id, { model: data });
+    emitTwinStateCanonicalSignal({ estateId: estate_id, kind: "model", record: data, actorId: current.id });
     return { ok: true, model: data };
   },
 
@@ -197,6 +265,7 @@ export const platformGapService = {
     if (error) throw error;
     await audit(current, "twin.model.updated", data.id, { state: data.state }, req);
     emit("twin.state.updated", data.estate_id, { model: data });
+    emitTwinStateCanonicalSignal({ estateId: data.estate_id, kind: "model", record: data, actorId: current.id });
     return { ok: true, model: data };
   },
 
@@ -230,6 +299,7 @@ export const platformGapService = {
     if (error) throw error;
     await audit(current, "twin.entity.placed", data.id, { entity_type, entity_id, location_state }, req);
     emit("twin.state.updated", estate_id, { placement: data });
+    emitTwinStateCanonicalSignal({ estateId: estate_id, kind: "placement", record: data, actorId: current.id });
     return { ok: true, placement: data };
   },
 
