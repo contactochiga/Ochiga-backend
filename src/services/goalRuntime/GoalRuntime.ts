@@ -5,6 +5,7 @@
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { GoalRecord, GoalStatus } from "../../contracts/goal";
+import { GOAL_TERMINAL_STATUSES } from "../../contracts/goal";
 
 function rowToRecord(row: any): GoalRecord {
   return {
@@ -129,6 +130,23 @@ export class GoalRuntime {
       .limit(limit);
     if (error || !data) return [];
     return data.map(rowToRecord);
+  }
+
+  // Oyi Communications Convergence, Slice 1 -- the idempotency guard for
+  // system-initiated (not staff-conversational) goal creation: a
+  // material-event replay, or any other automatic trigger, must never
+  // produce a second active follow-up goal for the same lead. Filters
+  // client-side on the already-fetched rows (not a jsonb query) since a
+  // lead has at most a handful of goals in practice and this keeps the
+  // method simple; revisit with a real query if that assumption changes.
+  async findActiveForLead(leadId: string): Promise<GoalRecord[]> {
+    if (!leadId) return [];
+    const { data, error } = await supabaseAdmin
+      .from("oyi_goals")
+      .select("*")
+      .contains("target_entities", JSON.stringify({ lead_id: leadId }));
+    if (error || !data) return [];
+    return data.map(rowToRecord).filter((goal) => !GOAL_TERMINAL_STATUSES.includes(goal.status));
   }
 
   // Event-driven wake (Part C -- "prefer events over polling"): every

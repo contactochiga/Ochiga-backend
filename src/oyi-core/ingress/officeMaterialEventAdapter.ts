@@ -22,8 +22,18 @@
 // "duplicate signal ignored" awareness envelope, not an error) rather
 // than a second observation.
 import { submitCanonicalSignal } from "./canonicalSignalIngress";
-import type { CorporateMaterialEvent } from "../../contracts/corporateIntelligence";
-import { assessJvOpportunity, type JvEvidence, type JvStrategy } from "../domains/development/developmentJv";
+import type { CorporateMaterialEvent, CorporateCommunicationContext } from "../../contracts/corporateIntelligence";
+import { assessJvOpportunity, type JvAssessment, type JvEvidence, type JvStrategy } from "../domains/development/developmentJv";
+import {
+  relationshipCommunicationPolicyForJv,
+  composeRelationshipAcknowledgement,
+  preferredSupportedChannel,
+} from "../domains/development/relationshipCommunicationPolicy";
+import { goalRuntime } from "../../services/goalRuntime/GoalRuntime";
+import { isOptedOut } from "../../services/communicationRuntime/optOutService";
+import { logger } from "../../observability/logger";
+import type { GoalTargetEntities } from "../../contracts/goal";
+import type { CommunicationRecipient } from "../../contracts/communication";
 
 function text(value: unknown) {
   return String(value ?? "").trim() || null;
@@ -54,9 +64,140 @@ function jvEvidenceFromMaterialEvent(event: CorporateMaterialEvent): JvEvidence 
   };
 }
 
+// Oyi Communications Convergence, Slice 1 -- connects the EXISTING
+// Development/JV assessment to the EXISTING GoalRuntime. No new
+// scheduler, no new execution mechanism: this only decides WHETHER a
+// bounded, single-step follow-up goal should exist, then hands it to
+// goalRuntime.create() exactly as ConversationOrchestrator's own
+// conversational goal creation does. Never throws -- a failure here
+// must never corrupt or roll back the CRM material event this was
+// triggered by (same contract as submitCanonicalSignal() itself).
+async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent, assessment: JvAssessment): Promise<void> {
+  try {
+    const leadId = event.crm?.lead_id || null;
+    if (!leadId) return;
+
+    const communicationContext: CorporateCommunicationContext | null = event.communication_context || null;
+    const policy = relationshipCommunicationPolicyForJv(assessment, communicationContext);
+    if (policy !== "ACKNOWLEDGE_ONLY" && policy !== "CONTINUE_RELATIONSHIP" && policy !== "REQUEST_MORE_INFORMATION") {
+      logger.info("development_relationship_goal_skipped", { lead_id: leadId, policy, event_id: event.event_id });
+      return;
+    }
+
+    const channel = preferredSupportedChannel(communicationContext);
+    if (!channel) return; // relationshipCommunicationPolicyForJv already implies this, re-checked for type-narrowing safety.
+
+    const whatsappPhone = communicationContext?.whatsapp_phone || communicationContext?.phone || null;
+    if (!whatsappPhone) return;
+
+    // Precondition: not opted out. This mirrors the SAME chokepoint
+    // CommunicationRuntime.plan() checks before any send -- checked here
+    // too so an opted-out contact never even gets a goal created for
+    // them, not just blocked at send time.
+    const recipient: CommunicationRecipient = {
+      contact_id: null,
+      lead_id: leadId,
+      user_id: null,
+      organization_id: null,
+      name: null,
+      email: communicationContext?.email || null,
+      phone: communicationContext?.phone || null,
+      whatsapp_phone: whatsappPhone,
+    };
+    if (await isOptedOut("whatsapp", recipient)) {
+      logger.info("development_relationship_goal_skipped", { lead_id: leadId, policy, reason: "opted_out" });
+      return;
+    }
+
+    // Idempotency: the same material event replayed (or a second
+    // development_enquiry_received for a lead that already has one
+    // in flight) must never create a second active goal.
+    const existing = await goalRuntime.findActiveForLead(leadId);
+    if (existing.length > 0) {
+      logger.info("development_relationship_goal_skipped", { lead_id: leadId, policy, reason: "active_goal_exists", existing_goal_id: existing[0].id });
+      return;
+    }
+
+    const body = composeRelationshipAcknowledgement(assessment, policy);
+    if (!body) return;
+
+    const targetEntities: GoalTargetEntities = {
+      lead_id: leadId,
+      contact_id: null,
+      user_id: null,
+      organization_id: null,
+      name: event.subject?.label || null,
+      email: communicationContext?.email || null,
+      phone: communicationContext?.phone || null,
+      whatsapp_phone: whatsappPhone,
+    };
+    const nowIso = new Date().toISOString();
+    // A single bounded step -- send the acknowledgement once. Follow-up
+    // beyond this first message (a real staged plan, reply_branches
+    // tuned per policy) is explicitly Slice 2 scope; this proves the
+    // activation path end to end without overreaching this slice.
+    const threadReference = `whatsapp:${whatsappPhone}`;
+    const goal = await goalRuntime.create({
+      correlation_id: event.idempotency_key,
+      requesting_actor_id: null,
+      surface: "office_material_event",
+      conversation_thread_id: null,
+      organization_scope: null,
+      objective: `Development/JV relationship communication for ${event.subject?.label || "lead"} (${policy}).`,
+      target_entities: targetEntities,
+      status: "active",
+      success_condition: { type: "reply_received" },
+      stop_condition: { type: "deadline_passed" },
+      reply_branches: [],
+      plan: [
+        {
+          step_index: 0,
+          channel: "whatsapp",
+          action_type: "send_communication",
+          body,
+          wait_hours: 0,
+          skip_if: null,
+          status: "pending",
+          executed_at: null,
+          result: null,
+        },
+      ],
+      current_step_index: 0,
+      // Bounded: a real deadline and a small max_attempts, per the
+      // task's explicit "Goal has a bounded maximum attempt/deadline;
+      // stop conditions exist" requirement.
+      schedule: { deadline: new Date(Date.now() + 14 * 24 * 3600_000).toISOString(), recurrence: null, timezone: null },
+      event_conditions: [],
+      communication_preferences: { allowed_channels: ["whatsapp"], escalation_policy: "notify_requester" },
+      max_attempts: 3,
+      attempts_completed: 0,
+      observations: [],
+      evidence: [],
+      linked_crm_records: { lead_id: leadId },
+      linked_tasks: [],
+      linked_meetings: [],
+      linked_automations: [],
+      linked_communication_threads: [threadReference],
+      execution_history: [],
+      last_evaluated_at: null,
+      // Due immediately -- the next scheduler tick (or an operator
+      // triggering one) picks this up and dispatches step 0 through the
+      // existing evaluateGoal() -> CommunicationRuntime path, no new
+      // execution mechanism.
+      next_evaluation_at: nowIso,
+      completion_reason: null,
+    });
+    logger.info("development_relationship_goal_created", { lead_id: leadId, goal_id: goal.id, policy, channel });
+  } catch (error) {
+    logger.error("development_relationship_goal_activation_failed", { error, event_id: event.event_id });
+  }
+}
+
 export async function submitOfficeMaterialEventCanonicalSignal(event: CorporateMaterialEvent, options: { jvStrategy?: JvStrategy } = {}) {
   const isDevelopmentEnquiry = event.event_type === "development_enquiry_received";
   const jvAssessment = isDevelopmentEnquiry ? assessJvOpportunity(jvEvidenceFromMaterialEvent(event), options.jvStrategy) : null;
+
+  if (jvAssessment) void activateDevelopmentRelationshipGoal(event, jvAssessment);
 
   return submitCanonicalSignal({
     // Reuses the event's own type verbatim as the canonical type --
