@@ -5,6 +5,11 @@ import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.s
 import { canAccessCamera, requireCameraAccess } from "../modules/cameras/cameraAccess.policy";
 import { normalizeIntelligenceEvent, publishIntelligenceEvent } from "../intelligence-core";
 import { mediaReference } from "../modules/cameras/cameraMedia.service";
+// Oyi Intelligence Convergence, Camera Intelligence Convergence Wave --
+// additive canonical Core ingress alongside the existing
+// publishIntelligenceEvent()/NotificationService calls below, which stay
+// UNCHANGED. See oyi-core/domains/camera/cameraCanonicalSignal.ts.
+import { submitCameraDetectionCanonicalSignal } from "../oyi-core/domains/camera/cameraCanonicalSignal";
 
 const DEFAULT_REPORT_LIMIT = 2000;
 
@@ -306,6 +311,26 @@ export async function createEvent(req: Request, res: Response) {
   const intelligenceBus = await publishIntelligenceEvent(coreEvent, {
     source_table: "camera_events",
     source_event_id: String(data?.id || ""),
+  });
+
+  // Additive canonical Core ingress. This endpoint has no persisted
+  // "previous status" to diff against (it inserts a discrete
+  // camera_events row, not a continuous status field), so every event
+  // type it accepts -- including the maintenance-flagged ones such as
+  // "camera_offline"/"camera_tamper" -- is submitted as a detection-shaped
+  // observation rather than a fabricated health transition. Everything
+  // above (persistence, notification routing) is unchanged.
+  void submitCameraDetectionCanonicalSignal({
+    cameraId,
+    cameraName: cam.name || null,
+    estateId: String(cam.estate_id || ""),
+    homeId: (cam as any).metadata?.home_id || null,
+    detectionType: eventType,
+    confidence,
+    observedAt: String(data?.source_timestamp || data?.created_at || new Date().toISOString()),
+    eventId: String(data?.id || ""),
+    provider: String(req.body?.metadata?.source || "camera_intel_api"),
+    actorId: user.id,
   });
 
   return res.json({ ok: true, event: data, intelligence_event: coreEvent, intelligence_bus: intelligenceBus });
