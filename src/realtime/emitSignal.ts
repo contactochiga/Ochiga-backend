@@ -2,6 +2,7 @@ import { getIO } from "./io";
 import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import type { Signal } from "../core/control-plane/contracts/signal.types";
 import { oyiCoreRuntime } from "../oyi-core/service";
+import { logger } from "../observability/logger";
 
 export type EmitSignalOptions = {
   // Oyi Intelligence Convergence, Signal Transport Convergence Slice --
@@ -79,6 +80,26 @@ export async function emitSignal(signal: Signal, options: EmitSignalOptions = {}
     if (userId) io.to(`user:${userId}`).emit(standardEvent, payload);
     if (deviceId) io.to(`device:${deviceId}`).emit(standardEvent, payload);
   }
+}
+
+// Oyi Intelligence Convergence, Canonical Signal Path Hardening Slice --
+// the safe fire-and-forget pattern for emitSignal() callers. Realtime
+// transport is deliberately fire-and-forget: a caller's already-successful
+// domain write must never wait on, or be rolled back by, a broadcast --
+// but emitSignal() is async, and calling it without a rejection handler
+// risks an unhandled promise rejection (which can terminate the process
+// depending on Node's unhandledRejection mode). This does the minimum
+// required to be safe: catch, log via the real observability logger (not
+// silently swallowed), and stop -- no retry, no fallback Core ingestion
+// attempt (that would be a duplicate submission of the same event
+// through a different path, exactly what this programme is eliminating).
+export function emitSignalSafely(signal: Signal, options?: EmitSignalOptions) {
+  emitSignal(signal, options).catch((error) => {
+    logger.warn("realtime_emit_signal_failed", {
+      type: (signal as any)?.type || null,
+      error: (error as any)?.message || String(error),
+    });
+  });
 }
 
 export function standardRealtimeEvent(type?: string | null) {

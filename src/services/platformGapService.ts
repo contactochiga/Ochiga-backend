@@ -1,6 +1,6 @@
 import { Request } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
+import { emitSignalSafely, makeBaseSignal } from "../realtime/emitSignal";
 import { emitAuditEvent } from "../core/foundation/audit";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { resolveCanonicalRef } from "./canonicalReferenceResolver";
@@ -67,8 +67,13 @@ async function audit(actorValue: Actor, action: string, resourceId: string, meta
 // migrated to explicit canonical ingress in this slice, so it keeps
 // relying on that ambient path unchanged -- see this slice's report.
 const CANONICALLY_MIGRATED_EVENTS = new Set(["incident.created", "twin.state.updated"]);
+// Oyi Intelligence Convergence, Canonical Signal Path Hardening Slice --
+// emitSignalSafely() (not emitSignal() directly) so a rejected broadcast
+// is caught and logged rather than becoming an unhandled promise
+// rejection. This must never await, retry, or fall back to another Core
+// ingestion attempt -- see emitSignal.ts's emitSignalSafely() comment.
 function emit(event: string, estateId: string | null | undefined, payload: Record<string, any>) {
-  emitSignal(
+  emitSignalSafely(
     makeBaseSignal({ type: event, source: "facility.platform", estateId: estateId || undefined, payload } as any),
     CANONICALLY_MIGRATED_EVENTS.has(event) ? { skipCanonicalIngress: true } : undefined
   );

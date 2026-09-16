@@ -44,7 +44,7 @@ const notificationServiceModule = await import(path.join(root, "dist/services/No
 const deviceCommandControllerNamespace = await import(path.join(root, "dist/controllers/deviceCommandController.js"));
 const deviceCommandController = deviceCommandControllerNamespace.default;
 
-const originalEmitSignal = emitSignalModule.emitSignal;
+const originalEmitSignalSafely = emitSignalModule.emitSignalSafely;
 const originalPublish = intelligenceCoreModule.publishSourceIntelligenceEvent;
 const originalReceiveSignal = oyiCoreServiceModule.oyiCoreRuntime.receiveSignal.bind(oyiCoreServiceModule.oyiCoreRuntime);
 const originalSendToRole = notificationServiceModule.NotificationService.sendToRole;
@@ -197,7 +197,7 @@ await check("facility incident: existing behaviour intact + reaches Core exactly
   const emitSpy = spy(undefined);
   const publishSpy = spy({ ok: true });
   const receiveSpy = spy({ receipt: { accepted: true } });
-  emitSignalModule.emitSignal = emitSpy;
+  emitSignalModule.emitSignalSafely = emitSpy;
   intelligenceCoreModule.publishSourceIntelligenceEvent = publishSpy;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpy;
 
@@ -227,7 +227,7 @@ await check("facility incident: existing behaviour intact + reaches Core exactly
   need(signal.actor?.id === ACTOR_ID, "canonical actor id must be preserved");
   need(signal.correlationId === `facility_incident:${data.id}`, "canonical correlationId must be stable per incident row");
 
-  emitSignalModule.emitSignal = originalEmitSignal;
+  emitSignalModule.emitSignalSafely = originalEmitSignalSafely;
   intelligenceCoreModule.publishSourceIntelligenceEvent = originalPublish;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
 });
@@ -236,7 +236,7 @@ await check("facility incident: existing behaviour intact + reaches Core exactly
 // Facility write.
 await check("facility incident: unavailable Core ingress does not break the write", async () => {
   resetStore();
-  emitSignalModule.emitSignal = spy(undefined);
+  emitSignalModule.emitSignalSafely = spy(undefined);
   intelligenceCoreModule.publishSourceIntelligenceEvent = spy({ ok: true });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = () => Promise.reject(new Error("core_unavailable"));
 
@@ -244,7 +244,7 @@ await check("facility incident: unavailable Core ingress does not break the writ
   need(!!data?.id, "the incident row must still be created and returned even when Core ingress fails");
   need(facilityIncidents.length === 1, "the facility_incidents write must not be rolled back by a Core failure");
 
-  emitSignalModule.emitSignal = originalEmitSignal;
+  emitSignalModule.emitSignalSafely = originalEmitSignalSafely;
   intelligenceCoreModule.publishSourceIntelligenceEvent = originalPublish;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
 });
@@ -258,7 +258,7 @@ await check("twin model registration: existing behaviour intact + reaches Core e
   resetStore();
   const emitSpy = spy(undefined);
   const receiveSpy = spy({ receipt: { accepted: true } });
-  emitSignalModule.emitSignal = emitSpy;
+  emitSignalModule.emitSignalSafely = emitSpy;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpy;
 
   const result = await platformGapService.registerModel(fakeReq({ body: { name: "Luna Model", source_type: "glb", state: "uploaded" } }));
@@ -280,7 +280,7 @@ await check("twin model registration: existing behaviour intact + reaches Core e
   need(signal.entity?.type === "twin_model", "canonical entity type must be twin_model");
   need(signal.actor?.id === ACTOR_ID, "canonical actor id must be preserved");
 
-  emitSignalModule.emitSignal = originalEmitSignal;
+  emitSignalModule.emitSignalSafely = originalEmitSignalSafely;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
 });
 
@@ -289,7 +289,7 @@ await check("twin placement upsert: existing behaviour intact + reaches Core exa
   resetStore();
   const emitSpy = spy(undefined);
   const receiveSpy = spy({ receipt: { accepted: true } });
-  emitSignalModule.emitSignal = emitSpy;
+  emitSignalModule.emitSignalSafely = emitSpy;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpy;
 
   const result = await platformGapService.upsertPlacement(fakeReq({ body: { entity_type: "device", entity_id: "device-9", coordinates: { x: 1, y: 2, z: 0 }, home_id: "home-1" } }));
@@ -303,7 +303,7 @@ await check("twin placement upsert: existing behaviour intact + reaches Core exa
   need(signal.entity?.id === result.placement.id, "canonical entity id must be the real placement row id");
   need(signal.unitId === "home-1", "canonical unitId must carry the placement's home id");
 
-  emitSignalModule.emitSignal = originalEmitSignal;
+  emitSignalModule.emitSignalSafely = originalEmitSignalSafely;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
 });
 
@@ -320,7 +320,7 @@ await check("no duplicate NotificationService delivery or device execution is in
   notificationServiceModule.NotificationService.sendToEstate = notifyEstateSpy;
   notificationServiceModule.NotificationService.sendToUser = notifyUserSpy;
   deviceCommandController.executeDeviceCommandForActor = execSpy;
-  emitSignalModule.emitSignal = spy(undefined);
+  emitSignalModule.emitSignalSafely = spy(undefined);
   intelligenceCoreModule.publishSourceIntelligenceEvent = spy({ ok: true });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = spy({ receipt: { accepted: true } });
 
@@ -336,7 +336,7 @@ await check("no duplicate NotificationService delivery or device execution is in
   notificationServiceModule.NotificationService.sendToEstate = originalSendToEstate;
   notificationServiceModule.NotificationService.sendToUser = originalSendToUser;
   deviceCommandController.executeDeviceCommandForActor = originalExecuteDeviceCommandForActor;
-  emitSignalModule.emitSignal = originalEmitSignal;
+  emitSignalModule.emitSignalSafely = originalEmitSignalSafely;
   intelligenceCoreModule.publishSourceIntelligenceEvent = originalPublish;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
 });
@@ -362,7 +362,7 @@ await check("one-ingress invariant: live Socket.IO does not cause a second Core 
   let roomEmitCount = 0;
   const fakeIo = { to: () => ({ emit: () => { roomEmitCount += 1; } }), emit: () => { roomEmitCount += 1; } };
   ioModule.setIO(fakeIo);
-  emitSignalModule.emitSignal = originalEmitSignal; // use the REAL emitSignal for this test
+  emitSignalModule.emitSignalSafely = originalEmitSignalSafely; // use the REAL emitSignal for this test
 
   const data = await createFacilityIncident({ estateId: ESTATE_ID, title: "Live IO incident", actorId: ACTOR_ID });
 
@@ -378,33 +378,50 @@ await check("one-ingress invariant: live Socket.IO does not cause a second Core 
 });
 
 // 7. Broadcasting failure must not erase a successful canonical
-// ingestion -- canonical ingestion (submitCanonicalSignal ->
-// receiveSignal) and realtime broadcast (emitSignal) are independent,
-// parallel, fire-and-forget calls; one failing must not affect the
-// other or the underlying write.
-await check("broadcast failure does not erase a successful canonical ingestion", async () => {
+// ingestion, must be caught (never an unhandled promise rejection), and
+// must be observable (logged), exercising the REAL emitSignalSafely() ->
+// emitSignal() chain end-to-end -- not a re-mocked stand-in for it.
+await check("broadcast failure is caught, observable, and does not create an unhandled rejection", async () => {
   resetStore();
   const receiveSpy = spy({ receipt: { accepted: true } });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpy;
   intelligenceCoreModule.publishSourceIntelligenceEvent = spy({ ok: true });
-  // The real emitSignal() is an async function -- a thrown/rejected
-  // failure inside it always surfaces as a rejected Promise, never a
-  // synchronous throw to the caller (emit() calls it without awaiting,
-  // exactly like production). Attach a no-op .catch() so this
-  // deliberately-unhandled-by-the-caller rejection doesn't crash the
-  // test process itself, matching real emitSignal()'s actual contract.
-  emitSignalModule.emitSignal = () => {
-    const failed = Promise.reject(new Error("socket.io broadcast failed"));
-    failed.catch(() => {});
-    return failed;
-  };
+  emitSignalModule.emitSignalSafely = originalEmitSignalSafely; // exercise the REAL safety wrapper
+
+  const loggerNamespace = await import(path.join(root, "dist/observability/logger.js"));
+  const originalLoggerWarn = loggerNamespace.logger.warn;
+  const warnSpy = spy(undefined);
+  loggerNamespace.logger.warn = warnSpy;
+
+  // Force the REAL emitSignal()'s io.to(...).emit(...) call to throw --
+  // exactly the kind of real transport failure emitSignalSafely() must
+  // survive. emitSignal() is `async`, so a synchronous throw inside it
+  // is automatically converted into a rejected Promise by the JS
+  // runtime -- this exercises emitSignalSafely()'s real .catch(), not a
+  // simulated one.
+  const throwingIo = { to: () => { throw new Error("socket.io broadcast failed"); }, emit: () => {} };
+  ioModule.setIO(throwingIo);
+
+  let unhandled = null;
+  const onUnhandledRejection = (reason) => { unhandled = reason; };
+  process.on("unhandledRejection", onUnhandledRejection);
 
   const data = await createFacilityIncident({ estateId: ESTATE_ID, title: "Broadcast failure incident", actorId: ACTOR_ID });
+  // Let the fire-and-forget emitSignalSafely() rejection handler (and
+  // the Node unhandledRejection detector, which fires on a later
+  // microtask/macrotask turn) actually run before asserting on them.
+  await new Promise((resolve) => setImmediate(resolve));
+
+  process.off("unhandledRejection", onUnhandledRejection);
+  ioModule.setIO(null);
 
   need(!!data?.id, "the incident row must still be created even if the realtime broadcast throws");
   need(receiveSpy.calls.length === 1, `canonical ingestion must still have happened exactly once despite the broadcast failure, got ${receiveSpy.calls.length}`);
+  need(unhandled === null, `broadcast failure must not become an unhandled promise rejection, got: ${unhandled?.message || unhandled}`);
+  need(warnSpy.calls.length === 1, `broadcast failure must be observable via exactly one logged warning, got ${warnSpy.calls.length}`);
+  need(warnSpy.calls[0]?.[0] === "realtime_emit_signal_failed", `the log event name must identify this as a realtime emit failure, got ${warnSpy.calls[0]?.[0]}`);
 
-  emitSignalModule.emitSignal = originalEmitSignal;
+  loggerNamespace.logger.warn = originalLoggerWarn;
   intelligenceCoreModule.publishSourceIntelligenceEvent = originalPublish;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
 });
@@ -417,7 +434,7 @@ await check("Core ingestion failure semantics are independent of Socket.IO state
   resetStore();
   const fakeIo = { to: () => ({ emit: () => {} }), emit: () => {} };
   ioModule.setIO(fakeIo);
-  emitSignalModule.emitSignal = originalEmitSignal;
+  emitSignalModule.emitSignalSafely = originalEmitSignalSafely;
   intelligenceCoreModule.publishSourceIntelligenceEvent = spy({ ok: true });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = () => Promise.reject(new Error("core_unavailable"));
 
@@ -440,7 +457,7 @@ await check("Core ingestion failure semantics are independent of Socket.IO state
 // (see this slice's report).
 await check("compatibility: an unmigrated ambient-only producer (incident.updated) still reaches Core exactly once under live IO, zero with none", async () => {
   resetStore();
-  emitSignalModule.emitSignal = originalEmitSignal;
+  emitSignalModule.emitSignalSafely = originalEmitSignalSafely;
   intelligenceCoreModule.publishSourceIntelligenceEvent = spy({ ok: true });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = spy({ receipt: { accepted: true } });
 
