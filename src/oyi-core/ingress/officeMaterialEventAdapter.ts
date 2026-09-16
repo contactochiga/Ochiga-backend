@@ -31,6 +31,7 @@ import {
 } from "../domains/development/relationshipCommunicationPolicy";
 import { goalRuntime } from "../../services/goalRuntime/GoalRuntime";
 import { isOptedOut } from "../../services/communicationRuntime/optOutService";
+import { requestOfficeHandoff } from "./officeHandoffBridge";
 import { logger } from "../../observability/logger";
 import type { GoalTargetEntities } from "../../contracts/goal";
 import type { CommunicationRecipient } from "../../contracts/communication";
@@ -79,6 +80,30 @@ async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent
 
     const communicationContext: CorporateCommunicationContext | null = event.communication_context || null;
     const policy = relationshipCommunicationPolicyForJv(assessment, communicationContext);
+
+    // Oyi Communications Convergence, Slice 2 -- HANDOFF becomes
+    // executable: a real office_handoffs record, not just a logged
+    // decision. requestOfficeHandoff() is idempotent on Office's side
+    // (findActiveHandoffForLead), so a replayed material event or a
+    // repeated HANDOFF decision for the same lead never creates a
+    // duplicate. Never creates a Goal -- a human, not automation, owns
+    // this conversation from here.
+    if (policy === "HANDOFF") {
+      const result = await requestOfficeHandoff({
+        lead_id: leadId,
+        business_unit: "development",
+        requested_capability: "development.commercial_jv",
+        reason: `Oyi Core recommends human review (${assessment.recommended_next_step}).`,
+      });
+      logger.info("development_relationship_handoff_requested", {
+        lead_id: leadId,
+        event_id: event.event_id,
+        ok: result.ok,
+        reason: result.ok ? undefined : result.reason,
+      });
+      return;
+    }
+
     if (policy !== "ACKNOWLEDGE_ONLY" && policy !== "CONTINUE_RELATIONSHIP" && policy !== "REQUEST_MORE_INFORMATION") {
       logger.info("development_relationship_goal_skipped", { lead_id: leadId, policy, event_id: event.event_id });
       return;
