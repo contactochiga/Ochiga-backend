@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type { OyiWorkflow, WorkflowStatus } from "../contracts/workflow";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
+import type { OyiAction, OyiActionStatus } from "../contracts/action";
 import { assertWorkflowTransition, isTerminalWorkflowStatus } from "./WorkflowStateMachine";
 import type { WorkflowRepository } from "./WorkflowRepository";
 import { InMemoryWorkflowRepository, SupabaseWorkflowRepository } from "./WorkflowRepository";
@@ -9,6 +10,16 @@ import { operationalMetrics } from "../../observability/metrics";
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+// A finished OyiAction maps onto exactly one legal workflow terminal
+// status: confirmed/unobservable (the physical effect happened, or was
+// accepted and cannot be directly observed) both read as a completed
+// workflow; every other terminal action status reads as a failed
+// workflow. Shared by every caller of WorkflowService.advanceToTerminal()
+// so this mapping is defined in exactly one place.
+export function terminalWorkflowStatusForAction(actionStatus: OyiActionStatus): "completed" | "failed" {
+  return actionStatus === "confirmed" || actionStatus === "unobservable" ? "completed" : "failed";
 }
 
 export function createWorkflowForTurn(turn: ResolvedTurn, status: WorkflowStatus = "collecting_inputs"): OyiWorkflow {
@@ -241,6 +252,29 @@ export class WorkflowService {
   async attachAction(workflow: OyiWorkflow, actionId: string) {
     const next = { ...workflow, action_id: actionId, revision: workflow.revision + 1, updated_at: nowIso() };
     return this.repository.save(next, { expectedRevision: workflow.revision });
+  }
+
+  // Advances a workflow through the full legal WorkflowStateMachine chain
+  // (awaiting_approval -> approved -> executing -> verifying ->
+  // completed/failed) once its attached OyiAction has reached a terminal
+  // status. This is the ONE canonical path from "action just finished
+  // executing" to "workflow reflects that" -- every caller that drives an
+  // OyiWorkflow to completion after a governed device action (the
+  // conversational confirm-turn in ConversationOrchestrator and Spatial
+  // Mode's device actions) must go through this, not re-derive the
+  // transition chain itself. A workflow not currently in a state that can
+  // legally reach "approved" (i.e. not "awaiting_approval") throws from
+  // assertWorkflowTransition on the first step, same as any other illegal
+  // transition attempt.
+  async advanceToTerminal(workflow: OyiWorkflow, finalAction: OyiAction) {
+    let current = workflow;
+    current = await this.transition(current, "approved");
+    current = await this.transition(current, "executing");
+    current = await this.transition(current, "verifying");
+    current = await this.transition(current, terminalWorkflowStatusForAction(finalAction.status), {
+      execution_record: { action_id: finalAction.action_id, action_status: finalAction.status, result: finalAction.result || null },
+    });
+    return current;
   }
 }
 

@@ -324,9 +324,17 @@ async function durableWorkflowContinuationResult(context: CanonicalConversationR
     homeId: authority.scope.home_id,
     roomId: authority.scope.room_id,
   }));
-  const terminalWorkflow = await workflowService.transition(workflow, executed.status === "confirmed" || executed.status === "unobservable" ? "completed" : "failed", {
-    execution_record: { action_id: executed.action_id, action_status: executed.status, result: executed.result || null },
-  });
+  // The action already reached a terminal status by this point (confirmed/
+  // unobservable/failed/etc) -- the workflow must still traverse its own
+  // legal WorkflowStateMachine chain (awaiting_approval -> approved ->
+  // executing -> verifying -> completed/failed) to reach a matching
+  // terminal state. Transitioning straight from awaiting_approval to
+  // completed/failed is not a legal transition and previously threw here,
+  // uncaught, after the physical action had already succeeded -- see this
+  // slice's report. workflowService.advanceToTerminal() is the shared,
+  // canonical helper for this (also used by SpatialDeviceActionService.ts)
+  // so the chain is defined in exactly one place.
+  const terminalWorkflow = await workflowService.advanceToTerminal(workflow, executed);
   const target = executed.target.label || "the selected device";
   const answer = executed.status === "confirmed"
     ? `${target} command completed and was confirmed.`

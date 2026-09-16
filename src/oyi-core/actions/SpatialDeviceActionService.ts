@@ -39,7 +39,6 @@ import { DeviceConversationActionAdapter } from "../domains/devices/deviceAction
 import type { CanonicalTarget } from "../contracts/target";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import type { OyiAction, OyiActionStatus } from "../contracts/action";
-import type { OyiWorkflow } from "../contracts/workflow";
 
 // The one, real, production-registered device capability -- reused
 // verbatim, never duplicated. Its own definition (permission_requirements:
@@ -171,31 +170,6 @@ function toOutcome(action: OyiAction): SpatialDeviceActionOutcome {
   };
 }
 
-// completed/failed is the same terminal-workflow mapping the
-// conversational path uses (ConversationOrchestrator.ts,
-// durableWorkflowContinuationResult): confirmed/unobservable -> completed,
-// everything else terminal -> failed. Reused, not reinvented.
-function terminalWorkflowStatusFor(actionStatus: OyiActionStatus): "completed" | "failed" {
-  return actionStatus === "confirmed" || actionStatus === "unobservable" ? "completed" : "failed";
-}
-
-async function advanceWorkflowToTerminal(workflow: OyiWorkflow, finalAction: OyiAction) {
-  // The full legal WorkflowStateMachine chain: awaiting_approval ->
-  // approved -> executing -> verifying -> completed/failed. (Note:
-  // ConversationOrchestrator.ts's own confirm handler transitions
-  // awaiting_approval directly to completed/failed, which
-  // WorkflowStateMachine's ALLOWED map does not permit -- see this
-  // slice's final report. This function does not replicate that.)
-  let current = workflow;
-  current = await workflowService.transition(current, "approved");
-  current = await workflowService.transition(current, "executing");
-  current = await workflowService.transition(current, "verifying");
-  current = await workflowService.transition(current, terminalWorkflowStatusFor(finalAction.status), {
-    execution_record: { action_id: finalAction.action_id, action_status: finalAction.status, result: finalAction.result || null },
-  });
-  return current;
-}
-
 /**
  * Resolve a canonical_ref to a device and initiate (or confirm) a
  * governed device action through the existing ActionService/
@@ -311,7 +285,11 @@ export async function initiateSpatialDeviceAction(input: SpatialDeviceActionRequ
     homeId: scope.home_id,
     roomId: scope.room_id,
   }));
-  await advanceWorkflowToTerminal(workflow, executed);
+  // Shared canonical helper (WorkflowService.advanceToTerminal) -- also
+  // used by ConversationOrchestrator.ts's conversational device-command
+  // confirm turn, so the awaiting_approval -> approved -> executing ->
+  // verifying -> completed/failed chain is defined in exactly one place.
+  await workflowService.advanceToTerminal(workflow, executed);
 
   return { status: "action", outcome: toOutcome(executed) };
 }
