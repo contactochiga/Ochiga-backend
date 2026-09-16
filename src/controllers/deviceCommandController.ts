@@ -18,6 +18,7 @@ import {
   classifyCommandProviderError,
   upsertDeviceCommandExecution,
 } from "../services/deviceCommandExecutionStore";
+import { authorizeDeviceCommand } from "../oyi-core/actions/DeviceCommandAuthority";
 
 function textFromDevice(device: any) {
   return [
@@ -1445,6 +1446,40 @@ export async function requestDeviceCommand(req: Request, res: Response) {
       command,
       scope,
     });
+
+    // Oyi Intelligence Convergence, Wave 4 -- explicit capability/
+    // authority gate. Route-level requirePermission("devices.control")
+    // (devices.ts, facilityDevices.routes.ts, signals.ts) stays as
+    // defence in depth; capabilityService.canUse() is now the canonical
+    // authority decision, the SAME "devices.power.control" capability +
+    // check every other device action path (the conversational
+    // confirm-turn, Spatial Mode) already uses. Resolving a device by ID
+    // is no longer treated as sufficient authorization to control it.
+    const authority = authorizeDeviceCommand({
+      actor: user,
+      commandSource: source,
+      estateId: target.deviceRow?.estate_id || scope.estateId || null,
+      homeId: target.deviceRow?.home_id || scope.homeId || null,
+      roomId: target.deviceRow?.room_id || null,
+    });
+    if (!authority.allowed) {
+      return res.status(403).json({
+        error: "Not authorized to control this device.",
+        details: "Not authorized to control this device.",
+        reason: authority.reason,
+        required_permissions: authority.required_permissions,
+        accepted: false,
+        final: true,
+        request_status: "rejected",
+        provider_status: "not_started",
+        confirmation_status: "not_started",
+        physical_effect_status: "unknown",
+        final_status: "rejected",
+        truth_state: "permission_denied",
+        retryable: false,
+      });
+    }
+
     if (String(req.body?.target_type || "").toLowerCase() === "device_channel" && !commandChannelCode(target.normalizedCommand)) {
       return res.status(422).json({
         error: "missing_channel_code",
