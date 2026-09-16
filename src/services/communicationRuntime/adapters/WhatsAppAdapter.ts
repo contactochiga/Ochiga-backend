@@ -91,12 +91,20 @@ export class WhatsAppAdapter implements CommunicationAdapter {
               template_name: templateName,
               template_language: templateLanguage || "en_US",
               communication_id: record.communication_id,
+              // Oyi Communications Convergence, Slice 1 -- lets Office's
+              // send bridge check ITS OWN authoritative lead_channel_states
+              // takeover truth before dispatching to Meta (see
+              // server.js's /admin/communications/whatsapp/send handler).
+              // Backend never mirrors that state locally -- a fresh
+              // read-through on every send, not a second source of truth.
+              lead_id: record.recipient.lead_id || undefined,
             }
           : {
               to,
               body: record.body,
               context_message_id: record.reply_to_message_id ? record.provider_conversation_id : undefined,
               communication_id: record.communication_id,
+              lead_id: record.recipient.lead_id || undefined,
             },
         { headers: { "x-office-api-key": key, "content-type": "application/json" }, timeout: 15000, validateStatus: () => true }
       );

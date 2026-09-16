@@ -158,6 +158,13 @@ export type CommunicationFailureReason =
   | "permission_denied"
   | "delivery_failed"
   | "unsupported_channel"
+  // Oyi Communications Convergence, Slice 1 -- a human has taken over
+  // this conversation on Office's side (lead_channel_states.ai_paused /
+  // human_status). Distinct from "recipient_opted_out": the recipient
+  // hasn't unsubscribed, a person is just handling this conversation
+  // right now. Enforced at Office's own WhatsApp send bridge (the
+  // authoritative source of takeover truth), not duplicated here.
+  | "human_takeover_active"
   | "unknown";
 
 export type CommunicationRecipient = {
