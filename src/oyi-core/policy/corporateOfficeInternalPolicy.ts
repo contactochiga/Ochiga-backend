@@ -13,6 +13,7 @@ import {
   GENERIC_AUTOMATION_REFERENCE_PATTERN,
   type LastVerifiedOfficeAction,
 } from "../context/officeAutomationSuggestion";
+import { assessJvOpportunity, DEFAULT_JV_STRATEGY, type JvAssessment, type JvEvidence } from "../domains/development/developmentJv";
 
 function text(value: unknown, fallback = "") {
   const result = String(value ?? "").trim();
@@ -35,6 +36,36 @@ export function deniedOfficeInternalOperationalRequest(input: { message?: string
 function businessDomain(request: OfficeInternalOyiCoreRequest): CorporateBusinessUnit {
   const allowed = new Set(["development", "technology", "private", "partnerships", "corporate"]);
   return allowed.has(request.business_unit) ? request.business_unit : "corporate";
+}
+
+// Office Intelligence Convergence, Wave 3 -- honest pass-through from
+// Office's own development_context slot into the JV capability's
+// evidence shape. Every field is either what Office actually sent or
+// null ("not computed" / "not yet in Office's schema") -- never guessed
+// here.
+function jvEvidenceFromRequest(request: OfficeInternalOyiCoreRequest): JvEvidence {
+  const context = request.development_context;
+  return {
+    opportunityType: context?.opportunity_type ?? null,
+    location: context?.location ?? null,
+    landSize: context?.land_size ?? null,
+    structureOffered: context?.structure_offered ?? null,
+    landownerExpectation: context?.landowner_expectation ?? null,
+    titleDocumentStatus: context?.title_document_status ?? null,
+    commercialTerms: context?.commercial_terms ?? null,
+    timeline: context?.timeline ?? null,
+    scaleUnits: context?.scale_units ?? null,
+    sourceChannel: context?.source_channel ?? null,
+    decisionMakerStatus: context?.decision_maker_status ?? null,
+  };
+}
+
+// Computed once per request and reused by both toolProposals() and
+// buildOfficeInternalResponse()'s safe_metadata, so the same evidence
+// always produces the same recommendation within a single turn.
+function developmentJvAssessmentForRequest(request: OfficeInternalOyiCoreRequest): JvAssessment | null {
+  if (businessDomain(request) !== "development" || !request.development_context) return null;
+  return assessJvOpportunity(jvEvidenceFromRequest(request), DEFAULT_JV_STRATEGY);
 }
 
 // Presence/content of a named context slot is a more reliable signal than guessing from free text,
@@ -213,6 +244,33 @@ function toolProposals(request: OfficeInternalOyiCoreRequest, lastVerifiedAction
       },
     });
   }
+  // Office Intelligence Convergence, Wave 3 -- the governed half of the
+  // Development/JV capability. Core reasons over the evidence Office
+  // supplied (developmentJv.ts) and, ONLY when it recommends routing to
+  // a human, proposes the SAME already-whitelisted, already-governed
+  // tool "office.request_handoff" every other surface uses -- no new
+  // mutation surface. Core never proposes a CRM write here (V1 is
+  // recommendation/handoff only, per this wave's explicit scope); Office
+  // still validates and executes this proposal exactly like any other.
+  // Purely additive: placed after every other branch so it never changes
+  // the early-return behaviour of the schedule-intent branch above.
+  const jvAssessment = developmentJvAssessmentForRequest(request);
+  if (jvAssessment?.recommended_next_step === "route_for_human_review") {
+    proposals.push({
+      proposal_id: `office_jv_handoff_${request.request_id}`,
+      tool: "office.request_handoff",
+      governance: "office_validates_before_execution",
+      reason: `JV assessment recommends human review: ${jvAssessment.proposed_office_action}`,
+      parameters: {
+        business_unit: request.business_unit,
+        selected_type: request.page_context.selected_type,
+        selected_id: request.page_context.selected_id || request.development_context?.opportunity_ref || null,
+        agent_role: "osa",
+        review_required: true,
+        jv_assessment: jvAssessment,
+      },
+    });
+  }
   return proposals;
 }
 
@@ -292,6 +350,13 @@ export function buildOfficeInternalResponse(
       partnership_context_present: Boolean(request.partnership_context),
       document_context_present: Boolean(request.document_context),
       content_context_present: Boolean(request.content_context),
+      development_context_present: Boolean(request.development_context),
+      // Full structured known/missing/inferred breakdown, present
+      // whenever business_unit is development and Office supplied
+      // development_context -- travels through even without a dedicated
+      // Office UI for it yet, since safe_metadata is already an open,
+      // client-rendered bag.
+      jv_assessment: developmentJvAssessmentForRequest(request),
     },
   };
 }
