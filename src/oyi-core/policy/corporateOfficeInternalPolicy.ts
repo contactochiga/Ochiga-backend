@@ -135,7 +135,7 @@ function attentionSignal(request: OfficeInternalOyiCoreRequest): OfficeInternalO
   return "none";
 }
 
-function toolProposals(request: OfficeInternalOyiCoreRequest, lastVerifiedAction: LastVerifiedOfficeAction | null): CorporateToolProposal[] {
+function toolProposals(request: OfficeInternalOyiCoreRequest, lastVerifiedAction: LastVerifiedOfficeAction | null, jvAssessment: JvAssessment | null): CorporateToolProposal[] {
   const message = normalize(request.message);
   const proposals: CorporateToolProposal[] = [];
   const taskSummary = text(request.task_context?.safe_summary);
@@ -254,7 +254,6 @@ function toolProposals(request: OfficeInternalOyiCoreRequest, lastVerifiedAction
   // still validates and executes this proposal exactly like any other.
   // Purely additive: placed after every other branch so it never changes
   // the early-return behaviour of the schedule-intent branch above.
-  const jvAssessment = developmentJvAssessmentForRequest(request);
   if (jvAssessment?.recommended_next_step === "route_for_human_review") {
     proposals.push({
       proposal_id: `office_jv_handoff_${request.request_id}`,
@@ -292,10 +291,39 @@ function toolProposals(request: OfficeInternalOyiCoreRequest, lastVerifiedAction
 // answer.
 const DEGRADED_ANSWER_PATTERN = /^I can help with|^I don't have an enabled capability for that yet on this surface\./i;
 
-function composeAnswer(request: OfficeInternalOyiCoreRequest, canonical: CanonicalConversationResponse): string {
+// Office Intelligence Convergence, Wave 3B -- turns a JvAssessment into an
+// actual conversational answer, not just safe_metadata JSON a chat bubble
+// never renders. Every clause is read directly off the assessment's own
+// fields (which are themselves only ever known_facts Office supplied or
+// missing_information/considerations the JV capability derived) -- this
+// composes prose, it does not add any new fact or judgement of its own.
+function composeJvAnswer(assessment: JvAssessment): string {
+  const knownEntries = Object.entries(assessment.known_facts);
+  const known = knownEntries.length
+    ? knownEntries.map(([key, value]) => `${key.replace(/_/g, " ")}: ${value}`).join("; ")
+    : "very little so far";
+  const missing = assessment.missing_information.length
+    ? ` Still missing: ${assessment.missing_information.join(", ").replace(/_/g, " ")}.`
+    : "";
+  const alignment =
+    assessment.strategic_alignment.status === "aligned"
+      ? ` This is within the current focus area (${assessment.strategic_alignment.matchedArea.area}, ${assessment.strategic_alignment.matchedArea.region}).`
+      : assessment.strategic_alignment.status === "outside_current_focus"
+      ? ` The supplied location (${assessment.strategic_alignment.suppliedLocation}) is outside the current focus areas.`
+      : " The location isn't known yet, so strategic alignment can't be assessed.";
+  const considerations = assessment.inferred_considerations.length ? ` ${assessment.inferred_considerations.join(" ")}` : "";
+  return `Here's what I have on this opportunity -- ${known}.${missing}${alignment}${considerations} ${assessment.proposed_office_action}`.replace(/\s+/g, " ").trim();
+}
+
+function composeAnswer(request: OfficeInternalOyiCoreRequest, canonical: CanonicalConversationResponse, jvAssessment: JvAssessment | null): string {
   const canonicalAnswer = text(canonical.message || (canonical as any).assistant_message);
   const isDegraded = !canonicalAnswer || DEGRADED_ANSWER_PATTERN.test(canonicalAnswer);
   if (!isDegraded) return canonicalAnswer;
+  // A real JV assessment is a more specific, more useful degraded-answer
+  // rescue than the generic safe_summary echo below -- it is itself
+  // already grounded in the same Office-supplied evidence, just
+  // structured further by the JV capability.
+  if (jvAssessment) return composeJvAnswer(jvAssessment);
   const slot = selectedContextSlot(request);
   if (slot && text(slot.safe_summary)) {
     return `Based on current Office records: ${text(slot.safe_summary)}`;
@@ -308,7 +336,8 @@ export function buildOfficeInternalResponse(
   canonical: CanonicalConversationResponse,
   lastVerifiedAction: LastVerifiedOfficeAction | null = null
 ): OfficeInternalOyiCoreResponse {
-  const answer = composeAnswer(request, canonical);
+  const jvAssessment = developmentJvAssessmentForRequest(request);
+  const answer = composeAnswer(request, canonical, jvAssessment);
   return {
     ok: true,
     contract_version: CORPORATE_INTELLIGENCE_CONTRACT_VERSION,
@@ -322,7 +351,7 @@ export function buildOfficeInternalResponse(
     business_domain: businessDomain(request),
     suggested_next_action: text((canonical as any).suggested_next_action) || null,
     attention_signal: attentionSignal(request),
-    tool_proposals: toolProposals(request, lastVerifiedAction),
+    tool_proposals: toolProposals(request, lastVerifiedAction, jvAssessment),
     // Oyi Conversational Runtime Completion Programme, Phase 3. Governed
     // action proposals (Tasks/Meetings/Support write capabilities, see
     // OfficeActionCapabilityModules.ts) surface their public view through
@@ -356,7 +385,7 @@ export function buildOfficeInternalResponse(
       // development_context -- travels through even without a dedicated
       // Office UI for it yet, since safe_metadata is already an open,
       // client-rendered bag.
-      jv_assessment: developmentJvAssessmentForRequest(request),
+      jv_assessment: jvAssessment,
     },
   };
 }
