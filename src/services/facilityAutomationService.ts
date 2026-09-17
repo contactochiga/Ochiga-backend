@@ -316,10 +316,18 @@ function expectedStatusFor(actionId: string) {
   return null;
 }
 
-async function runVerification(actionId: string, entityId: string, expectedStatus: string) {
-  if (actionId.startsWith("visitor.")) return verifyVisitorStatus({ visitor_id: entityId, expected_status: expectedStatus });
-  if (actionId.startsWith("maintenance.")) return verifyMaintenanceStatus({ request_id: entityId, expected_status: expectedStatus });
-  if (actionId.startsWith("device.")) return verifyDeviceAction({ device_id: entityId, expected_state: {} });
+// Wave 5 Slice 3 -- device.* verification no longer depends on
+// expectedStatus (a visitor/maintenance lifecycle-status string; no
+// detector or event rule has ever populated one for a device action, so
+// this branch was previously unreachable for real device automation runs
+// and fell through to the generic "no expected status" pending fallback
+// below instead). verifyDeviceAction now derives real expected/observed
+// state itself from the canonical ai_execution_ledger record identified
+// by commandExecutionId, so it is always attempted for device actions.
+async function runVerification(actionId: string, entityId: string, expectedStatus: string | null, commandExecutionId?: string | null) {
+  if (actionId.startsWith("visitor.")) return expectedStatus ? verifyVisitorStatus({ visitor_id: entityId, expected_status: expectedStatus }) : { state: "pending" as const, summary: "No expected status to verify against.", metadata: {} };
+  if (actionId.startsWith("maintenance.")) return expectedStatus ? verifyMaintenanceStatus({ request_id: entityId, expected_status: expectedStatus }) : { state: "pending" as const, summary: "No expected status to verify against.", metadata: {} };
+  if (actionId.startsWith("device.")) return verifyDeviceAction({ device_id: entityId, command_execution_id: commandExecutionId || null });
   return { state: "timeout" as const, summary: "No verification strategy for this action.", metadata: {} };
 }
 
@@ -413,37 +421,68 @@ export async function executeApprovalRow(approval: any, actor: AuthUser, note?: 
   // result is authoritative, so treat it as verified rather than falling
   // through to the generic "no expected status" pending state, which
   // would otherwise misreport a successful send as verification_failed.
+  //
+  // Wave 5 Slice 3 -- for device.* actions, executeDeviceCommandForActor's
+  // own return value (nested under `result` here, from executionRegistry.ts's
+  // `{ ok, status, result }` passthrough) already carries the real
+  // command_execution_id it wrote to ai_execution_ledger, when the
+  // dispatched provider path produced one (today: the Tuya adapter path;
+  // a non-Tuya fallback path exists that does not yet return one -- see
+  // the Slice 3 final report). That id is what verifyDeviceAction uses to
+  // read the canonical, already-real confirmation outcome.
+  const commandExecutionId = (result as any)?.result?.command_execution_id || null;
   const verification = !approval.entity_id
     ? { state: "verified" as const, summary: "No target entity to verify -- execution result is authoritative.", metadata: {} }
-    : expectedStatus
-      ? await runVerification(approval.action_id, approval.entity_id, expectedStatus)
-      : { state: "pending" as const, summary: "No expected status to verify against.", metadata: {} };
+    : await runVerification(approval.action_id, approval.entity_id, expectedStatus, commandExecutionId);
   const verified = verification.state === "verified";
+  // "pending" is a genuinely honest, non-terminal outcome (dispatch
+  // accepted, physical state not yet -- or, for provider_ack_only/IR
+  // devices, never observably -- confirmed). It must never be reported as
+  // verification_failed (a real physical mismatch) nor as succeeded. No
+  // reconciliation mechanism today moves a row back out of "executing"
+  // once physical confirmation eventually lands (see final report); the
+  // row is left exactly as the earlier CAS claim already set it
+  // ("executing"), with the verification detail attached for visibility.
+  const verificationTerminal = verification.state === "verified" || verification.state === "failed" || verification.state === "timeout";
 
-  await supabaseAdmin
-    .from("automation_approvals")
-    .update({ status: verified ? "succeeded" : "verification_failed", verification, executed_at: new Date().toISOString() })
-    .eq("id", approval.id);
+  const updatePayload: Record<string, any> = { verification, executed_at: new Date().toISOString() };
+  if (verificationTerminal) updatePayload.status = verified ? "succeeded" : "verification_failed";
+  await supabaseAdmin.from("automation_approvals").update(updatePayload).eq("id", approval.id);
 
-  void emitAuditEvent({
-    actorId: actor.id,
-    actorRole: actor.role,
-    action: verified ? "automation.execution.succeeded" : "automation.execution.verification_failed",
-    resourceType: "automation_approval",
-    resourceId: approval.id,
-    estateId: approval.estate_id,
-    status: verified ? "success" : "failed",
-    metadata: { action_id: approval.action_id, entity_id: approval.entity_id, verification, execution_id: executionId },
-  } as any);
-  void notifyApprovers(
-    approval.estate_id,
-    verified ? "Automation action executed" : "Automation action executed, verification failed",
-    `${approval.target_label || "Action"}: ${approval.action_id} ${verified ? "completed and verified" : "completed but could not be verified"}.`,
-    { approval_id: approval.id, execution_id: executionId }
-  );
-  emitFacilityAutomationRealtime(approval.estate_id, verified ? "execution.succeeded" : "execution.verification_failed", { approval_id: approval.id, action_id: approval.action_id, execution_id: executionId });
+  if (verificationTerminal) {
+    void emitAuditEvent({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: verified ? "automation.execution.succeeded" : "automation.execution.verification_failed",
+      resourceType: "automation_approval",
+      resourceId: approval.id,
+      estateId: approval.estate_id,
+      status: verified ? "success" : "failed",
+      metadata: { action_id: approval.action_id, entity_id: approval.entity_id, verification, execution_id: executionId },
+    } as any);
+    void notifyApprovers(
+      approval.estate_id,
+      verified ? "Automation action executed" : "Automation action executed, verification failed",
+      `${approval.target_label || "Action"}: ${approval.action_id} ${verified ? "completed and verified" : "completed but could not be verified"}.`,
+      { approval_id: approval.id, execution_id: executionId }
+    );
+    emitFacilityAutomationRealtime(approval.estate_id, verified ? "execution.succeeded" : "execution.verification_failed", { approval_id: approval.id, action_id: approval.action_id, execution_id: executionId });
+  } else {
+    // Dispatch already succeeded (result.ok was true above) -- this is not
+    // a failure to audit as one, just an honest "not yet confirmed" record.
+    void emitAuditEvent({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: "automation.execution.verification_pending",
+      resourceType: "automation_approval",
+      resourceId: approval.id,
+      estateId: approval.estate_id,
+      status: "pending",
+      metadata: { action_id: approval.action_id, entity_id: approval.entity_id, verification, execution_id: executionId },
+    } as any);
+  }
 
-  return { ok: true, approval: { ...approval, status: verified ? "succeeded" : "verification_failed", verification, execution_id: executionId } };
+  return { ok: true, approval: { ...approval, status: verificationTerminal ? (verified ? "succeeded" : "verification_failed") : "executing", verification, execution_id: executionId } };
 }
 
 // The one place human approval decisions are made. APPROVE immediately

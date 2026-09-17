@@ -26,13 +26,48 @@ async function finish(workflow: any | null | undefined, state: VerificationState
   return { state, summary, metadata };
 }
 
-export async function verifyDeviceAction(input: { workflow?: any; device_id: string; expected_state?: Record<string, unknown> | null }) {
-  const { data, error } = await supabaseAdmin.from("device_states").select("status,last_seen,updated_at").eq("device_id", input.device_id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-  if (error || !data) return finish(input.workflow, "timeout", "Device state was not available for verification.", { device_id: input.device_id, reason: error?.message || "state_missing" });
-  const state = data.status || {};
-  const expected = input.expected_state || {};
-  const matches = Object.entries(expected).every(([key, value]) => state[key] === value);
-  return finish(input.workflow, matches ? "verified" : "failed", matches ? "Device state matches the confirmed command." : "Device state does not match the expected command.", { device_id: input.device_id, expected_state: expected, observed_state: state, latest_state_at: data.updated_at || data.last_seen || null });
+// Wave 5 Slice 3 -- real physical-state verification. The prior
+// implementation read the legacy device_states table with
+// Object.entries(expected_state || {}).every(...), so a caller that never
+// supplied a meaningful expected_state (every current caller) vacuously
+// got matches:true. The canonical truth for "did this command physically
+// land" already exists -- ai_execution_ledger, written by
+// executeDeviceCommandForActor's dispatch and later updated by
+// deviceRuntimeStateService's own expected-vs-observed comparison
+// (commandConfirmation(), which itself already fails closed: a command
+// with zero comparable keys can never resolve to "confirmed", only to
+// confirmation_timed_out). This function now consumes that one ledger
+// record via command_execution_id instead of independently reconstructing
+// a second, weaker definition of "verified".
+export async function verifyDeviceAction(input: { workflow?: any; device_id: string; command_execution_id?: string | null }) {
+  if (!input.command_execution_id) {
+    // No traceable execution record (e.g. a provider path that has not
+    // yet been wired to return one) -- honestly unknown, never a fabricated
+    // pass. Reuses the existing "pending" state; no new state invented.
+    return finish(input.workflow, "pending", "No command execution record was available to verify the device's physical state against.", { device_id: input.device_id, reason: "command_execution_id_missing" });
+  }
+  const { getDeviceCommandExecution } = await import("../services/deviceCommandExecutionStore");
+  const execution = await getDeviceCommandExecution(input.command_execution_id).catch(() => null);
+  if (!execution) {
+    return finish(input.workflow, "pending", "The device command execution record was not found.", { device_id: input.device_id, command_execution_id: input.command_execution_id, reason: "execution_record_missing" });
+  }
+  const meta = { device_id: input.device_id, command_execution_id: input.command_execution_id, confirmation_status: execution.confirmation_status, expected_state: execution.expected_state, observed_state: execution.observed_state };
+  if (execution.confirmation_status === "state_confirmed" && execution.expected_state && Object.keys(execution.expected_state).length > 0) {
+    return finish(input.workflow, "verified", "Device physical state was confirmed by the canonical execution ledger.", meta);
+  }
+  if (execution.confirmation_status === "state_mismatch") {
+    return finish(input.workflow, "failed", "Device physical state did not match the expected command.", meta);
+  }
+  if (execution.confirmation_status === "confirmation_timed_out") {
+    return finish(input.workflow, "timeout", "Device physical state confirmation timed out.", meta);
+  }
+  // awaiting_state_confirmation (the common case -- executeDeviceCommandForActor
+  // returns before physical confirmation completes), not_observable (IR/
+  // provider_ack_only devices with no observable confirmation channel), or
+  // any other non-terminal value: dispatch may have succeeded, but physical
+  // state is not yet (or never can be) confirmed. Honest "pending", never a
+  // fabricated verified:true.
+  return finish(input.workflow, "pending", "The device command was accepted but its physical state is not yet confirmed.", meta);
 }
 
 export async function verifyVisitorStatus(input: { workflow?: any; visitor_id: string; expected_status: string }) {
