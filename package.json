@@ -191,6 +191,7 @@
     "smoke:wave4b-slice4-commandrouter-device-command-authority": "npm run build && node scripts/wave4b-slice4-commandrouter-device-command-authority-smoke.mjs",
     "smoke:wave4b-slice5-commandrouter-run-scene-authority": "npm run build && node scripts/wave4b-slice5-commandrouter-run-scene-authority-smoke.mjs",
     "smoke:wave5-slice1-facility-automation-device-authority": "npm run build && node scripts/wave5-slice1-facility-automation-device-authority-smoke.mjs",
+    "smoke:wave5-slice2-facility-automation-system-authority": "npm run build && node scripts/wave5-slice2-facility-automation-system-authority-smoke.mjs",
     "smoke:oyi-core-convergence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs convergence",
     "smoke:oyi-core-privacy": "npm run build && node scripts/oyi-core-convergence-smoke.mjs privacy",
     "smoke:oyi-core-contextual-intelligence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs contextual",

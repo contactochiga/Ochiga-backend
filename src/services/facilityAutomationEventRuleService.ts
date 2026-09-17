@@ -11,8 +11,9 @@ import type { AuthUser } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { getRegisteredExecutionAction } from "../intelligence-core/executionRegistry";
 import { isRegisteredTriggerEventType } from "../intelligence-core/triggerRegistry";
+import { hasPermission, type PermissionKey } from "../core/foundation/permissions";
 import { evaluateAutomationConditions, type AutomationCondition } from "./automationConditionEvaluator";
-import { resolveAutomationPolicy } from "./automationPolicyResolver";
+import { resolveAutomationPolicy, registeredActionRequiredPermission } from "./automationPolicyResolver";
 import { proposeAutomationApproval, executeApprovalRow, emitFacilityAutomationRealtime } from "./facilityAutomationService";
 
 export type FacilityAutomationEventRule = {
@@ -124,16 +125,51 @@ export async function deleteEventRule(id: string, estateId: string) {
   return Boolean(data);
 }
 
-// The synthetic actor used only for auto_allowed direct execution -- no
-// human is deciding, so there is no real AuthUser. "manager" is AuthUser's
-// legacy UserRole alias (src/core/foundation/permissions.ts's
-// LEGACY_ROLE_ALIASES) for the real PlatformRole facility_manager, which
-// holds every permission any in-scope registered action currently
-// requires (visitors.manage, support.assign, devices.control,
-// notifications.manage, community.manage_announcements) -- the same real
-// role a human facility manager would hold, not a new, broader identity.
-function systemActor(estateId: string): AuthUser {
-  return { id: "system:automation", role: "manager", estate_id: estateId };
+// Wave 5 Slice 2 -- explicit, honest automation-system authority subject.
+// Previously this constructed { id: "system:automation", role: "manager" }
+// -- AuthUser's legacy alias for the real PlatformRole facility_manager --
+// solely to inherit that role's blanket permission set (visitors.manage,
+// support.assign, devices.control, notifications.manage,
+// community.manage_announcements) so SOME registered action would pass.
+// That is the automation runtime pretending to be a facility manager:
+// auto_allowed must mean "this action has explicitly been authorized for
+// autonomous execution under this estate's automation policy," never
+// "pretend a human approved it."
+//
+// This reuses "ai_agent" -- a real, already-existing PlatformRole
+// (src/core/foundation/permissions.ts) meant for exactly this: a
+// non-human system actor. Its own role-derived permission set is
+// deliberately narrow and read-only (no write permissions at all), so
+// unlike the old actor, simply HOLDING this role grants nothing. The
+// only authority this actor carries is the single, explicit permission
+// automationSystemActorMayActOnAction grants below -- scoped to the one
+// specific registered action about to run, never a blanket role grant.
+// This is the same honest, non-fabricating pattern Wave 4B Slices 1-2
+// already established for the analogous Office automation-runtime
+// identity problem.
+function automationSystemActorFor(estateId: string, homeId: string | null, requiredPermission: PermissionKey): AuthUser {
+  return {
+    id: "system:facility-automation",
+    role: "ai_agent",
+    permissions: [requiredPermission],
+    permission_scopes: [],
+    estate_id: estateId,
+    home_id: homeId || undefined,
+  } as unknown as AuthUser;
+}
+
+// Mirrors automationPolicyResolver.ts's actorMayActOnAction, which this
+// cannot reuse directly: that function only ever accepts a bare role
+// string and derives permissions purely from ROLE_PERMISSIONS, so it can
+// never see an actor's explicit `permissions` array. This automation
+// actor deliberately carries no role-derived write permissions -- its
+// authority lives entirely in that explicit array -- so the real,
+// canonical hasPermission() check (the same function actorMayActOnAction
+// wraps) is called directly against the full actor object instead.
+function automationSystemActorMayActOnAction(actor: AuthUser, actionId: string): boolean {
+  const requiredPermission = registeredActionRequiredPermission(actionId);
+  if (!requiredPermission) return false;
+  return hasPermission(actor, requiredPermission);
 }
 
 type IntelligenceEventRow = {
@@ -188,7 +224,23 @@ export async function matchEventDrivenAutomationRules(event: IntelligenceEventRo
       if (!proposal) continue; // duplicate-suppressed by the existing one-pending-per-target index, or policy denied it
 
       if (policy.executionLevel === "auto_allowed") {
-        void executeApprovalRow(proposal, systemActor(event.estate_id), `Auto-allowed by Facility automation policy (rule: ${rule.name}).`);
+        // Action-specific, building-scoped authority: this automation
+        // principal may autonomously request THIS action, for THIS
+        // estate, because it explicitly holds the one real permission
+        // REQUIRED_PERMISSION[action_id] demands -- not because it
+        // claims a privileged human role. Fails closed if that
+        // permission isn't (or can no longer be) established: the
+        // proposal simply stays pending_approval rather than either
+        // fabricating authority or inventing a new terminal status --
+        // a human can still review and approve it through the existing,
+        // unchanged decideAutomationApproval path.
+        const requiredPermission = registeredActionRequiredPermission(rule.action_id);
+        const automationActor = requiredPermission ? automationSystemActorFor(event.estate_id, event.home_id, requiredPermission) : null;
+        if (automationActor && automationSystemActorMayActOnAction(automationActor, rule.action_id)) {
+          void executeApprovalRow(proposal, automationActor, `Auto-allowed by Facility automation policy (rule: ${rule.name}).`);
+        } else {
+          console.warn("[facility-automation-event-rules] auto_allowed skipped -- automation system actor is not explicitly authorized for this action; proposal left pending for human review", { rule_id: rule.id, action_id: rule.action_id, estate_id: event.estate_id });
+        }
       }
     }
   } catch (error: any) {
