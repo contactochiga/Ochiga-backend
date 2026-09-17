@@ -5,6 +5,7 @@ import { emitAuditEvent, hasPermission } from "../core/foundation";
 import type { AuthUser } from "../middleware/auth";
 import { AI_TOOL_REGISTRY, getAiTool, type AiToolDefinition } from "./toolRegistry";
 import { executeDeviceCommandForActor } from "../controllers/deviceCommandController";
+import { authorizeDeviceCommand } from "../oyi-core/actions/DeviceCommandAuthority";
 import { deviceWithinActorScope, hasWatchScope } from "../services/watchPolicy";
 import { NotificationService } from "../services/NotificationService";
 import {
@@ -1460,6 +1461,34 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
     return { tool_id: "device_command", status: "failed", error: "device_offline", ledger_id: ledger.id || null, summary: "That device is offline." };
   }
 
+  // Wave 4B Slice 4 -- the material gap Slice 3 identified: this
+  // low-risk auto-execute lane had a real actor, real hasPermission
+  // check, and real device resolution/scope (findDeviceForPrompt ->
+  // resolveVisibleDevice), but never consulted capabilityRegistry, so a
+  // canonical devices.power.control rollout-status kill-switch had no
+  // effect here. Risk classification is left running before this check
+  // (unchanged) because it is cheap, prompt-only triage that decides
+  // confirm-required/deny/read vs. auto-execute and touches neither the
+  // database nor a resolved device -- authorizeDeviceCommand instead
+  // needs a REAL resolved device's estate/home (the same pattern
+  // requestDeviceCommand and Slices 1-3 already use), which only exists
+  // once execution reaches this point. The invariant this slice adds:
+  // no physical dispatch (this branch's executeDeviceCommandForActor
+  // call, immediately below) without a current canonical capability
+  // decision.
+  const authority = authorizeDeviceCommand({
+    actor,
+    commandSource: args.__oyi_surface === "facility" ? "facility" : "app",
+    estateId: device.estate_id || estateId || null,
+    homeId: device.home_id || homeId || null,
+    roomId: device.room_id || null,
+  });
+  if (!authority.allowed) {
+    const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: "denied", estateId, homeId, errorMessage: authority.reason || "capability_denied", resultSummary: "Oyi is not authorized to control this device right now." });
+    await audit(req, actor, "ai.tool.denied", "denied", { tool_id: "device_command", ledger_id: ledger.id, reason: authority.reason });
+    return { tool_id: "device_command", status: "denied", reason: authority.reason, ledger_id: ledger.id || null, summary: "Oyi is not authorized to control this device right now." };
+  }
+
   try {
     logDeviceCommandDiagnostic("ai.device.resolve", {
       action_id: args.action_id,
@@ -1540,6 +1569,25 @@ async function executeConfirmedWorker(actor: AuthUser, record: any) {
     const lowRiskSwitch = classification.risk === "low" && ["on", "off", "set_temperature"].includes(String(classification.action || ""));
     if (!lowRiskSwitch && !mediumDeviceCommandAllowed(classification, device)) {
       return { ok: false, status: "denied" as AiCommandStatus, summary: "That confirmed command is not enabled for watch execution.", error: "worker_not_allowed" };
+    }
+    // Wave 4B Slice 4 -- re-authorize immediately before confirmed
+    // physical dispatch. A medium-risk command can sit pending
+    // confirmation for an arbitrary amount of time between proposal
+    // (executeDeviceCommandTool, above) and the user actually
+    // confirming it; capability availability is a point-in-time
+    // decision (e.g. an operator kill-switching devices.power.control
+    // between "Unlock the door?" being proposed and confirmed), so the
+    // authority decision made at proposal time -- if any -- must not be
+    // trusted here. This is a fresh call, not a cached/reused result.
+    const authority = authorizeDeviceCommand({
+      actor,
+      commandSource: args.__oyi_surface === "facility" ? "facility" : "app",
+      estateId: device.estate_id || record.estate_id || actor.estate_id || null,
+      homeId: device.home_id || record.home_id || actor.home_id || null,
+      roomId: device.room_id || null,
+    });
+    if (!authority.allowed) {
+      return { ok: false, status: "denied" as AiCommandStatus, summary: "Oyi is not authorized to control this device right now.", error: authority.reason || "capability_denied" };
     }
     try {
       const result = await executeDeviceCommandForActor({

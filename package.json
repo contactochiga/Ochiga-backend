@@ -188,6 +188,7 @@
     "smoke:wave4b-slice1-office-automation-device-authority": "npm run build && node scripts/wave4b-slice1-office-automation-device-authority-smoke.mjs",
     "smoke:wave4b-slice2-office-automation-scheduler-authority": "npm run build && node scripts/wave4b-slice2-office-automation-scheduler-authority-smoke.mjs",
     "smoke:wave4b-slice3-watch-scene-device-authority": "npm run build && node scripts/wave4b-slice3-watch-scene-device-authority-smoke.mjs",
+    "smoke:wave4b-slice4-commandrouter-device-command-authority": "npm run build && node scripts/wave4b-slice4-commandrouter-device-command-authority-smoke.mjs",
     "smoke:oyi-core-convergence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs convergence",
     "smoke:oyi-core-privacy": "npm run build && node scripts/oyi-core-convergence-smoke.mjs privacy",
     "smoke:oyi-core-contextual-intelligence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs contextual",
