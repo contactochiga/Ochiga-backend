@@ -726,28 +726,87 @@ async function findSceneForPrompt(actor: AuthUser, prompt: string, args: Record<
   return { scene: matches[0], ctx, reason: "" };
 }
 
+// Wave 4B Slice 5 -- authority atomicity preflight, shared by both
+// executeScene() scene-source branches below. Resolves + scope-checks
+// (existing resolveVisibleDevice/deviceWithinActorScope/deviceOffline
+// check, unchanged) and canonically authorizes (NEW: authorizeDeviceCommand
+// -> capabilityService.canUse("devices.power.control"), reusing exactly
+// the gate Slices 1-4 already established) EVERY physical action before
+// ANY dispatch begins. Malformed command-shape is a pre-existing, purely
+// data-validity concern (not an authority decision) and is deliberately
+// left OUTSIDE the atomicity gate -- it still only skips that one action,
+// exactly as before.
+//
+// executeScene() is the single function both executeRunSceneTool
+// (proposal-time immediate execution) and executeConfirmedWorker's
+// run_scene branch (confirmed execution, which independently re-fetches
+// the scene via findSceneForPrompt before calling this function) go
+// through -- so upgrading this one function automatically makes confirmed
+// execution re-validate scope/capability fresh at confirm time, with no
+// separate change needed in executeConfirmedWorker.
+type ScenePreflightItem = { deviceId: string; command: Record<string, any>; ok: boolean; malformed: boolean; reason: string | null };
+
+async function sceneActionPreflight(actor: AuthUser, deviceId: string, command: Record<string, any> | null, isCommandValid: boolean): Promise<ScenePreflightItem> {
+  if (!isCommandValid || !command) {
+    return { deviceId, command: command || {}, ok: false, malformed: true, reason: "unsupported_scene_action" };
+  }
+  const device = await resolveVisibleDevice(actor, deviceId);
+  if (!device || !deviceWithinActorScope(actor, device) || deviceOffline(device)) {
+    return { deviceId, command, ok: false, malformed: false, reason: "device_unavailable" };
+  }
+  const authority = authorizeDeviceCommand({
+    actor,
+    commandSource: "scene",
+    estateId: device.estate_id || actor.estate_id || null,
+    homeId: device.home_id || actor.home_id || null,
+    roomId: device.room_id || null,
+  });
+  if (!authority.allowed) {
+    return { deviceId, command, ok: false, malformed: false, reason: authority.reason || "capability_denied" };
+  }
+  return { deviceId, command, ok: true, malformed: false, reason: null };
+}
+
+function sceneResultsFromPreflight(preflight: ScenePreflightItem[], blocked: boolean): any[] | null {
+  if (!blocked) return null;
+  // "if ANY denied: execute NONE" -- every action is represented with
+  // its own real reason (malformed / device_unavailable / capability
+  // denial) except actions that would individually have passed, which
+  // are labeled as blocked by a sibling action's denial rather than
+  // fabricating a denial reason of their own.
+  return preflight.map((item) => {
+    if (item.malformed) return { device_id: item.deviceId, status: "denied", reason: item.reason };
+    if (item.ok) return { device_id: item.deviceId, status: "skipped", reason: "scene_action_blocked_by_sibling_action" };
+    if (item.reason === "device_unavailable") return { device_id: item.deviceId, status: "skipped", reason: item.reason };
+    return { device_id: item.deviceId, status: "denied", reason: item.reason };
+  });
+}
+
 async function executeScene(actor: AuthUser, scene: any, req?: Request) {
   if (scene.__oyi_scene_source === "consumer_scenes") {
     const actions = cleanConsumerSceneActions(scene.actions);
     if (!actions.length) {
       return { ok: false, status: "failed" as AiCommandStatus, summary: `${sceneDisplayName(scene)} has no configured actions yet.`, error: "scene_has_no_actions" };
     }
-    const results = [];
+    const preflight: ScenePreflightItem[] = [];
     for (const action of actions) {
-      if (!safeConsumerSceneCommand(action.command)) {
-        results.push({ device_id: action.device_id, status: "denied", reason: "unsupported_scene_action" });
-        continue;
-      }
-      const device = await resolveVisibleDevice(actor, action.device_id);
-      if (!device || !deviceWithinActorScope(actor, device) || deviceOffline(device)) {
-        results.push({ device_id: action.device_id, status: "skipped", reason: "device_unavailable" });
-        continue;
-      }
-      try {
-        const result = await executeDeviceCommandForActor({ actor, deviceId: action.device_id, command: action.command, source: "scene", req });
-        results.push({ device_id: action.device_id, status: result.status });
-      } catch (error: any) {
-        results.push({ device_id: action.device_id, status: "failed", reason: error?.message || "command_failed" });
+      preflight.push(await sceneActionPreflight(actor, action.device_id, action.command, safeConsumerSceneCommand(action.command)));
+    }
+    const blocked = preflight.some((item) => !item.ok && !item.malformed);
+    let results = sceneResultsFromPreflight(preflight, blocked);
+    if (!results) {
+      results = [];
+      for (const item of preflight) {
+        if (item.malformed) {
+          results.push({ device_id: item.deviceId, status: "denied", reason: item.reason });
+          continue;
+        }
+        try {
+          const result = await executeDeviceCommandForActor({ actor, deviceId: item.deviceId, command: item.command, source: "scene", req });
+          results.push({ device_id: item.deviceId, status: result.status });
+        } catch (error: any) {
+          results.push({ device_id: item.deviceId, status: "failed", reason: error?.message || "command_failed" });
+        }
       }
     }
     const completed = results.filter((item) => item.status === "command_queued" || item.status === "command_executed" || item.status === "executed" || item.status === "success").length;
@@ -776,24 +835,27 @@ async function executeScene(actor: AuthUser, scene: any, req?: Request) {
   if (!actions.rows.length) {
     return { ok: false, status: "failed" as AiCommandStatus, summary: "That scene has no configured actions yet.", error: "scene_has_no_actions" };
   }
-  const results = [];
+  const preflight: ScenePreflightItem[] = [];
   for (const action of actions.rows) {
     const deviceId = action.device_id || action.deviceId;
     const command = sceneActionCommand(action);
-    if (!deviceId || !command) {
-      results.push({ device_id: deviceId || null, status: "skipped", reason: "action_not_supported" });
-      continue;
-    }
-    const device = await resolveVisibleDevice(actor, deviceId);
-    if (!device || !deviceWithinActorScope(actor, device) || deviceOffline(device)) {
-      results.push({ device_id: deviceId, status: "skipped", reason: "device_unavailable" });
-      continue;
-    }
-    try {
-      const result = await executeDeviceCommandForActor({ actor, deviceId: String(device.id || device.external_id), command, source: "scene", req });
-      results.push({ device_id: device.id || deviceId, status: result.status, command });
-    } catch (error: any) {
-      results.push({ device_id: deviceId, status: "failed", reason: error?.message || "command_failed" });
+    preflight.push(await sceneActionPreflight(actor, deviceId, command, Boolean(deviceId && command)));
+  }
+  const blocked = preflight.some((item) => !item.ok && !item.malformed);
+  let results = sceneResultsFromPreflight(preflight, blocked);
+  if (!results) {
+    results = [];
+    for (const item of preflight) {
+      if (item.malformed) {
+        results.push({ device_id: item.deviceId || null, status: "denied", reason: "action_not_supported" });
+        continue;
+      }
+      try {
+        const result = await executeDeviceCommandForActor({ actor, deviceId: item.deviceId, command: item.command, source: "scene", req });
+        results.push({ device_id: item.deviceId, status: result.status, command: item.command });
+      } catch (error: any) {
+        results.push({ device_id: item.deviceId, status: "failed", reason: error?.message || "command_failed" });
+      }
     }
   }
   const completed = results.filter((item) => item.status === "command_queued" || item.status === "command_executed" || item.status === "executed" || item.status === "success").length;
