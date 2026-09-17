@@ -201,7 +201,44 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
   if (!action.available) return { ok: false, status: "validation_required", reason: action.reason || "action_not_available" };
   if (!input.command) return safeFailure("command_required");
   try {
-    // Load the legacy command boundary only for a confirmed device action.
+    // Wave 5 Slice 1 -- canonical capability authority for Facility
+    // Automation's only physical-device actions (device.on/off/toggle,
+    // the sole ids that fall through to this block -- every other
+    // registered action id is handled by an earlier branch above, or is
+    // available: false and already rejected by the check above).
+    //
+    // Automation policy (resolveAutomationPolicy) answers "may this
+    // automation mode run"; human approval (actorMayActOnAction) answers
+    // "did a human approve this proposed operation"; neither is capability
+    // authority ("is this physical capability allowed right now"). An
+    // approved, confirmed automation must still be denied if
+    // devices.power.control is disabled before this line executes.
+    //
+    // Resolve the real device first -- the same resolveVisibleDevice call
+    // executeDeviceCommandForActor's own resolveCommandTarget makes again
+    // internally below, so this introduces no new restriction: today's
+    // device.* actions already only succeed when that same resolution
+    // succeeds. Scope for the authority decision is derived from this
+    // real, resolved device (never trusted from the action payload),
+    // matching the exact pattern every prior Wave 4B slice already
+    // established. The existing actor already passed into
+    // executeRegisteredAction() is reused as-is -- no synthetic actor is
+    // introduced or resolved here; that actor's own provenance
+    // (systemActor()/role: facility_manager for the dormant auto_allowed
+    // path) is deliberately left to Wave 5 Slice 2.
+    const { resolveVisibleDevice } = await import("../services/deviceRuntimeService");
+    const device = await resolveVisibleDevice(input.actor, String(input.entity_id));
+    if (!device) return safeFailure("device_not_found");
+    const { authorizeDeviceCommand } = await import("../oyi-core/actions/DeviceCommandAuthority");
+    const authority = authorizeDeviceCommand({
+      actor: input.actor,
+      commandSource: "facility",
+      estateId: (device as any).estate_id || input.actor.estate_id || null,
+      homeId: (device as any).home_id || input.actor.home_id || null,
+      roomId: (device as any).room_id || null,
+    });
+    if (!authority.allowed) return { ok: false, status: "denied", reason: authority.reason || "capability_denied" };
+    // Load the legacy command boundary only for a confirmed, now-authorized device action.
     const { executeDeviceCommandForActor } = await import("../controllers/deviceCommandController");
     const result = await executeDeviceCommandForActor({ actor: input.actor, deviceId: String(input.entity_id), command: input.command as Record<string, any>, source: (input.source || "app") as any });
     return { ok: Boolean(result?.ok), status: result?.status || "failed", result };
