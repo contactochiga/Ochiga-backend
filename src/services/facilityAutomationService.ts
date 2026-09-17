@@ -426,28 +426,68 @@ export async function executeApprovalRow(approval: any, actor: AuthUser, note?: 
   // own return value (nested under `result` here, from executionRegistry.ts's
   // `{ ok, status, result }` passthrough) already carries the real
   // command_execution_id it wrote to ai_execution_ledger, when the
-  // dispatched provider path produced one (today: the Tuya adapter path;
-  // a non-Tuya fallback path exists that does not yet return one -- see
-  // the Slice 3 final report). That id is what verifyDeviceAction uses to
-  // read the canonical, already-real confirmation outcome.
+  // dispatched provider path produced one. That id is what verifyDeviceAction
+  // uses to read the canonical, already-real confirmation outcome.
   const commandExecutionId = (result as any)?.result?.command_execution_id || null;
+  if (commandExecutionId) {
+    // Wave 5 Slice 4 -- durable, explicit correlation, written before
+    // verification is even attempted so the runtime settlement path
+    // (deviceCommandExecutionStore.upsertDeviceCommandExecution, called
+    // from deviceRuntimeStateService once physical confirmation lands)
+    // can find and reconcile this exact row later, however soon that is.
+    // No heuristic (device_id + approximate timestamp) is used anywhere
+    // in this correlation -- see reconcileFacilityAutomationDeviceVerification
+    // below.
+    await supabaseAdmin.from("automation_approvals").update({ device_command_execution_id: commandExecutionId }).eq("id", approval.id).eq("status", "executing");
+  }
   const verification = !approval.entity_id
     ? { state: "verified" as const, summary: "No target entity to verify -- execution result is authoritative.", metadata: {} }
     : await runVerification(approval.action_id, approval.entity_id, expectedStatus, commandExecutionId);
+
+  const outcome = await applyVerificationOutcome(approval, actor, executionId, verification);
+  return { ok: true, approval: { ...approval, status: outcome.status || "executing", verification, execution_id: executionId } };
+}
+
+// Wave 5 Slice 4 -- shared terminal-outcome application, factored out of
+// executeApprovalRow's tail so both the synchronous path above (right
+// after execution/dispatch) and reconcileFacilityAutomationDeviceVerification
+// below (invoked once physical confirmation asynchronously lands) apply
+// the exact same mapping and emit the exact same audit/notify/realtime
+// vocabulary -- no parallel outcome semantics. CAS-guarded (WHERE status
+// = 'executing'): whichever caller reaches a terminal verification first
+// wins the row; a lost race produces no rows updated and therefore no
+// duplicate side effects, and an already-terminal row can never be
+// re-emitted or moved backwards. Same discipline this file already uses
+// for the pending_approval -> executing claim above.
+async function applyVerificationOutcome(approval: any, actor: { id: string; role: string | null | undefined }, executionId: string, verification: { state: string; summary: string; metadata: any }) {
   const verified = verification.state === "verified";
   // "pending" is a genuinely honest, non-terminal outcome (dispatch
   // accepted, physical state not yet -- or, for provider_ack_only/IR
   // devices, never observably -- confirmed). It must never be reported as
-  // verification_failed (a real physical mismatch) nor as succeeded. No
-  // reconciliation mechanism today moves a row back out of "executing"
-  // once physical confirmation eventually lands (see final report); the
-  // row is left exactly as the earlier CAS claim already set it
-  // ("executing"), with the verification detail attached for visibility.
+  // verification_failed (a real physical mismatch) nor as succeeded.
   const verificationTerminal = verification.state === "verified" || verification.state === "failed" || verification.state === "timeout";
 
   const updatePayload: Record<string, any> = { verification, executed_at: new Date().toISOString() };
   if (verificationTerminal) updatePayload.status = verified ? "succeeded" : "verification_failed";
-  await supabaseAdmin.from("automation_approvals").update(updatePayload).eq("id", approval.id);
+
+  const { data: applied, error } = await supabaseAdmin
+    .from("automation_approvals")
+    .update(updatePayload)
+    .eq("id", approval.id)
+    .eq("status", "executing")
+    .select("*")
+    .maybeSingle();
+  if (error) {
+    console.warn("[facility-automation] verification outcome update failed", { approval_id: approval.id, error: error.message });
+    return { applied: false as const, status: null as string | null };
+  }
+  if (!applied) {
+    // Lost the CAS: this row already left "executing" -- a duplicate/
+    // concurrent settlement observation, a retry, or (for the reconciler)
+    // an approval that was already resolved by the synchronous path.
+    // No duplicate audit/notify/realtime side effects.
+    return { applied: false as const, status: null as string | null };
+  }
 
   if (verificationTerminal) {
     void emitAuditEvent({
@@ -468,8 +508,8 @@ export async function executeApprovalRow(approval: any, actor: AuthUser, note?: 
     );
     emitFacilityAutomationRealtime(approval.estate_id, verified ? "execution.succeeded" : "execution.verification_failed", { approval_id: approval.id, action_id: approval.action_id, execution_id: executionId });
   } else {
-    // Dispatch already succeeded (result.ok was true above) -- this is not
-    // a failure to audit as one, just an honest "not yet confirmed" record.
+    // Dispatch already succeeded -- this is not a failure to audit as
+    // one, just an honest "not yet confirmed" record.
     void emitAuditEvent({
       actorId: actor.id,
       actorRole: actor.role,
@@ -482,7 +522,38 @@ export async function executeApprovalRow(approval: any, actor: AuthUser, note?: 
     } as any);
   }
 
-  return { ok: true, approval: { ...approval, status: verificationTerminal ? (verified ? "succeeded" : "verification_failed") : "executing", verification, execution_id: executionId } };
+  return { applied: true as const, status: (verificationTerminal ? (verified ? "succeeded" : "verification_failed") : "executing") as string | null };
+}
+
+// Wave 5 Slice 4 -- completes the asynchronous truth loop Slice 3 left
+// open. deviceCommandExecutionStore.upsertDeviceCommandExecution calls
+// this (dynamically imported, best-effort, fire-and-forget) the instant
+// it writes an ai_execution_ledger row that has newly become terminal
+// (state_confirmed / state_mismatch / confirmation_timed_out) -- the one
+// existing canonical settlement point every device command on the
+// platform already passes through, Facility Automation or not. No
+// poller, no second timer: this only ever runs as a direct, synchronous-
+// in-process consequence of that one write.
+export async function reconcileFacilityAutomationDeviceVerification(commandExecutionId: string, _execution: unknown) {
+  const { data: approval } = await supabaseAdmin
+    .from("automation_approvals")
+    .select("*")
+    .eq("device_command_execution_id", commandExecutionId)
+    .eq("status", "executing")
+    .maybeSingle();
+  // Not a Facility Automation-dispatched command (correlation only ever
+  // set by executeApprovalRow above), or already reconciled/terminal --
+  // nothing to do. This is the only way a non-Facility-Automation device
+  // command (the overwhelming majority) short-circuits this hook cheaply.
+  if (!approval) return;
+
+  const verification = await verifyDeviceAction({ device_id: approval.entity_id, command_execution_id: commandExecutionId });
+  // Reuses the real actor identity already recorded on this row at
+  // decision time (a human approver, or Slice 2's honest ai_agent system
+  // actor) -- never a newly fabricated identity, and never a blanket
+  // "system" authority claim.
+  const actor = { id: approval.approver_id || "system:facility-automation", role: approval.approver_role || "system" };
+  await applyVerificationOutcome(approval, actor, approval.execution_id || `automation_approval:${approval.id}`, verification);
 }
 
 // The one place human approval decisions are made. APPROVE immediately

@@ -1359,6 +1359,16 @@ export async function executeDeviceCommandForActor(input: {
   return {
     ok: true,
     status: "command_queued",
+    // Wave 5 Slice 4 -- pure additive contract completion. The ledger row
+    // for this command_execution_id was already written above (the
+    // vendor-agnostic upsertDeviceCommandExecution call near the top of
+    // this function runs for every provider, Tuya or not); every other
+    // return branch in this function already surfaces it. Adding it here
+    // changes no dispatch/execution semantics -- it only lets callers
+    // (e.g. Facility Automation) establish exact correlation for
+    // non-Tuya-adapter devices too, instead of having no id to correlate
+    // against at all.
+    command_execution_id: executionId,
     device: { id: deviceRow.id, name: deviceRow.name, external_id: deviceRow.external_id, vendor: deviceRow.vendor },
   };
 }

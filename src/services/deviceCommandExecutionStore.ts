@@ -98,6 +98,17 @@ function lifecycleRank(status: unknown) {
   return LIFECYCLE_RANK[String(status || "")] || 0;
 }
 
+// Wave 5 Slice 4 -- the exact three terminal confirmation_status values
+// verifyDeviceAction (src/intelligence-core/verificationService.ts) maps
+// to a real VerificationState (verified/failed/timeout). Deliberately
+// narrower than "any LIFECYCLE_RANK 100 status" (which also includes
+// provider_rejected/failed/cancelled, dispatch-time-only outcomes that
+// can never occur once a row has already reached "executing" with a
+// device_command_execution_id set -- see the Slice 4 final report) so
+// this can only ever trigger reconciliation for a transition
+// verifyDeviceAction genuinely knows how to interpret.
+const DEVICE_VERIFICATION_TERMINAL_STATUSES = new Set(["state_confirmed", "state_mismatch", "confirmation_timed_out"]);
+
 function safeLifecycle(status: string, details?: Record<string, any>) {
   return {
     status,
@@ -266,6 +277,27 @@ export async function upsertDeviceCommandExecution(patch: DeviceCommandExecution
       confirmation_status: result.confirmation_status || null,
     });
     emitExecutionUpdate(publicUpdate);
+    // Wave 5 Slice 4 -- extends this one existing, canonical settlement
+    // point (every device command write, from any caller, already passes
+    // through here) rather than adding a second, Facility-Automation-
+    // specific polling runtime. Fires exactly once per command_execution_id,
+    // only on the transition into a terminal confirmation state (guarded
+    // by the same previousStatus/attemptedStatus already computed above
+    // for the lifecycle-rank check), and is best-effort: a failure here
+    // must never affect the ledger write it's reacting to.
+    if (!DEVICE_VERIFICATION_TERMINAL_STATUSES.has(String(previousStatus)) && DEVICE_VERIFICATION_TERMINAL_STATUSES.has(String(attemptedStatus))) {
+      void (async () => {
+        try {
+          const { reconcileFacilityAutomationDeviceVerification } = await import("./facilityAutomationService");
+          await reconcileFacilityAutomationDeviceVerification(id, publicUpdate);
+        } catch (reconcileError) {
+          logger.warn("facility_automation_device_verification_reconciliation_failed", {
+            command_execution_id: id,
+            error: (reconcileError as any)?.message || String(reconcileError),
+          });
+        }
+      })();
+    }
     return publicUpdate;
   } catch (error) {
     logger.warn("device_command_execution_persist_failed", {
