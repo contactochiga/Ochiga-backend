@@ -68,9 +68,17 @@ export type DeviceCommandAuthorityResult = {
 // re-deriving surface from which route matched -- the same mapping
 // already established in src/ai/commandRouter.ts
 // (source: args.__oyi_surface === "facility" ? "facility" : "app").
+//
+// Wave 4B Slice 1 -- "office_automation" added as a third recognized
+// commandSource (executeConsumerAutomation's Office device-command
+// authority gate, scenes.ts). It maps to the existing "facility"
+// surface rather than a new one: an Office-triggered automation is
+// operationally non-consumer/non-resident, and devices.power.control's
+// supported_surfaces already covers "facility" -- no new surface value,
+// no second devices.power.control registration.
 export function authorizeDeviceCommand(input: DeviceCommandAuthorityInput): DeviceCommandAuthorityResult {
   ensureDeviceCapabilityRegistered();
-  const surface: OyiSurface = input.commandSource === "facility" ? "facility" : "consumer";
+  const surface: OyiSurface = input.commandSource === "facility" || input.commandSource === "office_automation" ? "facility" : "consumer";
   const authority = capabilityService.canUse(DEVICE_COMMAND_CAPABILITY_KEY, {
     actor: input.actor,
     oisContext: null,

@@ -37,6 +37,7 @@ import {
   nextAutomationRunAt,
   validateAutomationTrigger,
 } from "../services/automationScheduleService";
+import { authorizeDeviceCommand } from "../oyi-core/actions/DeviceCommandAuthority";
 
 const router = Router();
 router.use(requireAuth);
@@ -858,6 +859,13 @@ export async function executeConsumerAutomation(input: {
   source: "scheduled" | "manual_test";
   scheduledFor?: string | null;
   occurrenceKey?: string | null;
+  // Wave 4B Slice 1 -- explicit, additive opt-in. Only officeExport.ts's
+  // POST /automations/:id/test sets this. Every other caller (the
+  // scheduler's claimAndRunAutomation, and scenes.ts's own consumer-
+  // authenticated /automations/:id/test) omits it and is completely
+  // unaffected -- this function's behavior for them is byte-for-byte
+  // unchanged. See the device-command authority gate below.
+  officeDeviceCommandAuthority?: boolean;
 }) {
   const { automation, actor, req, source } = input;
   // Shared entry point for both the scheduler (claimAndRunAutomation) and
@@ -1147,6 +1155,67 @@ export async function executeConsumerAutomation(input: {
       await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
       logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code, surface: automation.surface || "consumer" });
       return { ...runRow, ...failed };
+    }
+
+    // Wave 4B Slice 1 -- close the confirmed Office automation-test
+    // authority bypass. requireOfficeExportKey (officeExport.ts) only
+    // proves a trusted SYSTEM made the request -- it is service
+    // authentication, not actor identity, and never was capability
+    // authority. officeAutomationActor's role: "ochiga_admin" is a
+    // synthetic identity label for audit/created_by attribution only
+    // (unchanged, still used below); reusing its blanket PERMISSION_KEYS
+    // grant for a real device-authority decision would make the check
+    // vacuous, since ochiga_admin already holds every permission in the
+    // system. This gate instead resolves a deliberately narrow, honest
+    // authority actor -- role "ai_agent" (the existing, real PlatformRole
+    // for non-human system actors; it does not itself carry
+    // devices.control) with ONLY the single "devices.control" permission
+    // explicitly granted for this decision, real home/estate scope taken
+    // from the automation row (never fabricated), and runs it through
+    // the SAME canonical capabilityService.canUse() gate (via
+    // DeviceCommandAuthority, reused unmodified apart from recognizing
+    // this new commandSource) every other device-command path already
+    // authorizes against. Gated behind officeDeviceCommandAuthority so
+    // every other caller of this shared function is untouched.
+    if (input.officeDeviceCommandAuthority) {
+      const officeDeviceAuthorityActor = {
+        id: "office_automation_device_authority",
+        email: "office-automation-device-authority@ochiga.local",
+        role: "ai_agent",
+        permissions: ["devices.control"],
+        permission_scopes: [],
+        estate_id: automation.estate_id || null,
+        home_id: automation.home_id || null,
+      } as unknown as AuthUser;
+      const authority = authorizeDeviceCommand({
+        actor: officeDeviceAuthorityActor,
+        commandSource: "office_automation",
+        estateId: automation.estate_id || null,
+        homeId: automation.home_id || null,
+        roomId: null,
+      });
+      if (!authority.allowed) {
+        const completedAt = new Date().toISOString();
+        const failedActions = actions.map((action, index) => ({
+          action_index: index,
+          device_id: action.device_id,
+          canonical_device_id: action.device_id,
+          status: "skipped",
+          error: authority.reason || "Device command authority denied.",
+        }));
+        const failed = {
+          status: "failed",
+          completed_at: completedAt,
+          counts: { total: actions.length, completed: 0, failed: actions.length || 1 },
+          actions: failedActions,
+          error_code: "device_command_authority_denied",
+          error_message: authority.reason || "This automation is not authorized to control devices.",
+        };
+        await supabaseAdmin.from("consumer_automation_runs").update(failed as any).eq("id", runId);
+        await supabaseAdmin.from("consumer_automations").update({ last_run_at: completedAt, last_run_status: "failed" }).eq("id", automation.id);
+        logger.warn("automation_run_failed", { automation_id: automation.id, automation_run_id: runId, reason: failed.error_code, surface: automation.surface || "consumer" });
+        return { ...runRow, ...failed };
+      }
     }
 
     results = await executeResidentActionBatch({

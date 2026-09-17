@@ -2266,6 +2266,12 @@ router.post("/automations/:id/test", requireOfficeExportKey, async (req: Request
       actor,
       req: { user: actor, headers: {}, body: { source: "automation" }, oisContext: { estate_id: automation.data.estate_id, home_id: automation.data.home_id } },
       source: "manual_test",
+      // Wave 4B Slice 1 -- the requireOfficeExportKey shared secret above
+      // proves which trusted SYSTEM called this route; it does not by
+      // itself prove authority over a physical device. This is the only
+      // call site in the codebase that sets this flag -- see the gate's
+      // full rationale in executeConsumerAutomation (scenes.ts).
+      officeDeviceCommandAuthority: true,
     });
     return res.status(200).json({ ok: true, run: result });
   } catch (err: any) {
