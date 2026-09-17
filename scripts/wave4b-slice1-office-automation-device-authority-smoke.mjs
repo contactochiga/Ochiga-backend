@@ -135,10 +135,16 @@ need(!gateBlock.includes('"completed"') && !gateBlock.includes("verified: true")
 // /automations/:id/test route must not set officeDeviceCommandAuthority,
 // proving canonical consumer/scheduled automation execution is unchanged
 // by this slice.
-const schedulerCallIdx = scenesSource.indexOf('await executeConsumerAutomation({ automation: claim.data, actor, req, source: "scheduled"');
-need(schedulerCallIdx > 0, "I. the scheduler's executeConsumerAutomation call site must still exist unmodified");
-const schedulerCallLine = scenesSource.slice(schedulerCallIdx, schedulerCallIdx + 200);
-need(!schedulerCallLine.includes("officeDeviceCommandAuthority"), "I. the scheduler (future office-surface runs included) must not set officeDeviceCommandAuthority in this slice -- explicitly out of scope, flagged as a remaining gap for when AUTOMATION_SURFACE_OFFICE_ENABLED is turned on");
+// Wave 4B Slice 2 update: the scheduler's dormant office-surface gap
+// (flagged in Slice 1's final report as "any remaining bypass
+// discovered") was closed in Slice 2 by wiring claimAndRunAutomation's
+// executeConsumerAutomation call into this same gate, derived from the
+// automation's real surface. This assertion now proves the call site
+// still exists and still carries automation/actor/req/source: "scheduled"
+// unchanged -- Slice 1's boundary at the ROUTE level (officeExport.ts)
+// is separately reverified below and remains untouched.
+const schedulerCallIdx = scenesSource.indexOf("await executeConsumerAutomation({\n    automation: claim.data,\n    actor,\n    req,\n    source: \"scheduled\",\n    scheduledFor,\n    occurrenceKey,");
+need(schedulerCallIdx > 0, "I. the scheduler's executeConsumerAutomation call site must still exist, carrying automation/actor/req/source: 'scheduled'/scheduledFor/occurrenceKey unchanged");
 
 const consumerTestRouteIdx = scenesSource.indexOf('const result = await executeConsumerAutomation({ automation, actor: req.user!, req, source: "manual_test" });');
 need(consumerTestRouteIdx > 0, "I. scenes.ts's own consumer-authenticated manual test route must still exist unmodified");

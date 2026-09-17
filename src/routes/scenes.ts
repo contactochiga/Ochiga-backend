@@ -1366,7 +1366,31 @@ async function claimAndRunAutomation(automation: any) {
     body: { source: "automation" },
     oisContext: { estate_id: automation.estate_id, home_id: automation.home_id },
   };
-  await executeConsumerAutomation({ automation: claim.data, actor, req, source: "scheduled", scheduledFor, occurrenceKey });
+  await executeConsumerAutomation({
+    automation: claim.data,
+    actor,
+    req,
+    source: "scheduled",
+    scheduledFor,
+    occurrenceKey,
+    // Wave 4B Slice 2 -- closes the scheduler's dormant counterpart to
+    // Slice 1's Office automation-test bypass. surface === "office" is
+    // the ONLY case that reaches the plain device-command lane with a
+    // synthetic (non-per-user) actor -- consumer/facility automations
+    // are always created by a real Backend user (see the actor
+    // resolution above), so this flag stays false for them and their
+    // behavior is byte-for-byte unchanged. Reuses the exact Slice 1
+    // gate (same narrow ai_agent+devices.control authority actor, same
+    // DeviceCommandAuthority.authorizeDeviceCommand() call) already
+    // built into executeConsumerAutomation -- no second authority actor
+    // builder or permission model. Currently unreachable in production:
+    // AUTOMATION_SURFACE_OFFICE_ENABLED is false, so automationSchedulerTick's
+    // own due-scan (enabledAutomationSurfaces()) never selects an office
+    // row, and claimAndRunAutomation's defense-in-depth isAutomationSurfaceEnabled()
+    // check above returns before this line for one anyway. This wires
+    // the gate in now so the surface can never be turned on without it.
+    officeDeviceCommandAuthority: surface === "office",
+  });
 }
 
 // Automation Workspace UI/UX completion -- scoped(req) only filters by
