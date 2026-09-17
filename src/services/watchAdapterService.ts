@@ -4,12 +4,14 @@ import type { AuthUser } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { routeAiCommand, updateAiConfirmation, type ProposedAiTool } from "../ai/commandRouter";
 import { executeDeviceCommandForActor } from "../controllers/deviceCommandController";
-import { hasWatchScope } from "./watchPolicy";
+import { authorizeDeviceCommand } from "../oyi-core/actions/DeviceCommandAuthority";
+import { deviceWithinActorScope, hasWatchScope } from "./watchPolicy";
 import {
   isDeviceDefinitelyOffline,
   listVisibleDevices,
   logDeviceCommandDiagnostic,
   normalizeDeviceOnlineState,
+  resolveVisibleDevice,
 } from "./deviceRuntimeService";
 
 function actorHomeId(actor: AuthUser) {
@@ -215,6 +217,44 @@ async function runConsumerScene(req: Request | undefined, actor: AuthUser, scene
   for (const action of actions) {
     if (!safeSceneCommand(action.command)) {
       results.push({ device_id: action.device_id, status: "denied" });
+      continue;
+    }
+    // Wave 4B Slice 3 -- Watch's scene runner previously trusted the
+    // scene's stored device_id directly and called executeDeviceCommandForActor
+    // with no explicit per-action authority decision, relying solely on
+    // that executor's own internal resolveVisibleDevice resolution.
+    // commandRouter.ts's own scene runner (executeScene) already resolves
+    // + scope-checks each device via resolveVisibleDevice/deviceWithinActorScope
+    // before executing -- this brings Watch's scene lane to the same
+    // rigor, and additionally runs the SAME canonical
+    // DeviceCommandAuthority.authorizeDeviceCommand() gate every other
+    // Wave 4/4B device-command path now uses (capabilityService.canUse
+    // ("devices.power.control")), so a platform-wide capability
+    // rollout-status kill-switch -- the one concrete gap this legacy
+    // path had that canonical paths did not -- now also applies here.
+    // actor is the real, already-authenticated Watch user; no synthetic
+    // identity is introduced.
+    // Statuses here deliberately reuse "denied" (not a new "skipped"
+    // value) -- runConsumerScene's/auditSceneExecution's existing
+    // success classification (`status !== "failed" && status !== "denied"`)
+    // already treats "denied" as a non-success outcome; introducing a
+    // new status value here would silently bypass that check and could
+    // report a scene as "success" even though a device never ran --
+    // exactly the false-success state this slice must not introduce.
+    const device = await resolveVisibleDevice(actor, action.device_id);
+    if (!device || !deviceWithinActorScope(actor, device)) {
+      results.push({ device_id: action.device_id, status: "denied", reason: "device_unavailable" });
+      continue;
+    }
+    const authority = authorizeDeviceCommand({
+      actor,
+      commandSource: "watch",
+      estateId: device.estate_id || actor.estate_id || null,
+      homeId: device.home_id || actor.home_id || null,
+      roomId: device.room_id || null,
+    });
+    if (!authority.allowed) {
+      results.push({ device_id: action.device_id, status: "denied", reason: authority.reason });
       continue;
     }
     try {
