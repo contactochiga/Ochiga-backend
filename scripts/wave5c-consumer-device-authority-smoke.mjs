@@ -247,18 +247,20 @@ const { mod: capabilityModule } = ensureEnabled();
   need(!facilityAutomationServiceSource.includes('role: "manager"'), "no fabricated facility_manager/manager persona reintroduced into Facility Automation");
 }
 
-// ============================= Newly-discovered gap: reported, NOT fixed (out of scope per task instructions) =============================
+// ============================= Newly-discovered gap (Wave 5C): closed by Wave 5D =============================
 
 {
   const intentWorkerSource = readFileSync(new URL("../src/workers/intentWorker.ts", import.meta.url), "utf8");
-  const signalControllerSource = readFileSync(new URL("../src/controllers/signal.controller.ts", import.meta.url), "utf8");
-  // This slice deliberately does NOT touch these files -- see the Wave 5C
-  // final report. Confirms the gap was disclosed, not silently patched
-  // (which would have been out-of-scope architectural expansion) and not
-  // silently ignored (still present, still detectable).
-  need(intentWorkerSource.includes("await tuya.executeCommand(deviceKey, intent.command,"), "confirms the newly-discovered POST /signals -> control-plane -> intentWorker.ts direct Tuya dispatch bypass still exists, exactly as disclosed in the final report (intentionally NOT fixed in this slice -- see report item 22)");
-  need(!intentWorkerSource.includes("authorizeDeviceCommand"), "confirms this slice did not attempt a narrow/unsafe patch of intentWorker.ts");
-  need(!signalControllerSource.includes("authorizeDeviceCommand"), "confirms this slice did not attempt a narrow/unsafe patch of signal.controller.ts");
+  // Wave 5C deliberately did NOT touch intentWorker.ts/signal.controller.ts
+  // -- it disclosed this gap rather than silently patching or ignoring it
+  // (see the Wave 5C final report, item 22). Wave 5D then closed it by
+  // converging intentWorker.ts's handleDeviceIntent onto the SAME
+  // canonical authorizeDeviceCommand()/executeDeviceCommandForActor()
+  // boundary every other entrance in this file already uses -- see
+  // scripts/wave5d-signal-intent-device-authority-smoke.mjs for the
+  // dedicated coverage of that convergence.
+  need(!/tuya\.executeCommand\(/.test(intentWorkerSource), "confirms the Wave 5C-disclosed POST /signals -> control-plane -> intentWorker.ts direct Tuya dispatch bypass has since been closed by Wave 5D");
+  need(intentWorkerSource.includes("authorizeDeviceCommand"), "confirms intentWorker.ts now uses the canonical authorizeDeviceCommand gate (Wave 5D)");
 }
 
 capabilityModule.rolloutStatus = "enabled";
@@ -279,7 +281,7 @@ console.log("PASS execution still flows through the canonical executeDeviceComma
 console.log("PASS no privilege fabrication -- the real actor parameter is reused unmodified");
 console.log("PASS the authority check is the sole shared boundary, placed before per-action dispatch, denying the whole batch honestly");
 console.log("PASS every previously-established Wave 4B/Wave 5 authority boundary remains intact (global kill-switch re-verification)");
-console.log("PASS the newly-discovered intentWorker.ts/signal.controller.ts bypass is disclosed, not silently patched or ignored");
+console.log("PASS the Wave 5C-disclosed intentWorker.ts bypass has since been closed by Wave 5D");
 console.log("wave5c-consumer-device-authority-smoke passed");
 // This local dev environment has no Redis reachable; the "enabled"
 // scenarios above intentionally let execution proceed into the real

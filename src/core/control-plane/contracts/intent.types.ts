@@ -39,11 +39,32 @@ export interface NotifyIntent extends BaseIntent {
 
 /**
  * Device Command Intent
+ *
+ * Wave 5D -- additive authority context. Before this, a DeviceCommandIntent
+ * carried only deviceId/command -- no actor identity survived the queue
+ * boundary at all, which is exactly why intentWorker.ts's handleDeviceIntent
+ * had to bypass canonical DeviceCommandAuthority/executeDeviceCommandForActor
+ * entirely and dispatch straight to the Tuya adapter. `actor` is optional
+ * specifically so that already-queued pre-Wave-5D jobs (lacking this field)
+ * remain valid Intent values at the type level -- the worker fails them
+ * closed at runtime rather than the type system silently coercing them.
+ * Never fabricated: deviceCommandPolicy only ever populates this from the
+ * real DeviceCommandRequestedSignal.requestedBy (userId/role) the
+ * authenticated caller of POST /signals actually supplied (or derived from
+ * their own req.user), plus the same estate/home/room scope fields already
+ * enriched onto that signal -- see signal.controller.ts's ingestSignal.
  */
 export interface DeviceCommandIntent extends BaseIntent {
   target: "device";
   deviceId: string;
   command: Record<string, any>;
+  actor?: {
+    id: string;
+    role: string;
+    estateId?: string | null;
+    homeId?: string | null;
+    roomId?: string | null;
+  };
 }
 
 export interface UniversalIntent extends BaseIntent {
