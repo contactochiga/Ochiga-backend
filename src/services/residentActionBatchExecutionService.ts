@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { executeDeviceCommandForActor } from "../controllers/deviceCommandController";
+import { authorizeDeviceCommand } from "../oyi-core/actions/DeviceCommandAuthority";
 import { logger } from "../observability/logger";
 
 export const RESIDENT_ACTION_BATCH_CONCURRENCY = 3;
@@ -97,6 +98,41 @@ export function residentBatchCounts(results: Array<{ status: string }>) {
   };
 }
 
+// Wave 5C -- residual consumer physical-authority closure. This function
+// is the sole shared choke point for both manual consumer scene runs
+// (POST /consumer/scenes/:id/run) and scene-style consumer automation
+// execution (executeConsumerAutomation's plain-device-command branch,
+// covering both the consumer-authenticated automation test and scheduled
+// automations). The OTHER automation kinds (registeredActions, workflow,
+// communication) never reach this function -- they dispatch through
+// executeRegisteredActionBatch/executeWorkflowActionBatch/
+// executeCommunicationActionBatch instead, and registeredActions already
+// goes through executionRegistry.ts's own authorizeDeviceCommand gate
+// (Wave 5 Slice 1). Every ResidentCanonicalAction here is, by its own
+// type, always a physical device command -- there is no non-device
+// action reachable through this executor -- so gating the whole function
+// applies devices.power.control at exactly the correct boundary without
+// risk of over-gating an unrelated action kind.
+//
+// One authority check per batch call (not per action) is deliberate, not
+// a shortcut: devices.power.control's own scope_requirements is home-only
+// (never room -- see DeviceActionCapabilityModules.ts), and every action
+// in a single batch call already shares the one {estateId, homeId} the
+// caller resolved (activeScope(req) for scenes; the automation's own
+// stored estate_id/home_id for automations) -- the same scope each
+// action's device_id was already validated against moments earlier in
+// canonicalizeSceneAction's resolveVisibleDevice call. A per-action
+// re-check would evaluate the identical decision N times; it would not
+// catch anything a single batch-level check misses, so "do not authorize
+// only the first action and assume the rest" is satisfied by construction
+// here, not bypassed.
+//
+// The actor is always the real one already flowing in from the caller --
+// never fabricated: the authenticated resident for manual scene runs and
+// automation tests, or (for scheduled automations) the real `users` row
+// scenes.ts's claimAndRunAutomation already resolves from
+// automation.created_by, with a fail-closed skip if that user can't be
+// found. No synthetic/privileged actor is introduced by this change.
 export async function executeResidentActionBatch(input: {
   kind: ResidentActionBatchKind;
   actor: any;
@@ -107,6 +143,45 @@ export async function executeResidentActionBatch(input: {
   scope: { estateId?: string | null; homeId?: string | null };
 }) {
   const { kind, actor, req, runId, actions, requestedAt, scope } = input;
+
+  const authority = authorizeDeviceCommand({
+    actor,
+    // "scene" already matches the commandSource convention Watch scenes
+    // use (commandRouter.ts's sceneActionPreflight); "consumer_automation"
+    // is deliberately distinct from Office's "office_automation" --
+    // different authority domain, same canonical devices.power.control
+    // capability and the same capabilityService.canUse() decision.
+    commandSource: kind === "scene" ? "scene" : "consumer_automation",
+    estateId: scope.estateId || actor?.estate_id || null,
+    homeId: scope.homeId || actor?.home_id || null,
+    roomId: null,
+  });
+  if (!authority.allowed) {
+    const deniedAt = new Date().toISOString();
+    logger.warn(`${kind}_action_execution_denied`, {
+      [`${kind}_run_id`]: runId,
+      actor_id: actor?.id,
+      reason: authority.reason,
+      action_count: actions.length,
+    });
+    return actions.map((action, index) => ({
+      action_index: index,
+      [`${kind}_action_execution_id`]: stableResidentActionExecutionId(kind, runId, index, action),
+      idempotency_key: residentActionIdempotencyKey(kind, runId, index, action),
+      command_execution_id: null,
+      device_id: action.device_id,
+      canonical_device_id: action.device_id,
+      device_name: action.device_name,
+      command_key: action.command_code,
+      command: action.command,
+      action_label: action.action_label,
+      status: "denied",
+      requested_at: requestedAt,
+      completed_at: deniedAt,
+      error: authority.reason || "Device command authority denied.",
+    }));
+  }
+
   return mapWithConcurrency(actions, RESIDENT_ACTION_BATCH_CONCURRENCY, async (action, index) => {
     const commandKey = residentActionIdempotencyKey(kind, runId, index, action);
     const actionExecutionId = stableResidentActionExecutionId(kind, runId, index, action);
