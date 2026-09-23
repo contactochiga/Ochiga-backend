@@ -192,6 +192,19 @@ export type ReadFilters = {
   domain?: string | null;
   limit?: number;
   includeResolved?: boolean;
+  // Wave 6 Slice 3 -- opt-in only (default false), never the default
+  // behavior. operational_awareness rows written for signal classes
+  // correlateIncident() intentionally does not correlate (command-lifecycle
+  // acks, user-initiated off, expired-only pings, audit-recursion, routine
+  // private-info signals) now have a directly resolvable estate/home scope
+  // (see the Slice 3 migration), but are still NOT surfaced in the default
+  // active feed -- per the mission's own instruction, not every persisted
+  // row should automatically become user-facing "active" awareness. Passing
+  // true additionally includes these rows, still fully scope- and
+  // privacy-gated like every other row, for callers that explicitly want a
+  // resident's own private observation history (e.g. "what has my home
+  // reported recently"), not for the default operational feed.
+  includeUnincidented?: boolean;
 };
 
 export type ReadOutcome<T> = {
@@ -379,8 +392,36 @@ function entityFromIncidentRow(row: IncidentScopeRow | undefined): { type: strin
 // AWARENESS
 // ---------------------------------------------------------------------
 
+// Wave 6 Slice 3 -- scope now prefers the direct estate_id/home_id columns
+// written onto every new operational_awareness row (and backfilled for
+// historical incident-linked rows) by the
+// 20260923120000_operational_awareness_direct_scope_columns.sql migration.
+// Falls back to the incident join only for the residual case of a row
+// that predates both the migration's backfill and a redeployed write path
+// (should not exist going forward, but handled honestly rather than
+// assumed away). building_id/room_id still only exist on the incident's
+// scope jsonb, so those are always sourced from the incident when present.
+function resolveAwarenessScope(row: any, incidentRow: IncidentScopeRow | undefined): CanonicalScope {
+  const incidentScope = scopeFromIncidentRow(incidentRow);
+  return {
+    estateId: text(row.estate_id) || incidentScope.estateId,
+    homeId: text(row.home_id) || incidentScope.homeId,
+    buildingId: incidentScope.buildingId,
+    roomId: incidentScope.roomId,
+  };
+}
+
+// audience is written as policy.privacyClass at record time (see
+// canonicalIntelligenceStore.ts's recordBundle) -- for incident-less rows
+// there is no incident row to source privacy_class from, so audience is
+// the same taxonomy value under a different column name, not a guess.
+function resolveAwarenessPrivacyClass(row: any, incidentRow: IncidentScopeRow | undefined): string | null {
+  if (incidentRow) return text(incidentRow.privacy_class) || null;
+  return text(row.audience) || null;
+}
+
 function mapAwarenessRow(row: any, incidentRow: IncidentScopeRow | undefined): AwarenessReadItem {
-  const scope = scopeFromIncidentRow(incidentRow);
+  const scope = resolveAwarenessScope(row, incidentRow);
   // recordBundle() persists payload: item where item is the full
   // OperationalAwareness object (contextAwareness.ts) -- its evidence
   // array is keyed supporting_evidence, not evidence.
@@ -408,7 +449,7 @@ function mapAwarenessRow(row: any, incidentRow: IncidentScopeRow | undefined): A
     expiresAt: text(row.expires_at) || null,
     freshness: classifyFreshness(row.expires_at),
     scope,
-    privacyClass: incidentRow ? text(incidentRow.privacy_class) || null : null,
+    privacyClass: resolveAwarenessPrivacyClass(row, incidentRow),
     relatedSignals: Array.isArray(row.related_signals) ? row.related_signals.map(text) : [],
     relatedExecutions: Array.isArray(row.related_executions) ? row.related_executions.map(text) : [],
     executionReference: text(row.payload?.executionReference) || null,
@@ -433,24 +474,23 @@ export async function listActiveAwareness(actor: AuthUser, oisContext: OisContex
   const statuses = filters.includeResolved ? ["open", "resolved"] : ["open"];
 
   try {
-    let query = supabaseAdmin
-      .from("operational_awareness")
-      .select("id,incident_id,awareness_key,audience,status,title,summary,reason,impact,urgency,owner,recommended_action,verification,confidence,related_signals,related_executions,payload,generated_at,updated_at,expires_at")
-      .in("status", statuses)
-      .not("incident_id", "is", null)
-      .order("generated_at", { ascending: false })
-      .limit(limit * 3); // over-fetch before scope filtering; see note below
-    const { data, error } = await query;
+    const awarenessColumns = "id,incident_id,estate_id,home_id,awareness_key,audience,status,title,summary,reason,impact,urgency,owner,recommended_action,verification,confidence,related_signals,related_executions,payload,generated_at,updated_at,expires_at";
+    const { data, error } = filters.includeUnincidented
+      ? await supabaseAdmin.from("operational_awareness").select(awarenessColumns).in("status", statuses).not("estate_id", "is", null).order("generated_at", { ascending: false }).limit(limit * 3)
+      : await supabaseAdmin.from("operational_awareness").select(awarenessColumns).in("status", statuses).not("incident_id", "is", null).order("generated_at", { ascending: false }).limit(limit * 3); // over-fetch before scope filtering; see note below
     if (error) throw error;
     const rows = (data || []) as any[];
 
-    // Count scope-unresolved rows honestly (same page, excluded above via
-    // .not("incident_id","is",null) -- run a lightweight count separately
-    // so callers can see the coverage gap without paying for the full rows).
+    // Honest coverage-gap count: rows genuinely still unscopeable (no
+    // direct estate_id AND no incident_id to fall back through). Post
+    // migration this should trend toward zero for new writes; any nonzero
+    // count is real historical rows that predate both the backfill and a
+    // redeployed write path, not a query artifact.
     const { count: unresolvedCount } = await supabaseAdmin
       .from("operational_awareness")
       .select("id", { count: "exact", head: true })
       .in("status", statuses)
+      .is("estate_id", null)
       .is("incident_id", null);
 
     const incidentIds = rows.map((row) => text(row.incident_id)).filter(Boolean);
@@ -458,10 +498,15 @@ export async function listActiveAwareness(actor: AuthUser, oisContext: OisContex
 
     const scopedRows = rows.filter((row) => {
       const incidentRow = incidentById.get(text(row.incident_id));
-      if (!incidentRow) return false; // dangling incident_id -> fail closed, not fabricated
-      if (filters.domain && text((incidentRow as any).domain) !== filters.domain) return false;
-      const scope = scopeFromIncidentRow(incidentRow);
-      return actorMayViewScope(authority, scope, incidentRow.privacy_class);
+      if (row.incident_id && !incidentRow) return false; // dangling incident_id -> fail closed, not fabricated
+      if (filters.domain) {
+        // Domain is only known via the incident join; an incident-less row
+        // has no persisted domain of its own, so a domain filter honestly
+        // excludes it rather than guessing.
+        if (!incidentRow || text((incidentRow as any).domain) !== filters.domain) return false;
+      }
+      const scope = resolveAwarenessScope(row, incidentRow);
+      return actorMayViewScope(authority, scope, resolveAwarenessPrivacyClass(row, incidentRow));
     });
 
     const cameraLookup = await loadCameraLookupForEntities(
@@ -494,17 +539,24 @@ export async function getAwareness(actor: AuthUser, oisContext: OisContext | nul
   try {
     const { data: row, error } = await supabaseAdmin
       .from("operational_awareness")
-      .select("id,incident_id,awareness_key,audience,status,title,summary,reason,impact,urgency,owner,recommended_action,verification,confidence,related_signals,related_executions,payload,generated_at,updated_at,expires_at")
+      .select("id,incident_id,estate_id,home_id,awareness_key,audience,status,title,summary,reason,impact,urgency,owner,recommended_action,verification,confidence,related_signals,related_executions,payload,generated_at,updated_at,expires_at")
       .eq("id", cleanId)
       .maybeSingle();
     if (error) throw error;
     if (!row) return { ok: false, item: null, reason: "not_found" };
-    if (!row.incident_id) return { ok: false, item: null, reason: "scope_unresolved" }; // known gap -- fail closed, not fabricated
-    const incidentById = await loadIncidentScopeById([text(row.incident_id)]);
-    const incidentRow = incidentById.get(text(row.incident_id));
-    if (!incidentRow) return { ok: false, item: null, reason: "not_found" };
-    const scope = scopeFromIncidentRow(incidentRow);
-    if (!actorMayViewScope(authority, scope, incidentRow.privacy_class)) {
+    let incidentRow: IncidentScopeRow | undefined;
+    if (row.incident_id) {
+      const incidentById = await loadIncidentScopeById([text(row.incident_id)]);
+      incidentRow = incidentById.get(text(row.incident_id));
+      if (!incidentRow) return { ok: false, item: null, reason: "not_found" };
+    } else if (!row.estate_id) {
+      // No incident to join and no direct scope column populated -- the
+      // known, honestly-reported gap for rows written before this slice's
+      // migration/write-path fix. Fail closed rather than fabricate.
+      return { ok: false, item: null, reason: "scope_unresolved" };
+    }
+    const scope = resolveAwarenessScope(row, incidentRow);
+    if (!actorMayViewScope(authority, scope, resolveAwarenessPrivacyClass(row, incidentRow))) {
       recordMetric("canonical_awareness_read_denied_total", { reason: "scope_denied" });
       return { ok: false, item: null, reason: "denied" };
     }

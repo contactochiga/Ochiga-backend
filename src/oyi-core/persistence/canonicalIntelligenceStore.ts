@@ -210,6 +210,13 @@ class CanonicalIntelligenceStore {
         supabaseAdmin.from("operational_awareness").upsert({
           incident_id: correlation?.suppressChildAwareness ? null : incidentId,
           awareness_key: item.id,
+          // Wave 6 Slice 3 -- same normalized scope values already written
+          // onto operational_incidents/operational_recommendations for this
+          // signal, persisted directly here too so scope resolution never
+          // depends on incident correlation succeeding (see Slice 2's
+          // documented coverageGap.scopeUnresolvedExcluded gap).
+          estate_id: signal.estateId || null,
+          home_id: homeId,
           audience: policy.privacyClass,
           status: correlation?.suppressChildAwareness ? "suppressed" : correlation?.status === "resolved" ? "resolved" : "open",
           title: item.title,

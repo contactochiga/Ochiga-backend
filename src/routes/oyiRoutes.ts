@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { resolveRequestContext } from "../middleware/contextResolver";
 import { getOyiConversationMessages, getOyiUnifiedAwareness, listOyiConversationThreads } from "../services/oyiUnifiedIntelligenceService";
+import { getConvergedAwarenessDigest } from "../oyi-core/read/awarenessPresentationAdapter";
 import { oyiCoreRuntime } from "../oyi-core/service";
 import { executionLedger, type ExecutionLedgerScope } from "../oyi-core/runtime/executionLedger";
 import { adaptCanonicalToCompatibilityChat } from "../oyi-core/runtime/canonicalConversationAdapters";
@@ -57,16 +58,27 @@ function runtimeExecutionScope(req: any, defaultLimit: number): ExecutionLedgerS
 // - /oyi/awareness and /oyi/chat are compatibility-only adapters.
 // - Compatibility routes should prefer src/oyi-core for safe read-only
 //   responses while preserving legacy payload shapes for older clients.
+// Wave 6 Slice 3 -- this route no longer calls the legacy awareness
+// builder directly. It calls the canonical-first orchestration adapter,
+// which tries CanonicalAwarenessReadService and only falls back to legacy
+// explicitly (canonical_status/legacy_fallback_used/fallback_reason are
+// always present on the response) when canonical itself could not answer.
+// No privacy/authority logic lives in this route; both paths it can reach
+// already enforce their own.
 router.get("/awareness", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     observeCompatibilityRoute("/oyi/awareness", req.oisContext?.surface);
-    const body = await getOyiUnifiedAwareness(req.user || null, {
+    const body = await getConvergedAwarenessDigest(req.user || null, req.oisContext || null, {
       surface: req.oisContext?.surface as any,
       estate_id: req.oisContext?.estate_id || null,
       home_id: req.oisContext?.home_id || null,
       context: req.oisContext,
     });
-    return res.status((body as any).ok === false ? 400 : 200).json(body);
+    operationalMetrics.increment("oyi_awareness_canonical_status_total", {
+      canonical_status: body.canonical_status,
+      legacy_fallback_used: String(body.legacy_fallback_used),
+    });
+    return res.status(body.ok === false ? 400 : 200).json(body);
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to build Oyi awareness" });
   }
