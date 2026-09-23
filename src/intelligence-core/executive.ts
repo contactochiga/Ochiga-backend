@@ -1,5 +1,5 @@
 import type { AuthUser } from "../middleware/auth";
-import { getIntelligencePermissionPolicy } from "./permissionEngine";
+import { getIntelligencePermissionPolicy, filterCameraProtectedEvents, loadCameraAccessLookup } from "./permissionEngine";
 import { loadNormalizedTimelineEvents } from "./normalizers";
 import { listPersistedIntelligenceEvents, summarizeIntelligenceEvents } from "./eventBus";
 import { listIntelligencePredictions, summarizePredictions } from "./predictionEngine";
@@ -39,7 +39,15 @@ export async function getExecutiveIntelligence(actor?: AuthUser | null) {
     getOrganizationSummary(actor),
     getWorkflowSummary(actor),
   ]);
-  const events = mergeEvents(persisted.events || [], normalized.events || [], 100);
+  const mergedEvents = mergeEvents(persisted.events || [], normalized.events || [], 100);
+  // Wave 6 Slice 1 -- this executive digest does not run the rest of
+  // filterEventsForActor's role/category gating (management roles here
+  // legitimately see cross-department counts that a narrower role would
+  // not), but it still must not let eventSummary.latest/focus surface raw
+  // title/summary text from a camera the viewing actor could not access
+  // directly. Camera privacy is not optional the way category breadth is.
+  const cameraLookup = await loadCameraAccessLookup(mergedEvents);
+  const events = filterCameraProtectedEvents(mergedEvents, actor, cameraLookup);
   const eventSummary = summarizeIntelligenceEvents(events);
   const predictionSummary = summarizePredictions(predictions.predictions || []);
   return {
@@ -75,7 +83,9 @@ export async function getExecutiveBrief(actor?: AuthUser | null) {
     getWorkflowSummary(actor),
     getAgentObservabilitySummary(100),
   ]);
-  const events = mergeEvents(persisted.events || [], normalized.events || [], 100);
+  const mergedEvents = mergeEvents(persisted.events || [], normalized.events || [], 100);
+  const cameraLookup = await loadCameraAccessLookup(mergedEvents);
+  const events = filterCameraProtectedEvents(mergedEvents, actor, cameraLookup);
   const eventSummary = summarizeIntelligenceEvents(events);
   const predictionSummary = summarizePredictions(predictions.predictions || []);
   const byCategory = eventSummary.by_category || {};

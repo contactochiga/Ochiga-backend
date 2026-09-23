@@ -1,6 +1,7 @@
 import type { AuthUser } from "../../middleware/auth";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { OisContext, OisContextEstate, OisContextHome, OisSurface, OyiTarget } from "../../types/oisContext";
+import { getIntelligencePermissionPolicy } from "../../intelligence-core/permissionEngine";
 
 export type ContextResolutionInput = {
   surface?: OisSurface | string | null;
@@ -116,7 +117,21 @@ async function availableHomes(actor: AuthUser): Promise<OisContextHome[]> {
   }));
 }
 
-async function facilityHome(homeId: string, estateIds: Set<string>): Promise<OisContextHome | null> {
+// Wave 6 Slice 1 -- Privacy Boundary Closure. surface:"facility" is a
+// presentation/request context, not an authority grant: a resident's own
+// estate membership (which every resident already has) previously
+// satisfied this lookup's only check, letting any resident read another
+// resident's home (meter values, gate code, unit identity) by requesting
+// surface:"facility" with that home's id. The role->scope classification
+// already governing awareness/event privacy (permissionEngine.ts) draws
+// exactly the line needed here: scope "home" is precisely, and only, the
+// resident role -- every other role (estate_admin, facility_manager,
+// security_operator, maintenance_operator, finance_operator, ochiga_admin,
+// super_admin, oma, osa) already legitimately needs cross-home estate
+// reach for Facility operations and must not regress. The estate
+// membership check below is unchanged and still required.
+async function facilityHome(actor: AuthUser, homeId: string, estateIds: Set<string>): Promise<OisContextHome | null> {
+  if (getIntelligencePermissionPolicy(actor).scope === "home") return null;
   const { data } = await supabaseAdmin.from("homes").select("id,name,block,unit,estate_id,electricity_meter,water_meter,internet_id,gate_code").eq("id", homeId).maybeSingle();
   if (!data?.id || !estateIds.has(String(data.estate_id))) return null;
   return { id: String(data.id), name: data.name || null, block: data.block || null, unit: data.unit || null, estate_id: String(data.estate_id), electricity_meter: data.electricity_meter || null, water_meter: data.water_meter || null, internet_id: data.internet_id || null, gate_code: data.gate_code || null };
@@ -138,7 +153,7 @@ export async function resolveOisContext(actor: AuthUser, input: ContextResolutio
   const requestedHomeId = clean(input.home_id);
 
   let home = requestedHomeId ? homes.find((item) => item.id === requestedHomeId) || null : null;
-  if (!home && requestedHomeId && surface === "facility") home = await facilityHome(requestedHomeId, estateIds);
+  if (!home && requestedHomeId && surface === "facility") home = await facilityHome(actor, requestedHomeId, estateIds);
   if (requestedHomeId && !home) throw new ContextResolutionError("The requested home is not available in your operating scope");
 
   const defaultHome = homes.find((item) => item.id === String(actor.home_id || "")) || null;

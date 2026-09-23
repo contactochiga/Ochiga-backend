@@ -2,6 +2,8 @@ import type { AuthUser } from "../middleware/auth";
 import { canonicalRole, hasPermission } from "../core/foundation";
 import type { IntelligenceAgentId, IntelligenceEventCategory } from "./types";
 import { normalizeIntelligenceCategory } from "./eventBus";
+import { supabaseAdmin } from "../supabase/supabaseClient";
+import { canAccessCamera, cameraAccessActor } from "../modules/cameras/cameraAccess.policy";
 
 export type IntelligenceRole =
   | "resident"
@@ -161,7 +163,64 @@ export function getIntelligencePermissionPolicy(actor?: AuthUser | null): Intell
   };
 }
 
-export function filterEventsForActor(events: any[], actor?: AuthUser | null) {
+// Wave 6 Slice 1 -- Privacy Boundary Closure. The role-level can_view_camera
+// check below (e.g. facility_manager/security_operator holding ordinary
+// cameras.view) is necessary but not sufficient: it says nothing about
+// WHICH camera. A resident-privacy-scoped home camera's event text could
+// previously reach the ambient awareness feed for any actor whose role
+// alone passed can_view_camera, even though that same actor is correctly
+// denied direct access to that exact camera by
+// modules/cameras/cameraAccess.policy.ts's canAccessCamera. This reuses
+// that SAME policy function rather than inventing a second interpretation
+// of camera privacy -- see loadCameraAccessLookup below for how the
+// lookup map is built.
+function isCameraEventAuthorized(event: any, actor: AuthUser | null | undefined, cameraById: Map<string, any>) {
+  const cameraId = String(event?.camera_id || event?.metadata?.camera_id || "").trim();
+  const camera = cameraId ? cameraById.get(cameraId) : null;
+  // A camera missing from the lookup (deleted, or the caller's batch
+  // fetch failed/omitted it) is treated as inaccessible rather than
+  // shown -- the same fail-closed posture canAccessCamera itself takes
+  // for a home camera with no resolvable home scope.
+  if (!camera) return false;
+  return canAccessCamera(camera, cameraAccessActor(actor, null)).ok;
+}
+
+// Batch-resolves the facility_cameras rows referenced by any camera-category
+// event in the given list, keyed by camera id, for use with
+// filterEventsForActor's optional cameraById parameter (or
+// filterCameraProtectedEvents below). Callers that never pass this map
+// preserve the pre-Slice-1 role-only behavior for that call site.
+export async function loadCameraAccessLookup(events: any[]): Promise<Map<string, any>> {
+  const ids = Array.from(
+    new Set(
+      (events || [])
+        .filter((event) => normalizeIntelligenceCategory(event?.category) === "camera")
+        .map((event) => String(event?.camera_id || event?.metadata?.camera_id || "").trim())
+        .filter(Boolean)
+    )
+  );
+  const lookup = new Map<string, any>();
+  if (!ids.length) return lookup;
+  const { data, error } = await supabaseAdmin
+    .from("facility_cameras")
+    .select("id,estate_id,home_id,privacy_scope,metadata")
+    .in("id", ids);
+  if (error || !data) return lookup;
+  for (const camera of data) lookup.set(String((camera as any).id), camera);
+  return lookup;
+}
+
+// Standalone camera-privacy filter for call sites (e.g. executive.ts) that
+// intentionally do not run their events through the rest of
+// filterEventsForActor's role/category gating.
+export function filterCameraProtectedEvents(events: any[], actor: AuthUser | null | undefined, cameraById: Map<string, any>) {
+  return (events || []).filter((event) => {
+    if (normalizeIntelligenceCategory(event?.category) !== "camera") return true;
+    return isCameraEventAuthorized(event, actor, cameraById);
+  });
+}
+
+export function filterEventsForActor(events: any[], actor?: AuthUser | null, cameraById?: Map<string, any> | null) {
   const policy = getIntelligencePermissionPolicy(actor);
   const actorEstate = actor?.estate_id || null;
   const actorHome = actor?.home_id || null;
@@ -173,7 +232,10 @@ export function filterEventsForActor(events: any[], actor?: AuthUser | null) {
     if (!policy.allowed_categories.includes(category)) return false;
     if (agent && !policy.allowed_agents.includes(agent)) return false;
     if ((category === "marketing" || category === "sales") && !policy.can_view_office) return false;
-    if (category === "camera" && !policy.can_view_camera) return false;
+    if (category === "camera") {
+      if (!policy.can_view_camera) return false;
+      if (cameraById && !isCameraEventAuthorized(event, actor, cameraById)) return false;
+    }
     if (category === "edge" && !policy.can_view_edge) return false;
 
     if (policy.scope === "system") return true;

@@ -5,7 +5,7 @@ import { INTELLIGENCE_TOOL_REGISTRY, getToolsForAgent } from "../intelligence-co
 import { getMemoryDirectory } from "../intelligence-core/memoryDirectory";
 import { listPersistedIntelligenceEvents, type IntelligenceEventFilters } from "../intelligence-core/eventBus";
 import { loadNormalizedTimelineEvents } from "../intelligence-core/normalizers";
-import { applyRoleScopeToFilters, filterEventsForActor, getIntelligencePermissionPolicy } from "../intelligence-core/permissionEngine";
+import { applyRoleScopeToFilters, filterEventsForActor, getIntelligencePermissionPolicy, loadCameraAccessLookup } from "../intelligence-core/permissionEngine";
 import { buildIntelligenceSummary, inferSummaryType, type IntelligenceSummaryType } from "../intelligence-core/summaryEngine";
 import { acknowledgePrediction, generateIntelligencePredictions, listIntelligencePredictions, summarizePredictions } from "../intelligence-core/predictionEngine";
 import { AGENT_COLLABORATION_RULES, getCollaborationHints } from "../intelligence-core/collaboration";
@@ -103,7 +103,8 @@ async function loadRoleAwareEvents(req: any, limitFallback = 50) {
     loadNormalizedTimelineEvents({ ...filters, limit }),
   ]);
   const merged = mergeEvents(persisted.events || [], normalized.events || [], limit);
-  const roleFiltered = filterEventsForActor(merged, req.user || null);
+  const cameraLookup = await loadCameraAccessLookup(merged);
+  const roleFiltered = filterEventsForActor(merged, req.user || null, cameraLookup);
   return {
     events: roleFiltered,
     filters,

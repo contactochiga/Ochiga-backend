@@ -197,6 +197,7 @@
     "smoke:wave5c-consumer-device-authority": "npm run build && node scripts/wave5c-consumer-device-authority-smoke.mjs",
     "smoke:wave5d-signal-intent-device-authority": "npm run build && node scripts/wave5d-signal-intent-device-authority-smoke.mjs",
     "smoke:wave5e-automation-worker-device-authority": "npm run build && node scripts/wave5e-automation-worker-device-authority-smoke.mjs",
+    "smoke:wave6-slice1-privacy-boundary": "npm run build && node scripts/wave6-slice1-privacy-boundary-smoke.mjs",
     "smoke:oyi-core-convergence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs convergence",
     "smoke:oyi-core-privacy": "npm run build && node scripts/oyi-core-convergence-smoke.mjs privacy",
     "smoke:oyi-core-contextual-intelligence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs contextual",

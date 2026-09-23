@@ -3,7 +3,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import type { AuthUser } from "../middleware/auth";
 import { listPersistedIntelligenceEvents, type IntelligenceEventFilters } from "../intelligence-core/eventBus";
 import { loadNormalizedTimelineEvents } from "../intelligence-core/normalizers";
-import { applyRoleScopeToFilters, filterEventsForActor, getIntelligencePermissionPolicy } from "../intelligence-core/permissionEngine";
+import { applyRoleScopeToFilters, filterEventsForActor, getIntelligencePermissionPolicy, loadCameraAccessLookup } from "../intelligence-core/permissionEngine";
 import { buildIntelligenceSummary, type IntelligenceSummaryType } from "../intelligence-core/summaryEngine";
 import { listIntelligencePredictions, summarizePredictions } from "../intelligence-core/predictionEngine";
 import { listWorkflows, summarizeWorkflows } from "../intelligence-core/workflows";
@@ -964,7 +964,9 @@ async function loadUnifiedContext(actor: AuthUser | null, input: { surface: OyiS
     listWorkflows(actor, { limit: 50 }).catch((err: any) => ({ ok: false, workflows: [], warning: err?.message || "Workflow query failed" })),
   ]);
 
-  const events = filterEventsForActor(mergeEvents(persisted.events || [], normalized.events || [], 120), actor);
+  const mergedContextEvents = mergeEvents(persisted.events || [], normalized.events || [], 120);
+  const cameraLookup = await loadCameraAccessLookup(mergedContextEvents);
+  const events = filterEventsForActor(mergedContextEvents, actor, cameraLookup);
   const predictions = predictionResult.predictions || [];
   const workflows = (workflowResult as any).workflows || [];
   const summary = buildIntelligenceSummary(SUMMARY_BY_SURFACE[input.surface], events, actor);
