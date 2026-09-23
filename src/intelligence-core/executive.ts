@@ -92,6 +92,20 @@ export async function getExecutiveIntelligence(actor?: AuthUser | null, oisConte
       latest: latest ? { title: latest.title, summary: latest.summary, category: latest.domain, agent_id: null, occurred_at: latest.generatedAt } : null,
     };
     canonicalStatus = projection.canonicalStatus;
+  } else if (projection && projection.reason === "no_verified_estate") {
+    // Wave 6 Slice 10B -- authority failure (scope could not be verified)
+    // is not the same condition as availability failure. It must never
+    // fall back to the legacy engine, which resolves scope by a
+    // different, less-verified mechanism -- same rule already enforced
+    // for GET /oyi/awareness (awarenessPresentationAdapter.ts's
+    // buildDigestForUnverifiedScope). eventSummary is deliberately NOT
+    // used here: that would silently answer from a legacy source under
+    // an authority failure, exactly what this rule forbids.
+    logger.warn("executive_intelligence_scope_unverified", { reason: projection.reason });
+    legacyFallbackUsed = false;
+    fallbackReason = "scope_unverified";
+    canonicalStatus = "unavailable";
+    awarenessSummary = { total: 0, attention: 0, by_category: {}, by_agent: {}, latest: null };
   } else {
     logger.warn("executive_intelligence_canonical_fallback", { reason: projection?.reason || "unknown" });
     legacyFallbackUsed = true;
@@ -178,6 +192,16 @@ export async function getExecutiveBrief(actor?: AuthUser | null, oisContext?: Oi
       latest_signal: latest ? { title: latest.title, summary: latest.summary, category: latest.domain, occurred_at: latest.generatedAt } : null,
     };
     canonicalStatus = projection.canonicalStatus;
+  } else if (projection && projection.reason === "no_verified_estate") {
+    // Wave 6 Slice 10B -- same authority-vs-availability rule as
+    // getExecutiveIntelligence above: scope could not be verified, so
+    // this must fail closed rather than silently answer from the
+    // legacy byCategory/eventSummary source computed above.
+    logger.warn("executive_brief_scope_unverified", { reason: projection.reason });
+    legacyFallbackUsed = false;
+    fallbackReason = "scope_unverified";
+    canonicalStatus = "unavailable";
+    ambient = { camera_alerts: 0, maintenance_risks: 0, attention_events: 0, latest_signal: null };
   } else {
     logger.warn("executive_brief_canonical_fallback", { reason: projection?.reason || "unknown" });
     legacyFallbackUsed = true;

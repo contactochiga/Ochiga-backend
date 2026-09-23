@@ -205,6 +205,31 @@ export type AmbientSummaryCompatibleShape = {
   canonical_status: AmbientCanonicalStatus;
 };
 
+// Wave 6 Slice 10B -- the honest counterpart to
+// mapAmbientProjectionToSummaryShape for when scope could not be verified
+// at all (projection.reason === "no_verified_estate"). Authority failure
+// is not availability failure: this must never be confused with a real
+// "complete, zero items" canonical result (canonical_status stays
+// "unavailable", not "complete") and must never be filled in from the
+// legacy engine. All-zero/empty is a truthful "cannot answer", not a
+// fabricated "nothing is happening".
+export function buildUnverifiedScopeSummaryShape(type: IntelligenceSummaryType): AmbientSummaryCompatibleShape {
+  return {
+    type,
+    title: INTELLIGENCE_SUMMARY_TITLE_BY_TYPE[type],
+    health: "normal",
+    total_events: 0,
+    attention_count: 0,
+    by_category: {},
+    by_agent: {},
+    latest: [],
+    attention_items: [],
+    suggested_actions: [],
+    raw_summary: null,
+    canonical_status: "unavailable",
+  };
+}
+
 // Section 13/16 -- maps a canonical projection into the exact field names
 // GET /intelligence/summary has always returned (so older clients keep
 // working), the same compatibility approach as Slice 3's

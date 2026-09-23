@@ -181,12 +181,17 @@ async function main() {
   }
 
   console.log("\n=== G. Canonical failure: explicit fallback/unavailable behavior ===");
+  // Wave 6 Slice 10B -- a no-verified-estate actor is an AUTHORITY failure,
+  // not an availability failure: it now fails closed (never falls back to
+  // the legacy engine), matching GET /oyi/awareness's Slice 8 precedent.
+  // G2/G3 updated accordingly; summary.events degrades to an honest empty
+  // state rather than the legacy engine's output.
   {
     const exec = await executive.getExecutiveIntelligence(noEstateExecutive, oisFor(noEstateExecutive));
     check("G1. actor with no verified estate -> canonical_status 'unavailable'", exec.canonical_status === "unavailable");
-    check("G2. fallback is explicitly marked true, not silently absorbed", exec.legacy_fallback_used === true);
-    check("G3. fallback_reason is present and documented", exec.fallback_reason === "canonical_coverage_gap");
-    check("G4. still returns ok:true (degrades to legacy events summary, does not error out)", exec.ok === true);
+    check("G2. authority failure fails closed -- legacy_fallback_used stays false", exec.legacy_fallback_used === false);
+    check("G3. fallback_reason is the authority-specific \"scope_unverified\", not a generic coverage gap", exec.fallback_reason === "scope_unverified");
+    check("G4. still returns ok:true (degrades to an honest empty events summary, does not error out)", exec.ok === true);
   }
 
   console.log("\n=== H. Non-awareness executive fields remain sourced exactly as before ===");

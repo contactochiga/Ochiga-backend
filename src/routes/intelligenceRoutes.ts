@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { resolveRequestContext } from "../middleware/contextResolver";
 import { logger } from "../observability/logger";
-import { buildAmbientAwarenessProjection, mapAmbientProjectionToSummaryShape } from "../oyi-core/read/facilityConsumerAmbientAwarenessAdapter";
+import { buildAmbientAwarenessProjection, mapAmbientProjectionToSummaryShape, buildUnverifiedScopeSummaryShape } from "../oyi-core/read/facilityConsumerAmbientAwarenessAdapter";
 import { INTELLIGENCE_AGENTS } from "../intelligence-core/agentRegistry";
 import { INTELLIGENCE_TOOL_REGISTRY, getToolsForAgent } from "../intelligence-core/toolRegistry";
 import { getMemoryDirectory } from "../intelligence-core/memoryDirectory";
@@ -410,6 +410,21 @@ router.get("/summary", requireAuth, resolveRequestContext, async (req, res) => {
               role_policy: getIntelligencePermissionPolicy(req.user || null),
               legacy_fallback_used: false,
               fallback_reason: null,
+            };
+          } else if (projection.reason === "no_verified_estate") {
+            // Wave 6 Slice 10B -- authority failure (scope could not be
+            // verified) must fail closed, never fall through to the
+            // legacy buildIntelligenceSummary() branch below -- same rule
+            // already enforced for GET /oyi/awareness. Distinguishes an
+            // honestly-empty-but-unverified answer from a real "complete,
+            // zero items" canonical result: canonical_status stays
+            // "unavailable", not "complete".
+            logger.warn("intelligence_summary_scope_unverified", { type, reason: projection.reason });
+            summary = {
+              ...buildUnverifiedScopeSummaryShape(type),
+              role_policy: getIntelligencePermissionPolicy(req.user || null),
+              legacy_fallback_used: false,
+              fallback_reason: "scope_unverified",
             };
           } else {
             logger.warn("intelligence_summary_canonical_fallback", { type, reason: projection.reason || "unknown" });
