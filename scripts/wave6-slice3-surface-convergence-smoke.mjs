@@ -177,12 +177,32 @@ async function main() {
     check("canonical-success path sets a real canonical_status (complete or partial), not 'unavailable'", canonicalSuccess.canonical_status === "complete" || canonicalSuccess.canonical_status === "partial");
     check("canonical-success digest does not contain the legacy sentinel headline", canonicalSuccess.headline !== "LEGACY DIGEST");
 
-    const canonicalFailure = await adapter.getConvergedAwarenessDigest(noEstateActor, oisFor(noEstateActor), { surface: "consumer", estate_id: null, home_id: null });
-    check("canonical-failure path explicitly falls back to legacy", legacyCalls === 1);
-    check("canonical-failure digest is honestly marked legacy_fallback_used:true", canonicalFailure.legacy_fallback_used === true);
-    check("canonical-failure digest carries the documented fallback_reason", canonicalFailure.fallback_reason === "canonical_coverage_gap");
-    check("canonical-failure digest actually surfaces the legacy content (not silently dropped)", canonicalFailure.headline === "LEGACY DIGEST");
-    check("canonical-failure canonical_status is honestly 'unavailable'", canonicalFailure.canonical_status === "unavailable");
+    // Wave 6 Slice 8 Section 19 -- updated per the mandated fix: failure to
+    // verify scope (no_verified_estate) must NOT trigger a fall-through to
+    // the less-scope-verified legacy engine. It now fails closed instead
+    // (still ok:true/graceful, never legacy-derived, never blended).
+    const canonicalScopeUnverified = await adapter.getConvergedAwarenessDigest(noEstateActor, oisFor(noEstateActor), { surface: "consumer", estate_id: null, home_id: null });
+    check("scope-unverified path does NOT fall back to legacy (Slice 8 fix -- fails closed instead)", legacyCalls === 0);
+    check("scope-unverified digest is honestly marked legacy_fallback_used:false", canonicalScopeUnverified.legacy_fallback_used === false);
+    check("scope-unverified digest carries the new scope_unverified fallback_reason", canonicalScopeUnverified.fallback_reason === "scope_unverified");
+    check("scope-unverified digest never surfaces legacy content", canonicalScopeUnverified.headline !== "LEGACY DIGEST");
+    check("scope-unverified digest still returns ok:true (graceful degradation, not a hard error)", canonicalScopeUnverified.ok === true);
+    check("scope-unverified canonical_status is honestly 'unavailable'", canonicalScopeUnverified.canonical_status === "unavailable");
+
+    // A genuine technical read failure (verified scope, but the canonical
+    // read itself throws) is a separately-evaluated case and legitimately
+    // still uses the explicit legacy fallback -- Section 19's principle is
+    // scope-specific, not a blanket removal of all fallback.
+    const originalFrom = supabaseClientMod.supabaseAdmin.from;
+    const throwingBuilder = new Proxy({}, { get: (_t, prop) => (prop === "then" ? (_res, rej) => Promise.reject(new Error("connection refused")).catch(rej) : () => throwingBuilder) });
+    supabaseClientMod.supabaseAdmin.from = (table) => (table === "operational_awareness" ? throwingBuilder : originalFrom(table));
+    const canonicalTechnicalFailure = await adapter.getConvergedAwarenessDigest(facilityManager, oisFor(facilityManager), { surface: "consumer", estate_id: ESTATE_X, home_id: null });
+    supabaseClientMod.supabaseAdmin.from = originalFrom;
+    check("genuine technical read failure still explicitly falls back to legacy", legacyCalls === 1);
+    check("technical-failure digest is honestly marked legacy_fallback_used:true", canonicalTechnicalFailure.legacy_fallback_used === true);
+    check("technical-failure digest carries the documented fallback_reason", canonicalTechnicalFailure.fallback_reason === "canonical_coverage_gap");
+    check("technical-failure digest actually surfaces the legacy content (not silently dropped)", canonicalTechnicalFailure.headline === "LEGACY DIGEST");
+    check("technical-failure canonical_status is honestly 'unavailable'", canonicalTechnicalFailure.canonical_status === "unavailable");
   }
 
   console.log(`\n${pass} passed, ${fail} failed.`);

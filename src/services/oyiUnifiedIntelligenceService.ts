@@ -15,6 +15,9 @@ import { interpretWithLanguageTeacher, languageTeacherResultToMessage, shouldAsk
 import type { OisContext } from "../types/oisContext";
 import { decorateOyiTargets } from "./oyi/oyiTargetService";
 import { oyiCoreRuntime } from "../oyi-core/service";
+import { buildAmbientAwarenessProjection, type AmbientProjectionSurface, type AmbientAwarenessProjection } from "../oyi-core/read/facilityConsumerAmbientAwarenessAdapter";
+import type { IntelligenceEventCategory } from "../intelligence-core/types";
+import { logger } from "../observability/logger";
 
 // Transitional compatibility service:
 // src/oyi-core is the canonical runtime for normalized signals, awareness,
@@ -107,6 +110,15 @@ type AwarenessResult = {
   awareness_score: number;
   score: number;
   generated_at: string;
+  // Wave 6 Slice 8 -- explicit provenance, mirroring the canonical_status
+  // contract Slices 3-6B established for the other four primary awareness
+  // surfaces. "legacy" marks output from the pre-Slice-8 scoring engine
+  // (still used by getOyiUnifiedAwareness's own established fallback role,
+  // per the Slice 7 audit -- unchanged this slice). Additive: existing
+  // readers of AwarenessResult that only use the fields above are
+  // unaffected.
+  source: "canonical" | "legacy" | "unavailable";
+  canonical_status: "complete" | "partial" | "unavailable";
 };
 
 type ThreadListInput = {
@@ -315,7 +327,10 @@ function compatibilitySignalFromAwareness(
       summary: awareness.summary || awareness.headline,
       recommended_action: awareness.recommended_action,
       destination: awareness.destination,
-      compatibility_source: "legacy_oyi_awareness",
+      // Wave 6 Slice 8 -- reflects the awareness object's real provenance
+      // instead of a hardcoded "legacy_oyi_awareness" label, which would
+      // now be inaccurate for the common case (canonical-sourced).
+      compatibility_source: awareness.source === "canonical" ? "canonical_awareness" : awareness.source === "unavailable" ? "awareness_unavailable" : "legacy_oyi_awareness",
     },
     evidence: Array.isArray(awareness.sources)
       ? awareness.sources.slice(0, 5).map((item, index) => ({
@@ -1384,6 +1399,8 @@ function calmAwareness(surface: OyiSurface, signals: AwarenessSignal[], generate
     awareness_score: score,
     score,
     generated_at: generatedAt,
+    source: "legacy",
+    canonical_status: "unavailable",
   };
 }
 
@@ -1417,35 +1434,249 @@ function buildAwareness(surface: OyiSurface, context: Awaited<ReturnType<typeof 
     awareness_score: score,
     score,
     generated_at: generatedAt,
+    source: "legacy",
+    canonical_status: "unavailable",
   };
 }
 
-function buildSources(surface: OyiSurface, context: Awaited<ReturnType<typeof loadUnifiedContext>>) {
-  const rows = new Map<string, any>();
-  for (const signal of buildSignals(surface, context)) {
-    rows.set(signal.domain, { label: signal.domain.replace(/_/g, " "), route: signal.route, table: signal.source });
-  }
-  return Array.from(rows.values()).slice(0, 8);
+// Wave 6 Slice 8 -- canonical-first awareness for runOyiUnifiedChat.
+//
+// This is the "compatibility adapter" the mission calls for: it reuses
+// buildAmbientAwarenessProjection (the identical canonical projection
+// GET /intelligence/summary, /intelligence/brief, and /intelligence/executive
+// already consume) and reshapes its output into the legacy AwarenessResult
+// contract runOyiUnifiedChat's existing response machinery expects
+// (answerMessage, awarenessSupportCards, compatibilityConversationPayload,
+// runOperatingLayer), so that machinery needs no further changes. It does
+// not requery canonical storage directly and does not recompute
+// severity/urgency -- canonical urgency remains the sole factual severity
+// signal; the awarenessDomainCopy/domainRoute/cardTypeForBucket templates
+// below are presentation only, reused unchanged from the legacy engine
+// (which still backs getOyiUnifiedAwareness's own, separately-reviewed
+// fallback role) purely for response-shape continuity.
+
+function mapOyiSurfaceToAmbientSurface(surface: OyiSurface): AmbientProjectionSurface {
+  if (surface === "consumer") return "consumer";
+  if (surface === "facility") return "facility";
+  // office/watch/edge/public_corporate/office_internal are all staff- or
+  // system-facing, not resident-facing -- "executive" domain ordering is
+  // the closest existing fit. This only changes presentation ORDER: actual
+  // authority is actor/role-driven independently inside
+  // CanonicalAwarenessReadService, so this mapping can never widen what an
+  // actor is allowed to see.
+  return "executive";
 }
 
-function buildSuggestedActions(surface: OyiSurface, message: string, awareness: AwarenessResult, context: Awaited<ReturnType<typeof loadUnifiedContext>>) {
-  const lower = message.toLowerCase();
-  const signals = buildSignals(surface, context);
-  const actions = new Map<string, any>();
-  const add = (label: string, route?: string, risk = "read") => {
-    if (!route) return;
-    actions.set(`${label}:${route}`, { label, route, risk });
+const CANONICAL_DOMAIN_TO_AWARENESS_DOMAIN: Record<IntelligenceEventCategory, AwarenessDomain> = {
+  security: "security",
+  maintenance: "maintenance",
+  visitor: "visitors",
+  device: "devices",
+  utility: "utilities",
+  wallet: "finance",
+  service: "utilities",
+  automation: "automation",
+  workflow: "workflows",
+  prediction: "predictions",
+  office: "activity",
+  lead: "activity",
+  support: "activity",
+  community: "community",
+  marketing: "activity",
+  sales: "activity",
+  camera: "camera",
+  edge: "infrastructure",
+  system: "infrastructure",
+  conversation: "activity",
+  operational: "activity",
+};
+
+function mapCanonicalDomain(domain: IntelligenceEventCategory): AwarenessDomain {
+  return CANONICAL_DOMAIN_TO_AWARENESS_DOMAIN[domain] || "activity";
+}
+
+// Presentation-only vocabulary translation -- canonical urgency
+// (monitor|review|act|urgent) is the authoritative fact; this maps it to
+// the legacy severity vocabulary the response-shaping functions below
+// already branch on, matching the same translation awarenessPresentationAdapter.ts
+// uses for GET /oyi/awareness.
+const CANONICAL_URGENCY_TO_SEVERITY: Record<string, AwarenessSeverity> = {
+  urgent: "critical",
+  act: "warning",
+  review: "attention",
+  monitor: "info",
+};
+
+function canonicalUrgencyToSeverity(urgency: string | null): AwarenessSeverity {
+  return CANONICAL_URGENCY_TO_SEVERITY[String(urgency || "").toLowerCase()] || "info";
+}
+
+function unavailableAwareness(surface: OyiSurface, generatedAt: string): AwarenessResult {
+  const routes = ROUTES[surface] || ROUTES.consumer;
+  const summary = "Oyi could not confirm current conditions right now. Ask again shortly, or check the relevant section directly.";
+  return {
+    headline: "Current awareness is temporarily unavailable.",
+    summary,
+    body: summary,
+    severity: "info",
+    recommended_action: "Try again shortly.",
+    destination: routes.calm || "/",
+    cards: [],
+    sources: [],
+    suggested_actions: [],
+    awareness_score: 0,
+    score: 0,
+    generated_at: generatedAt,
+    source: "unavailable",
+    canonical_status: "unavailable",
   };
-  add(awareness.recommended_action, awareness.destination, "read");
-  for (const signal of signals.filter((item) => maxSeverityRank(item.severity) >= maxSeverityRank("attention") && item.attention_score >= 50).slice(0, 5)) {
-    add(signal.recommended_action, signal.route, "read");
+}
+
+function calmAwarenessFromCanonical(surface: OyiSurface, generatedAt: string, canonicalStatus: "complete" | "partial"): AwarenessResult {
+  const routes = ROUTES[surface] || ROUTES.consumer;
+  const facility = surface === "facility";
+  const summary = facility
+    ? "No critical security alerts detected. Visitor, maintenance, infrastructure, and utility signals are stable."
+    : "No security issues detected. No visitor approvals are pending. Maintenance, services, and device activity appear normal.";
+  return {
+    headline: facility ? "Estate operations are stable." : "Your home is operating normally.",
+    summary,
+    body: summary,
+    severity: "normal",
+    recommended_action: "No action is currently required.",
+    destination: routes.calm || "/activity",
+    cards: [
+      {
+        type: "attention",
+        title: facility ? "Operations stable" : "Home operating normally",
+        summary,
+        items: [],
+        score: 90,
+        category: "normal",
+      },
+    ],
+    sources: [],
+    suggested_actions: [],
+    awareness_score: 90,
+    score: 90,
+    generated_at: generatedAt,
+    source: "canonical",
+    canonical_status: canonicalStatus,
+  };
+}
+
+function primaryDomainOrder(surface: OyiSurface): AwarenessDomain[] {
+  return surface === "facility"
+    ? ["security", "camera", "infrastructure", "utilities", "maintenance", "visitors", "community", "finance", "workflows", "predictions", "devices", "activity", "automation"]
+    : ["security", "visitors", "maintenance", "devices", "utilities", "infrastructure", "workflows", "predictions", "community", "finance", "automation", "activity", "camera"];
+}
+
+function awarenessFromCanonicalProjection(surface: OyiSurface, projection: AmbientAwarenessProjection, generatedAt: string): AwarenessResult {
+  const order = primaryDomainOrder(surface);
+  const buckets = projection.domainSummary
+    .map((bucket) => ({
+      mappedDomain: mapCanonicalDomain(bucket.domain),
+      count: bucket.count,
+      severity: canonicalUrgencyToSeverity(bucket.worstUrgency),
+    }))
+    .sort((a, b) => {
+      const severityDelta = maxSeverityRank(b.severity) - maxSeverityRank(a.severity);
+      if (severityDelta) return severityDelta;
+      const aIndex = order.indexOf(a.mappedDomain);
+      const bIndex = order.indexOf(b.mappedDomain);
+      return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+    });
+
+  const itemsByDomain = new Map<AwarenessDomain, typeof projection.attentionItems>();
+  for (const item of projection.attentionItems) {
+    const mapped = mapCanonicalDomain(item.domain);
+    itemsByDomain.set(mapped, [...(itemsByDomain.get(mapped) || []), item]);
   }
-  if (/maintenance|repair|work/.test(lower)) add("Review the maintenance queue.", domainRoute(surface, "maintenance"), "read");
-  if (/visitor|access|gate/.test(lower)) add("Review visitor access.", domainRoute(surface, "visitors"), "read");
-  if (/device|infrastructure|offline|health/.test(lower)) add("Check infrastructure health.", domainRoute(surface, surface === "facility" ? "infrastructure" : "devices"), "read");
-  if (/camera|security|cctv/.test(lower)) add("Review security activity.", domainRoute(surface, "security"), "read");
-  if (/utility|service|wallet|payment|water|electric|internet/.test(lower)) add("Review infrastructure services or payment status.", domainRoute(surface, "utilities"), "read");
-  return Array.from(actions.values()).slice(0, 6);
+
+  const primary = buckets[0];
+  const copy = awarenessDomainCopy(surface, primary.mappedDomain, primary.count, primary.severity);
+  const secondary = buckets.find((bucket) => bucket.mappedDomain !== primary.mappedDomain);
+  const secondaryCopy = secondary ? awarenessDomainCopy(surface, secondary.mappedDomain, secondary.count, secondary.severity) : null;
+  const summary = secondaryCopy ? `${copy.summary} ${secondaryCopy.summary}` : copy.summary;
+
+  const cards = buckets.slice(0, 6).map((bucket) => {
+    const bucketCopy = awarenessDomainCopy(surface, bucket.mappedDomain, bucket.count, bucket.severity);
+    const items = (itemsByDomain.get(bucket.mappedDomain) || []).slice(0, 5).map((item) => ({
+      id: item.incidentId || item.awarenessId,
+      title: item.title,
+      summary: item.recommendedAction || item.summary || "Review this item.",
+      status: item.urgency || item.status,
+      occurred_at: item.generatedAt,
+    }));
+    return {
+      type: cardTypeForBucket(bucket.mappedDomain),
+      title: bucketCopy.headline.replace(/\.$/, ""),
+      summary: bucketCopy.summary,
+      items,
+      score: maxSeverityRank(bucket.severity) * 25,
+    };
+  });
+
+  // Section 9 -- sanitized evidence references only: a fixed, non-leaking
+  // table label. No raw table name, camera URI, or cross-home metadata is
+  // ever surfaced here (unlike the legacy engine's `uniqueRows[0]?.source`).
+  const sources = buckets.slice(0, 6).map((bucket) => ({
+    label: bucket.mappedDomain.replace(/_/g, " "),
+    route: domainRoute(surface, bucket.mappedDomain),
+    table: "canonical_awareness",
+  }));
+
+  const suggested_actions = buckets.slice(0, 5).map((bucket) => {
+    const bucketCopy = awarenessDomainCopy(surface, bucket.mappedDomain, bucket.count, bucket.severity);
+    const firstItem = (itemsByDomain.get(bucket.mappedDomain) || [])[0];
+    return {
+      label: firstItem?.recommendedAction || bucketCopy.action,
+      route: domainRoute(surface, bucket.mappedDomain),
+      risk: "read",
+    };
+  });
+
+  // Section 7 -- presentation-only ordering number derived from canonical
+  // severity (same base-value table the legacy engine used), never a new
+  // factual severity and never fed by legacy per-signal attention scoring.
+  const score = scoreFromDecision(primary.severity, []);
+  return {
+    headline: copy.headline,
+    summary,
+    body: summary,
+    severity: primary.severity,
+    recommended_action: (itemsByDomain.get(primary.mappedDomain) || [])[0]?.recommendedAction || copy.action,
+    destination: domainRoute(surface, primary.mappedDomain),
+    cards,
+    sources,
+    suggested_actions,
+    awareness_score: score,
+    score,
+    generated_at: generatedAt,
+    source: "canonical",
+    canonical_status: projection.canonicalStatus,
+  };
+}
+
+// Section 12/13/14 -- canonical is the sole factual current-awareness
+// authority here. EMPTY (ok:true, zero items) is a real, complete answer
+// and never reconstructs anything from legacy events. UNAVAILABLE
+// (actor missing, or projection.ok === false) degrades to a truthful,
+// neutral disclosure -- never a silent invocation of legacy scoring, and
+// never blended with canonical output.
+async function loadCanonicalAwarenessForChat(surface: OyiSurface, actor: AuthUser | null, oisContext: OisContext | null | undefined): Promise<AwarenessResult> {
+  const generatedAt = new Date().toISOString();
+  if (!actor) return unavailableAwareness(surface, generatedAt);
+  const mappedSurface = mapOyiSurfaceToAmbientSurface(surface);
+  const projection = await buildAmbientAwarenessProjection(actor, oisContext || null, mappedSurface);
+  if (!projection.ok) {
+    logger.warn("oyi_chat_canonical_awareness_unavailable", { surface, reason: projection.reason || "unknown" });
+    return unavailableAwareness(surface, generatedAt);
+  }
+  if (!projection.attentionItems.length) {
+    return calmAwarenessFromCanonical(surface, generatedAt, projection.canonicalStatus === "partial" ? "partial" : "complete");
+  }
+  return awarenessFromCanonicalProjection(surface, projection, generatedAt);
 }
 
 type OyiIntentCategory =
@@ -2424,7 +2655,11 @@ async function runOperatingLayer(actor: AuthUser | null, input: OyiChatInput, co
       message: answerMessage(surface, message, awareness),
       cards: awarenessSupportCards(awareness, /what('?s| is) happening|status|everything okay/.test(message.toLowerCase())),
       sources: userFacingSources(surface, "awareness"),
-      suggested_actions: awareness.suggested_actions.length ? awareness.suggested_actions : buildSuggestedActions(surface, message, awareness, context),
+      // Wave 6 Slice 8 -- no legacy buildSuggestedActions() fallback here
+      // anymore: an empty suggested_actions list is an honest "nothing to
+      // suggest right now" rather than a message-keyword-synthesized
+      // recommendation reconstructed from raw legacy events.
+      suggested_actions: awareness.suggested_actions,
       execution: { status: "read_only", provider: "awareness" },
       display_mode: intent === "general_help" ? "conversation" : "awareness",
     };
@@ -2889,7 +3124,14 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
       };
       const internalIntent = classifyUniversalIntent({ message: effectiveInput.message, surface: surface as any, estate_id: effectiveInput.estate_id, home_id: effectiveInput.home_id });
       const context = await loadUnifiedContext(actor, { surface, estate_id: effectiveInput.estate_id, home_id: effectiveInput.home_id });
-      const awareness = buildAwareness(surface, context, actor);
+      // Wave 6 Slice 8 -- CURRENT_AWARENESS now comes exclusively from
+      // CanonicalAwarenessReadService via loadCanonicalAwarenessForChat, not
+      // from legacy buildAwareness()/buildSignals() scoring. `context`
+      // (events/predictions/workflows/summaries) is still loaded above and
+      // still legitimately used elsewhere in this function for
+      // collaboration hints, predictions, and workflow-shaped responses --
+      // none of that is awareness truth and none of it was touched.
+      const awareness = await loadCanonicalAwarenessForChat(surface, actor, effectiveInput.context || null);
       const followUp = explicitDomain ? null : await resolveFollowUpOperation(actor, effectiveInput, conversation.state);
       if (!followUp && isReadOnlyCompatibilityMessage(effectiveInput.message)) {
         const runtimeCompat = compatibilityConversationPayload(actor, effectiveInput, awareness);
@@ -2953,6 +3195,15 @@ export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatIn
         support_payload_attached: response.support_payload_attached,
         surface,
         awareness_fallback_used: response.display_mode === "awareness" && !response.domain,
+        // Wave 6 Slice 8 -- low-cardinality observability distinguishing
+        // "compatibility service used" (this log line firing at all) from
+        // "legacy awareness scoring used" (awareness_source === "legacy",
+        // now only possible if loadCanonicalAwarenessForChat itself falls
+        // through to an unavailable state -- it never calls legacy
+        // buildAwareness()). Enum-only values, no free text, no private
+        // content.
+        awareness_source: awareness.source,
+        awareness_canonical_status: awareness.canonical_status,
         response: String(response.message || "").slice(0, 240),
       }));
       return response;

@@ -48,7 +48,7 @@ function worstSeverity(items: AwarenessReadItem[]): LegacySeverity {
 }
 
 export type CanonicalStatus = "complete" | "partial" | "unavailable";
-export type FallbackReason = "canonical_coverage_gap" | "unsupported_domain" | "temporary_migration" | null;
+export type FallbackReason = "canonical_coverage_gap" | "unsupported_domain" | "temporary_migration" | "scope_unverified" | null;
 
 export type AwarenessDigestResponse = {
   ok: boolean;
@@ -119,6 +119,38 @@ function buildDigestFromCanonical(result: ReadOutcome<AwarenessReadItem>): Aware
   };
 }
 
+// Wave 6 Slice 8 Section 19 -- failure to verify scope must not trigger a
+// less-verified read path. Legacy's own scope resolution
+// (authenticatedActorScope/applyRoleScopeToFilters, feeding
+// loadUnifiedContext) uses raw actor.estate_id/home_id rather than the
+// verified oisContext -- the exact staleness gap Slice 1B's "SURFACE !=
+// AUTHORITY" work closed elsewhere. Falling back to legacy specifically
+// when canonical could not verify scope would answer with a *less*
+// scope-safe engine at the exact moment scope safety is in question. This
+// response fails closed instead: truthful, not fabricated, not a hard
+// error, and never legacy-derived.
+function buildDigestForUnverifiedScope(generatedAt: string): AwarenessDigestResponse {
+  const message = "Oyi could not verify a scoped estate or home for this request, so no current awareness is shown. This is a safety measure, not an error.";
+  return {
+    ok: true,
+    headline: "Current awareness could not be confirmed for this account.",
+    summary: message,
+    body: message,
+    severity: "normal",
+    recommended_action: "Confirm your estate or home context and try again.",
+    destination: "",
+    cards: [],
+    sources: [],
+    suggested_actions: [],
+    awareness_score: 0,
+    score: 0,
+    generated_at: generatedAt,
+    canonical_status: "unavailable",
+    legacy_fallback_used: false,
+    fallback_reason: "scope_unverified",
+  };
+}
+
 function buildDigestFromLegacy(legacy: Record<string, unknown>, reason: FallbackReason): AwarenessDigestResponse {
   return {
     ok: (legacy as any)?.ok !== false,
@@ -157,6 +189,11 @@ export async function getConvergedAwarenessDigest(
   }
   const canonical = await listActiveAwareness(actor, oisContext, {});
   if (canonical.ok) return buildDigestFromCanonical(canonical);
+
+  if (canonical.reason === "no_verified_estate") {
+    logger.warn("oyi_awareness_scope_unverified", { reason: canonical.reason });
+    return buildDigestForUnverifiedScope(new Date().toISOString());
+  }
 
   logger.warn("oyi_awareness_canonical_fallback", { reason: canonical.reason || "unknown" });
   const legacy = await getOyiUnifiedAwareness(actor, legacyInput);
