@@ -37,6 +37,35 @@ export function inferSummaryType(actor?: AuthUser | null): IntelligenceSummaryTy
   return "consumer";
 }
 
+// Wave 6 Slice 5 -- extracted to module scope (unchanged values) so the
+// canonical ambient adapter can reuse the exact same title/action copy
+// for "consumer"/"facility" instead of duplicating it.
+export const INTELLIGENCE_SUMMARY_TITLE_BY_TYPE: Record<IntelligenceSummaryType, string> = {
+  consumer: "Home Intelligence Summary",
+  facility: "Facility Intelligence Summary",
+  office: "Office Intelligence Summary",
+  watch: "Watch Intelligence Summary",
+  camera: "Camera Intelligence Summary",
+  edge: "Edge Intelligence Summary",
+};
+
+function suggestedActionsByType(hasAttention: boolean): Record<IntelligenceSummaryType, string[]> {
+  return {
+    consumer: hasAttention ? ["Open Activity", "Review attention items"] : ["Open Activity for the full timeline"],
+    facility: hasAttention ? ["Review facility alerts", "Check camera and maintenance queues"] : ["Review estate operations timeline"],
+    office: ["Review lead and sales handoff events", "Keep resident memory separate"],
+    watch: hasAttention ? ["Show urgent items first"] : ["Keep glance compact"],
+    camera: hasAttention ? ["Review camera events", "Check stream health"] : ["Monitor camera health"],
+    edge: ["Check Edge health", "Review camera runtime status"],
+  };
+}
+
+// Wave 6 Slice 5 -- same copy the canonical ambient adapter reuses for
+// "consumer"/"facility" (see facilityConsumerAmbientAwarenessAdapter.ts).
+export function intelligenceSummarySuggestedActions(type: IntelligenceSummaryType, hasAttention: boolean): string[] {
+  return suggestedActionsByType(hasAttention)[type];
+}
+
 export function buildIntelligenceSummary(type: IntelligenceSummaryType, eventsInput: any[], actor?: AuthUser | null) {
   const events = filterEventsForActor(eventsInput, actor);
   const base = summarizeIntelligenceEvents(events);
@@ -44,27 +73,9 @@ export function buildIntelligenceSummary(type: IntelligenceSummaryType, eventsIn
   const byCategory = countBy(events.map((event) => ({ ...event, category: normalizeIntelligenceCategory(event.category) })), "category");
   const byAgent = countBy(events, "agent_id");
 
-  const titleByType: Record<IntelligenceSummaryType, string> = {
-    consumer: "Home Intelligence Summary",
-    facility: "Facility Intelligence Summary",
-    office: "Office Intelligence Summary",
-    watch: "Watch Intelligence Summary",
-    camera: "Camera Intelligence Summary",
-    edge: "Edge Intelligence Summary",
-  };
-
-  const suggestedActions: Record<IntelligenceSummaryType, string[]> = {
-    consumer: attention.length ? ["Open Activity", "Review attention items"] : ["Open Activity for the full timeline"],
-    facility: attention.length ? ["Review facility alerts", "Check camera and maintenance queues"] : ["Review estate operations timeline"],
-    office: ["Review lead and sales handoff events", "Keep resident memory separate"],
-    watch: attention.length ? ["Show urgent items first"] : ["Keep glance compact"],
-    camera: attention.length ? ["Review camera events", "Check stream health"] : ["Monitor camera health"],
-    edge: ["Check Edge health", "Review camera runtime status"],
-  };
-
   return {
     type,
-    title: titleByType[type],
+    title: INTELLIGENCE_SUMMARY_TITLE_BY_TYPE[type],
     health: attention.length ? "attention" : "normal",
     total_events: events.length,
     attention_count: attention.length,
@@ -72,7 +83,7 @@ export function buildIntelligenceSummary(type: IntelligenceSummaryType, eventsIn
     by_agent: byAgent,
     latest: latestTitles(events, type === "watch" ? 3 : 6),
     attention_items: attention,
-    suggested_actions: suggestedActions[type],
+    suggested_actions: intelligenceSummarySuggestedActions(type, attention.length > 0),
     role_policy: getIntelligencePermissionPolicy(actor),
     raw_summary: base,
   };

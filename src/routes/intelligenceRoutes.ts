@@ -1,5 +1,8 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
+import { resolveRequestContext } from "../middleware/contextResolver";
+import { logger } from "../observability/logger";
+import { buildAmbientAwarenessProjection, mapAmbientProjectionToSummaryShape } from "../oyi-core/read/facilityConsumerAmbientAwarenessAdapter";
 import { INTELLIGENCE_AGENTS } from "../intelligence-core/agentRegistry";
 import { INTELLIGENCE_TOOL_REGISTRY, getToolsForAgent } from "../intelligence-core/toolRegistry";
 import { getMemoryDirectory } from "../intelligence-core/memoryDirectory";
@@ -359,12 +362,25 @@ router.get("/events", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/summary", requireAuth, async (req, res) => {
+// Wave 6 Slice 5 -- this is the real Facility/Consumer "ambient awareness"
+// endpoint (health/attention_items/attention_count -- "what's happening,
+// what needs attention"), historically computed entirely from the legacy
+// event bus via buildIntelligenceSummary(). For type "consumer"/"facility"
+// it now tries CanonicalAwarenessReadService first (via
+// buildAmbientAwarenessProjection, shared by both surfaces -- Section 5/8:
+// one factual computation, Facility/Consumer differ only in domain
+// ordering). Canonical EMPTY is a real, complete answer, not a reason to
+// fall back (Section 16). Legacy is used only when canonical itself
+// cannot answer (no verified actor, technical read failure) or for
+// summary types this slice does not cover (office/watch/camera/edge --
+// out of scope, Section 0), and the response always discloses
+// canonical_status/legacy_fallback_used/fallback_reason -- the two
+// sources are never blended into one undifferentiated summary object.
+router.get("/summary", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const body = await observeAgentAction(
       { agent_id: "oyi", action: "intelligence.summary", tool: "intelligence:summary", surface: "api", actor: req.user },
       async () => {
-        const { events, warnings } = await loadRoleAwareEvents(req, 100);
         const type = summaryType(req.query.type, inferSummaryType(req.user || null));
         const predictionResult = await listIntelligencePredictions({
           actor: req.user || null,
@@ -374,7 +390,39 @@ router.get("/summary", requireAuth, async (req, res) => {
           limit: 25,
         });
         const predictionSummary = summarizePredictions(predictionResult.predictions || []);
-        const summary = buildIntelligenceSummary(type, events, req.user || null);
+
+        let summary: Record<string, unknown> | null = null;
+        let events: any[] = [];
+        let warnings: Array<string | undefined> = [];
+
+        if ((type === "consumer" || type === "facility") && req.user) {
+          const projection = await buildAmbientAwarenessProjection(req.user, req.oisContext || null, type);
+          if (projection.ok) {
+            summary = {
+              ...mapAmbientProjectionToSummaryShape(projection, type),
+              role_policy: getIntelligencePermissionPolicy(req.user || null),
+              legacy_fallback_used: false,
+              fallback_reason: null,
+            };
+          } else {
+            logger.warn("intelligence_summary_canonical_fallback", { type, reason: projection.reason || "unknown" });
+          }
+        }
+
+        if (!summary) {
+          const loaded = await loadRoleAwareEvents(req, 100);
+          events = loaded.events;
+          warnings = loaded.warnings;
+          const legacySummary = buildIntelligenceSummary(type, events, req.user || null);
+          const attemptedCanonical = type === "consumer" || type === "facility";
+          summary = {
+            ...legacySummary,
+            canonical_status: "unavailable",
+            legacy_fallback_used: attemptedCanonical,
+            fallback_reason: attemptedCanonical ? "canonical_coverage_gap" : "unsupported_domain",
+          };
+        }
+
         return {
           ok: true,
           summary: {
@@ -382,7 +430,7 @@ router.get("/summary", requireAuth, async (req, res) => {
             prediction_count: predictionSummary.prediction_count,
             critical_prediction_count: predictionSummary.critical_prediction_count,
             top_predictions: predictionSummary.top_predictions,
-            recommended_actions: Array.from(new Set([...(summary.suggested_actions || []), ...predictionSummary.recommended_actions])),
+            recommended_actions: Array.from(new Set([...((summary.suggested_actions as string[]) || []), ...predictionSummary.recommended_actions])),
           },
           collaboration_hints: getCollaborationHints(events),
           memory_directory: getMemoryDirectory().map((entry) => ({
