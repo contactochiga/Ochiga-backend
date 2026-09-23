@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import type { OisContext } from "../../../types/oisContext";
+import { actorHasFacilityReadScope } from "../../../intelligence-core/permissionEngine";
 import type {
   CanonicalConversationRequest,
   IntelligenceFact,
@@ -31,10 +32,12 @@ export const UTILITY_SERVICE_KEYS = [
   "solar_battery_service",
 ];
 
+// Wave 6 Slice 1B -- oisContext is the server-verified, membership-checked
+// scope; it must win over a client-supplied input.estate_id/home_id.
 export function currentServiceScope(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
   return {
-    estate_id: input.estate_id || oisContext?.estate_id || null,
-    home_id: input.home_id || oisContext?.home_id || null,
+    estate_id: oisContext?.estate_id || input.estate_id || null,
+    home_id: oisContext?.home_id || input.home_id || null,
   };
 }
 
@@ -83,7 +86,7 @@ export async function loadServiceAccountFacts(
   options: { onlyServiceKeys?: string[]; domain?: string } = {},
 ): Promise<IntelligenceFact[]> {
   const scope = currentServiceScope(input, oisContext);
-  const isFacilitySurface = input.surface === "facility";
+  const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
   const domain = options.domain || "services";
   if (isFacilitySurface ? !scope.estate_id : !scope.home_id) return [];
   const diagnosticBase = { capability_domain: domain, surface: input.surface, estate_id: scope.estate_id, home_id: scope.home_id };
@@ -226,7 +229,7 @@ export async function loadUtilityPurchaseFacts(
   contract: IntelligenceRequestContract,
 ): Promise<IntelligenceFact[]> {
   const scope = currentServiceScope(input, oisContext);
-  const isFacilitySurface = input.surface === "facility";
+  const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
   if (isFacilitySurface ? !scope.estate_id : !scope.home_id) return [];
   const diagnosticBase = { capability_domain: "utilities", surface: input.surface, estate_id: scope.estate_id, home_id: scope.home_id };
   try {

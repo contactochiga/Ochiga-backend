@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import type { OisContext } from "../../../types/oisContext";
+import { actorHasFacilityReadScope } from "../../../intelligence-core/permissionEngine";
 import type {
   CanonicalConversationRequest,
   IntelligenceFact,
@@ -44,10 +45,12 @@ export function unresolvedMaintenanceRecordsForContext(
   return maintenanceRecordsFromContext(object, input).filter((item) => isUnresolvedMaintenanceStatus(item.status));
 }
 
+// Wave 6 Slice 1B -- oisContext is the server-verified, membership-checked
+// scope; it must win over a client-supplied input.estate_id/home_id.
 function currentScope(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
   return {
-    estate_id: input.estate_id || oisContext?.estate_id || null,
-    home_id: input.home_id || oisContext?.home_id || null,
+    estate_id: oisContext?.estate_id || input.estate_id || null,
+    home_id: oisContext?.home_id || input.home_id || null,
   };
 }
 
@@ -124,7 +127,7 @@ export async function loadMaintenanceRequestFacts(
   contract: IntelligenceRequestContract,
 ): Promise<IntelligenceFact[]> {
   const scope = currentScope(input, oisContext);
-  const isFacilitySurface = input.surface === "facility";
+  const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
   if (isFacilitySurface ? !scope.estate_id : !scope.home_id) return [];
   const diagnosticBase = {
     capability_key: "maintenance.requests.read",

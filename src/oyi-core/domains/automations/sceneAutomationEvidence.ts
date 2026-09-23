@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import type { OisContext } from "../../../types/oisContext";
+import { actorHasFacilityReadScope } from "../../../intelligence-core/permissionEngine";
 import type { CanonicalConversationRequest, IntelligenceFact, OperationalObject } from "../../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 
@@ -67,10 +68,12 @@ export function sceneAutomationExecutionBoundary() {
   };
 }
 
+// Wave 6 Slice 1B -- oisContext is the server-verified, membership-checked
+// scope; it must win over a client-supplied input.estate_id/home_id.
 function currentScope(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
   return {
-    estate_id: input.estate_id || oisContext?.estate_id || null,
-    home_id: input.home_id || oisContext?.home_id || null,
+    estate_id: oisContext?.estate_id || input.estate_id || null,
+    home_id: oisContext?.home_id || input.home_id || null,
   };
 }
 
@@ -190,7 +193,7 @@ export async function loadSceneFacts(
   contract: IntelligenceRequestContract,
 ): Promise<IntelligenceFact[]> {
   const scope = currentScope(input, oisContext);
-  const isFacilitySurface = input.surface === "facility";
+  const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
   if (isFacilitySurface ? !scope.estate_id : !scope.home_id) return [];
   const diagnosticBase = { capability_key: "scenes.list.read", surface: input.surface, estate_id: scope.estate_id, home_id: scope.home_id };
   try {
@@ -216,7 +219,7 @@ export async function loadAutomationFacts(
   contract: IntelligenceRequestContract,
 ): Promise<IntelligenceFact[]> {
   const scope = currentScope(input, oisContext);
-  const isFacilitySurface = input.surface === "facility";
+  const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
   if (isFacilitySurface ? !scope.estate_id : !scope.home_id) return [];
   const diagnosticBase = { capability_key: "automations.list.read", surface: input.surface, estate_id: scope.estate_id, home_id: scope.home_id };
   try {
@@ -242,7 +245,7 @@ export async function loadAutomationRunFacts(
   contract: IntelligenceRequestContract,
 ): Promise<IntelligenceFact[]> {
   const scope = currentScope(input, oisContext);
-  const isFacilitySurface = input.surface === "facility";
+  const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
   if (isFacilitySurface ? !scope.estate_id : !scope.home_id) return [];
   const diagnosticBase = { capability_key: "automations.runs.read", surface: input.surface, estate_id: scope.estate_id, home_id: scope.home_id };
   try {

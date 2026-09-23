@@ -220,6 +220,23 @@ export function filterCameraProtectedEvents(events: any[], actor: AuthUser | nul
   });
 }
 
+// Wave 6 Slice 1B -- Surface Authority Closure. A requested surface value
+// (input.surface, __oyi_surface, or any equivalent client/session-supplied
+// marker) is a presentation/routing hint, never an authority grant. Several
+// canonical evidence loaders and src/ai/commandRouter.ts independently
+// widened a home-scoped query to an estate-wide one whenever the caller
+// merely claimed surface:"facility" -- with no check on whether the actual
+// authenticated role carries Facility operational scope. This reuses the
+// exact same role->scope classification the camera-privacy fix above (and
+// the Slice 1 contextResolutionService.ts fix) already established as the
+// authoritative source: scope is "home" for, and only for, the resident
+// role. Every call site that widens estate/home scoping based on a surface
+// flag must AND that flag with this check rather than trusting the flag
+// alone.
+export function actorHasFacilityReadScope(role: string | null | undefined): boolean {
+  return getIntelligencePermissionPolicy({ role } as AuthUser).scope !== "home";
+}
+
 export function filterEventsForActor(events: any[], actor?: AuthUser | null, cameraById?: Map<string, any> | null) {
   const policy = getIntelligencePermissionPolicy(actor);
   const actorEstate = actor?.estate_id || null;

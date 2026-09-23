@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import type { OisContext } from "../../../types/oisContext";
+import { actorHasFacilityReadScope } from "../../../intelligence-core/permissionEngine";
 import type {
   CanonicalConversationRequest,
   IntelligenceFact,
@@ -48,10 +49,14 @@ export function redactAccessCredentialForConversation(value: unknown) {
   return "[redacted access credential]";
 }
 
+// Wave 6 Slice 1B -- oisContext is the server-verified, membership-checked
+// scope (and, after Slice 1, cannot itself carry a home the actor doesn't
+// legitimately have); it must win over a client-supplied input.estate_id/
+// home_id rather than lose to it.
 function currentScope(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
   return {
-    estate_id: input.estate_id || oisContext?.estate_id || null,
-    home_id: input.home_id || oisContext?.home_id || null,
+    estate_id: oisContext?.estate_id || input.estate_id || null,
+    home_id: oisContext?.home_id || input.home_id || null,
   };
 }
 
@@ -127,7 +132,9 @@ export async function loadVisitorAccessFacts(
   contract: IntelligenceRequestContract,
 ): Promise<IntelligenceFact[]> {
   const scope = currentScope(input, oisContext);
-  const isFacilitySurface = input.surface === "facility";
+  // Wave 6 Slice 1B -- surface alone must never widen a home-scoped read to
+  // an estate-wide one; the actor's real role must also carry Facility scope.
+  const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
   if (isFacilitySurface ? !scope.estate_id : !scope.home_id) return [];
   const diagnosticBase = {
     capability_key: "visitors.pending.read",

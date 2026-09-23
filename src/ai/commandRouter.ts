@@ -8,6 +8,8 @@ import { executeDeviceCommandForActor } from "../controllers/deviceCommandContro
 import { authorizeDeviceCommand } from "../oyi-core/actions/DeviceCommandAuthority";
 import { deviceWithinActorScope, hasWatchScope } from "../services/watchPolicy";
 import { NotificationService } from "../services/NotificationService";
+import { actorHasFacilityReadScope } from "../intelligence-core/permissionEngine";
+import { canAccessCamera, cameraAccessActor } from "../modules/cameras/cameraAccess.policy";
 import {
   buildDeviceTimeline,
   type DeviceRuntimeScope,
@@ -69,6 +71,18 @@ function activeScopeFilter(actor: AuthUser, estateId?: string | null, homeId?: s
   return {};
 }
 
+// Wave 6 Slice 1B note: deviceRuntimeScope's estateWide flag is left
+// unguarded here deliberately. This function is shared by
+// findDeviceForPrompt/executeDeviceCommandTool, which sit immediately
+// upstream of the frozen Wave 4B/5 physical-action-convergence path
+// (authorizeDeviceCommand/executeDeviceCommandForActor, which independently
+// re-derive and re-verify the real actor scope regardless of this hint --
+// confirmed by the Wave 5E smoke suite). Changing this shared function's
+// behavior risks touching physical-execution-adjacent code, which this
+// slice is explicitly barred from doing. The read-only call site below
+// (summarize_devices) uses the guarded readOnlyDeviceScope variant
+// instead; see the Wave 6 Slice 1B final report for the reasoning and the
+// residual item this leaves open for a dedicated follow-up.
 function deviceRuntimeScope(actor: AuthUser, args: Record<string, any>): DeviceRuntimeScope {
   const estateWide = String(args.__oyi_surface || "").toLowerCase() === "facility" || args.__oyi_estate_wide === true;
   return {
@@ -76,6 +90,24 @@ function deviceRuntimeScope(actor: AuthUser, args: Record<string, any>): DeviceR
     homeId: estateWide ? null : actorHome(actor, args.home_id || args.homeId || null),
     estateWide,
   };
+}
+
+// Wave 6 Slice 1B -- guarded variant for genuinely read-only tools
+// (summarize_devices). Same shared-defect pattern and fix as moduleScope:
+// the estate-wide flag must also require the actor's real role to carry
+// Facility read scope, not just the presence of the flag itself.
+function readOnlyDeviceScope(actor: AuthUser, args: Record<string, any>): DeviceRuntimeScope {
+  const requestedEstateWide = String(args.__oyi_surface || "").toLowerCase() === "facility" || args.__oyi_estate_wide === true;
+  const estateWide = requestedEstateWide && actorHasFacilityReadScope(actor.role);
+  return {
+    estateId: actorEstate(actor, args.estate_id || args.estateId || null),
+    homeId: estateWide ? null : actorHome(actor, args.home_id || args.homeId || null),
+    estateWide,
+  };
+}
+
+export function readOnlyDeviceScopeForTest(actor: AuthUser, args: Record<string, any>): DeviceRuntimeScope {
+  return readOnlyDeviceScope(actor, args);
 }
 
 function scopeAllowed(tool: AiToolDefinition, actor: AuthUser, scope: string) {
@@ -1017,13 +1049,22 @@ function moduleForPrompt(prompt: string) {
 
 type ModuleScope = { estateId: string | null; homeId: string | null; facility: boolean };
 
+// Wave 6 Slice 1B -- __oyi_surface is a presentation/routing hint carried
+// on the tool-call args, not an authority grant. Requesting it alone must
+// never drop the home_id filter and widen a read to the whole estate --
+// the actor's real, server-issued role must also carry Facility read scope.
 function moduleScope(actor: AuthUser, args: Record<string, any>): ModuleScope {
-  const facility = String(args.__oyi_surface || "").toLowerCase() === "facility";
+  const requestedFacility = String(args.__oyi_surface || "").toLowerCase() === "facility";
+  const facility = requestedFacility && actorHasFacilityReadScope(actor.role);
   return {
     estateId: actorEstate(actor, args.estate_id || args.estateId || null),
     homeId: facility ? null : actorHome(actor, args.home_id || args.homeId || null),
     facility,
   };
+}
+
+export function moduleScopeForTest(actor: AuthUser, args: Record<string, any>): ModuleScope {
+  return moduleScope(actor, args);
 }
 
 function modulePermission(module: string, facility = false) {
@@ -1178,6 +1219,20 @@ async function summarizeModuleTool(actor: AuthUser, prompt: string, args: Record
       selectRows("camera_events", (q) => applyScope(q.select("*").order("created_at", { ascending: false }).limit(50), false)),
       selectRows("camera_detections", (q) => applyScope(q.select("id,camera_id,estate_id,home_id,event_id,media_id,detection_type,observed_at,confidence,visual_zone_id,attributes,provider,model").order("observed_at", { ascending: false }).limit(50), false)),
     ]);
+    // Wave 6 Slice 1B -- applyScope(..., false) never applies a home_id
+    // filter for this module (estate-wide by construction, matching a
+    // "facility control-room" summary), so the coarse cameras.view
+    // permission gate above is not sufficient on its own -- it says
+    // nothing about a specific camera's own privacy_scope. Reuse the same
+    // cameraAccess.policy.ts authority Slice 1's ambient-awareness fix
+    // reused, rather than a second interpretation of camera privacy.
+    const cameraModuleActor = cameraAccessActor(actor, null);
+    const allowedCameraIds = new Set(
+      cameras.rows.filter((row: any) => canAccessCamera(row, cameraModuleActor).ok).map((row: any) => String(row.id))
+    );
+    cameras.rows = cameras.rows.filter((row: any) => allowedCameraIds.has(String(row.id)));
+    events.rows = events.rows.filter((row: any) => allowedCameraIds.has(String(row.camera_id)));
+    detections.rows = detections.rows.filter((row: any) => allowedCameraIds.has(String(row.camera_id)));
     result = { available: cameras.available || events.available || detections.available, rows: [...cameras.rows, ...events.rows, ...detections.rows], error: cameras.error || events.error || detections.error };
     entities = [
       ...cameras.rows.map((row: any) => moduleEntity("camera", row, "facility_cameras", row.name || "Camera", { location: row.location || null, last_seen_at: row.last_seen_at || null, health_status: row.health_status || null })),
@@ -1221,6 +1276,10 @@ async function summarizeModuleTool(actor: AuthUser, prompt: string, args: Record
   };
 }
 
+export async function summarizeModuleToolForTest(actor: AuthUser, prompt: string, args: Record<string, any>) {
+  return summarizeModuleTool(actor, prompt, args);
+}
+
 async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, args: Record<string, any>) {
   const estateId = actorEstate(actor, args.estate_id || args.estateId || null);
   const homeId = actorHome(actor, args.home_id || args.homeId || null);
@@ -1260,7 +1319,7 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
     return { summary: `Estate context: ${estates.count} estate record(s), ${homes.count} home/unit record(s), ${devices.count} device record(s) visible.`, data: { estates, homes, devices } };
   }
   if (toolId === "summarize_devices") {
-    const scope = deviceRuntimeScope(actor, args);
+    const scope = readOnlyDeviceScope(actor, args);
     const rows = await listVisibleDevices(actor, 500, scope);
     const deviceIds = rows.map((row: any) => row.id).filter(Boolean);
     const states = deviceIds.length
