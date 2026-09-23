@@ -283,7 +283,8 @@ export async function loadHomeDeviceInventoryFacts(input: CanonicalConversationR
           source_id: String(device.id),
           truth_state: freshness.truth_state,
           confidence: freshness.freshness === "fresh" ? 0.86 : freshness.freshness === "stale" ? 0.68 : 0.48,
-          freshness: freshness.freshness,
+          // Top-level freshness is a raw timestamp-or-"unknown" contract (see loadRecentDeviceChangeFacts below), not the pre-classified bucket -- classifyFreshness() Date-parses this field.
+          freshness: observedAt ? String(observedAt) : "unknown",
           privacy_class: "resident_device_private",
           permissions: ["read"],
           evidence: [{ source: "device_states", device_id: String(device.id), observed_at: observedAt, freshness: freshness.freshness }],
