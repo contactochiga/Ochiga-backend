@@ -329,11 +329,15 @@ router.get("/workflows/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/brief", requireAuth, async (req, res) => {
+// Wave 6 Slice 6 -- resolveRequestContext added so getExecutiveBrief can
+// pass a server-verified oisContext into the canonical read, matching
+// every other Wave 6 slice's precedent of preferring oisContext over raw,
+// potentially-stale actor.estate_id.
+router.get("/brief", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const body = await observeAgentAction(
       { agent_id: "ochiga_executive", action: "intelligence.brief", tool: "intelligence:brief", surface: "api", actor: req.user },
-      async () => getExecutiveBrief(req.user || null)
+      async () => getExecutiveBrief(req.user || null, req.oisContext || null)
     );
     return res.status(body.ok ? 200 : 403).json(body);
   } catch (err: any) {

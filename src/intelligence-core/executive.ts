@@ -1,4 +1,5 @@
 import type { AuthUser } from "../middleware/auth";
+import type { OisContext } from "../types/oisContext";
 import { getIntelligencePermissionPolicy, filterCameraProtectedEvents, loadCameraAccessLookup } from "./permissionEngine";
 import { loadNormalizedTimelineEvents } from "./normalizers";
 import { listPersistedIntelligenceEvents, summarizeIntelligenceEvents } from "./eventBus";
@@ -7,6 +8,8 @@ import { getCollaborationHints } from "./collaboration";
 import { getOrganizationSummary } from "./organization";
 import { getAgentObservabilitySummary } from "./observability";
 import { getWorkflowSummary } from "./workflows";
+import { buildAmbientAwarenessProjection } from "../oyi-core/read/facilityConsumerAmbientAwarenessAdapter";
+import { logger } from "../observability/logger";
 
 function canViewExecutive(actor?: AuthUser | null) {
   const role = getIntelligencePermissionPolicy(actor).role;
@@ -68,7 +71,17 @@ export async function getExecutiveIntelligence(actor?: AuthUser | null) {
   };
 }
 
-export async function getExecutiveBrief(actor?: AuthUser | null) {
+// Wave 6 Slice 6 -- the four fields below (camera_alerts, maintenance_risks,
+// estate_health.attention_events, estate_health.latest_signal) are the
+// brief's actual AMBIENT_AWARENESS content -- "what currently needs
+// attention" -- and are the only fields this slice migrates. lead_activity/
+// sales_activity (Office/CRM business counts), predictions, workflow_status,
+// and agent_health are DIRECT_DOMAIN_FACT/PREDICTION/WORKFLOW/OBSERVABILITY
+// respectively, not awareness, and are explicitly out of this slice's scope
+// per its own mission (Section 0, Section 10) -- left computed from the
+// existing legacy event/prediction/workflow/observability sources exactly
+// as before.
+export async function getExecutiveBrief(actor?: AuthUser | null, oisContext?: OisContext | null) {
   if (!canViewExecutive(actor)) return { ok: false, error: "Executive brief requires management access" };
   const filters = {
     actor,
@@ -76,12 +89,13 @@ export async function getExecutiveBrief(actor?: AuthUser | null) {
     home_id: null,
     limit: 100,
   };
-  const [persisted, normalized, predictions, workflows, observability] = await Promise.all([
+  const [persisted, normalized, predictions, workflows, observability, projection] = await Promise.all([
     listPersistedIntelligenceEvents(filters),
     loadNormalizedTimelineEvents(filters),
     listIntelligencePredictions({ actor, estate_id: actor?.estate_id || null, status: "open", limit: 50 }),
     getWorkflowSummary(actor),
     getAgentObservabilitySummary(100),
+    actor ? buildAmbientAwarenessProjection(actor, oisContext || null, "executive") : Promise.resolve(null),
   ]);
   const mergedEvents = mergeEvents(persisted.events || [], normalized.events || [], 100);
   const cameraLookup = await loadCameraAccessLookup(mergedEvents);
@@ -90,22 +104,62 @@ export async function getExecutiveBrief(actor?: AuthUser | null) {
   const predictionSummary = summarizePredictions(predictions.predictions || []);
   const byCategory = eventSummary.by_category || {};
 
+  // Section 11/16 -- canonical is tried first; EMPTY (ok:true, zero items)
+  // is a real, complete answer, never a fallback trigger. Legacy
+  // (byCategory/eventSummary computed above, already privacy-filtered) is
+  // used only when canonical itself could not answer, and the fallback is
+  // always explicit -- never blended with canonical output.
+  let ambient: { camera_alerts: number; maintenance_risks: number; attention_events: number; latest_signal: { title: string; summary: string; category: string; occurred_at: string | null } | null };
+  let canonicalStatus: "complete" | "partial" | "unavailable";
+  let legacyFallbackUsed = false;
+  let fallbackReason: string | null = null;
+
+  if (projection && projection.ok) {
+    const needsAttention = projection.attentionItems.filter((item) => item.urgency === "act" || item.urgency === "urgent");
+    const cameraBucket = projection.domainSummary.find((bucket) => bucket.domain === "camera");
+    const maintenanceBucket = projection.domainSummary.find((bucket) => bucket.domain === "maintenance");
+    const latest = needsAttention.length
+      ? needsAttention.reduce((mostRecent, item) => (item.generatedAt > mostRecent.generatedAt ? item : mostRecent))
+      : null;
+    ambient = {
+      camera_alerts: cameraBucket?.count || 0,
+      maintenance_risks: maintenanceBucket?.count || 0,
+      attention_events: needsAttention.length,
+      latest_signal: latest ? { title: latest.title, summary: latest.summary, category: latest.domain, occurred_at: latest.generatedAt } : null,
+    };
+    canonicalStatus = projection.canonicalStatus;
+  } else {
+    logger.warn("executive_brief_canonical_fallback", { reason: projection?.reason || "unknown" });
+    legacyFallbackUsed = true;
+    fallbackReason = "canonical_coverage_gap";
+    canonicalStatus = "unavailable";
+    ambient = {
+      camera_alerts: byCategory.camera || 0,
+      maintenance_risks: byCategory.maintenance || 0,
+      attention_events: eventSummary.attention,
+      latest_signal: eventSummary.latest,
+    };
+  }
+
   return {
     ok: true,
     agent_id: "ochiga_executive",
     title: "Daily Executive Brief",
     memory_boundary: "This brief uses summarized operational intelligence only. It does not expose raw resident memory, private CRM notes, camera credentials, or private streams.",
+    canonical_status: canonicalStatus,
+    legacy_fallback_used: legacyFallbackUsed,
+    fallback_reason: fallbackReason,
     summary: {
       predictions: predictionSummary,
-      camera_alerts: byCategory.camera || 0,
-      maintenance_risks: byCategory.maintenance || 0,
+      camera_alerts: ambient.camera_alerts,
+      maintenance_risks: ambient.maintenance_risks,
       lead_activity: byCategory.marketing || 0,
       sales_activity: byCategory.sales || 0,
       workflow_status: workflows.ok ? workflows.summary : null,
       agent_health: observability,
       estate_health: {
-        attention_events: eventSummary.attention,
-        latest_signal: eventSummary.latest,
+        attention_events: ambient.attention_events,
+        latest_signal: ambient.latest_signal,
       },
     },
     recommended_actions: Array.from(new Set([...(predictionSummary.recommended_actions || []), "Review critical and overdue workflows", "Check failed agent observations", "Review camera and maintenance risks"])).slice(0, 6),

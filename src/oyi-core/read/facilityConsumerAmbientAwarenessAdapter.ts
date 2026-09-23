@@ -26,7 +26,12 @@ import { normalizeIntelligenceCategory } from "../../intelligence-core/eventBus"
 import type { IntelligenceEventCategory } from "../../intelligence-core/types";
 import { INTELLIGENCE_SUMMARY_TITLE_BY_TYPE, intelligenceSummarySuggestedActions, type IntelligenceSummaryType } from "../../intelligence-core/summaryEngine";
 
-export type AmbientProjectionSurface = "facility" | "consumer";
+// Wave 6 Slice 6 -- "executive" added as a third projection surface.
+// Same read, same authority, same dedup/grouping; only the domain
+// ordering below differs, per this slice's mission ("It may summarize
+// and prioritize canonical truth differently. It must NOT independently
+// derive a second awareness truth from legacy events").
+export type AmbientProjectionSurface = "facility" | "consumer" | "executive";
 export type AmbientCanonicalStatus = "complete" | "partial" | "unavailable";
 
 export type AmbientAttentionItem = {
@@ -39,6 +44,10 @@ export type AmbientAttentionItem = {
   status: string;
   freshness: "current" | "stale" | "unspecified";
   recommendedAction: string | null;
+  // Wave 6 Slice 6 -- carried through so a caller (e.g. the executive
+  // brief's "latest signal") can pick the most-recent item honestly
+  // instead of reconstructing a raw legacy event for that purpose.
+  generatedAt: string;
 };
 
 export type AmbientDomainBucket = {
@@ -65,9 +74,16 @@ export type AmbientAwarenessProjection = {
 // dropped, so nothing authorized is ever hidden by the ordering choice.
 const FACILITY_DOMAIN_ORDER: IntelligenceEventCategory[] = ["security", "camera", "device", "utility", "maintenance", "visitor", "community", "wallet", "edge"];
 const CONSUMER_DOMAIN_ORDER: IntelligenceEventCategory[] = ["security", "visitor", "maintenance", "device", "utility", "workflow", "prediction", "community"];
+// Executive ordering favors business-critical/cross-department conditions
+// (security, then camera/infrastructure risk, then maintenance/utility
+// operational cost, then visitor/community) -- presentation only, same
+// factual items as Facility/Consumer for the same actor/scope.
+const EXECUTIVE_DOMAIN_ORDER: IntelligenceEventCategory[] = ["security", "camera", "maintenance", "device", "utility", "visitor", "community", "wallet"];
 
 function domainOrderFor(surface: AmbientProjectionSurface): IntelligenceEventCategory[] {
-  return surface === "facility" ? FACILITY_DOMAIN_ORDER : CONSUMER_DOMAIN_ORDER;
+  if (surface === "facility") return FACILITY_DOMAIN_ORDER;
+  if (surface === "executive") return EXECUTIVE_DOMAIN_ORDER;
+  return CONSUMER_DOMAIN_ORDER;
 }
 
 function domainRank(surface: AmbientProjectionSurface, domain: IntelligenceEventCategory): number {
@@ -92,6 +108,7 @@ function itemToAttentionItem(item: AwarenessReadItem): AmbientAttentionItem {
     status: item.status,
     freshness: item.freshness,
     recommendedAction: item.recommendedAction,
+    generatedAt: item.generatedAt,
   };
 }
 
