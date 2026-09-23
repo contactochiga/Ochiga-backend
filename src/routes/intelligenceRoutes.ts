@@ -159,12 +159,15 @@ router.get("/agents", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/executive", requireAuth, async (req, res) => {
+// Wave 6 Slice 6B -- resolveRequestContext added so getExecutiveIntelligence
+// can pass a server-verified oisContext into the canonical read, matching
+// Slice 6's precedent on /brief.
+router.get("/executive", requireAuth, resolveRequestContext, async (req, res) => {
   try {
     const body = await observeAgentAction(
       { agent_id: "ochiga_executive", action: "intelligence.executive", tool: "intelligence:executive", surface: "api", actor: req.user },
       async () => {
-        const legacy = await getExecutiveIntelligence(req.user || null);
+        const legacy = await getExecutiveIntelligence(req.user || null, req.oisContext || null);
         const canonical = oyiCoreRuntime.executive("daily", {
           signals: [],
           context: { estate_id: req.user?.estate_id || null, home_id: req.user?.home_id || null, surface: "facility" } as any,

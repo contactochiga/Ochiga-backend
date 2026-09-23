@@ -27,7 +27,16 @@ function mergeEvents(persisted: any[], normalized: any[], limit: number) {
     .slice(0, limit);
 }
 
-export async function getExecutiveIntelligence(actor?: AuthUser | null) {
+// Wave 6 Slice 6B -- summary.events (total/attention/by_category/latest) and
+// focus are this endpoint's CURRENT_AWARENESS content -- "what does the
+// executive dashboard consider live right now" -- and are the only fields
+// this slice migrates. summary.predictions/organization/workflows,
+// collaboration_hints (an advisory agent-routing hint derived from recent
+// activity, not a claim about current operational state), recommended_actions,
+// and warnings are PREDICTION/ORGANIZATIONAL_FACT/WORKFLOW/WORKFLOW/
+// PRESENTATION/OBSERVABILITY respectively, not awareness, and stay on their
+// existing legacy/event sources exactly as before.
+export async function getExecutiveIntelligence(actor?: AuthUser | null, oisContext?: OisContext | null) {
   if (!canViewExecutive(actor)) return { ok: false, error: "Executive intelligence requires management access" };
   const filters = {
     actor,
@@ -35,12 +44,13 @@ export async function getExecutiveIntelligence(actor?: AuthUser | null) {
     home_id: null,
     limit: 100,
   };
-  const [persisted, normalized, predictions, organization, workflows] = await Promise.all([
+  const [persisted, normalized, predictions, organization, workflows, projection] = await Promise.all([
     listPersistedIntelligenceEvents(filters),
     loadNormalizedTimelineEvents(filters),
     listIntelligencePredictions({ actor, estate_id: actor?.estate_id || null, status: "open", limit: 50 }),
     getOrganizationSummary(actor),
     getWorkflowSummary(actor),
+    actor ? buildAmbientAwarenessProjection(actor, oisContext || null, "executive") : Promise.resolve(null),
   ]);
   const mergedEvents = mergeEvents(persisted.events || [], normalized.events || [], 100);
   // Wave 6 Slice 1 -- this executive digest does not run the rest of
@@ -53,14 +63,54 @@ export async function getExecutiveIntelligence(actor?: AuthUser | null) {
   const events = filterCameraProtectedEvents(mergedEvents, actor, cameraLookup);
   const eventSummary = summarizeIntelligenceEvents(events);
   const predictionSummary = summarizePredictions(predictions.predictions || []);
+
+  // Section 6/15/16 -- canonical is tried first; EMPTY (ok:true, zero
+  // items) is a real, complete answer and never triggers legacy awareness
+  // calls (there are none to trigger -- eventSummary above is only ever
+  // used as the explicit fallback shape, computed unconditionally because
+  // collaboration_hints legitimately still needs the same `events` array
+  // regardless of which awareness source answers). Legacy is used only
+  // when canonical itself could not answer, and is always marked
+  // explicitly -- never blended with canonical output.
+  let awarenessSummary: { total: number; attention: number; by_category: Record<string, number>; by_agent: Record<string, number>; latest: { title: string; summary: string; category: string; agent_id: string | null; occurred_at: string | null } | null };
+  let canonicalStatus: "complete" | "partial" | "unavailable";
+  let legacyFallbackUsed = false;
+  let fallbackReason: string | null = null;
+
+  if (projection && projection.ok) {
+    const needsAttention = projection.attentionItems.filter((item) => item.urgency === "act" || item.urgency === "urgent");
+    const byCategory: Record<string, number> = {};
+    for (const bucket of projection.domainSummary) byCategory[bucket.domain] = bucket.count;
+    const latest = needsAttention.length
+      ? needsAttention.reduce((mostRecent, item) => (item.generatedAt > mostRecent.generatedAt ? item : mostRecent))
+      : null;
+    awarenessSummary = {
+      total: projection.totalItems,
+      attention: needsAttention.length,
+      by_category: byCategory,
+      by_agent: {},
+      latest: latest ? { title: latest.title, summary: latest.summary, category: latest.domain, agent_id: null, occurred_at: latest.generatedAt } : null,
+    };
+    canonicalStatus = projection.canonicalStatus;
+  } else {
+    logger.warn("executive_intelligence_canonical_fallback", { reason: projection?.reason || "unknown" });
+    legacyFallbackUsed = true;
+    fallbackReason = "canonical_coverage_gap";
+    canonicalStatus = "unavailable";
+    awarenessSummary = eventSummary;
+  }
+
   return {
     ok: true,
     agent_id: "ochiga_executive",
     purpose: "Cross-system executive awareness through summarized Oyi, Facility, OMA, OSA, Camera, Edge, Watch, and prediction signals.",
     memory_boundary: "Executive Intelligence reads summarized intelligence only. It does not directly read resident-private memory or CRM notes.",
-    focus: predictionSummary.top_predictions?.[0]?.title || eventSummary.latest?.title || "No high-priority executive focus item is visible from current intelligence sources.",
+    canonical_status: canonicalStatus,
+    legacy_fallback_used: legacyFallbackUsed,
+    fallback_reason: fallbackReason,
+    focus: predictionSummary.top_predictions?.[0]?.title || awarenessSummary.latest?.title || "No high-priority executive focus item is visible from current intelligence sources.",
     summary: {
-      events: eventSummary,
+      events: awarenessSummary,
       predictions: predictionSummary,
       organization: organization.ok ? organization.counts : null,
       workflows: workflows.ok ? workflows.summary : null,

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { resolveRequestContext } from "../middleware/contextResolver";
-import { getOyiConversationMessages, getOyiUnifiedAwareness, listOyiConversationThreads } from "../services/oyiUnifiedIntelligenceService";
+import { getOyiConversationMessages, listOyiConversationThreads } from "../services/oyiUnifiedIntelligenceService";
 import { getConvergedAwarenessDigest } from "../oyi-core/read/awarenessPresentationAdapter";
 import { oyiCoreRuntime } from "../oyi-core/service";
 import { executionLedger, type ExecutionLedgerScope } from "../oyi-core/runtime/executionLedger";
