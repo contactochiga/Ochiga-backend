@@ -10,6 +10,7 @@ import {
   type OyiSurface,
 } from "../../services/oyiUnifiedIntelligenceService";
 import { buildModuleFacts } from "./moduleFactAdapters";
+import { loadCanonicalAwarenessFacts } from "../context/canonicalConversationAwarenessAdapter";
 import {
   namedDevicePhraseFromControlMessage,
   requestedChannelCode,
@@ -376,8 +377,16 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
     answer = buildDeviceAvailabilityInventoryAnswer(facts, contract, input.message);
     displayMode = "list";
   } else if (contract.intent === "home_operational_summary") {
-    facts = dedupeFacts([...facts, ...await loadHomeDeviceInventoryFacts(input, oisContext), ...await loadRecentChangeFacts(input, oisContext, contract, object)]);
-    answer = buildHomeOperationalSummaryAnswer(facts, contract);
+    // Wave 6 Slice 4 -- this is the one intent branch reserved for
+    // generic awareness questions ("what's happening", "anything I
+    // should know", "everything okay"), so it is the only place that
+    // calls CanonicalAwarenessReadService via the adapter. Direct
+    // domain queries (device diagnosis, utility spend, visitor list,
+    // maintenance list, ...) are classified into their own separate
+    // intents above and never reach this branch.
+    const awarenessContext = await loadCanonicalAwarenessFacts(oisContext);
+    facts = dedupeFacts([...facts, ...await loadHomeDeviceInventoryFacts(input, oisContext), ...await loadRecentChangeFacts(input, oisContext, contract, object), ...awarenessContext.facts]);
+    answer = buildHomeOperationalSummaryAnswer(facts, contract, awarenessContext.canonicalStatus);
     displayMode = "report";
   } else if (contract.intent === "wallet_operation" && contract.answer_builder === "wallet_history") {
     facts = dedupeFacts([...facts, ...await loadWalletTransactionFacts(input, oisContext, contract)]);

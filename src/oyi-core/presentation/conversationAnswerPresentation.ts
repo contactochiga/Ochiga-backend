@@ -284,9 +284,95 @@ export function buildDeviceAvailabilityInventoryAnswer(facts: IntelligenceFact[]
   return ["Confirmed offline devices in this home:", ...lines].join("\n");
 }
 
-export function buildHomeOperationalSummaryAnswer(facts: IntelligenceFact[], contract?: IntelligenceRequestContract) {
+// Wave 6 Slice 4 -- freshness-safe phrasing for a canonical_awareness fact.
+// "current" is the only freshness value allowed present-tense certainty;
+// "stale"/"unspecified" are phrased as a past observation, never rewritten
+// as current fact (Section 13's invariant).
+function freshnessQualifiedStatement(statement: string, freshness: string) {
+  const clean = statement.replace(/\.$/, "");
+  if (freshness === "current") return `${clean}.`;
+  if (freshness === "stale") return `Last observation: ${clean.charAt(0).toLowerCase()}${clean.slice(1)} (this reading is stale).`;
+  return `Oyi last noted: ${clean.charAt(0).toLowerCase()}${clean.slice(1)} (freshness not confirmed).`;
+}
+
+// Section 11 -- multiple observations belonging to one incident are
+// described as ONE coherent problem, not N duplicated lines. Grouping
+// relies solely on the incident_id/incident_key the canonical adapter
+// already attached to each fact's value -- no new correlation logic.
+function groupCanonicalAwarenessFacts(facts: IntelligenceFact[]) {
+  const groups = new Map<string, IntelligenceFact[]>();
+  const order: string[] = [];
+  for (const fact of facts) {
+    const value = recordOf(fact.value);
+    const key = text(value.incident_id) || fact.fact_id;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key)!.push(fact);
+  }
+  return order.map((key) => groups.get(key)!);
+}
+
+function urgencyRank(urgency: unknown) {
+  const rank: Record<string, number> = { urgent: 3, act: 2, review: 1, monitor: 0 };
+  return rank[text(urgency)] ?? 0;
+}
+
+export function buildHomeOperationalSummaryAnswer(facts: IntelligenceFact[], contract?: IntelligenceRequestContract, canonicalAwarenessStatus?: "complete" | "partial" | "unavailable") {
+  const awarenessFacts = facts.filter((fact) => fact.fact_type === "canonical_awareness");
   const availabilityFacts = facts.filter((fact) => fact.fact_type === "device_availability");
-  const recentFacts = facts.filter((fact) => fact.fact_type !== "device_availability");
+  const recentFacts = facts.filter((fact) => fact.fact_type !== "device_availability" && fact.fact_type !== "canonical_awareness");
+
+  if (awarenessFacts.length) {
+    const groups = groupCanonicalAwarenessFacts(awarenessFacts).sort((a, b) => {
+      const rankA = Math.max(...a.map((fact) => urgencyRank(recordOf(fact.value).urgency)));
+      const rankB = Math.max(...b.map((fact) => urgencyRank(recordOf(fact.value).urgency)));
+      return rankB - rankA;
+    });
+    const scopeLabel = contract?.scope_mode === "room_scope" ? "room" : "home";
+    const lines: string[] = [
+      `Oyi is currently tracking ${groups.length} active ${groups.length === 1 ? "item" : "items"} for this ${scopeLabel}.`,
+    ];
+    for (const group of groups.slice(0, 8)) {
+      const primary = group[0];
+      const primaryValue = recordOf(primary.value);
+      lines.push(`• ${freshnessQualifiedStatement(primary.statement, primary.freshness)}`);
+      if (group.length > 1) lines.push(`  (${group.length} related observations reviewed together as one item.)`);
+      // Section 15: an awareness item's own suggested next step is
+      // surfaced as a suggestion, never phrased as a decision or an
+      // action already taken.
+      const suggestion = text(primaryValue.recommended_action);
+      if (suggestion) lines.push(`  Suggested next step: ${suggestion}`);
+    }
+    if (canonicalAwarenessStatus === "partial") {
+      lines.push("Some observations for this scope could not be matched to a scoped record yet, so this list may be incomplete.");
+    }
+    lines.push(`Oyi did not reuse a selected drawer target or perform any action for this ${scopeLabel}-scope answer.`);
+    return lines.join("\n");
+  }
+
+  if (canonicalAwarenessStatus === "unavailable") {
+    // Section 9 -- UNAVAILABLE is a technical failure, not silence to
+    // paper over. Device/recent-change evidence below still answers the
+    // turn; this line is the one explicit, observable signal that the
+    // awareness layer itself could not be reached this turn.
+    return buildDeviceOnlyOperationalSummary(availabilityFacts, recentFacts, contract, "Oyi's operational awareness feed is temporarily unavailable, so this summary is based on device evidence only.");
+  }
+  if (canonicalAwarenessStatus === "complete" || canonicalAwarenessStatus === "partial") {
+    // Section 9 -- EMPTY is a real, positive answer from canonical truth
+    // ("nothing active exists"), not a reason to reach for a fallback.
+    // Stated explicitly rather than silently omitted, so a caller cannot
+    // mistake "canonical said nothing" for "canonical was never asked."
+    const note = canonicalAwarenessStatus === "partial"
+      ? "Oyi has no active awareness items for this scope right now, though a small number of recent observations could not be scope-matched yet."
+      : "Oyi has no active awareness items for this scope right now.";
+    return buildDeviceOnlyOperationalSummary(availabilityFacts, recentFacts, contract, note);
+  }
+  return buildDeviceOnlyOperationalSummary(availabilityFacts, recentFacts, contract, null);
+}
+
+function buildDeviceOnlyOperationalSummary(availabilityFacts: IntelligenceFact[], recentFacts: IntelligenceFact[], contract: IntelligenceRequestContract | undefined, leadingNote: string | null) {
   const confirmedOffline = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) === "offline").length;
   const notRecent = availabilityFacts.filter((fact) => ["stale", "expired", "unknown"].includes(text(recordOf(fact.value).availability))).length;
   const confirmedOnline = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) === "online").length;
@@ -307,7 +393,7 @@ export function buildHomeOperationalSummaryAnswer(facts: IntelligenceFact[], con
     lines.push(...attention.map((fact) => `• ${fact.statement.replace(/\.$/, "")}`));
   }
   lines.push(`Oyi did not reuse a selected drawer target or perform any action for this ${scopeLabel}-scope answer.`);
-  return lines.join("\n");
+  return (leadingNote ? [leadingNote, ...lines] : lines).join("\n");
 }
 
 export function buildWalletHistoryAnswer(facts: IntelligenceFact[]) {
