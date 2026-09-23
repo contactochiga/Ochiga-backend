@@ -116,6 +116,15 @@ function channelsForOutput(output: SignalRuntimeOutput, kind: RuntimePayloadKind
   return [];
 }
 
+// Wave 6 Slice 2 -- additive, zero-behavior-change export. resolveIntelligencePolicy
+// already computes this exact 3-way check inline (privateScope, line below) to decide
+// facilityProjectionPermitted; the canonical read service needs the identical
+// classification at read time, working from a persisted privacy_class string rather
+// than a live NormalizedSignal, so it is exposed here rather than re-implemented.
+export function isPrivateAudienceClass(privacyClass: IntelligencePrivacyClass | string | null | undefined): boolean {
+  return privacyClass === "resident_device_private" || privacyClass === "smart_access_private" || privacyClass === "home_private";
+}
+
 export function resolveIntelligencePolicy(signal: NormalizedSignal): IntelligencePolicyDecision {
   const privacyClass = privacyClassForSignal(signal);
   const allowed = outputSetFor(signal, privacyClass);
