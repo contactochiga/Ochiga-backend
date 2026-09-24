@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { normalizeNotificationRouting, routingColumns } from "../services/notifications/notificationRoutingService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
+import { transitionVisitorAccessStatus } from "../services/visitorAccessTransition";
 
 type AuthReq = Request & { user?: { id: string; estate_id?: string; role?: string } };
 
@@ -42,27 +43,6 @@ function utcDayRange(d = new Date()) {
   end.setUTCDate(end.getUTCDate() + 1);
 
   return { startISO: start.toISOString(), endISO: end.toISOString() };
-}
-
-function missingUpdatedAtColumn(error: any) {
-  const message = String(error?.message || error?.details || error?.hint || "").toLowerCase();
-  return /updated_at/.test(message) && /column|schema cache|could not find/.test(message);
-}
-
-async function updateVisitorAccessStatus(id: string, status: string) {
-  const first = await supabaseAdmin
-    .from("visitor_access")
-    .update({ status, updated_at: new Date().toISOString() } as any)
-    .eq("id", id)
-    .select()
-    .single();
-  if (!first.error || !missingUpdatedAtColumn(first.error)) return first;
-  return supabaseAdmin
-    .from("visitor_access")
-    .update({ status } as any)
-    .eq("id", id)
-    .select()
-    .single();
 }
 
 /**
@@ -147,7 +127,7 @@ export async function updateVisitorStatusFacility(req: AuthReq, res: Response) {
     // Ensure the visitor belongs to this estate
     const { data: existing, error: exErr } = await supabaseAdmin
       .from("visitor_access")
-      .select("id, estate_id")
+      .select("id, estate_id, status")
       .eq("id", id)
       .maybeSingle();
 
@@ -155,27 +135,49 @@ export async function updateVisitorStatusFacility(req: AuthReq, res: Response) {
     if (!existing) return res.status(404).json({ error: "Visitor not found" });
     if (existing.estate_id !== estateId) return res.status(403).json({ error: "Forbidden" });
 
-    const { data, error } = await updateVisitorAccessStatus(id, status);
+    // Wave 6 Slice 11 -- this endpoint accepts an arbitrary caller-supplied
+    // target status (no fixed lifecycle enum exists for it), so its CAS
+    // precondition is the snapshot just read above rather than a named
+    // fromAny set: the write only lands if the row is still in that exact
+    // state, closing the same stale-read-then-write race as every other
+    // writer without judging which target statuses are legitimate here.
+    // A target identical to the snapshot is a genuine no-op -- the CAS
+    // below would trivially win against its own just-read precondition
+    // every time, defeating idempotency detection. Short-circuit here,
+    // same as updateMaintenance.
+    let data;
+    let applied;
+    if (String(existing.status) === String(status)) {
+      data = existing;
+      applied = false;
+    } else {
+      const outcome = await transitionVisitorAccessStatus(id, [String(existing.status)], status);
+      if (outcome.code === "db_error") return res.status(500).json({ error: "Visitor status could not be updated." });
+      if (outcome.code === "not_found") return res.status(404).json({ error: "Visitor not found" });
+      if (outcome.code === "conflict") return res.status(409).json({ error: `Visitor status has already changed to "${outcome.currentStatus}".`, current_status: outcome.currentStatus });
+      data = outcome.row;
+      applied = outcome.code === "applied";
+    }
 
-    if (error) return res.status(500).json({ error: "Visitor status could not be updated." });
-
-    void publishSourceIntelligenceEvent({
-      source: "facility",
-      surface: "facility",
-      event_type: `visitor_access.${status}`,
-      category: "visitor",
-      estate_id: data?.estate_id || estateId,
-      home_id: data?.home_id || null,
-      actor_id: req.user.id,
-      entity_type: "visitor_access",
-      entity_id: data?.id || id,
-      entity_label: data?.visitor_name || "Visitor access",
-      severity: /denied|expired/i.test(status) ? "attention" : "info",
-      title: `${data?.visitor_name || "Visitor"} access ${status}`,
-      summary: `Visitor access was updated to ${status}.`,
-      payload: { status, purpose: data?.purpose || null },
-      occurred_at: data?.updated_at,
-    }, { source_table: "visitor_access", source_event_id: `${data?.id || id}:visitor_access.${status}` });
+    if (applied) {
+      void publishSourceIntelligenceEvent({
+        source: "facility",
+        surface: "facility",
+        event_type: `visitor_access.${status}`,
+        category: "visitor",
+        estate_id: data?.estate_id || estateId,
+        home_id: data?.home_id || null,
+        actor_id: req.user.id,
+        entity_type: "visitor_access",
+        entity_id: data?.id || id,
+        entity_label: data?.visitor_name || "Visitor access",
+        severity: /denied|expired/i.test(status) ? "attention" : "info",
+        title: `${data?.visitor_name || "Visitor"} access ${status}`,
+        summary: `Visitor access was updated to ${status}.`,
+        payload: { status, purpose: data?.purpose || null },
+        occurred_at: data?.updated_at,
+      }, { source_table: "visitor_access", source_event_id: `${data?.id || id}:visitor_access.${status}` });
+    }
 
     return res.json({ ok: true, visitor: data });
   } catch (e: any) {

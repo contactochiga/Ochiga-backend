@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { NotificationService, type NotificationType } from "../services/NotificationService";
 import { detectDuplicateMaintenanceRequest } from "../services/facilityAutomationService";
+import { transitionMaintenanceStatus } from "../services/maintenanceTransition";
 
 type AuthReq = Request & {
   user?: { id: string; estate_id?: string; home_id?: string; role?: string };
@@ -472,58 +473,92 @@ export async function updateMaintenance(req: AuthReq, res: Response) {
     if (status === "closed") lifecycle.closed_at = now;
     if (status === "cancelled") lifecycle.cancelled_at = now;
 
-    const { data: updated, error } = await supabaseAdmin
-      .from("maintenance_requests")
-      .update(
-        compact({
-          status,
-          assigned_to,
-          completion_summary,
-          completion_proof: Array.isArray(completion_proof) ? completion_proof : undefined,
-          blocking_reason,
-          resident_rating,
-          resident_feedback,
-          verified_by_resident,
-          updated_at: now,
-          ...lifecycle,
-        })
-      )
-      .eq("id", id)
-      .select()
-      .single();
+    const patch = compact({
+      status,
+      assigned_to,
+      completion_summary,
+      completion_proof: Array.isArray(completion_proof) ? completion_proof : undefined,
+      blocking_reason,
+      resident_rating,
+      resident_feedback,
+      verified_by_resident,
+      ...lifecycle,
+    });
 
-    if (error) return res.status(400).json({ error: error.message });
-    await supabaseAdmin.from("maintenance_request_timeline").insert({
-      maintenance_request_id: id,
-      estate_id: existing.estate_id,
-      actor_id: userId,
-      action: status ? `maintenance_${String(status)}` : assigned_to ? "maintenance_assigned" : "maintenance_updated",
-      from_status: existing.status || null,
-      to_status: updated.status || status || existing.status || null,
-      note: note || completion_summary || blocking_reason || null,
-      metadata: { assigned_to: updated.assigned_to || assigned_to || null, completion_proof: Array.isArray(completion_proof) ? completion_proof : [] },
-    } as any);
+    let updated: any;
+    let applied = true;
+    if (status) {
+      // Wave 6 Slice 11 -- real status transition: CAS against the
+      // snapshot of `existing` already read above, closing the exact race
+      // documented in docs/WAVE6_CURRENT_STATE_FRESHNESS_AUDIT.md Section
+      // 3.5 (existing read unlocked, then written with no
+      // `.eq("status", existing.status)` precondition). No fixed lifecycle
+      // enum exists in this endpoint's own code -- the snapshot itself is
+      // the precondition, preserving this endpoint's existing arbitrary-
+      // target-status behavior rather than inventing a canonical enum.
+      //
+      // A target status identical to the snapshot is a genuine no-op --
+      // the CAS below would trivially "win" against its own just-read
+      // precondition every time, which would defeat idempotency detection
+      // (Section 11/12: a repeated identical request must be safe and
+      // must not re-emit a side effect). Short-circuit that case here
+      // rather than let a self-matching precondition disguise it as a new
+      // transition.
+      if (String(existing.status) === String(status)) {
+        updated = existing;
+        applied = false;
+      } else {
+        const outcome = await transitionMaintenanceStatus(id, { in: [String(existing.status)] }, patch);
+        if (outcome.code === "db_error") return res.status(400).json({ error: outcome.message });
+        if (outcome.code === "not_found") return res.status(404).json({ error: "Not found" });
+        if (outcome.code === "conflict") return res.status(409).json({ error: `Maintenance request could not be updated: current status is "${outcome.currentStatus}".`, current_status: outcome.currentStatus });
+        updated = outcome.row;
+        applied = outcome.code === "applied";
+      }
+    } else {
+      // No status change requested (assignment/notes only) -- unchanged
+      // behavior, not part of the race this slice closes.
+      const { data, error } = await supabaseAdmin.from("maintenance_requests").update({ ...patch, updated_at: now } as any).eq("id", id).select().single();
+      if (error) return res.status(400).json({ error: error.message });
+      updated = data;
+    }
 
-    const eventType = status
-      ? `maintenance.${String(status).toLowerCase().replace(/\s+/g, "_")}`
-      : assigned_to ? "maintenance.assigned" : "maintenance.updated";
-    void publishSourceIntelligenceEvent({
-      source: "facility",
-      surface: "facility",
-      event_type: eventType,
-      category: "maintenance",
-      estate_id: updated?.estate_id || existing.estate_id || null,
-      home_id: updated?.home_id || existing.home_id || null,
-      actor_id: userId,
-      entity_type: "maintenance_request",
-      entity_id: updated?.id || id,
-      entity_label: updated?.title || existing.title || "Maintenance request",
-      severity: /overdue|blocked|cancelled/i.test(String(status || "")) ? "warning" : "info",
-      title: updated?.title || existing.title || "Maintenance request updated",
-      summary: note || `Maintenance request is now ${updated?.status || status || "updated"}.`,
-      payload: { status: updated?.status || status || null, assigned_to: updated?.assigned_to || assigned_to || null },
-      occurred_at: updated?.updated_at,
-    }, { source_table: "maintenance_requests", source_event_id: `${updated?.id || id}:${eventType}` });
+    // Side effects (timeline row, canonical signal) only for a real
+    // transition -- an idempotent repeat of an already-applied status
+    // must not re-emit a duplicate timeline entry or event.
+    if (applied) {
+      await supabaseAdmin.from("maintenance_request_timeline").insert({
+        maintenance_request_id: id,
+        estate_id: existing.estate_id,
+        actor_id: userId,
+        action: status ? `maintenance_${String(status)}` : assigned_to ? "maintenance_assigned" : "maintenance_updated",
+        from_status: existing.status || null,
+        to_status: updated.status || status || existing.status || null,
+        note: note || completion_summary || blocking_reason || null,
+        metadata: { assigned_to: updated.assigned_to || assigned_to || null, completion_proof: Array.isArray(completion_proof) ? completion_proof : [] },
+      } as any);
+
+      const eventType = status
+        ? `maintenance.${String(status).toLowerCase().replace(/\s+/g, "_")}`
+        : assigned_to ? "maintenance.assigned" : "maintenance.updated";
+      void publishSourceIntelligenceEvent({
+        source: "facility",
+        surface: "facility",
+        event_type: eventType,
+        category: "maintenance",
+        estate_id: updated?.estate_id || existing.estate_id || null,
+        home_id: updated?.home_id || existing.home_id || null,
+        actor_id: userId,
+        entity_type: "maintenance_request",
+        entity_id: updated?.id || id,
+        entity_label: updated?.title || existing.title || "Maintenance request",
+        severity: /overdue|blocked|cancelled/i.test(String(status || "")) ? "warning" : "info",
+        title: updated?.title || existing.title || "Maintenance request updated",
+        summary: note || `Maintenance request is now ${updated?.status || status || "updated"}.`,
+        payload: { status: updated?.status || status || null, assigned_to: updated?.assigned_to || assigned_to || null },
+        occurred_at: updated?.updated_at,
+      }, { source_table: "maintenance_requests", source_event_id: `${updated?.id || id}:${eventType}` });
+    }
 
     // ✅ FIX: requester column is resident_id
     const requesterId = existing.resident_id || null;

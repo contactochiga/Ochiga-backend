@@ -6,6 +6,14 @@ import { createQrForLink } from "../services/qrService";
 import { notifyUser, NotificationPayload } from "../services/NotificationService";
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { createPublicApiError, sendPublicApiError } from "../services/publicApi";
+import { transitionVisitorAccessStatus } from "../services/visitorAccessTransition";
+
+// Wave 6 Slice 11 -- the observed prior-state vocabulary a decision can
+// legitimately act on. Matches facilityAutomationService.ts's own existing
+// visitor.approve precondition (`["active", "pending"]`) exactly rather
+// than inventing a third interpretation -- "pending" is defensively
+// tolerated there even though createVisitor only ever writes "active".
+const VISITOR_DECISION_FROM_STATES = ["active", "pending"];
 
 // Office roles (facility operators / staff) may act on visitor rows across the
 // estate they belong to, even when they have no home_id of their own.
@@ -289,28 +297,34 @@ export async function approveVisitor(req: Request, res: Response) {
     // Security: verify the caller owns this visitor row before mutating.
     await authorizeVisitorForUser(id, ctx, "id");
 
-    const { data, error } = await supabaseAdmin
-      .from("visitor_access")
-      .update({ status: "approved" })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw createPublicApiError(500, "visitor_update_failed", "Visitor could not be updated.");
-
-    // Notify resident_id if present
-    const residentId = data.resident_id || data.created_by;
-    if (residentId) {
-      const payload: NotificationPayload = {
-        title: "Visitor Approved",
-        type: "visitor",
-        entityId: id,
-        message: `Visitor "${data.visitor_name}" approved.`,
-        payload: { visitorId: id, visitor_id: id, estate_id: data.estate_id || null, home_id: data.home_id || null },
-      };
-      await notifyUser(residentId, payload);
+    // Wave 6 Slice 11 -- compare-and-set: a concurrent deny/approve/expire
+    // on this exact row must not both succeed. Side effects (notify,
+    // publish) below only ever run on "applied" -- a losing decision emits
+    // nothing, so no actor can observe a phantom "approved" after another
+    // actor already decided the row.
+    const outcome = await transitionVisitorAccessStatus(id, VISITOR_DECISION_FROM_STATES, "approved");
+    if (outcome.code === "db_error") throw createPublicApiError(500, "visitor_update_failed", "Visitor could not be updated.");
+    if (outcome.code === "not_found") throw createPublicApiError(404, "visitor_not_found", "Visitor not found");
+    if (outcome.code === "conflict") throw createPublicApiError(409, "visitor_state_conflict", `Visitor could not be approved: current status is "${outcome.currentStatus}".`, { current_status: outcome.currentStatus });
+    // "already_in_target" (idempotent repeat of a winning approve) and
+    // "applied" (this call won the CAS) both return the current row as a
+    // success -- neither re-emits side effects for an already-applied
+    // decision except "applied", which is the only branch that follows.
+    const data = outcome.row;
+    if (outcome.code === "applied") {
+      const residentId = data.resident_id || data.created_by;
+      if (residentId) {
+        const payload: NotificationPayload = {
+          title: "Visitor Approved",
+          type: "visitor",
+          entityId: id,
+          message: `Visitor "${data.visitor_name}" approved.`,
+          payload: { visitorId: id, visitor_id: id, estate_id: data.estate_id || null, home_id: data.home_id || null },
+        };
+        await notifyUser(residentId, payload);
+      }
+      publishVisitorAccessEvent(data, "visitor_access.approved");
     }
-    publishVisitorAccessEvent(data, "visitor_access.approved");
 
     return res.json({ ok: true, visitor: data });
   } catch (err: any) {
@@ -331,27 +345,26 @@ export async function denyVisitor(req: Request, res: Response) {
     // Security: verify the caller owns this visitor row before mutating.
     await authorizeVisitorForUser(id, ctx, "id");
 
-    const { data, error } = await supabaseAdmin
-      .from("visitor_access")
-      .update({ status: "denied" })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw createPublicApiError(500, "visitor_update_failed", "Visitor could not be updated.");
-
-    const residentId = data.resident_id || data.created_by;
-    if (residentId) {
-      const payload: NotificationPayload = {
-        title: "Visitor Denied",
-        type: "visitor",
-        entityId: id,
-        message: `Visitor "${data.visitor_name}" denied.`,
-        payload: { visitorId: id, visitor_id: id, estate_id: data.estate_id || null, home_id: data.home_id || null },
-      };
-      await notifyUser(residentId, payload);
+    // Wave 6 Slice 11 -- same CAS discipline as approveVisitor above.
+    const outcome = await transitionVisitorAccessStatus(id, VISITOR_DECISION_FROM_STATES, "denied");
+    if (outcome.code === "db_error") throw createPublicApiError(500, "visitor_update_failed", "Visitor could not be updated.");
+    if (outcome.code === "not_found") throw createPublicApiError(404, "visitor_not_found", "Visitor not found");
+    if (outcome.code === "conflict") throw createPublicApiError(409, "visitor_state_conflict", `Visitor could not be denied: current status is "${outcome.currentStatus}".`, { current_status: outcome.currentStatus });
+    const data = outcome.row;
+    if (outcome.code === "applied") {
+      const residentId = data.resident_id || data.created_by;
+      if (residentId) {
+        const payload: NotificationPayload = {
+          title: "Visitor Denied",
+          type: "visitor",
+          entityId: id,
+          message: `Visitor "${data.visitor_name}" denied.`,
+          payload: { visitorId: id, visitor_id: id, estate_id: data.estate_id || null, home_id: data.home_id || null },
+        };
+        await notifyUser(residentId, payload);
+      }
+      publishVisitorAccessEvent(data, "visitor_access.denied");
     }
-    publishVisitorAccessEvent(data, "visitor_access.denied");
 
     return res.json({ ok: true, visitor: data });
   } catch (err: any) {

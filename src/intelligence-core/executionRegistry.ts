@@ -1,6 +1,8 @@
 import type { AuthUser } from "../middleware/auth";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { publishSourceIntelligenceEvent } from "./sourceEventPublisher";
+import { transitionVisitorAccessStatus } from "../services/visitorAccessTransition";
+import { transitionMaintenanceStatus } from "../services/maintenanceTransition";
 
 export type RegisteredExecutionAction = {
   id: "visitor.approve" | "visitor.revoke" | "visitor.expire" | "maintenance.assign" | "maintenance.complete" | "maintenance.cancel" | "device.on" | "device.off" | "device.toggle" | "notification.notify" | "community.approve" | "community.reject" | "community.post_announcement" | "maintenance.create" | "security.create_incident" | "service.assign" | "service.complete" | "wallet.approve" | "wallet.cancel";
@@ -70,18 +72,6 @@ function inActorScope(actor: AuthUser, row: any) {
   return true;
 }
 
-function missingUpdatedAtColumn(error: any) {
-  const message = String(error?.message || error?.details || error?.hint || "").toLowerCase();
-  return /updated_at/.test(message) && /column|schema cache|could not find/.test(message);
-}
-
-async function updateVisitorAccessStatus(id: string, status: string) {
-  const patch = { status, updated_at: new Date().toISOString() } as any;
-  const first = await supabaseAdmin.from("visitor_access").update(patch).eq("id", id).select("*").single();
-  if (!first.error || !missingUpdatedAtColumn(first.error)) return first;
-  return supabaseAdmin.from("visitor_access").update({ status } as any).eq("id", id).select("*").single();
-}
-
 export async function executeRegisteredAction(input: { action_id: string; actor: AuthUser; entity_id?: string | null; command?: Record<string, unknown> | null; assignee?: string | null; source?: string; confirmed?: boolean }) {
   const action = getRegisteredExecutionAction(input.action_id);
   if (!action) return safeFailure("action_not_registered");
@@ -98,9 +88,24 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
     if (!inActorScope(input.actor, visitor)) return { ok: false, status: "denied", reason: "scope_mismatch" };
     if (!operationalRole(input.actor) && ![visitor.created_by, visitor.resident_id].map(String).includes(String(input.actor.id))) return { ok: false, status: "denied", reason: "visitor_operation_not_permitted" };
     const status = action.id === "visitor.approve" ? "approved" : action.id === "visitor.expire" ? "expired" : "denied";
-    const { data: updated, error: updateError } = await updateVisitorAccessStatus(visitor.id, status);
-    if (updateError) return { ok: false, status: "failed", reason: "visitor_access_update_failed" };
-    void publishSourceIntelligenceEvent({ source: operationalRole(input.actor) ? "facility" : "consumer", surface: operationalRole(input.actor) ? "facility" : "consumer", event_type: `visitor_access.${status}`, category: "visitor", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "visitor_access", entity_id: updated.id, entity_label: updated.visitor_name || "Visitor", severity: status === "denied" ? "attention" : "info", title: `Visitor access ${status}`, summary: `${updated.visitor_name || "Visitor"} access is ${status}.`, payload: { status }, automation_origin: input.source === "automation" }, { source_table: "visitor_access", source_event_id: `${updated.id}:visitor_access.${status}` });
+    // Wave 6 Slice 11 -- same fromAny sets facilityAutomationService.ts's
+    // validatePrecondition already checks (non-atomically, before this
+    // function's own separate unconditional write) for these exact three
+    // actions: approve tolerates "active"/"pending"; expire/revoke require
+    // "active". CAS makes that precondition atomic with the write instead
+    // of a separate earlier read that a race could invalidate.
+    const fromAny = action.id === "visitor.approve" ? ["active", "pending"] : ["active"];
+    const outcome = await transitionVisitorAccessStatus(visitor.id, fromAny, status);
+    if (outcome.code === "db_error") return { ok: false, status: "failed", reason: "visitor_access_update_failed" };
+    if (outcome.code === "not_found") return safeFailure("visitor_lookup_failed");
+    if (outcome.code === "conflict") return { ok: false, status: "conflict", reason: `conflicting_state: visitor is already ${outcome.currentStatus}` };
+    const updated = outcome.row;
+    // Side effects only for a real transition -- a repeat of an
+    // already-applied decision is reported as executed (idempotent) but
+    // must not re-publish a duplicate event.
+    if (outcome.code === "applied") {
+      void publishSourceIntelligenceEvent({ source: operationalRole(input.actor) ? "facility" : "consumer", surface: operationalRole(input.actor) ? "facility" : "consumer", event_type: `visitor_access.${status}`, category: "visitor", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "visitor_access", entity_id: updated.id, entity_label: updated.visitor_name || "Visitor", severity: status === "denied" ? "attention" : "info", title: `Visitor access ${status}`, summary: `${updated.visitor_name || "Visitor"} access is ${status}.`, payload: { status }, automation_origin: input.source === "automation" }, { source_table: "visitor_access", source_event_id: `${updated.id}:visitor_access.${status}` });
+    }
     return { ok: true, status: "executed", result: updated };
   }
   if (["maintenance.complete", "maintenance.cancel", "maintenance.assign"].includes(action.id)) {
@@ -117,14 +122,23 @@ export async function executeRegisteredAction(input: { action_id: string; actor:
     // works when reached via approval, not only when called directly.
     const assignee = String(input.assignee || (input.command as any)?.assignee || "").trim();
     if (action.id === "maintenance.assign" && !assignee) return { ok: false, status: "validation_required", reason: "assignee_required" };
-    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const patch: Record<string, unknown> = {};
     if (action.id === "maintenance.complete") patch.status = "completed";
     if (action.id === "maintenance.cancel") patch.status = "cancelled";
     if (action.id === "maintenance.assign") { patch.status = "assigned"; patch.assigned_to = assignee; }
-    const { data: updated, error: updateError } = await supabaseAdmin.from("maintenance_requests").update(patch as any).eq("id", request.id).select("*").single();
-    if (updateError) return safeFailure("maintenance_update_failed");
-    const eventType = `maintenance.${updated.status || "updated"}`;
-    void publishSourceIntelligenceEvent({ source: "facility", surface: "facility", event_type: eventType, category: "maintenance", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "maintenance_request", entity_id: updated.id, entity_label: updated.title || "Maintenance request", severity: "info", title: updated.title || "Maintenance request updated", summary: `Maintenance request is ${updated.status || "updated"}.`, payload: { status: updated.status, assigned_to: updated.assigned_to || null }, automation_origin: input.source === "automation" }, { source_table: "maintenance_requests", source_event_id: `${updated.id}:${eventType}` });
+    // Wave 6 Slice 11 -- same not-already-terminal precondition
+    // facilityAutomationService.ts's validatePrecondition already checks
+    // (non-atomically) for these exact three actions, now atomic with the
+    // write via CAS.
+    const outcome = await transitionMaintenanceStatus(request.id, { notIn: ["completed", "cancelled"] }, patch);
+    if (outcome.code === "db_error") return safeFailure("maintenance_update_failed");
+    if (outcome.code === "not_found") return safeFailure("maintenance_lookup_failed");
+    if (outcome.code === "conflict") return { ok: false, status: "conflict", reason: `conflicting_state: request is already ${outcome.currentStatus}` };
+    const updated = outcome.row;
+    if (outcome.code === "applied") {
+      const eventType = `maintenance.${updated.status || "updated"}`;
+      void publishSourceIntelligenceEvent({ source: "facility", surface: "facility", event_type: eventType, category: "maintenance", estate_id: updated.estate_id, home_id: updated.home_id, actor_id: input.actor.id, entity_type: "maintenance_request", entity_id: updated.id, entity_label: updated.title || "Maintenance request", severity: "info", title: updated.title || "Maintenance request updated", summary: `Maintenance request is ${updated.status || "updated"}.`, payload: { status: updated.status, assigned_to: updated.assigned_to || null }, automation_origin: input.source === "automation" }, { source_table: "maintenance_requests", source_event_id: `${updated.id}:${eventType}` });
+    }
     return { ok: true, status: "executed", result: updated };
   }
   if (action.id === "maintenance.create") {
