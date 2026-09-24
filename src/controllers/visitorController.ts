@@ -374,7 +374,6 @@ export async function denyVisitor(req: Request, res: Response) {
 
 /**
  * MARK ENTRY
- * - FIX: ensure analytics row exists (upsert)
  */
 export async function markEntry(req: Request, res: Response) {
   const ctx = readUserContext(req);
@@ -384,11 +383,33 @@ export async function markEntry(req: Request, res: Response) {
     if (!id) throw createPublicApiError(400, "id_required", "id is required");
 
     // Security: verify the caller owns this visitor row.
-    const va = await authorizeVisitorForUser(id, ctx);
+    await authorizeVisitorForUser(id, ctx);
 
     const arrivedAt = new Date().toISOString();
 
-    // Upsert analytics by visitor_access_id
+    // Wave 6 Final B -- compare-and-set: entry is only legitimate from
+    // "approved" (the only real status meaning the visitor was cleared for
+    // physical entry -- see visitorAccessTransition.ts and approveVisitor
+    // above; nothing ever writes "entered" from any other prior status).
+    // A denied/expired/never-approved/already-entered visitor must not be
+    // silently overwritten by an unconditional update, and side effects
+    // (analytics write, notify, publish) below only ever run on "applied".
+    const outcome = await transitionVisitorAccessStatus(id, ["approved"], "entered");
+    if (outcome.code === "db_error") throw createPublicApiError(500, "visitor_update_failed", "Visitor could not be updated.");
+    if (outcome.code === "not_found") throw createPublicApiError(404, "visitor_not_found", "Visitor not found");
+    if (outcome.code === "conflict") throw createPublicApiError(409, "visitor_state_conflict", `Visitor could not be marked entered: current status is "${outcome.currentStatus}".`, { current_status: outcome.currentStatus });
+
+    if (outcome.code === "already_in_target") {
+      // Idempotent repeat of a winning markEntry -- return the existing
+      // analytics row, never a second write.
+      const { data: existingAnalytics } = await supabaseAdmin.from("visitor_analytics").select("*").eq("visitor_access_id", id).maybeSingle();
+      return res.json({ ok: true, analytics: existingAnalytics || null });
+    }
+
+    const data = outcome.row;
+
+    // Upsert analytics by visitor_access_id -- only for the actor that
+    // actually won the transition.
     const { data: analytics, error: aErr } = await supabaseAdmin
       .from("visitor_analytics")
       .upsert(
@@ -406,17 +427,16 @@ export async function markEntry(req: Request, res: Response) {
 
     if (aErr) throw createPublicApiError(500, "visitor_analytics_failed", "Visitor analytics could not be updated.");
 
-    const { data: enteredVisitor } = await supabaseAdmin.from("visitor_access").update({ status: "entered" }).eq("id", id).select().maybeSingle();
-    publishVisitorAccessEvent(enteredVisitor || { ...va, status: "entered", updated_at: arrivedAt }, "visitor_access.used", userId);
+    publishVisitorAccessEvent(data, "visitor_access.used", userId);
 
-    const residentId = va.resident_id || va.created_by;
+    const residentId = data.resident_id || data.created_by;
     if (residentId) {
       const payload: NotificationPayload = {
         title: "Visitor Entered",
         type: "visitor",
         entityId: id,
-        message: `Visitor "${va.visitor_name}" entered.`,
-        payload: { visitorId: id, visitor_id: id, arrivedAt, estate_id: va.estate_id || null, home_id: va.home_id || null },
+        message: `Visitor "${data.visitor_name}" entered.`,
+        payload: { visitorId: id, visitor_id: id, arrivedAt, estate_id: data.estate_id || null, home_id: data.home_id || null },
       };
       await notifyUser(residentId, payload);
     }
@@ -429,7 +449,7 @@ export async function markEntry(req: Request, res: Response) {
 
 /**
  * MARK EXIT
- * - FIX: if analytics missing, create a 0-min record instead of 404
+ * - if analytics missing, create a 0-min record instead of 404
  */
 export async function markExit(req: Request, res: Response) {
   const ctx = readUserContext(req);
@@ -441,14 +461,33 @@ export async function markExit(req: Request, res: Response) {
     const exitedAt = new Date().toISOString();
 
     // Security: verify the caller owns this visitor row.
-    const va = await authorizeVisitorForUser(id, ctx);
+    await authorizeVisitorForUser(id, ctx);
 
-    // Try get analytics
+    // Wave 6 Final B -- compare-and-set: exit is only legitimate from
+    // "entered" (a visitor must have actually entered before they can
+    // exit). A never-entered or already-exited visitor must not be
+    // silently overwritten by an unconditional update, and side effects
+    // (analytics write, notify, publish) below only ever run on "applied".
+    const outcome = await transitionVisitorAccessStatus(id, ["entered"], "exited");
+    if (outcome.code === "db_error") throw createPublicApiError(500, "visitor_update_failed", "Visitor could not be updated.");
+    if (outcome.code === "not_found") throw createPublicApiError(404, "visitor_not_found", "Visitor not found");
+    if (outcome.code === "conflict") throw createPublicApiError(409, "visitor_state_conflict", `Visitor could not be marked exited: current status is "${outcome.currentStatus}".`, { current_status: outcome.currentStatus });
+
+    if (outcome.code === "already_in_target") {
+      // Idempotent repeat of a winning markExit -- return the existing
+      // duration, never a second write.
+      const { data: existingAnalytics } = await supabaseAdmin.from("visitor_analytics").select("*").eq("visitor_access_id", id).maybeSingle();
+      return res.json({ ok: true, durationMinutes: existingAnalytics?.duration_minutes ?? 0 });
+    }
+
+    const data = outcome.row;
+
+    // Try get analytics -- only for the actor that actually won the transition.
     const { data: analytics } = await supabaseAdmin
       .from("visitor_analytics")
       .select("*")
       .eq("visitor_access_id", id)
-      .single();
+      .maybeSingle();
 
     let durationMinutes = 0;
 
@@ -476,17 +515,16 @@ export async function markExit(req: Request, res: Response) {
       } as any);
     }
 
-    const { data: exitedVisitor } = await supabaseAdmin.from("visitor_access").update({ status: "exited" }).eq("id", id).select().maybeSingle();
-    publishVisitorAccessEvent(exitedVisitor || { ...va, status: "exited", updated_at: exitedAt }, "visitor_access.exited", userId);
+    publishVisitorAccessEvent(data, "visitor_access.exited", userId);
 
-    const residentId = va.resident_id || va.created_by;
+    const residentId = data.resident_id || data.created_by;
     if (residentId) {
       const payload: NotificationPayload = {
         title: "Visitor Exited",
         type: "visitor",
         entityId: id,
-        message: `Visitor "${va.visitor_name}" exited.`,
-        payload: { visitorId: id, visitor_id: id, exitedAt, durationMinutes, estate_id: va.estate_id || null, home_id: va.home_id || null },
+        message: `Visitor "${data.visitor_name}" exited.`,
+        payload: { visitorId: id, visitor_id: id, exitedAt, durationMinutes, estate_id: data.estate_id || null, home_id: data.home_id || null },
       };
       await notifyUser(residentId, payload);
     }

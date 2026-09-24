@@ -139,16 +139,16 @@ export async function loadMaintenanceRequestFacts(
   try {
     // Programme 4 Phase L — resident_id/category/priority were never real
     // columns on maintenance_requests (verified against every migration
-    // that touches this table; the base schema only has user_id, and no
-    // later migration adds the other two). This select always errored,
-    // so this loader silently returned "unavailable" for every call —
-    // Direct Evidence for maintenance never actually worked. Fixed to
-    // select only columns that exist; maintenanceFromRow's existing
-    // `|| null` / `|| "medium"` fallbacks already handle their absence
-    // safely, so no other code change is needed.
+    // that touches this table; the base schema only had user_id). That
+    // gap is closed by the Wave 6 Final B additive migration
+    // (20260924130000_maintenance_requests_schema_drift_closure.sql),
+    // which also fixed the underlying write-side drop (writers were
+    // silently losing every submitted category/priority value). category
+    // and priority are now selected for real; resident_id is left out
+    // since maintenanceFromRow never reads it.
     let query = supabaseAdmin
       .from("maintenance_requests")
-      .select("id,estate_id,home_id,room_id,user_id,title,description,status,assigned_to,created_at,updated_at")
+      .select("id,estate_id,home_id,room_id,user_id,title,description,category,priority,status,assigned_to,created_at,updated_at")
       .order("created_at", { ascending: false })
       .limit(50);
     query = isFacilitySurface ? query.eq("estate_id", scope.estate_id) : query.eq("home_id", scope.home_id);
