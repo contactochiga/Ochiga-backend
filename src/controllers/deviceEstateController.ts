@@ -6,6 +6,7 @@ import { logger } from "../observability/logger";
 import { sendPublicApiError } from "../services/publicApi";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 import { isTechnicalDeviceHiddenFromResidents } from "../services/deviceInventoryVisibility";
+import { resolveDeviceCurrentStates } from "../oyi-core/domains/devices/deviceCurrentStateAuthority";
 
 function cleanText(value: any, fallback: string | null = null) {
   const text = String(value ?? "").trim();
@@ -271,18 +272,13 @@ export async function getEstateDevices(req: Request, res: Response) {
         .filter(Boolean),
     );
     deviceReadScopeCache.setMany(rows);
-    const deviceIds = rows.map((device: any) => String(device?.id || "")).filter(Boolean);
-    const stateMap = new Map<string, any>();
-    if (deviceIds.length) {
-      const { data: stateRows } = await supabaseAdmin
-        .from("device_states")
-        .select("device_id,status,last_seen,updated_at")
-        .in("device_id", deviceIds);
-      for (const row of stateRows || []) {
-        const key = String((row as any)?.device_id || "");
-        if (key) stateMap.set(key, row);
-      }
-    }
+    // Wave 6 Slice 13B -- current-state portion routed through the canonical authority
+    // (one batched hydration call for the whole list, cache-first, never one lookup per
+    // device). Provisioning (`rows`/`devices` below), UI-capability assembly
+    // (buildUiCapabilities), and frontend-contract enrichment (summarizeDeviceFrontendContract)
+    // are unchanged -- only the raw ad hoc device_states query they used to depend on is
+    // replaced by the shared authority's own persisted-observation hydration.
+    const currentStates = await resolveDeviceCurrentStates(rows);
 
     const devices = rows
       .filter((device: any) => {
@@ -298,19 +294,25 @@ export async function getEstateDevices(req: Request, res: Response) {
       .map((device: any) => {
         const room = Array.isArray(device?.rooms) ? device.rooms[0] || null : device?.rooms || null;
         const metadata = sanitizeMetadata(device?.metadata);
-        const stateRow = stateMap.get(String(device?.id || ""));
-        const summary = summarizeDeviceFrontendContract({ ...device, metadata }, stateRow);
+        const current = currentStates.get(String(device?.id || "")) || null;
+        // summarizeDeviceFrontendContract's own {status,last_seen,updated_at} row contract is
+        // unchanged; it is now fed from the canonical authority's observation instead of a raw
+        // device_states row -- same shape, authoritative source.
+        const stateRowLike = current ? { status: current.observedState, last_seen: current.observedAt, updated_at: current.receivedAt } : null;
+        const summary = summarizeDeviceFrontendContract({ ...device, metadata }, stateRowLike);
         return {
           ...device,
           name: cleanText(device?.name, "Unnamed device"),
           type: cleanText(device?.type, cleanText(device?.category, "device")),
           category: cleanText(device?.category, cleanText(device?.type, "device")),
-          status: cleanText(device?.status, device?.online === false ? "offline" : "unknown"),
+          // devices.online is provisioning-era mirror, no longer the tie-breaker when no other
+          // status is set -- the canonical authority's availability verdict is (runtime wins).
+          status: cleanText(device?.status) || current?.availability || "unknown",
           capabilities: safeArray(device?.capabilities),
           protocols: safeArray(device?.protocols),
           metadata,
           ui_capabilities: buildUiCapabilities(device, metadata),
-          state: stateRow?.status || null,
+          state: current?.observedState || null,
           normalized_state: summary.normalized_state,
           supported_controls: summary.supported_controls,
           control_profile: summary.control_profile,
@@ -323,7 +325,10 @@ export async function getEstateDevices(req: Request, res: Response) {
           last_signal: summary.last_signal,
           activity_summary: summary.activity_summary,
           capability_codes: summary.capability_codes,
-          last_seen: stateRow?.last_seen || device?.last_seen_at || null,
+          last_seen: current?.observedAt || device?.last_seen_at || null,
+          // New (Wave 6 Slice 13B): the canonical, per-device-class freshness verdict this
+          // endpoint previously never computed at all (Section 9 finding). Purely additive.
+          freshness: current?.freshness || "unknown",
           room: room?.id ? { id: room.id, name: cleanText(room.name, "Room") } : null,
           room_name: cleanText(room?.name),
           rooms: undefined,

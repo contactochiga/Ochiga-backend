@@ -7,12 +7,12 @@ import { executeDeviceCommandForActor } from "../controllers/deviceCommandContro
 import { authorizeDeviceCommand } from "../oyi-core/actions/DeviceCommandAuthority";
 import { deviceWithinActorScope, hasWatchScope } from "./watchPolicy";
 import {
-  isDeviceDefinitelyOffline,
   listVisibleDevices,
   logDeviceCommandDiagnostic,
   normalizeDeviceOnlineState,
   resolveVisibleDevice,
 } from "./deviceRuntimeService";
+import { resolveDeviceCurrentStates, type DeviceCurrentState } from "../oyi-core/domains/devices/deviceCurrentStateAuthority";
 
 function actorHomeId(actor: AuthUser) {
   return actor.home_id || null;
@@ -29,8 +29,26 @@ function statusLabel(status?: string | null) {
   return "unknown";
 }
 
-function runtimeStatusLabel(row: any) {
-  return normalizeDeviceOnlineState(row).state;
+// Wave 6 Slice 13B -- Watch is a presentation surface; it does not own state truth. This reads
+// the canonical current-state authority (attached to each device row by visibleDevices() below)
+// instead of deriving its own verdict from provisioning-mirror fields (devices.online/status).
+// Collapses the authority's richer vocabulary (stale/expired/provider_disconnected) down to
+// Watch's existing online/offline/unknown response shape -- honest ("unknown" is never
+// fabricated as "offline"), presentation-only, not a second classifier.
+function currentStateOf(row: any): DeviceCurrentState | null {
+  return row?.__currentState || null;
+}
+
+function runtimeStatusLabel(row: any): "online" | "offline" | "unknown" {
+  const current = currentStateOf(row);
+  if (!current) return "unknown";
+  if (current.availability === "online") return "online";
+  if (current.availability === "offline") return "offline";
+  return "unknown";
+}
+
+function runtimeLastUpdated(row: any) {
+  return currentStateOf(row)?.observedAt || row?.updated_at || null;
 }
 
 function stateColor(state?: string | null) {
@@ -106,13 +124,15 @@ function actionDevicePayload(device: any, verb: "on" | "off") {
     state_color: "blue",
     device_id: device.id,
     command: { switch: verb === "on" },
-    last_updated: device.updated_at || null,
+    last_updated: runtimeLastUpdated(device),
   };
 }
 
 function watchDeviceCard(device: any, canControl: boolean) {
   const runtime = runtimeStatusLabel(device);
-  const disabled = isDeviceDefinitelyOffline(device);
+  // Only the canonical authority's own "offline" verdict counts as definitely offline -- stale/
+  // expired/provider_disconnected/unknown must not be treated as offline (Section 12/16).
+  const disabled = runtime === "offline";
   return {
     id: String(device.id),
     name: safeTitle(device.name || "Device"),
@@ -123,7 +143,7 @@ function watchDeviceCard(device: any, canControl: boolean) {
     enabled: canControl && !disabled && canExposeControl(device),
     disabled_reason: !canControl ? "permission_required" : disabled ? "device_offline" : !canExposeControl(device) ? "unsupported_device" : null,
     controls: canControl && !disabled && canExposeControl(device) ? [actionDevicePayload(device, "on"), actionDevicePayload(device, "off")] : [],
-    last_updated: device.updated_at || null,
+    last_updated: runtimeLastUpdated(device),
   };
 }
 
@@ -297,9 +317,20 @@ async function recentNotifications(actor: AuthUser, limit = 6) {
   return data || [];
 }
 
+// Wave 6 Slice 13B -- Watch presentation reuses the canonical current-state authority
+// (deviceCurrentStateAuthority.ts, Slice 13) instead of deriving its own verdict.
+// listVisibleDevices() remains the sole authority for identity/provisioning/visibility scope
+// (untouched); this only attaches the canonical runtime interpretation on top, via one batched
+// hydration call for the whole device list (never one lookup per device).
 async function visibleDevices(actor: AuthUser, limit = 20) {
   try {
-    return await listVisibleDevices(actor, limit);
+    const devices = await listVisibleDevices(actor, limit);
+    if (!devices.length) return devices;
+    const currentStates = await resolveDeviceCurrentStates(devices);
+    for (const device of devices) {
+      (device as any).__currentState = currentStates.get(String(device.id)) || null;
+    }
+    return devices;
   } catch {
     return [];
   }
