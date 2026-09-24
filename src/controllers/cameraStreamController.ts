@@ -1,11 +1,24 @@
 // src/controllers/cameraStreamController.ts
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { canAccessCamera } from "../modules/cameras/cameraAccess.policy";
+import { canAccessCamera, CAMERA_ACCESS_SELECT } from "../modules/cameras/cameraAccess.policy";
+import { createHmac, timingSafeEqual } from "crypto";
 import { verifyCameraPlaybackToken } from "../modules/cameras/cameraPlayback.service";
 import { assertAuthorizedMediaUrl } from "../modules/cameras/cameraMediaPolicy";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET;
+
+// A segment URL is a capability delegated by an authorized upstream playlist,
+// not a client-selected URL on the same media server. Bind it to this camera
+// AND playback token; token expiry is still checked on every request.
+function resourceProof(cameraId: string, token: string, url: string) {
+  return createHmac("sha256", APP_JWT_SECRET || "").update(JSON.stringify([cameraId, token, url])).digest("hex");
+}
+
+function validResourceProof(proof: unknown, cameraId: string, token: string, url: string) {
+  if (!APP_JWT_SECRET || typeof proof !== "string" || !/^[a-f0-9]{64}$/.test(proof)) return false;
+  return timingSafeEqual(Buffer.from(proof, "hex"), Buffer.from(resourceProof(cameraId, token, url), "hex"));
+}
 
 /**
  * HLS security:
@@ -93,7 +106,7 @@ function rewritePlaylistToBackend(opts: {
 
   const proxyUrl = (uri: string) => {
     const absolute = assertAuthorizedMediaUrl(resolveUrl(playlistUrl, uri), playlistUrl);
-    return `${baseUrl}/cameras/${cameraId}/hls/${encodeURIComponent(absolute)}?token=${encodeURIComponent(token)}`;
+    return `${baseUrl}/cameras/${cameraId}/hls/${encodeURIComponent(absolute)}?token=${encodeURIComponent(token)}&resource_token=${resourceProof(cameraId, token, absolute)}`;
   };
 
   const out = lines.map((line) => {
@@ -120,7 +133,7 @@ export async function hlsPlaylist(req: Request, res: Response) {
 
   const { data: cam, error } = await supabaseAdmin
     .from("facility_cameras")
-    .select("id, estate_id, edge_hls_url, metadata")
+    .select(`${CAMERA_ACCESS_SELECT},edge_hls_url`)
     .eq("id", cameraId)
     .maybeSingle();
 
@@ -183,6 +196,7 @@ export async function hlsSegment(req: Request, res: Response) {
   if (!user) return res.status(401).end();
 
   const { cameraId } = req.params;
+  if (!user.camera_id || String(user.camera_id) !== String(cameraId)) return res.status(403).end();
 
   const rawSeg = (req.params as any).seg as string;
   if (!rawSeg) return res.status(400).end();
@@ -194,9 +208,13 @@ export async function hlsSegment(req: Request, res: Response) {
     return res.status(400).json({ error: "Malformed media resource" });
   }
 
+  if (!validResourceProof(req.query.resource_token, String(cameraId), String(req.query.token || ""), targetUrl)) {
+    return res.status(403).json({ error: "Media resource is not authorized for this camera" });
+  }
+
   const { data: cam, error } = await supabaseAdmin
     .from("facility_cameras")
-    .select("id, estate_id, edge_hls_url, metadata")
+    .select(`${CAMERA_ACCESS_SELECT},edge_hls_url`)
     .eq("id", cameraId)
     .maybeSingle();
 

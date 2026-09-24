@@ -7,6 +7,7 @@ import { decideNotification, recordNotificationDecision } from "./notificationPo
 import { publishSourceIntelligenceEvent } from "../intelligence-core";
 import { normalizeNotificationRouting, routingColumns, withNotificationRouting } from "./notifications/notificationRoutingService";
 import type { OisNotificationRouting } from "../types/notificationRouting";
+import { derivedCameraId, filterCameraNotificationRows } from "../modules/cameras/cameraAudience.service";
 
 /**
  * Types of notifications
@@ -53,6 +54,9 @@ function pushCategoryFor(notification: NotificationPayload) {
 
 function publishNotificationEvent(row: any) {
   if (!row?.id) return;
+  // The source camera event already exists. Do not republish protected camera
+  // text as a generic estate notification event that loses its camera policy.
+  if (derivedCameraId(row)) return;
   void publishSourceIntelligenceEvent({
     source: "consumer",
     surface: "consumer",
@@ -96,12 +100,19 @@ function emitRealtimeNotification(userId: string, payload: any) {
   io?.to(`user:${userId}`).emit("notification:new", payload);
 }
 
+async function cameraEligibleRecipients(userIds: string[], notification: NotificationPayload) {
+  if (!derivedCameraId(notification)) return new Set(userIds);
+  const rows = await filterCameraNotificationRows(userIds.map(user_id => ({ user_id, payload: notification.payload })));
+  return new Set(rows.map(row => String(row.user_id)));
+}
+
 function isMissingRelationError(error: any) {
   const msg = String(error?.message || error?.details || "");
   return /does not exist|schema cache|Could not find the table/i.test(msg);
 }
 
 async function insertNotificationRows(rows: Record<string, any>[]) {
+  rows = await filterCameraNotificationRows(rows);
   if (!rows.length) return { data: [], error: null };
   let payload = rows.map((row) => ({ ...compact(row) }));
   let lastErrorMsg = "";
@@ -215,6 +226,7 @@ export class NotificationService {
 
   /** Send notification to a single user */
   static async sendToUser(userId: string, notification: NotificationPayload) {
+    if (!(await cameraEligibleRecipients([userId], notification)).has(userId)) return { data: null, error: null, skipped: true, decision: "camera_access_denied" };
     const policy = await decideNotification(userId, notification).catch(() => null);
     const nextPayload = {
       ...(notification.payload || {}),
@@ -299,7 +311,9 @@ export class NotificationService {
 
     const prepared: any[] = [];
     const pushRows = new Set<string>();
+    const cameraRecipients = await cameraEligibleRecipients(userIds, notification);
     for (const userId of userIds) {
+      if (!cameraRecipients.has(userId)) continue;
       const policy = await decideNotification(userId, notification).catch(() => null);
         const nextPayload = {
           ...(notification.payload || {}),
@@ -352,8 +366,10 @@ export class NotificationService {
 
     const prepared: any[] = [];
     const pushRows = new Set<string>();
+    const cameraRecipients = await cameraEligibleRecipients(users.map((u: any) => String(u.id)), notification);
     for (const u of users) {
       const userId = String(u.id);
+      if (!cameraRecipients.has(userId)) continue;
       const policy = await decideNotification(userId, notification).catch(() => null);
         const nextPayload = {
           ...(notification.payload || {}),
@@ -407,8 +423,10 @@ export class NotificationService {
 
     const prepared: any[] = [];
     const pushRows = new Set<string>();
+    const cameraRecipients = await cameraEligibleRecipients(users.map((u: any) => String(u.id)), notification);
     for (const u of users) {
       const userId = String(u.id);
+      if (!cameraRecipients.has(userId)) continue;
       const policy = await decideNotification(userId, notification).catch(() => null);
         const nextPayload = {
           ...(notification.payload || {}),
@@ -461,7 +479,9 @@ export class NotificationService {
 
     const prepared: any[] = [];
     const pushRows = new Set<string>();
+    const cameraRecipients = await cameraEligibleRecipients(userIds, notification);
     for (const userId of userIds) {
+      if (!cameraRecipients.has(userId)) continue;
       const policy = await decideNotification(userId, notification).catch(() => null);
         const nextPayload = {
           ...(notification.payload || {}),

@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { requireAuth, requirePermission } from "../middleware/auth";
-import { requireEdgeToken } from "../middleware/edgeToken";
+import { requireEdgeToken, requireCameraEdgeToken } from "../middleware/edgeToken";
+import { CAMERA_ACCESS_SELECT, cameraHomeId } from "../modules/cameras/cameraAccess.policy";
 import { emitAuditEvent } from "../core/foundation";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
@@ -412,7 +413,7 @@ edgeDiscoveryRouter.post("/edge/discovery/push", requireEdgeToken, async (req, r
   });
 });
 
-edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeToken, async (req, res) => {
+edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireCameraEdgeToken, async (req, res) => {
   const cameraId = asString(req.params.cameraId);
   const payload = req.body || {};
   const { siteId, agentId } = boundEdgeContext(req, payload);
@@ -457,38 +458,31 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeTok
   for (const field of matchers) {
     const result = await supabaseAdmin
       .from("facility_cameras")
-      .select("id,status,health_status,name,metadata")
+      .select(`${CAMERA_ACCESS_SELECT},status,health_status,name,updated_at`)
       .eq("estate_id", siteId)
       .eq("edge_node_id", agentId)
       .eq(field, cameraId)
       .maybeSingle();
+    if (result.error) return res.status(503).json({ error: "camera_scope_unavailable" });
     if (result.data) {
       priorCamera = result.data;
       break;
     }
   }
 
-  let data: any = null;
-  let error: any = null;
-  for (const field of matchers) {
-    const result = await supabaseAdmin
-      .from("facility_cameras")
-      .update(update)
-      .eq("estate_id", siteId)
-      .eq("edge_node_id", agentId)
-      .eq(field, cameraId)
-      .select("*")
-      .maybeSingle();
-    if (result.data || !result.error) {
-      data = result.data;
-      error = result.error;
-      if (data) break;
-    } else {
-      error = result.error;
-    }
-  }
+  if (!priorCamera) return res.status(403).json({ error: "camera_assignment_denied" });
+  // Preserve Backend-owned legacy scope/config and other observation fields.
+  // Only the explicit observation allowlist above is writable by Edge. CAS
+  // prevents a concurrent rebind/privacy edit being replaced by this snapshot.
+  update.metadata = { ...(priorCamera.metadata || {}), ...update.metadata };
+  let write = supabaseAdmin.from("facility_cameras").update(update)
+    .eq("estate_id", siteId).eq("edge_node_id", agentId).eq("id", priorCamera.id);
+  write = priorCamera.updated_at ? write.eq("updated_at", priorCamera.updated_at) : write.is("updated_at", null);
+  const { data, error } = await write.select("*").maybeSingle();
+  if (error) return res.status(503).json({ error: "camera_update_unavailable" });
+  if (!data) return res.status(409).json({ error: "camera_changed_retry" });
 
-  emitEdgeSignal("camera.status.updated", { ...payload, site_id: siteId, home_id:data?.metadata?.home_id, agent_id:agentId, camera_id:cameraId, status });
+  emitEdgeSignal("camera.status.updated", { ...payload, site_id: siteId, home_id:cameraHomeId(data), agent_id:agentId, camera_id:data.id, status });
 
   // Additive canonical Core ingress -- only for a genuine health
   // transition, never every heartbeat. Everything above (facility_cameras
@@ -507,7 +501,7 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeTok
       cameraId: (data || priorCamera)?.id || cameraId,
       cameraName: (data || priorCamera)?.name || null,
       estateId: siteId,
-      homeId: priorCamera?.metadata?.home_id || null,
+      homeId: cameraHomeId(data) || null,
       transition: healthTransition,
       previousStatus: priorCamera?.status || null,
       nextStatus: status,
@@ -517,14 +511,14 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireEdgeTok
     });
   }
 
-  return res.status(error ? 202 : 200).json({
-    ok: !error,
-    camera: data || null,
-    persistence: error ? { available: false, reason: error.message, required_source: "facility_cameras" } : "stored",
+  return res.status(200).json({
+    ok: true,
+    camera: data,
+    persistence: "stored",
   });
 });
 
-edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, async (req, res) => {
+edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireCameraEdgeToken, async (req, res) => {
   const cameraRef = asString(req.params.cameraId);
   const payload = req.body || {};
   const { siteId, agentId } = boundEdgeContext(req, payload);
@@ -539,7 +533,7 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, asy
   for (const field of matchers) {
     const { data } = await supabaseAdmin
       .from("facility_cameras")
-      .select("id,estate_id,name,camera_id,ip,edge_node_id,metadata")
+      .select(`${CAMERA_ACCESS_SELECT},name,camera_id,ip,edge_node_id`)
       .eq("estate_id", siteId)
       .eq("edge_node_id", agentId)
       .eq(field, cameraRef)
@@ -606,7 +600,7 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, asy
 
   emitEdgeSignal("camera.event", {
     site_id: siteId,
-    home_id: camera.metadata?.home_id,
+    home_id: cameraHomeId(camera) || null,
     agent_id: agentId,
     camera_id: camera.id,
     camera_ref: cameraRef,
@@ -618,9 +612,9 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireEdgeToken, asy
   return res.json({ ok: true, event: data, intelligence_event: coreEvent, intelligence_bus: bus });
 });
 
-edgeDiscoveryRouter.post("/edge/cameras/:cameraId/media",requireEdgeToken,async(req,res)=>{const {siteId,agentId}=boundEdgeContext(req,req.body||{});const cameraId=asString(req.params.cameraId);if(!siteId||!agentId||!cameraId)return res.status(400).json({error:"media_upload_failed"});const result=await ingestEdgeMedia({cameraId,siteId,nodeId:agentId,kind:asString(req.body?.kind),mimeType:asString(req.body?.mime_type),base64:asString(req.body?.data_base64),capturedAt:asString(req.body?.captured_at)||undefined,durationMs:Number.isFinite(Number(req.body?.duration_ms))?Number(req.body.duration_ms):undefined,eventId:asString(req.body?.event_id)||undefined,idempotencyKey:asString(req.body?.idempotency_key),retention:req.body?.retention_class,metadata:safeMeta(req.body?.metadata)});if(!result.ok){console.warn(JSON.stringify({event:"camera_media.ingest_rejected",site_id:siteId,edge_node_id:agentId,camera_id:cameraId,code:result.code}));return res.status(result.code==="media_access_denied"?403:400).json({error:result.code});}emitEdgeSignal("camera.media.created",{site_id:siteId,home_id:result.media.home_id,agent_id:agentId,camera_id:cameraId,media_id:result.media.id,event_id:asString(req.body?.event_id)||null,kind:result.media.kind,captured_at:result.media.captured_at});return res.status(result.created?201:200).json({ok:true,created:result.created,reference:result.reference});});
+edgeDiscoveryRouter.post("/edge/cameras/:cameraId/media",requireCameraEdgeToken,async(req,res)=>{const {siteId,agentId}=boundEdgeContext(req,req.body||{});const cameraId=asString(req.params.cameraId);if(!siteId||!agentId||!cameraId)return res.status(400).json({error:"media_upload_failed"});const result=await ingestEdgeMedia({cameraId,siteId,nodeId:agentId,kind:asString(req.body?.kind),mimeType:asString(req.body?.mime_type),base64:asString(req.body?.data_base64),capturedAt:asString(req.body?.captured_at)||undefined,durationMs:Number.isFinite(Number(req.body?.duration_ms))?Number(req.body.duration_ms):undefined,eventId:asString(req.body?.event_id)||undefined,idempotencyKey:asString(req.body?.idempotency_key),retention:req.body?.retention_class,metadata:safeMeta(req.body?.metadata)});if(!result.ok){console.warn(JSON.stringify({event:"camera_media.ingest_rejected",site_id:siteId,edge_node_id:agentId,camera_id:cameraId,code:result.code}));return res.status(result.code==="media_access_denied"?403:400).json({error:result.code});}emitEdgeSignal("camera.media.created",{site_id:siteId,home_id:result.media.home_id,agent_id:agentId,camera_id:cameraId,media_id:result.media.id,event_id:asString(req.body?.event_id)||null,kind:result.media.kind,captured_at:result.media.captured_at});return res.status(result.created?201:200).json({ok:true,created:result.created,reference:result.reference});});
 
-edgeDiscoveryRouter.post("/edge/cameras/:cameraId/detections",requireEdgeToken,async(req,res)=>{const {siteId,agentId}=boundEdgeContext(req,req.body||{});const cameraId=asString(req.params.cameraId);if(!siteId||!agentId||!cameraId)return res.status(400).json({error:"invalid_detection_payload"});const result=await ingestEdgeDetections({cameraId,siteId,nodeId:agentId,provider:asString(req.body?.provider),model:asString(req.body?.model)||undefined,modelVersion:asString(req.body?.model_version)||undefined,detections:Array.isArray(req.body?.detections)?req.body.detections:[],mediaId:asString(req.body?.media_id)||undefined});if(!result.ok){console.warn(JSON.stringify({event:"camera_detection.ingest_rejected",site_id:siteId,edge_node_id:agentId,camera_id:cameraId,code:result.code}));return res.status(result.code==="detection_access_denied"?403:400).json({error:result.code});}emitEdgeSignal("camera.event",{site_id:siteId,agent_id:agentId,camera_id:cameraId,event_id:result.event?.id||null,detection_count:result.detections.length});return res.status(201).json({ok:true,eventId:result.event?.id||null,detections:result.detections.map((row:any)=>({id:row.id,type:row.detection_type,observedAt:row.observed_at})),evidence:result.evidence});});
+edgeDiscoveryRouter.post("/edge/cameras/:cameraId/detections",requireCameraEdgeToken,async(req,res)=>{const {siteId,agentId}=boundEdgeContext(req,req.body||{});const cameraId=asString(req.params.cameraId);if(!siteId||!agentId||!cameraId)return res.status(400).json({error:"invalid_detection_payload"});const result=await ingestEdgeDetections({cameraId,siteId,nodeId:agentId,provider:asString(req.body?.provider),model:asString(req.body?.model)||undefined,modelVersion:asString(req.body?.model_version)||undefined,detections:Array.isArray(req.body?.detections)?req.body.detections:[],mediaId:asString(req.body?.media_id)||undefined});if(!result.ok){console.warn(JSON.stringify({event:"camera_detection.ingest_rejected",site_id:siteId,edge_node_id:agentId,camera_id:cameraId,code:result.code}));return res.status(result.code==="detection_access_denied"?403:400).json({error:result.code});}emitEdgeSignal("camera.event",{site_id:siteId,agent_id:agentId,camera_id:cameraId,event_id:result.event?.id||null,detection_count:result.detections.length});return res.status(201).json({ok:true,eventId:result.event?.id||null,detections:result.detections.map((row:any)=>({id:row.id,type:row.detection_type,observedAt:row.observed_at})),evidence:result.evidence});});
 
 edgeDiscoveryRouter.post("/edge/camera-discovery/commands", requireAuth, requirePermission("cameras.manage"), async (req, res) => {
   const user=(req as any).user; const estateId=asString(req.body?.estateId || user?.estate_id); const edgeNodeId=asString(req.body?.edgeNodeId); const surface=asString(req.body?.surface || "facility"); const homeId=asString(req.body?.homeId || user?.home_id) || null;

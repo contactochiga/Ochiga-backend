@@ -1,5 +1,10 @@
 export type CameraPrivacyScope = "facility" | "home" | "office";
 
+// All reduced database reads used for authorization must include these columns.
+// metadata carries the policy's legacy Home/scope and explicit Office allowlist.
+// Runtime observations must never supply or replace these authority inputs.
+export const CAMERA_ACCESS_SELECT = "id,estate_id,home_id,privacy_scope,metadata";
+
 type CameraAccessUser = {
   id?: string | null;
   role?: string | null;

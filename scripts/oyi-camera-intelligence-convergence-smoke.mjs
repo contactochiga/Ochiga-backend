@@ -50,6 +50,7 @@ const originalSendToEstate = notificationServiceModule.NotificationService.sendT
 function applyFilters(row, filters) {
   return filters.every(([col, op, val]) => {
     if (op === "eq") return row[col] === val;
+    if (op === "in") return val.includes(row[col]);
     if (op === "gte") return row[col] >= val;
     if (op === "lte") return row[col] <= val;
     if (op === "contains") {
@@ -66,6 +67,7 @@ function makeTable(store) {
       const filters = [];
       const builder = {
         eq(col, val) { filters.push([col, "eq", val]); return builder; },
+        in(col, val) { filters.push([col, "in", val]); return builder; },
         gte(col, val) { filters.push([col, "gte", val]); return builder; },
         lte(col, val) { filters.push([col, "lte", val]); return builder; },
         contains(col, val) { filters.push([col, "contains", val]); return builder; },
@@ -149,6 +151,9 @@ function fakeFrom(table) {
     camera_ai_profiles: cameraAiProfiles,
     camera_infrastructure: cameraInfrastructure,
     camera_health_history: cameraHealthHistory,
+    estate_memberships: [{ user_id: "actor-1", estate_id: ESTATE_ID, role: "estate_admin", status: "active" }],
+    estates: [{ id: ESTATE_ID, name: "Fixture estate" }],
+    home_memberships: [],
   };
   if (tables[table]) return makeTable(tables[table]);
   if (!genericTables.has(table)) genericTables.set(table, []);
@@ -450,7 +455,7 @@ await check("createEvent: an unavailable Core ingress cannot break event creatio
 // routine-noise suppression.
 // ---------------------------------------------------------------------
 function fakeGapReq(body) {
-  return { user: { id: "actor-1", role: "estate_admin", estate_id: ESTATE_ID }, body: { ...body, estate_id: ESTATE_ID }, query: {} };
+  return { user: { id: "actor-1", role: "estate_admin", estate_id: ESTATE_ID }, body: { ...body, estate_id: ESTATE_ID }, query: {}, headers: {}, method: "POST" };
 }
 
 await check("upsertCameraInfrastructure: first-ever projection write must not fabricate a transition", async () => {

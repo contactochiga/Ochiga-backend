@@ -17,6 +17,22 @@ import { submitCanonicalSignal } from "../oyi-core/ingress/canonicalSignalIngres
 // ingress for upsertCameraInfrastructure() below. See
 // oyi-core/domains/camera/cameraCanonicalSignal.ts.
 import { classifyCameraHealthTransition, submitCameraHealthCanonicalSignal } from "../oyi-core/domains/camera/cameraCanonicalSignal";
+import { CAMERA_ACCESS_SELECT, cameraHomeId, cameraAccessActor, canAccessCamera, requireCameraAccess } from "../modules/cameras/cameraAccess.policy";
+import { ContextResolutionError, resolveOisContext } from "./context/contextResolutionService";
+import { requestInput } from "../middleware/contextResolver";
+
+async function cameraInfrastructureActor(req: Request) {
+  if (!req.user) throw new Error("Permission denied");
+  const input = requestInput(req);
+  try {
+    const context = await resolveOisContext(req.user, { ...input, surface: input.surface || "facility" });
+    return cameraAccessActor(req.user, context);
+  } catch (error) {
+    // This legacy route family maps permission errors to HTTP 403.
+    if (error instanceof ContextResolutionError && error.statusCode === 403) throw new Error(`Permission denied: ${error.message}`);
+    throw error;
+  }
+}
 
 type Actor = { id: string; role?: string; estate_id?: string | null; home_id?: string | null; permissions?: string[]; permission_scopes?: string[] };
 
@@ -492,30 +508,38 @@ export const platformGapService = {
   },
 
   async cameraInfrastructure(req: Request) {
-    const estate_id = await scopedEstate(req);
+    const cameraActor = await cameraInfrastructureActor(req);
+    const estate_id = cameraActor.estate_id;
     if (!estate_id) return { estate_id: null, items: [], history: [], sources: { cameras: source("No estate context", false, "No estate context") } };
     const [items, history] = await Promise.all([
       supabaseAdmin.from("camera_infrastructure").select("*").eq("estate_id", estate_id).order("updated_at", { ascending: false }).limit(100),
       supabaseAdmin.from("camera_health_history").select("*").eq("estate_id", estate_id).order("observed_at", { ascending: false }).limit(100),
     ]);
-    return { estate_id, items: items.data || [], history: history.data || [], sources: { cameras: source((items.data || []).length ? "Live" : "Awaiting telemetry", !!(items.data || []).length, items.error?.message, "camera.status.updated") } };
+    const ids = [...new Set([...(items.data || []), ...(history.data || [])].map((row: any) => String(row.camera_id)))];
+    const cameras = ids.length ? await supabaseAdmin.from("facility_cameras").select(CAMERA_ACCESS_SELECT).eq("estate_id", estate_id).in("id", ids) : { data: [], error: null };
+    if (items.error || history.error || cameras.error) throw new Error("Camera information unavailable");
+    const allowed = new Set((cameras.data || []).filter((camera: any) => canAccessCamera(camera, cameraActor).ok).map((camera: any) => camera.id));
+    const visible = (items.data || []).filter((row: any) => allowed.has(row.camera_id));
+    return { estate_id, items: visible, history: (history.data || []).filter((row: any) => allowed.has(row.camera_id)), sources: { cameras: source(visible.length ? "Live" : "Awaiting telemetry", !!visible.length, undefined, "camera.status.updated") } };
   },
 
   async upsertCameraInfrastructure(req: Request) {
     const current = actor(req);
-    const estate_id = await scopedEstate(req);
+    const cameraActor = await cameraInfrastructureActor(req);
+    const estate_id = cameraActor.estate_id;
     if (!estate_id) throw new Error("No estate context");
     const body = req.body || {};
     const camera_id = String(body.camera_id || "").trim();
     if (!camera_id) throw new Error("camera_id is required");
     const { data: canonicalCamera, error: cameraError } = await supabaseAdmin
       .from("facility_cameras")
-      .select("id,estate_id,name")
+      .select(`${CAMERA_ACCESS_SELECT},name`)
       .eq("id", camera_id)
       .eq("estate_id", estate_id)
       .maybeSingle();
     if (cameraError) throw cameraError;
     if (!canonicalCamera) throw new Error("Canonical facility camera is required for this projection");
+    requireCameraAccess(canonicalCamera, cameraActor);
     // Additive: read the PRIOR projection row before the (unchanged)
     // upsert below, solely to classify whether health_state genuinely
     // changed. See classifyCameraHealthTransition().
@@ -546,7 +570,7 @@ export const platformGapService = {
         cameraId: camera_id,
         cameraName: canonicalCamera.name || null,
         estateId: estate_id,
-        homeId: (data.metadata as any)?.home_id || (priorInfrastructure?.metadata as any)?.home_id || null,
+        homeId: cameraHomeId(canonicalCamera) || null,
         transition: healthTransition,
         previousStatus: priorInfrastructure?.health_state || null,
         nextStatus: data.health_state,

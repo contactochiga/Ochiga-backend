@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "dist/server.js",
   "scripts": {
+    "smoke:wave6-slice14a-camera-privacy": "npm run build && node scripts/wave6-slice14a-camera-privacy-smoke.mjs",
     "smoke:camera-runtime-canonicalization": "node scripts/camera-runtime-canonicalization-smoke.mjs",
     "smoke:camera-runtime-phase1": "node scripts/camera-runtime-phase1-smoke.mjs",
     "smoke:camera-active-context": "npm run build && node scripts/camera-active-context-smoke.mjs",

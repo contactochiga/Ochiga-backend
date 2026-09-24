@@ -3,6 +3,7 @@ import { SIGNAL_SCHEMA_VERSION } from "../core/control-plane/contracts";
 import type { Signal } from "../core/control-plane/contracts/signal.types";
 import { oyiCoreRuntime } from "../oyi-core/service";
 import { logger } from "../observability/logger";
+import { cameraAudience, derivedCameraId } from "../modules/cameras/cameraAudience.service";
 
 export type EmitSignalOptions = {
   // Oyi Intelligence Convergence, Signal Transport Convergence Slice --
@@ -59,6 +60,23 @@ export async function emitSignal(signal: Signal, options: EmitSignalOptions = {}
     ? {}
     : await legacyAmbientCanonicalIngress(String(anySig.type || "signal"), anySig);
   const enriched = { ...anySig, ...envelope };
+  // Camera transports must not inherit an estate-room audience. Keep canonical
+  // ingress above unchanged; restrict delivery BEFORE sending either envelope.
+  const cameraId = derivedCameraId(anySig);
+  if (cameraId || String(anySig.type || "").startsWith("camera.") ||
+      String(anySig.action || "").startsWith("camera.") ||
+      String(anySig.resourceType || "").startsWith("camera")) {
+    if (!cameraId) return; // unresolved discovery/projection has no camera authority
+    const sockets = await io.fetchSockets();
+    const allowed = await cameraAudience([cameraId], sockets.map(socket => String(socket.data.user?.id || "")));
+    const standardEvent = standardRealtimeEvent(anySig.type);
+    for (const socket of sockets) {
+      if (!allowed.get(cameraId)?.has(String(socket.data.user?.id || ""))) continue;
+      socket.emit("signal", enriched);
+      if (standardEvent) socket.emit(standardEvent, { ...enriched, event: standardEvent, timestamp: anySig.timestamp || new Date().toISOString() });
+    }
+    return;
+  }
   if (estateId) io.to(`estate:${estateId}`).emit("signal", enriched);
   if (roomId) io.to(`room:${roomId}`).emit("signal", enriched);
   if (homeId) io.to(`home:${homeId}`).emit("signal", enriched);

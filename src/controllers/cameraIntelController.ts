@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.service";
-import { canAccessCamera, requireCameraAccess } from "../modules/cameras/cameraAccess.policy";
+import { canAccessCamera, requireCameraAccess, CAMERA_ACCESS_SELECT, cameraHomeId } from "../modules/cameras/cameraAccess.policy";
 import { normalizeIntelligenceEvent, publishIntelligenceEvent } from "../intelligence-core";
 import { mediaReference } from "../modules/cameras/cameraMedia.service";
 // Oyi Intelligence Convergence, Camera Intelligence Convergence Wave --
@@ -93,7 +93,7 @@ function reportWindow(periodRaw: string | undefined) {
 async function resolveCamera(cameraId: string) {
   return supabaseAdmin
     .from("facility_cameras")
-    .select("id, estate_id, name, edge_hls_url, hls_url, stream_status, health_status, status, edge_node_id, metadata")
+    .select(`${CAMERA_ACCESS_SELECT},name,edge_hls_url,hls_url,stream_status,health_status,status,edge_node_id`)
     .eq("id", cameraId)
     .maybeSingle();
 }
@@ -157,7 +157,7 @@ export async function listEvents(req: Request, res: Response) {
     return res.status(500).json({ error: qErr.message });
   }
 
-  const eventIds=(data||[]).map((event:any)=>event.id);const [{data:links},{data:detections}]=eventIds.length?await Promise.all([supabaseAdmin.from("camera_event_media").select("event_id,relationship,camera_media(*)").in("event_id",eventIds),supabaseAdmin.from("camera_detections").select("id,camera_id,event_id,media_id,detection_type,observed_at,confidence,bounding_box,visual_zone_id,tracking_id,attributes,provider,model,model_version,created_at").in("event_id",eventIds).order("observed_at",{ascending:true})]):[{data:[] as any[]},{data:[] as any[]}];const byEvent=new Map<string,any[]>();for(const link of links||[]){const list=byEvent.get((link as any).event_id)||[];list.push({...mediaReference((link as any).camera_media),relationship:(link as any).relationship});byEvent.set((link as any).event_id,list);}const detectionByEvent=new Map<string,any[]>();for(const detection of detections||[]){const list=detectionByEvent.get((detection as any).event_id)||[];list.push(detection);detectionByEvent.set((detection as any).event_id,list)}const events=(data||[]).map((event:any)=>({...event,media:byEvent.get(event.id)||[],detections:detectionByEvent.get(event.id)||[]}));
+  const eventIds=(data||[]).map((event:any)=>event.id);const [{data:links},{data:detections}]=eventIds.length?await Promise.all([supabaseAdmin.from("camera_event_media").select("event_id,relationship,camera_media(*)").in("event_id",eventIds),supabaseAdmin.from("camera_detections").select("id,camera_id,event_id,media_id,detection_type,observed_at,confidence,bounding_box,visual_zone_id,tracking_id,attributes,provider,model,model_version,created_at").in("event_id",eventIds).order("observed_at",{ascending:true})]):[{data:[] as any[]},{data:[] as any[]}];const byEvent=new Map<string,any[]>();for(const link of links||[]){if((link as any).camera_media?.camera_id!==cameraId)continue;const list=byEvent.get((link as any).event_id)||[];list.push({...mediaReference((link as any).camera_media),relationship:(link as any).relationship});byEvent.set((link as any).event_id,list);}const detectionByEvent=new Map<string,any[]>();for(const detection of detections||[]){if((detection as any).camera_id!==cameraId)continue;const list=detectionByEvent.get((detection as any).event_id)||[];list.push(detection);detectionByEvent.set((detection as any).event_id,list)}const events=(data||[]).map((event:any)=>({...event,media:byEvent.get(event.id)||[],detections:detectionByEvent.get(event.id)||[]}));
   return res.json({ ok: true, events });
 }
 
@@ -324,7 +324,7 @@ export async function createEvent(req: Request, res: Response) {
     cameraId,
     cameraName: cam.name || null,
     estateId: String(cam.estate_id || ""),
-    homeId: (cam as any).metadata?.home_id || null,
+    homeId: cameraHomeId(cam) || null,
     detectionType: eventType,
     confidence,
     observedAt: String(data?.source_timestamp || data?.created_at || new Date().toISOString()),
@@ -488,7 +488,16 @@ export async function getSecurityReport(req: Request, res: Response) {
   const { data: rows, error } = await q;
   if (error) return res.status(500).json({ error: error.message });
 
-  const events = rows || [];
+  // Reports are camera-derived information too; estate membership alone is not
+  // permission to count, name or summarize private Home/Office cameras.
+  const allowed = new Set<string>();
+  const ids = [...new Set((rows || []).map((row: any) => String(row.camera_id)))];
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const scope = await supabaseAdmin.from("facility_cameras").select(CAMERA_ACCESS_SELECT).in("id", ids.slice(offset, offset + 100));
+    if (scope.error) return res.status(503).json({ error: "Camera scope unavailable" });
+    for (const camera of scope.data || []) if (canAccessCamera(camera, user).ok) allowed.add(String(camera.id));
+  }
+  const events = (rows || []).filter((row: any) => allowed.has(String(row.camera_id)));
   const byType = new Map<string, number>();
   const byCamera = new Map<string, number>();
   const bySeverity = new Map<string, number>();

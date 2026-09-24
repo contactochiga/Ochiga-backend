@@ -2,6 +2,15 @@ import { Request, Response, NextFunction } from "express";
 import { emitAuditEvent } from "../core/foundation";
 import { resolveEdgeIdentity } from "../modules/cameras/edgeIdentityPolicy";
 
+// Camera runtime writes require a configured tenant/node-bound identity.
+// The explicitly enabled legacy shared token is not camera assignment proof.
+export function requireCameraEdgeToken(req: Request, res: Response, next: NextFunction) {
+  return requireEdgeToken(req, res, () => {
+    if ((req as any).edgeAgent?.legacy) return res.status(403).json({ error: "bound_camera_edge_identity_required" });
+    return next();
+  });
+}
+
 function extractEdgeToken(req: Request) {
   const auth = String(req.headers.authorization || "");
   if (auth.startsWith("Bearer ")) return auth.slice("Bearer ".length).trim();

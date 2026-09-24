@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
-import { canAccessCamera } from "./cameraAccess.policy";
+import { canAccessCamera, CAMERA_ACCESS_SELECT, cameraHomeId } from "./cameraAccess.policy";
 import { CameraMediaStore, SupabaseCameraMediaStore } from "./cameraMedia.store";
 import { CAMERA_MEDIA_KINDS, CameraMediaKind, CameraMediaRetention, MEDIA_ACCESS_TTL_SECONDS, verifyMediaContent } from "./cameraMedia.types";
 import { operationalMetrics } from "../../observability/metrics";
@@ -8,7 +8,7 @@ import { emitAuditEvent } from "../../core/foundation";
 
 const bucket=process.env.CAMERA_MEDIA_BUCKET||"camera-media-private";
 const text=(v:any)=>String(v??"").trim();
-const cameraSelect="id,estate_id,edge_node_id,name,metadata";
+const cameraSelect=`${CAMERA_ACCESS_SELECT},edge_node_id,name,updated_at`;
 const retentionDays:Record<CameraMediaRetention,number|null>={ephemeral:1,standard:30,security:90,evidence:null};
 const safeMetadata=(value:any)=>value&&typeof value==="object"&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).filter(([key])=>!["url","path","storage_key","password","token","secret"].includes(key.toLowerCase()))):{};
 export const mediaReference=(row:any)=>({id:row.id,cameraId:row.camera_id,eventId:row.event_id||null,kind:row.kind,capturedAt:row.captured_at,durationMs:row.duration_ms??null,mimeType:row.mime_type??null,sizeBytes:row.size_bytes??null,status:row.status,retention:row.retention_class,expiresAt:row.expires_at??null,preservedAt:row.preserved_at??null,source:row.source,available:row.status==="ready"&&(!row.expires_at||Date.parse(row.expires_at)>Date.now())});
@@ -25,10 +25,10 @@ export async function ingestEdgeMedia(input:{cameraId:string;siteId:string;nodeI
   const verified=verifyMediaContent(bytes,input.mimeType,input.kind as CameraMediaKind);if(!verified.ok)return verified;
   const capturedAt=text(input.capturedAt)&&Number.isFinite(Date.parse(input.capturedAt!))?input.capturedAt!:new Date().toISOString();const retention=input.retention&&retentionDays[input.retention]!==undefined?input.retention:(input.kind==="event_snapshot"?"security":"standard");const days=retentionDays[retention];const expiresAt=days?new Date(Date.parse(capturedAt)+days*86400000).toISOString():null;const id=crypto.randomUUID();const ext=input.mimeType==="image/jpeg"?"jpg":input.mimeType==="image/webp"?"webp":"mp4";const storageKey=`${camera.estate_id}/${camera.id}/${capturedAt.slice(0,10)}/${id}.${ext}`;const sha=crypto.createHash("sha256").update(bytes).digest("hex");
   await store.put(storageKey,bytes,input.mimeType);
-  const row={id,camera_id:camera.id,estate_id:camera.estate_id,home_id:camera.metadata?.home_id||null,kind:input.kind,captured_at:capturedAt,duration_ms:input.durationMs??null,mime_type:input.mimeType,size_bytes:bytes.length,content_sha256:sha,storage_provider:"supabase",storage_bucket:bucket,storage_key:storageKey,status:"ready",retention_class:retention,expires_at:expiresAt,source:"edge",edge_node_id:input.nodeId,idempotency_key:keyToken,metadata:safeMetadata(input.metadata)};
+  const row={id,camera_id:camera.id,estate_id:camera.estate_id,home_id:cameraHomeId(camera)||null,kind:input.kind,captured_at:capturedAt,duration_ms:input.durationMs??null,mime_type:input.mimeType,size_bytes:bytes.length,content_sha256:sha,storage_provider:"supabase",storage_bucket:bucket,storage_key:storageKey,status:"ready",retention_class:retention,expires_at:expiresAt,source:"edge",edge_node_id:input.nodeId,idempotency_key:keyToken,metadata:safeMetadata(input.metadata)};
   const {data:media,error}=await supabaseAdmin.from("camera_media").insert(row as any).select("*").single();if(error){await store.delete(storageKey).catch(()=>{});const {data:retry}=await supabaseAdmin.from("camera_media").select("*").eq("camera_id",camera.id).eq("idempotency_key",keyToken).maybeSingle();if(retry)return{ok:true as const,created:false,media:retry,reference:mediaReference(retry)};return{ok:false as const,code:"media_upload_failed"};}
   if(input.eventId){const {data:event}=await supabaseAdmin.from("camera_events").select("id,camera_id,estate_id,metadata").eq("id",input.eventId).eq("camera_id",camera.id).eq("estate_id",camera.estate_id).maybeSingle();if(!event){await store.delete(storageKey).catch(()=>{});await supabaseAdmin.from("camera_media").delete().eq("id",id);return{ok:false as const,code:"media_access_denied"};}await supabaseAdmin.from("camera_event_media").upsert({event_id:event.id,media_id:id,relationship:input.kind==="clip"?"clip":"evidence"} as any);const evidence=Array.isArray(event.metadata?.media_evidence)?event.metadata.media_evidence:[];await supabaseAdmin.from("camera_events").update({metadata:{...safeMetadata(event.metadata),media_evidence:[...evidence.filter((item:any)=>item?.media_id!==id),{media_id:id,kind:input.kind,captured_at:capturedAt,authorized_available:true}].slice(-10)}} as any).eq("id",event.id).eq("camera_id",camera.id);}
-  await supabaseAdmin.from("facility_cameras").update({last_seen_at:capturedAt,metadata:{...camera.metadata,frame_freshness_at:capturedAt},updated_at:new Date().toISOString()} as any).eq("id",camera.id).eq("estate_id",camera.estate_id).eq("edge_node_id",input.nodeId);
+  await supabaseAdmin.from("facility_cameras").update({last_seen_at:capturedAt,metadata:{...camera.metadata,frame_freshness_at:capturedAt},updated_at:new Date().toISOString()} as any).eq("id",camera.id).eq("estate_id",camera.estate_id).eq("edge_node_id",input.nodeId).eq("updated_at",camera.updated_at);
   operationalMetrics.increment("camera_media_upload_total",{kind:input.kind});operationalMetrics.observe("camera_media_upload_bytes",bytes.length,{kind:input.kind});return{ok:true as const,created:true,media,reference:mediaReference(media)};
 }
 

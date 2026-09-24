@@ -11,7 +11,7 @@ export function requestBaseUrl(req: Request) {
 }
 
 export function issueCameraPlaybackToken(user: any, camera: any, secret = process.env.APP_JWT_SECRET) {
-  if (!secret) return null;
+  if (!secret || !canAccessCamera(camera, user).ok) return null;
   return jwt.sign(
     {
       id: user.id,
