@@ -132,6 +132,8 @@ await test('realtime never broadcasts camera payload to estate; only eligible so
   await emitSignal({type:'camera.event',estateId:'estate-a',metadata:{camera_id:A}});
   assert.deepEqual([...new Set(received.map(r=>r[0]))].sort(),['a','admin']);received.length=0;
   await emitSignal({type:'camera.status.updated',estateId:'estate-a',metadata:{camera_id:C}});
+  assert.equal(received.length,0); // 14E retired ambiguous legacy operational transport
+  await emitSignal({type:'camera.health.transition',estateId:'estate-a',metadata:{camera_id:C}}, {skipCanonicalIngress:true});
   assert.deepEqual([...new Set(received.map(r=>r[0]))].sort(),['admin','fm','security']);received.length=0;
   await emitSignal({type:'camera.event',metadata:{camera_id:'orphan'}});assert.equal(received.length,0);
 });

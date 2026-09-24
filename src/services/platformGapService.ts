@@ -16,7 +16,6 @@ import { submitCanonicalSignal } from "../oyi-core/ingress/canonicalSignalIngres
 // Camera Intelligence Convergence Wave -- additive canonical health
 // ingress for upsertCameraInfrastructure() below. See
 // oyi-core/domains/camera/cameraCanonicalSignal.ts.
-import { classifyCameraHealthTransition, submitCameraHealthCanonicalSignal } from "../oyi-core/domains/camera/cameraCanonicalSignal";
 import { CAMERA_ACCESS_SELECT, cameraHomeId, cameraAccessActor, canAccessCamera, requireCameraAccess } from "../modules/cameras/cameraAccess.policy";
 import { ContextResolutionError, resolveOisContext } from "./context/contextResolutionService";
 import { requestInput } from "../middleware/contextResolver";
@@ -93,6 +92,7 @@ const CANONICALLY_MIGRATED_EVENTS = new Set(["incident.created", "twin.state.upd
 // rejection. This must never await, retry, or fall back to another Core
 // ingestion attempt -- see emitSignal.ts's emitSignalSafely() comment.
 function emit(event: string, estateId: string | null | undefined, payload: Record<string, any>) {
+  if (event === "camera.status.updated") return; // operator/display metadata is not physical health
   emitSignalSafely(
     makeBaseSignal({ type: event, source: "facility.platform", estateId: estateId || undefined, payload } as any),
     CANONICALLY_MIGRATED_EVENTS.has(event) ? { skipCanonicalIngress: true } : undefined
@@ -542,43 +542,12 @@ export const platformGapService = {
     if (cameraError) throw cameraError;
     if (!canonicalCamera) throw new Error("Canonical facility camera is required for this projection");
     requireCameraAccess(canonicalCamera, cameraActor);
-    // Additive: read the PRIOR projection row before the (unchanged)
-    // upsert below, solely to classify whether health_state genuinely
-    // changed. See classifyCameraHealthTransition().
-    const { data: priorInfrastructure } = await supabaseAdmin
-      .from("camera_infrastructure")
-      .select("health_state,metadata")
-      .eq("estate_id", estate_id)
-      .eq("camera_id", camera_id)
-      .maybeSingle();
     const payload = { estate_id, camera_id, placement_id: body.placement_id || null, zone: body.zone || null, area_owner: body.area_owner || null, infrastructure_relationship: body.infrastructure_relationship || null, health_state: body.health_state || "awaiting_telemetry", metadata: cleanObject(body.metadata), updated_at: new Date().toISOString() };
     const { data, error } = await supabaseAdmin.from("camera_infrastructure").upsert(payload as any, { onConflict: "estate_id,camera_id" }).select("*").single();
     if (error) throw error;
     if (body.health_state) await supabaseAdmin.from("camera_health_history").insert({ estate_id, camera_id, health_state: body.health_state, stream_state: body.stream_state || null, event_type: body.event_type || "health", metadata: cleanObject(body.history_metadata) } as any);
     await audit(current, "camera.infrastructure.updated", data.id, { camera_id }, req);
-    emit("camera.status.updated", estate_id, { camera_infrastructure: data });
-    // Additive canonical Core ingress -- only for a genuine health_state
-    // transition, never every projection write. Everything above
-    // (upsert, history insert, audit, realtime emit) is unchanged.
-    // Only classify when a prior projection row genuinely existed --
-    // otherwise there is nothing real to diff against, and treating "no
-    // prior state" as a "connectivity_restored" transition would be a
-    // fabricated transition.
-    const healthTransition = priorInfrastructure
-      ? classifyCameraHealthTransition(priorInfrastructure.health_state, data.health_state)
-      : null;
-    if (healthTransition) {
-      void submitCameraHealthCanonicalSignal({
-        cameraId: camera_id,
-        cameraName: canonicalCamera.name || null,
-        estateId: estate_id,
-        homeId: cameraHomeId(canonicalCamera) || null,
-        transition: healthTransition,
-        previousStatus: priorInfrastructure?.health_state || null,
-        nextStatus: data.health_state,
-        observedAt: new Date().toISOString(),
-      });
-    }
+    // Retained operator history/display only; no operational transition authority.
     return { ok: true, camera_infrastructure: data };
   },
 

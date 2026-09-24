@@ -262,19 +262,14 @@ await check("submitCameraDetectionCanonicalSignal: a critical raw classification
 // ---------------------------------------------------------------------
 // 3. submitCameraHealthCanonicalSignal -- canonical contract shape.
 // ---------------------------------------------------------------------
-await check("submitCameraHealthCanonicalSignal: connectivity_lost maps to camera.connectivity.lost / warning severity, evidence preserved", async () => {
+await check("legacy connectivity strings cannot emit operational transitions", async () => {
   const receiveSpy = spy({ receipt: { accepted: true } });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpy;
   await submitCameraHealthCanonicalSignal({
     cameraId: "cam-3", cameraName: "Lobby Camera", estateId: ESTATE_ID, homeId: HOME_ID,
     transition: "connectivity_lost", previousStatus: "online", nextStatus: "offline", observedAt: "2026-08-24T10:05:00Z",
   });
-  const signal = receiveSpy.calls[0][0];
-  need(signal.type === "camera.connectivity.lost", "canonical type must reflect the transition kind");
-  need(signal.severity === "warning", `expected warning severity for connectivity_lost, got ${signal.severity}`);
-  need(signal.entity.status === "offline", "entity.status must carry the real next status");
-  need(signal.evidence?.[0]?.metadata?.previous_status === "online", "prior status must be preserved as evidence");
-  need(signal.correlationId === "camera_health:cam-3", "correlationId must be stable per camera (not per event) for health transitions");
+  need(receiveSpy.calls.length === 0, "legacy status comparisons must not bypass acceptance");
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
 });
 
@@ -408,7 +403,7 @@ await check("createEvent: escalating security event reaches Core once; existing 
   notificationServiceModule.NotificationService.sendToRole = originalSendToRole;
 });
 
-await check("createEvent: maintenance-flagged event type (camera_offline) is still submitted as a detection-shaped observation, and existing maintenance notification fanout is unaffected", async () => {
+await check("createEvent: manual camera_offline report retains history/notification but cannot become canonical operational truth", async () => {
   resetStore();
   facilityCameras.push({ id: "cam-manual-2", estate_id: ESTATE_ID, name: "Manual Camera 2", metadata: {} });
   eventBusModule.publishIntelligenceEvent = spy({ ok: true });
@@ -422,8 +417,7 @@ await check("createEvent: maintenance-flagged event type (camera_offline) is sti
   await createEvent(req, res);
 
   need(notifyRoleSpy.calls.length === 3, `existing maintenance escalation must still notify all 3 roles (manager/estate_admin/owner), got ${notifyRoleSpy.calls.length}`);
-  need(receiveSpy.calls.length === 1, `canonical Core ingestion must fire exactly once, got ${receiveSpy.calls.length}`);
-  need(receiveSpy.calls[0][0].entity.status === "camera_offline", "raw event_type must be preserved verbatim, not fabricated into a health transition (this endpoint has no prior-status field to diff against)");
+  need(receiveSpy.calls.length === 0, "manual health report must not bypass transition acceptance");
 
   eventBusModule.publishIntelligenceEvent = originalPublishIntelligenceEvent;
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
@@ -473,7 +467,7 @@ await check("upsertCameraInfrastructure: first-ever projection write must not fa
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = originalReceiveSignal;
 });
 
-await check("upsertCameraInfrastructure: a genuine health_state change reaches Core exactly once; a repeated identical write does not", async () => {
+await check("upsertCameraInfrastructure: operator health strings remain display/history and never reach operational Core", async () => {
   resetStore();
   facilityCameras.push({ id: "cam-infra-2", estate_id: ESTATE_ID, name: "Infra Camera 2" });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = spy({ receipt: { accepted: true } });
@@ -482,8 +476,7 @@ await check("upsertCameraInfrastructure: a genuine health_state change reaches C
   const receiveSpy = spy({ receipt: { accepted: true } });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpy;
   await platformGapService.upsertCameraInfrastructure(fakeGapReq({ camera_id: "cam-infra-2", health_state: "offline" }));
-  need(receiveSpy.calls.length === 1, `a genuine health_state transition must reach Core exactly once, got ${receiveSpy.calls.length}`);
-  need(receiveSpy.calls[0][0].type === "camera.connectivity.lost", "healthy -> offline must classify as connectivity_lost");
+  need(receiveSpy.calls.length === 0, `operator display strings must not announce operational health, got ${receiveSpy.calls.length}`);
 
   const receiveSpyNoChange = spy({ receipt: { accepted: true } });
   oyiCoreServiceModule.oyiCoreRuntime.receiveSignal = receiveSpyNoChange;
@@ -500,10 +493,10 @@ await check("upsertCameraInfrastructure: a genuine health_state change reaches C
 // unmocked oyiCoreRuntime.receiveSignal() -- no Core internals are
 // mocked here.
 // ---------------------------------------------------------------------
-await check("golden journey: a camera connectivity-lost signal becomes real, usable Core awareness with correct kind, context, and a maintenance-relevant recommendation", async () => {
+await check("golden journey: typed camera security event still reaches real Core awareness", async () => {
   const envelope = await submitCameraHealthCanonicalSignal({
     cameraId: "cam-golden-1", cameraName: "Golden Journey Camera", estateId: ESTATE_ID, homeId: HOME_ID,
-    transition: "connectivity_lost", previousStatus: "online", nextStatus: "offline", observedAt: new Date().toISOString(),
+    transition: "tamper_detected", previousStatus: "online", nextStatus: "tamper", observedAt: new Date().toISOString(),
   });
 
   need(!!envelope, "the real Core runtime must return a non-null envelope");
@@ -513,7 +506,7 @@ await check("golden journey: a camera connectivity-lost signal becomes real, usa
   const awareness = envelope.operational_awareness;
   need(!!awareness, "receiveSignal must produce operational awareness");
   need(awareness.kind === "security", `a camera signal must be classified as security-kind awareness, got ${awareness.kind}`);
-  need(/connectivity|network|power/i.test(awareness.recommended_action || ""), `recommended_action must be maintenance-relevant for an offline camera, got "${awareness.recommended_action}"`);
+  need(Boolean(awareness.recommended_action), "typed security evidence must retain a recommended action");
   need(Array.isArray(envelope.operational_recommendations), "the reasoning pipeline must have run end-to-end (recommendations array present)");
   need(Array.isArray(envelope.operational_insights), "the reasoning pipeline must have run end-to-end (insights array present)");
 });

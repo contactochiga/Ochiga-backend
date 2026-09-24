@@ -313,13 +313,9 @@ export async function createEvent(req: Request, res: Response) {
     source_event_id: String(data?.id || ""),
   });
 
-  // Additive canonical Core ingress. This endpoint has no persisted
-  // "previous status" to diff against (it inserts a discrete
-  // camera_events row, not a continuous status field), so every event
-  // type it accepts -- including the maintenance-flagged ones such as
-  // "camera_offline"/"camera_tamper" -- is submitted as a detection-shaped
-  // observation rather than a fabricated health transition. Everything
-  // above (persistence, notification routing) is unchanged.
+  // Detection/security classifications retain ingress; the shared boundary
+  // excludes manual operational-health labels from canonical current truth.
+  // Their historical report and existing notification routing remain intact.
   void submitCameraDetectionCanonicalSignal({
     cameraId,
     cameraName: cam.name || null,

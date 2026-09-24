@@ -16,7 +16,6 @@ import { ingestEdgeDetections } from "../modules/cameras/cameraDetection.service
 // additive canonical Core ingress alongside the existing emitEdgeSignal()
 // realtime broadcast below, which stays UNCHANGED. See
 // oyi-core/domains/camera/cameraCanonicalSignal.ts.
-import { classifyCameraHealthTransition, submitCameraHealthCanonicalSignal } from "../oyi-core/domains/camera/cameraCanonicalSignal";
 
 export const edgeDiscoveryRouter = Router();
 
@@ -245,6 +244,9 @@ async function pendingEdgeCommands(siteId: string, agentId: string) {
 }
 
 function emitEdgeSignal(type: string, payload: any) {
+  // Compatibility status/configuration writes do not announce operational health.
+  // The transition outbox is the only factual camera-health producer.
+  if (type === "camera.status.updated") return;
   const signal = makeBaseSignal({
     type,
     ...(type === "edge.heartbeat" ? { timestamp: payload.ts } : {}),
@@ -446,9 +448,8 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireCameraE
   const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cameraId);
   const matchers = uuidLike ? ["id", "camera_id", "ip"] : ["camera_id", "ip"];
 
-  // Additive: read the PRIOR status before the (unchanged) update below,
-  // solely to classify whether this heartbeat is an intelligence-worthy
-  // transition or routine transport noise. See classifyCameraHealthTransition().
+  // Canonical identity and existing metadata are needed for assignment/scope
+  // validation and compatibility CAS writes, not health classification.
   let priorCamera: any = null;
   for (const field of matchers) {
     const result = await supabaseAdmin
@@ -477,34 +478,7 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireCameraE
   if (error) return res.status(503).json({ error: "camera_update_unavailable" });
   if (!data) return res.status(409).json({ error: "camera_changed_retry" });
 
-  emitEdgeSignal("camera.status.updated", { ...payload, site_id: siteId, home_id:cameraHomeId(data), agent_id:agentId, camera_id:data.id, status });
-
-  // Additive canonical Core ingress -- only for a genuine health
-  // transition, never every heartbeat. Everything above (facility_cameras
-  // update, realtime broadcast) is unchanged.
-  // Only classify when a prior row genuinely existed -- otherwise there
-  // is nothing real to diff against, and treating "no prior state" as a
-  // "connectivity_restored" transition would be a fabricated transition.
-  const healthTransition = priorCamera
-    ? classifyCameraHealthTransition(priorCamera.status, status, {
-        tamper: /tamper/i.test(String(payload.provider_error || payload.error_message || "")),
-        recorderFailure: /recorder|nvr|dvr/i.test(String(payload.provider_error || payload.error_message || "")),
-      })
-    : null;
-  if (healthTransition) {
-    void submitCameraHealthCanonicalSignal({
-      cameraId: (data || priorCamera)?.id || cameraId,
-      cameraName: (data || priorCamera)?.name || null,
-      estateId: siteId,
-      homeId: cameraHomeId(data) || null,
-      transition: healthTransition,
-      previousStatus: priorCamera?.status || null,
-      nextStatus: status,
-      observedAt: nowIso(),
-      latencyMs: Number.isFinite(Number(payload.latency_ms)) ? Number(payload.latency_ms) : null,
-      providerError: asString(payload.provider_error || payload.error_message) || null,
-    });
-  }
+  // No error-text tamper/recorder inference and no legacy-string transition.
 
   return res.status(200).json({
     ok: true,
@@ -674,7 +648,7 @@ edgeDiscoveryRouter.post("/edge/camera-discovery/candidates/:candidateId/provisi
   const cameraMetadata={privacy_scope:scope,home_id:homeId,building_id:req.body?.buildingId||null,discovery_candidate_id:candidate.id,fingerprint_strength:metadata.fingerprint_strength,capabilities:candidate.capabilities||{}};
   const {data:camera,error}=await supabaseAdmin.from("facility_cameras").insert({estate_id:candidate.estate_id,zone_id:req.body?.zoneId||null,name:asString(req.body?.name||candidate.name||"Camera"),location:asString(req.body?.location)||null,ip:candidate.ip||null,onvif_port:metadata.onvif_port||null,onvif_supported:Boolean(metadata.onvif_available),provider:candidate.provider||"onvif",stream_protocol:"rtsp",credential_ref:credentialRef||null,edge_node_id:candidate.edge_node_id,discovery_fingerprint:candidate.discovery_fingerprint,status:"configured",stream_status:"pending",health_status:"configured",metadata:cameraMetadata,created_by:user?.id,updated_at:nowIso()} as any).select("id,estate_id,name,status,stream_status,edge_node_id,discovery_fingerprint,metadata").single();
   if(error)return res.status(409).json({error:/unique/i.test(error.message)?"duplicate_camera":"camera_provisioning_failed"}); await supabaseAdmin.from("discovered_devices").update({discovery_state:"provisioned",canonical_camera_id:camera.id,credential_ref:credentialRef||null,updated_at:nowIso()}).eq("id",candidate.id);
-  emitEdgeSignal("camera.status.updated",{site_id:candidate.estate_id,home_id:homeId,agent_id:candidate.edge_node_id,camera_id:camera.id,status:"configured"}); return res.status(201).json({ok:true,camera});
+  emitEdgeSignal("camera.binding.changed",{site_id:candidate.estate_id,home_id:homeId,agent_id:candidate.edge_node_id,camera_id:camera.id,status:"configured"}); return res.status(201).json({ok:true,camera});
 });
 
 edgeDiscoveryRouter.get("/edge/discovery/:siteId", requireAuth, requirePermission("devices.read"), async (req, res) => {

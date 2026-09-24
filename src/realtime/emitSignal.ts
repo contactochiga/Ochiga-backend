@@ -4,6 +4,7 @@ import type { Signal } from "../core/control-plane/contracts/signal.types";
 import { oyiCoreRuntime } from "../oyi-core/service";
 import { logger } from "../observability/logger";
 import { cameraAudience, derivedCameraId } from "../modules/cameras/cameraAudience.service";
+import { isLegacyCameraOperationalLabel } from "../oyi-core/domains/camera/cameraCanonicalSignal";
 
 export type EmitSignalOptions = {
   // Oyi Intelligence Convergence, Signal Transport Convergence Slice --
@@ -41,6 +42,9 @@ async function legacyAmbientCanonicalIngress(event: string, signal: Record<strin
 }
 
 export async function emitSignal(signal: Signal, options: EmitSignalOptions = {}) {
+  // Retired ambiguous legacy health channel cannot bypass the accepted transition path.
+  if ((signal as any).type === "camera.status.updated") return;
+  if ((signal as any).type === "camera.event" && isLegacyCameraOperationalLabel((signal as any).metadata?.event_type)) return;
   const io = getIO();
   if (!io) return;
 

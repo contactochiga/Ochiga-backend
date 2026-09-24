@@ -52,6 +52,9 @@ export type CameraDetectionCanonicalInput = {
 };
 
 export async function submitCameraDetectionCanonicalSignal(input: CameraDetectionCanonicalInput) {
+  // Legacy/manual health labels are historical reports, not detections or
+  // accepted operational transitions. Typed security detections remain valid.
+  if (isLegacyCameraOperationalLabel(input.detectionType)) return null;
   const confidence = typeof input.confidence === "number" && Number.isFinite(input.confidence) ? Math.max(0, Math.min(1, input.confidence)) : null;
   return submitCanonicalSignal({
     type: "camera.detection.observed",
@@ -187,6 +190,9 @@ const TRANSITION_SEVERITY_HINT: Record<CameraHealthTransitionKind, string> = {
 };
 
 export async function submitCameraHealthCanonicalSignal(input: CameraHealthCanonicalInput) {
+  // Compatibility entry point for distinct configuration/security events only.
+  // Operational meaning now requires durable transition acceptance.
+  if (input.transition !== "binding_changed" && input.transition !== "tamper_detected") return null;
   return submitCanonicalSignal({
     type: TRANSITION_TYPE[input.transition],
     domain: "camera",
@@ -230,4 +236,8 @@ export async function submitCameraHealthCanonicalSignal(input: CameraHealthCanon
       provider_error: input.providerError || null,
     },
   });
+}
+
+export function isLegacyCameraOperationalLabel(value: unknown): boolean {
+  return /^(?:camera[._ -])?(?:offline|online|unavailable|healthy|degraded|health[._ -]degraded|connectivity[._ -](?:lost|restored)|recorder[._ -](?:failure|failed))$/.test(String(value || "").toLowerCase());
 }
