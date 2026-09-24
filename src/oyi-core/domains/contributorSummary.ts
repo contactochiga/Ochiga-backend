@@ -69,6 +69,31 @@ export function classifyFreshness(domain: string, rawFreshness: unknown, now: nu
   return "stale";
 }
 
+// Severity order used to pick the aggregate bucket across ALL facts, not
+// just facts[0] (Wave 6 Slice 12) -- an aggregate claiming several facts
+// must not be fresher than the evidence necessary to support that claim,
+// and must be deterministic regardless of array order. "unknown" outranks
+// "historical"/"stale" deliberately: not knowing when a fact was observed
+// is a more conservative (worse) position than knowing it's simply old.
+const FRESHNESS_BUCKET_SEVERITY: Record<FreshnessBucket, number> = {
+  fresh: 0,
+  recent: 1,
+  stale: 2,
+  historical: 3,
+  unknown: 4,
+  unavailable: 5,
+};
+
+function aggregateFreshness(domain: string, facts: IntelligenceFact[], now: number): FreshnessBucket {
+  if (!facts.length) return "unknown";
+  let worst: FreshnessBucket = "fresh";
+  for (const fact of facts) {
+    const bucket = classifyFreshness(domain, fact.freshness, now);
+    if (FRESHNESS_BUCKET_SEVERITY[bucket] > FRESHNESS_BUCKET_SEVERITY[worst]) worst = bucket;
+  }
+  return worst;
+}
+
 function coverageForStatus(status: ContributorStatus): Coverage {
   if (status === "answered" || status === "empty") return "full";
   if (status === "stale") return "partial";
@@ -147,7 +172,7 @@ export function buildContributorSummary(input: {
   }
   const attention_items = isAttention ? facts.filter(isAttention) : [];
   const severity = severityFor ? severityFor(attention_items, facts) : (attention_items.length ? "warning" : "none");
-  const freshness = classifyFreshness(domain, facts[0]?.freshness, now);
+  const freshness = aggregateFreshness(domain, facts, now);
   const status: ContributorStatus = freshness === "stale" && facts.length ? "stale" : facts.length ? "answered" : "empty";
   const object_refs = facts
     .filter((fact) => fact.object)

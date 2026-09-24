@@ -200,9 +200,12 @@ async function main() {
 
   const freshFirst = await devicesContributor.contribute({ input: { home_id: HOME_FRESH_FIRST }, oisContext: null });
   // 11. corrected freshness now propagates to the real consumer -- pre-fix this was unconditionally "unknown"
-  // for every device fact regardless of actual observation age.
-  check("11. downstream consumer (devicesContributor) freshness=\"fresh\" when the freshest fact leads (was always \"unknown\" pre-fix)", freshFirst.freshness === "fresh", freshFirst.freshness);
-  check("11b. downstream consumer status=\"answered\" (not incorrectly \"stale\")", freshFirst.status === "answered", freshFirst.status);
+  // for every device fact regardless of actual observation age. Wave 6 Slice 12 then closed
+  // buildContributorSummary's own facts[0]-only ordering bug: HOME_FRESH_FIRST and HOME_STALE_FIRST are the
+  // SAME underlying {fresh, domain-stale} fact set in reversed order, so the aggregate must now be identical
+  // (order-independent) and reflect the worst fact in the set ("stale"), not whichever one leads the array.
+  check("11. downstream consumer (devicesContributor) freshness=\"stale\" regardless of which fact leads (order-independent since Slice 12; was order-dependent \"fresh\" pre-Slice-12, was unconditionally \"unknown\" pre-Slice-10)", freshFirst.freshness === "stale", freshFirst.freshness);
+  check("11b. downstream consumer status=\"stale\" (matches 11d exactly -- same fact set, same result, regardless of array order)", freshFirst.status === "stale", freshFirst.status);
 
   const staleFirst = await devicesContributor.contribute({ input: { home_id: HOME_STALE_FIRST }, oisContext: null });
   check("11c. downstream consumer freshness=\"stale\" when the stale fact leads (was always \"unknown\" pre-fix)", staleFirst.freshness === "stale", staleFirst.freshness);
@@ -216,17 +219,18 @@ async function main() {
   // =====================================================================
   // PART C -- Section 11 characterization: the "Is my AC on?" direct-query
   // path (ReadCapabilityModules.evidenceFromFact / normalizeFreshness).
-  // This slice does NOT fix normalizeFreshness (a separate, shared,
-  // multi-domain function -- out of this slice's scope per Section 5/11).
-  // These checks empirically characterize, rather than fix, its interaction
-  // with the corrected fact shape, so the "does not worsen" claim in the
-  // final report is measured, not assumed.
+  // This slice did NOT fix normalizeFreshness (a separate, shared,
+  // multi-domain function -- out of THIS slice's scope per Section 5/11);
+  // Wave 6 Slice 12 subsequently closed it directly, reusing
+  // contributorSummary's domain-aware classifyFreshness instead of
+  // defaulting any date-shaped string to "fresh". C2 below is updated to
+  // assert the now-honest result.
   // =====================================================================
-  console.log("\n=== PART C: direct-query path (\"Is my AC on?\") -- characterization only, not a fix ===");
+  console.log("\n=== PART C: direct-query path (\"Is my AC on?\") -- normalizeFreshness fixed by Slice 12 ===");
   const freshEvidence = readCapabilityModulesMod.evidenceFromFact(freshFact);
   const staleEvidence = readCapabilityModulesMod.evidenceFromFact(staleFact);
   check("C1. evidence-envelope freshness for the fresh device is \"fresh\" (correct)", freshEvidence.freshness === "fresh", freshEvidence.freshness);
-  check("C2. evidence-envelope freshness for the domain-stale device is ALSO \"fresh\" (normalizeFreshness's pre-existing \"any date-string = fresh\" limitation, now reached by devices too -- documented, not fixed here)", staleEvidence.freshness === "fresh", staleEvidence.freshness);
+  check("C2. evidence-envelope freshness for the domain-stale device is honestly \"stale\" (normalizeFreshness's prior \"any date-string = fresh\" defaulting closed by Wave 6 Slice 12)", staleEvidence.freshness === "stale", staleEvidence.freshness);
   // The answer TEXT users actually see is unaffected: it is rebuilt from the original, un-normalized fact
   // (stashed at evidence.payload.fact by evidenceFromFact) via factsFromEvidence(), never from
   // evidence.freshness -- confirmed directly against the real presentation function below.

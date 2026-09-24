@@ -26,6 +26,7 @@ import { buildSceneAutomationReadAnswer, buildAutomationRunsAnswer } from "../do
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { buildRoomHomeCapabilities } from "../domains/roomHome/roomHomeCapabilities";
 import { buildIntelligenceCapabilities } from "../domains/intelligence/intelligenceCapabilities";
+import { classifyFreshness as classifyFreshnessBucket, type FreshnessBucket } from "../domains/contributorSummary";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -35,11 +36,35 @@ function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-function normalizeFreshness(value: unknown): OyiEvidence["freshness"] {
+// Wave 6 Slice 12: fact.freshness carries two legitimate shapes across the
+// codebase -- (a) an already-classified OyiEvidence bucket literal (e.g.
+// runtimeEvidenceForDevice, which runs contracts/freshness.ts's own
+// classifier before the fact is built) or (b) a raw ISO observation
+// timestamp / domain sentinel ("unknown"/"unavailable"/"historical"), the
+// contract every other evidence loader follows (see deviceEvidence.ts's own
+// "raw timestamp-or-unknown" comment). Shape (a) must pass through
+// unchanged; shape (b) must be classified by age using the existing
+// domain-aware classifier, never defaulted to "fresh" just because it looks
+// date-shaped -- that silently fabricated freshness regardless of actual age.
+const EVIDENCE_FRESHNESS_LITERALS = new Set(["fresh", "stale", "expired", "unknown", "unobservable", "provider_disconnected"]);
+
+function mapFreshnessBucketToEvidenceFreshness(bucket: FreshnessBucket): OyiEvidence["freshness"] {
+  switch (bucket) {
+    case "fresh": return "fresh";
+    case "recent": return "stale";
+    case "stale": return "stale";
+    case "historical": return "expired";
+    case "unavailable": return "unobservable";
+    case "unknown":
+    default:
+      return "unknown";
+  }
+}
+
+function normalizeFreshness(value: unknown, domain: string): OyiEvidence["freshness"] {
   const raw = text(value).toLowerCase();
-  if (raw === "fresh" || raw === "stale" || raw === "expired" || raw === "unknown" || raw === "unobservable" || raw === "provider_disconnected") return raw;
-  if (/^\d{4}-/.test(raw)) return "fresh";
-  return "unknown";
+  if (EVIDENCE_FRESHNESS_LITERALS.has(raw)) return raw as OyiEvidence["freshness"];
+  return mapFreshnessBucketToEvidenceFreshness(classifyFreshnessBucket(domain, value, Date.now()));
 }
 
 function privacyForFact(fact: IntelligenceFact): OyiEvidence["privacy_class"] {
@@ -66,7 +91,7 @@ export function evidenceFromFact(fact: IntelligenceFact): OyiEvidence {
     source_type: fact.source_type as any,
     source_id: fact.source_id || fact.fact_id,
     observed_at: fact.observed_at || fact.occurred_at || null,
-    freshness: normalizeFreshness(fact.freshness),
+    freshness: normalizeFreshness(fact.freshness, fact.domain),
     truth_class: fact.truth_state === "permission_restricted" ? "permission_restricted" : fact.truth_state === "unavailable" ? "unavailable" : "source_record",
     privacy_class: privacyForFact(fact),
     permissions: fact.permissions || [],

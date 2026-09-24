@@ -255,7 +255,12 @@ export async function loadWalletBalanceFacts(
         source_id: String(row.id),
         truth_state: "confirmed",
         confidence: 0.95,
-        freshness: text(row.updated_at) || "fresh",
+        // Wave 6 Slice 12: a missing observation timestamp must not fabricate
+        // freshness -- "unknown" is the honest sentinel (this domain has no
+        // wallet-specific TTL of its own; "historical" is reserved for the
+        // sibling ledger-entry loader's own fallback above, a different kind
+        // of record than a live balance).
+        freshness: text(row.updated_at) || "unknown",
         privacy_class: "financial_sensitive",
         permissions: ["wallet.read"],
         evidence: [{ type: "wallets", id: row.id }],
