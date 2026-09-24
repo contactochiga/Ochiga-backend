@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { ingestEdgeHeartbeat, expectedEdgeHeartbeatInterval } from "../services/edgeCurrentStateAuthority";
+import { ingestCameraObservations } from "../modules/cameras/cameraObservation.service";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { requireEdgeToken, requireCameraEdgeToken } from "../middleware/edgeToken";
 import { CAMERA_ACCESS_SELECT, cameraHomeId } from "../modules/cameras/cameraAccess.policy";
@@ -384,6 +385,29 @@ edgeDiscoveryRouter.post("/edge/discovery/push", requireEdgeToken, async (req, r
   });
 });
 
+edgeDiscoveryRouter.get("/edge/camera-observation-registry", requireCameraEdgeToken, async (req, res) => {
+  const identity = (req as any).edgeAgent;
+  const {data,error} = await supabaseAdmin.from("facility_cameras").select("id,camera_id,ip,edge_node_id,status")
+    .eq("estate_id",identity.siteId).eq("edge_node_id",identity.id).limit(1000);
+  if (error) return res.status(503).json({error:"camera_registry_unavailable"});
+  return res.json({site_id:identity.siteId,edge_node_id:identity.id,cameras:(data||[]).map((camera:any)=>({canonical_camera_id:camera.id,
+    stream_id:String(camera.camera_id||camera.id).replace(/[^a-zA-Z0-9_-]+/g,"_"),host:camera.ip||null,enabled:camera.status!=="disabled"}))});
+});
+
+edgeDiscoveryRouter.post("/edge/camera-observations", requireCameraEdgeToken, async (req, res) => {
+  try {
+    // Reserved for Backend-verified persisted media repair, not Edge assertions.
+    if (Array.isArray(req.body?.observations) && req.body.observations.some((item:any)=>item?.source==="media_ingestion"))
+      return res.status(400).json({error:"camera_observation_source_reserved"});
+    const result = await ingestCameraObservations((req as any).edgeAgent,req.body?.observations);
+    return res.json(result);
+  } catch (error:any) {
+    const denied = error?.code === "42501" || /assignment|identity/.test(String(error?.message));
+    const invalid = String(error?.code||"").startsWith("22") || /batch_invalid/.test(String(error?.message));
+    return res.status(denied?403:invalid?400:503).json({error:denied?"camera_assignment_denied":invalid?"camera_observation_invalid":"camera_observation_unavailable"});
+  }
+});
+
 edgeDiscoveryRouter.post("/edge/cameras/:cameraId/stream-health", requireCameraEdgeToken, async (req, res) => {
   const cameraId = asString(req.params.cameraId);
   const payload = req.body || {};
@@ -583,7 +607,7 @@ edgeDiscoveryRouter.post("/edge/cameras/:cameraId/events", requireCameraEdgeToke
   return res.json({ ok: true, event: data, intelligence_event: coreEvent, intelligence_bus: bus });
 });
 
-edgeDiscoveryRouter.post("/edge/cameras/:cameraId/media",requireCameraEdgeToken,async(req,res)=>{const {siteId,agentId}=boundEdgeContext(req,req.body||{});const cameraId=asString(req.params.cameraId);if(!siteId||!agentId||!cameraId)return res.status(400).json({error:"media_upload_failed"});const result=await ingestEdgeMedia({cameraId,siteId,nodeId:agentId,kind:asString(req.body?.kind),mimeType:asString(req.body?.mime_type),base64:asString(req.body?.data_base64),capturedAt:asString(req.body?.captured_at)||undefined,durationMs:Number.isFinite(Number(req.body?.duration_ms))?Number(req.body.duration_ms):undefined,eventId:asString(req.body?.event_id)||undefined,idempotencyKey:asString(req.body?.idempotency_key),retention:req.body?.retention_class,metadata:safeMeta(req.body?.metadata)});if(!result.ok){console.warn(JSON.stringify({event:"camera_media.ingest_rejected",site_id:siteId,edge_node_id:agentId,camera_id:cameraId,code:result.code}));return res.status(result.code==="media_access_denied"?403:400).json({error:result.code});}emitEdgeSignal("camera.media.created",{site_id:siteId,home_id:result.media.home_id,agent_id:agentId,camera_id:cameraId,media_id:result.media.id,event_id:asString(req.body?.event_id)||null,kind:result.media.kind,captured_at:result.media.captured_at});return res.status(result.created?201:200).json({ok:true,created:result.created,reference:result.reference});});
+edgeDiscoveryRouter.post("/edge/cameras/:cameraId/media",requireCameraEdgeToken,async(req,res)=>{const {siteId,agentId}=boundEdgeContext(req,req.body||{});const cameraId=asString(req.params.cameraId);if(!siteId||!agentId||!cameraId)return res.status(400).json({error:"media_upload_failed"});const result=await ingestEdgeMedia({cameraId,siteId,nodeId:agentId,kind:asString(req.body?.kind),mimeType:asString(req.body?.mime_type),base64:asString(req.body?.data_base64),capturedAt:asString(req.body?.captured_at)||undefined,durationMs:Number.isFinite(Number(req.body?.duration_ms))?Number(req.body.duration_ms):undefined,eventId:asString(req.body?.event_id)||undefined,idempotencyKey:asString(req.body?.idempotency_key),retention:req.body?.retention_class,metadata:safeMeta(req.body?.metadata)});if(!result.ok){console.warn(JSON.stringify({event:"camera_media.ingest_rejected",site_id:siteId,edge_node_id:agentId,camera_id:cameraId,code:result.code}));return res.status(result.code==="media_access_denied"?403:result.code==="camera_observation_unavailable"?503:400).json({error:result.code});}emitEdgeSignal("camera.media.created",{site_id:siteId,home_id:result.media.home_id,agent_id:agentId,camera_id:cameraId,media_id:result.media.id,event_id:asString(req.body?.event_id)||null,kind:result.media.kind,captured_at:result.media.captured_at});return res.status(result.created?201:200).json({ok:true,created:result.created,reference:result.reference});});
 
 edgeDiscoveryRouter.post("/edge/cameras/:cameraId/detections",requireCameraEdgeToken,async(req,res)=>{const {siteId,agentId}=boundEdgeContext(req,req.body||{});const cameraId=asString(req.params.cameraId);if(!siteId||!agentId||!cameraId)return res.status(400).json({error:"invalid_detection_payload"});const result=await ingestEdgeDetections({cameraId,siteId,nodeId:agentId,provider:asString(req.body?.provider),model:asString(req.body?.model)||undefined,modelVersion:asString(req.body?.model_version)||undefined,detections:Array.isArray(req.body?.detections)?req.body.detections:[],mediaId:asString(req.body?.media_id)||undefined});if(!result.ok){console.warn(JSON.stringify({event:"camera_detection.ingest_rejected",site_id:siteId,edge_node_id:agentId,camera_id:cameraId,code:result.code}));return res.status(result.code==="detection_access_denied"?403:400).json({error:result.code});}emitEdgeSignal("camera.event",{site_id:siteId,agent_id:agentId,camera_id:cameraId,event_id:result.event?.id||null,detection_count:result.detections.length});return res.status(201).json({ok:true,eventId:result.event?.id||null,detections:result.detections.map((row:any)=>({id:row.id,type:row.detection_type,observedAt:row.observed_at})),evidence:result.evidence});});
 

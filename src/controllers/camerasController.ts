@@ -438,6 +438,8 @@ export async function edgeRegistry(req: Request, res: Response) {
   if (error) return res.status(500).json({ error: error.message });
   const cameras = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok).map((camera: any) => ({
     camera_id: camera.camera_id || camera.id,
+    canonical_camera_id: camera.id,
+    stream_id: String(camera.camera_id || camera.id).replace(/[^a-zA-Z0-9_-]+/g,"_"),
     name: camera.name || camera.location || "Camera",
     provider: camera.provider || camera.metadata?.provider || "generic_rtsp",
     protocol: camera.stream_protocol || camera.metadata?.protocol || "rtsp",
