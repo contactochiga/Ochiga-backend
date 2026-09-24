@@ -25,7 +25,7 @@ function reset() {
     camera_infrastructure:[{camera_id:A,estate_id:'estate-a',health_state:'online'},{camera_id:C,estate_id:'estate-a',health_state:'online'},{camera_id:'orphan',estate_id:'estate-a',health_state:'online'}],
     camera_health_history:[{camera_id:A,estate_id:'estate-a'},{camera_id:C,estate_id:'estate-a'},{camera_id:'orphan',estate_id:'estate-a'}],
     camera_media:[{id:'media-a',camera_id:A,estate_id:'estate-a',status:'ready',storage_key:'private-a'},{id:'media-b',camera_id:B,estate_id:'estate-a',status:'ready'}],
-    camera_events:[],camera_detections:[],camera_event_media:[],camera_detection_zones:[],notifications:[],edge_commands:[],audit_events:[],
+    edge_nodes:[],camera_events:[],camera_detections:[],camera_event_media:[],camera_detection_zones:[],notifications:[],edge_commands:[],audit_events:[],
   };
 }
 const project=(row,select)=>select==='*'?structuredClone(row):Object.fromEntries(select.split(',').map(s=>s.trim()).filter(Boolean).map(key=>{const field=key.replace(/\(\*\)$/,'');return [field,row[field]??null]}));
@@ -125,6 +125,28 @@ await test('infrastructure reads filter private and orphan rows; writes authoriz
   r.method='PUT';r.body={estate_id:'estate-a',camera_id:A};await assert.rejects(()=>platformGapService.upsertCameraInfrastructure(r),/Permission denied/);
   r.body.camera_id='orphan';await assert.rejects(()=>platformGapService.upsertCameraInfrastructure(r),/Canonical facility camera/);
   r.method='GET';r.query={estate_id:'estate-x'};await assert.rejects(()=>platformGapService.cameraInfrastructure(r),/scope/);
+});
+await test('14F infrastructure projection uses canonical state, never conflicting operator health; bounded camera batches',async()=>{
+  const ts=Date.now(),time=age=>new Date(ts-age).toISOString();
+  const edge={edge_node_id:'edge-a',estate_id:'estate-a',heartbeat_observed_at:time(1000),heartbeat_received_at:time(900),heartbeat_observation:{version:1,source:'edge_heartbeat',status:'online',queue_depth:0,sync_status:'synced',error_count:0,expected_interval_ms:30000}};
+  db.edge_nodes=[edge];
+  for(const [result,age,expected] of [['acquired',1000,'healthy'],['failed',1000,'unavailable'],['acquired',300000,'unknown'],[null,0,'unknown']]) {
+    const latest={schema_version:1,observation_id:'00000000-0000-4000-8000-000000000001',camera_id:C,edge_node_id:'edge-a',kind:'frame',source:'ai_snapshot',result,observed_at:time(age),received_at:time(age),details:result==='acquired'?{mime_type:'image/jpeg',size_bytes:4,validation:'bounded_image_signature'}:{}};
+    db.facility_cameras=[{id:C,name:'Common',estate_id:'estate-a',home_id:null,privacy_scope:'facility',metadata:{},edge_node_id:'edge-a',nvr_id:null,channel:null,ai_enabled:true,status:'online',runtime_observations:{version:1,dimensions:result?{'frame:ai_snapshot':{latest}}:{}}}];
+    db.camera_infrastructure=[{camera_id:C,estate_id:'estate-a',health_state:'offline',placement_id:'placement-preserved'}];
+    const r=req('fm');r.query={estate_id:'estate-a'};
+    const out=await platformGapService.cameraInfrastructure(r);
+    assert.equal(out.items[0].health_state,expected);assert.equal(out.items[0].current_state.overall,expected);assert.equal(out.items[0].placement_id,'placement-preserved');
+  }
+  const template=db.facility_cameras[0];
+  for(const count of [10,50,100]){
+    db.facility_cameras=Array.from({length:count},(_,i)=>({...template,id:`camera-${i}`}));
+    db.camera_infrastructure=db.facility_cameras.map(c=>({camera_id:c.id,estate_id:'estate-a',health_state:'online'}));db.camera_health_history=[];queries=[];
+    const r=req('fm');r.query={estate_id:'estate-a'};const out=await platformGapService.cameraInfrastructure(r);
+    assert.equal(out.items.length,count);assert.ok(out.items.every(item=>item.health_state==='unknown'));
+    assert.equal(queries.filter(q=>q.table==='facility_cameras').length,2);assert.equal(queries.filter(q=>q.table==='edge_nodes').length,1);
+    console.log(`Infrastructure ${count} cameras: ${queries.length} total reads including membership context; 2 camera reads + 1 Edge read`);
+  }
 });
 await test('realtime never broadcasts camera payload to estate; only eligible sockets receive',async()=>{
   const received=[];const sockets=db.users.map(u=>({data:{user:u},emit:(event)=>received.push([u.id,event])}));

@@ -1210,7 +1210,8 @@ function groupBuildings(homes: Row[], devices: Row[], nowIso: string) {
         homes_count: 0,
         devices_count: 0,
         permitted_users: 0,
-        live_cameras: 0,
+        live_cameras: null, // No canonical camera relationship exists for this device inventory count.
+        configured_camera_devices: 0,
         occupancy_pct: 0,
         created_at: home.created_at || nowIso,
         updated_at: nowIso,
@@ -1235,7 +1236,8 @@ function groupBuildings(homes: Row[], devices: Row[], nowIso: string) {
         homes_count: 0,
         devices_count: 0,
         permitted_users: 0,
-        live_cameras: 0,
+        live_cameras: null,
+        configured_camera_devices: 0,
         occupancy_pct: 0,
         created_at: device.created_at || nowIso,
         updated_at: nowIso,
@@ -1245,7 +1247,7 @@ function groupBuildings(homes: Row[], devices: Row[], nowIso: string) {
     const group = groups.get(id)!;
     group.devices_count += 1;
     if (/camera|cctv|video/i.test(String(device.category || device.type || device.name || ""))) {
-      group.live_cameras += 1;
+      group.configured_camera_devices += 1;
     }
   }
 

@@ -1,3 +1,5 @@
+/** @deprecated Legacy normalizer, retirement candidate. No live generic
+ * current-state reader may use this; use CameraCurrentStateAuthority instead. */
 export function canonicalCameraHealth(camera: any) {
   const metadata = camera?.metadata && typeof camera.metadata === "object" ? camera.metadata : {};
   const streamStatus = camera?.stream_status || metadata.stream_status || camera?.health_status || camera?.status || "pending";

@@ -4,10 +4,10 @@ export * from "./media";
 export * from "./detection";
 import { normalizeCameraMedia } from "./media";
 import { normalizeCameraDetection } from "./detection";
-export const CAMERA_CORE_VERSION = "5.0.0-phase5";
+export const CAMERA_CORE_VERSION = "6.0.0-canonical-current-state";
 
 export type CameraScope = "facility" | "home" | "office" | "unknown";
-export type CameraRuntimeState = "online" | "degraded" | "offline" | "unknown";
+export type CameraRuntimeState = "healthy" | "degraded" | "unavailable" | "unknown";
 export type CapabilityAvailability = "available" | "configured" | "unavailable" | "unknown";
 export type CameraCapability = { availability: CapabilityAvailability; source?: string | null };
 export type CameraCapabilities = {
@@ -21,7 +21,7 @@ export type CameraCapabilities = {
   anpr: CameraCapability; recording: CameraCapability;
 };
 export type CameraHealth = {
-  online: boolean; status: string; streamStatus?: string | null;
+  online: boolean | null; status: string; streamStatus?: string | null;
   lastSeenAt?: string | null; lastHealthAt?: string | null;
   lastSuccessAt?: string | null; lastFailureAt?: string | null;
   latencyMs?: number | null; reconnectCount?: number | null;
@@ -33,7 +33,7 @@ export type Camera = {
   reference?: string | null; location?: string | null; status: string;
   streamStatus?: string | null; provider?: string | null; edgeNodeId?: string | null;
   capabilities: CameraCapabilities; health?: CameraHealth | null;
-  runtimeState: CameraRuntimeState; createdAt?: string | null; updatedAt?: string | null;
+  runtimeState: CameraRuntimeState; currentState?: Record<string, any> | null; createdAt?: string | null; updatedAt?: string | null;
 };
 export type LegacyCameraMediaReference = { kind:"snapshot"|"clip"|"recording";url?:string;trust:"oyi_authorized"|"legacy_external";expiresAt?:string|null;capturedAt?:string|null };
 export type LegacyCameraDetection = {
@@ -88,25 +88,34 @@ export function normalizeCameraCapabilities(raw: unknown): CameraCapabilities {
 }
 export function normalizeCameraHealth(raw: unknown): CameraHealth | null {
   const value = record(raw); if (!Object.keys(value).length) return null;
-  return { online: value.online === true, status: text(value.status, "unknown"), streamStatus: nullableText(value.streamStatus ?? value.stream_status), lastSeenAt: date(value.lastSeenAt ?? value.last_seen_at), lastHealthAt: date(value.lastHealthAt ?? value.last_health_at), lastSuccessAt: date(value.lastSuccessAt ?? value.last_success_at), lastFailureAt: date(value.lastFailureAt ?? value.last_failure_at), latencyMs: finite(value.latencyMs ?? value.latency_ms), reconnectCount: finite(value.reconnectCount ?? value.reconnect_count), providerError: nullableText(value.providerError ?? value.provider_error), frameFreshnessAt: date(value.frameFreshnessAt ?? value.frame_freshness_at) };
+  const state = record(value.current_state ?? value.currentState ?? (value.overall ? value : null));
+  const overall = cameraRuntimeState({currentState:state});
+  return {online: overall === "unknown" ? null : state.videoEvidence === "recent_acquisition", status: overall,
+    streamStatus: nullableText(state.stream?.state), lastSeenAt: date(state.observedAt)};
 }
-export function cameraRuntimeState(camera: Pick<Camera, "status" | "streamStatus" | "health">): CameraRuntimeState {
-  const values = [camera.streamStatus, camera.health?.streamStatus, camera.health?.status, camera.status].map((v) => text(v).toLowerCase()).filter(Boolean);
-  if (values.some((v) => ["offline","failed","error","unreachable"].includes(v))) return "offline";
-  if (camera.health?.providerError || values.some((v) => ["degraded","warning","reconnecting"].includes(v))) return "degraded";
-  if (camera.health?.online === true && values.some((v) => ["online","active","healthy","ok","ready"].includes(v))) return "online";
-  return "unknown";
+export function cameraRuntimeState(camera: Pick<Camera, "currentState">): CameraRuntimeState {
+  const state = camera.currentState?.overall;
+  return ["healthy", "degraded", "unavailable", "unknown"].includes(state) ? state : "unknown";
 }
 export function normalizeCamera(raw: unknown): Camera {
   const value = record(raw); const metadata = record(value.metadata);
   const scopeRaw = text(value.scope ?? value.privacy_scope ?? metadata.privacy_scope).toLowerCase();
   const scope: CameraScope = ["facility","home","office"].includes(scopeRaw) ? scopeRaw as CameraScope : "unknown";
-  const health = normalizeCameraHealth(value.health);
-  const base = { id: text(value.id), scope, estateId: nullableText(value.estateId ?? value.estate_id), buildingId: nullableText(value.buildingId ?? value.building_id ?? metadata.building_id), homeId: nullableText(value.homeId ?? value.home_id ?? metadata.home_id), zoneId: nullableText(value.zoneId ?? value.zone_id), name: text(value.name, "Camera"), reference: nullableText(value.reference ?? value.camera_id), location: nullableText(value.location), status: text(value.status, "unknown"), streamStatus: nullableText(value.streamStatus ?? value.stream_status), provider: nullableText(value.provider), edgeNodeId: nullableText(value.edgeNodeId ?? value.edge_node_id), capabilities: normalizeCameraCapabilities(value.capabilities), health, createdAt: date(value.createdAt ?? value.created_at), updatedAt: date(value.updatedAt ?? value.updated_at) };
-  return { ...base, runtimeState: cameraRuntimeState(base) };
+  const base = { id: text(value.id), scope, estateId: nullableText(value.estateId ?? value.estate_id), buildingId: nullableText(value.buildingId ?? value.building_id ?? metadata.building_id), homeId: nullableText(value.homeId ?? value.home_id ?? metadata.home_id), zoneId: nullableText(value.zoneId ?? value.zone_id), name: text(value.name, "Camera"), reference: nullableText(value.reference ?? value.camera_id), location: nullableText(value.location), provider: nullableText(value.provider), edgeNodeId: nullableText(value.edgeNodeId ?? value.edge_node_id), capabilities: normalizeCameraCapabilities(value.capabilities), createdAt: date(value.createdAt ?? value.created_at), updatedAt: date(value.updatedAt ?? value.updated_at) };
+  const currentState = record(value.current_state ?? value.currentState);
+  const runtimeState = cameraRuntimeState({currentState});
+  return { ...base, currentState, status: runtimeState, runtimeState,
+    streamStatus: nullableText(currentState.stream?.state),
+    health: { status: runtimeState, online: runtimeState === "unknown" ? null : currentState.videoEvidence === "recent_acquisition",
+      streamStatus: nullableText(currentState.stream?.state), lastSeenAt: date(currentState.observedAt) } };
 }
-export const isCameraOnline = (camera: Camera) => camera.runtimeState === "online";
-export const isCameraStreamHealthy = (camera: Camera) => camera.runtimeState === "online" && !camera.health?.providerError;
+/** Compatibility helpers describe observed acquisition, not electrical connectivity. */
+export const hasRecentCameraAcquisition = (camera: Camera): boolean | null => camera.currentState?.videoEvidence === "recent_acquisition"
+  ? true : camera.currentState?.videoEvidence === "acquisition_failed" ? false : null;
+/** @deprecated Prefer hasRecentCameraAcquisition; this is not a physical-online claim. */
+export const isCameraOnline = hasRecentCameraAcquisition;
+/** @deprecated Prefer hasRecentCameraAcquisition; continuous streaming is not proven. */
+export const isCameraStreamHealthy = hasRecentCameraAcquisition;
 export const getCameraHealthLabel = (camera: Camera) => camera.runtimeState;
 export const getCameraLastActivity = (camera: Camera) => camera.health?.frameFreshnessAt || camera.health?.lastSuccessAt || camera.health?.lastSeenAt || null;
 

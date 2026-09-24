@@ -30,8 +30,7 @@ import { currentDeviceOnline, currentDevicePanelProjection, projectDeviceCurrent
 import { canFacilityViewDevice, canFacilityControlDevice, projectDeviceForSurface } from "./deviceProjectionService";
 import { platformGapService } from "./platformGapService";
 import { canAccessCamera, cameraHomeId } from "../modules/cameras/cameraAccess.policy";
-import { sanitizeCameraRecord } from "../modules/cameras/cameraSerialization";
-import { withCanonicalCameraHealth } from "../modules/cameras/cameraHealth";
+import { presentCameraRows } from "../modules/cameras/cameraCurrentStatePresentation";
 
 export type SpatialContextResolutionStatus = "resolved" | "not_found" | "ambiguous";
 
@@ -139,9 +138,8 @@ async function boundedCameras(estateId: string, homeId: string | null, actor: Au
   if (!homeId) return { permitted: true, available: false, items: [] };
   const { data, error } = await supabaseAdmin.from("facility_cameras").select("*").eq("estate_id", estateId);
   if (error) throw error;
-  const items = (data || [])
-    .filter((camera: any) => cameraHomeId(camera) === homeId && canAccessCamera(camera, actor as any).ok)
-    .map((camera: any) => sanitizeCameraRecord(withCanonicalCameraHealth(camera)));
+  const items = await presentCameraRows((data || [])
+    .filter((camera: any) => cameraHomeId(camera) === homeId && canAccessCamera(camera, actor as any).ok), actor);
   return { permitted: true, available: items.length > 0, items };
 }
 

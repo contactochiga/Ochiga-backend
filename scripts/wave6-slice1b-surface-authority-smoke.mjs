@@ -29,14 +29,17 @@ function check(label, condition, detail) {
 function makeSupabaseMock(handlers) {
   return {
     from(table) {
-      const state = { table, filters: {}, ins: {} };
+      const state = { table, filters: {}, ins: {}, selection: '*' };
       function resolve() {
         const handler = handlers[table];
         if (!handler) return Promise.resolve({ data: [], error: null });
-        return Promise.resolve(handler(state));
+        return Promise.resolve(handler(state)).then(result => {
+          if (table !== 'facility_cameras' || state.selection === '*' || !Array.isArray(result.data)) return result;
+          return {...result,data:result.data.map(row=>Object.fromEntries(state.selection.split(',').map(key=>[key,row[key]??null])))};
+        });
       }
       const b = {
-        select() { return b; },
+        select(selection = '*') { state.selection = selection; return b; },
         eq(col, val) { state.filters[col] = val; return b; },
         in(col, vals) { state.ins[col] = vals; return b; },
         order() { return b; },

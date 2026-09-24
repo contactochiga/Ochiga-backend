@@ -3,6 +3,8 @@ import type { OisContext } from "../../types/oisContext";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import { logger } from "../../observability/logger";
 import { hydrateCanonicalDevicePanel } from "../../services/canonicalDevicePanelHydrationService";
+import { presentCameraRows } from "../../modules/cameras/cameraCurrentStatePresentation";
+import { CAMERA_ACCESS_SELECT, cameraAccessActor } from "../../modules/cameras/cameraAccess.policy";
 import type { OperationalObject, OperationalObjectType, TruthState } from "../contracts/canonicalConversation";
 import type { ResolvedConversationTarget } from "./conversationTargetResolver";
 
@@ -513,7 +515,7 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
     // per-asset/per-meter source exists yet, so hydration now honestly
     // returns "unsupported" for these types instead of failing a doomed
     // query against a nonexistent table on every attempt.
-    camera: { table: "facility_cameras", select: "id,name,estate_id,room_id,status,health_status,updated_at,dvr_id", label: "Camera", module: "cameras" },
+    camera: { table: "facility_cameras", select: `${CAMERA_ACCESS_SELECT},name,room_id`, label: "Camera", module: "cameras" },
     wallet: { table: "wallets", select: "id,user_id,currency,is_frozen,updated_at", label: "Wallet", module: "wallet" },
     security_incident: { table: "facility_incidents", select: "id,title,estate_id,home_id,severity,status,location,opened_at,updated_at", label: "Security incident", module: "security" },
     utility_tariff: { table: "estate_service_configs", select: "id,title,service_key,estate_id,unit_cost,unit_name,currency,updated_at", label: "Utility tariff", module: "utilities" },
@@ -523,7 +525,12 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
   if (!item || !id) return baseResult({ status: "unsupported", reason: "unsupported_target_type", truth_state: "unsupported" }, startedAt);
   const outcome = await checkedMaybeSingle<Record<string, unknown>>(item.table, item.select, id, type);
   if (outcome.status !== "hydrated") return baseResult({ status: outcome.status, reason: outcome.status === "query_failed" ? outcome.reason : "target_not_found", source: "none" }, startedAt);
-  const row = outcome.data;
+  let row = outcome.data;
+  if (type === "camera") {
+    const [camera] = await presentCameraRows([row], cameraAccessActor(request.actor, request.oisContext), {consumer: true});
+    if (!camera) return baseResult({status:"permission_denied",reason:"camera_permission_denied"}, startedAt);
+    row = camera;
+  }
   const rowHome = text(row.home_id);
   const rowEstate = text(row.estate_id);
   if (scope.home_id && rowHome && rowHome !== scope.home_id) return baseResult({ status: "scope_mismatch", reason: "target_outside_active_home" }, startedAt);
@@ -546,7 +553,7 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
     relationships: {},
     evidence_references: [`canonical_backend:${item.table}:${id}`],
     metadata: row,
-    freshness: text(row.updated_at || row.created_at) || null,
+    freshness: type === "camera" ? text(recordOf(row.current_state).observedAt) || null : text(row.updated_at || row.created_at) || null,
   };
   return baseResult({
     status: "hydrated",

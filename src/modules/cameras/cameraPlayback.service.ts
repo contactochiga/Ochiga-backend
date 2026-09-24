@@ -45,8 +45,9 @@ export function buildCameraPlaybackContract(req: Request, camera: any, user: any
   const actor = cameraAccessActor(user, (req as any).oisContext);
   const access = canAccessCamera(camera, actor);
   const edgeUrl = String(camera?.edge_hls_url || camera?.hls_url || "").trim();
-  const streamStatus = String(camera?.stream_status || camera?.health_status || camera?.status || (edgeUrl ? "ready" : "pending_stream_details"));
-  const edgeStatus = edgeUrl ? "available" : "missing_hls";
+  // This synchronous contract issues media access, not operational health.
+  const streamStatus = camera?.current_state?.stream?.state || "unknown";
+  const edgeStatus = edgeUrl ? "configured" : "missing_hls";
   const token = issueCameraPlaybackToken(actor, camera);
   const baseUrl = requestBaseUrl(req);
   const hlsUrl = token

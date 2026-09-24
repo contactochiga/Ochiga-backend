@@ -10,6 +10,7 @@ import { deviceWithinActorScope, hasWatchScope } from "../services/watchPolicy";
 import { NotificationService } from "../services/NotificationService";
 import { actorHasFacilityReadScope } from "../intelligence-core/permissionEngine";
 import { canAccessCamera, cameraAccessActor } from "../modules/cameras/cameraAccess.policy";
+import { presentCameraRows } from "../modules/cameras/cameraCurrentStatePresentation";
 import {
   type DeviceRuntimeScope,
   isDeviceDefinitelyOffline,
@@ -1236,12 +1237,12 @@ async function summarizeModuleTool(actor: AuthUser, prompt: string, args: Record
     const allowedCameraIds = new Set(
       cameras.rows.filter((row: any) => canAccessCamera(row, cameraModuleActor).ok).map((row: any) => String(row.id))
     );
-    cameras.rows = cameras.rows.filter((row: any) => allowedCameraIds.has(String(row.id)));
+    cameras.rows = await presentCameraRows(cameras.rows.filter((row: any) => allowedCameraIds.has(String(row.id))), cameraModuleActor);
     events.rows = events.rows.filter((row: any) => allowedCameraIds.has(String(row.camera_id)));
     detections.rows = detections.rows.filter((row: any) => allowedCameraIds.has(String(row.camera_id)));
     result = { available: cameras.available || events.available || detections.available, rows: [...cameras.rows, ...events.rows, ...detections.rows], error: cameras.error || events.error || detections.error };
     entities = [
-      ...cameras.rows.map((row: any) => moduleEntity("camera", row, "facility_cameras", row.name || "Camera", { location: row.location || null, last_seen_at: row.last_seen_at || null, health_status: row.health_status || null })),
+      ...cameras.rows.map((row: any) => moduleEntity("camera", row, "facility_cameras", row.name || "Camera", { location: row.location || null, current_state: row.current_state, explanation: row.explanation, last_seen_at: row.current_state?.observedAt || null, health_status: row.health_status || null })),
       ...events.rows.map((row: any) => moduleEntity("camera", row, "camera_events", "Camera event")),
       ...detections.rows.map((row: any) => moduleEntity("camera", row, "camera_detections", `${row.detection_type || "Unknown"} detection`, { observed_at: row.observed_at, confidence: row.confidence, media_available: Boolean(row.media_id), identity_recognized: false })),
     ];

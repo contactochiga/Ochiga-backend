@@ -18,12 +18,19 @@ new Function("module", "exports", "require", js)(mod, mod.exports, (specifier) =
 const core = mod.exports;
 
 const raw = { id:"cam-1", name:"Gate", privacy_scope:"home", estate_id:"estate-a", home_id:"home-a", status:"active", stream_status:"ready", health:{ online:true, status:"healthy", last_seen_at:"2026-08-24T10:00:00Z" }, capabilities:{ live_view:{availability:"available"}, anpr:"unexpected" }, rtsp_url:"rtsp://user:secret@10.0.0.2/live", credential_ref:"secret:camera", edge_hls_url:"http://10.0.0.2/live.m3u8" };
+assert.equal(core.normalizeCamera(raw).runtimeState, "unknown", "legacy flags cannot establish current health");
+raw.current_state={overall:"healthy",videoEvidence:"recent_acquisition",observedAt:"2026-08-24T10:00:00Z",stream:{state:"inspected"}};
 const camera = core.normalizeCamera(raw);
-assert.equal(camera.id, "cam-1"); assert.equal(camera.scope, "home"); assert.equal(camera.runtimeState, "online"); assert.equal(core.isCameraStreamHealthy(camera), true);
+assert.equal(camera.id, "cam-1"); assert.equal(camera.scope, "home"); assert.equal(camera.runtimeState, "healthy"); assert.equal(core.isCameraStreamHealthy(camera), true);
 assert.equal(camera.capabilities.liveView.availability, "available"); assert.equal(camera.capabilities.anpr.availability, "unavailable");
 const serialized = JSON.stringify(camera); for (const forbidden of ["rtsp", "secret:camera", "10.0.0.2", "credential_ref", "edge_hls_url"]) assert.equal(serialized.includes(forbidden), false);
-const degraded = core.normalizeCamera({ id:"cam-2", health:{online:true,status:"healthy",provider_error:"timeout"}, stream_status:"ready" }); assert.equal(degraded.runtimeState,"degraded");
-const offline = core.normalizeCamera({ id:"cam-3", health:{online:false,status:"offline"}, stream_status:"failed" }); assert.equal(offline.runtimeState,"offline");
+const degraded = core.normalizeCamera({ id:"cam-2", current_state:{overall:"degraded",videoEvidence:"recent_acquisition"},health:{online:true,status:"healthy",provider_error:"timeout"}, stream_status:"ready" }); assert.equal(degraded.runtimeState,"degraded");
+assert.equal(core.hasRecentCameraAcquisition(degraded),true,"AI/control impairment does not negate accepted video evidence");
+const offline = core.normalizeCamera({ id:"cam-3", health:{online:false,status:"offline"}, stream_status:"failed" }); assert.equal(offline.runtimeState,"unknown");
+assert.equal(offline.health.online,null);
+assert.equal(core.isCameraOnline(offline),null,"unknown is not a false physical-offline assertion");
+assert.equal(core.normalizeCamera({...raw,status:"offline",health:{online:false,status:"offline"}}).runtimeState,"healthy");
+assert.equal(core.normalizeCamera({...raw,current_state:{overall:"unavailable",videoEvidence:"acquisition_failed"}}).runtimeState,"unavailable");
 const event = core.normalizeCameraEvent({ id:"ev-1", camera_id:"cam-1", event_type:"future_detector", confidence:"0.82", created_at:"2026-08-24T10:00:00Z", source_timestamp:"2026-08-24T09:59:58Z", metadata:{ detections:[{type:"person",confidence:0.9,bounding_box:{x:1,y:2,width:3,height:4}}] } });
 assert.equal(event.type,"future_detector"); assert.equal(event.confidence,0.82); assert.equal(core.getCameraEventOccurrenceTime(event),"2026-08-24T09:59:58Z"); assert.equal(event.detections[0].type,"person");
 const privateEvent = core.normalizeCameraEvent({id:"ev-private",camera_id:"cam-1",created_at:"2026-08-24T10:00:00Z",snapshot_url:"http://169.254.169.254/latest/meta-data",metadata:{credential_ref:"vault:camera",nested:{rtsp_url:"rtsp://secret@10.0.0.2"}}}); assert.equal(privateEvent.snapshot,null); assert.equal(JSON.stringify(privateEvent.metadata).includes("secret"),false);

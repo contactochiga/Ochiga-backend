@@ -1,10 +1,9 @@
 // src/controllers/camerasController.ts
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { canAccessCamera } from "../modules/cameras/cameraAccess.policy";
+import { canAccessCamera, cameraHomeId } from "../modules/cameras/cameraAccess.policy";
 import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.service";
-import { sanitizeCameraRecord } from "../modules/cameras/cameraSerialization";
-import { withCanonicalCameraHealth } from "../modules/cameras/cameraHealth";
+import { presentCameraRows, cameraStateCounts } from "../modules/cameras/cameraCurrentStatePresentation";
 import {
   buildChannelRows,
   buildCredentialRef,
@@ -92,7 +91,7 @@ export async function listByEstate(req: Request, res: Response) {
     .order("created_at", { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
-  const items = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok).map(withCanonicalCameraHealth).map(sanitizeCameraRecord);
+  const items = await presentCameraRows(data || [], user);
   return res.json({ ok: true, items });
 }
 
@@ -115,7 +114,7 @@ export async function listByHome(req: Request, res: Response) {
   const { data, error } = await query;
 
   if (error) return res.status(500).json({ error: error.message });
-  const items = (data || []).filter((camera: any) => canAccessCamera(camera, user).ok).map(withCanonicalCameraHealth).map(sanitizeCameraRecord);
+  const items = await presentCameraRows((data || []).filter(camera => cameraHomeId(camera) === String(homeId)), user, {consumer:true});
   return res.json({ ok: true, items });
 }
 
@@ -183,7 +182,7 @@ export async function bind(req: Request, res: Response) {
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
-    return res.json({ ok: true, camera: sanitizeCameraRecord(withCanonicalCameraHealth(data)) });
+    return res.json({ ok: true, camera: (await presentCameraRows([data], user))[0] || null });
   }
 
   const { data, error } = await supabaseAdmin
@@ -210,7 +209,7 @@ export async function bind(req: Request, res: Response) {
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
-  return res.json({ ok: true, camera: sanitizeCameraRecord(withCanonicalCameraHealth(data)) });
+  return res.json({ ok: true, camera: (await presentCameraRows([data], user))[0] || null });
 }
 
 export async function testDvrConnection(req: Request, res: Response) {
@@ -374,7 +373,7 @@ export async function importDvr(req: Request, res: Response) {
   return res.status(errors.length ? 207 : 200).json({
     ok: errors.length === 0,
     dvr,
-    cameras: cameras.map(withCanonicalCameraHealth).map(sanitizeCameraRecord),
+    cameras: await presentCameraRows(cameras, user),
     errors,
     edge_registry_ready: cameras.length > 0,
     message: errors.length ? "DVR imported with some channel errors." : "DVR imported and channel cameras prepared.",
@@ -407,9 +406,8 @@ export async function inventoryByEstate(req: Request, res: Response) {
   ]);
   if (dvrs.error) return res.status(500).json({ error: dvrs.error.message });
   if (cameras.error) return res.status(500).json({ error: cameras.error.message });
-  const cameraItems = (cameras.data || []).filter((camera: any) => canAccessCamera(camera, user).ok).map(withCanonicalCameraHealth).map(sanitizeCameraRecord);
-  const healthy = cameraItems.filter((camera: any) => ["online", "active", "healthy", "ok"].includes(clean(camera.stream_status || camera.health_status || camera.status).toLowerCase())).length;
-  const offline = cameraItems.filter((camera: any) => ["offline", "error", "failed", "degraded"].includes(clean(camera.stream_status || camera.health_status || camera.status).toLowerCase())).length;
+  const cameraItems = await presentCameraRows(cameras.data || [], user);
+  const counts = cameraStateCounts(cameraItems);
   const edgeNodes = new Set(cameraItems.map((camera: any) => clean(camera.edge_node_id)).filter(Boolean));
   const aiEnabled = cameraItems.filter((camera: any) => Boolean(camera.ai_enabled)).length;
   return res.json({
@@ -419,8 +417,9 @@ export async function inventoryByEstate(req: Request, res: Response) {
     summary: {
       dvrs: dvrs.data?.length || 0,
       cameras: cameraItems.length,
-      healthy_streams: healthy,
-      offline_streams: offline,
+      ...counts,
+      healthy_streams: counts.healthy_count,
+      offline_streams: counts.unavailable_count, // legacy alias: acquisition unavailable, not physical offline
       edge_nodes: edgeNodes.size,
       ai_enabled_cameras: aiEnabled,
     },
@@ -463,20 +462,21 @@ export async function validateStream(req: Request, res: Response) {
   const access = canAccessCamera(camera, user);
   if (!access.ok) return res.status(403).json({ error: "Permission denied", code: access.reason });
 
-  const playback = buildCameraPlaybackContract(req, camera, user);
+  const [presented] = await presentCameraRows([camera], user);
+  const playback = buildCameraPlaybackContract(req, {...camera,current_state:presented?.current_state}, user);
   const rtspReady = Boolean(camera.rtsp_url || camera.credential_ref);
   const hlsReady = Boolean(playback.hls_url);
-  const status = rtspReady && hlsReady ? "healthy" : rtspReady ? "warning" : "failed";
-  return res.status(status === "failed" ? 424 : 200).json({
-    ok: status !== "failed",
-    status,
+  return res.status(!rtspReady ? 424 : 200).json({
+    ok: rtspReady,
+    status: presented?.current_state.overall || "unknown",
+    current_state: presented?.current_state,
     checks: {
       rtsp_reachable: rtspReady ? "prepared_for_edge" : "missing_source",
       hls_generation: hlsReady ? "ready" : "waiting_for_edge_runtime",
       playback_contract: playback.ok ? "ready" : "warning",
     },
     playback,
-    reason: status === "healthy" ? "Stream playback contract is ready." : status === "warning" ? "Camera source is prepared; Edge must publish HLS health." : "Camera is missing RTSP or credential reference.",
+    reason: !rtspReady ? "Camera is missing RTSP or credential reference." : "Playback configuration checked; this is not a live stream probe.",
   });
 }
 

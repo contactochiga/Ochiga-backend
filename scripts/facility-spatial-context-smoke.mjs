@@ -29,7 +29,8 @@ const originalGet = deviceRuntimeStateService.get.bind(deviceRuntimeStateService
 // .order()/.limit(), .maybeSingle(), or a bare await (thenable).
 function makeTable(rows) {
   return {
-    select() {
+    select(fields = '*') {
+      const project = row => !row ? null : fields === '*' ? row : Object.fromEntries(fields.split(',').map(key => [key, row[key] ?? null]));
       const filters = {};
       const inFilters = {};
       let limitN = null;
@@ -48,12 +49,12 @@ function makeTable(rows) {
         },
         maybeSingle() {
           const matched = rows.filter((r) => Object.entries(filters).every(([k, v]) => r[k] === v));
-          return Promise.resolve({ data: matched[0] || null, error: null });
+          return Promise.resolve({ data: project(matched[0]), error: null });
         },
         then(resolve, reject) {
           let matched = rows.filter((r) => Object.entries(filters).every(([k, v]) => r[k] === v) && Object.entries(inFilters).every(([k, vals]) => vals.includes(r[k])));
           if (limitN != null) matched = matched.slice(0, limitN);
-          Promise.resolve({ data: matched, error: null }).then(resolve, reject);
+          Promise.resolve({ data: matched.map(project), error: null }).then(resolve, reject);
         },
       };
       return builder;
@@ -266,6 +267,27 @@ const FAKE_RUNTIME_SNAPSHOT = {
   const fs = await import("node:fs");
   const serviceSource = fs.readFileSync(new URL("../dist/services/spatialFacilityContextService.js", import.meta.url), "utf8");
   need(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(/.test(serviceSource), "spatialFacilityContextService must never call a mutating Supabase verb -- this slice is read-only");
+}
+
+// 14F: actual Twin/Home reader agrees with the authority for conflicting
+// registry state, inference failure, unavailable acquisition and expired evidence.
+{
+  const { cameraCurrentState, CAMERA_CURRENT_STATE_SELECT } = await import('../dist/modules/cameras/cameraCurrentStateAuthority.js');
+  const now = Date.now(), iso = age => new Date(now-age).toISOString();
+  const edge = {edge_node_id:'edge-a',estate_id:'estate-1',heartbeat_observed_at:iso(1000),heartbeat_received_at:iso(900),heartbeat_observation:{version:1,source:'edge_heartbeat',status:'online',queue_depth:0,sync_status:'synced',error_count:0,expected_interval_ms:30000}};
+  for (const [result, age, inference] of [['acquired',1000,null],['acquired',1000,'failed'],['failed',1000,null],['acquired',300000,null],[null,0,null]]) {
+    const camera = {...CAMERAS[0],edge_node_id:'edge-a',nvr_id:null,channel:null,runtime_observations:{version:1,dimensions:{}},status:'offline',health_status:'offline'};
+    const observe = (kind,source,value) => ({schema_version:1,observation_id:'00000000-0000-4000-8000-000000000001',camera_id:camera.id,edge_node_id:'edge-a',kind,source,result:value,observed_at:iso(age),received_at:iso(age),details:kind==='frame'&&value==='acquired'?{mime_type:'image/jpeg',size_bytes:4,validation:'bounded_image_signature'}:{detection_count:0}});
+    if(result)camera.runtime_observations.dimensions['frame:ai_snapshot']={latest:observe('frame','ai_snapshot',result)};
+    if(inference)camera.runtime_observations.dimensions['inference:external_detector']={latest:observe('inference','external_detector',inference)};
+    const canonical=Object.fromEntries(CAMERA_CURRENT_STATE_SELECT.split(',').map(k=>[k,camera[k]??null]));
+    supabaseAdmin.from=fakeFrom({facility_cameras:[camera],edge_nodes:[edge]});
+    const view=await resolveSpatialFacilityContext('estate-1','LUNA-L06-APT-A',FULL_ACTOR);
+    const current=view.context.related_operational_records.cameras.items[0].current_state;
+    need(current.overall===cameraCurrentState(canonical,FULL_ACTOR,edge,{now}).overall,'Twin must use canonical interpretation, never registry offline');
+    need(current.frame.freshness===cameraCurrentState(canonical,FULL_ACTOR,edge,{now}).frame.freshness,'Twin component freshness must agree');
+  }
+  supabaseAdmin.from=originalFrom;
 }
 
 if (failures.length) {

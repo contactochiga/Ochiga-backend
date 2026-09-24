@@ -17,6 +17,7 @@ import { submitCanonicalSignal } from "../oyi-core/ingress/canonicalSignalIngres
 // ingress for upsertCameraInfrastructure() below. See
 // oyi-core/domains/camera/cameraCanonicalSignal.ts.
 import { CAMERA_ACCESS_SELECT, cameraHomeId, cameraAccessActor, canAccessCamera, requireCameraAccess } from "../modules/cameras/cameraAccess.policy";
+import { presentCameraRows } from "../modules/cameras/cameraCurrentStatePresentation";
 import { ContextResolutionError, resolveOisContext } from "./context/contextResolutionService";
 import { requestInput } from "../middleware/contextResolver";
 
@@ -522,7 +523,10 @@ export const platformGapService = {
     if (items.error || history.error || cameras.error) throw new Error("Camera information unavailable");
     const allowed = new Set((cameras.data || []).filter((camera: any) => canAccessCamera(camera, cameraActor).ok).map((camera: any) => camera.id));
     const visible = (items.data || []).filter((row: any) => allowed.has(row.camera_id));
-    return { estate_id, items: visible, history: (history.data || []).filter((row: any) => allowed.has(row.camera_id)), sources: { cameras: source(visible.length ? "Live" : "Awaiting telemetry", !!visible.length, undefined, "camera.status.updated") } };
+    const current = new Map((await presentCameraRows(cameras.data || [], cameraActor)).map(camera=>[camera.id,camera]));
+    const projectedItems = visible.map((row:any)=>({id:row.id,estate_id:row.estate_id,camera_id:row.camera_id,placement_id:row.placement_id,zone:row.zone,area_owner:row.area_owner,infrastructure_relationship:row.infrastructure_relationship,
+      health_state:current.get(row.camera_id)?.status || "unknown",current_state:current.get(row.camera_id)?.current_state || null}));
+    return { estate_id, items: projectedItems, history: (history.data || []).filter((row: any) => allowed.has(row.camera_id)), sources: { cameras: source(projectedItems.length ? "Canonical current state" : "Awaiting telemetry", !!projectedItems.length, undefined, "camera.health.transition") } };
   },
 
   async upsertCameraInfrastructure(req: Request) {

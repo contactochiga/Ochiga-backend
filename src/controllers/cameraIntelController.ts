@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { presentCameraRows } from "../modules/cameras/cameraCurrentStatePresentation";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { NotificationService } from "../services/NotificationService";
 import { buildCameraPlaybackContract } from "../modules/cameras/cameraPlayback.service";
@@ -93,7 +94,7 @@ function reportWindow(periodRaw: string | undefined) {
 async function resolveCamera(cameraId: string) {
   return supabaseAdmin
     .from("facility_cameras")
-    .select(`${CAMERA_ACCESS_SELECT},name,edge_hls_url,hls_url,stream_status,health_status,status,edge_node_id`)
+    .select(`${CAMERA_ACCESS_SELECT},name,edge_hls_url,hls_url,edge_node_id`)
     .eq("id", cameraId)
     .maybeSingle();
 }
@@ -114,9 +115,10 @@ export async function getPlaybackUrl(req: Request, res: Response) {
   const access = canAccessCamera(cam, user);
   if (!access.ok) return res.status(403).json({ error: "Permission denied", code: access.reason });
 
-  const playback = buildCameraPlaybackContract(req, cam, user);
-  if (!playback.hls_url) return res.status(409).json(playback);
-  return res.json(playback);
+  const [presented] = await presentCameraRows([cam], user, {consumer:true});
+  const playback = buildCameraPlaybackContract(req, {...cam,current_state:presented?.current_state}, user);
+  if (!playback.hls_url) return res.status(409).json({...playback,current_state:presented?.current_state});
+  return res.json({...playback, stream_status:presented?.current_state.stream.state || "unknown",current_state:presented?.current_state});
 }
 
 /**

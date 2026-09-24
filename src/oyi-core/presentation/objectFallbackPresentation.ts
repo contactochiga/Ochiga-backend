@@ -324,6 +324,11 @@ function naturalState(value: unknown) {
 }
 
 export function objectStateLine(object: OperationalObject) {
+  if (object.object_type === "camera") {
+    const metadata = recordOf(object.metadata);
+    const explanation = text(metadata.explanation);
+    return explanation ? `${object.label}: ${explanation}` : `${object.label}: current camera evidence is unavailable.`;
+  }
   const state = naturalState(object.current_state);
   const health = naturalState(object.health);
   if (state && health && state.toLowerCase() !== health.toLowerCase()) return `${object.label} is ${state}. Health is ${health}.`;
@@ -516,9 +521,9 @@ function spatialAreaAggregation(input: CanonicalConversationRequest, object: Ope
   if (/offline|unavailable|down/.test(message)) {
     const offlineDevices = [
       ...devices.filter((device) => recordOf(device.current_state).availability === "offline"),
-      ...cameras.filter((item) => /offline|unavailable|down|degraded/i.test(text(item.health || item.status || item.state))),
+      ...cameras.filter((item) => ["unavailable","degraded"].includes(text(recordOf(item.current_state).overall))),
     ];
-    if (offlineDevices.length) return `${offlineDevices.length} ${offlineDevices.length === 1 ? "object is" : "objects are"} offline or degraded in ${object.label}: ${offlineDevices.map((item) => text(item.name || item.label || item.id)).filter(Boolean).slice(0, 5).join(", ")}.`;
+    if (offlineDevices.length) return `${offlineDevices.length} ${offlineDevices.length === 1 ? "object needs" : "objects need"} attention in ${object.label}: ${offlineDevices.map((item) => text(item.name || item.label || item.id)).filter(Boolean).slice(0, 5).join(", ")}. Camera impairment does not establish physical disconnection.`;
     return `I don’t see confirmed offline areas in ${object.label}.`;
   }
   if (/maintenance|unresolved|fault|issue/.test(message)) {
