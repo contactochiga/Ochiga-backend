@@ -91,14 +91,18 @@ const DEVICES = [
   device("ua-1", HOME_UNAVAILABLE, { online: true }),
 ];
 
+// Wave 6 Slice 13: device_states.status must be a real object payload (as it always is in
+// production) -- the current-state authority (deviceRuntimeStateService) requires this to
+// hydrate its cache; a null status silently fails to hydrate, unlike the old code path this
+// slice replaced, which tolerated null via a raw stateRow?.status||device.status fallback.
 const DEVICE_STATES = [
-  { device_id: "raw-fresh", status: null, last_seen: FRESH_TS, updated_at: FRESH_TS },
-  { device_id: "raw-stale", status: null, last_seen: DOMAIN_STALE_TS, updated_at: DOMAIN_STALE_TS },
+  { device_id: "raw-fresh", status: { online: true }, last_seen: FRESH_TS, updated_at: FRESH_TS },
+  { device_id: "raw-stale", status: { online: false }, last_seen: DOMAIN_STALE_TS, updated_at: DOMAIN_STALE_TS },
   // raw-unavailable: no state row, and device.last_seen_at/updated_at are null -> observedAt null
-  { device_id: "ff-1", status: null, last_seen: FRESH_TS, updated_at: FRESH_TS },
-  { device_id: "ff-2", status: null, last_seen: DOMAIN_STALE_TS, updated_at: DOMAIN_STALE_TS },
-  { device_id: "sf-1", status: null, last_seen: DOMAIN_STALE_TS, updated_at: DOMAIN_STALE_TS },
-  { device_id: "sf-2", status: null, last_seen: FRESH_TS, updated_at: FRESH_TS },
+  { device_id: "ff-1", status: { online: true }, last_seen: FRESH_TS, updated_at: FRESH_TS },
+  { device_id: "ff-2", status: { online: true }, last_seen: DOMAIN_STALE_TS, updated_at: DOMAIN_STALE_TS },
+  { device_id: "sf-1", status: { online: true }, last_seen: DOMAIN_STALE_TS, updated_at: DOMAIN_STALE_TS },
+  { device_id: "sf-2", status: { online: true }, last_seen: FRESH_TS, updated_at: FRESH_TS },
   // ua-1: no state row, device.last_seen_at/updated_at null -> observedAt null
 ];
 
@@ -153,8 +157,10 @@ async function main() {
   check("5. observed timestamp preserved at occurred_at (fresh)", freshFact?.occurred_at === FRESH_TS);
   check("5b. observed timestamp preserved at occurred_at (stale)", staleFact?.occurred_at === DOMAIN_STALE_TS);
 
-  // 6. source/provenance preserved.
-  check("6. source_type/source_id/evidence provenance preserved", freshFact?.source_type === "database" && freshFact?.source_id === "raw-fresh" && freshFact?.evidence?.[0]?.source === "device_states");
+  // 6. source/provenance preserved -- evidence[0].source now honestly names which authority
+  // layer answered (persistent_snapshot/runtime) rather than the raw table name, a more precise
+  // provenance disclosure introduced by the Wave 6 Slice 13 current-state authority.
+  check("6. source_type/source_id/evidence provenance preserved", freshFact?.source_type === "database" && freshFact?.source_id === "raw-fresh" && freshFact?.evidence?.[0]?.source === "persistent_snapshot");
 
   // 7. device state VALUE (online) unchanged -- this is a freshness-only fix, not a device-truth change.
   check("7. device online value unchanged (fresh device online=true)", freshFact?.value?.online === true);

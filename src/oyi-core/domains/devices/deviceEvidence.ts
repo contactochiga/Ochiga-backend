@@ -1,6 +1,7 @@
 import { evidenceEnvelope } from "../../evidence/EvidenceEnvelope";
-import { classifyFreshness } from "../../contracts/freshness";
+import { classifyFreshness, type FreshnessClassification } from "../../contracts/freshness";
 import { observationPolicyForDevice } from "./deviceObservationPolicy";
+import { resolveDeviceCurrentStates } from "./deviceCurrentStateAuthority";
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import { safeDateLabel } from "../../presentation/timeFreshness";
@@ -63,15 +64,6 @@ export function conversationScope(input: CanonicalConversationRequest, oisContex
     home_id: input.home_id || oisContext?.home_id || null,
     room_id: input.room_id || text(recordOf(input.context).room_id || recordOf(input.context).roomId) || null,
   };
-}
-
-export function deviceFreshnessFromTimestamp(value: unknown) {
-  const ts = Date.parse(text(value));
-  if (!Number.isFinite(ts)) return { freshness: "unknown", truth_state: "unavailable" as TruthState, age_ms: null as number | null };
-  const ageMs = Date.now() - ts;
-  if (ageMs <= 2 * 60 * 1000) return { freshness: "fresh", truth_state: "confirmed" as TruthState, age_ms: ageMs };
-  if (ageMs <= 15 * 60 * 1000) return { freshness: "stale", truth_state: "observed" as TruthState, age_ms: ageMs };
-  return { freshness: "expired", truth_state: "observed" as TruthState, age_ms: ageMs };
 }
 
 export function canonicalDeviceAvailabilityStatus(input: {
@@ -220,13 +212,27 @@ export function factFromOperationalObject(
   };
 }
 
+// truth_state/confidence for a current-state fact are derived from the SAME per-device-class
+// freshness classification the runtime authority already computes -- not a separately invented
+// scale. Mirrors runtimeEvidenceForDevice's own confidence bands.
+// Only a genuinely missing observation ("unknown" -- no snapshot exists at all) is
+// truth_state "unavailable". An old-but-real observation (stale/expired/etc.) is still a real
+// fact about the device, not an absent one -- "observed", matching this loader's own established
+// convention (preserved from its pre-authority behavior; distinct from truthFromFreshness()
+// above, which serves a different canonical-awareness-adjacent contract).
+function truthStateFromRuntimeFreshness(freshness: FreshnessClassification): TruthState {
+  if (freshness === "fresh") return "confirmed";
+  if (freshness === "unknown") return "unavailable";
+  return "observed";
+}
+
 export async function loadHomeDeviceInventoryFacts(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
   const scope = conversationScope(input, oisContext);
   if (!scope.home_id) return [];
   try {
     const { data: devices, error: deviceError } = await supabaseAdmin
       .from("devices")
-      .select("id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,category,type,online,status,capabilities,metadata,last_seen_at,updated_at")
+      .select("id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,category,type,external_id,provider,vendor,adapter,online,status,capabilities,metadata,last_seen_at,updated_at")
       .eq("home_id", scope.home_id)
       .limit(100);
     if (deviceError) throw deviceError;
@@ -237,22 +243,16 @@ export async function loadHomeDeviceInventoryFacts(input: CanonicalConversationR
       : { data: [], error: null };
     if (rooms.error) logger.warn("conversation_home_room_names_load_failed", { error: rooms.error, home_id: scope.home_id });
     const roomById = new Map((rooms.data || []).map((row: any) => [String(row.id), cleanLabel(row.name, "")]));
-    const states = ids.length
-      ? await supabaseAdmin.from("device_states").select("device_id,status,last_seen,updated_at").in("device_id", ids)
-      : { data: [], error: null };
-    if (states.error) throw states.error;
-    const stateByDevice = new Map((states.data || []).map((row: any) => [String(row.device_id), row]));
+    // Current-state authority: cache-first, batched single-query hydration from persisted
+    // device_states when uncached, never a live provider poll (Wave 6 Slice 13).
+    const currentStateByDevice = await resolveDeviceCurrentStates(devices || []);
     return (devices || [])
       .filter((device: any) => !scope.room_id || String(device.room_id || "") === String(scope.room_id))
       .map((device: any): IntelligenceFact => {
-        const stateRow = stateByDevice.get(String(device.id)) as Record<string, unknown> | undefined;
-        const status = recordOf(stateRow?.status || device.status);
-        const normalized = recordOf(status.normalized_state);
-        const onlineValue = status.online ?? normalized.online ?? device.online;
-        const observedAt = stateRow?.last_seen || stateRow?.updated_at || device.last_seen_at || device.updated_at || null;
-        const freshness = deviceFreshnessFromTimestamp(observedAt);
-        const providerHealth = status.provider_health || normalized.provider_health || recordOf(device.metadata).provider_health;
-        const availability = canonicalDeviceAvailabilityStatus({ online: onlineValue, freshness: freshness.freshness, providerHealth });
+        const current = currentStateByDevice.get(String(device.id)) || null;
+        const availability = current?.availability || "unknown";
+        const freshness: FreshnessClassification = current?.freshness || "unknown";
+        const observedAt = current?.observedAt || null;
         const label = cleanLabel(device.name, "Device");
         const roomName = roomById.get(String(device.room_id)) || text(recordOf(device.metadata).room_name || recordOf(device.metadata).roomName) || null;
         return {
@@ -264,7 +264,7 @@ export async function loadHomeDeviceInventoryFacts(input: CanonicalConversationR
           statement: `${label}: ${availability.replace(/_/g, " ")}.`,
           value: {
             availability,
-            online: onlineValue ?? null,
+            online: current?.onlineRaw ?? null,
             category: device.category || null,
             type: device.type || null,
             is_virtual: Boolean(device.is_virtual),
@@ -272,22 +272,22 @@ export async function loadHomeDeviceInventoryFacts(input: CanonicalConversationR
             parent_device_name: recordOf(device.metadata).parent_device_name || recordOf(device.metadata).parentDeviceName || null,
             device_family: device.category || device.type || "device",
             room_name: roomName,
-            provider_health: providerHealth || null,
-            freshness: freshness.freshness,
-            age_ms: freshness.age_ms,
+            provider_health: current?.providerHealth || null,
+            freshness,
+            age_ms: observedAt ? Math.max(0, Date.now() - Date.parse(observedAt)) : null,
           },
           previous_value: null,
-          occurred_at: observedAt ? String(observedAt) : null,
+          occurred_at: observedAt,
           observed_at: new Date().toISOString(),
           source_type: "database",
           source_id: String(device.id),
-          truth_state: freshness.truth_state,
-          confidence: freshness.freshness === "fresh" ? 0.86 : freshness.freshness === "stale" ? 0.68 : 0.48,
+          truth_state: truthStateFromRuntimeFreshness(freshness),
+          confidence: freshness === "fresh" ? 0.86 : freshness === "stale" ? 0.68 : 0.48,
           // Top-level freshness is a raw timestamp-or-"unknown" contract (see loadRecentDeviceChangeFacts below), not the pre-classified bucket -- classifyFreshness() Date-parses this field.
           freshness: observedAt ? String(observedAt) : "unknown",
           privacy_class: "resident_device_private",
           permissions: ["read"],
-          evidence: [{ source: "device_states", device_id: String(device.id), observed_at: observedAt, freshness: freshness.freshness }],
+          evidence: [{ source: current?.source || "unavailable", device_id: String(device.id), observed_at: observedAt, freshness }],
         };
       });
   } catch (error) {
