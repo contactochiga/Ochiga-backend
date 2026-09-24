@@ -7,6 +7,7 @@ import { sendPublicApiError } from "../services/publicApi";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 import { isTechnicalDeviceHiddenFromResidents } from "../services/deviceInventoryVisibility";
 import { resolveDeviceCurrentStates } from "../oyi-core/domains/devices/deviceCurrentStateAuthority";
+import { currentDeviceOnline } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 
 function cleanText(value: any, fallback: string | null = null) {
   const text = String(value ?? "").trim();
@@ -307,7 +308,10 @@ export async function getEstateDevices(req: Request, res: Response) {
           category: cleanText(device?.category, cleanText(device?.type, "device")),
           // devices.online is provisioning-era mirror, no longer the tie-breaker when no other
           // status is set -- the canonical authority's availability verdict is (runtime wins).
-          status: cleanText(device?.status) || current?.availability || "unknown",
+          registry_status: device.status || null,
+          status: current?.availability || "unknown",
+          online: currentDeviceOnline(current),
+          current_state: current,
           capabilities: safeArray(device?.capabilities),
           protocols: safeArray(device?.protocols),
           metadata,
@@ -316,9 +320,9 @@ export async function getEstateDevices(req: Request, res: Response) {
           normalized_state: summary.normalized_state,
           supported_controls: summary.supported_controls,
           control_profile: summary.control_profile,
-          health_status: summary.health_status,
+          health_status: current?.availability || "unknown",
           provider_health: summary.provider_health,
-          primary_state: summary.primary_state,
+          primary_state: current?.availability === "online" ? summary.primary_state : "unknown",
           telemetry_summary: summary.telemetry_summary,
           device_family: summary.device_family,
           device_type: summary.device_type,

@@ -14,10 +14,11 @@
 // (10s/60s) -- that model governs the service's OWN refresh-scheduling decisions and must not be
 // changed by this slice (Section 25: no over-polling regression). The classification here is a
 // separate, consumer-facing concept: "how should Oyi honestly describe this observation's age."
-import { deviceRuntimeStateService } from "../../../services/deviceRuntimeStateService";
+import { deviceRuntimeStateService, type DeviceRuntimeSnapshot } from "../../../services/deviceRuntimeStateService";
 import { classifyFreshness, type FreshnessClassification } from "../../contracts/freshness";
 import { observationPolicyForDevice } from "./deviceObservationPolicy";
 import { canonicalDeviceAvailabilityStatus } from "./deviceEvidence";
+import { deviceCurrentStateInput } from "./deviceCurrentStateInput";
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -60,16 +61,23 @@ function unavailableState(deviceId: string, reason: string): DeviceCurrentState 
 export async function resolveDeviceCurrentStates(devices: Array<Record<string, unknown>>): Promise<Map<string, DeviceCurrentState>> {
   const now = Date.now();
   const result = new Map<string, DeviceCurrentState>();
-  const withIds = devices.filter((device) => device?.id);
+  const withIds = devices.filter((device) => device?.id).map(deviceCurrentStateInput);
   if (!withIds.length) return result;
   await deviceRuntimeStateService.hydrateMany(withIds);
   for (const device of withIds) {
     const deviceId = String(device.id);
     const snapshot = deviceRuntimeStateService.get(deviceId);
-    if (!snapshot) {
-      result.set(deviceId, unavailableState(deviceId, "no_observation"));
-      continue;
-    }
+    result.set(deviceId, interpretDeviceCurrentState(device, snapshot, now));
+  }
+  return result;
+}
+
+// The same interpretation for callers that already possess an authorized runtime
+// snapshot. No hydration, provider polling, or independent freshness rules.
+export function interpretDeviceCurrentState(input: Record<string, unknown>, snapshot: DeviceRuntimeSnapshot | null, now = Date.now()): DeviceCurrentState {
+    const device = deviceCurrentStateInput(input);
+    const deviceId = String(device.id);
+    if (!snapshot) return unavailableState(deviceId, "no_observation");
     const state = recordOf(snapshot.state);
     const normalized = recordOf(state.normalized_state);
     const observedAt = snapshot.provider_timestamp || snapshot.runtime_timestamp || snapshot.last_refresh || null;
@@ -80,7 +88,7 @@ export async function resolveDeviceCurrentStates(devices: Array<Record<string, u
     // devices.online is provisioning-era mirror, not consulted here (Section 11).
     const onlineRaw = typeof state.online === "boolean" ? state.online : typeof normalized.online === "boolean" ? normalized.online : null;
     const availability = canonicalDeviceAvailabilityStatus({ online: onlineRaw, freshness, providerHealth });
-    result.set(deviceId, {
+    return {
       deviceId,
       observedState: state,
       availability,
@@ -92,7 +100,5 @@ export async function resolveDeviceCurrentStates(devices: Array<Record<string, u
       providerHealth,
       onlineRaw,
       reason: null,
-    });
-  }
-  return result;
+    };
 }

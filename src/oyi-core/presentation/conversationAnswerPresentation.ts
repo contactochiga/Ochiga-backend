@@ -262,6 +262,12 @@ export function buildDeviceAvailabilityInventoryAnswer(facts: IntelligenceFact[]
       : "I could not load a current authorised device inventory for this home. I did not use an old selected device as a fallback.";
   }
   const asksForInventory = contract?.scope_mode === "room_scope" && /\b(show|list|view)\b[\s\S]{0,24}\b(devices?|hardware|lights?|switches?|sockets?)\b/i.test(text(message));
+  if (/\bonline\b/i.test(message) && !/\boffline\b/i.test(message)) {
+    const online = availabilityFacts.filter(fact => recordOf(fact.value).availability === "online");
+    return online.length
+      ? ["Devices confirmed online from current evidence:", ...online.slice(0, 12).map(fact => `• ${fact.object?.label || "Device"}`)].join("\n")
+      : "No authorised devices are confirmed online from current evidence.";
+  }
   if (asksForInventory) {
     const unavailable = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) !== "online").length;
     return `${availabilityFacts.length} authorised device${availabilityFacts.length === 1 ? "" : "s"} are listed for this room.${unavailable ? ` ${unavailable} need attention or clearer evidence.` : " None are currently flagged by the available evidence."}`;
@@ -458,7 +464,7 @@ export function buildVisitorAccessAnswer(facts: IntelligenceFact[]) {
   return `${rows.length} visitor access record${rows.length === 1 ? "" : "s"} are on file${pending ? `, ${pending} pending` : ""}. Access codes are never shared in conversation.`;
 }
 
-export function tableBlockForContract(contract: IntelligenceRequestContract, facts: IntelligenceFact[], predicates: PresentationFactPredicates): ConversationTableBlock | null {
+export function tableBlockForContract(contract: IntelligenceRequestContract, facts: IntelligenceFact[], predicates: PresentationFactPredicates, message = ""): ConversationTableBlock | null {
   const snapshot = {
     snapshot_mode: contract.evidence_requirements.current_state || contract.intent === "device_availability_inventory" || contract.intent === "home_operational_summary" ? "current_state_snapshot" : "historical",
     snapshot_generated_at: new Date().toISOString(),
@@ -469,7 +475,7 @@ export function tableBlockForContract(contract: IntelligenceRequestContract, fac
   };
   if (contract.intent === "device_availability_inventory") {
     const rows = deviceAvailabilityRows(facts)
-      .filter((row) => contract.scope_mode === "room_scope" || row.status !== "online")
+      .filter((row) => /\bonline\b/i.test(message) && !/\boffline\b/i.test(message) ? row.status === "online" : contract.scope_mode === "room_scope" || row.status !== "online")
       .slice(0, 20);
     if (!rows.length) return null;
     return {

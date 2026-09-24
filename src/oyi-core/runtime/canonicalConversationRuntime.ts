@@ -456,7 +456,7 @@ async function buildCanonicalAuthoritativeAnswer(input: CanonicalConversationReq
       ? `I checked ${object.label}, but the available evidence is not clean enough to summarize safely. I did not widen to other devices or perform any action.`
       : "I checked the authorised evidence, but it is not clean enough to summarize safely. I did not perform any action.",
   );
-  const tableBlock = tableBlockForContract(contract, deduped, presentationFactPredicates);
+  const tableBlock = tableBlockForContract(contract, deduped, presentationFactPredicates, input.message);
   const cards = tableBlock ? [tableBlock] : [];
   const resolvedTurn = resolvedConversationTurnFromContract(input, contract, object);
   const presentationPolicy = presentationPolicyForContract(contract);

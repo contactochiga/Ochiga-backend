@@ -62,7 +62,9 @@ function channelSummary(facts: Record<string, unknown>) {
   const states = recordOf(channels.switch_states);
   const entries = Object.entries(states).filter(([, value]) => typeof value === "boolean");
   if (!entries.length) return "";
-  return entries.map(([code, value]) => `${code.replace(/^switch_/i, "Channel ")} is ${value ? "On" : "Off"}`).join("; ");
+  const current = recordOf(facts.state);
+  const isCurrent = current.availability === "online" && current.freshness === "fresh";
+  return entries.map(([code, value]) => `${code.replace(/^switch_/i, "Channel ")} ${isCurrent ? "is" : "was last observed"} ${value ? "On" : "Off"}`).join("; ");
 }
 
 function providerHealthLabel(value: unknown) {
@@ -127,7 +129,7 @@ export function buildDeviceHealthAnswer(
     recordOf(object.metadata).source,
     stateFacts.runtime_timestamp || object.freshness,
   );
-  const status = truth.current && (provider === "healthy" || /online|available|healthy|connected/i.test(`${object.health || ""} ${stateFacts.availability || ""}`));
+  const status = truth.current && stateFacts.availability === "online";
   const lead = status
     ? `${object.label} is communicating with Oyi from fresh confirmed evidence.`
     : `Oyi cannot claim a live healthy connection for ${object.label} from the current evidence.`;

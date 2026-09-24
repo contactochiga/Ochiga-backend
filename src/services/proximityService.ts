@@ -3,6 +3,8 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { AuthUser } from "../middleware/auth";
 import { NotificationService } from "./NotificationService";
 import { emitAuditEvent } from "../core/foundation";
+import { resolveDeviceCurrentStates } from "../oyi-core/domains/devices/deviceCurrentStateAuthority";
+import { deviceCurrentStateSelect } from "../oyi-core/domains/devices/deviceCurrentStateInput";
 
 export type ProximityState = "unknown" | "home" | "near_home" | "leaving_home" | "away" | "returning" | "approaching_estate";
 
@@ -215,22 +217,27 @@ function isActiveDeviceState(row: any) {
   return Object.entries(state).some(([key, value]) => /^switch(_\d+)?$/i.test(key) && value === true);
 }
 
+// "Active" here genuinely means "currently observed ON" (feeds "N devices are still on" in the
+// leaving_home awareness message) -- a current physical-state claim, not a provisioning count.
+// Wave 6 Slice 13C: routed through the canonical authority (one batched hydration call); only a
+// genuinely fresh observation counts as active -- a stale/unknown/provider-disconnected reading
+// must not silently inflate this count (Section 13: stale/unavailable must not become active).
 async function countActiveDevices(user: AuthUser) {
   if (!user.home_id) return null;
   const { data: devices, error: devicesErr } = await supabaseAdmin
     .from("devices")
-    .select("id")
+    .select(deviceCurrentStateSelect())
     .eq("home_id", user.home_id)
     .limit(200);
   if (devicesErr) return null;
-  const ids = (devices || []).map((row: any) => String(row.id)).filter(Boolean);
-  if (!ids.length) return 0;
-  const { data: states, error: statesErr } = await supabaseAdmin
-    .from("device_states")
-    .select("device_id,status")
-    .in("device_id", ids);
-  if (statesErr) return null;
-  return (states || []).filter(isActiveDeviceState).length;
+  if (!devices?.length) return 0;
+  const currentStates = await resolveDeviceCurrentStates(devices);
+  let active = 0;
+  for (const current of currentStates.values()) {
+    if (current.freshness !== "fresh" || current.availability !== "online") continue;
+    if (isActiveDeviceState({ status: current.observedState })) active += 1;
+  }
+  return active;
 }
 
 async function countActiveVisitors(user: AuthUser) {

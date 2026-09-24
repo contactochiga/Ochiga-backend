@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import nodeCrypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { projectDeviceCurrentStateRows } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
 import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
 import { logger } from "../observability/logger";
@@ -1301,7 +1302,7 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
 
   const estates = estatesResult.rows;
   const homes = homesResult.rows;
-  const devices = devicesResult.rows;
+  const devices = await projectDeviceCurrentStateRows(devicesResult.rows);
   const estateWallets = estateWalletsResult.rows;
   const wallets = walletsResult.rows;
   const maintenanceRequests = maintenanceRequestsResult.rows;
@@ -1386,7 +1387,8 @@ router.get("/export", requireOfficeExportKey, async (req: Request, res: Response
     name: device.name || device.label || "Unnamed Device",
     category: device.category || device.type || "hardware",
     provider: device.provider || device.adapter || "oyi-os",
-    status: device.status || (device.online ? "online" : "offline"),
+    status: device.status,
+    current_state: device.current_state,
     battery_level: device.battery_level ?? device.battery ?? null,
     last_seen_at: device.last_seen_at || device.last_seen || device.updated_at || null,
     metadata: device.metadata || {},
@@ -1678,7 +1680,7 @@ router.get("/portfolio/projection", requireOfficeExportKey, async (req: Request,
 
   const estates = estatesResult.rows;
   const homes = homesResult.rows;
-  const devices = devicesResult.rows;
+  const devices = await projectDeviceCurrentStateRows(devicesResult.rows);
   const escalationRows = [...maintenanceResult.rows, ...incidentsResult.rows];
   // Office-provisioning lifecycle: the one signal Office needs to learn a
   // just-invited owner actually activated -- reusing this already-polled-
@@ -1731,9 +1733,8 @@ router.get("/portfolio/projection", requireOfficeExportKey, async (req: Request,
     }
     const b = buildingMap.get(id)!;
     b.devices_total += 1;
-    b.devices_reporting += 1;
-    const status = String(device.status || (device.online ? "online" : "offline")).toLowerCase();
-    if (status === "online") b.devices_online += 1;
+    if (device.current_state?.freshness === "fresh" && ["online", "offline"].includes(device.current_state.availability)) b.devices_reporting += 1;
+    if (device.current_state?.availability === "online") b.devices_online += 1;
   }
 
   function escalationsFor(estateId: string, id: string | null) {
@@ -1783,7 +1784,7 @@ router.get("/portfolio/projection", requireOfficeExportKey, async (req: Request,
         homes_total: estateHomes.length,
         homes_active: estateHomes.filter((h) => toNumber(h.residents_count || h.users_count) > 0).length,
         devices_total: estateDevices.length,
-        devices_online: estateDevices.filter((d) => String(d.status || (d.online ? "online" : "offline")).toLowerCase() === "online").length,
+        devices_online: estateDevices.filter((d) => d.current_state?.availability === "online").length,
         major_open_escalations: escalationsFor(estateId, null),
         last_activity_at: activity.last_activity_at,
         last_activity_label: activity.last_activity_label,

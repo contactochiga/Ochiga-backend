@@ -265,7 +265,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         const facts = factsFromEvidence(evidence);
         const contract = requestContract(context);
         const answer = buildDeviceAvailabilityInventoryAnswer(facts, contract, context.input.message);
-        const block = tableBlockForContract(contract, facts, presentationFactPredicates);
+        const block = tableBlockForContract(contract, facts, presentationFactPredicates, context.input.message);
         return { status: facts.length ? "answered" : "empty", answer, blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table") };
       },
       primary: "table",
@@ -284,7 +284,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         const facts = factsFromEvidence(evidence);
         const contract = requestContract(context);
         const answer = buildDeviceAvailabilityInventoryAnswer(facts, contract, context.input.message);
-        const block = tableBlockForContract(contract, facts, presentationFactPredicates);
+        const block = tableBlockForContract(contract, facts, presentationFactPredicates, context.input.message);
         return { status: facts.length ? "answered" : "empty", answer, blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table") };
       },
       primary: "table",

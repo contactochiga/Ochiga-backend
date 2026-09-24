@@ -25,6 +25,8 @@ import type { AuthUser } from "../middleware/auth";
 import { resolveCanonicalRef, type CanonicalRefEntityType } from "./canonicalReferenceResolver";
 import { CANONICAL_DEVICE_SELECT } from "./canonicalDeviceReadResolver";
 import { deviceRuntimeStateService } from "./deviceRuntimeStateService";
+import { resolveDeviceCurrentStates } from "../oyi-core/domains/devices/deviceCurrentStateAuthority";
+import { currentDeviceOnline, currentDevicePanelProjection, projectDeviceCurrentStateRows } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 import { canFacilityViewDevice, canFacilityControlDevice, projectDeviceForSurface } from "./deviceProjectionService";
 import { platformGapService } from "./platformGapService";
 import { canAccessCamera, cameraHomeId } from "../modules/cameras/cameraAccess.policy";
@@ -119,11 +121,11 @@ async function boundedDevices(estateId: string, homeId: string | null, roomId: s
   else if (homeId) query = query.eq("home_id", homeId);
   const { data, error } = await query;
   if (error) throw error;
-  const items = (data || [])
-    .filter((device: any) => canFacilityViewDevice(device, actor || {}))
+  const visible = (data || []).filter((device: any) => canFacilityViewDevice(device, actor || {}));
+  const items = (await projectDeviceCurrentStateRows(visible))
     .map((device: any) => {
       const projected = projectDeviceForSurface(device, { actor: actor || {}, surface: "facility" });
-      return { id: device.id, name: device.name, type: device.type, category: device.category, online: device.online, status: device.status, projection: projected.projection };
+      return { id: device.id, name: device.name, type: device.type, category: device.category, online: device.online, status: device.status, current_state: device.current_state, projection: projected.projection };
     });
   return { permitted: true, available: items.length > 0, items };
 }
@@ -150,22 +152,32 @@ async function buildDeviceContext(canonicalId: string, canonicalRef: string, est
   if (!device) return { status: "not_found" };
   if (!canFacilityViewDevice(device, actor || {})) return { status: "permission_denied", domain: "device", permission: "devices.read" };
 
-  const runtime = await deviceRuntimeStateService.getOrHydrate(device).catch(() => null);
+  const current = await resolveDeviceCurrentStates([device]).then(states => states.get(String(device.id)) || null).catch(() => null);
+  const runtime = current ? deviceRuntimeStateService.get(String(device.id)) : null;
   const canControl = canFacilityControlDevice(device, actor || {});
 
-  const operational_state = runtime
+  const operational_state = current
     ? {
-        online: (runtime.state as any)?.online ?? device.online ?? null,
-        summary: runtime.summary,
-        freshness: runtime.freshness,
-        stale: runtime.stale,
-        age_ms: runtime.age_ms,
-        source: runtime.source,
-        provider_error: runtime.provider_error,
-        authorization_state: runtime.authorization_state,
-        last_refresh: runtime.last_refresh,
+        online: currentDeviceOnline(current),
+        status: current.availability,
+        current_state: current,
+        summary: runtime?.summary ? {
+          ...runtime.summary,
+          availability: current.availability,
+          primary_state: current.availability === "online" ? runtime.summary.primary_state : "unknown",
+          health_status: current.availability,
+          canonical_state: currentDevicePanelProjection(runtime.summary.canonical_state || null, current),
+          canonical_presentation: currentDevicePanelProjection(runtime.summary.canonical_presentation || null, current),
+        } : null,
+        freshness: current.freshness,
+        stale: current.freshness !== "fresh",
+        age_ms: current.observedAt ? Math.max(0, Date.now() - Date.parse(current.observedAt)) : null,
+        source: current.source,
+        provider_error: runtime?.provider_error || null,
+        authorization_state: runtime?.authorization_state || "unknown",
+        last_refresh: current.observedAt,
       }
-    : { online: device.online ?? null, summary: null, freshness: "unavailable", stale: true, source: "unavailable", note: "runtime hydration unavailable" };
+    : { online: null, status: "unknown", current_state: null, summary: null, freshness: "unknown", stale: true, source: "unavailable", note: "runtime hydration unavailable" };
 
   const context: SpatialFacilityContext = {
     canonical_ref: canonicalRef,

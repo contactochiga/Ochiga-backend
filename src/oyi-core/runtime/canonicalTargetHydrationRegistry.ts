@@ -251,7 +251,7 @@ function deviceFacts(panel: Record<string, unknown>, device: Record<string, unkn
       normalized_state: panel.normalized_state || recordOf(panel.state).normalized_state || null,
       health_status: panel.health_status || null,
       provider_health: panel.provider_health || null,
-      availability: presentation.availability || panel.availability || null,
+      availability: recordOf(panel.current_state).availability || panel.availability || presentation.availability || null,
       freshness,
       runtime_timestamp: panel.runtime_timestamp || null,
       provider_timestamp: panel.provider_timestamp || null,
@@ -315,7 +315,7 @@ async function loadCanonicalDeviceFacts(request: CanonicalHydrationRequest, devi
       freshness: object.freshness,
     }],
     freshness: object.freshness,
-    truth_state: freshnessTruthState(object.freshness),
+    truth_state: recordOf(hydration.panel.current_state).availability === "online" ? freshnessTruthState(object.freshness) : "unavailable",
     source: hydration.source,
   }, startedAt);
 }

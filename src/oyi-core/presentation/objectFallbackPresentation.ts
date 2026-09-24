@@ -503,12 +503,21 @@ function spatialAreaAggregation(input: CanonicalConversationRequest, object: Ope
     return `I don’t see confirmed occupied rooms for ${object.label} right now.`;
   }
   if (/lights on|rooms.*on|still.*on/.test(message)) {
-    const onDevices = devices.filter((device) => /light|switch|relay/i.test(text(device.type || device.family || device.name || device.label)) && /on|active/i.test(text(device.state || device.status || device.primary_state)));
+    const onDevices = devices.filter((device) => {
+      const current = recordOf(device.current_state);
+      const state = recordOf(current.observedState);
+      return /light|switch|relay/i.test(text(device.type || device.family || device.name || device.label))
+        && current.availability === "online" && current.freshness === "fresh"
+        && (state.power === true || state.switch === true || recordOf(state.normalized_state).power === true);
+    });
     if (onDevices.length) return `${onDevices.map((device) => text(device.room_name || device.room || device.name || device.label)).filter(Boolean).join(", ")} still ${onDevices.length === 1 ? "has" : "have"} lights on.`;
     return `I don’t see any confirmed lights still on in ${object.label}.`;
   }
   if (/offline|unavailable|down/.test(message)) {
-    const offlineDevices = [...devices, ...cameras].filter((item) => /offline|unavailable|down|degraded/i.test(text(item.health || item.status || item.state)));
+    const offlineDevices = [
+      ...devices.filter((device) => recordOf(device.current_state).availability === "offline"),
+      ...cameras.filter((item) => /offline|unavailable|down|degraded/i.test(text(item.health || item.status || item.state))),
+    ];
     if (offlineDevices.length) return `${offlineDevices.length} ${offlineDevices.length === 1 ? "object is" : "objects are"} offline or degraded in ${object.label}: ${offlineDevices.map((item) => text(item.name || item.label || item.id)).filter(Boolean).slice(0, 5).join(", ")}.`;
     return `I don’t see confirmed offline areas in ${object.label}.`;
   }

@@ -8,6 +8,8 @@ import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeR
 import { sendPublicApiError } from "../services/publicApi";
 import { buildCanonicalDevicePresentation } from "../device/runtime/deviceStateEnrichment";
 import { resolveCanonicalDeviceForRead } from "../services/canonicalDeviceReadResolver";
+import { interpretDeviceCurrentState } from "../oyi-core/domains/devices/deviceCurrentStateAuthority";
+import { currentDevicePanelProjection } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 
 type StateIncludes = {
   intelligence: boolean;
@@ -65,6 +67,7 @@ export function buildDeviceStateResponse(input: {
   timeline?: any;
 }) {
   const { device, runtime, intelligence, timeline } = input;
+  const current = interpretDeviceCurrentState(device, runtime);
   const summary = runtime?.summary || null;
   const state = runtime?.state || {};
   const canonicalState = summary?.canonical_state || null;
@@ -72,6 +75,8 @@ export function buildDeviceStateResponse(input: {
     ? buildCanonicalDevicePresentation(device, canonicalState, { ...(summary || {}), normalized_state: summary?.normalized_state || {} })
     : summary?.canonical_presentation || null;
   return {
+    current_state: current,
+    availability: current.availability,
     deviceId: device.id,
     device_id: device.id,
     external_id: device.external_id || null,
@@ -82,14 +87,14 @@ export function buildDeviceStateResponse(input: {
     capabilities: summary?.capabilities || device.capabilities || [],
     supported_controls: summary?.supported_controls || [],
     control_profile: summary?.control_profile || "generic",
-    health_status: summary?.health_status || "unknown",
+    health_status: current.availability,
     provider_health: summary?.provider_health || "unknown",
     provider_warning: runtime?.provider_warning || null,
     authorization_state: runtime?.authorization_state || "unknown",
     last_provider_error: runtime?.provider_error || null,
     retry_after: runtime?.retry_after || null,
     last_successful_refresh: runtime?.last_successful_refresh || null,
-    primary_state: summary?.primary_state || "unknown",
+    primary_state: current.availability === "online" ? summary?.primary_state || "unknown" : "unknown",
     telemetry_summary: summary?.telemetry_summary || {},
     device_family: summary?.device_family || device.metadata?.device_family || "unknown",
     device_type: summary?.device_type || device.type || device.category || "device",
@@ -97,10 +102,10 @@ export function buildDeviceStateResponse(input: {
     activity_summary: summary?.activity_summary || null,
     channel_definitions: summary?.channel_definitions || [],
     capability_codes: summary?.capability_codes || [],
-    canonical_state: canonicalState,
-    canonicalState,
-    canonical_presentation: presentation,
-    presentation,
+    canonical_state: currentDevicePanelProjection(canonicalState, current),
+    canonicalState: currentDevicePanelProjection(canonicalState, current),
+    canonical_presentation: currentDevicePanelProjection(presentation, current),
+    presentation: currentDevicePanelProjection(presentation, current),
     assignment: presentation?.assignment || {
       estateId: device.estate_id || null,
       buildingId: device.building_id || device.metadata?.building_id || null,
@@ -116,7 +121,8 @@ export function buildDeviceStateResponse(input: {
     last_refresh: runtime?.last_refresh || null,
     ttl: runtime?.ttl || 10_000,
     stale: runtime?.stale ?? true,
-    freshness: runtime?.freshness || "expired",
+    freshness: current.freshness,
+    runtime_freshness: runtime?.freshness || "expired",
     provider_latency_ms: runtime?.provider_latency_ms || null,
     dirty: runtime?.dirty ?? true,
     ...(timeline !== undefined ? { timeline } : {}),

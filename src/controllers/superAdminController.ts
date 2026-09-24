@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { deviceCurrentStateSelect } from "../oyi-core/domains/devices/deviceCurrentStateInput";
+import { projectDeviceCurrentStateRows } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 
 function n(v: any, fallback: number, min: number, max: number) {
   const x = Number.parseInt(String(v ?? ""), 10);
@@ -193,7 +195,7 @@ export async function listDevices(req: Request, res: Response) {
 
     let query = supabaseAdmin
       .from("devices")
-      .select("id,estate_id,home_id,room_id,name,type,adapter,vendor,status,bind_state,created_at")
+      .select(deviceCurrentStateSelect("estate_id,home_id,room_id,name,status,bind_state,created_at"))
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -201,7 +203,7 @@ export async function listDevices(req: Request, res: Response) {
 
     const { data, error } = await query;
     if (error) return res.status(500).json({ error: error.message });
-    return res.json({ ok: true, items: data || [] });
+    return res.json({ ok: true, items: await projectDeviceCurrentStateRows(data || []) });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || "Failed to list devices" });
   }

@@ -11,7 +11,6 @@ import { NotificationService } from "../services/NotificationService";
 import { actorHasFacilityReadScope } from "../intelligence-core/permissionEngine";
 import { canAccessCamera, cameraAccessActor } from "../modules/cameras/cameraAccess.policy";
 import {
-  buildDeviceTimeline,
   type DeviceRuntimeScope,
   isDeviceDefinitelyOffline,
   listVisibleDevices,
@@ -19,6 +18,8 @@ import {
   normalizeDeviceOnlineState,
   resolveVisibleDevice,
 } from "../services/deviceRuntimeService";
+import { resolveDeviceCurrentStates } from "../oyi-core/domains/devices/deviceCurrentStateAuthority";
+import { deviceCurrentStateSelect } from "../oyi-core/domains/devices/deviceCurrentStateInput";
 
 export type AiCommandStatus =
   | "pending_confirmation"
@@ -336,7 +337,7 @@ async function homeContext(actor: AuthUser, estateId?: string | null, homeId?: s
 async function summarizeHomeStateTool(actor: AuthUser) {
   const ctx = await homeContext(actor);
   const deviceFilter = (q: any) => {
-    let next = q.select("id,name,category,type,status,home_id,estate_id,metadata,online,is_online,connected,updated_at").limit(100);
+    let next = q.select(deviceCurrentStateSelect("name,home_id,estate_id,updated_at")).limit(100);
     if (ctx.estateId) next = next.eq("estate_id", ctx.estateId);
     if (ctx.homeId) next = next.eq("home_id", ctx.homeId);
     return next;
@@ -360,7 +361,12 @@ async function summarizeHomeStateTool(actor: AuthUser) {
     ctx.estateId ? selectRows("community_posts", (q) => q.select("id,title,body,category,priority,is_pinned,status,created_at,updated_at").eq("estate_id", ctx.estateId).neq("status", "deleted").order("created_at", { ascending: false }).limit(20)) : Promise.resolve({ available: true, rows: [], error: "" }),
     safeWatchStatus(actor),
   ]);
-  const normalizedDevices = devices.rows.map((row: any) => ({ ...row, runtime: normalizeDeviceOnlineState(row) }));
+  // Wave 6 Slice 13C -- routed through the canonical current-state authority (one batched
+  // hydration call) instead of normalizeDeviceOnlineState(), which derived online/offline
+  // purely from devices.online/is_online/connected (provisioning-mirror fields), never
+  // device_states.
+  const deviceCurrentStates = await resolveDeviceCurrentStates(devices.rows);
+  const normalizedDevices = devices.rows.map((row: any) => ({ ...row, runtime: { state: deviceCurrentStates.get(String(row.id))?.availability || "unknown" } }));
   const offline = normalizedDevices.filter((row: any) => row.runtime.state === "offline").length;
   const online = normalizedDevices.filter((row: any) => row.runtime.state === "online").length;
   const favorites = normalizedDevices.filter((row: any) => Boolean(row?.metadata?.favorite)).slice(0, 6);
@@ -383,7 +389,7 @@ async function summarizeHomeStateTool(actor: AuthUser) {
           { label: "Open maintenance", value: openMaintenance.length },
           { label: "Active visitors", value: activeVisitors.length },
         ]),
-        ...(favorites.length ? [structuredCard("favorite_devices", "Favorite devices", "Frequently used devices in this home.", favorites.map((row: any) => ({ title: row.name || "Device", subtitle: normalizeDeviceOnlineState(row).state })))] : []),
+        ...(favorites.length ? [structuredCard("favorite_devices", "Favorite devices", "Frequently used devices in this home.", favorites.map((row: any) => ({ title: row.name || "Device", subtitle: row.runtime.state })))] : []),
         ...(urgentNotices.length ? [structuredCard("urgent_notices", "Urgent notices", "Important community updates.", urgentNotices.map((row: any) => ({ title: row.title || "Notice", subtitle: row.category || row.priority || "Community", timestamp: row.created_at })))] : []),
         structuredCard("watch_status", "Oyi Watch", watch?.scoped ? `${watch.quick_action_count || 0} quick action${watch.quick_action_count === 1 ? "" : "s"} ready.` : "Open Oyi on iPhone to sync Watch.", [{ label: "Scoped", value: Boolean(watch?.scoped) }, { label: "Quick actions", value: watch?.quick_action_count || 0 }]),
       ],
@@ -1280,6 +1286,10 @@ export async function summarizeModuleToolForTest(actor: AuthUser, prompt: string
   return summarizeModuleTool(actor, prompt, args);
 }
 
+export async function executeReadToolForTest(toolId: string, actor: AuthUser, prompt: string, args: Record<string, any>) {
+  return executeReadTool(toolId, actor, prompt, args);
+}
+
 async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, args: Record<string, any>) {
   const estateId = actorEstate(actor, args.estate_id || args.estateId || null);
   const homeId = actorHome(actor, args.home_id || args.homeId || null);
@@ -1321,20 +1331,27 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
   if (toolId === "summarize_devices") {
     const scope = readOnlyDeviceScope(actor, args);
     const rows = await listVisibleDevices(actor, 500, scope);
-    const deviceIds = rows.map((row: any) => row.id).filter(Boolean);
-    const states = deviceIds.length
-      ? await selectRows("device_states", (q) => q.select("device_id,status,last_seen,updated_at").in("device_id", deviceIds).limit(500))
-      : { available: true, rows: [] as any[], error: "" };
-    const stateByDevice = new Map((states.rows || []).map((row: any) => [String(row.device_id), row]));
+    // Wave 6 Slice 13C -- one batched canonical current-state hydration for the whole list
+    // (never one lookup per device) instead of a raw device_states query whose result was
+    // fetched but never actually used for the online/offline verdict -- `online` below used to
+    // come from normalizeDeviceOnlineState(device), the provisioning row, while the fetched
+    // device_states row was only consulted for `power`/timeline fields.
+    const currentStates = await resolveDeviceCurrentStates(rows);
     const entities = rows.map((device: any) => {
-      const latest: any = stateByDevice.get(String(device.id)) || null;
-      const state: Record<string, any> = latest?.status && typeof latest.status === "object" ? latest.status : {};
-      const timeline = buildDeviceTimeline(device, latest);
-      const online = normalizeDeviceOnlineState(device).state;
+      const current = currentStates.get(String(device.id)) || null;
+      const state: Record<string, any> = current?.observedState && typeof current.observedState === "object" ? current.observedState : {};
+      // Current-state timestamps cannot fall back to registry update/reachability mirrors.
+      const timeline = {
+        latest_state_at: current?.receivedAt || null,
+        last_seen_at: current?.availability === "online" ? current.observedAt : null,
+        provider_reported_at: current?.observedAt || null,
+      };
+      const online = current?.availability || "unknown";
       const power = typeof state.switch === "boolean" ? (state.switch ? "on" : "off")
         : typeof state.power === "boolean" ? (state.power ? "on" : "off")
           : typeof state.on === "boolean" ? (state.on ? "on" : "off") : null;
-      const status = [online, power].filter((value) => value && value !== "unknown").join(" • ") || "status unknown";
+      const currentPower = current?.freshness === "fresh" && online === "online" ? power : null;
+      const status = [online, currentPower].filter((value) => value && value !== "unknown").join(" • ") || "status unknown";
       return {
         type: "device",
         id: String(device.id),
@@ -1348,6 +1365,9 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
           provider: device.provider || device.vendor || device.adapter || null,
           external_id: device.external_id || null,
           online_state: online,
+          current_state: current,
+          // New (Wave 6 Slice 13C): honest per-device-class freshness verdict, previously absent.
+          freshness: current?.freshness || "unknown",
           latest_state: state,
           latest_state_at: timeline.latest_state_at,
           last_seen_at: timeline.last_seen_at,
@@ -1366,7 +1386,7 @@ async function executeReadTool(toolId: string, actor: AuthUser, prompt: string, 
         : `No registered ${scope.estateWide ? "infrastructure devices" : "devices"} were found for this ${scopeLabel} context.`,
       data: {
         devices: { available: true, count: entities.length },
-        states: { available: states.available, count: states.rows.length, error: states.error },
+        states: { available: true, count: currentStates.size, error: "" },
         conversation_entities: entities,
         cards: [structuredCard("devices", scope.estateWide ? "Infrastructure devices" : "Devices", `${entities.length} registered device${entities.length === 1 ? "" : "s"}.`, entities.slice(0, 20).map((entity) => ({ title: entity.title, status: entity.status, device_id: entity.id })))],
       },
@@ -1559,12 +1579,13 @@ async function executeDeviceCommandTool(req: Request | undefined, actor: AuthUse
     if (device?.__oyi_ambiguous) {
       return { tool_id: "device_command", status: "failed", error: "device_ambiguous", summary: ambiguousDeviceSummary(device) };
     }
+    const current = device ? (await resolveDeviceCurrentStates([device])).get(String(device.id)) : null;
     const summary = device
-      ? `${device.name || "Device"} is ${deviceOffline(device) ? "offline" : "available"}.`
+      ? `${device.name || "Device"} is ${(current?.availability || "unknown").replace(/_/g, " ")}.`
       : "I could not find that device in your home scope.";
     const ledger = await writeLedger({ actor, toolId: "device_command", prompt, status: device ? "executed" : "failed", estateId, homeId, resultSummary: summary, errorMessage: device ? "" : "device_not_found", metadata: { mode: "status" } });
     await audit(req, actor, device ? "ai.tool.executed" : "ai.action.failed", device ? "success" : "failed", { tool_id: "device_command", ledger_id: ledger.id, mode: "status" });
-    return { tool_id: "device_command", status: device ? "executed" : "failed", ledger_id: ledger.id || null, summary, data: { device_id: device?.id || null } };
+    return { tool_id: "device_command", status: device ? "executed" : "failed", ledger_id: ledger.id || null, summary, data: { device_id: device?.id || null, current_state: current } };
   }
 
   const device = await findDeviceForPrompt(actor, prompt, args);

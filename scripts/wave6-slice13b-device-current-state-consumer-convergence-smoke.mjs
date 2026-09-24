@@ -6,6 +6,7 @@
 // obey src/oyi-core/domains/devices/deviceCurrentStateAuthority.ts, and that all migrated
 // surfaces agree with each other and with the authority itself for the same device.
 import { createRequire } from "module";
+import { projectSelected } from "./helpers/device-read-smoke-isolation.mjs";
 const require = createRequire(import.meta.url);
 const path = require("path");
 const backendRoot = "/Users/ochigaidoko/Documents/Ochiga-backend";
@@ -33,8 +34,9 @@ function makeSupabaseMock(tables) {
       calls[table] = (calls[table] || 0) + 1;
       const rows = tables[table] || [];
       const state = { eqFilters: {}, inFilters: {}, notNull: [] };
+      let selection = "*";
       const builder = {
-        select() { return builder; },
+        select(fields = "*") { selection = fields; return builder; },
         eq(col, val) { state.eqFilters[col] = val; return builder; },
         in(col, vals) { state.inFilters[col] = vals; return builder; },
         or() { return builder; },
@@ -47,9 +49,9 @@ function makeSupabaseMock(tables) {
           for (const c of state.notNull) if (row[c] === null || row[c] === undefined) return false;
           return true;
         },
-        maybeSingle() { return Promise.resolve({ data: rows.find((r) => builder._matches(r)) || null, error: null }); },
-        single() { return Promise.resolve({ data: rows.find((r) => builder._matches(r)) || null, error: null }); },
-        then(resolve) { return Promise.resolve({ data: rows.filter((r) => builder._matches(r)), error: null }).then(resolve); },
+        maybeSingle() { return Promise.resolve({ data: projectSelected(rows.find((r) => builder._matches(r)) || null, selection), error: null }); },
+        single() { return builder.maybeSingle(); },
+        then(resolve) { return Promise.resolve({ data: rows.filter((r) => builder._matches(r)).map(row => projectSelected(row, selection)), error: null }).then(resolve); },
       };
       return builder;
     },

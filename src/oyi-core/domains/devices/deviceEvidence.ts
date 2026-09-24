@@ -2,6 +2,7 @@ import { evidenceEnvelope } from "../../evidence/EvidenceEnvelope";
 import { classifyFreshness, type FreshnessClassification } from "../../contracts/freshness";
 import { observationPolicyForDevice } from "./deviceObservationPolicy";
 import { resolveDeviceCurrentStates } from "./deviceCurrentStateAuthority";
+import { deviceCurrentStateInput, deviceCurrentStateSelect } from "./deviceCurrentStateInput";
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import { safeDateLabel } from "../../presentation/timeFreshness";
@@ -19,7 +20,7 @@ export function runtimeEvidenceForDevice(input: {
   runtime: Record<string, unknown> | null;
   scope: { estate_id: string | null; home_id: string | null; room_id: string | null };
 }) {
-  const policy = observationPolicyForDevice(input.device, input.runtime);
+  const policy = observationPolicyForDevice(deviceCurrentStateInput(input.device), input.runtime);
   const observedAt = String(input.runtime?.provider_timestamp || input.runtime?.runtime_timestamp || input.runtime?.last_refresh || "") || null;
   return evidenceEnvelope({
     domain: "devices",
@@ -183,7 +184,9 @@ export function factFromOperationalObject(
 ): IntelligenceFact {
   const scope = conversationScope(input, oisContext);
   const stateFacts = recordOf(hydrationFacts.state);
-  const truth = truthFromFreshness(object.freshness, recordOf(object.metadata).source);
+  const unavailableDevice = ["device", "device_channel"].includes(object.object_type)
+    && stateFacts.availability && !["online", "offline"].includes(String(stateFacts.availability));
+  const truth = unavailableDevice ? "unavailable" : truthFromFreshness(object.freshness, recordOf(object.metadata).source);
   const statement = options.objectStateLine ? options.objectStateLine(object) : `${object.label} is ${human(object.current_state || "unknown")}.`;
   return {
     fact_id: `object_state:${object.object_type}:${object.canonical_id}:${object.freshness || "unknown"}`,
@@ -232,7 +235,7 @@ export async function loadHomeDeviceInventoryFacts(input: CanonicalConversationR
   try {
     const { data: devices, error: deviceError } = await supabaseAdmin
       .from("devices")
-      .select("id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,category,type,external_id,provider,vendor,adapter,online,status,capabilities,metadata,last_seen_at,updated_at")
+      .select(deviceCurrentStateSelect("name,estate_id,home_id,room_id,last_seen_at,updated_at"))
       .eq("home_id", scope.home_id)
       .limit(100);
     if (deviceError) throw deviceError;

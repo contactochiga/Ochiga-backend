@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { getTuyaUidForUser, syncTuyaRegistryForActor } from "../services/tuyaRegistrySyncService";
 import { canFacilityViewDevice, projectDeviceForSurface } from "../services/deviceProjectionService";
+import { projectDeviceCurrentStateRows } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 
 function clean(value: any, fallback = "") {
   return String(value ?? fallback).trim();
@@ -33,12 +34,10 @@ async function safeSelect(table: string, query: (builder: any) => any) {
 }
 
 function deviceStatus(device: any) {
-  const status = clean(device?.status).toLowerCase();
+  const status = clean(device?.registry_status).toLowerCase();
   if (device?.is_managed_disabled === true || status === "error") return "error";
   if (!device?.home_id) return "pending_assignment";
-  if (device?.online === true || ["active", "online", "ok"].includes(status)) return "online";
-  if (device?.online === false || ["offline", "down", "unavailable"].includes(status)) return "offline";
-  return "unknown";
+  return device.current_state?.availability || "unknown";
 }
 
 function locationFor(device: any, homes: Map<string, any>, rooms: Map<string, any>) {
@@ -76,8 +75,8 @@ export async function getFacilityInfrastructure(req: Request, res: Response) {
 
   const homes = new Map((homesResult.data as any[]).map((home) => [clean(home.id), home]));
   const rooms = new Map((roomsResult.data as any[]).map((room) => [clean(room.id), room]));
-  const registry = (devicesResult.data as any[])
-    .filter((device) => canFacilityViewDevice(device, actor))
+  const visibleRegistry = (devicesResult.data as any[]).filter((device) => canFacilityViewDevice(device, actor));
+  const registry = (await projectDeviceCurrentStateRows(visibleRegistry))
     .map((device) => projectDeviceForSurface(device, { actor, surface: "facility" }))
     .map((device) => ({
     id: device.id,
@@ -89,8 +88,9 @@ export async function getFacilityInfrastructure(req: Request, res: Response) {
     provider: clean(device.provider || device.vendor || device.adapter, "unknown"),
     adapter: clean(device.adapter || device.provider || device.vendor, "unknown"),
     status: deviceStatus(device),
-    raw_status: clean(device.status, "unknown"),
+    raw_status: clean(device.registry_status, "unknown"),
     online: typeof device.online === "boolean" ? device.online : null,
+    current_state: device.current_state,
     last_seen_at: device.last_seen_at || null,
     last_event_at: device.last_event_at || null,
     sync_state: clean(device.sync_state, "unknown"),

@@ -179,9 +179,9 @@ const building = {
     floors: [{ id: "floor-1", name: "First Floor" }, { id: "floor-2", name: "Second Floor" }],
     rooms: [{ id: "room-1", name: "Bedroom", occupancy: "occupied" }],
     devices: [
-      { id: "dev-1", name: "Bedroom Light", type: "light", state: "on", room_name: "Bedroom" },
-      { id: "dev-2", name: "Corridor Camera", type: "camera", health: "offline" },
+      { id: "dev-1", name: "Bedroom Light", type: "light", state: "on", room_name: "Bedroom", current_state: { availability: "online", freshness: "fresh", observedState: { switch: true } } },
     ],
+    cameras: [{ id: "camera-2", name: "Corridor Camera", health: "offline" }],
   },
 };
 const buildingShape = runtime.canonicalObjectConversationForTest({
@@ -189,7 +189,7 @@ const buildingShape = runtime.canonicalObjectConversationForTest({
   object: building,
   response: { message: "There are 27 devices connected.", execution: { status: "read_only" } },
 });
-assert.match(buildingShape.message, /Building A contains 2 floors, 1 room, 2 devices/i);
+assert.match(buildingShape.message, /Building A contains 2 floors, 1 room, 1 device, 1 camera/i);
 assert.doesNotMatch(buildingShape.message, /27 devices/i);
 
 const lightsOnShape = runtime.canonicalObjectConversationForTest({
@@ -198,6 +198,15 @@ const lightsOnShape = runtime.canonicalObjectConversationForTest({
   response: { message: "I can help.", execution: { status: "read_only" } },
 });
 assert.match(lightsOnShape.message, /Bedroom still has lights on/i);
+for (const current of [null, { availability: "provider_disconnected", freshness: "fresh" }, { availability: "stale", freshness: "stale" }, { availability: "unknown", freshness: "unknown" }]) {
+  const unavailable = runtime.canonicalObjectConversationForTest({
+    message: "Which rooms still have lights on?",
+    object: { ...building, relationships: { ...building.relationships, devices: [{ ...building.relationships.devices[0], current_state: current && { ...current, observedState: { switch: true } } }] } },
+    response: { message: "I can help.", execution: { status: "read_only" } },
+  });
+  assert.doesNotMatch(unavailable.message, /Bedroom still has lights on/i);
+  assert.match(unavailable.message, /don’t see any confirmed lights/i);
+}
 
 const offlineAreaShape = runtime.canonicalObjectConversationForTest({
   message: "Which areas are offline?",

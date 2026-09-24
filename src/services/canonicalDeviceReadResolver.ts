@@ -2,12 +2,13 @@ import type { AuthUser } from "../middleware/auth";
 import { logger } from "../observability/logger";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { deviceReadScopeCache } from "./deviceReadScopeCache";
+import { deviceCurrentStateSelect } from "../oyi-core/domains/devices/deviceCurrentStateInput";
 import {
   isTechnicalDeviceHiddenFromResidents,
   resolveCanonicalIrChildForProviderRemote,
 } from "./deviceInventoryVisibility";
 
-export const CANONICAL_DEVICE_SELECT = "id,name,estate_id,home_id,room_id,parent_device_id,is_virtual,external_id,vendor,provider,adapter,online,status,type,category,capabilities,metadata,last_seen_at,last_event_at,updated_at";
+export const CANONICAL_DEVICE_SELECT = deviceCurrentStateSelect("name,estate_id,home_id,room_id,online,status,last_seen_at,last_event_at,updated_at");
 export const CANONICAL_DEVICE_SNAPSHOT_SELECT = "device_states(device_id,status,last_seen,updated_at)";
 
 export type CanonicalDeviceReadResolutionStatus =

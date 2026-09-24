@@ -7,6 +7,8 @@ import { sendPublicApiError } from "../services/publicApi";
 import { exposeServerTiming, requestStageTimingSnapshot, timeRequestStage, timeRequestStageSync } from "../observability/requestStageTiming";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 import { isTechnicalDeviceHiddenFromResidents } from "../services/deviceInventoryVisibility";
+import { interpretDeviceCurrentState } from "../oyi-core/domains/devices/deviceCurrentStateAuthority";
+import { currentDevicePanelProjection } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 
 const ESTATE_WIDE_ROLES = new Set(["admin", "manager", "estate_admin", "facility_admin", "facility_manager", "operator"]);
 export const DEVICE_RUNTIME_PAYLOAD_BYTE_LIMIT = 50_000;
@@ -155,6 +157,7 @@ function compactPresentation(presentation: Record<string, any> | null | undefine
 }
 
 export function buildCompactRuntimeDashboardDevice(device: Record<string, any>, runtime: any) {
+  const current = interpretDeviceCurrentState(device, runtime);
   const freshnessState = runtimeContractFreshness(runtime);
   const summary = runtime?.summary || null;
   const rawCanonicalState = summary?.canonical_state
@@ -171,6 +174,8 @@ export function buildCompactRuntimeDashboardDevice(device: Record<string, any>, 
     : summary?.canonical_presentation || null;
   const normalizedState = summary?.normalized_state || {};
   return {
+    current_state: { ...current, observedState: undefined },
+    availability: current.availability,
     id: String(device.id),
     device_id: String(device.id),
     name: String(device.name || "Device"),
@@ -187,15 +192,15 @@ export function buildCompactRuntimeDashboardDevice(device: Record<string, any>, 
     category: device.category || null,
     metadata: compactDeviceMetadata(device.metadata || {}),
     state: compactRuntimeState(runtime?.state || {}, normalizedState),
-    canonical_state: compactCanonicalState(rawCanonicalState),
-    canonical_presentation: compactPresentation(rawPresentation),
-    primary_state: summary?.primary_state || "unknown",
-    health_status: summary?.health_status || "unknown",
+    canonical_state: currentDevicePanelProjection(compactCanonicalState(rawCanonicalState), current),
+    canonical_presentation: currentDevicePanelProjection(compactPresentation(rawPresentation), current),
+    primary_state: current.availability === "online" ? summary?.primary_state || "unknown" : "unknown",
+    health_status: current.availability,
     provider_health: summary?.provider_health || "unknown",
     provider_warning: runtime?.provider_warning || null,
     authorization_state: runtime?.authorization_state || "unknown",
     retry_after: runtime?.retry_after || null,
-    freshness_state: freshnessState,
+    freshness_state: current.freshness,
     runtime_freshness: freshnessState,
     last_confirmed_at: runtime?.provider_timestamp || runtime?.last_successful_refresh || device.last_seen_at || null,
     is_cache_expired: freshnessState === "expired",
@@ -208,7 +213,7 @@ export function buildCompactRuntimeDashboardDevice(device: Record<string, any>, 
     last_refresh: runtime?.last_refresh || null,
     ttl: runtime?.ttl || 10_000,
     stale: runtime?.stale ?? true,
-    freshness: runtime?.freshness || "expired",
+    freshness: current.freshness,
     synchronizing: !runtime,
   };
 }

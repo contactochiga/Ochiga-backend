@@ -5,6 +5,8 @@ import { supabaseAdmin } from "../supabase/supabaseClient";
 import { getIO } from "../realtime/io";
 import { calculateDistance } from "../utils/geoMath";
 import { notifyUser, NotificationPayload } from "../services/NotificationService";
+import { resolveDeviceCurrentStates } from "../oyi-core/domains/devices/deviceCurrentStateAuthority";
+import { deviceCurrentStateSelect } from "../oyi-core/domains/devices/deviceCurrentStateInput";
 
 function isDeviceActive(status: any) {
   if (!status || typeof status !== "object") return false;
@@ -197,7 +199,7 @@ export async function evaluateGeoAlerts(req: Request, res: Response) {
 
     const { data: devices, error: devicesErr } = await supabaseAdmin
       .from("devices")
-      .select("id,name,category,home_id,estate_id,latitude,longitude")
+      .select(deviceCurrentStateSelect("name,home_id,estate_id,latitude,longitude"))
       .eq("home_id", user.home_id)
       .not("latitude", "is", null)
       .not("longitude", "is", null)
@@ -210,16 +212,11 @@ export async function evaluateGeoAlerts(req: Request, res: Response) {
       return res.json({ ok: true, evaluated: 0, alerts: [] });
     }
 
-    const { data: states, error: statesErr } = await supabaseAdmin
-      .from("device_states")
-      .select("device_id,status,last_seen")
-      .in("device_id", deviceIds);
-
-    if (statesErr) return res.status(500).json({ error: statesErr.message });
-
-    const stateMap = new Map<string, any>(
-      (states || []).map((row: any) => [String(row.device_id), row.status || {}])
-    );
+    // Wave 6 Slice 13C -- current-state portion routed through the canonical authority
+    // (one batched hydration call, cache-first, never one lookup per device). Proximity
+    // calculation (calculateDistance/radiusMeters) and event/notification semantics below are
+    // unchanged; only the source of "is this device currently on" changed.
+    const currentStates = await resolveDeviceCurrentStates(devices || []);
 
     const alerts: Array<{ device_id: string; name: string; distance_m: number }> = [];
 
@@ -231,8 +228,12 @@ export async function evaluateGeoAlerts(req: Request, res: Response) {
       const distance = calculateDistance(lat, lng, dLat, dLng);
       if (distance <= radiusMeters) continue;
 
-      const state = stateMap.get(String((device as any).id));
-      if (!isDeviceActive(state)) continue;
+      const current = currentStates.get(String((device as any).id));
+      // Only a genuinely fresh observation may claim "still on" -- a stale, unknown, or
+      // provider-disconnected read must never silently become an active-device alert
+      // (Section 13: stale/unavailable state must not silently become active).
+      if (!current || current.freshness !== "fresh" || current.availability !== "online") continue;
+      if (!isDeviceActive(current.observedState)) continue;
 
       const alreadySent = await recentGeoAlertExists(user.id, String((device as any).id));
       if (alreadySent) continue;

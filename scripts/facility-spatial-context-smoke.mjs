@@ -20,7 +20,8 @@ function need(condition, message) {
 }
 
 const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
-const originalGetOrHydrate = deviceRuntimeStateService.getOrHydrate.bind(deviceRuntimeStateService);
+const originalHydrateMany = deviceRuntimeStateService.hydrateMany.bind(deviceRuntimeStateService);
+const originalGet = deviceRuntimeStateService.get.bind(deviceRuntimeStateService);
 
 // Generic in-memory table supporting every chain shape the service and its
 // reused dependencies (canonicalReferenceResolver, platformGapService.
@@ -30,12 +31,14 @@ function makeTable(rows) {
   return {
     select() {
       const filters = {};
+      const inFilters = {};
       let limitN = null;
       const builder = {
         eq(col, val) {
           filters[col] = val;
           return builder;
         },
+        in(col, vals) { inFilters[col] = vals; return builder; },
         order() {
           return builder;
         },
@@ -48,7 +51,7 @@ function makeTable(rows) {
           return Promise.resolve({ data: matched[0] || null, error: null });
         },
         then(resolve, reject) {
-          let matched = rows.filter((r) => Object.entries(filters).every(([k, v]) => r[k] === v));
+          let matched = rows.filter((r) => Object.entries(filters).every(([k, v]) => r[k] === v) && Object.entries(inFilters).every(([k, vals]) => vals.includes(r[k])));
           if (limitN != null) matched = matched.slice(0, limitN);
           Promise.resolve({ data: matched, error: null }).then(resolve, reject);
         },
@@ -91,6 +94,7 @@ function fakeFrom(overrides = {}) {
     homes: HOMES,
     rooms: ROOMS,
     devices: DEVICES,
+    device_states: [],
     maintenance_requests: MAINTENANCE,
     facility_incidents: INCIDENTS,
     facility_cameras: CAMERAS,
@@ -126,14 +130,14 @@ const FAKE_RUNTIME_SNAPSHOT = {
 };
 
 // 1 & 2. Valid device canonical_ref resolves to real Facility device
-// context, and operational_state equals the exact authoritative runtime
-// service result (not a re-derived or re-fetched copy).
+// context. Runtime evidence is retained, while generic availability/freshness
+// is projected by the single current-state authority, not registry mirrors.
 {
   supabaseAdmin.from = fakeFrom();
-  deviceRuntimeStateService.getOrHydrate = async (device) => {
-    need(device.id === "device-1", "getOrHydrate must be called with the real resolved device row, not a placeholder");
-    return FAKE_RUNTIME_SNAPSHOT;
+  deviceRuntimeStateService.hydrateMany = async (devices) => {
+    need(devices[0].id === "device-1", "authority hydration must use the resolved device row");
   };
+  deviceRuntimeStateService.get = () => FAKE_RUNTIME_SNAPSHOT;
   const result = await resolveSpatialFacilityContext("estate-1", "LUNA-L06-APT-A-BEDROOM1-AC", FULL_ACTOR);
   need(result.status === "resolved", `expected resolved, got ${result.status}`);
   if (result.status === "resolved") {
@@ -141,14 +145,18 @@ const FAKE_RUNTIME_SNAPSHOT = {
     need(ctx.entity_type === "device", `expected entity_type device, got ${ctx.entity_type}`);
     need(ctx.canonical_id === "device-1", "canonical_id must be the real device UUID");
     need(ctx.scope.home_id === "home-1" && ctx.scope.room_id === "room-1", "device scope must reflect its real home/room");
-    need(ctx.operational_state.summary === FAKE_RUNTIME_SNAPSHOT.summary, "operational_state.summary must be the exact object the authoritative runtime service returned, not a re-derived copy");
+    need(ctx.operational_state.summary.label === FAKE_RUNTIME_SNAPSHOT.summary.label, "runtime summary identity must be preserved");
+    need(ctx.operational_state.summary.availability === ctx.operational_state.current_state.availability, "summary availability must agree with the authority");
+    need(ctx.operational_state.current_state.observedState === FAKE_RUNTIME_SNAPSHOT.state, "observed evidence must remain the runtime snapshot, not reconstructed state");
+    need(!("health_status" in FAKE_RUNTIME_SNAPSHOT.summary), "presentation must not mutate the authoritative runtime cache");
     need(ctx.operational_state.freshness === "fresh", "operational_state.freshness must come from the runtime snapshot");
     need(ctx.operational_state.online === true, "operational_state.online must reflect the live runtime state");
     need(Array.isArray(ctx.available_capabilities) && ctx.available_capabilities.includes("view"), "a viewable device must expose at least the view capability");
     need(!("execute" in ctx), "the context must never expose a command/execute affordance -- this slice is read-only");
   }
   supabaseAdmin.from = originalFrom;
-  deviceRuntimeStateService.getOrHydrate = originalGetOrHydrate;
+  deviceRuntimeStateService.hydrateMany = originalHydrateMany;
+  deviceRuntimeStateService.get = originalGet;
 }
 
 // 3. Home canonical_ref resolves correctly, with bounded related records.

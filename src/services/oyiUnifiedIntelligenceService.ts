@@ -18,6 +18,7 @@ import { oyiCoreRuntime } from "../oyi-core/service";
 import { buildAmbientAwarenessProjection, type AmbientProjectionSurface, type AmbientAwarenessProjection } from "../oyi-core/read/facilityConsumerAmbientAwarenessAdapter";
 import type { IntelligenceEventCategory } from "../intelligence-core/types";
 import { logger } from "../observability/logger";
+import { hydrateCanonicalDevicePanel } from "./canonicalDevicePanelHydrationService";
 
 // Transitional compatibility service:
 // src/oyi-core is the canonical runtime for normalized signals, awareness,
@@ -2086,7 +2087,7 @@ function activeEntitiesForMessage(intent: OyiIntentCategory, entities: Conversat
   }
   if (intent === "device_status") {
     if (/offline|down|unavailable/.test(lower)) return entities.filter((row) => /offline|down|unavailable/i.test(String(row.status || row.details?.online_state || "")));
-    if (/online|active|available/.test(lower)) return entities.filter((row) => /online|active|available/i.test(String(row.status || row.details?.online_state || "")));
+    if (/online|active|available/.test(lower)) return entities.filter((row) => String((row.details?.current_state as Record<string, unknown> | undefined)?.availability || row.status || row.details?.online_state || "").toLowerCase() === "online");
   }
   return entities;
 }
@@ -2397,22 +2398,26 @@ async function resolveFollowUpOperation(actor: AuthUser | null, input: OyiChatIn
   }
 
   if (entity?.type === "device" && activeEntity && /verify|online|offline|status|diagnostics/i.test(message)) {
-    const latestState: Record<string, any> = details.latest_state && typeof details.latest_state === "object" ? details.latest_state as Record<string, any> : {};
+    // Conversation memory is history, not current physical truth. Re-resolve the
+    // selected entity through the same authorized panel boundary as an exact read.
+    const hydrated = await hydrateCanonicalDevicePanel({ actor, deviceId: String(entity.id || ""), estateId: input.estate_id || actor?.estate_id || null, homeId: input.home_id || actor?.home_id || null });
+    const current = hydrated.status === "hydrated" ? hydrated.panel.current_state : null;
+    const latestState: Record<string, any> = current?.availability === "online" && current?.freshness === "fresh" ? current.observedState || {} : {};
     const power = typeof latestState.switch === "boolean" ? (latestState.switch ? "on" : "off")
       : typeof latestState.power === "boolean" ? (latestState.power ? "on" : "off")
         : typeof latestState.on === "boolean" ? (latestState.on ? "on" : "off") : null;
-    const online = String(details.online_state || "unknown");
-    const latestStateAt = details.latest_state_at || details.updated_at || null;
-    const lastSeenAt = details.last_seen_at || null;
-    const providerReportedAt = details.provider_reported_at || null;
-    const status = online === "unknown" ? "The registry does not have a confirmed online state" : `It is ${online}`;
+    const online = String(current?.availability || "unknown");
+    const latestStateAt = current?.receivedAt || null;
+    const lastSeenAt = current?.availability === "online" ? current.observedAt : null;
+    const providerReportedAt = current?.observedAt || null;
+    const status = online === "unknown" ? "There is no confirmed current state" : `It is ${online.replace(/_/g, " ")}`;
     const state = power ? ` and currently ${power}` : "";
     const timeline = deviceTimelineNarrativeForTest({ latest_state_at: latestStateAt, last_seen_at: lastSeenAt, provider_reported_at: providerReportedAt });
     return preserveConversation({
       intent: "device_status",
       understood: `I checked the latest visible status for ${entity.title}.`,
       message: `${entity.title}: ${status}${state}. ${timeline}`,
-      cards: [], sources: [], suggested_actions: [], execution: { status: "read_only", provider: "device_registry" },
+      cards: [], sources: [], suggested_actions: [], execution: { status: "read_only", provider: "device_current_state_authority" },
       conversation_active_entity: activeEntity,
     });
   }

@@ -6,6 +6,7 @@ import { emitAuditEvent } from "../core/foundation";
 import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
 import { deviceReadScopeCache } from "../services/deviceReadScopeCache";
 import { canFacilityViewDevice, projectDeviceForSurface } from "../services/deviceProjectionService";
+import { projectDeviceCurrentStateRows } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 
 /**
  * Expected "canonical" discovered device shape (from your adapters/types.ts)
@@ -44,8 +45,8 @@ export async function listRegisteredDevices(req: any, res: Response) {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    const devices = (data || [])
-      .filter((device: any) => canFacilityViewDevice(device, req.user))
+    const devices = (await projectDeviceCurrentStateRows((data || [])
+      .filter((device: any) => canFacilityViewDevice(device, req.user))))
       .map((device: any) => projectDeviceForSurface(device, { actor: req.user, surface: "facility" }));
 
     return res.json({ estate_id: estateId, devices });
