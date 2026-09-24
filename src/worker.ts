@@ -7,6 +7,7 @@ import { startIntentDlqWorker } from "./workers/intentDlqWorker";
 import { startProactiveIntelligenceScheduler } from "./oyi-core/runtime/proactiveIntelligenceScheduler";
 import { startCameraMediaRetentionWorker } from "./workers/cameraMediaRetentionWorker";
 import { startCameraHealthTransitionWorker } from "./workers/cameraHealthTransitionWorker";
+import { startCanonicalMaterializationWorker } from "./workers/canonicalMaterializationWorker";
 
 startAutomationWorker();
 startIntentWorker();
@@ -14,5 +15,6 @@ startIntentDlqWorker();
 startProactiveIntelligenceScheduler();
 startCameraMediaRetentionWorker();
 startCameraHealthTransitionWorker();
+startCanonicalMaterializationWorker();
 
 console.log("🧠 Workers running");

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "dist/server.js",
   "scripts": {
+    "smoke:wave6-final-a-materialization": "npm run build && node scripts/wave6-final-a-materialization-sql-smoke.mjs",
     "smoke:wave6-slice14f-camera-readers": "npm run build && node scripts/wave6-slice14f-camera-readers-smoke.mjs",
     "smoke:wave6-slice14e-camera-transitions": "npm run build && node scripts/wave6-slice14e-camera-transition-smoke.mjs",
     "smoke:wave6-slice14e-camera-transitions-sql": "node scripts/wave6-slice14e-camera-transition-sql-smoke.mjs",

@@ -2,14 +2,15 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {randomUUID} from 'node:crypto';
 import {readFileSync} from 'node:fs';
+import {materializationRpcFixture} from './helpers/materialization-rpc-fixture.mjs';
 const require=createRequire(import.meta.url);process.env.SUPABASE_URL='http://127.0.0.1:1';process.env.SUPABASE_SERVICE_ROLE_KEY='fixture';
-const db={},queries=[];let rpcCalls=0;
+const db={},queries=[];let rpcCalls=0,failNextCompletion=false;
 const client={from(table){db[table]??=[];let filters=[],fields='*',write,conflict,action='read',count=Infinity;
  const q={select(v='*'){fields=v;return q},eq(k,v){filters.push(r=>r[k]===v);return q},neq(k,v){filters.push(r=>r[k]!==v);return q},in(k,v){filters.push(r=>v.includes(r[k]));return q},is(k,v){filters.push(r=>(r[k]??null)===v);return q},gt(k,v){filters.push(r=>r[k]>v);return q},lt(k,v){filters.push(r=>r[k]<v);return q},contains(k,v){filters.push(r=>Array.isArray(r[k])&&v.every(x=>r[k].some(y=>typeof x==='object'?Object.entries(x).every(([a,b])=>y[a]===b):x===y)));return q},or(){return q},order(){return q},limit(n){count=n;return q},insert(v){write=v;action='insert';return q},upsert(v,o){write=v;conflict=o?.onConflict;action='upsert';return q},update(v){write=v;action='update';return q},single(){return run(true)},maybeSingle(){return run(true)},then(a,b){return run(false).then(a,b)}};
  async function run(single){queries.push({table,action,fields});let rows=db[table].filter(r=>filters.every(f=>f(r)));
  if(write){if(action==='update')rows.forEach(r=>Object.assign(r,structuredClone(write)));else{rows=[];for(const v of Array.isArray(write)?write:[write]){let row=conflict?db[table].find(r=>r[conflict]===v[conflict]):null;if(row)Object.assign(row,structuredClone(v));else{row={id:randomUUID(),...structuredClone(v)};db[table].push(row)}rows.push(row)}}}
  const output=rows.slice(0,count).map(r=>fields==='*'?structuredClone(r):Object.fromEntries(fields.split(',').map(k=>[k,structuredClone(r[k])])));return{data:single?output[0]||null:output,error:null}}
- return q},async rpc(name,args){rpcCalls++;assert.equal(name,'oyi_accept_camera_health_transition');return{data:{accepted:true},error:null}}};
+ return q},async rpc(name,args){rpcCalls++;if(name==='oyi_complete_materialization'&&failNextCompletion){failNextCompletion=false;return{data:null,error:{code:'08006',message:'fixture persistence unavailable'}}}if(name!=='oyi_accept_camera_health_transition')return materializationRpcFixture(db,name,args);return{data:{accepted:true},error:null}}};
 function stub(path,exports){const id=require.resolve(path);require.cache[id]={id,filename:id,loaded:true,exports}}
 stub('../dist/supabase/supabaseClient.js',{supabaseAdmin:client});
 stub('../dist/core/foundation/audit.js',{emitAuditEvent:async()=>{}});
@@ -73,12 +74,19 @@ await service.deliverCameraTransitions();assert.equal(retry.delivery_state,'mate
 // Canonical signal-only duplicate is deliberately NOT sufficient acknowledgement.
 const otherCamera={...camera,id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc'};db.facility_cameras.push(otherCamera);
 const incomplete={...rows[0],transition_id:'camera-health:incomplete:1',camera_id:otherCamera.id,checkpoint_revision:4,delivery_state:'pending',lease_until:null};
+failNextCompletion=true;
 await submitCanonicalSignal(service.cameraTransitionSignal(incomplete,otherCamera));
 assert.ok(db.operational_signals.some(r=>r.provider_event_id===incomplete.transition_id),'signal-only fixture must actually persist its signal');
 db.operational_awareness=db.operational_awareness.filter(r=>!r.related_signals.includes(incomplete.transition_id));
+db.operational_signals.find(r=>r.provider_event_id===incomplete.transition_id).materialization.state='retryable_failure';
 assert.equal(await service.cameraTransitionMaterialized(incomplete.transition_id,otherCamera),false);
 db.camera_health_transition_outbox.push(incomplete);await service.deliverCameraTransitions();assert.equal(incomplete.delivery_state,'retryable_failure');assert.equal(incomplete.acknowledged_at,null);
 console.log('PASS crash after submission retry uses stable identity; signal-only duplicate retains retryable obligation');
+const countBeforeRepair=db.operational_signals.length;
+await require('../dist/oyi-core/persistence/materialization.js').reconcileMaterialization(1,db.operational_signals.find(r=>r.provider_event_id===incomplete.transition_id).id);
+incomplete.lease_until=new Date(Date.now()-1).toISOString(); // next scheduled delivery attempt
+await service.deliverCameraTransitions();assert.equal(incomplete.delivery_state,'materialized');assert.equal(db.operational_signals.length,countBeforeRepair);
+console.log('PASS Final A reconciler repairs persisted camera signal; Camera outbox subsequently acknowledges without duplicate fact');
 const runtime=require('../dist/oyi-core/service.js').oyiCoreRuntime,originalReceive=runtime.receiveSignal;
 runtime.receiveSignal=async()=>{throw Error('fixture ingress unavailable')};
 const failedCamera={...camera,id:randomUUID()};db.facility_cameras.push(failedCamera);

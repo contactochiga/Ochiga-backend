@@ -118,22 +118,17 @@ export function cameraTransitionSignal(row: any, camera: any) {
   };
 }
 
-/** Persisted signal alone is insufficient. Verify signal-specific awareness and
- * incident evidence. Missing artifacts retain the obligation; no frozen Core repair.
+/** Final A completion is atomic across the required prepared artifact set.
+ * A signal-only or legacy/unverified row is not a delivery acknowledgement.
  */
 export async function cameraTransitionMaterialized(id: string, camera: any) {
   // Match the frozen canonical store's identity convention and indexed keys.
   // Avoid scanning all historical JSON/array evidence for every delivery.
   const signalKey = ["camera", id, "camera", camera.id, camera.estate_id, cameraHomeId(camera) || "no-home"].join(":");
-  const signal = await supabaseAdmin.from("operational_signals").select("id,payload")
+  const signal = await supabaseAdmin.from("operational_signals").select("id,materialization")
     .eq("canonical_signal_key", signalKey).eq("producer", "camera_health_transition_authority").maybeSingle();
   if (signal.error || !signal.data) return false;
-  const awareness = await supabaseAdmin.from("operational_awareness").select("id,incident_id")
-    .eq("awareness_key", `awareness:${id}`).contains("related_signals", [id]).maybeSingle();
-  if (awareness.error || !awareness.data?.incident_id) return false;
-  const incident = await supabaseAdmin.from("operational_incidents").select("id")
-    .eq("id", awareness.data.incident_id).contains("evidence", [{ id }]).maybeSingle();
-  return !incident.error && Boolean(incident.data);
+  return signal.data.materialization?.state === "materialized";
 }
 
 export async function deliverCameraTransitions(limit = 25) {

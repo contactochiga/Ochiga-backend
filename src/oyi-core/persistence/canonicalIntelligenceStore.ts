@@ -40,6 +40,7 @@ export type DurableLifecycleResult = {
 class CanonicalIntelligenceStore {
   private unavailable = false;
 
+  /** @deprecated Legacy persistence only. Accepted ingress uses atomic registerMaterialization. */
   async recordSignal(signal: NormalizedSignal, receipt: SignalRuntimeReceipt): Promise<DurableSignalResult> {
     if (this.unavailable) return { persisted: false, duplicate: false, signalId: null, reason: "store_unavailable" };
     const policy = resolveIntelligencePolicy(signal);
@@ -193,6 +194,7 @@ class CanonicalIntelligenceStore {
     ));
   }
 
+  /** @deprecated Not a recovery path. New accepted bundles use the Final A completion RPC. */
   async recordBundle(bundle: RuntimeBundle, receipt: SignalRuntimeReceipt): Promise<DurableLifecycleResult> {
     const signal = receipt.signal;
     const policy = resolveIntelligencePolicy(signal);

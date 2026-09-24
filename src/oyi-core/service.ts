@@ -15,6 +15,7 @@ import { operationalMetrics } from "../observability/metrics";
 import { createRuntimeContext, getRuntimeContext, markRuntimeStage, patchRuntimeContext, runtimeTraceFields, withRuntimeContext, type RuntimeStage } from "../observability/runtimeContext";
 import { runtimeHealthRegistry } from "../observability/runtimeHealth";
 import { canonicalIntelligenceStore } from "./persistence/canonicalIntelligenceStore";
+import { lookupMaterialization, registerMaterialization, reconcileMaterialization, scopeMaterializationIdentities, type MaterializationAck } from "./persistence/materialization";
 import { resolveIntelligencePolicy } from "./policy/intelligencePolicyResolver";
 
 export type RuntimeBundle = {
@@ -26,6 +27,7 @@ export type RuntimeBundle = {
 };
 
 export type RuntimeEnvelope = {
+  materialization?: MaterializationAck;
   receipt: SignalRuntimeReceipt;
   bundle: RuntimeBundle;
   execution_record?: ExecutionLedgerRecord;
@@ -168,11 +170,12 @@ class OyiCoreRuntimeKernel {
       patchRuntimeContext(traceForSignal(seedSignal));
       observeStage("signal.receive", receiptStartedAt, { mode: "receive" });
       const outputPolicy = resolveIntelligencePolicy(seedSignal);
-      const durable = receipt.accepted ? await canonicalIntelligenceStore.recordSignal(seedSignal, receipt) : { persisted: false, duplicate: false, signalId: null, reason: "receipt_rejected" };
+      const prior = receipt.accepted || receipt.duplicate ? await lookupMaterialization(seedSignal) : null;
+      const durable = { persisted: !!prior, duplicate: !!prior, reason: null as string|null };
       const effectiveReceipt: SignalRuntimeReceipt = {
         ...receipt,
         signal: seedSignal,
-        accepted: receipt.accepted && !durable.duplicate,
+        accepted: (receipt.accepted || (receipt.duplicate && receipt.issues.length===0 && !prior)) && !durable.duplicate,
         duplicate: receipt.duplicate || durable.duplicate,
         outputs: outputPolicy.allowedOutputs,
         issues: durable.reason && !durable.persisted ? [...receipt.issues, `durable_store:${durable.reason}`] : receipt.issues,
@@ -206,6 +209,7 @@ class OyiCoreRuntimeKernel {
           automationPlans: [],
         };
         const envelope: RuntimeEnvelope = {
+          materialization: prior || undefined,
           receipt: effectiveReceipt,
           bundle,
           execution_record: execution,
@@ -297,6 +301,18 @@ class OyiCoreRuntimeKernel {
         operational_automation_plans: automationPlans,
       };
 
+      // Freeze prepared work before any subscription/external publication.
+      scopeMaterializationIdentities(bundle, seedSignal);
+      envelope.materialization = await registerMaterialization(bundle, effectiveReceipt);
+      if (envelope.materialization.duplicate) {
+        envelope.receipt = {...effectiveReceipt,accepted:false,duplicate:true};
+        return envelope;
+      }
+      // An RPC error cannot erase the registered obligation. Recovery never republishes subscribers.
+      try { await reconcileMaterialization(1,envelope.materialization.canonicalSignalId); }
+      catch { operationalMetrics.increment('canonical_materialization_initial_attempt_failures_total'); }
+      envelope.materialization = await lookupMaterialization(seedSignal) || envelope.materialization;
+
       const publishStartedAt = Date.now();
       runtimeSubscriptionEngine.publishSignal({ signal: seedSignal, receipt: envelope.receipt, source: "oyi_core_runtime" });
       runtimeSubscriptionEngine.publishAwareness({ signal: seedSignal, awareness, receipt: envelope.receipt, source: "oyi_core_runtime" });
@@ -316,8 +332,9 @@ class OyiCoreRuntimeKernel {
           outputs: envelope.receipt.outputs,
           issues: envelope.receipt.issues,
           priority: envelope.receipt.priority,
+          materialization_state: envelope.materialization?.materializationState,
           summary: envelope.receipt.accepted
-            ? `Signal processed through awareness, reasoning, recommendation, and automation runtimes.`
+            ? `Signal durably accepted; canonical materialization ${envelope.materialization?.materializationState || "unverified"}.`
             : `Signal failed runtime acceptance checks.`,
         },
         evidence: seedSignal.evidence,
@@ -329,16 +346,6 @@ class OyiCoreRuntimeKernel {
 
       await this.safeHook(() => this.hooks.persistSignal?.(seedSignal, envelope.receipt));
       await this.safeHook(() => this.hooks.persistBundle?.(bundle, key));
-      await this.safeHook(async () => {
-        const lifecycle = await canonicalIntelligenceStore.recordBundle(bundle, envelope.receipt);
-        logger.info("oyi_core_lifecycle_persisted", {
-          signal_id: seedSignal.id,
-          incident_id: lifecycle.incidentId,
-          delivery_rows: lifecycle.deliveryRows,
-          persisted: lifecycle.persisted,
-          issues: lifecycle.issues,
-        });
-      });
       await this.safeHook(async () => {
         await this.hooks.audit?.(envelope.receipt);
         if (envelope.receipt.accepted && (seedSignal.severity === "critical" || seedSignal.severity === "warning")) {
@@ -367,6 +374,8 @@ class OyiCoreRuntimeKernel {
 
       logger.info("oyi_runtime_signal_processed", {
         signal_id: seedSignal.id,
+        materialization_state: envelope.materialization?.materializationState,
+        materialization_complete: envelope.materialization?.materializationComplete === true,
         domain: seedSignal.domain,
         accepted: envelope.receipt.accepted,
         outputs: envelope.receipt.outputs,
