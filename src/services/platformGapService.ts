@@ -378,7 +378,7 @@ export const platformGapService = {
     const estate_id = await scopedEstate(req);
     if (!estate_id) return { estate_id: null, items: [], sources: { edge: source("No estate context", false, "No estate context") } };
     const { data, error } = await supabaseAdmin.from("edge_node_history").select("*").eq("estate_id", estate_id).order("observed_at", { ascending: false }).limit(limitFrom(req, 120));
-    return { estate_id, items: data || [], sources: { edge: source((data || []).length ? "Live" : "Awaiting telemetry", !!(data || []).length, error?.message, "edge.heartbeat") } };
+    return { estate_id, items: data || [], sources: { edge: source((data || []).length ? "History available" : "No history", !!(data || []).length, error?.message, "edge.history.recorded") } };
   },
 
   async recordEdgeHistory(req: Request) {
@@ -390,7 +390,9 @@ export const platformGapService = {
     const { data, error } = await supabaseAdmin.from("edge_node_history").insert(payload as any).select("*").single();
     if (error) throw error;
     await audit(current, "edge.history.recorded", data.id, { event_type: payload.event_type }, req);
-    emit("edge.heartbeat", estate_id, { edge_history: data });
+    // Operator history is not an authenticated agent heartbeat/current state.
+    emitSignalSafely(makeBaseSignal({ type: "edge.history.recorded", source: "facility.platform",
+      estateId: estate_id, payload: { edge_history: data } } as any), { skipCanonicalIngress: true });
     return { ok: true, edge_history: data };
   },
 

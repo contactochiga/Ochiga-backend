@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import { ingestEdgeHeartbeat, expectedEdgeHeartbeatInterval } from "../services/edgeCurrentStateAuthority";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { requireEdgeToken, requireCameraEdgeToken } from "../middleware/edgeToken";
 import { CAMERA_ACCESS_SELECT, cameraHomeId } from "../modules/cameras/cameraAccess.policy";
 import { emitAuditEvent } from "../core/foundation";
 import { supabaseAdmin } from "../supabase/supabaseClient";
-import { emitSignal, makeBaseSignal } from "../realtime/emitSignal";
+import { emitSignal, emitSignalSafely, makeBaseSignal } from "../realtime/emitSignal";
 import { normalizeIntelligenceEvent, publishIntelligenceEvent } from "../intelligence-core";
 import { publicDiscoveryCandidate, safeGatewayError, sanitizeDiscoveryCandidate, validateDiscoveryRequest } from "../modules/cameras/cameraGateway";
 import { ingestEdgeMedia } from "../modules/cameras/cameraMedia.service";
@@ -97,7 +98,7 @@ async function safeInsert(table: string, row: Record<string, any>) {
   return { ok: true, table, error: "", data };
 }
 
-async function upsertEdgeNode(payload: any, status: string) {
+async function upsertEdgeNode(payload: any, _status: string) {
   const estateId = asString(payload.site_id || payload.estate_id);
   const edgeNodeId = asString(payload.agent_id || payload.edge_node_id);
   if (!estateId || !edgeNodeId) return { ok: false, error: "site_id and agent_id required" };
@@ -106,15 +107,9 @@ async function upsertEdgeNode(payload: any, status: string) {
     estate_id: estateId,
     edge_node_id: edgeNodeId,
     name: asString(payload.name || edgeNodeId),
-    heartbeat_status: status,
-    last_seen_at: nowIso(),
     local_runtime_host: asString(payload.local_runtime_host || payload.local_host) || null,
     camera_count: asNumber(payload.camera_count, 0),
     device_count: asNumber(payload.device_count, 0),
-    queue_depth: asNumber(payload.queue_depth ?? payload.outbox_depth, 0),
-    sync_status: asString(payload.sync_status, "registered"),
-    error_count: asNumber(payload.error_count, 0),
-    runtime_version: asString(payload.runtime_version) || null,
     metadata: {
       capabilities: Array.isArray(payload.capabilities) ? payload.capabilities : [],
       runtime: safeMeta(payload.runtime),
@@ -125,12 +120,13 @@ async function upsertEdgeNode(payload: any, status: string) {
 
   const { data: existing } = await supabaseAdmin
     .from("edge_nodes")
-    .select("id")
+    .select("id,metadata")
     .eq("estate_id", estateId)
     .eq("edge_node_id", edgeNodeId)
     .maybeSingle();
 
   if (existing?.id) {
+    row.metadata = { ...existing.metadata, ...row.metadata };
     const { data, error } = await supabaseAdmin.from("edge_nodes").update(row as any).eq("id", existing.id).select("*").maybeSingle();
     if (error) return { ok: false, error: error.message };
     return { ok: true, data };
@@ -139,35 +135,6 @@ async function upsertEdgeNode(payload: any, status: string) {
   const { data, error } = await supabaseAdmin.from("edge_nodes").insert(row as any).select("*").maybeSingle();
   if (error) return { ok: false, error: error.message };
   return { ok: true, data };
-}
-
-async function recordHeartbeat(payload: any) {
-  const estateId = asString(payload.site_id || payload.estate_id);
-  const edgeNodeId = asString(payload.agent_id || payload.edge_node_id);
-  const status = asString(payload.status || payload.heartbeat_status || "online");
-
-  const node = await upsertEdgeNode(payload, status);
-  if (!node.ok) return { ok: false, node, heartbeat: null };
-
-  const heartbeat = await safeInsert("edge_heartbeats", {
-    estate_id: estateId,
-    edge_node_id: edgeNodeId,
-    heartbeat_status: status,
-    local_runtime_host: asString(payload.local_runtime_host || payload.local_host) || null,
-    camera_count: asNumber(payload.camera_count, 0),
-    device_count: asNumber(payload.device_count, 0),
-    queue_depth: asNumber(payload.queue_depth ?? payload.outbox_depth, 0),
-    sync_status: asString(payload.sync_status || "synced"),
-    error_count: asNumber(payload.error_count, 0),
-    runtime_version: asString(payload.runtime_version) || null,
-    metadata: {
-      ts: payload.ts || nowIso(),
-      outbox_depth: asNumber(payload.outbox_depth, 0),
-      source: "edge_agent",
-    },
-  });
-
-  return { ok: heartbeat.ok, node, heartbeat };
 }
 
 async function persistCameraPlaceholder(siteId: string, agentId: string, rawDevice: any) {
@@ -277,15 +244,21 @@ async function pendingEdgeCommands(siteId: string, agentId: string) {
 }
 
 function emitEdgeSignal(type: string, payload: any) {
-  emitSignal(makeBaseSignal({
+  const signal = makeBaseSignal({
     type,
+    ...(type === "edge.heartbeat" ? { timestamp: payload.ts } : {}),
     source: "edge_agent",
     estateId: asString(payload.site_id || payload.estate_id) || undefined,
     homeId: asString(payload.home_id || payload.homeId) || undefined,
     edgeNodeId: asString(payload.agent_id || payload.edge_node_id),
     status: payload.status || payload.health_status,
     metadata: safeMeta(payload),
-  } as any));
+  } as any);
+  // Heartbeat is an observation, not a durable connectivity transition. Without
+  // an ordered transactional signal outbox, concurrent responses may arrive out
+  // of order; do not let ambient ingress manufacture restoration/incidents.
+  if (type === "edge.heartbeat") emitSignalSafely(signal, { skipCanonicalIngress: true });
+  else emitSignal(signal);
 }
 
 edgeDiscoveryRouter.post("/edge/agent/register", requireEdgeToken, async (req, res) => {
@@ -322,23 +295,21 @@ edgeDiscoveryRouter.post("/edge/agent/heartbeat", requireEdgeToken, async (req, 
   const { siteId, agentId } = boundEdgeContext(req, payload);
   if (!siteId || !agentId) return res.status(400).json({ error: "site_id and agent_id required" });
 
-  const boundPayload = { ...payload, site_id: siteId, agent_id: agentId };
-  const result = await recordHeartbeat(boundPayload);
-  emitEdgeSignal("edge.heartbeat", boundPayload);
-  void emitAuditEvent({
-    actorId: agentId,
-    actorEmail: "edge-agent@oyi.local",
-    actorRole: "edge_agent",
-    action: "edge.heartbeat",
-    resourceType: "edge_agent",
-    resourceId: agentId,
-    estateId: siteId,
-    status: result.ok ? "success" : "failed",
-    metadata: { queue_depth: asNumber(payload.queue_depth ?? payload.outbox_depth, 0), persistence: result.ok ? "stored" : result.heartbeat?.error || result.node?.error },
-    req,
-  } as any);
-
-  return res.status(result.ok ? 200 : 202).json({ ok: result.ok, site_id: siteId, agent_id: agentId, persistence: result.ok ? "stored" : "missing_source", details: result });
+  try {
+    const result = await ingestEdgeHeartbeat((req as any).edgeAgent, payload);
+    // Only a fresh, newly accepted observation can enter the existing Edge
+    // operational channel. Replay and delayed history cannot fabricate recovery.
+    if (result.accepted && result.current_state.freshness === "fresh") {
+      emitEdgeSignal("edge.heartbeat", { site_id: siteId, agent_id: agentId,
+        status: result.current_state.connectivity, ts: result.current_state.observedAt,
+        current_state: result.current_state });
+    }
+    return res.json({ ok: true, site_id: siteId, agent_id: agentId, persistence: "stored", details: result });
+  } catch (error: any) {
+    const message = String(error?.message || "heartbeat_persistence_failed");
+    const status = /identity/.test(message) ? 403 : /observed_at|invalid_observation/.test(message) || String(error?.code || "").startsWith("22") ? 400 : 503;
+    return res.status(status).json({ ok: false, error: status === 503 ? "heartbeat_persistence_failed" : message });
+  }
 });
 
 edgeDiscoveryRouter.get("/edge/agent/config", requireEdgeToken, async (req, res) => {
@@ -347,7 +318,7 @@ edgeDiscoveryRouter.get("/edge/agent/config", requireEdgeToken, async (req, res)
 
   const commands = await pendingEdgeCommands(siteId, agentId);
   return res.json({
-    HEARTBEAT_INTERVAL_MS: asNumber(process.env.EDGE_HEARTBEAT_INTERVAL_MS, 30_000),
+    HEARTBEAT_INTERVAL_MS: expectedEdgeHeartbeatInterval(),
     DISCOVERY_INTERVAL_MS: asNumber(process.env.EDGE_DISCOVERY_INTERVAL_MS, 120_000),
     CONFIG_PULL_INTERVAL_MS: asNumber(process.env.EDGE_CONFIG_PULL_INTERVAL_MS, 180_000),
     QUEUE_FLUSH_INTERVAL_MS: asNumber(process.env.EDGE_QUEUE_FLUSH_INTERVAL_MS, 5_000),

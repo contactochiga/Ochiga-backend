@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { listEdgeCurrentStates } from "../services/edgeCurrentStateAuthority";
 import { adapterRegistry } from "../device/adapters/registry";
 import { initAdaptersOnce } from "../device/adapters/initAdapters";
 import type { AdapterContext } from "../device/adapters/types";
@@ -269,14 +270,7 @@ export async function createInfrastructureOnboardingSession(actor: OnboardingAct
 }
 
 async function hasOnlineEdge(estateId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("edge_nodes")
-    .select("id")
-    .eq("estate_id", estateId)
-    .in("heartbeat_status", ["online", "healthy", "active"])
-    .limit(1);
-  if (error) return false;
-  return Boolean(data?.length);
+  return (await listEdgeCurrentStates(estateId)).some(state => state.freshness === "fresh" && state.connectivity === "healthy");
 }
 
 async function connectionFor(estateId: string, providerKey: string) {
@@ -811,11 +805,11 @@ export async function infrastructureProviderCatalog(actor: OnboardingActor) {
   const estateId = actorEstate(actor);
   const [connectionsResult, edgeResult] = await Promise.all([
     supabaseAdmin.from("infrastructure_provider_connections").select("*").eq("estate_id", estateId),
-    supabaseAdmin.from("edge_nodes").select("id,heartbeat_status,last_seen_at").eq("estate_id", estateId),
+    listEdgeCurrentStates(estateId),
   ]);
   if (connectionsResult.error) throw connectionsResult.error;
   const connections = connectionsResult.data || [];
-  const edgeOnline = (edgeResult.data || []).some((row: any) => ["online", "healthy", "active"].includes(lower(row.heartbeat_status)));
+  const edgeOnline = edgeResult.some(state => state.freshness === "fresh" && state.connectivity === "healthy");
   const tuyaUid = await getTuyaUidForUser(actor.id);
   return listInfrastructureProviderManifests().map((manifest) => {
     const connection = connections.find((row: any) => row.provider_key === manifest.key) || null;

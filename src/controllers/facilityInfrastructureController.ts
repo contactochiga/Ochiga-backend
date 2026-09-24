@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { projectEdgeNode } from "../services/edgeCurrentStateAuthority";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { getTuyaUidForUser, syncTuyaRegistryForActor } from "../services/tuyaRegistrySyncService";
 import { canFacilityViewDevice, projectDeviceForSurface } from "../services/deviceProjectionService";
@@ -122,19 +123,20 @@ export async function getFacilityInfrastructure(req: Request, res: Response) {
     metadata: sanitizeMetadata(device.metadata),
   }));
 
-  const edgeNodes = (edgeNodesResult.data as any[]).map((node) => ({
+  const edgeNodes = (edgeNodesResult.data as any[]).map((node) => projectEdgeNode(node)).map((node) => ({
     id: node.id,
     node_id: clean(node.edge_node_id),
     name: clean(node.name || node.edge_node_id, "Edge node"),
     estate_id: node.estate_id,
-    version: node.runtime_version || null,
+    version: node.current_state.runtimeVersion,
     ip_address: node.local_runtime_host || null,
     status: clean(node.heartbeat_status, "pending_registration"),
+    current_state: node.current_state,
     last_heartbeat_at: node.last_seen_at || null,
     discovery_capability: safeArray(node.metadata?.capabilities),
-    sync_status: clean(node.sync_status, "awaiting_edge_runtime"),
-    error_count: Number(node.error_count || 0),
-    queue_depth: Number(node.queue_depth || 0),
+    sync_status: node.current_state.syncHealth || "unknown",
+    error_count: node.current_state.errorState.reportedCount,
+    queue_depth: node.current_state.queueHealth.depth,
     device_count: Number(node.device_count || 0),
     camera_count: Number(node.camera_count || 0),
   }));
@@ -161,7 +163,7 @@ export async function getFacilityInfrastructure(req: Request, res: Response) {
         action: "Refresh status and inspect provider connectivity",
       })),
     ...edgeNodes
-      .filter((node) => ["offline", "unreachable"].includes(node.status))
+      .filter((node) => ["unavailable", "degraded"].includes(node.current_state.connectivity))
       .map((node) => ({
         id: `edge:${node.id}`,
         severity: "high",
@@ -169,7 +171,8 @@ export async function getFacilityInfrastructure(req: Request, res: Response) {
         affected: node.name,
         location: "Estate edge infrastructure",
         time: node.last_heartbeat_at,
-        action: "Inspect Oyi Edge runtime and network reachability",
+        reason: node.current_state.reason,
+        action: "Review Edge telemetry, runtime and network; telemetry loss does not prove hardware failure",
       })),
     ...providerFailures.map((event) => ({
       id: `provider:${event.id}`,
@@ -209,6 +212,7 @@ export async function getFacilityInfrastructure(req: Request, res: Response) {
       sync_status: heartbeat.sync_status,
       error_count: heartbeat.error_count,
       received_at: heartbeat.received_at,
+      observed_at: heartbeat.observed_at || null,
       metadata: sanitizeMetadata(heartbeat.metadata),
     })),
     assignment_history: (auditResult.data as any[]).map((event) => ({
@@ -237,7 +241,9 @@ export async function getFacilityInfrastructure(req: Request, res: Response) {
       {
         key: "oyi_edge",
         name: "Oyi Edge",
-        status: edgeNodes.length ? (edgeNodes.some((node) => node.status === "online") ? "connected" : "provider_error") : "pending_configuration",
+        status: !edgeNodes.length ? "pending_configuration" : edgeNodes.some((node) => node.status === "online") ? "connected"
+          : edgeNodes.some((node) => node.status === "degraded") ? "degraded"
+          : edgeNodes.some((node) => node.status === "unavailable") ? "unavailable" : "unknown",
         last_sync_at: edgeNodes.map((node) => node.last_heartbeat_at).filter(Boolean).sort().at(-1) || null,
         device_count: discovered.length,
         sync_errors: edgeNodes.reduce((sum, node) => sum + node.error_count, 0),
