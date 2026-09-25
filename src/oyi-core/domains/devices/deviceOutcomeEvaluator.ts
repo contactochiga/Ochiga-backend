@@ -89,8 +89,8 @@ export type DeviceOutcomeEvaluation = {
   feedbackId: string | null;
 };
 
-const OBJECT_TYPE = "device_state_outcome";
-const FEEDBACK_TYPE = "device_state_outcome_evaluation";
+export const OBJECT_TYPE = "device_state_outcome";
+export const FEEDBACK_TYPE = "device_state_outcome_evaluation";
 
 const CAUSAL_NOTE =
   "This evaluation establishes only whether the target condition is currently satisfied per the latest authoritative observation. " +
@@ -102,7 +102,7 @@ const CAUSAL_NOTE =
 // of those remains meaningful (it is still real evidence about the
 // device), but callers should treat it as execution verification, not a
 // Decision outcome (Section 6/16).
-function objectIdFor(lineage: DeviceOutcomeLineage, actionId: string): string {
+export function objectIdFor(lineage: DeviceOutcomeLineage, actionId: string): string {
   const lineageKey = lineage.decisionId || lineage.goalId || lineage.executionId || "no-lineage";
   return `device:${lineage.deviceId}:action:${actionId}:${lineageKey}`;
 }

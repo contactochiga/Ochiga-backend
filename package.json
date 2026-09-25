@@ -239,6 +239,8 @@
     "smoke:wave8-slice1-device-state-outcome-evaluator-sql": "node scripts/wave8-slice1-device-state-outcome-evaluator-sql-smoke.mjs",
     "smoke:wave8-slice2-recommendation-dismissal-evidence": "npm run build && node scripts/wave8-slice2-recommendation-dismissal-evidence-smoke.mjs",
     "smoke:wave8-slice2-recommendation-dismissal-evidence-sql": "node scripts/wave8-slice2-recommendation-dismissal-evidence-sql-smoke.mjs",
+    "smoke:wave8-slice3-goal-outcome-workflow-separation": "npm run build && node scripts/wave8-slice3-goal-outcome-workflow-separation-smoke.mjs",
+    "smoke:wave8-slice3-goal-outcome-workflow-separation-sql": "node scripts/wave8-slice3-goal-outcome-workflow-separation-sql-smoke.mjs",
     "smoke:oyi-core-convergence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs convergence",
     "smoke:oyi-core-privacy": "npm run build && node scripts/oyi-core-convergence-smoke.mjs privacy",
     "smoke:oyi-core-contextual-intelligence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs contextual",
