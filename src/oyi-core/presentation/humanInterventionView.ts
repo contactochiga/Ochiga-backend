@@ -40,13 +40,21 @@
 // Facility maintenance work (real work, not a human DECISION/INPUT gate
 // -- excluded per this slice's own "do not convert ordinary work into
 // approval" instruction).
+// Wave 7 Slice 5 -- a fifth source added additively: `oyi_decisions`
+// (status='awaiting_human') via decisionStore.listActiveDecisionsForEntity()
+// -- real, but scoped to a specific (entity_type, entity_id) pair, the
+// only query shape a Decision's own schema supports today (it carries no
+// actor/estate scope field the way automation_approvals/goals do). See
+// docs/WAVE7_SLICE5_CANONICAL_DECISION_OBJECT.md for why this scope was
+// chosen instead of widening this module's own query contract further.
 import { listAutomationApprovals } from "../../services/facilityAutomationService";
 import { goalRuntime } from "../../services/goalRuntime/GoalRuntime";
 import { loadPendingOfficeActionProposal } from "../context/officeActionProposal";
 import { SupabaseWorkflowRepository } from "../workflows/WorkflowRepository";
+import { listActiveDecisionsForEntity } from "../../services/decisionStore/DecisionStore";
 import { normalizeLifecycleStage, type LifecycleStageResult } from "./lifecycleStage";
 
-export type HumanInterventionSourceType = "automation_approval" | "conversation_proposal" | "goal_escalation" | "workflow";
+export type HumanInterventionSourceType = "automation_approval" | "conversation_proposal" | "goal_escalation" | "workflow" | "decision";
 
 // Evidence-derived, not the suggested default list taken blindly:
 //   AUTHORIZATION   -- a specific automation execution requires sign-off
@@ -88,6 +96,7 @@ export type HumanInterventionQuery = {
   estateId?: string | null;
   goalActorId?: string | null;
   thread?: { threadId: string; actorId: string } | null;
+  decisionEntity?: { entityType: string; entityId: string } | null;
 };
 
 export type HumanInterventionSourceHealth = {
@@ -238,6 +247,37 @@ async function loadWorkflowSource(threadId: string, actorId: string): Promise<{ 
   }
 }
 
+async function loadDecisionSource(entityType: string, entityId: string): Promise<{ health: HumanInterventionSourceHealth; obligations: HumanInterventionObligation[] }> {
+  try {
+    const decisions = await listActiveDecisionsForEntity(entityType, entityId);
+    const awaitingHuman = decisions.filter((d) => d.status === "awaiting_human");
+    const obligations = awaitingHuman.map((d) => ({
+      id: `decision:${d.id}`,
+      source_type: "decision" as const,
+      source_id: d.id,
+      // A Decision's own human-required state is, by this slice's own
+      // ontology, an AUTHORIZATION gate (a specific selected course of
+      // action awaiting sign-off) -- the same category automation_approvals
+      // uses, not a fresh category invented for this one source.
+      intervention_type: "AUTHORIZATION" as const,
+      native_status: d.status,
+      normalized_stage: normalizeLifecycleStage({ objectType: "decision", status: d.status }),
+      title: d.title,
+      reason: d.reason,
+      created_at: d.created_at,
+      due_at: null,
+      actor: { id: d.selected_by === "system" ? null : d.selected_by, estate_id: null },
+      required_role: null,
+      required_permission: null,
+      lineage: { canonical_signal_key: d.canonical_signal_key },
+      scope: { estate_id: null, thread_id: null },
+    }));
+    return { health: { source_type: "decision", queried: true, ok: true, error: null, count: obligations.length }, obligations };
+  } catch (error: any) {
+    return { health: { source_type: "decision", queried: true, ok: false, error: String(error?.message || error), count: 0 }, obligations: [] };
+  }
+}
+
 // Read-only. Composes only whichever sources the caller supplies a real,
 // already-authorized scope for -- it never widens visibility beyond what
 // that scope already permits through the source's own existing endpoint.
@@ -269,6 +309,11 @@ export async function loadHumanInterventionObligations(query: HumanInterventionQ
     obligations.push(...proposalResult.obligations);
     sources.push(workflowResult.health);
     obligations.push(...workflowResult.obligations);
+  }
+  if (query.decisionEntity) {
+    const { health, obligations: rows } = await loadDecisionSource(query.decisionEntity.entityType, query.decisionEntity.entityId);
+    sources.push(health);
+    obligations.push(...rows);
   }
 
   return { obligations, sources, complete: sources.every((s) => s.ok) };

@@ -36,6 +36,9 @@ import { requestOfficeHandoff } from "./officeHandoffBridge";
 import { logger } from "../../observability/logger";
 import type { GoalTargetEntities } from "../../contracts/goal";
 import type { CommunicationRecipient } from "../../contracts/communication";
+import { createDecision, decisionKey, attachGoalToDecision } from "../../services/decisionStore/DecisionStore";
+import type { DecisionRecord } from "../../contracts/decision";
+import type { RelationshipCommunicationPolicy } from "../domains/development/relationshipCommunicationPolicy";
 
 function text(value: unknown) {
   return String(value ?? "").trim() || null;
@@ -98,6 +101,46 @@ function jvEvidenceFromMaterialEvent(event: CorporateMaterialEvent): JvEvidence 
 // conversational goal creation does. Never throws -- a failure here
 // must never corrupt or roll back the CRM material event this was
 // triggered by (same contract as submitCanonicalSignal() itself).
+// Wave 7 Slice 5 -- the first real Decision producer. The moment
+// relationshipCommunicationPolicyForJv() resolves a policy value IS the
+// moment "this could happen" (assessment.recommended_next_step, an
+// advisory JV assessment) becomes "this is the course of action we have
+// selected" for this specific lead -- a real, durable selection,
+// independent of whether it ends in an automated communication, a human
+// handoff, or deliberately doing nothing (IGNORE_AUTOMATION/
+// DO_NOT_CONTACT are real, recordable selections too, not just "skip").
+// Never throws -- a Decision-recording failure must never break goal
+// activation, matching this file's own established safety contract.
+async function recordDevelopmentJvDecision(
+  event: CorporateMaterialEvent,
+  leadId: string,
+  policy: RelationshipCommunicationPolicy,
+  assessment: JvAssessment
+): Promise<DecisionRecord | null> {
+  try {
+    const canonicalKey = canonicalSignalKeyForMaterialEvent(event);
+    const { decision } = await createDecision({
+      decision_key: decisionKey({ entityType: "office_lead", entityId: leadId, actionType: policy, canonicalSignalKey: canonicalKey }),
+      entity_type: "office_lead",
+      entity_id: leadId,
+      action_type: policy,
+      title: `Development/JV relationship communication (${policy}) for ${event.subject?.label || "lead"}`,
+      reason: `JV assessment recommended: ${assessment.recommended_next_step}.`,
+      status: policy === "HANDOFF" ? "awaiting_human" : "selected",
+      requires_human: policy === "HANDOFF",
+      selected_by: "system",
+      authority_mode: "deterministic_policy",
+      policy_source: "relationshipCommunicationPolicyForJv",
+      canonical_signal_key: canonicalKey,
+      metadata: { recommended_next_step: assessment.recommended_next_step, strategic_alignment_status: assessment.strategic_alignment.status },
+    });
+    return decision;
+  } catch (error) {
+    logger.error("development_jv_decision_record_failed", { error, event_id: event.event_id, lead_id: leadId, policy });
+    return null;
+  }
+}
+
 async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent, assessment: JvAssessment): Promise<void> {
   try {
     const leadId = event.crm?.lead_id || null;
@@ -105,6 +148,7 @@ async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent
 
     const communicationContext: CorporateCommunicationContext | null = event.communication_context || null;
     const policy = relationshipCommunicationPolicyForJv(assessment, communicationContext);
+    const decision = await recordDevelopmentJvDecision(event, leadId, policy, assessment);
 
     // Oyi Communications Convergence, Slice 2 -- HANDOFF becomes
     // executable: a real office_handoffs record, not just a logged
@@ -239,6 +283,10 @@ async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent
       completion_reason: null,
     });
     logger.info("development_relationship_goal_created", { lead_id: leadId, goal_id: goal.id, policy, channel });
+    // Best-effort lineage attachment -- the Decision necessarily precedes
+    // the Goal it results in, so this fills goal_id in once known. Never
+    // blocks or fails the goal-activation flow if it errors.
+    if (decision) attachGoalToDecision(decision.id, goal.id).catch((error) => logger.error("development_jv_decision_goal_attach_failed", { error, decision_id: decision.id, goal_id: goal.id }));
   } catch (error) {
     logger.error("development_relationship_goal_activation_failed", { error, event_id: event.event_id });
   }

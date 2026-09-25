@@ -28,7 +28,8 @@ export type LifecycleObjectType =
   | "workflow"
   | "conversation_proposal"
   | "communication"
-  | "handoff";
+  | "handoff"
+  | "decision";
 
 export type LifecycleStage =
   | "not_started"
@@ -259,6 +260,24 @@ const COMMUNICATION_STATUS_MAP: Record<string, StageEntry> = {
 // honestly resolves to "unknown" rather than inventing one.
 const HANDOFF_STATUS_MAP: Record<string, StageEntry> = {};
 
+// Wave 7 Slice 5 -- oyi_decisions.status (DecisionStatus,
+// src/contracts/decision.ts). This is a genuinely NEW, real, persisted
+// lifecycle (not merely a reporting convenience) -- terminality below is
+// copied directly from the domain's own exported
+// DECISION_TERMINAL_STATUSES, not re-derived. "selected"/"approved" both
+// map to in_progress: a Decision does not "succeed" or "complete" the
+// way an execution does -- it remains the currently-valid selected
+// course of action until superseded/rejected/cancelled, so neither
+// literal maps to "succeeded".
+const DECISION_STATUS_MAP: Record<string, StageEntry> = {
+  selected: entry("in_progress", false, false),
+  awaiting_human: entry("awaiting_human_decision", false, true),
+  approved: entry("in_progress", false, false),
+  rejected: entry("rejected_by_human", true, false),
+  superseded: entry("superseded", true, false),
+  cancelled: entry("cancelled", true, false),
+};
+
 const STATUS_MAPS: Record<LifecycleObjectType, Record<string, StageEntry>> = {
   recommendation: RECOMMENDATION_STATUS_MAP,
   plan: PLAN_STATUS_MAP,
@@ -270,6 +289,7 @@ const STATUS_MAPS: Record<LifecycleObjectType, Record<string, StageEntry>> = {
   conversation_proposal: CONVERSATION_PROPOSAL_STATUS_MAP,
   communication: COMMUNICATION_STATUS_MAP,
   handoff: HANDOFF_STATUS_MAP,
+  decision: DECISION_STATUS_MAP,
 };
 
 function normalizedKey(status: unknown): string | null {

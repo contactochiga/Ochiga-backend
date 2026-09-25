@@ -137,6 +137,17 @@ const COMMUNICATION = {
   cancelled: ['cancelled', true, false],
 };
 
+// Wave 7 Slice 5 -- oyi_decisions.status, additively extending this
+// module exactly as Slice 4 previously did once before.
+const DECISION = {
+  selected: ['in_progress', false, false],
+  awaiting_human: ['awaiting_human_decision', false, true],
+  approved: ['in_progress', false, false],
+  rejected: ['rejected_by_human', true, false],
+  superseded: ['superseded', true, false],
+  cancelled: ['cancelled', true, false],
+};
+
 const TABLES = {
   recommendation: RECOMMENDATION,
   plan: PLAN,
@@ -147,6 +158,7 @@ const TABLES = {
   workflow: WORKFLOW,
   conversation_proposal: CONVERSATION_PROPOSAL,
   communication: COMMUNICATION,
+  decision: DECISION,
 };
 
 for (const [objectType, table] of Object.entries(TABLES)) {
@@ -258,7 +270,12 @@ check('casing is normalized: "ACTIVE"/"Active"/"active" for goal all resolve the
 check('isKnownLifecycleObjectType distinguishes real vs fabricated object types', () => {
   assert.equal(isKnownLifecycleObjectType('goal'), true);
   assert.equal(isKnownLifecycleObjectType('handoff'), true);
-  assert.equal(isKnownLifecycleObjectType('decision'), false);
+  // Wave 7 Slice 5 -- "decision" became a genuinely real object type
+  // (oyi_decisions), additively extending this Slice 3 module exactly as
+  // Slice 4 already did once before. This assertion is updated to match,
+  // not loosened -- fabricated object types must still resolve false.
+  assert.equal(isKnownLifecycleObjectType('decision'), true);
+  assert.equal(isKnownLifecycleObjectType('not_a_real_object_type_either'), false);
   assert.equal(isKnownLifecycleObjectType(''), false);
   assert.equal(isKnownLifecycleObjectType(null), false);
 });
