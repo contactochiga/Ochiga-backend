@@ -10,6 +10,8 @@ import { communicationRuntime } from "../communicationRuntime/CommunicationRunti
 import { classifyInboundReply, coarseSentimentFromOutcome } from "../communicationRuntime/replyClassifier";
 import { resolveRecipientByEntity } from "../recipientResolutionService";
 import { createFollowUpTask } from "../officeTaskBridgeService";
+import { executeRegisteredAction } from "../../intelligence-core/executionRegistry";
+import { resolveGoalDeviceActor } from "./goalDeviceActor";
 import type {
   GoalRecord,
   GoalPlanStep,
@@ -44,7 +46,44 @@ function pushEvidence(evidence: GoalEvidenceItem[], item: GoalEvidenceItem): Goa
   return [...evidence, item].slice(-100);
 }
 
-async function executeStep(goal: GoalRecord, step: GoalPlanStep): Promise<{ ok: boolean; detail: string; providerMessageId: string | null }> {
+async function executeStep(goal: GoalRecord, step: GoalPlanStep): Promise<{ ok: boolean; detail: string; providerMessageId: string | null; needsHuman?: boolean }> {
+  if (step.action_type === "device_action") {
+    // Wave 7 Slice 6 -- the ONLY device-dispatch path GoalRuntime is
+    // permitted to use: the exact same canonical chain every other
+    // device.* caller in this repository already goes through
+    // (executeRegisteredAction -> authorizeDeviceCommand ->
+    // executeDeviceCommandForActor). No adapterRegistry/MQTT/provider
+    // call, no device-table mutation, ever happens directly here.
+    if (!step.device_command) return { ok: false, detail: "Device step is missing its device_command payload.", providerMessageId: null, needsHuman: true };
+    const actor = await resolveGoalDeviceActor(goal.requesting_actor_id);
+    if (!actor) {
+      // No truthful actor could be derived (no requesting_actor_id, or no
+      // matching users row) -- fail closed, never fabricate a system
+      // actor to push the command through anyway.
+      return { ok: false, detail: "No real actor could be resolved for this device step -- human intervention required.", providerMessageId: null, needsHuman: true };
+    }
+    const result: any = await executeRegisteredAction({
+      action_id: step.device_command.action_id,
+      actor,
+      entity_id: step.device_command.device_id,
+      command: step.device_command.command,
+      source: "automation",
+      confirmed: true,
+    });
+    // "denied"/"validation_required" mean capability/authority itself
+    // said no (e.g. devices.power.control disabled, scope mismatch) --
+    // that is a human-judgment case, not a transient execution failure,
+    // so it routes to needs_human rather than the generic "blocked"
+    // every other failed step reaches.
+    if (result?.status === "denied" || result?.status === "validation_required") {
+      return { ok: false, detail: `Device action not authorized: ${result.reason || result.status}`, providerMessageId: null, needsHuman: true };
+    }
+    return {
+      ok: Boolean(result?.ok),
+      detail: result?.ok ? "Device command executed." : String(result?.reason || result?.status || "Device command failed."),
+      providerMessageId: null,
+    };
+  }
   if (step.action_type === "escalate") {
     // No provider call -- escalation just surfaces to the requester via
     // the existing NotificationService-equivalent read path (Office
@@ -306,8 +345,20 @@ export async function evaluateGoal(goal: GoalRecord): Promise<GoalRecord> {
       outcome: outcome.ok ? "success" : "failed",
       detail: outcome.detail,
     }),
-    status: !outcome.ok ? "blocked" : hasMoreSteps ? "waiting" : "completed",
-    completion_reason: !outcome.ok ? `Step failed: ${outcome.detail}` : hasMoreSteps ? null : "Plan completed with no further steps.",
+    // Wave 7 Slice 6 -- outcome.needsHuman (only ever set by a
+    // device_action step, §11/§17) routes to the SAME existing
+    // needs_human status escalate already uses, distinct from the
+    // generic "blocked" every other failed step reaches -- "we don't
+    // have the authority/actor to proceed safely" is a human-judgment
+    // case, not an ordinary retryable/terminal failure.
+    status: outcome.needsHuman ? "needs_human" : !outcome.ok ? "blocked" : hasMoreSteps ? "waiting" : "completed",
+    completion_reason: outcome.needsHuman
+      ? `Human intervention required: ${outcome.detail}`
+      : !outcome.ok
+      ? `Step failed: ${outcome.detail}`
+      : hasMoreSteps
+      ? null
+      : "Plan completed with no further steps.",
     next_evaluation_at: outcome.ok && hasMoreSteps ? addHours(now, nextStep!.wait_hours) : null,
   };
 }

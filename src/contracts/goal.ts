@@ -39,6 +39,21 @@ export type GoalTargetEntities = {
   email: string | null;
   phone: string | null;
   whatsapp_phone: string | null;
+
+  // Wave 7 Slice 6 -- GoalRuntime domain generalization. Optional (not
+  // required-nullable like the fields above) specifically so every
+  // existing Office/commercial call site's own object literal keeps
+  // compiling unchanged -- these three describe what an OPERATIONAL
+  // (Facility/Consumer) goal concerns, never what an Office/commercial
+  // goal concerns; the two families are mutually exclusive in practice,
+  // never required to coexist. Absence is the honest default for every
+  // goal that predates this column and for every Office goal going
+  // forward. Identity ONLY -- see goalDeviceActor.ts and
+  // DeviceCommandAuthority for why target identity is never treated as
+  // authorization.
+  estate_id?: string | null;
+  home_id?: string | null;
+  device_id?: string | null;
 };
 
 export type GoalSuccessCondition =
@@ -54,8 +69,24 @@ export type GoalStopCondition =
   | { type: "negative_reply" }
   | { type: "none" };
 
-export type GoalPlanStepChannel = "email" | "whatsapp" | "sms" | "voice_call" | "internal_message" | "escalation";
+// "device" mirrors the existing "escalation" precedent -- a non-communication
+// step still has to fill this required field honestly; neither literal
+// implies a message channel.
+export type GoalPlanStepChannel = "email" | "whatsapp" | "sms" | "voice_call" | "internal_message" | "escalation" | "device";
 export type GoalPlanStepStatus = "pending" | "due" | "executing" | "done" | "skipped" | "failed";
+
+// Wave 7 Slice 6 -- the minimum a device step needs to reach the
+// canonical execution boundary (executionRegistry.ts::executeRegisteredAction
+// -> DeviceCommandAuthority -> executeDeviceCommandForActor). Deliberately
+// narrow: three real, already-registered action ids only (device.on/off/toggle
+// -- intelligence-core/executionRegistry.ts's own real, available:true set),
+// no provider-specific payload duplicated here. `command` is passed through
+// unchanged to the same executor every other device.* caller already uses.
+export type GoalDeviceCommand = {
+  device_id: string;
+  action_id: "device.on" | "device.off" | "device.toggle";
+  command: Record<string, unknown>;
+};
 
 // One stage of a staged follow-up plan, e.g. step 0 = send the proposal
 // now; step 1 = wait 48h, if no reply WhatsApp; step 2 = wait 48h, if
@@ -64,7 +95,7 @@ export type GoalPlanStepStatus = "pending" | "due" | "executing" | "done" | "ski
 export type GoalPlanStep = {
   step_index: number;
   channel: GoalPlanStepChannel;
-  action_type: "send_communication" | "call" | "escalate" | "wait_for_reply" | "create_task";
+  action_type: "send_communication" | "call" | "escalate" | "wait_for_reply" | "create_task" | "device_action";
   body: string | null;
   wait_hours: number;
   // The condition that, if already true when this step becomes due,
@@ -74,6 +105,12 @@ export type GoalPlanStep = {
   status: GoalPlanStepStatus;
   executed_at: string | null;
   result: Record<string, unknown> | null;
+
+  // Wave 7 Slice 6 -- optional, non-null ONLY for action_type ===
+  // "device_action". Every existing plan-step object literal keeps
+  // compiling unchanged (optional, not required-nullable) since no
+  // Office/commercial step ever sets it.
+  device_command?: GoalDeviceCommand | null;
 };
 
 export type GoalObservation = {

@@ -151,6 +151,21 @@ export class GoalRuntime {
     return data.map(rowToRecord).filter((goal) => !GOAL_TERMINAL_STATUSES.includes(goal.status));
   }
 
+  // Wave 7 Slice 6 -- the operational-goal analogue of findActiveForLead:
+  // the idempotency guard for a device-targeted goal producer, so a
+  // retried/replayed operational trigger never produces a second active
+  // goal for the same device. Same contains()-on-target_entities query
+  // shape, same terminal-status client-side filter.
+  async findActiveForDevice(deviceId: string): Promise<GoalRecord[]> {
+    if (!deviceId) return [];
+    const { data, error } = await supabaseAdmin
+      .from("oyi_goals")
+      .select("*")
+      .contains("target_entities", JSON.stringify({ device_id: deviceId }));
+    if (error || !data) return [];
+    return data.map(rowToRecord).filter((goal) => !GOAL_TERMINAL_STATUSES.includes(goal.status));
+  }
+
   // Event-driven wake (Part C -- "prefer events over polling"): every
   // active/waiting goal watching this thread_reference, so an inbound
   // reply can trigger immediate reevaluation instead of waiting for the
