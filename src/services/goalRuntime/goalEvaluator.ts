@@ -12,6 +12,8 @@ import { resolveRecipientByEntity } from "../recipientResolutionService";
 import { createFollowUpTask } from "../officeTaskBridgeService";
 import { executeRegisteredAction } from "../../intelligence-core/executionRegistry";
 import { resolveGoalDeviceActor } from "./goalDeviceActor";
+import { evaluateDeviceStateOutcome } from "../../oyi-core/domains/devices/deviceOutcomeEvaluator";
+import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type {
   GoalRecord,
   GoalPlanStep,
@@ -77,6 +79,44 @@ async function executeStep(goal: GoalRecord, step: GoalPlanStep): Promise<{ ok: 
     // every other failed step reaches.
     if (result?.status === "denied" || result?.status === "validation_required") {
       return { ok: false, detail: `Device action not authorized: ${result.reason || result.status}`, providerMessageId: null, needsHuman: true };
+    }
+    // Wave 8 Slice 1 -- outcome evaluation, additive only. This NEVER
+    // affects the ok/detail/needsHuman returned above (already computed
+    // and unconditionally returned below) -- it only records, as
+    // evidence, whether Wave 6's own current-state authority already
+    // shows the target satisfied at this moment. Since this runs
+    // immediately after dispatch, the evidence is very often not yet
+    // "fresh" (the device hasn't reported back through the observation
+    // pipeline yet) -- that is the honest, expected outcome for a first
+    // evaluation, not a bug; a later, independent re-evaluation call
+    // against fresher evidence would correctly supersede it with a new,
+    // separate record (see deviceOutcomeEvaluator.ts's own evidence-key
+    // dedup). Only device.on/device.off ever reach an actionable target
+    // here -- device.toggle correctly returns "unsupported" and persists
+    // nothing (never a fabricated on/off assumption).
+    if (step.device_command.action_id === "device.on" || step.device_command.action_id === "device.off") {
+      try {
+        let decisionId: string | null = null;
+        if (goal.id) {
+          const { data } = await supabaseAdmin.from("oyi_decisions").select("id").eq("goal_id", goal.id).limit(1).maybeSingle();
+          decisionId = data?.id || null;
+        }
+        await evaluateDeviceStateOutcome({
+          lineage: {
+            deviceId: step.device_command.device_id,
+            decisionId,
+            goalId: goal.id || null,
+            canonicalSignalKey: goal.canonical_signal_key || null,
+            estateId: goal.target_entities?.estate_id || null,
+            homeId: goal.target_entities?.home_id || null,
+          },
+          actionId: step.device_command.action_id,
+        });
+      } catch (error) {
+        // Never throws outward -- an evaluation failure must never affect
+        // goal execution, matching this file's own established safety
+        // contract for every other side-observation.
+      }
     }
     return {
       ok: Boolean(result?.ok),
