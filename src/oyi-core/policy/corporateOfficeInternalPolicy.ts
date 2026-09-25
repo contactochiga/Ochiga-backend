@@ -14,6 +14,8 @@ import {
   type LastVerifiedOfficeAction,
 } from "../context/officeAutomationSuggestion";
 import { assessJvOpportunity, DEFAULT_JV_STRATEGY, type JvAssessment, type JvEvidence } from "../domains/development/developmentJv";
+import type { RankedKnowledgeItem } from "../domains/knowledge/knowledgeContracts";
+import { toCorporateKnowledgeReference } from "../domains/knowledge/corporateKnowledgeMapping";
 
 function text(value: unknown, fallback = "") {
   const result = String(value ?? "").trim();
@@ -334,7 +336,11 @@ function composeAnswer(request: OfficeInternalOyiCoreRequest, canonical: Canonic
 export function buildOfficeInternalResponse(
   request: OfficeInternalOyiCoreRequest,
   canonical: CanonicalConversationResponse,
-  lastVerifiedAction: LastVerifiedOfficeAction | null = null
+  lastVerifiedAction: LastVerifiedOfficeAction | null = null,
+  // Wave 9 Slice 1 -- see corporatePublicConversationPolicy.ts's own
+  // identical note. Defaults to [] so existing callers/tests keep working
+  // unchanged.
+  retrievedKnowledge: RankedKnowledgeItem[] = []
 ): OfficeInternalOyiCoreResponse {
   const jvAssessment = developmentJvAssessmentForRequest(request);
   const answer = composeAnswer(request, canonical, jvAssessment);
@@ -364,7 +370,7 @@ export function buildOfficeInternalResponse(
     // DomainResult.blocks -- just never surfaced to office_internal
     // before now (Consumer/Facility already receive it as canonical.cards).
     blocks: Array.isArray(canonical.cards) ? canonical.cards : [],
-    knowledge_references: request.knowledge_context,
+    knowledge_references: retrievedKnowledge.length ? retrievedKnowledge.map(toCorporateKnowledgeReference) : request.knowledge_context,
     safe_metadata: {
       staff_role: request.staff.role,
       selected_type: request.page_context.selected_type,

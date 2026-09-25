@@ -11,6 +11,8 @@ import {
   routeCorporateBusinessUnit,
   selectCorporateAgentRole,
 } from "../../contracts/corporateIntelligence";
+import type { RankedKnowledgeItem } from "../domains/knowledge/knowledgeContracts";
+import { toPublicKnowledgeCitation } from "../domains/knowledge/corporateKnowledgeMapping";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -124,7 +126,17 @@ function buildToolProposals(request: CorporateOyiCoreRequest, signal: CorporateC
   return proposals;
 }
 
-export function buildCorporatePublicResponse(request: CorporateOyiCoreRequest, canonical: CanonicalConversationResponse): CorporateOyiCoreResponse {
+export function buildCorporatePublicResponse(
+  request: CorporateOyiCoreRequest,
+  canonical: CanonicalConversationResponse,
+  // Wave 9 Slice 1 -- real, governed knowledge retrieved by Core itself
+  // (knowledgeRetrieval.ts), independent of whatever Office may or may not
+  // have sent on request.knowledge_context (confirmed during this slice to
+  // always be empty -- Office never populates it). Defaults to [] so this
+  // function stays safely callable without the new retrieval step (e.g. in
+  // existing tests) and degrades to the prior echo-input behavior below.
+  retrievedKnowledge: RankedKnowledgeItem[] = []
+): CorporateOyiCoreResponse {
   const routed = routeCorporateBusinessUnit({
     source_page: request.source.source_page,
     source_form: request.source.source_form,
@@ -156,7 +168,14 @@ export function buildCorporatePublicResponse(request: CorporateOyiCoreRequest, c
     suggested_next_action: toolProposals.length ? "Office should validate the proposed CRM workflow before mutating CRM state." : null,
     tool_proposals: toolProposals,
     handoff_recommended: toolProposals.some((proposal) => proposal.tool === "office.request_handoff"),
-    knowledge_references: request.knowledge_context.map((item) => ({ id: item.id, title: item.title, source: item.source })),
+    // Wave 9 Slice 1 -- real retrieval first (Section 26's own "close that
+    // exact gap first" instruction); falls back to echoing whatever Office
+    // supplied only if Core's own retrieval found nothing (e.g. Office
+    // unreachable) or wasn't invoked by an older caller, so this field is
+    // never a regression from its prior (always-empty) behavior.
+    knowledge_references: retrievedKnowledge.length
+      ? retrievedKnowledge.map(toPublicKnowledgeCitation)
+      : request.knowledge_context.map((item) => ({ id: item.id, title: item.title, source: item.source })),
     canonical: {
       response_id: canonical.id,
       thread_id: canonical.thread_id,

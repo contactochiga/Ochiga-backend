@@ -18,6 +18,8 @@ import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLIC
 import { submitOfficeMaterialEventCanonicalSignal } from "../oyi-core/ingress/officeMaterialEventAdapter";
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
+import { retrieveKnowledge } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
+import type { KnowledgeDomain } from "../oyi-core/domains/knowledge/knowledgeContracts";
 import { loadLastVerifiedOfficeAction } from "../oyi-core/context/officeAutomationSuggestionStore";
 import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
 import { analyzeCommunicationFrame, analyzeCommunicationDocument, synthesizeOyiSpeech } from "../services/communications/communicationsMediaAdapters";
@@ -175,6 +177,25 @@ function safeNumber(value: any): number | null {
 
 function recordOf(value: any): Record<string, any> {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+// Wave 9 Slice 1 -- request.business_unit already IS a structured domain
+// signal (Section 28: "use structured context first," never a second LLM
+// call to formulate search); this just narrows it to the KnowledgeDomain
+// values that carry real Office-pack content today.
+function knowledgeDomainsForBusinessUnit(businessUnit: string | null | undefined): KnowledgeDomain[] {
+  switch (businessUnit) {
+    case "technology":
+      return ["technology", "product"];
+    case "development":
+      return ["development"];
+    case "private":
+      return ["private"];
+    case "partnerships":
+      return ["partnerships"];
+    default:
+      return ["corporate", "commercial", "product", "website"];
+  }
 }
 
 function knowledgeContext(value: any): CorporateOyiCoreRequest["knowledge_context"] {
@@ -683,7 +704,17 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
     scope_mode_hint: "global",
     } as any,
   });
-  const response = buildCorporatePublicResponse(corporateRequest, canonical);
+  // Wave 9 Slice 1 -- Core's own real, governed knowledge retrieval,
+  // independent of request.knowledge_context (Office never populates it --
+  // confirmed during this slice). A failure here (Office unreachable, etc.)
+  // degrades to an empty result, never throws -- buildCorporatePublicResponse
+  // falls back to the prior echo-input behavior in that case.
+  const retrievedKnowledge = await retrieveKnowledge({
+    actor: { agentRole: corporateRequest.agent_role, audienceScope: "PUBLIC" },
+    domains: knowledgeDomainsForBusinessUnit(corporateRequest.business_unit),
+    query: corporateRequest.message,
+  }).then((result) => result.items).catch(() => []);
+  const response = buildCorporatePublicResponse(corporateRequest, canonical, retrievedKnowledge);
   // Oyi Cross-Surface Observability Closure — the corporate website
   // widget has no other path into Office's observability today (unlike
   // office_internal, which Office already self-instruments on its own
@@ -874,7 +905,15 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
   // this same thread. Own try/catch inside the loader already returns
   // null on any failure -- never blocks the response.
   const lastVerifiedAction = await loadLastVerifiedOfficeAction(internalRequest.conversation_thread_id, actor.id);
-  const response = buildOfficeInternalResponse(internalRequest, canonical, lastVerifiedAction);
+  // Wave 9 Slice 1 -- same real retrieval as the public route, staff
+  // audience ceiling (may see INTERNAL_COMMERCIAL knowledge public callers
+  // cannot).
+  const retrievedKnowledge = await retrieveKnowledge({
+    actor: { agentRole: "office_internal", audienceScope: "INTERNAL_COMMERCIAL" },
+    domains: knowledgeDomainsForBusinessUnit(internalRequest.business_unit),
+    query: effectiveMessage,
+  }).then((result) => result.items).catch(() => []);
+  const response = buildOfficeInternalResponse(internalRequest, canonical, lastVerifiedAction, retrievedKnowledge);
   if (mediaFailureNote) {
     response.answer = response.answer ? `${mediaFailureNote}\n\n${response.answer}` : mediaFailureNote;
   }
