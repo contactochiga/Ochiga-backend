@@ -34,6 +34,8 @@ import {
   FEEDBACK_TYPE as DEVICE_OUTCOME_FEEDBACK_TYPE,
   type DeviceOutcomeResult,
 } from "../../oyi-core/domains/devices/deviceOutcomeEvaluator";
+import { evaluateCommercialOpportunityOutcome, type CommercialOutcomeEvaluation } from "../../oyi-core/domains/development/commercialOutcomeEvaluator";
+import { fetchOfficeOpportunitySnapshots } from "../../oyi-core/ingress/officeOpportunityBridge";
 import type { GoalRecord, GoalPlanStep } from "../../contracts/goal";
 
 // Section 5 -- the smallest outcome vocabulary this evidence actually
@@ -51,7 +53,10 @@ export type GoalOutcomeState = "achieved" | "not_achieved" | "unverified" | "mix
 // all" (e.g. a communication/Office goal) -- distinct from "unverified"
 // evidence, which means an evaluator exists but current evidence is
 // insufficient.
-export type GoalOutcomeProvenance = "device_state_evaluation" | "no_evaluator_available" | "insufficient_evidence";
+// Wave 8 Slice 4 -- three commercial-domain provenance values added,
+// mirroring commercialOutcomeEvaluator.ts's own CommercialOutcomeProvenance
+// verbatim (never re-typed independently, to avoid the two enums drifting).
+export type GoalOutcomeProvenance = "device_state_evaluation" | "no_evaluator_available" | "insufficient_evidence" | "commercial_opportunity_evaluation" | "no_target_specified" | "office_unavailable";
 
 // Section 14 -- a pointer to the underlying intelligence_feedback row,
 // never a copied blob of its content.
@@ -73,6 +78,14 @@ export type GoalOutcome = {
   // contributing device-outcome rows, or null when no evidence exists.
   evaluatedAt: string | null;
   evidence: GoalOutcomeEvidenceRef[];
+  // Wave 8 Slice 4 -- populated only when this Goal was evaluated via the
+  // commercial path (device `evidence` above stays empty in that case,
+  // and vice versa -- a Goal is device-oriented or commercial-oriented,
+  // never both, per GoalTargetEntities' own established convention).
+  // Additive-only: every existing device-path consumer's own fields
+  // (state/provenance/evaluatedAt/evidence/note) are completely
+  // unaffected by this field's presence or absence.
+  commercial?: CommercialOutcomeEvaluation | null;
   // Section 10/17 -- explicit, on every result, so no caller mistakes
   // this for a permanent, append-once verdict.
   note: string;
@@ -108,6 +121,36 @@ async function findDecisionIdForGoal(goalId: string): Promise<string | null> {
   }
 }
 
+// Wave 8 Slice 4 -- single-Goal convenience path. Fetches exactly this
+// Goal's own Opportunity via the same batched bridge batch evaluation
+// uses (a batch of one) -- Section 32's own "no N+1" requirement is
+// still satisfied structurally (one Office round-trip pair per call),
+// just not amortized across multiple Goals the way a real batch caller
+// would get automatically (see evaluateCommercialGoalsBatch below, the
+// preferred entry point for multi-Goal evaluation).
+async function deriveCommercialGoalOutcome(goal: GoalRecord, opportunityId: string, targetStage: string): Promise<GoalOutcome> {
+  const fetchResult = await fetchOfficeOpportunitySnapshots([opportunityId]);
+  const snapshot = fetchResult.ok ? fetchResult.snapshots.get(opportunityId) || null : null;
+  const commercial = evaluateCommercialOpportunityOutcome(targetStage, snapshot);
+  if (!fetchResult.ok) {
+    // Office unavailable is a distinct, honest provenance (Section 23) --
+    // never silently downgraded to "no evaluator" or fabricated as failure.
+    const unavailable: CommercialOutcomeEvaluation = { ...commercial, provenance: "office_unavailable", notes: `Office could not be reached (${fetchResult.reason}) -- outcome is honestly unverified.` };
+    operationalMetrics.increment("goal_outcome_derivation_total", { state: "unverified", provenance: "office_unavailable" });
+    return { goalId: goal.id, state: "unverified", provenance: "office_unavailable", evaluatedAt: null, evidence: [], commercial: unavailable, note: LIVE_DERIVATION_NOTE };
+  }
+  operationalMetrics.increment("goal_outcome_derivation_total", { state: commercial.result, provenance: commercial.provenance });
+  return {
+    goalId: goal.id,
+    state: commercial.result,
+    provenance: commercial.provenance,
+    evaluatedAt: commercial.evaluatedAt,
+    evidence: [],
+    commercial,
+    note: LIVE_DERIVATION_NOTE,
+  };
+}
+
 // Derives a goal's outcome from the CURRENT set of Wave 8 Slice 1 device-
 // outcome evaluations for its own device-action steps -- never re-queries
 // Wave 6 state itself (Section 28: one factual evaluation authority,
@@ -119,6 +162,21 @@ export async function deriveGoalOutcome(goal: GoalRecord): Promise<GoalOutcome> 
   const deviceSteps = goal.plan.filter(isDeviceOutcomeStep);
 
   if (!deviceSteps.length) {
+    // Wave 8 Slice 4 -- a device-less Goal is not automatically
+    // "no evaluator available" anymore: if it names a real Office
+    // Opportunity AND a commercial target, dispatch to the commercial
+    // evaluator instead (Section 16's own conceptual architecture: Goal
+    // -> commercial target resolver -> Office Opportunity truth ->
+    // commercial evaluator -> GoalOutcomeEvaluation). Every currently-live
+    // Goal has commercial_target_stage unset (no producer sets it yet,
+    // per commercialOutcomeEvaluator.ts's own §6 finding), so this branch
+    // is exercised today only by test fixtures -- honestly disclosed, not
+    // hidden (see docs/WAVE8_SLICE4_COMMERCIAL_OUTCOME_EVALUATOR.md).
+    const opportunityId = goal.target_entities?.opportunity_id || null;
+    const targetStage = goal.target_entities?.commercial_target_stage || null;
+    if (opportunityId && targetStage) {
+      return deriveCommercialGoalOutcome(goal, opportunityId, targetStage);
+    }
     operationalMetrics.increment("goal_outcome_derivation_total", { state: "unverified", provenance: "no_evaluator_available" });
     return { goalId: goal.id, state: "unverified", provenance: "no_evaluator_available", evaluatedAt: null, evidence: [], note: NO_EVALUATOR_NOTE };
   }
@@ -192,4 +250,38 @@ export async function deriveGoalOutcome(goal: GoalRecord): Promise<GoalOutcome> 
 
   operationalMetrics.increment("goal_outcome_derivation_total", { state, provenance });
   return { goalId: goal.id, state, provenance, evaluatedAt: latestEvaluatedAt, evidence, note: LIVE_DERIVATION_NOTE };
+}
+
+// Wave 8 Slice 4 -- Section 32's own explicit batch-performance
+// requirement: evaluating N Goals with commercial targets must cost a
+// FIXED number of Office round-trips (two: opportunities + activities),
+// never N. This is the entry point a caller evaluating many Goals at
+// once should use instead of calling deriveGoalOutcome() in a loop for
+// commercial Goals specifically -- device-path and no-evaluator Goals
+// are unaffected (each still costs its own existing, already-batched
+// Postgres query per Slice 3's own design; this function does not change
+// that, it only removes the N-Office-calls risk for the commercial path).
+export async function deriveGoalOutcomesBatch(goals: GoalRecord[]): Promise<GoalOutcome[]> {
+  const commercialGoals = goals.filter((goal) => !goal.plan.some(isDeviceOutcomeStep) && goal.target_entities?.opportunity_id && goal.target_entities?.commercial_target_stage);
+  const otherGoals = goals.filter((goal) => !commercialGoals.includes(goal));
+
+  const opportunityIds = Array.from(new Set(commercialGoals.map((goal) => goal.target_entities!.opportunity_id!)));
+  const fetchResult = opportunityIds.length ? await fetchOfficeOpportunitySnapshots(opportunityIds) : { ok: true as const, snapshots: new Map() };
+
+  const commercialResults: GoalOutcome[] = commercialGoals.map((goal) => {
+    const opportunityId = goal.target_entities!.opportunity_id!;
+    const targetStage = goal.target_entities!.commercial_target_stage!;
+    if (!fetchResult.ok) {
+      const commercial: CommercialOutcomeEvaluation = { ...evaluateCommercialOpportunityOutcome(targetStage, null), provenance: "office_unavailable", notes: `Office could not be reached (${fetchResult.reason}) -- outcome is honestly unverified.` };
+      operationalMetrics.increment("goal_outcome_derivation_total", { state: "unverified", provenance: "office_unavailable" });
+      return { goalId: goal.id, state: "unverified" as GoalOutcomeState, provenance: "office_unavailable" as GoalOutcomeProvenance, evaluatedAt: null, evidence: [], commercial, note: LIVE_DERIVATION_NOTE };
+    }
+    const snapshot = fetchResult.snapshots.get(opportunityId) || null;
+    const commercial = evaluateCommercialOpportunityOutcome(targetStage, snapshot);
+    operationalMetrics.increment("goal_outcome_derivation_total", { state: commercial.result, provenance: commercial.provenance });
+    return { goalId: goal.id, state: commercial.result, provenance: commercial.provenance, evaluatedAt: commercial.evaluatedAt, evidence: [], commercial, note: LIVE_DERIVATION_NOTE };
+  });
+
+  const otherResults = await Promise.all(otherGoals.map((goal) => deriveGoalOutcome(goal)));
+  return goals.map((goal) => commercialResults.find((result) => result.goalId === goal.id) || otherResults.find((result) => result.goalId === goal.id)!);
 }

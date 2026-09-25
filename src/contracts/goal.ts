@@ -63,6 +63,18 @@ export type GoalTargetEntities = {
   // every goal created before this field existed and for any producer
   // that only knows the lead, never fabricated as a synthetic identity.
   opportunity_id?: string | null;
+
+  // Wave 8 Slice 4 -- Commercial Outcome Evaluator. The one structured
+  // field a commercial Goal can use to state its intended Office
+  // Opportunity stage (a real literal from Office's own PIPELINE_STAGES
+  // vocabulary -- see commercialStageOrder.ts's own documented mirror).
+  // Optional, for the same reason as every other field in this block: no
+  // existing Goal producer sets this today (confirmed by audit -- no
+  // structured commercial target contract existed before this field was
+  // added), so it is honestly absent everywhere until a future producer
+  // populates it. commercialOutcomeEvaluator.ts treats its absence as
+  // "no target specified," never as an invented default.
+  commercial_target_stage?: string | null;
 };
 
 export type GoalSuccessCondition =
