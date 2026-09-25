@@ -229,6 +229,7 @@
     "smoke:wave7-slice2-identity-chain-repair": "npm run build && node scripts/wave7-slice2-identity-chain-repair-smoke.mjs",
     "smoke:wave7-slice2-identity-chain-repair-sql": "node scripts/wave7-slice2-identity-chain-repair-sql-smoke.mjs",
     "smoke:wave7-slice3-lifecycle-vocabulary": "npm run build && node scripts/wave7-slice3-lifecycle-vocabulary-smoke.mjs",
+    "smoke:wave7-slice4-human-intervention-view": "npm run build && node scripts/wave7-slice4-human-intervention-view-smoke.mjs",
     "smoke:oyi-core-convergence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs convergence",
     "smoke:oyi-core-privacy": "npm run build && node scripts/oyi-core-convergence-smoke.mjs privacy",
     "smoke:oyi-core-contextual-intelligence": "npm run build && node scripts/oyi-core-convergence-smoke.mjs contextual",
