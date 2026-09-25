@@ -138,6 +138,22 @@ async function closePrediction(result: EvaluatedPrediction) {
   }
 }
 
+// Wave 8 Slice 5 (Section 28) — a prediction is evaluated exactly once
+// by design (evaluateOpenPredictions only reads status='open' rows and
+// immediately closes each one right after), but nothing previously
+// enforced that at the database level: two overlapping evaluation runs
+// racing on the same still-open prediction could both reach this insert
+// before either reached the CAS-guarded close below, producing two
+// outcome_evaluation rows for one prediction and silently inflating the
+// realized/not_realized counts summarizeEvaluatedPredictionsByType()
+// feeds directly into a learning proposal. The partial unique index
+// added in 20260926090000_wave8_slice5_learning_parameter_governance.sql
+// (object_type, object_id, feedback_type) where
+// feedback_type='outcome_evaluation' now makes that impossible at the DB
+// level: a conflicting concurrent insert raises Postgres error 23505,
+// caught here and treated as an expected, benign idempotent no-op (the
+// outcome was already durably recorded by whichever run got there
+// first) — never logged as a failure.
 async function persistOutcome(result: EvaluatedPrediction) {
   try {
     const { error } = await supabaseAdmin.from("intelligence_feedback").insert({
@@ -149,7 +165,11 @@ async function persistOutcome(result: EvaluatedPrediction) {
       outcome_metadata: { outcome: result.outcome, prediction_type: result.prediction_type, evaluated_at: new Date().toISOString() },
     } as any);
     if (error) throw error;
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      logger.info("oyi_prediction_outcome_already_recorded", { prediction_id: result.prediction_id });
+      return;
+    }
     logger.warn("oyi_prediction_outcome_persist_failed", { prediction_id: result.prediction_id, error });
   }
 }
