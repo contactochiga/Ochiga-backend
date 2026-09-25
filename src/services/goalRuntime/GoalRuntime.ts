@@ -15,6 +15,7 @@ function rowToRecord(row: any): GoalRecord {
     surface: row.surface,
     conversation_thread_id: row.conversation_thread_id,
     organization_scope: row.organization_scope,
+    canonical_signal_key: row.canonical_signal_key ?? null,
     objective: row.objective,
     target_entities: row.target_entities || {},
     status: row.status,
@@ -48,6 +49,7 @@ function recordToRow(record: Partial<GoalRecord> & { id: string }): Record<strin
   const row: Record<string, unknown> = { id: record.id, updated_at: new Date().toISOString() };
   const map: Array<keyof GoalRecord> = [
     "correlation_id", "requesting_actor_id", "surface", "conversation_thread_id", "organization_scope",
+    "canonical_signal_key",
     "objective", "target_entities", "status", "success_condition", "stop_condition", "reply_branches", "plan",
     "current_step_index", "schedule", "event_conditions", "communication_preferences",
     "max_attempts", "attempts_completed", "observations", "evidence", "linked_crm_records",

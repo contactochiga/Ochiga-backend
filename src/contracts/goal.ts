@@ -131,6 +131,19 @@ export type GoalRecord = {
   conversation_thread_id: string | null;
   organization_scope: string | null;
 
+  // Wave 7 Slice 2 -- identity-chain repair (lineage, not identity/
+  // authority/execution). The canonical_signal_key
+  // (materialization.ts::canonicalSignalKey) of the signal that
+  // motivated this goal's creation, when one genuinely exists and was
+  // known at creation time. NULL is the honest answer for every goal
+  // that isn't signal-driven -- a conversational proposal, a manually
+  // created goal, a legacy goal predating this column -- never
+  // back-filled or inferred from timestamp/text/entity similarity. This
+  // is a REQUIRED field (not optional) specifically so every caller of
+  // GoalRuntime.create() has to make an explicit, deliberate choice
+  // between a real key and null, rather than silently omitting lineage.
+  canonical_signal_key: string | null;
+
   objective: string;
   target_entities: GoalTargetEntities;
 

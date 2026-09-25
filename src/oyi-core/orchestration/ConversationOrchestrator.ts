@@ -2224,6 +2224,10 @@ async function handleGoalConversationTurn(
     surface: "office_internal",
     conversation_thread_id: threadId,
     organization_scope: null,
+    // Wave 7 Slice 2 -- identity-chain repair. A human-initiated
+    // conversational goal proposal has no canonical signal behind it --
+    // NULL is the honest, deliberate answer here, not an omission.
+    canonical_signal_key: null,
     objective: creationIntent.rawObjective,
     target_entities: targetEntities,
     status: "proposed",

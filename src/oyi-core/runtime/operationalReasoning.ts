@@ -333,10 +333,28 @@ export class OperationalReasoningRuntime {
       }
     }
 
-    return [...unique.values()]
-      .sort((a, b) => severityRank(b.severity) - severityRank(a.severity) || b.confidence - a.confidence)
-      .map((candidate, index) => ({
-        id: `insight:${candidate.domain}:${candidate.entityKey}:${index}`,
+    // Wave 7 Slice 2 -- identity-chain repair. The final `id` used to be
+    // `insight:${domain}:${entityKey}:${index}`, where index was this
+    // array's position AFTER sorting by severity/confidence. A sibling
+    // insight's severity or confidence changing (or a new insight
+    // appearing) shifts sort order, which silently changed the id of an
+    // otherwise-identical insight across two evaluate() calls for the
+    // same signal -- and that instability propagated downstream, since
+    // operationalRecommendations.ts derives recommendation.id directly
+    // from insight.id, and safeAutomation.ts derives plan.id from
+    // recommendation.id. The `key` above is already this insight's real,
+    // stable semantic identity (domain+entityKey+reason -- the exact
+    // grouping the `unique` Map itself uses); reusing it here, instead of
+    // sort position, makes the same logical insight from the same
+    // accepted intelligence always resolve to the same id regardless of
+    // sibling ordering -- which is required for the Final A durability
+    // chain's `on conflict(id) do nothing` / `on conflict(recommendation_
+    // key) do nothing` upserts to actually recognize a retry as the same
+    // row instead of silently minting a duplicate.
+    return [...unique.entries()]
+      .sort(([, a], [, b]) => severityRank(b.severity) - severityRank(a.severity) || b.confidence - a.confidence)
+      .map(([key, candidate]) => ({
+        id: `insight:${key}`,
         ...candidate,
         source: "operational_reasoning_runtime",
       }));

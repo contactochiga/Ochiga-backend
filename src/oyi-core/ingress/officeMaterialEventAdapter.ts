@@ -22,6 +22,7 @@
 // "duplicate signal ignored" awareness envelope, not an error) rather
 // than a second observation.
 import { submitCanonicalSignal } from "./canonicalSignalIngress";
+import { canonicalSignalKey } from "../persistence/materialization";
 import type { CorporateMaterialEvent, CorporateCommunicationContext } from "../../contracts/corporateIntelligence";
 import { assessJvOpportunity, type JvAssessment, type JvEvidence, type JvStrategy } from "../domains/development/developmentJv";
 import {
@@ -38,6 +39,30 @@ import type { CommunicationRecipient } from "../../contracts/communication";
 
 function text(value: unknown) {
   return String(value ?? "").trim() || null;
+}
+
+// Wave 7 Slice 2 -- identity-chain repair. activateDevelopmentRelationshipGoal
+// runs fire-and-forget (`void`, see submitOfficeMaterialEventCanonicalSignal
+// below) BEFORE submitCanonicalSignal() is even called, so there is no
+// materialized signal (and no return value) to read a canonical_signal_key
+// off of here. This recomputes the IDENTICAL key submitCanonicalSignal()
+// will independently produce for the same event, using the same
+// canonicalSignalKey() function and the same source/providerEventId/domain/
+// entity/estateId/home fields submitOfficeMaterialEventCanonicalSignal
+// passes to it below (source: "office", metadata.provider_event_id:
+// event.idempotency_key, domain: "office", entity.id/name from
+// event.subject, estateId: null, no home metadata) -- a genuine,
+// deterministic recomputation of real provenance, not an inference from
+// timestamp/text/entity similarity.
+function canonicalSignalKeyForMaterialEvent(event: CorporateMaterialEvent): string {
+  return canonicalSignalKey({
+    source: "office",
+    providerEventId: event.idempotency_key,
+    domain: "office",
+    entity: { id: event.subject?.id || null, name: event.subject?.label || null },
+    estateId: null,
+    metadata: {},
+  });
 }
 
 // Office does not yet have a dedicated JV schema (confirmed by this
@@ -168,6 +193,7 @@ async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent
       surface: "office_material_event",
       conversation_thread_id: null,
       organization_scope: null,
+      canonical_signal_key: canonicalSignalKeyForMaterialEvent(event),
       objective: `Development/JV relationship communication for ${event.subject?.label || "lead"} (${policy}).`,
       target_entities: targetEntities,
       status: "active",
