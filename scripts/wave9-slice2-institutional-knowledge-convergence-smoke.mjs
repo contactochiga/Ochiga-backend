@@ -23,6 +23,7 @@ const { getKnowledgeItemByCanonicalKey, invalidateKnowledgeCache } = require(pat
 const { buildKnowledgeIndex } = require(path.join(backendRoot, "dist/oyi-core/domains/knowledge/knowledgeIndex.js"));
 const { BACKEND_INSTITUTIONAL_KNOWLEDGE_ITEMS } = require(path.join(backendRoot, "dist/oyi-core/domains/knowledge/backendInstitutionalKnowledge.js"));
 const { buildPublicCorporateReadCapabilities, buildOfficeInternalReadCapabilities } = require(path.join(backendRoot, "dist/oyi-core/capabilities/OfficeCorporateCapabilityModules.js"));
+const { retrieveKnowledge } = require(path.join(backendRoot, "dist/oyi-core/domains/knowledge/knowledgeRetrieval.js"));
 
 let sourceOk = true;
 bridgeModule.fetchOfficeKnowledgeFiles = async () =>
@@ -156,5 +157,38 @@ await test("backend:corporate-partnerships never invents a funding threshold or 
   assert.ok(!/₦|NGN\s*\d/.test(item.content));
   assert.ok(!/\bguarantee/i.test(item.content));
 });
+
+console.log("\n=== 10. Unknown/unsupported questions -- retrieval never fabricates a matching answer ===");
+const UNSUPPORTED_QUERIES = [
+  "Guarantee my project ROI",
+  "Will Ochiga fund 50 billion naira",
+  "Can Oyi control every device brand",
+  "What return does Ochiga Private guarantee",
+  "Can Oma call me right now on the phone",
+];
+// Affirmative-only patterns -- deliberately do NOT match the real
+// converged private item's own disclaimer ("...are never guaranteed...
+// nothing here is...a guarantee of returns"), which is the correct,
+// negating use of these words and must not be flagged as a fabrication.
+const FABRICATION_PATTERNS = [
+  /\bwe guarantee\b/i,
+  /\bwill guarantee\b/i,
+  /\bguarantees? (a |an )?\d+/i,
+  /\d+\s*(%|percent)\s*(return|yield|roi)/i,
+  /\bcan (place|make|receive) (a )?(phone )?calls?\b/i,
+  /\bevery device brand\b.{0,20}\bsupport(ed)?\b/i,
+];
+const PUBLIC_ACTOR = { agentRole: "oma", audienceScope: "PUBLIC" };
+for (const query of UNSUPPORTED_QUERIES) {
+  await test(`"${query}" -- no returned item content matches a fabricated-guarantee/voice-capability pattern`, async () => {
+    invalidateKnowledgeCache();
+    const result = await retrieveKnowledge({ actor: PUBLIC_ACTOR, query });
+    for (const item of result.items) {
+      for (const pattern of FABRICATION_PATTERNS) {
+        assert.ok(!pattern.test(item.content), `item ${item.canonicalKey} content must not match fabrication pattern ${pattern} for query "${query}"`);
+      }
+    }
+  });
+}
 
 console.log(`\n=== wave9-slice2-institutional-knowledge-convergence-smoke: ${passed} checks passed ===`);
