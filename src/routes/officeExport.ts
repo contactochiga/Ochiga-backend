@@ -714,7 +714,7 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
     domains: knowledgeDomainsForBusinessUnit(corporateRequest.business_unit),
     query: corporateRequest.message,
   }).then((result) => result.items).catch(() => []);
-  const response = buildCorporatePublicResponse(corporateRequest, canonical, retrievedKnowledge);
+  const response = await buildCorporatePublicResponse(corporateRequest, canonical, retrievedKnowledge);
   // Oyi Cross-Surface Observability Closure — the corporate website
   // widget has no other path into Office's observability today (unlike
   // office_internal, which Office already self-instruments on its own

@@ -146,10 +146,11 @@ await test("a single retrieval never returns more than the requested limit nor t
 });
 
 console.log("\n=== 33. Development query proof ===");
-await test('"What does Ochiga do with a landowner seeking a JV?" -- honestly returns no Office-pack knowledge for the development domain (confirmed MISSING by Slice 0/1)', async () => {
+await test('"What does Ochiga do with a landowner seeking a JV?" -- Office-pack still has zero development-domain items (confirmed MISSING by Slice 0/1); Wave 9 Slice 3 converged one real Backend-native identity item (backend:corporate-development) here, so this now honestly returns exactly that one converged fact, not a fabricated Office-pack match', async () => {
   invalidateKnowledgeCache();
   const result = await retrieveKnowledge({ actor: PUBLIC_ACTOR_OMA, query: "landowner joint venture JV development", domains: ["development"] });
-  assert.equal(result.items.length, 0, "development domain has zero Office-pack items by design -- must not fabricate a match");
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].canonicalKey, "backend:corporate-development");
 });
 
 console.log("\n=== 35. Private query proof ===");
@@ -204,7 +205,7 @@ await test("buildCorporatePublicResponse populates real knowledge_references fro
     knowledge_context: [], metadata: {},
   };
   const canonical = { reply: "", answer: "", id: "canon-1", thread_id: null, persistence_saved: null };
-  const response = buildCorporatePublicResponse(request, canonical, retrieved);
+  const response = await buildCorporatePublicResponse(request, canonical, retrieved);
   assert.ok(response.knowledge_references.length > 0, "expected real knowledge_references, not an empty echo");
   assert.ok(response.knowledge_references.every((ref) => !("excerpt" in ref)), "public response citation shape must stay id/title/source only, never excerpt");
 });
@@ -218,7 +219,7 @@ await test("buildCorporatePublicResponse falls back to echoing request.knowledge
     knowledge_context: [{ id: "k1", title: "t", excerpt: "e", source: "s" }], metadata: {},
   };
   const canonical = { reply: "", answer: "", id: "canon-2", thread_id: null, persistence_saved: null };
-  const response = buildCorporatePublicResponse(request, canonical, []);
+  const response = await buildCorporatePublicResponse(request, canonical, []);
   assert.deepEqual(response.knowledge_references, [{ id: "k1", title: "t", source: "s" }]);
 });
 
@@ -246,7 +247,7 @@ await test("when Office is unreachable, retrieval never fabricates Office-pack c
   sourceOk = false;
   invalidateKnowledgeCache();
   const result = await retrieveKnowledge({ actor: PUBLIC_ACTOR_OMA, query: "what is oyi" });
-  assert.equal(result.items.length, 4);
+  assert.equal(result.items.length, 5);
   assert.ok(result.items.every((item) => item.sourceRepo === "ochiga-backend"));
   assert.ok(result.items.every((item) => item.canonicalKey.startsWith("backend:corporate-")));
   sourceOk = true;

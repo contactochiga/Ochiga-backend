@@ -58,7 +58,7 @@ const canonical = {
   persistence_saved: true,
 };
 
-const response = buildCorporatePublicResponse(request, canonical);
+const response = await buildCorporatePublicResponse(request, canonical);
 assert.equal(response.ok, true);
 assert.equal(response.public_identity, PUBLIC_CORPORATE_SURFACE_POLICY.public_identity);
 assert.equal(response.business_unit, "technology");
@@ -75,7 +75,7 @@ assert.ok(response.tool_proposals.some((proposal) => proposal.tool === "crm.qual
 assert.ok(response.tool_proposals.every((proposal) => proposal.governance === "office_validates_before_execution"));
 
 const voiceRequest = { ...request, engagement_mode: "voice_conversation" };
-const voiceResponse = buildCorporatePublicResponse(voiceRequest, canonical);
+const voiceResponse = await buildCorporatePublicResponse(voiceRequest, canonical);
 assert.equal(voiceResponse.conversation_thread_id, response.conversation_thread_id);
 
 console.log("corporate-public-integration-smoke: PASS");

@@ -36,7 +36,7 @@ async function test(name, fn) {
   console.log("PASS " + name);
 }
 
-const CONVERGED_KEYS = ["backend:corporate-company", "backend:corporate-oyi", "backend:corporate-private", "backend:corporate-partnerships"];
+const CONVERGED_KEYS = ["backend:corporate-company", "backend:corporate-oyi", "backend:corporate-private", "backend:corporate-partnerships", "backend:corporate-development"];
 const MODULE_KEY_TO_CANONICAL_KEY = {
   "corporate.company.read": "backend:corporate-company",
   "corporate.oyi.read": "backend:corporate-oyi",
@@ -97,23 +97,24 @@ await test("when buildKnowledgeIndex() itself throws (defense-in-depth case: ind
 });
 
 console.log("\n=== 4. Resilience -- Backend-native items survive an Office outage (no network dependency) ===");
-await test("buildKnowledgeIndex() with Office unreachable still returns exactly the 4 Backend-native items, never zero", async () => {
+await test("buildKnowledgeIndex() with Office unreachable still returns exactly the 5 Backend-native items, never zero", async () => {
   sourceOk = false;
   invalidateKnowledgeCache();
   const snapshot = await buildKnowledgeIndex();
   assert.equal(snapshot.sourceOk, false);
-  assert.equal(snapshot.items.length, 4);
+  assert.equal(snapshot.items.length, 5);
   assert.deepEqual(snapshot.items.map((i) => i.canonicalKey).sort(), [...CONVERGED_KEYS].sort());
   sourceOk = true;
   invalidateKnowledgeCache();
 });
 
-console.log("\n=== 5. Live state correctly left unconverged -- corporate.development.read ===");
-await test("corporate.development.read exists in the public registry but has NO corresponding backend:corporate-development canonical item -- it was deliberately not converged because it is a live Sanity fetch, not an institutional fact", async () => {
+console.log("\n=== 5. Live state correctly left unconverged -- corporate.development.read vs. the new backend:corporate-development identity item ===");
+await test("corporate.development.read (the live Sanity project-listing module) still exists in the public registry, untouched -- it answers 'what projects exist NOW', a different question from the new Wave 9 Slice 3 backend:corporate-development identity item, which answers 'what IS Ochiga Development' and was added as a genuinely new institutional fact (not a conversion of existing hardcoded text, since none existed for this question)", async () => {
   const modules = buildPublicCorporateReadCapabilities();
   moduleByKey(modules, "corporate.development.read");
-  const stray = BACKEND_INSTITUTIONAL_KNOWLEDGE_ITEMS.find((item) => item.canonicalKey === "backend:corporate-development");
-  assert.equal(stray, undefined);
+  const identityItem = BACKEND_INSTITUTIONAL_KNOWLEDGE_ITEMS.find((item) => item.canonicalKey === "backend:corporate-development");
+  assert.ok(identityItem, "backend:corporate-development must exist as of Wave 9 Slice 3");
+  assert.ok(!/havana|green gardens/i.test(identityItem.content), "the identity item must never freeze a specific current project into static knowledge");
 });
 
 console.log("\n=== 6. Public/internal separation -- converged items never leak into the office_internal registry ===");

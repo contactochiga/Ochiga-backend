@@ -13,6 +13,7 @@ import {
 } from "../../contracts/corporateIntelligence";
 import type { RankedKnowledgeItem } from "../domains/knowledge/knowledgeContracts";
 import { toPublicKnowledgeCitation } from "../domains/knowledge/corporateKnowledgeMapping";
+import { getKnowledgeItemByCanonicalKey } from "../domains/knowledge/knowledgeRetrieval";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -48,21 +49,52 @@ function qualificationSignal(message: string) {
   return "unknown" as const;
 }
 
-function answerFor(request: CorporateOyiCoreRequest, canonical: CanonicalConversationResponse, signal: CorporateCommercialSignal) {
+// Wave 9 Slice 3 -- the actor this policy's own OWN two factual fallback
+// branches (Ochiga/Oyi identity, below) resolve canonical knowledge as.
+// Matches OfficeCorporateCapabilityModules.ts's CORPORATE_ANSWER_ACTOR
+// exactly, since both sit on the same PUBLIC corporate surface.
+const CORPORATE_ANSWER_ACTOR = { agentRole: "oma" as const, audienceScope: "PUBLIC" as const };
+
+async function canonicalFallbackAnswer(canonicalKey: string, fallback: string): Promise<string> {
+  try {
+    const item = await getKnowledgeItemByCanonicalKey(canonicalKey, CORPORATE_ANSWER_ACTOR);
+    return item?.content || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const OCHIGA_IDENTITY_FALLBACK =
+  "Ochiga develops and powers intelligent places. The company combines real estate development, building technology through Oyi, private relationship-led opportunities, and structured partnerships.";
+const OYI_IDENTITY_FALLBACK =
+  "Oyi is Ochiga's living intelligence and operating layer for buildings and communities. It helps authorised teams understand operations, coordinate services, manage resident workflows, and connect physical infrastructure to safer digital action.";
+
+async function answerFor(request: CorporateOyiCoreRequest, canonical: CanonicalConversationResponse, signal: CorporateCommercialSignal): Promise<string> {
   // Prefer a real Oyi Core answer (now that corporate.company.read,
   // corporate.development.read, corporate.oyi.read, corporate.private.read
   // and corporate.partnerships.read exist and run through the capability
-  // pipeline) over the generic hardcoded/business-unit-routing text below.
-  // Signal detection, business_unit routing and tool proposals are
-  // computed independently of this function and are unaffected.
+  // pipeline) over the fallback text below. Signal detection, business_unit
+  // routing and tool proposals are computed independently of this function
+  // and are unaffected.
   const canonicalAnswer = text(canonical.reply) || text(canonical.answer);
   if (canonicalAnswer) return canonicalAnswer;
   const message = norm(request.message);
+  // Wave 9 Slice 3 -- these two branches were the last remaining
+  // independent factual authority for "what is Ochiga"/"what is Oyi"
+  // (audited in full this slice: every OTHER branch below is a
+  // conversational routing/process acknowledgment, not a competing
+  // factual claim, and is correctly left untouched). They now resolve
+  // through the same canonical-knowledge lookup Wave 9 Slice 2 already
+  // proved safe in OfficeCorporateCapabilityModules.ts, falling back to
+  // the original literal on any failure -- this branch is only reached at
+  // all when the capability pipeline's own semantic-frame classification
+  // misses but this narrower regex still matches, so it must never throw
+  // or block the response.
   if (/\bwhat does ochiga do|what is ochiga|about ochiga\b/.test(message)) {
-    return "Ochiga develops and powers intelligent places. The company combines real estate development, building technology through Oyi, private relationship-led opportunities, and structured partnerships.";
+    return canonicalFallbackAnswer("backend:corporate-company", OCHIGA_IDENTITY_FALLBACK);
   }
   if (/\bwhat does oyi do|what is oyi|oyi do\b/.test(message)) {
-    return "Oyi is Ochiga's living intelligence and operating layer for buildings and communities. It helps authorised teams understand operations, coordinate services, manage resident workflows, and connect physical infrastructure to safer digital action.";
+    return canonicalFallbackAnswer("backend:corporate-oyi", OYI_IDENTITY_FALLBACK);
   }
   if (request.business_unit === "development") {
     return "That sounds like a Development or land/JV conversation. I can capture the site context, ownership position, location and intended partnership path so Office can review the opportunity properly.";
@@ -126,7 +158,7 @@ function buildToolProposals(request: CorporateOyiCoreRequest, signal: CorporateC
   return proposals;
 }
 
-export function buildCorporatePublicResponse(
+export async function buildCorporatePublicResponse(
   request: CorporateOyiCoreRequest,
   canonical: CanonicalConversationResponse,
   // Wave 9 Slice 1 -- real, governed knowledge retrieved by Core itself
@@ -136,7 +168,7 @@ export function buildCorporatePublicResponse(
   // function stays safely callable without the new retrieval step (e.g. in
   // existing tests) and degrades to the prior echo-input behavior below.
   retrievedKnowledge: RankedKnowledgeItem[] = []
-): CorporateOyiCoreResponse {
+): Promise<CorporateOyiCoreResponse> {
   const routed = routeCorporateBusinessUnit({
     source_page: request.source.source_page,
     source_form: request.source.source_form,
@@ -152,13 +184,20 @@ export function buildCorporatePublicResponse(
     message: request.message,
   });
   const toolProposals = buildToolProposals({ ...request, business_unit: routed.business_unit, inquiry_type: routed.inquiry_type }, signal);
+  // Wave 9 Slice 3 -- answerFor() is now async (it may resolve canonical
+  // knowledge for the Ochiga/Oyi identity branches), so this whole builder
+  // is now async too. There is exactly one caller (officeExport.ts's
+  // /conversation/corporate route), already inside an async handler that
+  // already awaits retrieveKnowledge() -- confirmed by direct audit this
+  // slice, so this is a safe, fully-covered interface change.
+  const answer = await answerFor({ ...request, business_unit: routed.business_unit, inquiry_type: routed.inquiry_type }, canonical, signal);
   return {
     ok: true,
     request_id: request.request_id,
     public_session_id: request.public_session_id,
     conversation_thread_id: canonical.thread_id || request.conversation_thread_id,
     public_identity: PUBLIC_CORPORATE_SURFACE_POLICY.public_identity,
-    answer: answerFor({ ...request, business_unit: routed.business_unit, inquiry_type: routed.inquiry_type }, canonical, signal),
+    answer,
     understood_intent: canonical.understood || canonical.intent || "corporate_public_conversation",
     business_unit: routed.business_unit,
     inquiry_type: routed.inquiry_type,
