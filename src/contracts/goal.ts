@@ -54,6 +54,15 @@ export type GoalTargetEntities = {
   estate_id?: string | null;
   home_id?: string | null;
   device_id?: string | null;
+
+  // Wave 7 Slice 7 -- lead/opportunity identity resolution. Optional, for
+  // the same reason as the operational fields above: Office's real
+  // crm_opportunities.id (the specific commercial pursuit this goal
+  // concerns, e.g. one of several simultaneous JV sites for the same
+  // lead), when the producing material event supplied one. Absent for
+  // every goal created before this field existed and for any producer
+  // that only knows the lead, never fabricated as a synthetic identity.
+  opportunity_id?: string | null;
 };
 
 export type GoalSuccessCondition =

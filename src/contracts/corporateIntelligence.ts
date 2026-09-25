@@ -226,6 +226,12 @@ export type CorporateMaterialEvent = {
   source: { channel: string; site: string; page: string; form: string };
   crm: {
     lead_id: string | null;
+    // Wave 7 Slice 7 -- optional real Office crm_opportunities.id, so a
+    // material event CAN identify which specific commercial pursuit it
+    // concerns (a lead may have several simultaneous ones). Absent on
+    // every event type Office does not yet scope this way; Core must
+    // treat absence as "unknown pursuit", never fabricate one.
+    opportunity_id: string | null;
     status: string | null;
     stage: string | null;
     owner: string | null;

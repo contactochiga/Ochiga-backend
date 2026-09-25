@@ -166,6 +166,23 @@ export class GoalRuntime {
     return data.map(rowToRecord).filter((goal) => !GOAL_TERMINAL_STATUSES.includes(goal.status));
   }
 
+  // Wave 7 Slice 7 -- the pursuit-scoped analogue of findActiveForLead:
+  // when a producer knows the specific Office crm_opportunities.id a
+  // material event concerns (not just the shared lead), dedup against
+  // that pursuit alone, so two simultaneous opportunities for the same
+  // lead (e.g. two separate JV sites for one landowner) each get their
+  // own goal instead of the second one silently finding the first one
+  // "already active" and skipping. Same query/filter shape as its siblings.
+  async findActiveForOpportunity(opportunityId: string): Promise<GoalRecord[]> {
+    if (!opportunityId) return [];
+    const { data, error } = await supabaseAdmin
+      .from("oyi_goals")
+      .select("*")
+      .contains("target_entities", JSON.stringify({ opportunity_id: opportunityId }));
+    if (error || !data) return [];
+    return data.map(rowToRecord).filter((goal) => !GOAL_TERMINAL_STATUSES.includes(goal.status));
+  }
+
   // Event-driven wake (Part C -- "prefer events over polling"): every
   // active/waiting goal watching this thread_reference, so an inbound
   // reply can trigger immediate reevaluation instead of waiting for the

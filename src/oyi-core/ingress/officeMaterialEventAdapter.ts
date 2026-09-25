@@ -118,11 +118,22 @@ async function recordDevelopmentJvDecision(
   assessment: JvAssessment
 ): Promise<DecisionRecord | null> {
   try {
+    // Wave 7 Slice 7 -- when Office tells us which specific commercial
+    // pursuit this event concerns (crm.opportunity_id), the Decision
+    // targets that pursuit rather than the shared lead, per the accepted
+    // identity model: a lead may have several simultaneous opportunities,
+    // and a Decision "what course of action was selected" question is
+    // about ONE of them, not the person in general. Absent -- the exact
+    // prior lead-scoped behavior, unchanged, for every event that does
+    // not yet carry an opportunity id.
+    const opportunityId = event.crm?.opportunity_id || null;
+    const entityType = opportunityId ? "office_opportunity" : "office_lead";
+    const entityId = opportunityId || leadId;
     const canonicalKey = canonicalSignalKeyForMaterialEvent(event);
     const { decision } = await createDecision({
-      decision_key: decisionKey({ entityType: "office_lead", entityId: leadId, actionType: policy, canonicalSignalKey: canonicalKey }),
-      entity_type: "office_lead",
-      entity_id: leadId,
+      decision_key: decisionKey({ entityType, entityId, actionType: policy, canonicalSignalKey: canonicalKey }),
+      entity_type: entityType,
+      entity_id: entityId,
       action_type: policy,
       title: `Development/JV relationship communication (${policy}) for ${event.subject?.label || "lead"}`,
       reason: `JV assessment recommended: ${assessment.recommended_next_step}.`,
@@ -205,10 +216,23 @@ async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent
 
     // Idempotency: the same material event replayed (or a second
     // development_enquiry_received for a lead that already has one
-    // in flight) must never create a second active goal.
-    const existing = await goalRuntime.findActiveForLead(leadId);
+    // in flight) must never create a second active goal. Wave 7 Slice 7:
+    // when Office tells us which specific opportunity this event
+    // concerns, dedup against THAT pursuit, not the shared lead -- so a
+    // second, unrelated JV site for the same landowner gets its own goal
+    // instead of being silently skipped because the first site's goal is
+    // still active. Falls back to the exact prior lead-scoped dedup for
+    // any event that does not carry an opportunity id.
+    const opportunityId = event.crm?.opportunity_id || null;
+    const existing = opportunityId ? await goalRuntime.findActiveForOpportunity(opportunityId) : await goalRuntime.findActiveForLead(leadId);
     if (existing.length > 0) {
-      logger.info("development_relationship_goal_skipped", { lead_id: leadId, policy, reason: "active_goal_exists", existing_goal_id: existing[0].id });
+      logger.info("development_relationship_goal_skipped", {
+        lead_id: leadId,
+        opportunity_id: opportunityId,
+        policy,
+        reason: "active_goal_exists",
+        existing_goal_id: existing[0].id,
+      });
       return;
     }
 
@@ -224,6 +248,7 @@ async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent
       email: communicationContext?.email || null,
       phone: communicationContext?.phone || null,
       whatsapp_phone: whatsappPhone,
+      opportunity_id: opportunityId,
     };
     const nowIso = new Date().toISOString();
     // A single bounded step -- send the acknowledgement once. Follow-up
@@ -268,7 +293,7 @@ async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent
       attempts_completed: 0,
       observations: [],
       evidence: [],
-      linked_crm_records: { lead_id: leadId },
+      linked_crm_records: opportunityId ? { lead_id: leadId, opportunity_id: opportunityId } : { lead_id: leadId },
       linked_tasks: [],
       linked_meetings: [],
       linked_automations: [],
@@ -282,7 +307,7 @@ async function activateDevelopmentRelationshipGoal(event: CorporateMaterialEvent
       next_evaluation_at: nowIso,
       completion_reason: null,
     });
-    logger.info("development_relationship_goal_created", { lead_id: leadId, goal_id: goal.id, policy, channel });
+    logger.info("development_relationship_goal_created", { lead_id: leadId, opportunity_id: opportunityId, goal_id: goal.id, policy, channel });
     // Best-effort lineage attachment -- the Decision necessarily precedes
     // the Goal it results in, so this fills goal_id in once known. Never
     // blocks or fails the goal-activation flow if it errors.

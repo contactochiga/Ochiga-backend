@@ -140,6 +140,7 @@ export function validateMaterialEvent(body: any): MaterialEventValidation {
       },
       crm: {
         lead_id: safeText(crm.lead_id) || null,
+        opportunity_id: safeText(crm.opportunity_id) || null,
         status: safeText(crm.status) || null,
         stage: safeText(crm.stage) || null,
         owner: safeText(crm.owner) || null,
