@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import type { KnowledgeItem } from "./knowledgeContracts";
 import { OFFICE_KNOWLEDGE_MANIFEST, manifestEntryFor } from "./officeKnowledgeManifest";
 import { fetchOfficeKnowledgeFiles, type OfficeKnowledgeFile } from "./officeKnowledgeBridge";
+import { BACKEND_INSTITUTIONAL_KNOWLEDGE_ITEMS } from "./backendInstitutionalKnowledge";
 
 const SOURCE_REPO = "ochiga-office";
 
@@ -57,23 +58,36 @@ export type KnowledgeIndexSnapshot = {
 
 // Section 40 -- built once per cache refresh (see knowledgeRetrieval.ts's
 // TTL cache around this function), never re-fetched/re-parsed per query.
+//
+// Wave 9 Slice 2 -- merges TWO real sources, not one: Office's fetched
+// pack, and Backend's own static institutional items
+// (backendInstitutionalKnowledge.ts, converged this slice from
+// OfficeCorporateCapabilityModules.ts's previously-hardcoded strings).
+// The Backend-native items require no network call and are always
+// present, even when Office is unreachable -- a genuine resilience
+// improvement over the pre-Slice-2 state, where corporate.company/oyi/
+// private/partnerships.read had no dependency on Office at all (now they
+// depend on this in-memory index, which itself degrades gracefully, see
+// getKnowledgeItemByCanonicalKey's own fallback contract in
+// knowledgeRetrieval.ts).
 export async function buildKnowledgeIndex(): Promise<KnowledgeIndexSnapshot> {
   const fetchResult = await fetchOfficeKnowledgeFiles();
+  const backendItems = BACKEND_INSTITUTIONAL_KNOWLEDGE_ITEMS;
   if (!fetchResult.ok) {
-    return { items: [], builtAt: new Date().toISOString(), sourceOk: false, sourceReason: fetchResult.reason, filesSeen: 0, filesClassified: 0 };
+    return { items: backendItems, builtAt: new Date().toISOString(), sourceOk: false, sourceReason: fetchResult.reason, filesSeen: 0, filesClassified: backendItems.length };
   }
-  const items: KnowledgeItem[] = [];
+  const officeItems: KnowledgeItem[] = [];
   for (const file of fetchResult.files) {
     const item = buildKnowledgeItem(file);
-    if (item) items.push(item);
+    if (item) officeItems.push(item);
   }
   return {
-    items,
+    items: [...officeItems, ...backendItems],
     builtAt: new Date().toISOString(),
     sourceOk: true,
     sourceReason: null,
     filesSeen: fetchResult.files.length,
-    filesClassified: items.length,
+    filesClassified: officeItems.length + backendItems.length,
   };
 }
 

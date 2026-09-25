@@ -145,3 +145,24 @@ export async function retrieveKnowledge(request: RetrieveKnowledgeRequest): Prom
 export function invalidateKnowledgeCache(): void {
   cached = null;
 }
+
+// Wave 9 Slice 2 -- a deterministic, exact-key lookup (never ranked/fuzzy),
+// added for the ONE narrow case that needs it: a capability module that
+// used to hardcode a single fixed institutional fact and now needs that
+// EXACT same fact back, not "the best-matching item for a free-text
+// query." Still runs through the same authorization gate as
+// retrieveKnowledge() (Section 45 -- authorization is never bypassed for
+// a "trusted" internal caller); returns null (never throws, never
+// fabricates) if the key doesn't exist or the actor isn't allowed to see
+// it, so callers can fall back safely (see
+// OfficeCorporateCapabilityModules.ts's own fallback-to-literal pattern).
+export async function getKnowledgeItemByCanonicalKey(
+  canonicalKey: string,
+  actor: { agentRole: KnowledgeAgentRole; audienceScope: KnowledgeAudience }
+): Promise<KnowledgeItem | null> {
+  const snapshot = await getIndex();
+  const item = snapshot.items.find((candidate) => candidate.canonicalKey === canonicalKey);
+  if (!item) return null;
+  if (!audienceAllowed(item.audience, actor.audienceScope) || !agentAllowed(item, actor.agentRole)) return null;
+  return item;
+}

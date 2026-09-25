@@ -40,6 +40,7 @@ import {
 } from "../context/officeActionProposal";
 import { isAutomationScheduleOrRecurrenceMessage } from "../context/officeAutomationSuggestion";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
+import { getKnowledgeItemByCanonicalKey } from "../domains/knowledge/knowledgeRetrieval";
 
 type OperationalSnapshot = {
   generated_at: string | null;
@@ -2647,12 +2648,15 @@ function officeContentQueryReadModule(): CapabilityModule {
 }
 
 // ---------------------------------------------------------------------
-// public_corporate — curated static content, mirrored from what is
-// actually live on the public website today (app/about/page.tsx,
-// app/private/page.tsx, app/partnerships/page.tsx, lib/company.ts).
-// Not Sanity-live like development, so the answer is honest about that.
+// public_corporate — curated static institutional content. As of Wave 9
+// Slice 2, sourced from Backend's own canonical knowledge items
+// (backendInstitutionalKnowledge.ts), which were themselves converged
+// from what previously lived only as literal strings here -- see that
+// file's own header for the full provenance chain back to the public
+// website. Not Sanity-live like development, so the answer is honest
+// about that.
 // ---------------------------------------------------------------------
-function corporateEvidence(domain: OyiEvidence["domain"], type: string): OyiEvidence {
+function corporateEvidence(domain: OyiEvidence["domain"], type: string, answerText?: string): OyiEvidence {
   return evidenceEnvelope({
     domain,
     type,
@@ -2664,9 +2668,51 @@ function corporateEvidence(domain: OyiEvidence["domain"], type: string): OyiEvid
     privacy_class: publicEvidence,
     confidence: 0.85,
     authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
-    payload: {},
+    payload: answerText ? { answer_text: answerText } : {},
   });
 }
+
+// Wave 9 Slice 2 -- extracts the canonical-knowledge-sourced text from
+// the evidence collect() already resolved, falling back to the original
+// literal only if evidence is somehow empty or malformed (never throws,
+// never blocks the response).
+function corporateEvidenceText(evidence: OyiEvidence[], fallback: string): string {
+  const payload = evidence[0]?.payload as { answer_text?: string } | undefined;
+  return payload?.answer_text || fallback;
+}
+
+// Wave 9 Slice 2 -- these four modules used to carry their answer text as
+// literal string constants, duplicating (with no shared authority) what
+// is now also true of Office's own knowledge pack concept. Converged:
+// each module's canonical fact now lives ONCE, as a real KnowledgeItem in
+// backendInstitutionalKnowledge.ts, fetched here via the deterministic,
+// authorization-checked getKnowledgeItemByCanonicalKey() lookup (never
+// the fuzzy/ranked retrieveKnowledge() -- this needs the EXACT fact, not
+// a best match). The original literal strings are kept ONLY as the
+// in-line fallback for the (expected-never, defense-in-depth) case where
+// the knowledge index is somehow unavailable or the item was renamed --
+// preserving response behavior exactly, per Slice 2's own explicit
+// instruction to never "simply delete functionality." Deliberately NOT
+// converged: corporate.development.read below, which is a genuine LIVE
+// fetch (current project listings from Website's Sanity dataset), not a
+// static institutional fact -- converting it would violate the locked
+// semantic boundary ("institutional knowledge is NOT project-specific
+// current state").
+const CORPORATE_ANSWER_ACTOR = { agentRole: "oma" as const, audienceScope: "PUBLIC" as const };
+
+async function canonicalCorporateAnswer(canonicalKey: string, fallback: string): Promise<string> {
+  try {
+    const item = await getKnowledgeItemByCanonicalKey(canonicalKey, CORPORATE_ANSWER_ACTOR);
+    return item?.content || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const CORPORATE_COMPANY_FALLBACK =
+  "Ochiga develops and powers intelligent places, bringing together real estate development, building technology and strategic investment partnerships. " +
+  "The company works through three connected engines: Ochiga Development (creates the physical asset), Oyi (Ochiga's building operating technology — powers how it operates), " +
+  "and Ochiga Private (connects selected investors, buyers, landowners and strategic partners with opportunity). These are interconnected parts of one Ochiga ecosystem, not three unrelated businesses.";
 
 function corporateCompanyReadModule(): CapabilityModule {
   return readModule({
@@ -2677,18 +2723,22 @@ function corporateCompanyReadModule(): CapabilityModule {
     permissions: [],
     evidenceRequirements: [],
     supports: (frame: SemanticFrame) => frame.domain === "corporate_company",
-    collect: async () => [corporateEvidence("corporate_company", "corporate_company_profile")],
-    answer: () => ({
+    collect: async () => {
+      const answer = await canonicalCorporateAnswer("backend:corporate-company", CORPORATE_COMPANY_FALLBACK);
+      return [corporateEvidence("corporate_company", "corporate_company_profile", answer)];
+    },
+    answer: (context, evidence) => ({
       status: "answered",
-      answer:
-        "Ochiga develops and powers intelligent places, bringing together real estate development, building technology and strategic investment partnerships. " +
-        "The company works through three connected engines: Ochiga Development (creates the physical asset), Oyi (Ochiga's building operating technology — powers how it operates), " +
-        "and Ochiga Private (connects selected investors, buyers, landowners and strategic partners with opportunity). These are interconnected parts of one Ochiga ecosystem, not three unrelated businesses.",
+      answer: corporateEvidenceText(evidence, CORPORATE_COMPANY_FALLBACK),
       presentation_policy: resultPresentation("text"),
     }),
     primary: "text",
   });
 }
+
+const CORPORATE_OYI_FALLBACK =
+  "Oyi is Ochiga's building operating technology — the intelligence layer that helps developments continue to evolve after handover, powering access control, energy, climate and security across a property. " +
+  "It's the same assistant you're talking to right now, adapted for residents, facility staff and Ochiga's own developments. More at getoyi.com.";
 
 function corporateOyiReadModule(): CapabilityModule {
   return readModule({
@@ -2699,17 +2749,23 @@ function corporateOyiReadModule(): CapabilityModule {
     permissions: [],
     evidenceRequirements: [],
     supports: (frame: SemanticFrame) => frame.domain === "corporate_oyi",
-    collect: async () => [corporateEvidence("corporate_oyi", "corporate_oyi_profile")],
-    answer: () => ({
+    collect: async () => {
+      const answer = await canonicalCorporateAnswer("backend:corporate-oyi", CORPORATE_OYI_FALLBACK);
+      return [corporateEvidence("corporate_oyi", "corporate_oyi_profile", answer)];
+    },
+    answer: (context, evidence) => ({
       status: "answered",
-      answer:
-        "Oyi is Ochiga's building operating technology — the intelligence layer that helps developments continue to evolve after handover, powering access control, energy, climate and security across a property. " +
-        "It's the same assistant you're talking to right now, adapted for residents, facility staff and Ochiga's own developments. More at getoyi.com.",
+      answer: corporateEvidenceText(evidence, CORPORATE_OYI_FALLBACK),
       presentation_policy: resultPresentation("text"),
     }),
     primary: "text",
   });
 }
+
+const CORPORATE_PRIVATE_FALLBACK =
+  "Ochiga Private is a curated private real-estate investment and opportunity network connecting selected investors, buyers, landowners and strategic partners with Ochiga's development opportunities. " +
+  "Membership works through five stages — Apply, Qualify, Access, Participate, Grow — and opportunities span recurring income, longer-term appreciation and development-linked categories. " +
+  "Membership and access are subject to individual review and are never guaranteed; Ochiga does not provide investment advice, and nothing here is an offer of securities or a guarantee of returns.";
 
 function corporatePrivateReadModule(): CapabilityModule {
   return readModule({
@@ -2720,18 +2776,23 @@ function corporatePrivateReadModule(): CapabilityModule {
     permissions: [],
     evidenceRequirements: [],
     supports: (frame: SemanticFrame) => frame.domain === "corporate_private",
-    collect: async () => [corporateEvidence("corporate_private", "corporate_private_profile")],
-    answer: () => ({
+    collect: async () => {
+      const answer = await canonicalCorporateAnswer("backend:corporate-private", CORPORATE_PRIVATE_FALLBACK);
+      return [corporateEvidence("corporate_private", "corporate_private_profile", answer)];
+    },
+    answer: (context, evidence) => ({
       status: "answered",
-      answer:
-        "Ochiga Private is a curated private real-estate investment and opportunity network connecting selected investors, buyers, landowners and strategic partners with Ochiga's development opportunities. " +
-        "Membership works through five stages — Apply, Qualify, Access, Participate, Grow — and opportunities span recurring income, longer-term appreciation and development-linked categories. " +
-        "Membership and access are subject to individual review and are never guaranteed; Ochiga does not provide investment advice, and nothing here is an offer of securities or a guarantee of returns.",
+      answer: corporateEvidenceText(evidence, CORPORATE_PRIVATE_FALLBACK),
       presentation_policy: resultPresentation("text"),
     }),
     primary: "text",
   });
 }
+
+const CORPORATE_PARTNERSHIPS_FALLBACK =
+  "Ochiga partners across several tracks: Landowners & Joint Ventures (land contribution, joint development), Capital Partners (institutions, family offices, strategic capital), " +
+  "Buyers & Offtake (acquisition and sales relationships), and Professional/Strategic Partners (delivery and technology integrators). " +
+  "The process is Introduce, Review, Structure, Align, Execute. Start a conversation at ochiga.com.ng/partnerships or ochiga.com.ng/contact.";
 
 function corporatePartnershipsReadModule(): CapabilityModule {
   return readModule({
@@ -2742,13 +2803,13 @@ function corporatePartnershipsReadModule(): CapabilityModule {
     permissions: [],
     evidenceRequirements: [],
     supports: (frame: SemanticFrame) => frame.domain === "corporate_partnerships",
-    collect: async () => [corporateEvidence("corporate_partnerships", "corporate_partnerships_profile")],
-    answer: () => ({
+    collect: async () => {
+      const answer = await canonicalCorporateAnswer("backend:corporate-partnerships", CORPORATE_PARTNERSHIPS_FALLBACK);
+      return [corporateEvidence("corporate_partnerships", "corporate_partnerships_profile", answer)];
+    },
+    answer: (context, evidence) => ({
       status: "answered",
-      answer:
-        "Ochiga partners across several tracks: Landowners & Joint Ventures (land contribution, joint development), Capital Partners (institutions, family offices, strategic capital), " +
-        "Buyers & Offtake (acquisition and sales relationships), and Professional/Strategic Partners (delivery and technology integrators). " +
-        "The process is Introduce, Review, Structure, Align, Execute. Start a conversation at ochiga.com.ng/partnerships or ochiga.com.ng/contact.",
+      answer: corporateEvidenceText(evidence, CORPORATE_PARTNERSHIPS_FALLBACK),
       presentation_policy: resultPresentation("text"),
     }),
     primary: "text",

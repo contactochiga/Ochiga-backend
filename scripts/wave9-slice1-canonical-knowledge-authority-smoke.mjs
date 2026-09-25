@@ -153,10 +153,11 @@ await test('"What does Ochiga do with a landowner seeking a JV?" -- honestly ret
 });
 
 console.log("\n=== 35. Private query proof ===");
-await test('"What is Ochiga Private?" -- honestly returns no Office-pack knowledge for the private domain (confirmed MISSING)', async () => {
+await test('"What is Ochiga Private?" -- Slice 1 found zero Office-pack items for this domain; Wave 9 Slice 2 converged one real Backend-native institutional item (backend:corporate-private) here, so this now honestly returns exactly that one converged fact, not a fabricated Office-pack match', async () => {
   invalidateKnowledgeCache();
   const result = await retrieveKnowledge({ actor: PUBLIC_ACTOR_OMA, query: "ochiga private membership investment", domains: ["private"] });
-  assert.equal(result.items.length, 0);
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].canonicalKey, "backend:corporate-private");
 });
 
 console.log("\n=== 34. Technology query proof ===");
@@ -241,11 +242,13 @@ await test("buildOfficeInternalResponse populates real knowledge_references with
 });
 
 console.log("\n=== 31. Failure behavior -- source unavailable ===");
-await test("when Office is unreachable, retrieval fails honestly (empty items, never fabricated content)", async () => {
+await test("when Office is unreachable, retrieval never fabricates Office-pack content -- Wave 9 Slice 2's Backend-native institutional items (no network dependency) are the only survivors", async () => {
   sourceOk = false;
   invalidateKnowledgeCache();
   const result = await retrieveKnowledge({ actor: PUBLIC_ACTOR_OMA, query: "what is oyi" });
-  assert.equal(result.items.length, 0);
+  assert.equal(result.items.length, 4);
+  assert.ok(result.items.every((item) => item.sourceRepo === "ochiga-backend"));
+  assert.ok(result.items.every((item) => item.canonicalKey.startsWith("backend:corporate-")));
   sourceOk = true;
   invalidateKnowledgeCache();
 });
