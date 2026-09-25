@@ -36,6 +36,9 @@ import {
 } from "../../oyi-core/domains/devices/deviceOutcomeEvaluator";
 import { evaluateCommercialOpportunityOutcome, type CommercialOutcomeEvaluation } from "../../oyi-core/domains/development/commercialOutcomeEvaluator";
 import { fetchOfficeOpportunitySnapshots } from "../../oyi-core/ingress/officeOpportunityBridge";
+import { evaluateCameraOutcomes, type CameraOutcomeEvaluation } from "../../modules/cameras/cameraOutcomeEvaluator";
+import { evaluateMaintenanceOutcomes, type MaintenanceOutcomeEvaluation } from "../maintenanceOutcomeEvaluator";
+import { evaluateVisitorOutcomes, type VisitorOutcomeEvaluation } from "../visitorOutcomeEvaluator";
 import type { GoalRecord, GoalPlanStep } from "../../contracts/goal";
 
 // Section 5 -- the smallest outcome vocabulary this evidence actually
@@ -56,7 +59,20 @@ export type GoalOutcomeState = "achieved" | "not_achieved" | "unverified" | "mix
 // Wave 8 Slice 4 -- three commercial-domain provenance values added,
 // mirroring commercialOutcomeEvaluator.ts's own CommercialOutcomeProvenance
 // verbatim (never re-typed independently, to avoid the two enums drifting).
-export type GoalOutcomeProvenance = "device_state_evaluation" | "no_evaluator_available" | "insufficient_evidence" | "commercial_opportunity_evaluation" | "no_target_specified" | "office_unavailable";
+// Wave 8 Slice 6 -- three more domain-specific provenance values, one per
+// new evaluator, so a caller inspecting only GoalOutcome.provenance can
+// still tell which real authority produced the verdict without needing
+// the richer camera/maintenance/visitor sub-object.
+export type GoalOutcomeProvenance =
+  | "device_state_evaluation"
+  | "no_evaluator_available"
+  | "insufficient_evidence"
+  | "commercial_opportunity_evaluation"
+  | "no_target_specified"
+  | "office_unavailable"
+  | "camera_state_evaluation"
+  | "maintenance_resident_verification"
+  | "visitor_entry_evidence";
 
 // Section 14 -- a pointer to the underlying intelligence_feedback row,
 // never a copied blob of its content.
@@ -86,6 +102,14 @@ export type GoalOutcome = {
   // (state/provenance/evaluatedAt/evidence/note) are completely
   // unaffected by this field's presence or absence.
   commercial?: CommercialOutcomeEvaluation | null;
+  // Wave 8 Slice 6 -- same additive pattern as `commercial` above: at
+  // most ONE of commercial/camera/maintenance/visitor/evidence(device)
+  // is ever populated for a given Goal, mirroring GoalTargetEntities'
+  // own mutual-exclusivity convention (Section 30/P -- one Goal, one
+  // domain, provenance never flattened across domains).
+  camera?: CameraOutcomeEvaluation | null;
+  maintenance?: MaintenanceOutcomeEvaluation | null;
+  visitor?: VisitorOutcomeEvaluation | null;
   // Section 10/17 -- explicit, on every result, so no caller mistakes
   // this for a permanent, append-once verdict.
   note: string;
@@ -151,6 +175,50 @@ async function deriveCommercialGoalOutcome(goal: GoalRecord, opportunityId: stri
   };
 }
 
+// Wave 8 Slice 6 -- reduces a CameraOutcomeResult into the shared
+// GoalOutcomeState vocabulary, mirroring the device-path reduction
+// exactly ("contradicted" -> "not_achieved", never a fourth top-level
+// value -- the richer camera-specific nuance stays in the `camera`
+// sub-object's own observedOverall/notes fields, Section 27).
+function cameraGoalOutcomeState(result: CameraOutcomeEvaluation["result"]): GoalOutcomeState {
+  if (result === "achieved") return "achieved";
+  if (result === "contradicted") return "not_achieved";
+  return "unverified";
+}
+
+async function deriveCameraGoalOutcome(goal: GoalRecord, cameraId: string, decisionId: string | null): Promise<GoalOutcome> {
+  const estateId = goal.target_entities?.estate_id || null;
+  if (!estateId) {
+    operationalMetrics.increment("goal_outcome_derivation_total", { state: "unverified", provenance: "insufficient_evidence" });
+    return { goalId: goal.id, state: "unverified", provenance: "insufficient_evidence", evaluatedAt: null, evidence: [], note: "This Goal names a camera_id but no estate_id -- CameraCurrentStateAuthority requires estate scope and cannot be resolved without it." };
+  }
+  const [camera] = await evaluateCameraOutcomes([{ lineage: { cameraId, estateId, decisionId, goalId: goal.id, canonicalSignalKey: goal.canonical_signal_key } }]);
+  operationalMetrics.increment("goal_outcome_derivation_total", { state: cameraGoalOutcomeState(camera.result), provenance: "camera_state_evaluation" });
+  return { goalId: goal.id, state: cameraGoalOutcomeState(camera.result), provenance: "camera_state_evaluation", evaluatedAt: camera.observedAt, evidence: [], camera, note: LIVE_DERIVATION_NOTE };
+}
+
+function maintenanceGoalOutcomeState(result: MaintenanceOutcomeEvaluation["result"]): GoalOutcomeState {
+  return result === "achieved" ? "achieved" : "unverified";
+}
+
+async function deriveMaintenanceGoalOutcome(goal: GoalRecord, maintenanceRequestId: string, decisionId: string | null): Promise<GoalOutcome> {
+  const [maintenance] = await evaluateMaintenanceOutcomes([{ lineage: { maintenanceRequestId, decisionId, goalId: goal.id, canonicalSignalKey: goal.canonical_signal_key } }]);
+  operationalMetrics.increment("goal_outcome_derivation_total", { state: maintenanceGoalOutcomeState(maintenance.result), provenance: "maintenance_resident_verification" });
+  return { goalId: goal.id, state: maintenanceGoalOutcomeState(maintenance.result), provenance: "maintenance_resident_verification", evaluatedAt: null, evidence: [], maintenance, note: LIVE_DERIVATION_NOTE };
+}
+
+function visitorGoalOutcomeState(result: VisitorOutcomeEvaluation["result"]): GoalOutcomeState {
+  if (result === "achieved") return "achieved";
+  if (result === "not_achieved") return "not_achieved";
+  return "unverified";
+}
+
+async function deriveVisitorGoalOutcome(goal: GoalRecord, visitorAccessId: string, decisionId: string | null): Promise<GoalOutcome> {
+  const [visitor] = await evaluateVisitorOutcomes([{ lineage: { visitorAccessId, decisionId, goalId: goal.id, canonicalSignalKey: goal.canonical_signal_key } }]);
+  operationalMetrics.increment("goal_outcome_derivation_total", { state: visitorGoalOutcomeState(visitor.result), provenance: "visitor_entry_evidence" });
+  return { goalId: goal.id, state: visitorGoalOutcomeState(visitor.result), provenance: "visitor_entry_evidence", evaluatedAt: visitor.arrivedAt, evidence: [], visitor, note: LIVE_DERIVATION_NOTE };
+}
+
 // Derives a goal's outcome from the CURRENT set of Wave 8 Slice 1 device-
 // outcome evaluations for its own device-action steps -- never re-queries
 // Wave 6 state itself (Section 28: one factual evaluation authority,
@@ -177,6 +245,31 @@ export async function deriveGoalOutcome(goal: GoalRecord): Promise<GoalOutcome> 
     if (opportunityId && targetStage) {
       return deriveCommercialGoalOutcome(goal, opportunityId, targetStage);
     }
+
+    // Wave 8 Slice 6 -- structured domain/target dispatch only (Section
+    // 21): each check is a plain identity-field presence test, never a
+    // free-text/objective inspection or LLM classification. Every
+    // currently-live Goal has none of these three fields set (no Decision
+    // producer exists yet for camera/maintenance/visitor -- Section 26),
+    // so these branches are exercised today only by test fixtures,
+    // honestly disclosed, matching the commercial dispatch's own
+    // precedent immediately above.
+    const cameraId = goal.target_entities?.camera_id || null;
+    if (cameraId) {
+      const decisionId = await findDecisionIdForGoal(goal.id);
+      return deriveCameraGoalOutcome(goal, cameraId, decisionId);
+    }
+    const maintenanceRequestId = goal.target_entities?.maintenance_request_id || null;
+    if (maintenanceRequestId) {
+      const decisionId = await findDecisionIdForGoal(goal.id);
+      return deriveMaintenanceGoalOutcome(goal, maintenanceRequestId, decisionId);
+    }
+    const visitorAccessId = goal.target_entities?.visitor_access_id || null;
+    if (visitorAccessId) {
+      const decisionId = await findDecisionIdForGoal(goal.id);
+      return deriveVisitorGoalOutcome(goal, visitorAccessId, decisionId);
+    }
+
     operationalMetrics.increment("goal_outcome_derivation_total", { state: "unverified", provenance: "no_evaluator_available" });
     return { goalId: goal.id, state: "unverified", provenance: "no_evaluator_available", evaluatedAt: null, evidence: [], note: NO_EVALUATOR_NOTE };
   }
@@ -262,8 +355,15 @@ export async function deriveGoalOutcome(goal: GoalRecord): Promise<GoalOutcome> 
 // Postgres query per Slice 3's own design; this function does not change
 // that, it only removes the N-Office-calls risk for the commercial path).
 export async function deriveGoalOutcomesBatch(goals: GoalRecord[]): Promise<GoalOutcome[]> {
-  const commercialGoals = goals.filter((goal) => !goal.plan.some(isDeviceOutcomeStep) && goal.target_entities?.opportunity_id && goal.target_entities?.commercial_target_stage);
-  const otherGoals = goals.filter((goal) => !commercialGoals.includes(goal));
+  const noDeviceStep = (goal: GoalRecord) => !goal.plan.some(isDeviceOutcomeStep);
+  const commercialGoals = goals.filter((goal) => noDeviceStep(goal) && goal.target_entities?.opportunity_id && goal.target_entities?.commercial_target_stage);
+  const cameraGoals = goals.filter((goal) => noDeviceStep(goal) && !commercialGoals.includes(goal) && goal.target_entities?.camera_id);
+  const maintenanceGoals = goals.filter((goal) => noDeviceStep(goal) && !commercialGoals.includes(goal) && !cameraGoals.includes(goal) && goal.target_entities?.maintenance_request_id);
+  const visitorGoals = goals.filter(
+    (goal) => noDeviceStep(goal) && !commercialGoals.includes(goal) && !cameraGoals.includes(goal) && !maintenanceGoals.includes(goal) && goal.target_entities?.visitor_access_id
+  );
+  const claimed = new Set([...commercialGoals, ...cameraGoals, ...maintenanceGoals, ...visitorGoals]);
+  const otherGoals = goals.filter((goal) => !claimed.has(goal));
 
   const opportunityIds = Array.from(new Set(commercialGoals.map((goal) => goal.target_entities!.opportunity_id!)));
   const fetchResult = opportunityIds.length ? await fetchOfficeOpportunitySnapshots(opportunityIds) : { ok: true as const, snapshots: new Map() };
@@ -282,6 +382,56 @@ export async function deriveGoalOutcomesBatch(goals: GoalRecord[]): Promise<Goal
     return { goalId: goal.id, state: commercial.result, provenance: commercial.provenance, evaluatedAt: commercial.evaluatedAt, evidence: [], commercial, note: LIVE_DERIVATION_NOTE };
   });
 
+  // Wave 8 Slice 6 -- each domain batched with exactly ONE call to its own
+  // evaluator covering every Goal in that domain (cameraOutcomeEvaluator.ts
+  // further batches internally by estate -- Section 32, no N+1 regardless
+  // of how many Goals/cameras/estates a single deriveGoalOutcomesBatch
+  // call covers).
+  let cameraResults: GoalOutcome[] = [];
+  if (cameraGoals.length) {
+    const cameraEvaluations = await evaluateCameraOutcomes(
+      cameraGoals.map((goal) => ({ lineage: { cameraId: goal.target_entities!.camera_id!, estateId: goal.target_entities?.estate_id || "", decisionId: null, goalId: goal.id, canonicalSignalKey: goal.canonical_signal_key } }))
+    );
+    cameraResults = cameraGoals.map((goal, index) => {
+      const goalHasEstate = Boolean(goal.target_entities?.estate_id);
+      if (!goalHasEstate) {
+        operationalMetrics.increment("goal_outcome_derivation_total", { state: "unverified", provenance: "insufficient_evidence" });
+        return { goalId: goal.id, state: "unverified" as GoalOutcomeState, provenance: "insufficient_evidence" as GoalOutcomeProvenance, evaluatedAt: null, evidence: [], note: "This Goal names a camera_id but no estate_id -- CameraCurrentStateAuthority requires estate scope and cannot be resolved without it." };
+      }
+      const camera = cameraEvaluations[index];
+      operationalMetrics.increment("goal_outcome_derivation_total", { state: cameraGoalOutcomeState(camera.result), provenance: "camera_state_evaluation" });
+      return { goalId: goal.id, state: cameraGoalOutcomeState(camera.result), provenance: "camera_state_evaluation" as GoalOutcomeProvenance, evaluatedAt: camera.observedAt, evidence: [], camera, note: LIVE_DERIVATION_NOTE };
+    });
+  }
+
+  let maintenanceResults: GoalOutcome[] = [];
+  if (maintenanceGoals.length) {
+    const maintenanceEvaluations = await evaluateMaintenanceOutcomes(
+      maintenanceGoals.map((goal) => ({ lineage: { maintenanceRequestId: goal.target_entities!.maintenance_request_id!, decisionId: null, goalId: goal.id, canonicalSignalKey: goal.canonical_signal_key } }))
+    );
+    maintenanceResults = maintenanceGoals.map((goal, index) => {
+      const maintenance = maintenanceEvaluations[index];
+      operationalMetrics.increment("goal_outcome_derivation_total", { state: maintenanceGoalOutcomeState(maintenance.result), provenance: "maintenance_resident_verification" });
+      return { goalId: goal.id, state: maintenanceGoalOutcomeState(maintenance.result), provenance: "maintenance_resident_verification" as GoalOutcomeProvenance, evaluatedAt: null, evidence: [], maintenance, note: LIVE_DERIVATION_NOTE };
+    });
+  }
+
+  let visitorResults: GoalOutcome[] = [];
+  if (visitorGoals.length) {
+    const visitorEvaluations = await evaluateVisitorOutcomes(
+      visitorGoals.map((goal) => ({ lineage: { visitorAccessId: goal.target_entities!.visitor_access_id!, decisionId: null, goalId: goal.id, canonicalSignalKey: goal.canonical_signal_key } }))
+    );
+    visitorResults = visitorGoals.map((goal, index) => {
+      const visitor = visitorEvaluations[index];
+      operationalMetrics.increment("goal_outcome_derivation_total", { state: visitorGoalOutcomeState(visitor.result), provenance: "visitor_entry_evidence" });
+      return { goalId: goal.id, state: visitorGoalOutcomeState(visitor.result), provenance: "visitor_entry_evidence" as GoalOutcomeProvenance, evaluatedAt: visitor.arrivedAt, evidence: [], visitor, note: LIVE_DERIVATION_NOTE };
+    });
+  }
+
   const otherResults = await Promise.all(otherGoals.map((goal) => deriveGoalOutcome(goal)));
-  return goals.map((goal) => commercialResults.find((result) => result.goalId === goal.id) || otherResults.find((result) => result.goalId === goal.id)!);
+  const byGoalId = new Map<string, GoalOutcome>();
+  for (const result of [...commercialResults, ...cameraResults, ...maintenanceResults, ...visitorResults, ...otherResults]) {
+    byGoalId.set(result.goalId, result);
+  }
+  return goals.map((goal) => byGoalId.get(goal.id)!);
 }

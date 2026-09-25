@@ -75,6 +75,21 @@ export type GoalTargetEntities = {
   // populates it. commercialOutcomeEvaluator.ts treats its absence as
   // "no target specified," never as an invented default.
   commercial_target_stage?: string | null;
+
+  // Wave 8 Slice 6 -- Camera/Maintenance/Visitor Outcome Evaluators.
+  // Three more identity-only additive fields, same rationale as every
+  // other field in this block: no existing Goal producer sets any of
+  // these today (no live Decision producer exists for these domains --
+  // evaluator capability may exist before producer adoption), so all
+  // three are honestly absent everywhere until a future producer
+  // populates them. Each names the ONE object this Goal's target
+  // concerns in its own domain; never combined with device_id/
+  // opportunity_id on the same Goal (the domains are mutually exclusive
+  // in practice, exactly like the existing operational vs. commercial
+  // fields above).
+  camera_id?: string | null;
+  maintenance_request_id?: string | null;
+  visitor_access_id?: string | null;
 };
 
 export type GoalSuccessCondition =
