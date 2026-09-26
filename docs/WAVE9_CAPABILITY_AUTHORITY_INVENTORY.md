@@ -81,4 +81,3 @@ Core owns interpretation, permission/scope checks and capability selection for e
 | wallet.transactions.read | wallet | enabled | consumer | wallet.read | read / none | read | wallet_transaction; home required |
 
 This inventory exposes declarations and handler availability, not exhaustive proof of every handler's authorization. Freshness and provenance enforcement remains in evidence contracts/domain loaders; the JSON command includes full evidence requirements. Do not mistake no declared permission for public access without examining surfaces, actor checks and domain policy.
-

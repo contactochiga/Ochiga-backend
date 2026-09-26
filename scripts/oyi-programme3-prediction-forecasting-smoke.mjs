@@ -256,7 +256,9 @@ await check("learning boundary: an allowed anomaly-sensitivity parameter is crea
   assert.equal(row.current_value, 3, "proposing must never change current_value directly");
   assert.equal(row.proposed_value, 4);
 
-  const promoted = await learningParametersModule.promoteLearningParameter(row.id, "enabled");
+  const promoted = await learningParametersModule.promoteLearningParameter(row.id, "enabled", {
+    approver: "reviewer@example.invalid", expectedVersion: row.version, expectedStage: row.rollout_stage,
+  });
   assert.equal(promoted.ok, true);
   const updated = fakeSupabase.db.oyi_learning_parameters.find((r) => r.id === row.id);
   assert.equal(updated.current_value, 4, "only an explicit promotion to enabled moves proposed_value into current_value");
