@@ -1,6 +1,7 @@
 import type { OyiDomain } from "../runtime/languageUnderstanding";
 
 export type SemanticOperation =
+  | "memory.recall"
   | "plan.review"
   | "inform"
   | "summarize"

@@ -113,9 +113,10 @@ function boolFlag(name: string, fallback = true) {
   return !/^(0|false|off|disabled)$/i.test(String(value));
 }
 
-function ensureRegistered() {
+export function ensureRegistered() {
   if (registered) return;
   capabilityRegistry.register(buildPlanStudioCapability());
+  capabilityRegistry.register(buildMemoryRecallCapability());
   for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
   for (const capability of buildDeviceActionCapabilities()) capabilityRegistry.register(capability);
   for (const capability of buildOfficeInternalReadCapabilities()) capabilityRegistry.register(capability);
@@ -2777,6 +2778,7 @@ async function buildBusinessSurfaceFallbackResponse(
 }
 
 import { assembleGovernedContext } from "../context/governedContextAssembly";
+import { buildMemoryRecallCapability, isMemoryRecallRequest } from "../capabilities/MemoryRecallCapability";
 
 export class ConversationOrchestrator {
   async run(context: CanonicalConversationRequestContext): Promise<ConversationRunResult> {
@@ -2786,7 +2788,9 @@ export class ConversationOrchestrator {
     const planReview = context.input.surface === "office_internal" && normalizePlanReviewContext((context.input.context as any)?.plan_review_context);
     // Explicit read-only host request; still passes the normal capability
     // permission/evidence gate. It cannot turn into a device/action request.
-    const frame = planReview ? { ...parsedFrame, domain: "office_development" as const, operation: "plan.review" as const, mutationIntent: false, references: [], primaryEntity: null } : parsedFrame;
+    const memoryRecall = context.input.surface === "consumer" && isMemoryRecallRequest(context.input.message);
+    const frame = planReview ? { ...parsedFrame, domain: "office_development" as const, operation: "plan.review" as const, mutationIntent: false, references: [], primaryEntity: null }
+      : memoryRecall ? { ...parsedFrame, domain: "global" as const, operation: "memory.recall" as const, mutationIntent: false, references: [], primaryEntity: null } : parsedFrame;
     const tracer = new ConversationTracer({
       requestId: String((context.input.context as any)?.request_id || "") || undefined,
       correlationId: String((context.input.context as any)?.correlation_id || "") || undefined,
