@@ -64,3 +64,18 @@ assert.equal(writes[0].options.onConflict, "id");
 failWrite = true;
 await assert.rejects(upsertResidentMemory(actor, {memoryType:"conversation_context",key:"latest",value:{}}), /write_failed/);
 console.log("PASS governed memory: scope, expiry, bounded read, context-only trust, server assembly, public exclusion, resolved DB errors, stable null-home persistence identity");
+// Exercise actual orchestration, not just a manually called collector.
+require.cache[require.resolve("bullmq")] = { exports: { Queue: class { async add() { throw Error("recall must not dispatch"); } }, Worker: class {} } };
+const memoryFrom = supabaseAdmin.from;
+mode = "read";
+supabaseAdmin.from = table => table === "resident_memory" ? memoryFrom(table) : new Proxy({}, {
+  get: (_, key) => key === "then" ? (yes, no) => Promise.resolve({data:null,error:null}).then(yes,no) : () => supabaseAdmin.from(table),
+});
+supabaseAdmin.rpc = async () => ({data:null,error:null});
+const {conversationOrchestrator} = require("../dist/oyi-core/orchestration/ConversationOrchestrator.js");
+const routed = await conversationOrchestrator.run({actor,oisContext:null,input:{surface:"consumer",message:"What did we discuss recently?"}});
+assert.equal(routed.capability_key,"context.memory.recall");
+assert.match(JSON.stringify(routed),/Hello/);
+assert.match(JSON.stringify(routed),/historical/);
+console.log("PASS actual Core routing consumes governed memory without action dispatch");
+process.exit(0);

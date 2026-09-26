@@ -4,6 +4,8 @@ Status: IN PROGRESS — not a closure certificate. Fresh source audit against du
 
 ## Baselines and preservation
 
+Continuation evidence: see `WAVE9_CONTINUATION_VALIDATION.md` and the updated closure record. Real memory recall and a 73-entry executable capability inventory now exist. A deeper Facility trace found and removed five live local operational-intelligence fallbacks (`bfb5676`); the earlier coarse Facility assessment was insufficient. Browser and several real PostgreSQL gates now pass, but overall audit remains IN PROGRESS. No old cloud work was reconstructed.
+
 | Repository | Authoritative branch | Remote checkpoint |
 |---|---|---|
 | Backend | main | 17e876d78d0baf19913845195e140c812075a2ec |

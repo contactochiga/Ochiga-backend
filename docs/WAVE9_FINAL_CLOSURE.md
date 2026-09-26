@@ -4,6 +4,16 @@
 
 ## Authoritative branches (reverified)
 
+### Continuation update (supersedes earlier validation limitations below)
+
+Backend `2d33190` adds actual governed memory recall through Core and an executable 73-capability inventory; `f5f2faf` removes vulnerable bcrypt installer/BullMQ dependency chains. Typecheck/build and focused tests pass. Actual orchestrator routing is now tested; this is not a claim of full cross-domain memory adoption. Backend audit is now six advisories, zero critical (previously 15).
+
+Twin `2862dba` is pushed; its real Chrome architecture suite now passes, with no browser errors. Facility `10054ff` and `bfb5676` are pushed on `codex/wave9-dependency-hardening`: compatible dependency refresh and removal of five competing local-intelligence fallback loaders. Facility build/lint/release checks pass. Earlier Facility authority assessment was incomplete; the deeper trace found this genuine conflict.
+
+Real PostgreSQL Final A, Final B and 14E pass. Wave 5 device-verification, reconciliation and consumer-authority suites also pass using local-only Supabase credentials after initial credential-gate failures. Complete all-suite rerun/CI remains outstanding. Twin/Facility PR creation still needs authenticated GitHub write access; the connector returns 403 and the in-app browser is signed out. No drafts merged.
+
+See `WAVE9_CONTINUATION_VALIDATION.md` and `WAVE9_CAPABILITY_AUTHORITY_INVENTORY.md`. Schema equivalence/fresh migration-chain integrity, final authority/persona sweep and remaining dependency/security findings still prevent closure. The following original snapshot is retained for provenance, not as the latest test status.
+
 | Repository | Branch | HEAD |
 |---|---|---|
 | Backend | main | 17e876d78d0baf19913845195e140c812075a2ec |
