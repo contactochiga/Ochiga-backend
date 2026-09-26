@@ -16,7 +16,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-service-role-key";
 process.env.SUPABASE_ANON_KEY ||= "test-anon-key";
 const require = createRequire(import.meta.url);
 const path = require("path");
-const backendRoot = "/Users/ochigaidoko/Documents/Ochiga-backend";
+const backendRoot = require("node:url").fileURLToPath(new URL("../", import.meta.url));
 
 const bridgeModule = require(path.join(backendRoot, "dist/oyi-core/domains/knowledge/officeKnowledgeBridge.js"));
 const { getKnowledgeItemByCanonicalKey, invalidateKnowledgeCache } = require(path.join(backendRoot, "dist/oyi-core/domains/knowledge/knowledgeRetrieval.js"));
@@ -97,13 +97,13 @@ await test("when buildKnowledgeIndex() itself throws (defense-in-depth case: ind
 });
 
 console.log("\n=== 4. Resilience -- Backend-native items survive an Office outage (no network dependency) ===");
-await test("buildKnowledgeIndex() with Office unreachable still returns exactly the 5 Backend-native items, never zero", async () => {
+await test("Office outage preserves the five institutional items and the source-backed product architecture", async () => {
   sourceOk = false;
   invalidateKnowledgeCache();
   const snapshot = await buildKnowledgeIndex();
   assert.equal(snapshot.sourceOk, false);
-  assert.equal(snapshot.items.length, 5);
-  assert.deepEqual(snapshot.items.map((i) => i.canonicalKey).sort(), [...CONVERGED_KEYS].sort());
+  assert.equal(snapshot.items.length, 6);
+  assert.deepEqual(snapshot.items.map((i) => i.canonicalKey).sort(), [...CONVERGED_KEYS, "backend:product-oyi-architecture"].sort());
   sourceOk = true;
   invalidateKnowledgeCache();
 });

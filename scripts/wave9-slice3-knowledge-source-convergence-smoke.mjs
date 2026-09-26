@@ -17,7 +17,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-service-role-key";
 process.env.SUPABASE_ANON_KEY ||= "test-anon-key";
 const require = createRequire(import.meta.url);
 const path = require("path");
-const backendRoot = "/Users/ochigaidoko/Documents/Ochiga-backend";
+const backendRoot = require("node:url").fileURLToPath(new URL("../", import.meta.url));
 
 const bridgeModule = require(path.join(backendRoot, "dist/oyi-core/domains/knowledge/officeKnowledgeBridge.js"));
 const { invalidateKnowledgeCache, retrieveKnowledge, getKnowledgeItemByCanonicalKey } = require(path.join(backendRoot, "dist/oyi-core/domains/knowledge/knowledgeRetrieval.js"));
