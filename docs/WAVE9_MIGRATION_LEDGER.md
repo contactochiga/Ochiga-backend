@@ -1,5 +1,11 @@
 # Wave 9 migration ledger — read-only production inspection
 
+## Isolated replay finding (2026-09-26 continuation)
+
+Using fresh uniquely named databases in local PostgreSQL, `20260312000100_camera_events.sql` fails with `relation "facility_cameras" does not exist`. Repeating after the documented `migrations/schema.sql` bootstrap yields the same failure; the bootstrap itself succeeds. The tracked camera-table creation is later, `20260521000100_pilot_onboarding_foundation.sql`. Thus neither bare chronological replay nor the documented baseline-plus-replay is currently valid. Disposable test databases were removed; no existing database was reset.
+
+This is a **PRODUCTION-RISK / provisioning gate**, not evidence that production lacks the table. Preserve all applied migrations. Required next evidence: authoritative historical/bootstrap schema and reviewed fresh-install provisioning order, plus complete live schema/function/RLS equivalence. Do not repair migration history or delete already-applied files to conceal this failure.
+
 Inspected 2026-09-26 using Supabase schema metadata only; no user rows or credentials queried. Backend production project `zcpgtdakqxyvjkmiibei`: 115 history entries and 115 tracked migration files at `17e876d`. History membership is not a claim that every production object exactly equals Git SQL. No migration is deleted or applied by this audit.
 
 Office project `metbajilbqclwjfsxfps` records only `20260521114108_office_files_audit_document_foundation` in Supabase migration history. Office uses `db/lead-agents-schema.sql` and its own schema application script; its full schema must be compared through information_schema rather than falsely treating unlisted SQL as unapplied.

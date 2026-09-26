@@ -16,6 +16,8 @@ Facility deeper tracing found five live local-intelligence fallback paths despit
 
 ## Still open
 
+Final unified run completed: 65/65 Wave 5–9 smoke scripts exit successfully against the current worktree. Commit `c01edc8` corrects 22 old-checkout roots; their earlier results must not substitute for this rerun. Three local-credential suites pass, and Wave 7 identity passes with loopback ingress (does not assert materialization). Office check/lint/build, architecture, knowledge/delegation/handoff and secret checks pass. Facility `f180ece` patches Next 15.5 while retaining five audit findings. Scoped added-diff secret scan across new Backend/Facility/Twin commits finds no high-confidence candidates.
+
 Full context/persona adoption and exhaustive authority classification; tracked/live schema-function-RLS equivalence and historical fresh-chain ordering; remaining dependency advisories; complete regression/CI and authenticated browser validation; draft PR review. Migration-history membership alone does not prove schema equivalence. No migration deleted or applied.
 
 No authoritative branch merge or deployment. **Wave 9 is not closed.**

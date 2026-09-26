@@ -6,6 +6,14 @@
 
 ### Continuation update (supersedes earlier validation limitations below)
 
+Final unified continuation run: **65/65 Wave 5–9 smoke scripts exit 0**, including SQL suites. `c01edc8` fixes 22 hard-coded old-checkout paths; those old results were not proof of this branch. Device reader suites now exit normally (34 and 149 assertions). Wave 7 identity's unmocked ingress uses local loopback with a non-authoritative fixture key; its 7 checks prove identity behavior, not successful canonical materialization (proved separately by Final A SQL). Three physical-execution suites use local-only Supabase credentials and synthetic fixtures, not hardware. Office check/lint/build, architecture, knowledge (7), delegation, handoff and secret checks pass. High-confidence added-diff secret scan found zero candidates; not a universal secret-detection guarantee.
+
+Facility additionally pushes `f180ece` (Next/eslint-config-next 15.5.26) with successful build/lint/release/authority validation. Five advisories remain, including critical Capacitor installer-chain tar. Backend remains six advisories (three high/three moderate). No security-clean claim.
+
+Isolated replay **fails even after the documented schema bootstrap**: first camera-event migration references absent `facility_cameras`. See migration ledger. No schema/history repair attempted without establishing the correct bootstrap truth. All four authoritative remote heads below were reverified unchanged after development pushes.
+
+Merge readiness: **NO**. Review order, once remaining gates pass: Backend #90 before Office #85 because Office's Plan Studio acknowledgement requires the new Core capability; Twin build/browser PR can be reviewed independently; Facility fallback/security PR follows Backend review. Facility retains its existing durable Twin pin, so these changes do not require repinning to the new Twin branch. No exact executable merge schedule is authorized by this incomplete evidence.
+
 Backend `2d33190` adds actual governed memory recall through Core and an executable 73-capability inventory; `f5f2faf` removes vulnerable bcrypt installer/BullMQ dependency chains. Typecheck/build and focused tests pass. Actual orchestrator routing is now tested; this is not a claim of full cross-domain memory adoption. Backend audit is now six advisories, zero critical (previously 15).
 
 Twin `2862dba` is pushed; its real Chrome architecture suite now passes, with no browser errors. Facility `10054ff` and `bfb5676` are pushed on `codex/wave9-dependency-hardening`: compatible dependency refresh and removal of five competing local-intelligence fallback loaders. Facility build/lint/release checks pass. Earlier Facility authority assessment was incomplete; the deeper trace found this genuine conflict.
