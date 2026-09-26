@@ -1,0 +1,13 @@
+estate_code,home_ref,room_ref,name,type,floor,notes
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-ENTRY,Entry / Foyer,entry,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-LIVING,Living Room,living_room,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-DINING,Dining Room,dining_room,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-KITCHEN,Kitchen,kitchen,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-BED-01,Primary Bedroom,bedroom,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-BATH-01,Primary Bathroom,bathroom,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-BED-02,Bedroom 2,bedroom,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-BATH-02,Bathroom 2,bathroom,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-BED-03,Bedroom 3,bedroom,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-BATH-03,Bathroom 3,bathroom,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-BALCONY,Balcony,balcony,,Phase 3A representative smart apartment proof — Level 06 Apartment A
+LUNA_RESIDENCES,LUNA-L06-APT-A,LUNA-L06-APT-A-UTILITY,Utility / Service Area,utility,,Phase 3A representative smart apartment proof — Level 06 Apartment A

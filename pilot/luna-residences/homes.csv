@@ -1,0 +1,44 @@
+estate_code,home_ref,building_ref,unit,name,floor,type,bedrooms,electricity_meter,water_meter,internet_id,gate_code,lat,lng,status,notes,zone_ref
+LUNA_RESIDENCES,LUNA-L02-APT-A,luna-tower,2A,Floor 2 - Apartment A,Floor 2,apartment,,,,,,,,,,LUNA-FLOOR-02
+LUNA_RESIDENCES,LUNA-L02-APT-B,luna-tower,2B,Floor 2 - Apartment B,Floor 2,apartment,,,,,,,,,,LUNA-FLOOR-02
+LUNA_RESIDENCES,LUNA-L02-APT-C,luna-tower,2C,Floor 2 - Apartment C,Floor 2,apartment,,,,,,,,,,LUNA-FLOOR-02
+LUNA_RESIDENCES,LUNA-L02-APT-D,luna-tower,2D,Floor 2 - Apartment D,Floor 2,apartment,,,,,,,,,,LUNA-FLOOR-02
+LUNA_RESIDENCES,LUNA-L03-APT-A,luna-tower,3A,Floor 3 - Apartment A,Floor 3,apartment,,,,,,,,,,LUNA-FLOOR-03
+LUNA_RESIDENCES,LUNA-L03-APT-B,luna-tower,3B,Floor 3 - Apartment B,Floor 3,apartment,,,,,,,,,,LUNA-FLOOR-03
+LUNA_RESIDENCES,LUNA-L03-APT-C,luna-tower,3C,Floor 3 - Apartment C,Floor 3,apartment,,,,,,,,,,LUNA-FLOOR-03
+LUNA_RESIDENCES,LUNA-L03-APT-D,luna-tower,3D,Floor 3 - Apartment D,Floor 3,apartment,,,,,,,,,,LUNA-FLOOR-03
+LUNA_RESIDENCES,LUNA-L04-APT-A,luna-tower,4A,Floor 4 - Apartment A,Floor 4,apartment,,,,,,,,,,LUNA-FLOOR-04
+LUNA_RESIDENCES,LUNA-L04-APT-B,luna-tower,4B,Floor 4 - Apartment B,Floor 4,apartment,,,,,,,,,,LUNA-FLOOR-04
+LUNA_RESIDENCES,LUNA-L04-APT-C,luna-tower,4C,Floor 4 - Apartment C,Floor 4,apartment,,,,,,,,,,LUNA-FLOOR-04
+LUNA_RESIDENCES,LUNA-L04-APT-D,luna-tower,4D,Floor 4 - Apartment D,Floor 4,apartment,,,,,,,,,,LUNA-FLOOR-04
+LUNA_RESIDENCES,LUNA-L05-APT-A,luna-tower,5A,Floor 5 - Apartment A,Floor 5,apartment,,,,,,,,,,LUNA-FLOOR-05
+LUNA_RESIDENCES,LUNA-L05-APT-B,luna-tower,5B,Floor 5 - Apartment B,Floor 5,apartment,,,,,,,,,,LUNA-FLOOR-05
+LUNA_RESIDENCES,LUNA-L05-APT-C,luna-tower,5C,Floor 5 - Apartment C,Floor 5,apartment,,,,,,,,,,LUNA-FLOOR-05
+LUNA_RESIDENCES,LUNA-L05-APT-D,luna-tower,5D,Floor 5 - Apartment D,Floor 5,apartment,,,,,,,,,,LUNA-FLOOR-05
+LUNA_RESIDENCES,LUNA-L06-APT-A,luna-tower,6A,Floor 6 - Apartment A,Floor 6,apartment,,,,,,,,,,LUNA-FLOOR-06
+LUNA_RESIDENCES,LUNA-L06-APT-B,luna-tower,6B,Floor 6 - Apartment B,Floor 6,apartment,,,,,,,,,,LUNA-FLOOR-06
+LUNA_RESIDENCES,LUNA-L06-APT-C,luna-tower,6C,Floor 6 - Apartment C,Floor 6,apartment,,,,,,,,,,LUNA-FLOOR-06
+LUNA_RESIDENCES,LUNA-L06-APT-D,luna-tower,6D,Floor 6 - Apartment D,Floor 6,apartment,,,,,,,,,,LUNA-FLOOR-06
+LUNA_RESIDENCES,LUNA-L07-APT-A,luna-tower,7A,Floor 7 - Apartment A,Floor 7,apartment,,,,,,,,,,LUNA-FLOOR-07
+LUNA_RESIDENCES,LUNA-L07-APT-B,luna-tower,7B,Floor 7 - Apartment B,Floor 7,apartment,,,,,,,,,,LUNA-FLOOR-07
+LUNA_RESIDENCES,LUNA-L07-APT-C,luna-tower,7C,Floor 7 - Apartment C,Floor 7,apartment,,,,,,,,,,LUNA-FLOOR-07
+LUNA_RESIDENCES,LUNA-L07-APT-D,luna-tower,7D,Floor 7 - Apartment D,Floor 7,apartment,,,,,,,,,,LUNA-FLOOR-07
+LUNA_RESIDENCES,LUNA-L08-APT-A,luna-tower,8A,Floor 8 - Apartment A,Floor 8,apartment,,,,,,,,,,LUNA-FLOOR-08
+LUNA_RESIDENCES,LUNA-L08-APT-B,luna-tower,8B,Floor 8 - Apartment B,Floor 8,apartment,,,,,,,,,,LUNA-FLOOR-08
+LUNA_RESIDENCES,LUNA-L08-APT-C,luna-tower,8C,Floor 8 - Apartment C,Floor 8,apartment,,,,,,,,,,LUNA-FLOOR-08
+LUNA_RESIDENCES,LUNA-L08-APT-D,luna-tower,8D,Floor 8 - Apartment D,Floor 8,apartment,,,,,,,,,,LUNA-FLOOR-08
+LUNA_RESIDENCES,LUNA-L09-APT-A,luna-tower,9A,Floor 9 - Apartment A,Floor 9,apartment,,,,,,,,,,LUNA-FLOOR-09
+LUNA_RESIDENCES,LUNA-L09-APT-B,luna-tower,9B,Floor 9 - Apartment B,Floor 9,apartment,,,,,,,,,,LUNA-FLOOR-09
+LUNA_RESIDENCES,LUNA-L09-APT-C,luna-tower,9C,Floor 9 - Apartment C,Floor 9,apartment,,,,,,,,,,LUNA-FLOOR-09
+LUNA_RESIDENCES,LUNA-L09-APT-D,luna-tower,9D,Floor 9 - Apartment D,Floor 9,apartment,,,,,,,,,,LUNA-FLOOR-09
+LUNA_RESIDENCES,LUNA-L10-APT-A,luna-tower,10A,Floor 10 - Apartment A,Floor 10,apartment,,,,,,,,,Premium floor residence,LUNA-FLOOR-10
+LUNA_RESIDENCES,LUNA-L10-APT-B,luna-tower,10B,Floor 10 - Apartment B,Floor 10,apartment,,,,,,,,,Premium floor residence,LUNA-FLOOR-10
+LUNA_RESIDENCES,LUNA-L10-APT-C,luna-tower,10C,Floor 10 - Apartment C,Floor 10,apartment,,,,,,,,,Premium floor residence,LUNA-FLOOR-10
+LUNA_RESIDENCES,LUNA-L11-APT-A,luna-tower,11A,Floor 11 - Apartment A,Floor 11,apartment,,,,,,,,,Premium floor residence,LUNA-FLOOR-11
+LUNA_RESIDENCES,LUNA-L11-APT-B,luna-tower,11B,Floor 11 - Apartment B,Floor 11,apartment,,,,,,,,,Premium floor residence,LUNA-FLOOR-11
+LUNA_RESIDENCES,LUNA-L11-APT-C,luna-tower,11C,Floor 11 - Apartment C,Floor 11,apartment,,,,,,,,,Premium floor residence,LUNA-FLOOR-11
+LUNA_RESIDENCES,LUNA-L12-APT-A,luna-tower,12A,Floor 12 - Apartment A,Floor 12,apartment,,,,,,,,,Premium floor residence,LUNA-FLOOR-12
+LUNA_RESIDENCES,LUNA-L12-APT-B,luna-tower,12B,Floor 12 - Apartment B,Floor 12,apartment,,,,,,,,,Premium floor residence,LUNA-FLOOR-12
+LUNA_RESIDENCES,LUNA-L12-APT-C,luna-tower,12C,Floor 12 - Apartment C,Floor 12,apartment,,,,,,,,,Premium floor residence,LUNA-FLOOR-12
+LUNA_RESIDENCES,LUNA-PH-A,luna-tower,PH-A,Penthouse - Residence A,Penthouse,apartment,,,,,,,,,Penthouse residence,LUNA-PENTHOUSE
+LUNA_RESIDENCES,LUNA-PH-B,luna-tower,PH-B,Penthouse - Residence B,Penthouse,apartment,,,,,,,,,Penthouse residence,LUNA-PENTHOUSE

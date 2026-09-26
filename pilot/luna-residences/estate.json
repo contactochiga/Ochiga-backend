@@ -1,0 +1,10 @@
+{
+  "estate_code": "LUNA_RESIDENCES",
+  "name": "Luna Residences",
+  "address": "Ikoyi, Lagos, Nigeria",
+  "type": "estate",
+  "lat": null,
+  "lng": null,
+  "timezone": "Africa/Lagos",
+  "notes": "Phase 1: structural onboarding only (estate, building, floor/zone hierarchy). No homes, residents, staff, cameras, or devices created yet -- that is Phase 2. Exact lat/lng not set -- no verified site survey coordinates yet."
+}

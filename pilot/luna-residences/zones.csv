@@ -1,0 +1,17 @@
+estate_code,zone_ref,name,zone_type,parent_zone_ref,description,notes
+LUNA_RESIDENCES,LUNA-BASEMENT-1,Basement,parking,,"Parking, Services, Infrastructure",Below-grade level
+LUNA_RESIDENCES,LUNA-GROUND-1,Ground Floor,lobby,,"Lobby, Concierge, Retail, F&B",Building entrance level
+LUNA_RESIDENCES,LUNA-AMENITIES-1,Amenities Floor,amenity,,"Gym, Spa, Residents' Lounge, Co-working, Meeting Rooms",Sits above Ground, below Floor 2
+LUNA_RESIDENCES,LUNA-FLOOR-02,Floor 2,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-03,Floor 3,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-04,Floor 4,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-05,Floor 5,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-06,Floor 6,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-07,Floor 7,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-08,Floor 8,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-09,Floor 9,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-10,Floor 10,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-11,Floor 11,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-FLOOR-12,Floor 12,residential_floor,,Residential floor,
+LUNA_RESIDENCES,LUNA-PENTHOUSE,Penthouse,penthouse,,Luxury residences,Top residential level
+LUNA_RESIDENCES,LUNA-ROOFTOP,Rooftop,rooftop,,"Lounge, Pool, Bar, Events, Skyline Views",Uppermost level

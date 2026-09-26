@@ -346,6 +346,10 @@ for (const row of homes) {
     name: row.name,
     unit: row.unit,
     block: row.building_ref,
+    building_id: buildingIdByRef.get(row.building_ref) || null,
+    zone_id: row.zone_ref ? zoneIdByRef.get(row.zone_ref) || null : null,
+    floor: nullable(row.floor),
+    canonical_ref: nullable(row.home_ref),
     type: row.type || "home",
     description: nullable(row.notes),
     electricity_meter: nullable(row.electricity_meter),
@@ -372,6 +376,7 @@ for (const row of rooms) {
     name: row.name,
     type: nullable(row.type),
     floor: numberOrNull(row.floor),
+    canonical_ref: nullable(row.room_ref),
     ai_profile: { room_ref: row.room_ref, notes: nullable(row.notes) },
   }).select("id").single();
   if (error) throw new Error(`rooms ${row.room_ref}: ${error.message}`);
@@ -470,22 +475,35 @@ await milestone(estateId, "camera_onboarding", "Camera placeholders created", { 
 await milestone(estateId, "stream_test", "Camera streams awaiting RTSP/HLS validation", { status: "awaiting_stream_details" });
 await milestone(estateId, "ai_detection_test", "AI detection awaiting camera analytics provider", { status: "pending_integration" });
 
+const DEVICE_CAPABILITY_MAP = {
+  lock: ["lock", "unlock"],
+  light: ["power.on", "power.off"],
+  curtain: ["open", "close", "set_position"],
+  climate: ["power.on", "power.off", "set_temperature", "set_mode"],
+  camera: ["stream.start", "stream.stop", "door_release"],
+  switch: ["open", "close"],
+};
+
 for (const row of devices) {
   const existing = await existingBy("devices", { estate_id: estateId, adapter: row.adapter || "placeholder", external_id: row.external_id });
   if (existing && !allowExisting) throw new Error(`Device placeholder already exists: ${row.external_id}`);
   if (existing) continue;
+  const deviceType = row.type || row.category || "placeholder";
   const { data, error } = await db.from("devices").insert({
     estate_id: estateId,
     home_id: row.home_ref ? homeIdByRef.get(row.home_ref) || null : null,
     room_id: row.room_ref ? roomIdByRef.get(row.room_ref) || null : null,
     name: row.name,
-    type: row.category || "placeholder",
+    type: deviceType,
     category: row.category,
     provider: nullable(row.provider),
     adapter: row.adapter || "placeholder",
     external_id: row.external_id,
+    canonical_ref: nullable(row.device_ref),
+    capabilities: DEVICE_CAPABILITY_MAP[deviceType] || [],
+    online: false,
     status: row.status || "pending",
-    bind_state: row.home_ref ? "home_bound" : "estate_bound",
+    bind_state: row.room_ref ? "room_bound" : row.home_ref ? "home_bound" : "estate_bound",
     edge_node_id: nullable(row.edge_node_id),
     location: nullable(row.location),
     sync_state: row.sync_state || "pending_integration",

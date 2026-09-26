@@ -1,0 +1,2 @@
+estate_code,building_ref,name,block,floors,unit_count,building_type,status,notes
+LUNA_RESIDENCES,luna-tower,Luna Residences Tower,,12,0,residential_tower,active,"12-storey premium residential tower; unit_count pending Phase 2 unit import"

@@ -38,6 +38,15 @@ type ContextHomeSummary = {
   water_meter: string | null;
   internet_id: string | null;
   gate_code: string | null;
+  // Phase 9 — the digital-twin spatial identity for this home, when one
+  // has been configured (see docs/OYI_DIGITAL_TWIN_ASSET_CONTRACT.md and
+  // supabase/migrations/20260905020000_LOCAL_TEST_home_canonical_ref.sql,
+  // not yet applied to any deployed database — see that migration's
+  // header for what still needs to run before this column exists for
+  // real). Null for every home until a twin is configured for it; hosts
+  // must treat null as "no twin available", never fall back to a
+  // hardcoded default home.
+  canonical_ref: string | null;
 };
 
 async function getHomeContext(homeId?: string | null): Promise<ContextHomeSummary | null> {
@@ -46,7 +55,7 @@ async function getHomeContext(homeId?: string | null): Promise<ContextHomeSummar
 
   const { data, error } = await supabaseAdmin
     .from("homes")
-    .select("id, name, block, unit, electricity_meter, water_meter, internet_id, gate_code")
+    .select("id, name, block, unit, electricity_meter, water_meter, internet_id, gate_code, canonical_ref")
     .eq("id", clean)
     .maybeSingle();
 
@@ -60,6 +69,7 @@ async function getHomeContext(homeId?: string | null): Promise<ContextHomeSummar
     water_meter: data.water_meter ?? null,
     internet_id: data.internet_id ?? null,
     gate_code: data.gate_code ?? null,
+    canonical_ref: (data as any).canonical_ref ?? null,
   };
 }
 
@@ -80,7 +90,7 @@ async function getEstateContext(estateId?: string | null): Promise<{ id: string;
 async function listAvailableContexts(userId: string) {
   const { data: memberships, error } = await supabaseAdmin
     .from("home_memberships")
-    .select("home_id, role, status, homes(id, estate_id, name, block, unit, electricity_meter, water_meter, internet_id, gate_code)")
+    .select("home_id, role, status, homes(id, estate_id, name, block, unit, electricity_meter, water_meter, internet_id, gate_code, canonical_ref)")
     .eq("user_id", userId)
     .eq("status", "active");
 
@@ -120,6 +130,7 @@ async function listAvailableContexts(userId: string) {
         water_meter: home?.water_meter ?? null,
         internet_id: home?.internet_id ?? null,
         gate_code: home?.gate_code ?? null,
+        canonical_ref: home?.canonical_ref ?? null,
         role: String(row?.role || ""),
         status: String(row?.status || ""),
       };
