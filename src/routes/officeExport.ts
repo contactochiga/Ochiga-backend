@@ -20,6 +20,7 @@ import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest }
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
 import { retrieveKnowledge } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
 import { publicConversationActor } from "../oyi-core/context/conversationOwnership";
+import { normalizePlanReviewContext } from "../oyi-core/capabilities/PlanStudioCapability";
 import type { KnowledgeDomain } from "../oyi-core/domains/knowledge/knowledgeContracts";
 import { loadLastVerifiedOfficeAction } from "../oyi-core/context/officeAutomationSuggestionStore";
 import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
@@ -285,6 +286,7 @@ export function normalizeOfficeInternalRequest(body: any, requestId: string): Of
   const content = recordOf(body.content_context);
   const development = recordOf(body.development_context);
   return {
+    plan_review_context: normalizePlanReviewContext(body.plan_review_context),
     request_id: safeText(body.request_id, requestId),
     message: safeText(body.message),
     office_session_id: safeText(body.office_session_id || body.session_id, `office_session_${requestId}`),
@@ -854,6 +856,7 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
       request_id: internalRequest.request_id,
       office_session_id: internalRequest.office_session_id,
       staff: internalRequest.staff,
+      plan_review_context: internalRequest.plan_review_context,
       page_context: internalRequest.page_context,
       business_unit: internalRequest.business_unit,
       crm_context: internalRequest.crm_context,

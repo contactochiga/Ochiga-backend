@@ -372,6 +372,10 @@ export function buildOfficeInternalResponse(
     blocks: Array.isArray(canonical.cards) ? canonical.cards : [],
     knowledge_references: retrievedKnowledge.length ? retrievedKnowledge.map(toCorporateKnowledgeReference) : request.knowledge_context,
     safe_metadata: {
+      // Acknowledges actual capability execution, not the requested context.
+      plan_review: canonical.capability_key === "office.plan_studio.review"
+        ? { version: 1, capability: canonical.capability_key, result: canonical.execution.capability_result, advisory_only: true }
+        : null,
       staff_role: request.staff.role,
       selected_type: request.page_context.selected_type,
       selected_id_present: Boolean(request.page_context.selected_id),

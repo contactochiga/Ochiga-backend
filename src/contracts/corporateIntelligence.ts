@@ -389,6 +389,7 @@ export function assertOpaquePublicReference(ref: string | null | undefined) {
 }
 
 export type OfficeInternalOyiCoreRequest = {
+  plan_review_context?: import("../oyi-core/capabilities/PlanStudioCapability").PlanReviewContext | null;
   request_id: string;
   message: string;
   office_session_id: string;
