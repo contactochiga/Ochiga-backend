@@ -19,6 +19,7 @@ import { submitOfficeMaterialEventCanonicalSignal } from "../oyi-core/ingress/of
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
 import { retrieveKnowledge } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
+import { publicConversationActor } from "../oyi-core/context/conversationOwnership";
 import type { KnowledgeDomain } from "../oyi-core/domains/knowledge/knowledgeContracts";
 import { loadLastVerifiedOfficeAction } from "../oyi-core/context/officeAutomationSuggestionStore";
 import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
@@ -245,14 +246,6 @@ function normalizeCorporateConversationRequest(body: any, requestId: string): Co
     metadata: recordOf(body.metadata),
   };
 }
-
-const publicCorporateActor: AuthUser = {
-  id: "office-public-intelligence",
-  email: "public-intelligence@ochiga.local",
-  role: "guest",
-  permissions: [],
-  permission_scopes: [],
-};
 
 // Oyi Runtime Contract, Domain 3 (Task) — synthetic actor for the
 // office-backend-intelligence-events boundary contract
@@ -640,6 +633,7 @@ router.post("/events/material", requireOfficeExportKey, async (req: Request, res
 router.post("/conversation/corporate", requireOfficeExportKey, async (req: Request, res: Response) => {
   const requestId = safeText(req.headers["x-request-id"], crypto.randomUUID());
   const corporateRequest = normalizeCorporateConversationRequest(req.body || {}, requestId);
+  const publicCorporateActor = publicConversationActor(corporateRequest.public_session_id);
   if (!corporateRequest.message) {
     return res.status(400).json({ ok: false, error: "message is required", request_id: requestId });
   }

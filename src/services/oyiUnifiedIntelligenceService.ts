@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { authorizeConversationThread } from "../oyi-core/context/conversationOwnership";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import type { AuthUser } from "../middleware/auth";
 import { listPersistedIntelligenceEvents, type IntelligenceEventFilters } from "../intelligence-core/eventBus";
@@ -3107,6 +3108,7 @@ export async function getOyiUnifiedAwareness(actor: AuthUser | null, input: { su
 }
 
 export async function runOyiUnifiedChat(actor: AuthUser | null, input: OyiChatInput) {
+  input = (await authorizeConversationThread({ actor, oisContext: null, input: input as any })).input as OyiChatInput;
   const surface = safeSurface(input.surface);
   const message = String(input.message || "").trim();
   if (!message) return { ok: false, error: "message is required" };

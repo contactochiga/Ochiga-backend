@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { authorizeConversationThread } from "../context/conversationOwnership";
 import type { AuthUser } from "../../middleware/auth";
 import type { OisContext } from "../../types/oisContext";
 import { logger } from "../../observability/logger";
@@ -555,6 +556,7 @@ function compatibilityInputFromCanonical(input: CanonicalConversationRequest, op
 }
 
 export async function runCanonicalConversation(actor: AuthUser | null, oisContext: OisContext | null | undefined, input: CanonicalConversationRequest): Promise<CanonicalConversationResponse> {
+  input = (await authorizeConversationThread({ actor, oisContext, input })).input;
   input = sanitizeConversationInputTargets(input);
   const normalizedTurn = normalizeUserTurn(input.message);
   logger.info("oyi_turn_normalized", {
