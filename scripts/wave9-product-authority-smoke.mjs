@@ -18,3 +18,10 @@ for (const agentRole of ["oma", "osa", "office_internal", "executive", "facility
   assert.equal(result.items[0].canonicalKey, item.canonicalKey);
 }
 console.log("PASS product architecture: six governed audiences, provenance, qualified claims, Office outage");
+const { OFFICE_KNOWLEDGE_MANIFEST } = require("../dist/oyi-core/domains/knowledge/officeKnowledgeManifest.js");
+const maturity = OFFICE_KNOWLEDGE_MANIFEST.find(item => item.file === "business-model-and-current-maturity.md");
+assert.equal(maturity.authorityClass, "UNVERIFIED_REFERENCE");
+assert.equal(maturity.claimBoundary, "requires_human_confirmation");
+assert.equal(maturity.audience, "INTERNAL_COMMERCIAL");
+assert.equal(OFFICE_KNOWLEDGE_MANIFEST.find(item => item.file === "pitch-deck-positioning.md").authorityClass, "MARKETING_REFERENCE");
+console.log("PASS inferred maturity prose cannot rank as technical implementation authority; pitch narrative remains marketing");
