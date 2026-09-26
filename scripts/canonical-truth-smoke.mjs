@@ -181,7 +181,7 @@ const building = {
     devices: [
       { id: "dev-1", name: "Bedroom Light", type: "light", state: "on", room_name: "Bedroom", current_state: { availability: "online", freshness: "fresh", observedState: { switch: true } } },
     ],
-    cameras: [{ id: "camera-2", name: "Corridor Camera", health: "offline" }],
+    cameras: [{ id: "camera-2", name: "Corridor Camera", health: "offline", current_state: { overall: "unavailable" } }],
   },
 };
 const buildingShape = runtime.canonicalObjectConversationForTest({
@@ -213,8 +213,15 @@ const offlineAreaShape = runtime.canonicalObjectConversationForTest({
   object: building,
   response: { message: "I can help.", execution: { status: "read_only" } },
 });
-assert.match(offlineAreaShape.message, /offline or degraded/i);
+assert.match(offlineAreaShape.message, /object needs attention/i);
+assert.match(offlineAreaShape.message, /does not establish physical disconnection/i);
 assert.match(offlineAreaShape.message, /Corridor Camera/i);
+const legacyOnlyCamera = runtime.canonicalObjectConversationForTest({
+  message: "Which areas are offline?",
+  object: { ...building, relationships: { ...building.relationships, cameras: [{ id: "camera-2", health: "offline" }] } },
+  response: { message: "I can help.", execution: { status: "read_only" } },
+});
+assert.match(legacyOnlyCamera.message, /don’t see confirmed offline areas/i);
 
 const transformer = {
   ...object,
