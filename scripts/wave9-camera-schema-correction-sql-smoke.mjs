@@ -35,5 +35,11 @@ try {
   sql(readFileSync(new URL('../supabase/migrations/20260521000100_pilot_onboarding_foundation.sql',import.meta.url),'utf8'));
   sql(migration);
   assert.equal(sql("select count(*) from information_schema.columns where table_name='facility_cameras' and column_name in ('home_id','privacy_scope')"),'2');
+  const dvr=readFileSync(new URL('../supabase/migrations/20260926212124_camera_dvr_registry_forward.sql',import.meta.url),'utf8');
+  sql(dvr);sql(dvr);
+  assert.equal(sql("select count(*) from information_schema.columns where table_name='camera_dvrs'"),'18');
+  assert.equal(sql("select relrowsecurity from pg_class where oid='camera_dvrs'::regclass"),'t');
+  assert.equal(sql("select has_table_privilege('anon','camera_dvrs','select') or has_table_privilege('authenticated','camera_dvrs','select')"),'f');
+  assert.equal(sql("select has_table_privilege('service_role','camera_dvrs','insert')"),'t');
   console.log('PASS additive existing-table upgrade, repeat idempotency, metadata preservation, FK, RLS, grants and retained policy/index; NOT full migration-chain replay');
 } finally { sql(`drop database ${db}`,'postgres'); }
