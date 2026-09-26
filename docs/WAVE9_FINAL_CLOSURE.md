@@ -1,5 +1,17 @@
 # Wave 9 convergence review — NOT CLOSED
 
+## Runtime CI isolation continuation (supersedes the older CI-defect disposition below)
+
+Verified starting Backend/local/upstream: `1b78517d07aecde5aa9307e3691e0697f3a10a2e`; authoritative main unchanged at `17e876d78d0baf19913845195e140c812075a2ec`. Draft PR heads reverified: Office #85 `0410dd61249119d27418f3e3cb8697ffb791c607`, Twin #1 `2862dba4780b655de17b0a21ecb4c635fef8d9be`, Facility #38 `f14db75ab25042265514016e6e1ccaab3aed9788`.
+
+Test-only correction: import-time external ports are isolated before application loading; runtime CI no longer inherits configured Supabase secrets. Real Core assertions remain, synthetic estate-1 is unchanged, unexpected external access fails even when caught. Production source/migrations are untouched. See `WAVE9_RUNTIME_SMOKE_ISOLATION.md` for root cause, complete boundary inventory, commands and limitations.
+
+Local validation: **68/68 Wave 5–9 suites PASS**, including real PostgreSQL suites; typecheck/build/lint/security/architecture and targeted runtime smokes PASS. Node 22 hostile-configuration isolation regression PASS. Local release-schema integration remains blocked by missing public.devices in the incomplete local baseline; it is not counted as PASS. Remote CI must be observed on the pushed correction, not inferred from local results.
+
+Provisioning remains independently **BLOCKED** for the six recorded objects. Rechecked accessible backup metadata still lists zero backups and PITR=false. The original room_device_bindings archive and all five protected historical migrations remain unchanged. No fabricated baseline, full replay or full equivalence claim. All PRs remain draft/unmerged; no deployment or Wave 10 work.
+
+**WAVE 9 NOT CLOSED.** Pending work: exact-candidate CI and verified original provisioning evidence permitting complete replay/schema equivalence, followed by the conditional final four-repository matrix.
+
 ## Certification continuation — expanded provisioning evidence
 
 All four remotes were fetched. The following source candidates are remotely durable and their merge-base equals the listed authoritative HEAD. This evidence-only change does not alter any runtime source or migration. Its containing Backend commit is identified by `git log -1 --format=%H -- docs/WAVE9_FINAL_CLOSURE.md`.

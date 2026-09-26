@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-process.env.SUPABASE_URL ||= "http://localhost:54321";
-process.env.SUPABASE_SERVICE_ROLE_KEY ||= "local-smoke-service-role-key";
-process.env.REDIS_URL ||= "redis://127.0.0.1:6379";
+import { assertRuntimeIsolation } from "./helpers/runtime-smoke-isolation.mjs";
 
 const deliveries = [];
 const realtimeEvents = [];
@@ -94,4 +92,5 @@ for (const [passed, label] of checks) {
   console.log(`${passed ? "PASS" : "FAIL"} ${label}`);
 }
 
-if (failures.length) process.exit(1);
+assertRuntimeIsolation({ signal: true });
+process.exitCode = failures.length ? 1 : 0;

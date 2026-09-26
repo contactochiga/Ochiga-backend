@@ -1,8 +1,5 @@
 #!/usr/bin/env node
-process.env.SUPABASE_URL ||= "http://localhost:54321";
-process.env.SUPABASE_SERVICE_ROLE_KEY ||= "local-smoke-service-role-key";
-process.env.REDIS_URL ||= "redis://127.0.0.1:6379";
-process.env.OYI_OPS_TOKEN ||= "smoke-ops-token";
+import { allowSmokeHttp, assertRuntimeIsolation, isolation } from "./helpers/runtime-smoke-isolation.mjs";
 
 const appModule = await import("../dist/app.js");
 const app = appModule.default?.default || appModule.default || appModule;
@@ -10,25 +7,6 @@ const { oyiCoreRuntime } = await import("../dist/oyi-core/service.js");
 const { operationalMetrics } = await import("../dist/observability/metrics.js");
 const { runtimeHealthRegistry } = await import("../dist/observability/runtimeHealth.js");
 const { providerHealthRegistry } = await import("../dist/observability/providerHealth.js");
-const { redis } = await import("../dist/config/redis.js");
-const { supabaseAdmin } = await import("../dist/supabase/supabaseClient.js");
-
-const originalPing = redis.ping.bind(redis);
-const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
-
-redis.ping = async () => "PONG";
-supabaseAdmin.from = ((table) => {
-  if (table === "users") {
-    return {
-      select() {
-        return {
-          limit: async () => ({ error: null, data: [{ id: "smoke-user" }] }),
-        };
-      },
-    };
-  }
-  return originalFrom(table);
-});
 
 const envelope = await oyiCoreRuntime.receiveSignal({
   id: "smoke:signal:1",
@@ -41,8 +19,9 @@ const envelope = await oyiCoreRuntime.receiveSignal({
   metadata: { status: "stable", summary: "Device telemetry normalized." },
 });
 
-const server = app.listen(0);
+const server = app.listen(0, "127.0.0.1");
 const port = await new Promise((resolve) => server.once("listening", () => resolve(server.address().port)));
+allowSmokeHttp(server);
 const healthRes = await fetch(`http://127.0.0.1:${port}/health`);
 // /metrics is now guarded (Fix 6) — authenticate with the ops token.
 const metricsRes = await fetch(`http://127.0.0.1:${port}/metrics`, {
@@ -52,15 +31,15 @@ const health = await healthRes.json();
 const metricsText = await metricsRes.text();
 server.close();
 
-redis.ping = originalPing;
-supabaseAdmin.from = originalFrom;
-
 const runtime = runtimeHealthRegistry.summary();
 const providers = providerHealthRegistry.snapshot();
 
 const checks = [
   [envelope.operational_signal.id === "smoke:signal:1", "signal envelope created"],
-  [envelope.operational_awareness?.id === "awareness:smoke:signal:1", "awareness generated"],
+  [envelope.operational_awareness?.related_signals.includes("smoke:signal:1") &&
+    [...isolation.signals.values()][0].materialization.prepared.rows.awareness[0].awareness_key === envelope.operational_awareness.id,
+    "real awareness generated and registered with canonical signal-scoped identity"],
+  [envelope.materialization?.materializationComplete === true, "materialization port acknowledgement consumed"],
   [healthRes.status === 200 && health.status === "ok", "health endpoint healthy"],
   [metricsRes.status === 200 && metricsText.includes("http_requests_total"), "metrics endpoint exposed"],
   [metricsText.includes("oyi_signals_received_total"), "signal metrics exposed"],
@@ -74,4 +53,5 @@ for (const [passed, label] of checks) {
   console.log(`${passed ? "PASS" : "FAIL"} ${label}`);
 }
 
-process.exit(failures.length ? 1 : 0);
+assertRuntimeIsolation({ signal: true });
+process.exitCode = failures.length ? 1 : 0;

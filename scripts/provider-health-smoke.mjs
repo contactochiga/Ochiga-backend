@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-process.env.REDIS_URL ||= "redis://127.0.0.1:6379";
+import { assertRuntimeIsolation } from "./helpers/runtime-smoke-isolation.mjs";
 
 const { providerHealthRegistry } = await import("../dist/observability/providerHealth.js");
 const { initAdaptersOnce } = await import("../dist/device/adapters/initAdapters.js");
@@ -34,4 +34,5 @@ for (const [passed, label] of checks) {
   console.log(`${passed ? "PASS" : "FAIL"} ${label}`);
 }
 
-if (failures.length) process.exit(1);
+assertRuntimeIsolation();
+process.exitCode = failures.length ? 1 : 0;
