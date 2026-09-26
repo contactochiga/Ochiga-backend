@@ -1,5 +1,48 @@
 # Wave 9 convergence review — NOT CLOSED
 
+## Five-blocker correction result — latest
+
+This section supersedes earlier blocker dispositions. No historical migration was edited. No production mutation, deployment, merge, cloud reconstruction or new feature slice occurred.
+
+| Blocker | Candidate disposition | Evidence / remaining action |
+|---|---|---|
+| 1 Migration/provisioning equivalence | **BLOCKED** | Camera scope upgrade test passes. `7ad7f94` forward-adopts the omitted 18-column camera_dvrs registry with original FK/unique/index contract plus RLS and service-only grants. Repeated application passes. Full replay still fails: schema.sql → March camera_events lacks facility_cameras. Diagnostic schema.sql → retained May foundation → ordered migrations passes camera_events, then fails March community_comments_reactions because community_posts has no retained creation. This diagnostic is NOT a supported bootstrap. A verified complete provisioning baseline and full camera/schema equivalence remain necessary. No speculative replacement tables were created. |
+| 2 Wallet RPC authorization | **RESOLVED in tested candidate; undeployed** | `c75d026`: four functions changed to SECURITY INVOKER; PUBLIC/anon/authenticated execution revoked; only service_role granted. Real PostgreSQL original-body tests pass for all four, wrong wallet owner, role escalation rejection, ledger persistence, repeat migration. Production service_role already has required table rights. Live exposure remains until authorized deployment. |
+| 3 Context/CRM privacy | **RESOLVED for existing production paths** | Office `0410dd6` replaces dashboard-only raw memory reads with identified staff session + crm.read + exact lead owner or crm.manage, scope checks, bounded projection and 30-day retrieval expiry. Pure and actual HTTP owner/other-staff tests pass. Public chat never recalls CRM memory. Existing Core memory/orchestration and ownership tests remain green; no new memory store or general context engine. See Office CRM_MEMORY_ACCESS_CONTRACT.md for explicit constraints. |
+| 4 Capacitor/tar | **RESOLVED by restricted web-only risk disposition** | Facility `f14db75`: exact @capacitor/cli@6.2.2 → tar@6.2.1 chain remains high/critical in full audit; production-only audit zero. CLI only extracts shipped templates in traced code. No incompatible override. Web CI must not run native archive operations; isolated developers may use locked bundled assets only, never untrusted archives; native release certification excluded pending compatible upgrade/acceptance. Full audit is not suppressed or declared clean. |
+| 5 PR/CI/final candidate | **BLOCKED** | PR creation still returns 403. #90/#85 remain drafts; Twin/Facility PRs absent. Backend run 36272293397 failed an obsolete learning-promotion test missing its now-required approver/CAS options; `965fe3f` corrects the fixture and the complete Programme3 smoke passes locally. New remote CI still must complete; do not infer green from local tests. No merge until blocker 1 and final CI are closed. |
+
+### Wallet least-privilege evidence
+
+Exact identities are `public.oyi_credit_wallet(uuid,numeric,text,text,text,text)`, `public.oyi_debit_wallet(uuid,numeric,text,text,text,text)`, `public.oyi_credit_home_wallet(uuid,uuid,numeric,text,text,text,text)`, and `public.oyi_debit_home_wallet(uuid,uuid,numeric,text,text,text,text)`. Source caller search in all four repos finds only Backend walletController/servicesController `supabaseAdmin.rpc`; no direct client caller. Production pg_proc body search finds no database wrapper calling these functions. Backend payment reconciliation/service purchase paths remain the authorized entry. The migration changes neither balances nor function bodies or financial semantics. Existing swallowed ledger-error behavior is retained debt, not claimed repaired.
+
+`20260926211819_wallet_rpc_service_boundary.sql` is transactional/additive privilege hardening; rollback must not restore public execution. Deploy only through the reviewed migration path. It uses existing table permissions instead of owner escalation. `wave9-wallet-authorization-sql-smoke.mjs` loads the four original tracked function bodies into a unique isolated PostgreSQL database, validates success/denial, then drops only that test database. Five wallet funding/webhook/receipt/notification/return smokes pass as well.
+
+### Context completion (no architecture reopening)
+
+`ConversationOrchestrator.run` admits identity/thread/memory once before capability selection. All LegacyConversationAdapter calls pass that admitted `context.input`; its only target is canonicalConversationRuntime, which rechecks thread ownership before its compatibility call to runOyiUnifiedChat. These are Core-owned compatibility execution, not host context/persona authorities. `buildPersonContext`, resultSetContext and Office active/domain context builders are bounded deterministic reference-resolution state inside Core, not sources of permissions. Domain evidence builders retain domain scope policies. The actual resident recall orchestration regression proves the request reaches the governed memory capability without action dispatch. Public/Facility/staff/system persona exclusion and unknown/future/expired memory fail-closed tests pass. No extra wrapper/reasoning layer was created.
+
+Office CRM: role/permission comes from authenticated server enrichment; API keys and public sessions do not count as identified staff for memory. Exact staff UUID ownership, not agent names or display labels, is accepted. Current null organization scope means this single CRM instance, not all organizations. Any nonmatching explicit org/estate scope is denied; multi-org recall is unsupported without authenticated scope. Missing/deleted leads deny, absent/expired memory returns null, and only bounded business/project classification fields are projected. Contact details, transcripts, arbitrary summaries, prompts and tool outputs remain excluded. No production caller of legacy memory upsert methods exists; do not reactivate one without admission review. Retrieval expiry is not physical deletion; existing CRM data administration remains responsible for deletion.
+
+### Verification and candidate ledger
+
+- Backend typecheck/build PASS; **67/67** Wave5–9 smokes PASS including PostgreSQL, new wallet authorization and updated camera/DVR upgrade test. Programme3 prediction/forecasting release smoke PASS after fixture correction. Wallet five-script battery PASS. Four-repository added-diff secret scan: zero high-confidence candidates; diff against authoritative branches passes `--check` after removing an inventory trailing blank line. These are scoped scans, not absolute secret guarantees.
+- Office check (103 files), build, lint, architecture, delegation, handoff, public-session, Plan Studio, CRM pure/HTTP authorization and secret checks PASS. No production DB/test data mutation. Facility/Twin runtime source unchanged this execution; previous build/browser results remain applicable to unchanged source, not newly rerun hardware proof.
+- Backend tested source `965fe3f` follows `c75d026` and `7ad7f94`; containing ledger commit follows. Office `0410dd61249119d27418f3e3cb8697ffb791c607`; Twin `2862dba4780b655de17b0a21ecb4c635fef8d9be`; Facility `f14db75ab25042265514016e6e1ccaab3aed9788`. Resolve final Backend ledger SHA with `git log -1 --format=%H -- docs/WAVE9_FINAL_CLOSURE.md`. Authoritative default HEADs remain the four listed below. Twin generated architecture artifacts remain unstaged; no env/generated junk committed.
+
+Authenticated account commands (creation only, no merge):
+
+```sh
+gh pr create --repo contactochiga/Oyi-Twin-Engine --base main --head codex/wave9-build-verification --draft --title "Twin build and browser verification" --body "Wave 9 closure review; no merge until Backend closure ledger gates pass."
+gh pr create --repo contactochiga/facility-oyi --base main --head codex/wave9-dependency-hardening --draft --title "Facility Core delegation and dependency hardening" --body "Wave 9 closure review; retains remote Twin pin and restricted native-installer risk disposition. No merge until gates pass."
+gh pr checks 90 --repo contactochiga/Ochiga-backend
+gh pr checks 85 --repo contactochiga/ochiga-office
+```
+
+Existing reviews: https://github.com/contactochiga/Ochiga-backend/pull/90 and https://github.com/contactochiga/ochiga-office/pull/85. Conditional merge order remains Backend → Office → Twin as appropriate → Facility; after each authorized merge fetch authoritative HEADs and validate the actual merged cross-system candidate. No merge is authorized by this record.
+
+**WAVE 9 NOT CLOSED** — remaining blockers are complete provisioning/replay/schema equivalence and PR-write/final-CI certification. Candidate fixes are not claims that production migrations were applied.
+
 2026-09-26. This is a durable progress and blocker record, not a declaration of completion. No lost Claude cloud commit was recovered or reconstructed. Work starts from durable GitHub source. No Wave 10 work or deployment occurred.
 
 ## FINAL CLOSURE GATE — 2026-09-26, current result
