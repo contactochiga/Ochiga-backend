@@ -1,5 +1,32 @@
 # Wave 9 convergence review — NOT CLOSED
 
+## Certification continuation — expanded provisioning evidence
+
+All four remotes were fetched. The following source candidates are remotely durable and their merge-base equals the listed authoritative HEAD. This evidence-only change does not alter any runtime source or migration. Its containing Backend commit is identified by `git log -1 --format=%H -- docs/WAVE9_FINAL_CLOSURE.md`.
+
+| Repository / draft PR | Candidate | Authoritative HEAD / merge-base | Behind / ahead | Local work preserved |
+|---|---|---|---|---|
+| Backend #90 | a50dffde569cbb370e4589b6ad02aeb67a7ce805 | 17e876d78d0baf19913845195e140c812075a2ec | 0 / 23 | Initially clean; existing `pre-camera-backend-capacitor-push-dependency` stash untouched |
+| Office #85 | 0410dd61249119d27418f3e3cb8697ffb791c607 | 8f58aaef1263dfbd019d319651a95e8fb7617b80 | 0 / 5 | Clean, no stashes |
+| Twin #1 | 2862dba4780b655de17b0a21ecb4c635fef8d9be | fda2a27a31208541cb030c40ad26b01f1bc0fee0 | 0 / 2 | Existing generated architecture JSON/PNG changes left unstaged; no stashes |
+| Facility #38 | f14db75ab25042265514016e6e1ccaab3aed9788 | 60a0681968cedc0f303cf02b12c8964c879965f2 | 0 / 6 | Clean, no stashes |
+
+Backend/Office development branch remains `codex/wave9-final-convergence`; Twin `codex/wave9-build-verification`; Facility `codex/wave9-dependency-hardening`. Authoritative branches remain main except Office `codex/office-extraction`.
+
+**Provenance progressed, not closed.** All 214 accessible PR heads, 6,439 reachable historical text blobs and 71 unreachable blobs across the four repositories were searched. Supported SQL Editor metadata access then located 39 retained snippets over four pages. One genuine original definition was recovered: room_device_bindings, snippet `689b8acb-34db-4078-8934-0fa104e245a8`. It is preserved outside migration directories, hash-verified against the retained original, and replays successfully twice on the retained schema.sql. Its columns, constraints and indexes match production. Execution time/order remains unproven; saved-snippet time is not an execution log.
+
+community_posts and five other objects remain classification E, genuinely unresolved in the accessible evidence. Backup metadata lists no available backups; the queried first-reference-day logs have no retained entries. See `WAVE9_PROVISIONING_PROVENANCE_LEDGER.md` and machine-readable `docs/provenance/wave9-provenance-status.json`. No catalog-derived replacement DDL or complete baseline was invented. Full replay and full production equivalence remain BLOCKED, not a partial PASS.
+
+**The five LOCAL_TEST migrations remain intact.** Production history records all five 20260905 versions; current Git retains them unchanged from authoritative main. No historical migration rewrite/deletion occurred, and no lost cloud commit was reconstructed.
+
+**CI is not green.** Backend PR run `36273323719`: quality PASS; runtime-smoke FAIL (`22P02`, invalid UUID `estate-1`, plus Redis connection refused); ecosystem-smoke SKIPPED. Job `108492308034` locates the failure in `scripts/production-readiness-smoke.mjs`. That script inherits configured Supabase credentials and only mocks the users read while receiveSignal now reaches durable persistence. Its synthetic fixture must be isolated from real databases and reconciled with the persistence contract; merely replacing the fake ID with a real UUID is not an acceptable repair. `.github/workflows/backend-ci.yml` currently supplies repository Supabase secrets globally. Their target was not inspected or changed. No production fixture execution was deliberately initiated in this continuation. This evidence-only commit uses `[skip ci]` to avoid retriggering the known non-isolated smoke; skipped checks are **not** a green certification or authority bypass.
+
+Facility validation runs `36272790971` and `36273109141` PASS. Office preview PASS is not a substitute for a full new local matrix. Twin has only a draft-skipped CodeRabbit report, not executable CI certification. All PRs remain drafts and unmerged. The final authority sweep/full four-repository matrix requested **after** DB integrity cannot yet be certified; previous passing runtime tests remain historical evidence, not newly rerun final results.
+
+Current focused checks: archived snippet content verification PASS (original plus one final LF), local PostgreSQL foundation + snippet + repeat PASS (8 columns / 5 constraints / 4 indexes), JSON evidence parse and diff whitespace checks PASS. No historical DDL applied to production. No product architecture, security, memory or dependency gate was reopened.
+
+**WAVE 9 NOT CLOSED.** Remaining concrete work: recover verified provisioning evidence for the six E objects and establish complete replay/equivalence; repair/isolate the failing Backend runtime-smoke fixture, then obtain complete exact-candidate validation/CI and merged-state proof. No merge is permitted around either failure. Conditional order remains Backend → Office → Twin → Facility; Facility's existing remote Twin pin does not require the new Twin build-only commit, so Twin review is otherwise independent.
+
 ## Two-blocker continuation — current result
 
 This section supersedes older PR-permission findings. Starting candidates were verified after fetching all remotes: Backend `1f9961bde64d37b0134fa5fc288d37382b4d7773`, Office `0410dd61249119d27418f3e3cb8697ffb791c607`, Twin `2862dba4780b655de17b0a21ecb4c635fef8d9be`, Facility `f14db75ab25042265514016e6e1ccaab3aed9788`. This documentation-only commit advances Backend; resolve its full SHA with `git log -1 --format=%H -- docs/WAVE9_FINAL_CLOSURE.md`. No runtime source, migration, dependency or cleared authority contract changed.

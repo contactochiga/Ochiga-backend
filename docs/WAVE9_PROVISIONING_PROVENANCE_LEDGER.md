@@ -1,5 +1,23 @@
 # Historical provisioning evidence — 2026-09-26
 
+## Expanded search and one recovered definition (supersedes the seven-unresolved count below)
+
+All four remotes and 214 accessible GitHub PR heads were fetched into separate local `refs/audit/wave9-pr/*` refs without changing product branches. Scanned all reachable text blobs under 10 MB, not only SQL-named files: Backend 3,805; Office 731; Facility 1,326; Twin 577. The only creation matches were two Backend visitor_access smoke fixtures, not production provenance. Read-only `git fsck --full --no-reflogs --unreachable` then exposed 22/20/29/0 unreachable blobs respectively; none contained the missing CREATE definitions. Original Office/Twin SQL paths outside Documents were also searched. No recovered cloud implementation was reconstructed.
+
+The supported Supabase CLI exposed a previously unexamined evidence source: retained SQL Editor snippets. The CLI first-page list returned a cursor, so the documented read-only Management API `/v1/snippets?project_ref=...&cursor=...` was paginated through all four pages, and all **39 accessible snippets** were inspected in memory. Credentials remained in process and were not written or printed. Names are not reliable content summaries: some snippets contain unrelated later SQL. Neither a saved snippet nor its inserted_at proves execution time.
+
+**room_device_bindings: classification A, original definition found.** Snippet `689b8acb-34db-4078-8934-0fa104e245a8`, misleadingly named “Estate membership columns,” has inserted_at and updated_at `2026-01-17T13:06:05.147176+00:00`. Its 664-byte SQL SHA-256 is `1366bcc742442694ba123033cb354a9733456c7615da40626fb01e44b1d52ed5`. It is archived verbatim plus one final LF in `docs/provenance/room_device_bindings.retained-snippet.sql`, **outside migrations**. No executed provisioning timestamp is inferred. Its eight columns, five PK/FK/check/unique constraints and four indexes match production. A newly created empty local DB replay of retained schema.sql followed by the snippet, twice, PASSes. Production RLS=true is explained by the June security migration's all-public-tables loop; the snippet itself does not enable RLS. This is a narrow structural comparison, not full grants or whole-database equivalence.
+
+**The other six objects remain classification E.** No creation definition for community_posts, estate_devices, user_integrations, user_presence, visitor_access or visitors_legacy appeared in these accessible snippets. Retained February community snippets only reference/alter posts. November foundation snippets reproduce base tables but do not create posts. Read-only backup metadata returns an empty backups array and PITR=false. A bounded log query for the first community application-reference day (2025-11-29 UTC) returned no retained entries. These results do not prove manual provisioning and do not cover inaccessible/deleted snippets or externally held backups.
+
+The exact next evidence needed is the original definition/provisioning artifact for those six objects, especially community_posts, from another owner's retained SQL history or an external historical schema backup. Under the current instruction, a newly inferred catalog-based CREATE cannot substitute for that evidence. Therefore no full replay or full schema-equivalence report is fabricated. Machine-readable status and scoped comparison are in `docs/provenance/wave9-provenance-status.json`.
+
+### Five historical migrations protected
+
+Production migration history confirms `20260905010000` through `20260905050000`: home_zone_building_link, home_canonical_ref, room_canonical_ref, device_canonical_ref and device_parent_relationship, all named LOCAL_TEST. All five files remain tracked and unchanged from origin/main. The current migration diff has only three additive forward files (camera scope, wallet privilege boundary, DVR registry), no deletions or modifications. The lost c35bf0c deletion assumption is not repeated; that lost commit was not reconstructed.
+
+Sources for supported read-only metadata access: https://supabase.com/docs/reference/api/v1-list-all-snippets and https://supabase.com/docs/reference/api/v1-list-all-backups. No production mutation or backup restore was performed.
+
 This is a blocked provenance finding, not a replacement schema or an equivalence certification. No production data was read or mutated. No historical migration was changed.
 
 ## Search coverage
