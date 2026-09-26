@@ -19,11 +19,11 @@ assert.equal(memoryVisibleTo(projection, { ...projection.scope, actorId: "other"
 assert.equal(memoryVisibleTo(projection, { ...projection.scope, homeId: "other" }, now), false);
 assert.equal(memoryVisibleTo(projection, projection.scope, now + 31 * 86400000), false);
 assert.equal(memoryVisibleTo(projection, projection.scope, now - 1), false);
-let mode = "read", queries = 0, writes = [], filters = [];
+let mode = "read", queries = 0, writes = [], filters = [], failWrite = false;
 supabaseAdmin.from = table => {
   assert.equal(table, "resident_memory"); queries++;
   const result = () => mode === "read" ? { data: [row, { ...row, id: "duplicate" }, { ...row, id: "foreign", user_id: "other" }], error: null } : { data: null, error: mode === "error" ? { message: "failed" } : null };
-  const q = { select: () => q, eq: (k, v) => { filters.push([k,v]); return q; }, is: (k,v) => { filters.push([k,v]); return q; }, gte: () => q, order: () => q, limit: n => { assert.ok(n <= 20); return q; }, maybeSingle: async () => result(), then: (yes,no) => Promise.resolve(result()).then(yes,no), upsert: async (value, options) => { writes.push({ value, options }); return result(); } };
+  const q = { select: () => q, eq: (k, v) => { filters.push([k,v]); return q; }, is: (k,v) => { filters.push([k,v]); return q; }, gte: () => q, order: () => q, limit: n => { assert.ok(n <= 20); return q; }, maybeSingle: async () => result(), then: (yes,no) => Promise.resolve(result()).then(yes,no), upsert: async (value, options) => { writes.push({ value, options }); return failWrite ? {data:null,error:{message:"write failed"}} : result(); } };
   return q;
 };
 assert.equal((await loadResidentMemoryContext(actor, now)).length, 1);
@@ -45,4 +45,6 @@ await upsertResidentMemory({ ...actor, home_id: null }, { memoryType: "conversat
 await upsertResidentMemory({ ...actor, home_id: null }, { memoryType: "conversation_context", key: "latest", value: {} });
 assert.equal(writes[0].value.id, writes[1].value.id);
 assert.equal(writes[0].options.onConflict, "id");
+failWrite = true;
+await assert.rejects(upsertResidentMemory(actor, {memoryType:"conversation_context",key:"latest",value:{}}), /write_failed/);
 console.log("PASS governed memory: scope, expiry, bounded read, context-only trust, server assembly, public exclusion, resolved DB errors, stable null-home persistence identity");
