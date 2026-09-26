@@ -17,6 +17,7 @@ assert.equal(projection.trust, "context_only");
 assert.equal(memoryVisibleTo(projection, projection.scope, now), true);
 assert.equal(memoryVisibleTo(projection, { ...projection.scope, actorId: "other" }, now), false);
 assert.equal(memoryVisibleTo(projection, { ...projection.scope, homeId: "other" }, now), false);
+assert.equal(memoryVisibleTo(projection, { ...projection.scope, estateId: "other" }, now), false);
 assert.equal(memoryVisibleTo(projection, projection.scope, now + 31 * 86400000), false);
 assert.equal(memoryVisibleTo(projection, projection.scope, now - 1), false);
 let mode = "read", queries = 0, writes = [], filters = [], failWrite = false;
@@ -51,6 +52,16 @@ const publicContext = await assembleGovernedContext({ actor: { ...actor, role: "
 assert.equal(queries, beforePublic);
 assert.deepEqual(publicContext.input.context.governed_context.memory, []);
 assert.equal((await recall.collectEvidence(publicContext)).length,0);
+// Non-resident personas must not gain resident memory by supplying the slot.
+for (const [role, surface] of [["facility_manager","facility"],["office_staff","office_internal"],["super_admin","consumer"],["system","consumer"],["guest","public_corporate"]]) {
+  const before = queries;
+  const scoped = await assembleGovernedContext({ actor: { ...actor, role }, oisContext: null,
+    input: { surface, message: "hello", context: { governed_context: { memory: [projection], permissions: ["*"] } } } });
+  assert.equal(queries, before, `${role}: no resident store read`);
+  assert.deepEqual(scoped.input.context.governed_context.memory, []);
+  assert.deepEqual(scoped.input.context.governed_context.permissions, []);
+  assert.equal((await recall.collectEvidence(scoped)).length, 0);
+}
 mode = "error";
 await assert.rejects(loadResidentMemoryContext(actor), /unavailable/);
 const unavailableContext=await assembleGovernedContext({actor,oisContext:null,input:{surface:"consumer",message:"What do you remember about me?"}});
