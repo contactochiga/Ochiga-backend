@@ -69,3 +69,17 @@ Validation: typecheck/build, conversation ownership adversarial suite, corporate
 Production memory finding: resident_memory has owner ALL RLS (authenticated users can contribute their own rows), with a nullable home key in its unique index. Any future memory adapter must treat stored content as untrusted actor context, never server-authoritative evidence/permissions, and must avoid null-home upsert duplication. This is an implementation requirement, not a claim memory closure is already complete.
 
 Source reclassification: Office's business-model-and-current-maturity.md mixes inferred revenue models and undated runtime claims; it is now UNVERIFIED_REFERENCE, internal commercial, human confirmation required, rather than TECHNICAL_SOURCE. The pitch-deck narrative was already MARKETING_REFERENCE and remains so. No commercial facts or prices were invented, and no source file was deleted. The initial table above records pre-change findings.
+
+## Current review disposition (2026-09-26)
+
+Backend draft PR #90 and Office draft PR #85 contain the validated increments; neither authoritative branch is merged. Twin's build-only compatibility commit is on `codex/wave9-build-verification`, not main. Facility main remains unchanged and its exact remote Twin dependency is preserved.
+
+Plan Studio independent answer generation is replaced by a governed Backend capability; bounded geometry extraction stays in Office. See `WAVE9_PLAN_STUDIO_CORE_DELEGATION.md`. Office requires an actual capability-result acknowledgement and fails closed with an older Backend. No deployment or migration accompanies this increment.
+
+The runtime presentation-context normalizer now takes role/permissions exclusively from server actor context. Resident memory tests additionally prove a resolved Supabase write `{error}` fails. Memory admission is implemented, but no downstream consumer currently explicitly consumes `governed_context`; this is **not** full memory adoption. Conversation/result-set, knowledge and relationship adapters still need a complete governed-assembly adoption audit.
+
+Office `getLeadMemory` has one live authenticated `view_dashboard` route; the retained upsert methods have no live caller found in `src`. This is legacy CRM context, not an active second reasoning engine. Its retention and actor/relationship authorization still need a final inventory before closure.
+
+Backend full release validation initially exposed a pre-existing canonical-truth test that expected legacy camera `health:offline` to establish truth. Only the test was corrected to supply canonical `current_state`, retain physical-disconnection qualification and reject legacy-only evidence. Release validation then stopped at `device-schema-release-smoke` for missing Supabase credentials. No credential was substituted and this check is not PASS.
+
+Current validation and remaining gates are recorded in `WAVE9_FINAL_CLOSURE.md`. That document is deliberately an incomplete checkpoint, not a release certificate.
