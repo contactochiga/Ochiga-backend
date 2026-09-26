@@ -1,5 +1,20 @@
 # Wave 9 convergence review — NOT CLOSED
 
+## Two-blocker continuation — current result
+
+This section supersedes older PR-permission findings. Starting candidates were verified after fetching all remotes: Backend `1f9961bde64d37b0134fa5fc288d37382b4d7773`, Office `0410dd61249119d27418f3e3cb8697ffb791c607`, Twin `2862dba4780b655de17b0a21ecb4c635fef8d9be`, Facility `f14db75ab25042265514016e6e1ccaab3aed9788`. This documentation-only commit advances Backend; resolve its full SHA with `git log -1 --format=%H -- docs/WAVE9_FINAL_CLOSURE.md`. No runtime source, migration, dependency or cleared authority contract changed.
+
+1. **Database baseline/replay/equivalence: BLOCKED.** See `WAVE9_PROVISIONING_PROVENANCE_LEDGER.md`. Search progressed beyond community_posts to seven production objects with no retained creation owner. All-ref historical SQL/bootstrap candidates (195 blobs), accessible Documents SQL/dump/backup paths (446), first application references, and production retained migration statements were checked. A new empty local PostgreSQL replay again fails at March comments/reactions after schema.sql + May foundation + camera_events pass. No fabricated table, applied-history rewrite, or false equivalence claim. Original provisioning SQL/pre-migration schema evidence or a fully reviewed catalog-derived baseline with reconciled historical preconditions remains required.
+2. **PR write: RESOLVED; final CI/candidate certification remains BLOCKED.** Mac `gh` is authenticated with repository scope. Backend [#90](https://github.com/contactochiga/Ochiga-backend/pull/90) and Office [#85](https://github.com/contactochiga/ochiga-office/pull/85) bodies were updated with accurate gate status. Created draft Twin [#1](https://github.com/contactochiga/Oyi-Twin-Engine/pull/1) and Facility [#38](https://github.com/contactochiga/facility-oyi/pull/38). All four heads match the candidates above. No merge or production deployment was performed. Repository integrations reported Vercel preview completion; that is not production certification.
+
+CI snapshot: Backend runs `36272900048` and `36272903263` remain in progress at release validation; lint/build/environment/security/camera checks succeeded, not overall CI PASS. Facility runs `36272790971` and `36273109141` validate PASS. Office reports Vercel preview PASS; Twin reports only CodeRabbit review-skipped because draft, not executable CI proof. Drafts remain drafts.
+
+Validation this continuation: fresh diagnostic SQL replay FAIL as above; Git diff whitespace check PASS. Previous 67/67 smoke and build results remain prior-source evidence, **not a newly executed final matrix**. User-required final matrix is conditional on database replay/equivalence succeeding; that condition remains unmet. Twin's generated architecture JSON/PNG modifications were preserved unstaged; other worktrees were clean before this documentation edit. No new secret/config/source files were introduced.
+
+Conditional reviewed merge order remains Backend → Office → Twin → Facility, then actual merged-HEAD compatibility validation. No merge is safe while the database gate remains blocked. Cleared architecture/security/memory/dependency gates were not reopened.
+
+**WAVE 9 NOT CLOSED** — remaining work is verified complete provisioning/replay/schema equivalence, followed by final candidate validation/CI and reviewed merged-state compatibility. PR-write permissions are no longer a blocker.
+
 ## Five-blocker correction result — latest
 
 This section supersedes earlier blocker dispositions. No historical migration was edited. No production mutation, deployment, merge, cloud reconstruction or new feature slice occurred.
