@@ -10,7 +10,8 @@ function sql(query,db=database){return new Promise((resolve,reject)=>{
   p.on('close',c=>c===0?resolve(out.trim()):reject(new Error(err.trim())));p.stdin.end(query);
 });}
 const quote=s=>"'"+String(s).replaceAll("'","''")+"'";
-const base=Date.now()-60000;
+// Exercise PostgreSQL's trailing-zero normalization on every run.
+const base=Math.floor(Date.now()/1000)*1000-60000+950;
 const stamp=n=>new Date(base+n).toISOString();
 const heartbeat=(n,status='online')=>({ts:stamp(n),status,sync_status:'synced',queue_depth:0,error_count:0,runtime_version:'fixture'});
 const call=(node,p)=>`select public.oyi_ingest_edge_heartbeat('${estate}',${quote(node)},${quote(JSON.stringify(p))}::jsonb,30000);`;
@@ -45,7 +46,9 @@ try{
   });
   await test('concurrent first/new/old/duplicate ingestion serializes and preserves maximum source time',async()=>{
     await Promise.all([0,30000,10000,20000,30000,0,5000].map(n=>sql(call('racing',heartbeat(n)))));
-    assert.equal(await sql("select heartbeat_observation->>'observed_at' from edge_nodes where edge_node_id='racing';"),new Date(base+30000).toISOString().replace('.000Z','+00:00').replace('Z','+00:00'));
+    // PostgreSQL strips trailing fractional zeroes (.950 -> .95). Compare
+    // the actual instant, not incidental JSON timestamp formatting.
+    assert.equal(new Date(await sql("select heartbeat_observation->>'observed_at' from edge_nodes where edge_node_id='racing';")).toISOString(),new Date(base+30000).toISOString());
     assert.equal(await sql("select count(*) from edge_heartbeats where edge_node_id='racing';"),'5');
   });
   await test('history failure rolls back projection and first-node creation',async()=>{
