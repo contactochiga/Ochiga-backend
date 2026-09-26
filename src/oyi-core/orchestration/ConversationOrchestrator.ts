@@ -2774,11 +2774,11 @@ async function buildBusinessSurfaceFallbackResponse(
   });
 }
 
-import { authorizeConversationThread } from "../context/conversationOwnership";
+import { assembleGovernedContext } from "../context/governedContextAssembly";
 
 export class ConversationOrchestrator {
   async run(context: CanonicalConversationRequestContext): Promise<ConversationRunResult> {
-    context = await authorizeConversationThread(context);
+    context = await assembleGovernedContext(context);
     ensureRegistered();
     const frame = parseSemanticFrame(context.input.message);
     const tracer = new ConversationTracer({
