@@ -1,5 +1,30 @@
 # Wave 9 convergence review — NOT CLOSED
 
+## 2026-09-28 authenticated production-schema gate
+
+The Backend's linked Supabase project is now available through authenticated,
+read-only CLI access. Production migration history matches the retained local
+ledger through `20260926090000`; a schema-only dump was collected without
+application data or production mutation. A disposable local Supabase PostgreSQL
+database now completes the documented compatibility sequence and all 118 tracked
+migrations. This resolves the prior *missing relation during replay* failure
+without changing historical migrations or asserting recovered historical DDL.
+
+It does **not** close Wave 9. The post-replay production comparison finds no
+missing named production tables/functions/indexes/triggers/policies/views, but
+does find material column/type/default drift across 19 shared tables. Most
+importantly, production and the replayed Core contract disagree on
+`ochiga_intelligence_predictions` source/evidence types and on legacy Core event
+columns. The four wallet mutation RPCs also remain SECURITY DEFINER and browser
+executable in the currently deployed production dump; the candidate service-role
+forward migration is not deployed. Those are genuine production-integrity gates,
+not historical-provenance curiosities. See
+`docs/provenance/wave9-production-schema-equivalence-2026-09-28.md` for the
+exact replay sequence, named-object counts, boundary, and required next action.
+
+**Current result: WAVE 9 NOT CLOSED.** No merge or deployment is authorized by
+this record.
+
 ## 2026-09-28 Core conversation continuation
 
 Backend development branch `codex/wave9-final-convergence` advanced from
