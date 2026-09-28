@@ -40,3 +40,32 @@ context, returns a review draft, and does not save or execute an automation.
 The existing manual automation write path remains its own governed operational
 API; converting proposal acceptance into a durable Core workflow is a later
 explicit migration, not an implicit side effect of suggestion parsing.
+
+## Direct provider-call inventory
+
+| File | Caller/role | Classification | Authority boundary |
+| --- | --- | --- | --- |
+| `src/utils/ai.ts` | `automations.suggest` capability | Core subsystem — bounded domain parser | Server-scoped context only; produces a review draft and cannot persist or execute. |
+| `src/oyi-core/capabilities/PlanStudioCapability.ts` | Registered Core capability | Canonical Core capability | Read-only, governed capability contract and Core context. |
+| `src/services/communicationRuntime/replyClassifier.ts` | Communications runtime | Domain engine | Classifies an inbound communication outcome; it is not conversation orchestration or action authority. |
+| `src/services/communications/communicationsMediaAdapters.ts` | Communications media adapters | Domain adapter | Transcription, speech and multimodal transforms; no general reasoning authority. |
+| `src/language-teacher/providerRegistry.ts` | Language-teacher feature | Bounded specialist domain engine | Feature-specific instruction; does not select Oyi capabilities or own cross-domain conversation. |
+
+No Office, Facility, Twin or Edge source path in the Slice 1 provider sweep
+instantiates a general model client. Office and Facility delegate governed
+conversation to Core; Edge remains hardware execution. Twin has no model client.
+
+## Named-agent and Twin handoff disposition
+
+| Role/path | Runtime owner | Scope | Status |
+| --- | --- | --- | --- |
+| Oma | Backend Core with Office identity/permissions | Office staff, CRM evidence and authorised capabilities | Role around Core; no Office-local model runtime. |
+| Osa | Backend Core with public identity/audience | Public knowledge and commercial discovery only | Role around Core; no public-surface model runtime. |
+| Twin spatial controller | Twin Engine | Resolved spatial navigation, simulation and asset commands | Deterministic domain runtime; no provider or general reasoning runtime. |
+
+The Twin controller currently responds locally to an unknown/non-spatial phrase
+with a spatial-help message. It has no authenticated Core transport/configured
+backend endpoint to which it can safely hand the turn off. That is a concrete
+handoff integration gap, not a basis for adding an unauthenticated URL or a
+second brain. A later Slice must supply the existing Core identity/transport
+contract and make unknown Twin turns delegate through it.

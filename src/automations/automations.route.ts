@@ -88,7 +88,7 @@ router.post(
       const estateId = actor.estate_id;
 
       if (!prompt || !estateId) {
-        return res.status(400).json({ error: "Missing prompt or estateId" });
+        return res.status(400).json({ error: "Missing prompt or authenticated estate scope" });
       }
 
       // Only server-derived scope and device context crosses into Core.
