@@ -406,3 +406,32 @@ No live provider-quality, hardware, production mutation, or real-database concur
 Original Mac user edits remain untouched. These branches preserve validated progress but do not satisfy all requested closure criteria.
 
 **WAVE 9: NOT CLOSED. WAVE 10 BASELINE: NOT READY.**
+
+### Production ledger reconciliation and remaining camera-contract gate — 2026-09-28
+
+Production now records the two migrations whose SQL was applied during the approved
+maintenance window: `20260926211819` and `20260928090000`.  Their history was
+subsequently repaired through the supported Supabase migration-repair path; no SQL
+was rerun.  `supabase migration list --linked` confirms those two versions match
+between the repository and production.
+
+The two remaining local-only versions are intentionally **not** ledger-repaired:
+
+| Version | Repository intent | Current production truth | Disposition |
+|---|---|---|---|
+| `20260926205543` | Add nullable `facility_cameras.home_id` and `privacy_scope`, required by the established camera privacy and transition contracts. | Both columns are absent. | **Unapplied, required forward migration.** Do not mark applied until its SQL has been reviewed and deployed. |
+| `20260926212124` | Adopt the service-only `camera_dvrs` registry contract used by DVR import/list routes. | `camera_dvrs` is absent. | **Unapplied, required forward migration.** Do not mark applied until its SQL has been reviewed and deployed. |
+
+This is not historical-migration reconstruction: each file is an explicit,
+forward-only correction.  The proof is executable current code: camera access and
+current-state presentation select `home_id`/`privacy_scope`, while DVR import and
+list controllers read/write `camera_dvrs`.  Production cannot be called a complete
+Wave 9 candidate while those live contracts are missing.  No additional production
+schema operation is authorized by this record.
+
+Live verification after the approved deployment: all four `oyi_*_wallet` mutation
+RPCs are `SECURITY INVOKER` and grant `EXECUTE` only to `postgres` and
+`service_role`; prediction, nullable camera acquisition, and `homes.type` contracts
+match `20260928090000`.  The production health URL could not be resolved from this
+local command environment during this check, so it is not recorded as a fresh health
+PASS here.
