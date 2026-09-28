@@ -105,6 +105,7 @@ import { loadPendingGoalPointer, buildPendingGoalPointer } from "../context/goal
 
 let registered = false;
 import { buildPlanStudioCapability, normalizePlanReviewContext } from "../capabilities/PlanStudioCapability";
+import { buildAutomationSuggestionCapability } from "../capabilities/AutomationSuggestionCapability";
 
 function boolFlag(name: string, fallback = true) {
   const value = process.env[name];
@@ -115,6 +116,7 @@ function boolFlag(name: string, fallback = true) {
 export function ensureRegistered() {
   if (registered) return;
   capabilityRegistry.register(buildPlanStudioCapability());
+  capabilityRegistry.register(buildAutomationSuggestionCapability());
   capabilityRegistry.register(buildMemoryRecallCapability());
   for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
   for (const capability of buildDeviceActionCapabilities()) capabilityRegistry.register(capability);
@@ -2864,10 +2866,12 @@ export class ConversationOrchestrator {
     ensureRegistered();
     const parsedFrame = parseSemanticFrame(context.input.message);
     const planReview = context.input.surface === "office_internal" && normalizePlanReviewContext((context.input.context as any)?.plan_review_context);
+    const automationSuggestion = Boolean((context.input.context as any)?.automation_suggestion_context);
     // Explicit read-only host request; still passes the normal capability
     // permission/evidence gate. It cannot turn into a device/action request.
     const memoryRecall = context.input.surface === "consumer" && isMemoryRecallRequest(context.input.message);
     const frame = planReview ? { ...parsedFrame, domain: "office_development" as const, operation: "plan.review" as const, mutationIntent: false, references: [], primaryEntity: null }
+      : automationSuggestion ? { ...parsedFrame, domain: "automations" as const, operation: "automation.suggest" as any, mutationIntent: false, references: [], primaryEntity: null }
       : memoryRecall ? { ...parsedFrame, domain: "global" as const, operation: "memory.recall" as const, mutationIntent: false, references: [], primaryEntity: null } : parsedFrame;
     const tracer = new ConversationTracer({
       requestId: String((context.input.context as any)?.request_id || "") || undefined,
