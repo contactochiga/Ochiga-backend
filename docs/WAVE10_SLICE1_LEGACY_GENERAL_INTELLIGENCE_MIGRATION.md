@@ -80,3 +80,33 @@ backend endpoint to which it can safely hand the turn off. That is a concrete
 handoff integration gap, not a basis for adding an unauthenticated URL or a
 second brain. A later Slice must supply the existing Core identity/transport
 contract and make unknown Twin turns delegate through it.
+
+## Slice 10.2 retirement result
+
+`runOyiUnifiedChat` has been deleted. It had no production source caller after
+Slice 1. The surrounding `oyiUnifiedIntelligenceService` is retained only for
+the currently live, non-chat responsibilities below:
+
+| Component | Current caller | Disposition |
+| --- | --- | --- |
+| `loadOyiConversationContext` and `OyiSurface` contract | canonical runtime/contracts | Retain until those shared compatibility types/read helpers move independently. |
+| thread/message list reads | `/oyi` thread history routes | Retain as a data compatibility reader. |
+| `getOyiUnifiedAwareness` | explicit disclosed awareness presentation fallback and diagnostic | Retain; it is separate from general chat retirement. |
+| `runOyiUnifiedChat` | none | Deleted. |
+
+The former Wave 6 legacy-chat smoke is now a retirement guard: no general-chat
+export may return, while the separately disclosed awareness fallback remains
+explicit. The direct provider inventory is unchanged after retirement: all
+remaining provider calls have an active Core or bounded domain owner, so no
+SDK, environment variable or provider configuration was removed speculatively.
+
+Twin's `codex/wave10-twin-core-handoff` branch now defines a host-owned
+`CoreConversationHandoff` contract. A host with an existing authenticated Core
+transport can delegate an unknown turn through it; an unconfigured host returns
+an explicit `handoff_required` result. Twin does not gain a provider client,
+endpoint, credential, or local general-answer fallback.
+
+## Inherited operational debt — untouched
+
+- `20260926205543`
+- `20260926212124`
