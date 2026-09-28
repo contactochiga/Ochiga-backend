@@ -1,5 +1,31 @@
 # Historical provisioning evidence — 2026-09-26
 
+## Mac checkout linkage probe — 2026-09-28
+
+The user-authorised Mac checkout at `/Users/ochigaidoko/Documents/Ochiga-backend`
+was inspected without modifying its tracked files. It is on authoritative `main`
+at `17e876d78d0baf19913845195e140c812075a2ec`, with pre-existing untracked
+`.aider*`/`opencode.json` files left untouched. The checkout's Supabase linkage
+metadata identifies project ref `zcpgtdakqxyvjkmiibei`; that proves only a linked
+project reference, not authenticated remote database access.
+
+The local Supabase stack is running, but its status output describes local Docker
+services only. No supported local Supabase access-token/configuration file exists.
+Read-only remote probes (`supabase projects list` and
+`supabase migration list --linked`) did not return production metadata within the
+bounded probe and were terminated; no credential, connection string, or production
+data was printed or stored. The local PostgreSQL instance contains none of the six
+unresolved objects and no useful applied migration rows, so it cannot substitute
+for production evidence. The repository currently has 115 migration files, but
+their remote-applied status remains unverified.
+
+Therefore this Mac probe neither resolves nor weakens the existing provenance
+classification. The exact next executable evidence remains a read-only production
+schema-only export plus `supabase_migrations.schema_migrations` history from an
+authenticated project owner/service connection. That export can support a
+documented *forward baseline* after review; it must not be relabelled as an
+original historical creation migration.
+
 ## Expanded search and one recovered definition (supersedes the seven-unresolved count below)
 
 All four remotes and 214 accessible GitHub PR heads were fetched into separate local `refs/audit/wave9-pr/*` refs without changing product branches. Scanned all reachable text blobs under 10 MB, not only SQL-named files: Backend 3,805; Office 731; Facility 1,326; Twin 577. The only creation matches were two Backend visitor_access smoke fixtures, not production provenance. Read-only `git fsck --full --no-reflogs --unreachable` then exposed 22/20/29/0 unreachable blobs respectively; none contained the missing CREATE definitions. Original Office/Twin SQL paths outside Documents were also searched. No recovered cloud implementation was reconstructed.
