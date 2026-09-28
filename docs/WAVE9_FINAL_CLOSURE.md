@@ -1,5 +1,45 @@
 # Wave 9 convergence review — NOT CLOSED
 
+## 2026-09-28 Core conversation continuation
+
+Backend development branch `codex/wave9-final-convergence` advanced from
+`748fd5245da5c3e137d8c32721a0b5b9f1422f64` to
+`a67592c08fab98036d9ccc032d8bfd59247dffa9`; both commits are pushed to
+draft [Backend PR #90](https://github.com/contactochiga/Ochiga-backend/pull/90).
+They are intentionally small, Core-owned corrections—not a new intent,
+memory, capability, action, or Office intelligence system.
+
+| Commit | Verified change | Authority boundary preserved |
+|---|---|---|
+| `48f0d0d85d42cce082f504adbc5555d36b7fd08e` | CRM lead/opportunity snapshot evidence now carries canonical facts, enabling Core's existing persisted result-set resolver to bind later references such as ordinal and list follow-ups. A deterministic `prioritize` follow-up ranks only already-authorised result-set evidence and preserves source order for ties. | Office remains the CRM source and permission gate; Backend performs no CRM re-query; a prioritisation response is read-only and cannot execute an action. |
+| `a67592c08fab98036d9ccc032d8bfd59247dffa9` | A public, educational corporate answer may make one non-operational discovery continuation: it invites the visitor to identify whether the interest is an existing property, development, or partnership. | Canonical knowledge remains the factual answer. Educational turns emit no CRM tool proposal and gain no operational authority. Existing Office validation remains required before any CRM mutation. |
+
+Fresh focused validation on these exact commits: Backend typecheck/build; adaptive
+response-blocks; Office reference-resolution; corporate public integration and
+contract; Office internal surface; Wave 9 knowledge source/authority/institutional
+knowledge suites; and security-adversarial all passed. Office's Core delegation,
+architecture guard, and public-session isolation suites also passed against the
+new Backend contract. `git diff --check` and the added-diff secret pattern scan
+passed. The local business-surface end-to-end smoke was **BLOCKED** by absent
+local `SUPABASE_URL`/service-role configuration; it was not recorded as a pass.
+
+The final GitHub Actions status for the new push could not be retrieved when the
+GitHub API was temporarily unreachable. The PR remains draft/unmerged; no CI
+success is inferred from local results. Existing non-merged repository heads at
+this checkpoint: Office `0410dd61249119d27418f3e3cb8697ffb791c607`, Facility
+`f14db75ab25042265514016e6e1ccaab3aed9788`, and Twin
+`2862dba4780b655de17b0a21ecb4c635fef8d9be` (its pre-existing generated
+architecture artifact edits remain unstaged).
+
+**Provisioning closure remains blocked.** The local environment exposes neither
+production database credentials nor a retained backup/export; the existing
+catalog evidence does not establish historical creation order or definitions for
+`community_posts`, `estate_devices`, `user_integrations`, `user_presence`,
+`visitor_access`, and `visitors_legacy`. No inferred DDL, historical migration
+rewrite, or catalog-derived pseudo-history was created. See the provenance ledger
+below for the exact externally retained evidence required before clean replay and
+schema equivalence can be certified.
+
 ## Runtime CI isolation continuation (supersedes the older CI-defect disposition below)
 
 Verified starting Backend/local/upstream: `1b78517d07aecde5aa9307e3691e0697f3a10a2e`; authoritative main unchanged at `17e876d78d0baf19913845195e140c812075a2ec`. Draft PR heads reverified: Office #85 `0410dd61249119d27418f3e3cb8697ffb791c607`, Twin #1 `2862dba4780b655de17b0a21ecb4c635fef8d9be`, Facility #38 `f14db75ab25042265514016e6e1ccaab3aed9788`.
