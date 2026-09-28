@@ -25,9 +25,20 @@ canonical selection failed.
 
 `commandRouter` is no longer reachable from canonical conversation. Its active
 callers are restricted to historical `/ai` ledger/confirmation compatibility,
-the Watch adapter, and the dormant legacy unified service. It remains a
-retirement candidate until those record contracts are migrated to canonical
-workflow/action read adapters. New canonical code must not import it.
+and the Watch adapter. The dormant general-chat export was removed in Slice
+10.2A. Office's server-side operations dashboard still reads `/ai/executions`
+and `/ai/confirmations`; these are `ai_execution_ledger` records, not aliases
+of canonical workflow/action records. Watch likewise still receives legacy
+ledger IDs for confirm/cancel. `commandRouter` therefore remains a narrow
+compatibility bridge until those record identities have a reviewed migration
+and deployed callers move. New canonical code must not import it or use it for
+tool selection.
+
+| Remaining caller | Contract | Why it cannot be silently remapped | Retirement prerequisite |
+| --- | --- | --- | --- |
+| `watchAdapterService` | `routeAiCommand` and confirmation by legacy ledger ID | Watch quick actions return those IDs to deployed clients | Canonical action receipt/confirmation adapter with stable compatibility IDs |
+| `/ai/executions`, `/ai/confirmations` | Read `ai_execution_ledger` records | Office dashboard consumes the ledger's historical execution/confirmation view | Read-model migration and Office client cutover |
+| `/ai/confirmations/:id/*` | Confirm/cancel legacy ledger record | Deployed clients may hold an existing ledger ID | Canonical confirmation lookup keyed by a compatibility receipt |
 
 ## Automation proposal boundary
 

@@ -10,4 +10,7 @@ assert.match(aiRoutes, /conversationOrchestrator\.run\(/, "/ai/chat must use can
 assert.doesNotMatch(orchestrator, /from "\.\.\/\.\.\/ai\/commandRouter"|from "\.\.\/ai\/commandRouter"/, "canonical orchestrator cannot import the legacy router");
 assert.doesNotMatch(canonicalRuntime, /commandRouter/, "canonical runtime cannot use the legacy router");
 assert.match(watch, /routeAiCommand/, "Watch remains an explicit compatibility caller pending its domain-adapter migration");
+assert.match(watch, /updateAiConfirmation/, "Watch confirmation compatibility remains explicit");
+assert.match(aiRoutes, /import \{ listAiLedger, listAiConfirmations, updateAiConfirmation \} from "\.\.\/ai\/commandRouter"/, "legacy /ai routes may expose records but cannot route new commands");
+assert.doesNotMatch(aiRoutes, /routeAiCommand\(/, "legacy /ai routes cannot invoke legacy command selection");
 console.log("PASS Wave 10 legacy command-router boundary guard");
