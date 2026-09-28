@@ -23,7 +23,7 @@
     "views": { "production": 2, "replay": 2, "missing_from_replay": [] }
   },
   "material_column_contract_drift": {
-    "status": "BLOCKING_UNKNOWN",
+    "status": "REVIEWED_FORWARD_RECONCILIATION_REQUIRED",
     "relations": [
       "community_live_sessions",
       "devices",
@@ -44,7 +44,7 @@
       "ochiga_intelligence_predictions source_event_ids jsonb production versus text[] replay contract",
       "ochiga_intelligence_events legacy nullable scope/payload columns"
     ],
-    "required_next_action": "derive per-table, data-safe forward reconciliation plans; do not blindly alter production types"
+    "required_next_action": "apply only the reviewed forward migrations after explicit production approval; do not rewrite history"
   },
   "production_wallet_rpc_security": {
     "status": "UNDEPLOYED_CANDIDATE_FIX",

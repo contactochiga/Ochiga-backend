@@ -1,5 +1,33 @@
 # Wave 9 convergence review — NOT CLOSED
 
+## 2026-09-28 final remediation checkpoint
+
+Candidate branch `codex/wave9-final-convergence` contains a reviewed,
+**undeployed** forward reconciliation after the authenticated schema audit.
+Production was read only throughout.
+
+- The supported disposable sequence is now: local Supabase platform schemas →
+  `migrations/schema.sql` → retained May foundation → verified production
+  prerequisite baseline → all 118 tracked migrations → verified compatibility
+  baseline → `20260928090000_wave9_production_contract_reconciliation.sql`.
+  It completes with `psql -v ON_ERROR_STOP=1`.
+- The 19 shared-relation column differences are classified in
+  `docs/provenance/wave9-production-schema-equivalence-2026-09-28.md`.
+  No historical migration was changed. The only Core-contract type conversion
+  is prediction confidence/source-event/evidence, which is guarded against
+  lossy legacy shapes and has a real PostgreSQL smoke proof.
+- The same correction makes incomplete camera discovery configuration truthful
+  (`ip`/`rtsp_url` nullable), adds the runtime-owned `homes.type` default, and
+  fixes the Facility room-assignment writer to use production's canonical
+  `resident_id` field.
+- `20260926211819_wallet_rpc_service_boundary.sql` is still an **undeployed**
+  service-boundary correction. Its real PostgreSQL smoke proves anon and
+  authenticated callers are denied; only `service_role` can execute the four
+  wallet mutation RPCs, and wrong-owner debits remain rejected.
+
+This is a production-approval boundary, not a deployment authorization. The
+candidate requires explicit approval before any production migration is run.
+
 ## 2026-09-28 authenticated production-schema gate
 
 The Backend's linked Supabase project is now available through authenticated,
