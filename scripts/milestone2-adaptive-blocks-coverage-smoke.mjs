@@ -14,6 +14,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "milestone2-adaptive-blocks-coverage-s
 //      renderResponseBlock's switch) -- converted to real record_list/
 //      key_value blocks the renderer actually draws.
 const { buildOfficeInternalReadCapabilities } = await import("../dist/oyi-core/capabilities/OfficeCorporateCapabilityModules.js");
+const { capabilityDomainResultToConversationResponse } = await import("../dist/oyi-core/capabilities/CapabilityResponseAdapter.js");
 
 const modules = buildOfficeInternalReadCapabilities();
 function readModule(key) {
@@ -68,6 +69,15 @@ function readModule(key) {
   assert.equal(answer.blocks[0].type, "record_list", "must be a renderer-supported block type, not the legacy dropped 'list' shape");
   assert.equal(answer.blocks[0].rows[0].id, "lead-1");
   assert.equal(answer.blocks[0].columns.length, 3);
+  const response = capabilityDomainResultToConversationResponse({
+    context: { input: { ...ctx.input, surface: "office_internal" }, resolvedTurn: { semantic_frame: { operation: "list" }, scope: { estate_id: null, home_id: null } } },
+    capability: mod,
+    result: answer,
+    evidence,
+  });
+  assert.equal(response.facts.length, 1, "CRM evidence must produce a canonical fact for persisted follow-up context");
+  assert.equal(response.facts[0].object.canonical_id, "lead-1");
+  assert.equal(response.facts[0].value.reason, "No activity in 6 days");
 }
 
 // --- Financial summary: mixed composition (key_value totals + table of estates) ---

@@ -26,8 +26,8 @@ import { assertClaimDoesNotPromoteUnavailable, type CanonicalClaimState, type Ca
 import type { OyiEvidence } from "../contracts/evidence";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
-import { parseFollowUpIntent, resolveFollowUpReference, resolveFilterFollowUp, parseDomainSwitchIntent, clarificationCandidatesFromRefs, type FollowUpIntent } from "../interpretation/followUpResolver";
-import { loadThreadResultSetContext, loadThreadResultSetsContext, narrowedResultSetContext, filteredResultSetContext, type ResultSetContext } from "../context/resultSetContext";
+import { parseFollowUpIntent, resolveFollowUpReference, resolveFilterFollowUp, prioritizeResultSet, parseDomainSwitchIntent, clarificationCandidatesFromRefs, type FollowUpIntent } from "../interpretation/followUpResolver";
+import { loadThreadResultSetContext, loadThreadResultSetsContext, narrowedResultSetContext, filteredResultSetContext, prioritizedResultSetContext, type ResultSetContext } from "../context/resultSetContext";
 import { isOfficeResultSetDomain, officeFactFromRef, officeFollowUpAnswer } from "../context/officeResultSetReference";
 import { hydrateCanonicalTarget } from "../runtime/canonicalTargetHydrationRegistry";
 import { buildExplainAnswer, buildStatusCheckAnswer, buildFieldAnswer } from "../domains/explainAnswer";
@@ -2563,6 +2563,48 @@ async function handleFilterFollowUp(context: CanonicalConversationRequestContext
   return response;
 }
 
+// "Which ones should I handle first?" is a governed conversational move:
+// it ranks only the facts the preceding capability already presented.  It
+// neither re-queries a domain store nor turns a read conversation into an
+// action.  The source order remains the tie-breaker when the evidence does
+// not state a stronger priority, and that limitation is explicit in the
+// answer rather than fabricated as a model judgement.
+async function handlePrioritizeFollowUp(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, tracer: ConversationTracer): Promise<ConversationRunResult> {
+  const ordered = prioritizeResultSet(resultSet);
+  const capabilityForAdapter = followUpCapabilityFor(resultSet);
+  const top = ordered.slice(0, 3);
+  const labels = top.map((ref, index) => {
+    const reason = ref.attributes.reason || (ref.attributes.overdue === "true" ? "overdue" : ref.attributes.priority || ref.attributes.severity || null);
+    return `${index + 1}. ${ref.label}${reason ? ` (${reason})` : ""}`;
+  }).join("; ");
+  const hasEvidencePriority = ordered.some((ref) => Boolean(ref.attributes.priority || ref.attributes.severity || ref.attributes.overdue === "true" || /\boverdue\b/i.test(ref.attributes.reason || "")));
+  const result: DomainResult = {
+    status: "answered",
+    answer: hasEvidencePriority
+      ? `Based on the available evidence, start with: ${labels}.`
+      : `I can keep the order in which the authorised source presented these items: ${labels}. It did not provide a separate priority score.`,
+    presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
+    metadata: { followup_prioritized: true, candidate_count: ordered.length, evidence_priority_available: hasEvidencePriority },
+  };
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+  response.result_set = prioritizedResultSetContext(resultSet, ordered, {
+    contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id || null, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
+    message: context.input.message,
+  }) as unknown as Record<string, unknown>;
+  response.execution = {
+    ...(response.execution || {}),
+    orchestrator_v2: {
+      request_id: tracer.requestId,
+      correlation_id: tracer.correlationId,
+      runtime_id: tracer.runtimeId,
+      followup: { detected: true, resolver: "canonical", reference_type: "prioritize", source_domain: resultSet.domain, result_set_id: resultSet.result_set_id, resolution_status: "resolved", candidate_count: ordered.length },
+    },
+  };
+  response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityForAdapter);
+  tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+  return response;
+}
+
 // "Go back to that maintenance issue" — restores focus to a DIFFERENT
 // domain's own persisted result set (not the currently active one). See
 // §10 of the closure spec: cross-domain context switching. Only resolves
@@ -2652,6 +2694,7 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
   if (intent.type === "comparison") return handleUtilityComparisonFollowUp(context, resolvedTurn, resultSet, tracer);
   if (intent.type === "temporal_followup") return handleTemporalFollowUp(context, resolvedTurn, resultSet, tracer);
   if (intent.type === "filter") return handleFilterFollowUp(context, resolvedTurn, resultSet, intent.keyword, tracer);
+  if (intent.type === "prioritize") return handlePrioritizeFollowUp(context, resolvedTurn, resultSet, tracer);
 
   const resolution = resolveFollowUpReference(resultSet, intent);
   if (resolution.status === "unresolved") return null;

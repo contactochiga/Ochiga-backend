@@ -251,6 +251,34 @@ function keyValueBlock(title: string, items: Array<{ label: string; value: strin
 // ---------------------------------------------------------------------
 // office_internal — CRM leads
 // ---------------------------------------------------------------------
+// CRM lists arrive as permission-filtered Office snapshot evidence.  Give
+// every row the same canonical fact shape used by the other Office list
+// capabilities so the Core can persist the *presented* list and safely
+// resolve a later "which ones"/"the second one" turn without querying or
+// inventing CRM data of its own.
+function crmLeadAttentionFact(lead: NonNullable<OperationalSnapshot["leads"]>["needing_attention"][number]): IntelligenceFact {
+  return {
+    fact_id: `crm_lead_needs_attention:${lead.id}`,
+    domain: "crm",
+    fact_type: "crm_lead_needs_attention",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "lead", canonical_id: lead.id, label: lead.name },
+    statement: `${lead.name} — ${lead.reason}`,
+    value: { status: lead.status, reason: lead.reason },
+    previous_value: null,
+    occurred_at: lead.last_activity_at,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: lead.id,
+    truth_state: "observed",
+    confidence: 0.9,
+    freshness: lead.last_activity_at ? "fresh" : "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
 function crmLeadsReadModule(): CapabilityModule {
   return readModule({
     key: "crm.leads.read",
@@ -264,21 +292,22 @@ function crmLeadsReadModule(): CapabilityModule {
       const snapshot = officeSnapshot(context);
       const leads = snapshot?.leads;
       if (!leads) return [];
-      return leads.needing_attention.map((lead) =>
-        evidenceEnvelope({
+      return leads.needing_attention.map((lead) => {
+        const fact = crmLeadAttentionFact(lead);
+        return evidenceEnvelope({
           domain: "crm",
           type: "crm_lead_needs_attention",
           object_type: "lead",
           object_id: lead.id,
           source: "domain_adapter",
-          observed_at: lead.last_activity_at,
+          observed_at: fact.observed_at,
           freshness: lead.last_activity_at ? "fresh" : "unknown",
           privacy_class: officePrivate,
           confidence: 0.9,
           authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
-          payload: { lead },
-        })
-      );
+          payload: { lead, fact },
+        });
+      });
     },
     answer: (context) => {
       const snapshot = officeSnapshot(context);
@@ -337,6 +366,29 @@ function crmLeadsReadModule(): CapabilityModule {
 // ---------------------------------------------------------------------
 // office_internal — CRM opportunities
 // ---------------------------------------------------------------------
+function crmOpportunityStaleFact(opportunity: NonNullable<OperationalSnapshot["opportunities"]>["stale"][number]): IntelligenceFact {
+  return {
+    fact_id: `crm_opportunity_stale:${opportunity.id}`,
+    domain: "crm",
+    fact_type: "crm_opportunity_stale",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "opportunity", canonical_id: opportunity.id, label: opportunity.name },
+    statement: `${opportunity.name} — ${opportunity.days_since_activity ?? "unknown"} days since activity`,
+    value: { status: opportunity.stage, owner: opportunity.owner, days_since_activity: opportunity.days_since_activity },
+    previous_value: null,
+    occurred_at: null,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: opportunity.id,
+    truth_state: "observed",
+    confidence: 0.9,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
 function crmOpportunitiesReadModule(): CapabilityModule {
   return readModule({
     key: "crm.opportunities.read",
@@ -350,8 +402,9 @@ function crmOpportunitiesReadModule(): CapabilityModule {
       const snapshot = officeSnapshot(context);
       const opportunities = snapshot?.opportunities;
       if (!opportunities) return [];
-      return opportunities.stale.map((opportunity) =>
-        evidenceEnvelope({
+      return opportunities.stale.map((opportunity) => {
+        const fact = crmOpportunityStaleFact(opportunity);
+        return evidenceEnvelope({
           domain: "crm",
           type: "crm_opportunity_stale",
           object_type: "opportunity",
@@ -362,9 +415,9 @@ function crmOpportunitiesReadModule(): CapabilityModule {
           privacy_class: officePrivate,
           confidence: 0.9,
           authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
-          payload: { opportunity },
-        })
-      );
+          payload: { opportunity, fact },
+        });
+      });
     },
     answer: (context) => {
       const snapshot = officeSnapshot(context);
