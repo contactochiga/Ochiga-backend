@@ -74,6 +74,17 @@ assert.ok(response.tool_proposals.some((proposal) => proposal.tool === "crm.crea
 assert.ok(response.tool_proposals.some((proposal) => proposal.tool === "crm.qualify_opportunity"));
 assert.ok(response.tool_proposals.every((proposal) => proposal.governance === "office_validates_before_execution"));
 
+// An educational product question remains informational: Core may invite the
+// next conversational turn, but it must not silently turn discovery into a
+// CRM mutation or capability execution.
+const educationalResponse = await buildCorporatePublicResponse(
+  { ...request, message: "What is Oyi?", business_unit: "technology", inquiry_type: "general" },
+  canonical
+);
+assert.match(educationalResponse.answer, /Are you exploring Oyi for an existing property, a development, or a partnership\?/);
+assert.equal(educationalResponse.suggested_next_action, "Are you exploring Oyi for an existing property, a development, or a partnership?");
+assert.deepEqual(educationalResponse.tool_proposals, []);
+
 const voiceRequest = { ...request, engagement_mode: "voice_conversation" };
 const voiceResponse = await buildCorporatePublicResponse(voiceRequest, canonical);
 assert.equal(voiceResponse.conversation_thread_id, response.conversation_thread_id);

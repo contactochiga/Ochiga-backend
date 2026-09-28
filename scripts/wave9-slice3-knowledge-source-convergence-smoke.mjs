@@ -65,7 +65,8 @@ await test('"what is ochiga" (canonical.reply empty, capability pipeline missed)
   const request = baseRequest({ message: "what is ochiga" });
   const response = await buildCorporatePublicResponse(request, EMPTY_CANONICAL);
   const canonicalItem = BACKEND_INSTITUTIONAL_KNOWLEDGE_ITEMS.find((i) => i.canonicalKey === "backend:corporate-company");
-  assert.equal(response.answer, canonicalItem.content);
+  assert.ok(response.answer.startsWith(canonicalItem.content), "canonical knowledge must remain the factual answer");
+  assert.match(response.answer, /Are you exploring Oyi for an existing property, a development, or a partnership\?/, "an educational answer may make one non-operational continuation");
 });
 
 await test('"what is oyi" resolves to backend:corporate-oyi content, not the old hardcoded literal', async () => {
@@ -73,7 +74,8 @@ await test('"what is oyi" resolves to backend:corporate-oyi content, not the old
   const request = baseRequest({ message: "what is oyi" });
   const response = await buildCorporatePublicResponse(request, EMPTY_CANONICAL);
   const canonicalItem = BACKEND_INSTITUTIONAL_KNOWLEDGE_ITEMS.find((i) => i.canonicalKey === "backend:corporate-oyi");
-  assert.equal(response.answer, canonicalItem.content);
+  assert.ok(response.answer.startsWith(canonicalItem.content), "canonical knowledge must remain the factual answer");
+  assert.match(response.answer, /Are you exploring Oyi for an existing property, a development, or a partnership\?/);
 });
 
 console.log("\n=== 2. Fallback -- index failure never blocks the response ===");

@@ -158,6 +158,16 @@ function buildToolProposals(request: CorporateOyiCoreRequest, signal: CorporateC
   return proposals;
 }
 
+// This is a presentation-level conversational move, not a capability or an
+// action proposal.  It makes a factual public answer useful as the opening
+// of a governed conversation while leaving the next turn free to establish
+// its own semantic intent.  In particular it neither creates CRM data nor
+// treats the visitor's answer as permission to execute a workflow.
+function explorationContinuation(signal: CorporateCommercialSignal, proposals: CorporateToolProposal[]): string | null {
+  if (signal !== "education" || proposals.length) return null;
+  return "Are you exploring Oyi for an existing property, a development, or a partnership?";
+}
+
 export async function buildCorporatePublicResponse(
   request: CorporateOyiCoreRequest,
   canonical: CanonicalConversationResponse,
@@ -184,13 +194,15 @@ export async function buildCorporatePublicResponse(
     message: request.message,
   });
   const toolProposals = buildToolProposals({ ...request, business_unit: routed.business_unit, inquiry_type: routed.inquiry_type }, signal);
+  const continuation = explorationContinuation(signal, toolProposals);
   // Wave 9 Slice 3 -- answerFor() is now async (it may resolve canonical
   // knowledge for the Ochiga/Oyi identity branches), so this whole builder
   // is now async too. There is exactly one caller (officeExport.ts's
   // /conversation/corporate route), already inside an async handler that
   // already awaits retrieveKnowledge() -- confirmed by direct audit this
   // slice, so this is a safe, fully-covered interface change.
-  const answer = await answerFor({ ...request, business_unit: routed.business_unit, inquiry_type: routed.inquiry_type }, canonical, signal);
+  const baseAnswer = await answerFor({ ...request, business_unit: routed.business_unit, inquiry_type: routed.inquiry_type }, canonical, signal);
+  const answer = continuation ? `${baseAnswer}\n\n${continuation}` : baseAnswer;
   return {
     ok: true,
     request_id: request.request_id,
@@ -204,7 +216,9 @@ export async function buildCorporatePublicResponse(
     recommended_agent_role: role.agent_role,
     commercial_signal: signal,
     qualification_signal: qualificationSignal(request.message),
-    suggested_next_action: toolProposals.length ? "Office should validate the proposed CRM workflow before mutating CRM state." : null,
+    suggested_next_action: toolProposals.length
+      ? "Office should validate the proposed CRM workflow before mutating CRM state."
+      : continuation,
     tool_proposals: toolProposals,
     handoff_recommended: toolProposals.some((proposal) => proposal.tool === "office.request_handoff"),
     // Wave 9 Slice 1 -- real retrieval first (Section 26's own "close that
