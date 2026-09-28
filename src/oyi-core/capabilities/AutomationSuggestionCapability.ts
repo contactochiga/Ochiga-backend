@@ -31,8 +31,10 @@ export function buildAutomationSuggestionCapability(): CapabilityModule {
     supported_surfaces: ["consumer", "facility"],
     scope_requirements: [{ scope: "estate", required: true }],
     permission_requirements: ["devices.control"],
-    risk_class: "low_risk_action",
-    confirmation_policy: "review",
+    // This capability only prepares a draft. It has no execution adapter;
+    // saving/activation remains a separate governed action path.
+    risk_class: "read",
+    confirmation_policy: "none",
     evidence_requirements: [],
     presentation_policy: { primary: "review", expose_evidence: "hidden", allow_internal_ids: false },
     supports: (frame) => frame.domain === "automations" && String(frame.operation) === "automation.suggest",

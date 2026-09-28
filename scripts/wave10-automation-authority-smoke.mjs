@@ -11,6 +11,7 @@ const suggestionRoute = route.slice(route.indexOf('"/ai-suggest"'), route.indexO
 assert.doesNotMatch(suggestionRoute, /\.from\("automations"\)\s*\.insert/, "suggestion route must not persist executable automations");
 assert.match(route, /const estateId = actor\.estate_id/, "scope must be server-derived");
 assert.match(capability, /permission_requirements: \["devices\.control"\]/, "capability requires governed control authority");
+assert.match(capability, /risk_class: "read"/, "a proposal-only parser must not advertise execution authority");
 assert.match(capability, /persistence_authority: "manual_or_governed_workflow"/, "parser output cannot grant persistence authority");
 assert.match(orchestrator, /buildAutomationSuggestionCapability\(\)/, "capability must be registered by canonical Core");
 console.log("PASS Wave 10 automation suggestion authority guard");
