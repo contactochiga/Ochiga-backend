@@ -180,6 +180,7 @@
     "smoke:facility-device-projection": "node scripts/enterprise-device-ownership-smoke.mjs",
     "smoke:multi-home-integrations": "node scripts/enterprise-device-ownership-smoke.mjs",
     "smoke:socket-scope": "node scripts/enterprise-device-ownership-smoke.mjs",
+    "smoke:socket-unhandled-rejection": "npm run build && node scripts/socket-unhandled-rejection-matrix.mjs --baseline",
     "smoke:inventory-reconciliation": "node scripts/enterprise-device-ownership-smoke.mjs",
     "smoke:device-scale": "node scripts/enterprise-device-ownership-smoke.mjs",
     "smoke:device-presentation-consistency": "node scripts/device-system-enterprise-smoke.mjs",
@@ -455,6 +456,7 @@
     "@types/node-ssdp": "^4.0.1",
     "@types/ping": "^0.4.2",
     "@types/qrcode": "^1.4.2",
+    "socket.io-client": "^4.8.4",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
   }

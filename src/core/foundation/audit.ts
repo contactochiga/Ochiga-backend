@@ -1,7 +1,7 @@
 import { Request } from "express";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import { AuditEventContract } from "./contracts";
-import { emitSignal, makeBaseSignal } from "../../realtime/emitSignal";
+import { emitSignalSafely, makeBaseSignal } from "../../realtime/emitSignal";
 
 export const FOUNDATION_EVENT_NAMES = [
   "user.login",
@@ -99,7 +99,7 @@ export async function emitAuditEvent(input: Omit<AuditEventContract, "timestamp"
     console.warn("[audit] write failed:", error.message);
   }
   if (isResidentDeviceAudit) return;
-	  emitSignal(makeBaseSignal({
+	  emitSignalSafely(makeBaseSignal({
 	    type: "audit.recorded",
 	    source: "audit",
 	    estateId: input.estateId || undefined,
