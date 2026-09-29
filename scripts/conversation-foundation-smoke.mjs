@@ -136,12 +136,11 @@ check("thread turn persistence is verified before a saved thread id is returned"
   assert.match(runtimeSource, /thread_id: persistedThreadId \|\| null/);
 });
 
-check("canonical runtime is the only persistence owner for compatibility fallback", () => {
-  assert.match(unifiedSource, /persist\?: boolean/);
-  assert.match(unifiedSource, /effectiveInput\.persist !== false/);
-  assert.match(runtimeSource, /persist: false/);
-  assert.match(runtimeSource, /runOyiUnifiedChat\(actor, compatibilityInput\)/);
+check("canonical runtime persists its own explicit unsupported outcome without legacy chat", () => {
+  assert.doesNotMatch(runtimeSource, /runOyiUnifiedChat\(/);
+  assert.match(runtimeSource, /oyi_canonical_runtime_unsupported_total/);
   assert.match(runtimeSource, /persistCanonicalAuthoritativeMessages\(actor, input, \{ \.\.\.shapedCompatibility/);
+  assert.match(runtimeSource, /const persistedThreadId = await persistCanonicalAuthoritativeMessages\(actor, input, \{ \.\.\.shapedCompatibility/);
   assert.doesNotMatch(runtimeSource, /await persistCanonicalShapedAssistantMessage\(threadId, shapedCompatibility/);
 });
 

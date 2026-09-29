@@ -3,9 +3,9 @@ import express from "express";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { auditOnSuccess } from "../middleware/audit";
-import { nluToAutomation } from "../utils/ai";
 import { AutomationSchema, AutomationInputSchema } from "../utils/validation";
 import { z } from "zod";
+import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
 
 const router = express.Router();
 
@@ -81,44 +81,33 @@ router.post(
   "/ai-suggest",
   requireAuth,
   requirePermission("devices.control"),
-  auditOnSuccess("automation.created", "automation", "id"),
   async (req, res) => {
     try {
-      const { prompt, estateId } = req.body;
+      const { prompt } = req.body;
+      const actor = req.user!;
+      const estateId = actor.estate_id;
 
       if (!prompt || !estateId) {
-        return res.status(400).json({ error: "Missing prompt or estateId" });
+        return res.status(400).json({ error: "Missing prompt or authenticated estate scope" });
       }
 
-      // Fetch estate devices for context
+      // Only server-derived scope and device context crosses into Core.
       const { data: devices } = await supabaseAdmin
         .from("devices")
         .select("*")
         .eq("estate_id", estateId);
-
-      const nluContext = {
-        devices: Array.isArray(devices) ? devices : [],
-        homes: [],
-        estates: [],
-      };
-
-      const suggestion = await nluToAutomation(prompt, nluContext);
-
-      const parsed = AutomationSchema.parse({
-        ...suggestion,
-        estate_id: estateId,
-        ai_generated: true,
-        created_at: new Date().toISOString(),
+      const response = await conversationOrchestrator.run({
+        actor,
+        oisContext: req.oisContext || null,
+        input: {
+          message: String(prompt), surface: (req.oisContext?.surface as any) || "consumer",
+          estate_id: estateId, home_id: actor.home_id || null, module: "automations",
+          context: { ...(req.oisContext || {}), automation_suggestion_context: { devices: Array.isArray(devices) ? devices : [], homes: [], estates: [] } },
+        },
       });
-
-      const { data, error } = await supabaseAdmin
-        .from("automations")
-        .insert([parsed])
-        .select()
-        .single();
-
-      if (error) return res.status(500).json({ error: error.message });
-      return res.json(data);
+      // A suggestion is deliberately not an automation write. Saving or
+      // executing remains behind the existing governed automation workflow.
+      return res.status(response.truth.truth_state === "permission_restricted" ? 403 : 200).json({ ok: true, proposal: response, persisted: false, requires_review: true });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ error: err.errors });

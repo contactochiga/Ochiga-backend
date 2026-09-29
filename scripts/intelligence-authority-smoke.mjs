@@ -48,10 +48,11 @@ check("canonical request contract owns operation, intent, scope and builder", ()
   assert.match(runtime, /conversation_request_contract_resolved/);
 });
 
-check("read-only firewall runs before legacy compatibility can answer", () => {
+check("read-only firewall remains canonical and legacy compatibility cannot answer", () => {
   const buildIndex = runtime.indexOf("const canonicalBuilt = await buildCanonicalAuthoritativeAnswer");
-  const legacyIndex = runtime.indexOf("const compatibility = await runOyiUnifiedChat");
-  assert.ok(buildIndex > 0 && legacyIndex > buildIndex, "canonical builder must precede legacy chat");
+  assert.ok(buildIndex > 0, "canonical builder must exist");
+  assert.doesNotMatch(runtime, /runOyiUnifiedChat\(/);
+  assert.match(runtime, /oyi_canonical_runtime_unsupported_total/);
   assert.match(runtime, /conversation_read_only_execution_blocked/);
   assert.match(turnResolution, /read_only_no_execution/);
 });

@@ -5,7 +5,6 @@ import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame } from "../interpretation/SemanticFrameParser";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
 import { ConversationTracer } from "../observability/ConversationTracer";
-import { legacyConversationAdapter } from "../legacy/LegacyConversationAdapter";
 import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
 import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
@@ -106,6 +105,7 @@ import { loadPendingGoalPointer, buildPendingGoalPointer } from "../context/goal
 
 let registered = false;
 import { buildPlanStudioCapability, normalizePlanReviewContext } from "../capabilities/PlanStudioCapability";
+import { buildAutomationSuggestionCapability } from "../capabilities/AutomationSuggestionCapability";
 
 function boolFlag(name: string, fallback = true) {
   const value = process.env[name];
@@ -116,6 +116,7 @@ function boolFlag(name: string, fallback = true) {
 export function ensureRegistered() {
   if (registered) return;
   capabilityRegistry.register(buildPlanStudioCapability());
+  capabilityRegistry.register(buildAutomationSuggestionCapability());
   capabilityRegistry.register(buildMemoryRecallCapability());
   for (const capability of buildPhaseBReadCapabilities()) capabilityRegistry.register(capability);
   for (const capability of buildDeviceActionCapabilities()) capabilityRegistry.register(capability);
@@ -2337,7 +2338,7 @@ function followUpDetailAnswer(hydration: Awaited<ReturnType<typeof hydrateCanoni
 async function handleTemporalFollowUp(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, tracer: ConversationTracer): Promise<ConversationRunResult | null> {
   const capability = resultSet.capability_key ? capabilityRegistry.get(resultSet.capability_key) : null;
   if (!capability) return null;
-  const capabilityContext = { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_temporal") };
+  const capabilityContext = { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_temporal") };
   const evidence = await capability.collectEvidence(capabilityContext);
   let result = await (capability.buildReadResponse ? capability.buildReadResponse(capabilityContext, evidence) : { status: "unsupported" as const, answer: "" });
   result = enforceReadResultRespectsEvidence({ capability, result: result as DomainResult, evidence, tracer });
@@ -2373,8 +2374,8 @@ async function handleUtilityComparisonFollowUp(context: CanonicalConversationReq
   if (!capability) return null;
   const pair = complementaryPeriodPhrasing(resultSet.timeframe?.mode);
   if (!pair) return null;
-  const currentContext = { ...context, input: { ...context.input, message: `What did I spend on utilities ${pair.current}?` }, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_comparison") };
-  const previousContext = { ...context, input: { ...context.input, message: `What did I spend on utilities ${pair.previous}?` }, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_comparison") };
+  const currentContext = { ...context, input: { ...context.input, message: `What did I spend on utilities ${pair.current}?` }, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_comparison") };
+  const previousContext = { ...context, input: { ...context.input, message: `What did I spend on utilities ${pair.previous}?` }, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_comparison") };
   const [currentEvidence, previousEvidence] = await Promise.all([
     capability.collectEvidence(currentContext),
     capability.collectEvidence(previousContext),
@@ -2434,7 +2435,7 @@ async function buildAmbiguousFollowUpResponse(context: CanonicalConversationRequ
     metadata: { followup_ambiguous: true, candidate_count: candidates.length },
   };
   const capabilityForAdapter = followUpCapabilityFor(resultSet);
-  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
   response.execution = {
     ...(response.execution || {}),
     orchestrator_v2: {
@@ -2463,7 +2464,7 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
       presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
     };
     let officeResponse = capabilityDomainResultToConversationResponse({
-      context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") },
+      context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") },
       capability: capabilityForAdapter,
       result,
       evidence: [evidenceFromFollowUpFact(fact)],
@@ -2508,7 +2509,7 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
     presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
   };
   const evidence = fact ? [evidenceFromFollowUpFact(fact)] : [];
-  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence });
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence });
   if (fact) {
     response.facts = [fact];
     response.result_set = narrowedResultSetContext(resultSet, ref, {
@@ -2544,7 +2545,7 @@ async function handleFilterFollowUp(context: CanonicalConversationRequestContext
     answer: `${resolution.matched.length} of ${resultSet.object_refs.length} match "${keyword}": ${labels}.`,
     presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
   };
-  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
   response.result_set = filteredResultSetContext(resultSet, resolution.matched, "keyword", keyword, {
     contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id || null, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
     message: context.input.message,
@@ -2586,7 +2587,7 @@ async function handlePrioritizeFollowUp(context: CanonicalConversationRequestCon
     presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
     metadata: { followup_prioritized: true, candidate_count: ordered.length, evidence_priority_available: hasEvidencePriority },
   };
-  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
   response.result_set = prioritizedResultSetContext(resultSet, ordered, {
     contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id || null, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
     message: context.input.message,
@@ -2626,7 +2627,7 @@ async function handleDomainSwitchFollowUp(context: CanonicalConversationRequestC
       presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
       metadata: { followup_ambiguous: true, candidate_count: availableDomains.length },
     };
-    let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+    let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
     response.execution = {
       ...(response.execution || {}),
       orchestrator_v2: { request_id: tracer.requestId, correlation_id: tracer.correlationId, runtime_id: tracer.runtimeId, followup: { detected: true, resolver: "canonical", reference_type: "domain_switch", resolution_status: "ambiguous", candidate_count: availableDomains.length } },
@@ -2729,10 +2730,46 @@ function unavailableInsideFallback(): Promise<ConversationRunResult> {
   return Promise.reject(new Error("legacyFallback is not available inside the business-surface fallback response"));
 }
 
+// Wave 10: canonical conversation must never silently transfer an unmatched
+// turn into the retired general conversation engine. A capability can opt out
+// honestly; it cannot manufacture a second interpretation/authority path.
+// The callback remains in the capability contract while individual legacy
+// adapters are retired, but it is deliberately a governed terminal response.
+async function canonicalUnavailableFallback(
+  context: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn },
+  reason: string,
+): Promise<ConversationRunResult> {
+  const capability: CapabilityModule = {
+    key: "canonical.conversation.unsupported",
+    domain: "global",
+    rolloutStatus: "enabled",
+    supported_surfaces: [context.input.surface],
+    supports: () => true,
+    resolve: async () => ({ supported: true, reason: null }),
+    collectEvidence: async () => [],
+  };
+  const result: DomainResult = {
+    status: "unsupported",
+    answer: "I understand the request, but Oyi does not have an enabled governed capability for it on this surface yet.",
+    presentation_policy: resultPresentation("text"),
+    metadata: {
+      fallback_reason: reason,
+      fallback_owner: "canonical_conversation",
+      legacy_fallback_used: false,
+    },
+  };
+  return capabilityDomainResultToConversationResponse({
+    context: { ...context, legacyFallback: unavailableInsideFallback },
+    capability,
+    result,
+    evidence: [],
+  });
+}
+
 // office_internal/public_corporate have no legacy engine of their own —
 // this composes an honest response directly from the real capabilities
 // registered for the surface instead of ever reaching
-// legacyConversationAdapter.run() (Consumer/Facility's device/room
+// the former legacy adapter (Consumer/Facility's device/room
 // target resolver), which has no notion of a CRM lead or a corporate
 // topic and previously surfaced its generic "Which item should I
 // inspect?" clarification for every business question on these
@@ -2829,10 +2866,12 @@ export class ConversationOrchestrator {
     ensureRegistered();
     const parsedFrame = parseSemanticFrame(context.input.message);
     const planReview = context.input.surface === "office_internal" && normalizePlanReviewContext((context.input.context as any)?.plan_review_context);
+    const automationSuggestion = Boolean((context.input.context as any)?.automation_suggestion_context);
     // Explicit read-only host request; still passes the normal capability
     // permission/evidence gate. It cannot turn into a device/action request.
     const memoryRecall = context.input.surface === "consumer" && isMemoryRecallRequest(context.input.message);
     const frame = planReview ? { ...parsedFrame, domain: "office_development" as const, operation: "plan.review" as const, mutationIntent: false, references: [], primaryEntity: null }
+      : automationSuggestion ? { ...parsedFrame, domain: "automations" as const, operation: "automation.suggest" as any, mutationIntent: false, references: [], primaryEntity: null }
       : memoryRecall ? { ...parsedFrame, domain: "global" as const, operation: "memory.recall" as const, mutationIntent: false, references: [], primaryEntity: null } : parsedFrame;
     const tracer = new ConversationTracer({
       requestId: String((context.input.context as any)?.request_id || "") || undefined,
@@ -2941,7 +2980,7 @@ export class ConversationOrchestrator {
       const workflowCapability = capabilityRegistry.get(activeWorkflow.capability_key);
       if (workflowCapability) {
         let continuation: DomainResult | null = null;
-        const workflowContext = { ...context, resolvedTurn, legacyFallback: () => legacyConversationAdapter.run(context.actor, context.oisContext, context.input, "durable_workflow_continuation") };
+        const workflowContext = { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "durable_workflow_continuation") };
         if (isConfirmationText(context.input.message) || isCancellationText(context.input.message)) {
           continuation = await durableWorkflowContinuationResult(context, activeWorkflow, workflowCapability);
         } else if (activeWorkflow.status === "awaiting_clarification") {
@@ -3085,7 +3124,7 @@ export class ConversationOrchestrator {
     const legacyFallback = async () => {
       const reason = architecturalMismatch ? "capability_surface_mismatch" : selection.legacy_fallback_reason || "unimplemented_capability";
       if (isBusinessSurface) {
-        // Never reach legacyConversationAdapter.run() — Consumer/
+        // Never reach the former legacy adapter — Consumer/
         // Facility's device/room target resolver — for these two
         // surfaces. It has no notion of a CRM lead, a report or a
         // corporate topic, so every unmatched query used to fall into
@@ -3117,7 +3156,7 @@ export class ConversationOrchestrator {
         legacy_fallback_reason: reason,
         fallback_owner: "legacy_conversation_adapter",
       });
-      return legacyConversationAdapter.run(context.actor, context.oisContext, context.input, reason);
+      return canonicalUnavailableFallback({ ...context, resolvedTurn }, reason);
     };
 
     let response: ConversationRunResult;
