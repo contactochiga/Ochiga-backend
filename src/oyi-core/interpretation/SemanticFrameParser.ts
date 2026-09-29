@@ -10,6 +10,10 @@ const DEVICE_PATTERN = /\b([A-Za-z0-9' -]+?(?:light|switch|socket|plug|tv|air co
 function deviceOperation(text: string): SemanticOperation | null {
   if (/\bturn\s+on|switch\s+on\b/i.test(text)) return "device.power.on";
   if (/\bturn\s+off|switch\s+off\b/i.test(text)) return "device.power.off";
+  // Natural target-first imperatives ("turn the second device off") are
+  // still mutations, not device availability reads or ordinal drill-downs.
+  if (/\b(?:turn|switch)\b[^.!?]{0,80}\b(?:device|light|switch|socket|plug|tv|ac|air conditioner|it|one)\b[^.!?]{0,80}\boff\b/i.test(text)) return "device.power.off";
+  if (/\b(?:turn|switch)\b[^.!?]{0,80}\b(?:device|light|switch|socket|plug|tv|ac|air conditioner|it|one)\b[^.!?]{0,80}\bon\b/i.test(text)) return "device.power.on";
   if (/\bdevices?\b.*\b(offline|online|available|availability|unavailable|down)\b|\b(offline|online|available|availability|unavailable|down)\b.*\bdevices?\b/i.test(text)) return "device.availability";
   if (/\bshow\b.*\bactivity\b/i.test(text)) return "device.activity";
   if (/\bshow\b.*\b(failures|failed|faults)\b/i.test(text)) return "device.failures";

@@ -29,6 +29,7 @@ const { parseDomainSwitchIntent } = require("../dist/oyi-core/interpretation/fol
 assert.equal(parseCommunicationSendIntent("Tell me about the second one."), null, "a CRM detail request must not propose a communication");
 assert.ok(parseCommunicationSendIntent("Tell Ada that I will call."), "an explicit communication request remains recognized");
 assert.deepEqual(parseDomainSwitchIntent("Go back to devices."), { type: "switch", domain: "devices" });
+assert.equal(parseSemanticFrame("Turn the second device off.").operation, "device.power.off");
 
 ensureRegistered();
 
