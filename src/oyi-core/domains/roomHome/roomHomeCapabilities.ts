@@ -283,7 +283,7 @@ function roomCapability(key: string, operation: AggregateOperation, supports: Ca
   });
 }
 
-const HOME_BROAD_QUESTION = /\b(how is|how's|hows)\s+(my\s+)?home\b|\bis everything (ok|okay|fine)\b|\banything (i should know|wrong)\b|\bwhat needs (my )?attention\b|\bhome summary\b|\bwhat happened (today|overnight)\b|\bgive me a summary\b/i;
+const HOME_BROAD_QUESTION = /\b(how is|how's|hows)\s+(my\s+)?home\b|\bwhat('?s| is) happening (?:at|in) (?:my\s+)?home\b|\bis everything (ok|okay|fine)\b|\banything (i should know|wrong)\b|\bwhat needs (my )?attention\b|\bhome summary\b|\bwhat happened (today|overnight)\b|\bgive me a summary\b/i;
 const ROOM_BROAD_QUESTION = /\bwhat('?s| is) happening\b|\bhow is\b|\banything wrong\b|\bwhat changed\b|\bwhat happened\b|\bneeds attention\b/i;
 
 // A room capability only claims a turn when the message actually contains a

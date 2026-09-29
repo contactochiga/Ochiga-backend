@@ -5,6 +5,7 @@ import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame } from "../interpretation/SemanticFrameParser";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
 import { ConversationTracer } from "../observability/ConversationTracer";
+import { incrementCanonicalConversationOutcome } from "../observability/ConversationMetrics";
 import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
 import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
@@ -465,6 +466,52 @@ function requestContractForCapability(context: CanonicalConversationRequestConte
   };
 }
 
+// A terminal canonical response (unsupported, no-match, or a bounded
+// business-surface fallback) still belongs to the conversation.  It has no
+// registered capability owner, but it must use the same single canonical
+// writer as a capability-owned response.  This deliberately records an
+// honest general-help contract rather than inventing a fake registry key.
+function requestContractForTerminalTurn(context: CanonicalConversationRequestContext, turn: ResolvedTurn): IntelligenceRequestContract {
+  return {
+    conversation_request_id: turn.request_id,
+    thread_id: context.input.thread_id || null,
+    surface: context.input.surface,
+    operation_class: turn.semantic_frame.mutationIntent ? "clarify" : "read",
+    intent: "general_help",
+    scope_mode: scopeModeFor(turn),
+    temporal_scope: temporalScopeFor(turn),
+    target: {
+      object_type: turn.target?.object_type || null,
+      canonical_id: turn.target?.canonical_id || null,
+      parent_id: turn.target?.parent_id || null,
+      channel_code: turn.target?.channel_code || null,
+      label: turn.target?.label || null,
+    },
+    mutation: {
+      requested: turn.semantic_frame.mutationIntent,
+      confirmed: false,
+      command: null,
+      desired_state: null,
+      risk_class: turn.semantic_frame.mutationIntent ? "consequential_action" : "read",
+    },
+    evidence_requirements: {
+      current_state: false,
+      recent_events: false,
+      execution_history: false,
+      audit_history: false,
+      relationships: false,
+      permissions: true,
+      provider_state: false,
+      financial_ledger: false,
+      access_records: false,
+    },
+    answer_builder: "general_help",
+    report_builder: null,
+    truth_policy: "terminal_response",
+    confidence: turn.semantic_frame.confidence || 0.72,
+  };
+}
+
 // Oyi Conversational Runtime Completion Programme, Phase 2. Recomputed
 // from the FINAL context (already continuity-adjusted, whether the slot
 // arrived live from Office's frontend this turn or was reinjected from
@@ -574,6 +621,40 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
     actor_id: context.actor?.id || null,
     surface: context.input.surface,
     capability_key: capability.key,
+    persistence_saved: Boolean(persistedThreadId),
+  });
+  return response;
+}
+
+async function persistTerminalConversationResponse(context: CanonicalConversationRequestContext, response: ConversationRunResult, truth: CanonicalTruth, turn: ResolvedTurn, classification: string) {
+  const contract = requestContractForTerminalTurn(context, turn);
+  logger.info("oyi_terminal_conversation_persistence_started", {
+    request_id: turn.request_id,
+    correlation_id: turn.correlation_id,
+    thread_id: response.thread_id || context.input.thread_id || null,
+    actor_id: context.actor?.id || null,
+    surface: context.input.surface,
+    classification,
+  });
+  const persistedThreadId = await persistCanonicalConversationTurn({
+    actor: context.actor,
+    oisContext: context.oisContext,
+    request: context.input,
+    response,
+    truth,
+    object: null,
+    contract,
+    builderKey: "general_help",
+  });
+  response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
+  response.persistence_saved = Boolean(persistedThreadId);
+  logger.info(persistedThreadId ? "oyi_terminal_conversation_persistence_completed" : "oyi_terminal_conversation_persistence_failed", {
+    request_id: turn.request_id,
+    correlation_id: turn.correlation_id,
+    thread_id: response.thread_id || null,
+    actor_id: context.actor?.id || null,
+    surface: context.input.surface,
+    classification,
     persistence_saved: Boolean(persistedThreadId),
   });
   return response;
@@ -3087,7 +3168,7 @@ export class ConversationOrchestrator {
     if (followUpResponse) return followUpResponse;
     const selection = boolFlag("OYI_ORCHESTRATOR_V2_ENABLED", true)
       ? capabilityService.resolve({ ...context, resolvedTurn })
-      : { capability: null, matched_capability: null, rollout_status: "disabled" as const, authority: null, legacy_fallback_reason: "orchestrator_v2_disabled" };
+      : { capability: null, matched_capability: null, rollout_status: "disabled" as const, authority: null, resolution_outcome: "declared_disabled" as const, legacy_fallback_reason: "orchestrator_v2_disabled" };
     // office_internal/public_corporate have no capability module for
     // every domain a Consumer/Facility module claims (e.g. "home"), so
     // resolve() can still pick a Consumer/Facility-only module as the
@@ -3112,6 +3193,7 @@ export class ConversationOrchestrator {
       rollout_status: selection.rollout_status,
       target_type: resolvedTurn.target?.object_type || null,
       authority_allowed: selection.authority?.allowed ?? null,
+      resolution_outcome: selection.resolution_outcome,
       legacy_fallback_reason: selection.legacy_fallback_reason,
     });
     tracer.stage("capability_selected", {
@@ -3129,7 +3211,8 @@ export class ConversationOrchestrator {
         // surfaces. It has no notion of a CRM lead, a report or a
         // corporate topic, so every unmatched query used to fall into
         // its generic "Which item should I inspect?" clarification.
-        tracer.stage("legacy_fallback_used", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason, fallback_owner: "business_surface_fallback" });
+        tracer.stage("canonical_terminal_response", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason, outcome: "business_surface_fallback", fallback_owner: "business_surface_fallback" });
+        incrementCanonicalConversationOutcome("business_surface_fallback", reason, resolvedTurn.domain, resolvedTurn.operation);
         logger.info("oyi_business_surface_fallback", {
           request_id: tracer.requestId,
           correlation_id: tracer.correlationId,
@@ -3142,7 +3225,9 @@ export class ConversationOrchestrator {
         });
         return buildBusinessSurfaceFallbackResponse({ ...context, resolvedTurn });
       }
-      tracer.stage("legacy_fallback_used", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason });
+      const outcome = selection.resolution_outcome === "no_match" ? "capability_no_match" : "canonical_unsupported";
+      tracer.stage("canonical_terminal_response", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason, outcome, fallback_owner: "canonical_conversation" });
+      incrementCanonicalConversationOutcome(outcome, reason, resolvedTurn.domain, resolvedTurn.operation);
       logger.info("oyi_capability_legacy_fallback", {
         request_id: tracer.requestId,
         correlation_id: tracer.correlationId,
@@ -3329,11 +3414,15 @@ export class ConversationOrchestrator {
         capability_key: capability?.key || matchedCapability?.key || "legacy",
         capability_rollout_status: selection.rollout_status,
         capability_authority: selection.authority,
+        resolution_outcome: selection.resolution_outcome,
         legacy_fallback_used: !capability || Boolean(selection.legacy_fallback_reason),
       },
     };
     if (capabilityOwnsResponse) {
       response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityOwnsResponse);
+    } else {
+      const classification = isBusinessSurface ? "business_surface_fallback" : selection.resolution_outcome === "no_match" ? "capability_no_match" : "canonical_unsupported";
+      response = await persistTerminalConversationResponse(context, response, response.truth, resolvedTurn, classification);
     }
     tracer.stage("response_composed", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, capability_key: capability?.key || matchedCapability?.key || "legacy" });
     tracer.stage("persistence_completed", { thread_id: response.thread_id || null, persistence_saved: response.persistence_saved === false ? "false" : "true" });

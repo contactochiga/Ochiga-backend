@@ -16,3 +16,15 @@ export function incrementLegacyFallback(reason: string, domain: string | null, o
     operation: operation || "unknown",
   });
 }
+
+// Canonical terminal outcomes are not legacy-chat fallbacks.  Keep the old
+// counter for dashboards that still read it, but give new telemetry a truthful
+// vocabulary that describes the actual Core decision.
+export function incrementCanonicalConversationOutcome(outcome: string, reason: string, domain: string | null, operation: string | null) {
+  operationalMetrics.increment("oyi_conversation_terminal_outcome_total", {
+    outcome,
+    reason,
+    domain: domain || "unknown",
+    operation: operation || "unknown",
+  });
+}

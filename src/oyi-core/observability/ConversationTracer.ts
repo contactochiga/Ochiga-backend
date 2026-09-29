@@ -18,6 +18,9 @@ export type ConversationTraceStage =
   | "verification_completed"
   | "persistence_completed"
   | "response_sent"
+  | "canonical_terminal_response"
+  // Compatibility-only historical trace stage. New canonical fallbacks must
+  // use canonical_terminal_response instead.
   | "legacy_fallback_used";
 
 export class ConversationTracer {
