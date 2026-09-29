@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { publicConversationActor } from "../../oyi-core/context/conversationOwnership";
 import type { AuthUser } from "../../middleware/auth";
 import { conversationOrchestrator } from "../../oyi-core/orchestration/ConversationOrchestrator";
 import type { CanonicalConversationResponse } from "../../oyi-core/contracts/canonicalConversation";
@@ -53,14 +54,6 @@ function assistantText(canonical: CanonicalConversationResponse) {
   return safeText(canonical.message || canonical.reply || canonical.answer || canonical.summary, "I’m here, but I could not shape a safe response for that turn.");
 }
 
-const publicCorporateActor: AuthUser = {
-  id: "office-public-intelligence",
-  email: "public-intelligence@ochiga.local",
-  role: "guest",
-  permissions: [],
-  permission_scopes: [],
-};
-
 function officeActor(input: OyiCommunicationTurnInput): AuthUser {
   const staff = recordOf(input.staff);
   const actor = input.actor;
@@ -102,7 +95,7 @@ export async function runOyiCommunicationTurn(input: OyiCommunicationTurnInput):
     }
     const publicSessionId = safeText(input.public_session_id, `public_session_${requestId}`);
     const canonical = await conversationOrchestrator.run({
-      actor: publicCorporateActor,
+      actor: publicConversationActor(publicSessionId),
       oisContext: {
       surface: "public_corporate" as any,
       estate_id: null,

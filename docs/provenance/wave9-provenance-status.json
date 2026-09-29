@@ -1,0 +1,80 @@
+{
+  "recorded_at": "2026-09-26",
+  "production_mutated": false,
+  "full_replay": "BLOCKED",
+  "full_schema_equivalence": "BLOCKED_NOT_COMPUTED",
+  "candidate_heads": {
+    "backend": "a50dffde569cbb370e4589b6ad02aeb67a7ce805",
+    "office": "0410dd61249119d27418f3e3cb8697ffb791c607",
+    "facility": "f14db75ab25042265514016e6e1ccaab3aed9788",
+    "twin": "2862dba4780b655de17b0a21ecb4c635fef8d9be"
+  },
+  "search": {
+    "backend": { "reachable_text_blobs": 3805, "pr_heads": 90, "unreachable_blobs": 22 },
+    "office": { "reachable_text_blobs": 731, "pr_heads": 85, "unreachable_blobs": 20 },
+    "facility": { "reachable_text_blobs": 1326, "pr_heads": 38, "unreachable_blobs": 29 },
+    "twin": { "reachable_text_blobs": 577, "pr_heads": 1, "unreachable_blobs": 0 },
+    "production_sql_editor_snippets": 39,
+    "snippet_pages": 4,
+    "snippet_scope": "All snippets accessible to the authenticated user for the Backend project; not inaccessible/deleted snippets or other users' private snippets",
+    "available_backup_entries": 0,
+    "pitr_enabled": false,
+    "first_reference_day_log_entries": 0,
+    "first_reference_day": "2025-11-29"
+  },
+  "objects": [
+    { "name": "community_posts", "classification": "E", "production_present": true, "first_git_reference": "6cc7031128fc52152e0d1806d14810f195341f0c", "creation_found": false },
+    { "name": "estate_devices", "classification": "E", "production_present": true, "creation_found": false },
+    {
+      "name": "room_device_bindings",
+      "classification": "A",
+      "qualification": "Retained original CREATE definition found and matches production structural catalog; actual execution timestamp and complete provisioning order remain unproven",
+      "production_present": true,
+      "creation_found": true,
+      "snippet_id": "689b8acb-34db-4078-8934-0fa104e245a8",
+      "snippet_inserted_at": "2026-01-17T13:06:05.147176+00:00",
+      "snippet_updated_at": "2026-01-17T13:06:05.147176+00:00",
+      "original_sha256": "1366bcc742442694ba123033cb354a9733456c7615da40626fb01e44b1d52ed5",
+      "archive": "docs/provenance/room_device_bindings.retained-snippet.sql",
+      "archive_sha256": "d878988057af1b408b9d4d75d88568146a508d24ae1c5f05892dd8c86450d345",
+      "archive_normalization": "One final LF added; otherwise exact original 664-byte content",
+      "isolated_replay": "PASS",
+      "repeated_application": "PASS",
+      "column_count": 8,
+      "constraint_count": 5,
+      "index_count": 4
+    },
+    { "name": "user_integrations", "classification": "E", "production_present": true, "creation_found": false },
+    { "name": "user_presence", "classification": "E", "production_present": true, "creation_found": false },
+    { "name": "visitor_access", "classification": "E", "production_present": true, "creation_found": false, "excluded_evidence": "Two isolated smoke fixture CREATE statements do not establish production provisioning" },
+    { "name": "visitors_legacy", "classification": "E", "production_present": true, "creation_found": false }
+  ],
+  "scoped_comparison": {
+    "object": "room_device_bindings",
+    "not_a_full_database_difference_report": true,
+    "columns_types_defaults_nullability": "MATCH",
+    "pk_fk_check_unique_constraints": "MATCH",
+    "indexes": "MATCH",
+    "rls_enabled_difference": "EXPECTED",
+    "rls_evidence": "20260621230236_oyi_production_security_closure_phase1.sql enables RLS on every existing public table",
+    "policies": "MATCH_NONE",
+    "noninternal_triggers": "MATCH_NONE",
+    "grants_equivalence": "UNKNOWN_NOT_CERTIFIED"
+  },
+  "protected_migration_versions": [
+    "20260905010000",
+    "20260905020000",
+    "20260905030000",
+    "20260905040000",
+    "20260905050000"
+  ],
+  "protected_migrations": "All five present in production history and unchanged from authoritative main; no cloud deletion reconstructed",
+  "ci": {
+    "backend_run": 36273323719,
+    "quality": "PASS",
+    "runtime_smoke": "FAIL",
+    "runtime_failure": "22P02 invalid input syntax for uuid estate-1; Redis ECONNREFUSED 127.0.0.1:6379",
+    "ecosystem_smoke": "SKIPPED_NOT_PASS",
+    "all_prs_draft_unmerged": true
+  }
+}

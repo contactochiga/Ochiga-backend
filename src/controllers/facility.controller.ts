@@ -1329,7 +1329,10 @@ export async function assignUserToRoom(req: any, res: Response) {
       .from("room_assignments")
       .insert({
         room_id,
-        user_id,
+        // `room_assignments` is canonically resident-scoped.  Keep the
+        // request's user_id vocabulary for API compatibility, but never send
+        // the retired physical column to production.
+        resident_id: user_id,
         role: role || "member",
         permissions: permissions || {},
       })

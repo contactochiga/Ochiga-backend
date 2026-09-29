@@ -6,6 +6,7 @@ function text(value: unknown) {
 
 export type FollowUpIntent =
   | { type: "comparison" }
+  | { type: "prioritize" }
   | { type: "temporal_followup" }
   | { type: "filter"; keyword: string }
   | { type: "attribute"; attribute: "unresolved" | "failed" | "expensive" | "highest" | "open" }
@@ -67,6 +68,14 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
 
   if (/\bwhich (one )?(was|is)\s+(higher|lower|more|less|bigger|smaller)\b/.test(m) || /\bcompare\b/.test(m) || /\bhigher or lower\b/.test(m)) {
     return { type: "comparison" };
+  }
+
+  // A request to decide what to handle first is a continuation over the
+  // already-authorised result set, not a new broad CRM/operations query.
+  // Keep this intentionally semantic and domain-neutral: ranking only uses
+  // evidence attributes that the preceding capability actually supplied.
+  if ((/\bwhich ones?\b|\bwhat should i\b/.test(m) && /\b(need attention|follow up|prioriti[sz]e|handle first)\b/.test(m)) || /\bwhat should i (?:do|handle) first\b/.test(m)) {
+    return { type: "prioritize" };
   }
 
   const isShortContinuation = /^(what about|and|how about|what's|whats)\b/.test(m) || m.split(/\s+/).filter(Boolean).length <= 4;
@@ -204,6 +213,27 @@ export function resolveFilterFollowUp(resultSet: ResultSetContext | null, keywor
   });
   if (!matched.length) return { status: "unresolved" };
   return { status: "resolved", matched, keyword };
+}
+
+function priorityRank(ref: ResultSetObjectRef): number {
+  const priority = (ref.attributes.priority || ref.attributes.severity || "").toLowerCase();
+  if (["critical", "urgent"].includes(priority)) return 0;
+  if (priority === "high") return 1;
+  if (ref.attributes.overdue === "true" || /\boverdue\b/i.test(ref.attributes.reason || "")) return 2;
+  if (priority === "medium") return 3;
+  if (priority === "low") return 4;
+  return 5;
+}
+
+// Stable sort preserves the source capability's explicit presentation order
+// when the supplied evidence contains no stronger priority signal.  It never
+// invents a score, fetches new records, or treats an absent field as a fact.
+export function prioritizeResultSet(resultSet: ResultSetContext | null): ResultSetObjectRef[] {
+  if (!resultSet) return [];
+  return resultSet.object_refs
+    .map((ref, index) => ({ ref, index, rank: priorityRank(ref) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.ref);
 }
 
 function resolvePronoun(resultSet: ResultSetContext): FollowUpResolution {

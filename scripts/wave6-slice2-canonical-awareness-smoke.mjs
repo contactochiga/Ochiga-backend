@@ -13,7 +13,7 @@
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const path = require("path");
-const backendRoot = "/Users/ochigaidoko/Documents/Ochiga-backend";
+const backendRoot = require("node:url").fileURLToPath(new URL("..", import.meta.url));
 require(path.join(backendRoot, "node_modules/dotenv")).config({ path: path.join(backendRoot, ".env") });
 
 let pass = 0;

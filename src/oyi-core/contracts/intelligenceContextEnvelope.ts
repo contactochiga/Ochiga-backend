@@ -87,8 +87,9 @@ export function normalizeIntelligenceContextEnvelope(input: Record<string, unkno
     canonical_target: target,
     selected_tab: text(input.selected_tab || input.tab) || null,
     selected_filter: text(input.selected_filter || input.filter) || null,
-    user_role: text(input.user_role || actor.role) || null,
-    permissions: arrayOfStrings(input.permissions || actor.permissions),
+    // Client context describes presentation, never actor authority.
+    user_role: text(actor.role) || null,
+    permissions: arrayOfStrings(actor.permissions),
     ownership: record(input.ownership),
     privacy_class: text(input.privacy_class || input.privacyClass) || null,
     client_timestamp: text(input.client_timestamp || input.clientTimestamp) || null,

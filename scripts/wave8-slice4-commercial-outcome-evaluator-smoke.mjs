@@ -19,7 +19,7 @@ import http from "node:http";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const backendRoot = "/Users/ochigaidoko/Documents/Ochiga-backend";
+const backendRoot = require("node:url").fileURLToPath(new URL("..", import.meta.url));
 require(path.join(backendRoot, "node_modules/dotenv")).config({ path: path.join(backendRoot, ".env") });
 
 process.env.SUPABASE_URL ||= "http://localhost:54321";

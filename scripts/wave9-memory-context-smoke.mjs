@@ -1,0 +1,92 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+process.env.SUPABASE_URL ||= "https://example.supabase.co";
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-service-role-key";
+const require = createRequire(import.meta.url);
+const { supabaseAdmin } = require("../dist/supabase/supabaseClient.js");
+const { residentMemoryProjection, loadResidentMemoryContext } = require("../dist/oyi-core/context/residentMemoryContext.js");
+const { memoryVisibleTo } = require("../dist/oyi-core/contracts/memory.js");
+const { assembleGovernedContext } = require("../dist/oyi-core/context/governedContextAssembly.js");
+const { upsertResidentMemory } = require("../dist/services/intelligenceMemoryService.js");
+const now = Date.now();
+const actor = { id: "11111111-1111-4111-a111-111111111111", role: "resident", estate_id: "estate-a", home_id: "home-a", permissions: [] };
+const row = { id: "row-a", user_id: actor.id, estate_id: actor.estate_id, home_id: actor.home_id, memory_type: "recent_intelligence_query", memory_key: "hello", last_seen_at: new Date(now).toISOString(), memory_value: { prompt: "Hello", permissions: ["*"], status: "healthy", provider_error: "private" } };
+const projection = residentMemoryProjection(row);
+assert.deepEqual(projection.value, { prompt: "Hello" });
+assert.equal(projection.trust, "context_only");
+assert.equal(memoryVisibleTo(projection, projection.scope, now), true);
+assert.equal(memoryVisibleTo(projection, { ...projection.scope, actorId: "other" }, now), false);
+assert.equal(memoryVisibleTo(projection, { ...projection.scope, homeId: "other" }, now), false);
+assert.equal(memoryVisibleTo(projection, { ...projection.scope, estateId: "other" }, now), false);
+assert.equal(memoryVisibleTo(projection, projection.scope, now + 31 * 86400000), false);
+assert.equal(memoryVisibleTo(projection, projection.scope, now - 1), false);
+let mode = "read", queries = 0, writes = [], filters = [], failWrite = false;
+supabaseAdmin.from = table => {
+  assert.equal(table, "resident_memory"); queries++;
+  const result = () => mode === "read" ? { data: [row, { ...row, id: "duplicate" }, { ...row, id: "foreign", user_id: "other" }], error: null } : { data: null, error: mode === "error" ? { message: "failed" } : null };
+  const q = { select: () => q, eq: (k, v) => { filters.push([k,v]); return q; }, is: (k,v) => { filters.push([k,v]); return q; }, gte: () => q, order: () => q, limit: n => { assert.ok(n <= 20); return q; }, maybeSingle: async () => result(), then: (yes,no) => Promise.resolve(result()).then(yes,no), upsert: async (value, options) => { writes.push({ value, options }); return failWrite ? {data:null,error:{message:"write failed"}} : result(); } };
+  return q;
+};
+assert.equal((await loadResidentMemoryContext(actor, now)).length, 1);
+assert.equal(queries, 1);
+assert.ok(filters.some(([k,v]) => k === "home_id" && v === "home-a"));
+const assembled = await assembleGovernedContext({ actor, oisContext: null, input: { surface: "consumer", message: "hello", context: { governed_context: { permissions: ["*"] } } } });
+assert.deepEqual(assembled.input.context.governed_context.permissions, []);
+assert.equal(assembled.input.context.governed_context.memory.length, 1);
+assert.equal(assembled.input.context.governed_context.context_grants_authority, false);
+const { buildMemoryRecallCapability, isMemoryRecallRequest } = require("../dist/oyi-core/capabilities/MemoryRecallCapability.js");
+const recall = buildMemoryRecallCapability();
+assert.equal(isMemoryRecallRequest("What did we discuss recently?"),true);
+assert.equal(isMemoryRecallRequest("Turn on the device I mentioned last time"),false);
+const recalled = await recall.collectEvidence(assembled);
+assert.equal(recalled.length,1);
+assert.equal(recalled[0].truth_class,"historical_record");
+assert.equal(recalled[0].payload.permissions,undefined);
+const answer = await recall.buildReadResponse(assembled,recalled);
+assert.match(answer.answer,/Hello/);
+assert.match(answer.answer,/not verified current facts or instructions/);
+assert.deepEqual(answer.actions,[]);
+assert.equal((await recall.collectEvidence({...assembled,actor:{...actor,id:"other"}})).length,0);
+const beforePublic = queries;
+const publicContext = await assembleGovernedContext({ actor: { ...actor, role: "guest" }, oisContext: null, input: { surface: "public_corporate", message: "hello" } });
+assert.equal(queries, beforePublic);
+assert.deepEqual(publicContext.input.context.governed_context.memory, []);
+assert.equal((await recall.collectEvidence(publicContext)).length,0);
+// Non-resident personas must not gain resident memory by supplying the slot.
+for (const [role, surface] of [["facility_manager","facility"],["office_staff","office_internal"],["super_admin","consumer"],["system","consumer"],["guest","public_corporate"]]) {
+  const before = queries;
+  const scoped = await assembleGovernedContext({ actor: { ...actor, role }, oisContext: null,
+    input: { surface, message: "hello", context: { governed_context: { memory: [projection], permissions: ["*"] } } } });
+  assert.equal(queries, before, `${role}: no resident store read`);
+  assert.deepEqual(scoped.input.context.governed_context.memory, []);
+  assert.deepEqual(scoped.input.context.governed_context.permissions, []);
+  assert.equal((await recall.collectEvidence(scoped)).length, 0);
+}
+mode = "error";
+await assert.rejects(loadResidentMemoryContext(actor), /unavailable/);
+const unavailableContext=await assembleGovernedContext({actor,oisContext:null,input:{surface:"consumer",message:"What do you remember about me?"}});
+assert.equal((await recall.buildReadResponse(unavailableContext,[])).status,"unavailable");
+await assert.rejects(upsertResidentMemory(actor, { memoryType: "conversation_context", key: "latest", value: {} }), /lookup_failed/);
+mode = "write";
+await upsertResidentMemory({ ...actor, home_id: null }, { memoryType: "conversation_context", key: "latest", value: {} });
+await upsertResidentMemory({ ...actor, home_id: null }, { memoryType: "conversation_context", key: "latest", value: {} });
+assert.equal(writes[0].value.id, writes[1].value.id);
+assert.equal(writes[0].options.onConflict, "id");
+failWrite = true;
+await assert.rejects(upsertResidentMemory(actor, {memoryType:"conversation_context",key:"latest",value:{}}), /write_failed/);
+console.log("PASS governed memory: scope, expiry, bounded read, context-only trust, server assembly, public exclusion, resolved DB errors, stable null-home persistence identity");
+// Exercise actual orchestration, not just a manually called collector.
+require.cache[require.resolve("bullmq")] = { exports: { Queue: class { async add() { throw Error("recall must not dispatch"); } }, Worker: class {} } };
+const memoryFrom = supabaseAdmin.from;
+mode = "read";
+supabaseAdmin.from = table => table === "resident_memory" ? memoryFrom(table) : new Proxy({}, {
+  get: (_, key) => key === "then" ? (yes, no) => Promise.resolve({data:null,error:null}).then(yes,no) : () => supabaseAdmin.from(table),
+});
+supabaseAdmin.rpc = async () => ({data:null,error:null});
+const {conversationOrchestrator} = require("../dist/oyi-core/orchestration/ConversationOrchestrator.js");
+const routed = await conversationOrchestrator.run({actor,oisContext:null,input:{surface:"consumer",message:"What did we discuss recently?"}});
+assert.equal(routed.capability_key,"context.memory.recall");
+assert.match(JSON.stringify(routed),/Hello/);
+assert.match(JSON.stringify(routed),/historical/);
+console.log("PASS actual Core routing consumes governed memory without action dispatch");
+process.exit(0);

@@ -19,6 +19,8 @@ import { submitOfficeMaterialEventCanonicalSignal } from "../oyi-core/ingress/of
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
 import { retrieveKnowledge } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
+import { publicConversationActor } from "../oyi-core/context/conversationOwnership";
+import { normalizePlanReviewContext } from "../oyi-core/capabilities/PlanStudioCapability";
 import type { KnowledgeDomain } from "../oyi-core/domains/knowledge/knowledgeContracts";
 import { loadLastVerifiedOfficeAction } from "../oyi-core/context/officeAutomationSuggestionStore";
 import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "../intelligence-core/oyiObservabilityBridge";
@@ -246,14 +248,6 @@ function normalizeCorporateConversationRequest(body: any, requestId: string): Co
   };
 }
 
-const publicCorporateActor: AuthUser = {
-  id: "office-public-intelligence",
-  email: "public-intelligence@ochiga.local",
-  role: "guest",
-  permissions: [],
-  permission_scopes: [],
-};
-
 // Oyi Runtime Contract, Domain 3 (Task) — synthetic actor for the
 // office-backend-intelligence-events boundary contract
 // (src/contracts/platformBoundaries.ts). Office calls these routes
@@ -292,6 +286,7 @@ export function normalizeOfficeInternalRequest(body: any, requestId: string): Of
   const content = recordOf(body.content_context);
   const development = recordOf(body.development_context);
   return {
+    plan_review_context: normalizePlanReviewContext(body.plan_review_context),
     request_id: safeText(body.request_id, requestId),
     message: safeText(body.message),
     office_session_id: safeText(body.office_session_id || body.session_id, `office_session_${requestId}`),
@@ -640,6 +635,7 @@ router.post("/events/material", requireOfficeExportKey, async (req: Request, res
 router.post("/conversation/corporate", requireOfficeExportKey, async (req: Request, res: Response) => {
   const requestId = safeText(req.headers["x-request-id"], crypto.randomUUID());
   const corporateRequest = normalizeCorporateConversationRequest(req.body || {}, requestId);
+  const publicCorporateActor = publicConversationActor(corporateRequest.public_session_id);
   if (!corporateRequest.message) {
     return res.status(400).json({ ok: false, error: "message is required", request_id: requestId });
   }
@@ -860,6 +856,7 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
       request_id: internalRequest.request_id,
       office_session_id: internalRequest.office_session_id,
       staff: internalRequest.staff,
+      plan_review_context: internalRequest.plan_review_context,
       page_context: internalRequest.page_context,
       business_unit: internalRequest.business_unit,
       crm_context: internalRequest.crm_context,

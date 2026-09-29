@@ -10,7 +10,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||= "phase4-office-reference-resolution-sm
 //  (2) the NEW officeResultSetReference.ts continuation answers
 //      honestly from a ref's own data, and isOfficeResultSetDomain
 //      never misclassifies a Consumer/Facility domain as Office's.
-const { parseFollowUpIntent, resolveFollowUpReference, resolveFilterFollowUp } = await import("../dist/oyi-core/interpretation/followUpResolver.js");
+const { parseFollowUpIntent, resolveFollowUpReference, resolveFilterFollowUp, prioritizeResultSet } = await import("../dist/oyi-core/interpretation/followUpResolver.js");
 const { isOfficeResultSetDomain, officeFactFromRef, officeFollowUpAnswer } = await import("../dist/oyi-core/context/officeResultSetReference.js");
 
 function taskRef(overrides = {}) {
@@ -102,6 +102,18 @@ const filterResolution = resolveFilterFollowUp(rs, filterIntent.keyword);
 assert.equal(filterResolution.status, "resolved");
 assert.equal(filterResolution.matched.length, 1);
 assert.equal(filterResolution.matched[0].canonical_id, "task-1");
+
+// A prioritisation follow-up remains within the already-authorised list.
+// It uses explicit evidence flags, then source order as a stable tie-breaker;
+// no new CRM/domain query or action authority is involved.
+const priorityIntent = parseFollowUpIntent("Which ones should I follow up first?");
+assert.deepEqual(priorityIntent, { type: "prioritize" });
+const prioritized = prioritizeResultSet(resultSet([
+  taskRef({ id: "task-normal", label: "Normal task", priority: "low", overdue: "false" }),
+  taskRef({ id: "task-overdue", label: "Overdue task", priority: "medium", overdue: "true" }),
+  taskRef({ id: "task-critical", label: "Critical task", priority: "critical", overdue: "false" }),
+]));
+assert.deepEqual(prioritized.map((ref) => ref.canonical_id), ["task-critical", "task-overdue", "task-normal"]);
 
 // --- New Office continuation: honest answers built from the ref alone ---
 const withOwnerAndDue = taskRef({ owner: "Tony", due_at: "2026-08-10T00:00:00Z", overdue: "true" });

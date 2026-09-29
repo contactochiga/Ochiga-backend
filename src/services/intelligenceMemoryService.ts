@@ -1,4 +1,5 @@
 import { AuthUser } from "../middleware/auth";
+import { createHash } from "node:crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 
 function cleanKey(value: any, fallback = "item") {
@@ -25,9 +26,10 @@ async function existingMemory(actor: AuthUser, memoryType: string, key: string) 
     .eq("memory_type", memoryType)
     .eq("memory_key", key)
     .limit(1);
-  if (actor.home_id) query = query.eq("home_id", actor.home_id);
-  else if (actor.estate_id) query = query.eq("estate_id", actor.estate_id);
-  const { data } = await query.maybeSingle();
+  query = actor.home_id ? query.eq("home_id", actor.home_id) : query.is("home_id", null);
+  query = actor.estate_id ? query.eq("estate_id", actor.estate_id) : query.is("estate_id", null);
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error("resident_memory_lookup_failed");
   return data || null;
 }
 
@@ -39,9 +41,12 @@ export async function upsertResidentMemory(actor: AuthUser, input: {
 }) {
   const memoryType = cleanKey(input.memoryType, "memory");
   const memoryKey = cleanKey(input.key, "item");
-  const existing = await existingMemory(actor, memoryType, memoryKey).catch(() => null);
+  const existing = await existingMemory(actor, memoryType, memoryKey);
+  const digest = createHash("sha256").update(JSON.stringify([actor.id, actor.estate_id || null, actor.home_id || null, memoryType, memoryKey])).digest("hex");
+  const id = existing?.id || `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
   const now = new Date().toISOString();
   const row = {
+    id,
     ...actorScope(actor),
     memory_type: memoryType,
     memory_key: memoryKey,
@@ -53,8 +58,8 @@ export async function upsertResidentMemory(actor: AuthUser, input: {
 
   const { error } = await supabaseAdmin
     .from("resident_memory")
-    .upsert(row as any, { onConflict: "user_id,home_id,memory_type,memory_key" });
-  if (error) console.warn("[resident_memory] write failed:", error.message);
+    .upsert(row as any, { onConflict: "id" });
+  if (error) throw new Error("resident_memory_write_failed");
 }
 
 function actionTitle(result: any) {

@@ -73,7 +73,7 @@ const STATUS_KEYS = ["status", "last_run_status", "account_status"];
 // meaning EVERY automation, regardless of its real state, was reported
 // as "already paused" the instant a batch pause was attempted, and a
 // resume would have silently recorded the wrong previous_state.
-const ATTRIBUTE_KEYS = ["status", "priority", "severity", "category", "last_run_status", "account_status", "is_official", "owner", "due_at", "overdue", "enabled"];
+const ATTRIBUTE_KEYS = ["status", "priority", "severity", "category", "reason", "last_run_status", "account_status", "is_official", "owner", "due_at", "overdue", "enabled"];
 
 function extractMetric(value: Record<string, unknown>): { metric: string | null; metric_value: number | null } {
   for (const key of NUMERIC_METRIC_KEYS) {
@@ -194,6 +194,23 @@ export function filteredResultSetContext(previous: ResultSetContext, matched: Re
     result_count: matched.length,
     selected_object_ref: matched.length === 1 ? matched[0] : null,
     filters: { ...previous.filters, [filterKey]: filterValue },
+    source_request_id: input.contract.conversation_request_id,
+    source_thread_id: input.contract.thread_id || null,
+    source_message: input.message,
+    created_at: new Date().toISOString(),
+  };
+}
+
+// A prioritisation follow-up changes the user's active presentation order,
+// not the evidence set itself.  Persist that order so a later ordinal such as
+// "the second one" refers to the same transparent, evidence-backed ranking.
+export function prioritizedResultSetContext(previous: ResultSetContext, ordered: ResultSetObjectRef[], input: { contract: Pick<IntelligenceRequestContract, "conversation_request_id" | "thread_id" | "temporal_scope">; message: string }): ResultSetContext {
+  return {
+    ...previous,
+    result_set_id: randomUUID(),
+    object_refs: ordered,
+    result_count: ordered.length,
+    selected_object_ref: ordered.length === 1 ? ordered[0] : null,
     source_request_id: input.contract.conversation_request_id,
     source_thread_id: input.contract.thread_id || null,
     source_message: input.message,

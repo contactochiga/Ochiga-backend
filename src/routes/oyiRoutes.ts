@@ -137,7 +137,7 @@ router.post("/runtime/evaluate", requireAuth, resolveRequestContext, async (req,
 
 router.post("/runtime/context", requireAuth, resolveRequestContext, async (req, res) => {
   try {
-    const context = normalizeIntelligenceContextEnvelope({ ...(req.body?.context || {}), ...(req.oisContext || {}) }, (req.user || {}) as unknown as Record<string, unknown>);
+    const context = normalizeIntelligenceContextEnvelope({ ...(req.body?.context || {}), ...(req.oisContext || {}) }, { ...(req.user || {}), ...(req.oisContext || {}) } as unknown as Record<string, unknown>);
     return res.json({ ok: true, context });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to normalize Oyi runtime context" });

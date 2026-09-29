@@ -1,0 +1,55 @@
+{
+  "recorded_at": "2026-09-28",
+  "source": "read-only schema-only dump of linked production project",
+  "production_mutated": false,
+  "historical_provenance_claimed": false,
+  "replay": {
+    "status": "PASS",
+    "sequence": [
+      "local_supabase_platform_auth_storage",
+      "migrations/schema.sql",
+      "20260521000100_pilot_onboarding_foundation.sql",
+      "verified-production-prerequisites.sql",
+      "118_tracked_migrations",
+      "verified-production-compatibility.sql"
+    ]
+  },
+  "named_objects": {
+    "tables": { "production": 145, "replay": 147, "missing_from_replay": [], "replay_only": ["camera_dvrs", "estate_wallets"] },
+    "functions": { "production": 23, "replay": 23, "missing_from_replay": [] },
+    "indexes": { "production": 402, "replay": 411, "missing_from_replay": [] },
+    "triggers": { "production": 18, "replay": 18, "missing_from_replay": [] },
+    "policies": { "production": 65, "replay": 65, "missing_from_replay": [] },
+    "views": { "production": 2, "replay": 2, "missing_from_replay": [] }
+  },
+  "material_column_contract_drift": {
+    "status": "REVIEWED_FORWARD_RECONCILIATION_REQUIRED",
+    "relations": [
+      "community_live_sessions",
+      "devices",
+      "estate_service_configs",
+      "facility_cameras",
+      "homes",
+      "notifications",
+      "ochiga_agent_observability",
+      "ochiga_intelligence_events",
+      "ochiga_intelligence_predictions",
+      "ochiga_memory_directory",
+      "room_assignments",
+      "users",
+      "wallet_transactions"
+    ],
+    "high_risk_examples": [
+      "ochiga_intelligence_predictions confidence numeric(5,2) production versus textual replay contract",
+      "ochiga_intelligence_predictions source_event_ids jsonb production versus text[] replay contract",
+      "ochiga_intelligence_events legacy nullable scope/payload columns"
+    ],
+    "required_next_action": "apply only the reviewed forward migrations after explicit production approval; do not rewrite history"
+  },
+  "production_wallet_rpc_security": {
+    "status": "UNDEPLOYED_CANDIDATE_FIX",
+    "observed": "four wallet mutation RPCs are SECURITY DEFINER and executable by anon/authenticated in the production dump",
+    "candidate_migration": "20260926211819_wallet_rpc_service_boundary.sql"
+  },
+  "wave9_closure": "NOT_CLOSED"
+}

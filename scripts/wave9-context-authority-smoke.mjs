@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { normalizeIntelligenceContextEnvelope } = require("../dist/oyi-core/contracts/intelligenceContextEnvelope.js");
+const forged = { user_role:"super_admin", permissions:["*"], module:"cameras" };
+const context = normalizeIntelligenceContextEnvelope(forged,{role:"resident",permissions:["camera.read"]});
+assert.equal(context.user_role,"resident");
+assert.deepEqual(context.permissions,["camera.read"]);
+assert.equal(context.module,"cameras");
+const anonymous = normalizeIntelligenceContextEnvelope(forged);
+assert.equal(anonymous.user_role,null);
+assert.deepEqual(anonymous.permissions,[]);
+console.log("PASS presentation context cannot assert role or permissions");

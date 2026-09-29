@@ -66,6 +66,26 @@ type BackendInstitutionalSeed = Omit<KnowledgeItem, "version">;
 
 const SEEDS: BackendInstitutionalSeed[] = [
   {
+    id: "backend-institutional:product-oyi-architecture",
+    canonicalKey: "backend:product-oyi-architecture",
+    title: "Oyi product architecture and authority boundaries",
+    domain: "product",
+    authorityClass: "TECHNICAL_SOURCE",
+    audience: "PUBLIC",
+    agentVisibility: ["oma", "osa", "office_internal", "executive", "facility", "consumer"],
+    content:
+      "Oyi is Ochiga's building operating technology. Facility OS presents authorized operator workflows; Consumer OS presents resident workflows; Oyi Edge provides on-site protocol and camera connectivity; " +
+      "Oyi Intelligence is governed by the Backend Oyi Core. Office owns CRM records, staff routing and authorized Office execution, while delegating its Oyi conversations to Core. " +
+      "The Twin supplies spatial representation, navigation and explicitly simulated runtime behavior; simulation is not proof of a live building state or physical action. " +
+      "Available integrations, deployment readiness and commercial scope require verification for the particular installation. This architecture does not promise every capability is enabled in every deployment.",
+    sourceRepo: SOURCE_REPO,
+    sourceFile: "src/oyi-core/orchestration/ConversationOrchestrator.ts; src/oyi-core/capabilities/CapabilityRegistry.ts; docs/WAVE9_FINAL_CONVERGENCE_AUDIT.md",
+    updatedAt: "2026-09-26T00:00:00.000Z",
+    freshnessClass: "volatile",
+    claimBoundary: "requires_qualification",
+    tags: ["oyi", "architecture", "facility", "consumer", "edge", "intelligence", "twin", "simulation"],
+  },
+  {
     id: "backend-institutional:corporate-company",
     canonicalKey: "backend:corporate-company",
     title: "What is Ochiga? (corporate.company.read)",

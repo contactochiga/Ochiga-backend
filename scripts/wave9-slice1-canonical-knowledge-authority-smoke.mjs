@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const path = require("path");
-const backendRoot = "/Users/ochigaidoko/Documents/Ochiga-backend";
+const backendRoot = require("node:url").fileURLToPath(new URL("../", import.meta.url));
 
 const bridgeModule = require(path.join(backendRoot, "dist/oyi-core/domains/knowledge/officeKnowledgeBridge.js"));
 const { retrieveKnowledge, invalidateKnowledgeCache } = require(path.join(backendRoot, "dist/oyi-core/domains/knowledge/knowledgeRetrieval.js"));
@@ -249,7 +249,7 @@ await test("when Office is unreachable, retrieval never fabricates Office-pack c
   const result = await retrieveKnowledge({ actor: PUBLIC_ACTOR_OMA, query: "what is oyi" });
   assert.equal(result.items.length, 5);
   assert.ok(result.items.every((item) => item.sourceRepo === "ochiga-backend"));
-  assert.ok(result.items.every((item) => item.canonicalKey.startsWith("backend:corporate-")));
+  assert.ok(result.items.every((item) => item.canonicalKey.startsWith("backend:corporate-") || item.canonicalKey === "backend:product-oyi-architecture"));
   sourceOk = true;
   invalidateKnowledgeCache();
 });

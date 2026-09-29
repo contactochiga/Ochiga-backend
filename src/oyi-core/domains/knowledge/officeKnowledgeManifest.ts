@@ -94,12 +94,14 @@ export const OFFICE_KNOWLEDGE_MANIFEST: OfficeKnowledgeManifestEntry[] = [
   },
   {
     file: "business-model-and-current-maturity.md",
-    title: "Business model & current implementation maturity",
+    title: "Business model & implementation maturity (unverified reference)",
     domain: "corporate",
-    authorityClass: "TECHNICAL_SOURCE",
+    // This prose mixes inferred revenue lines with undated deployment
+    // claims. It is not executable evidence of current implementation.
+    authorityClass: "UNVERIFIED_REFERENCE",
     audience: "INTERNAL_COMMERCIAL",
     agentVisibility: ["osa", "office_internal", "executive"],
-    claimBoundary: "requires_qualification",
+    claimBoundary: "requires_human_confirmation",
     freshnessClass: "volatile",
     tags: ["maturity", "revenue-model", "implemented-vs-positioned"],
   },
