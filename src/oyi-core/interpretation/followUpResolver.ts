@@ -128,7 +128,10 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   }
   if (/\bsecond\s+one\b|\bthe second\b/.test(m)) return { type: "ordinal", ordinal: "second" };
   if (/\bthird\s+one\b|\bthe third\b/.test(m)) return { type: "ordinal", ordinal: "third" };
-  if (/\boldest\b/.test(m)) return { type: "ordinal", ordinal: "oldest" };
+  // "been X longest" is a duration superlative, not a count: the item whose
+  // status has held longest is the one with the earliest occurred_at, i.e.
+  // the same resolution as "oldest" (mirrors the newest/latest group below).
+  if (/\boldest\b|\blongest\b/.test(m)) return { type: "ordinal", ordinal: "oldest" };
   if (/\bnewest\b|\blatest\b|\bmost recent\b/.test(m)) return { type: "ordinal", ordinal: "latest" };
   if (/\blast\s+one\b|\bthe last\b/.test(m)) return { type: "ordinal", ordinal: "last" };
 

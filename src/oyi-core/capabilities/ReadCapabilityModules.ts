@@ -27,6 +27,10 @@ import type { SemanticFrame } from "../contracts/semanticFrame";
 import { buildRoomHomeCapabilities } from "../domains/roomHome/roomHomeCapabilities";
 import { buildIntelligenceCapabilities } from "../domains/intelligence/intelligenceCapabilities";
 import { classifyFreshness as classifyFreshnessBucket, type FreshnessBucket } from "../domains/contributorSummary";
+import { supabaseAdmin } from "../../supabase/supabaseClient";
+import { cameraAccessActor, canAccessCamera } from "../../modules/cameras/cameraAccess.policy";
+import { resolveCameraCurrentStates } from "../../modules/cameras/cameraCurrentStateAuthority";
+import { cameraStateExplanation } from "../../modules/cameras/cameraCurrentStatePresentation";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -230,6 +234,46 @@ async function recentDeviceEvidence(context: CapabilityContext) {
   return dedupeIntelligenceFacts(facts).map(evidenceFromFact);
 }
 
+async function facilityCameraEvidence(context: CapabilityContext): Promise<OyiEvidence[]> {
+  const estateId = text(context.oisContext?.estate_id || context.actor?.estate_id);
+  if (!estateId || !context.actor?.id) return [];
+  const accessActor = cameraAccessActor(context.actor, { estate_id: estateId, home_id: null });
+  try {
+    const { data, error } = await supabaseAdmin.from("facility_cameras")
+      .select("id,estate_id,home_id,privacy_scope,metadata,name,location")
+      .eq("estate_id", estateId).limit(100);
+    if (error) throw error;
+    const authorised = (data || []).filter((row: any) => canAccessCamera(row, accessActor).ok);
+    const states = await resolveCameraCurrentStates(estateId, authorised.map((row: any) => row.id), accessActor);
+    const names = new Map(authorised.map((row: any) => [String(row.id), text(row.name) || "Camera"]));
+    return states.map((state) => evidenceFromFact({
+      fact_id: `camera-current-state:${state.cameraId}`,
+      domain: "cameras", fact_type: "camera_current_state",
+      scope: { estate_id: estateId, home_id: null, room_id: null },
+      object: { object_type: "camera", canonical_id: state.cameraId, label: names.get(state.cameraId) || "Camera" },
+      statement: `${names.get(state.cameraId) || "Camera"}: ${cameraStateExplanation(state)} `,
+      value: { overall: state.overall, video_evidence: state.videoEvidence, observed_at: state.observedAt },
+      previous_value: null, occurred_at: state.observedAt, observed_at: new Date().toISOString(),
+      source_type: "database", source_id: state.cameraId, truth_state: "confirmed",
+      confidence: state.overall === "unknown" ? 0.4 : 0.9,
+      freshness: state.observedAt || "unknown", privacy_class: "facility_sensitive",
+      permissions: ["cameras.view"], evidence: [{ type: "camera_current_state", id: state.cameraId, overall: state.overall }],
+    } as IntelligenceFact));
+  } catch {
+    return [evidenceFromFact({
+      fact_id: `camera-current-state-unavailable:${context.resolvedTurn.request_id}`,
+      domain: "cameras", fact_type: "camera_current_state",
+      scope: { estate_id: estateId, home_id: null, room_id: null },
+      object: { object_type: "camera", canonical_id: estateId, label: "Estate cameras" },
+      statement: "Camera current-state evidence could not be loaded.", value: null,
+      previous_value: null, occurred_at: null, observed_at: new Date().toISOString(),
+      source_type: "database", source_id: null, truth_state: "unavailable",
+      confidence: 0, freshness: "unavailable", privacy_class: "facility_sensitive",
+      permissions: ["cameras.view"], evidence: [{ type: "camera_current_state", status: "unavailable" }],
+    } as IntelligenceFact)];
+  }
+}
+
 function deviceStatusSupports(frame: SemanticFrame) {
   return frame.domain === "devices" && ["inform", "inspect", "list", "summarize", "device.status"].includes(frame.operation);
 }
@@ -249,6 +293,59 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       supports: (frame) => frame.domain === "global" && /\bwhat can you do|help|capabilit/i.test(frame.normalizedText),
       collect: async () => [],
       answer: () => ({ status: "answered", answer: "Capability listing is generated from the registry.", presentation_policy: resultPresentation("list") }),
+      primary: "list",
+    }),
+    readModule({
+      // Estate-level status is not a Consumer Home summary. Reuse the
+      // already-governed Facility maintenance and incident evidence loaders;
+      // report their bounded coverage instead of claiming all systems healthy.
+      key: "facility.overview.read",
+      domain: "global",
+      operations: ["summarize", "inform", "inspect"],
+      supportedSurfaces: ["facility"],
+      permissions: ["maintenance.read", "security.read"],
+      scopeRequirements: estateScope,
+      evidenceRequirements: [readRequirement("maintenance", "maintenance_request"), readRequirement("security", "security_incident")],
+      supports: (frame) => /\b(?:estate|building|what needs attention|anything wrong|(?:i should|should i) deal with|what needs my attention)\b/i.test(frame.normalizedText)
+        && /\b(?:happening|overview|status|wrong|attention|issues?|deal with)\b/i.test(frame.normalizedText),
+      collect: async (context) => {
+        const contract = requestContract(context);
+        const [maintenance, incidents] = await Promise.all([
+          loadMaintenanceRequestFacts(context.input, context.oisContext, contract),
+          loadSecurityIncidentFacts(context.input, context.oisContext, contract),
+        ]);
+        return [...maintenance, ...incidents].map(evidenceFromFact);
+      },
+      answer: (_context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        const unavailable = facts.filter((fact) => fact.truth_state === "unavailable").map((fact) => fact.domain);
+        const open = facts.filter((fact) => fact.truth_state === "confirmed" && !/^(?:resolved|closed|completed)$/i.test(text(recordOf(fact.value).status)));
+        const maintenance = open.filter((fact) => fact.domain === "maintenance");
+        const incidents = open.filter((fact) => fact.domain === "security");
+        const detail = open.slice(0, 3).map((fact) => fact.statement).join(" ");
+        const answer = `From the available maintenance and security records: ${maintenance.length} open maintenance request${maintenance.length === 1 ? "" : "s"} and ${incidents.length} open security incident${incidents.length === 1 ? "" : "s"}.${detail ? ` Priority items: ${detail}` : ""}${unavailable.length ? ` ${Array.from(new Set(unavailable)).join(" and ")} evidence is unavailable; this is not a complete estate-health verdict.` : " This covers those two sources only, not every estate system."}`;
+        return { status: unavailable.length ? "unavailable" : open.length ? "answered" : "empty", answer, presentation_policy: resultPresentation("list") };
+      },
+      primary: "list",
+    }),
+    readModule({
+      key: "facility.cameras.read",
+      domain: "cameras",
+      operations: ["list", "inspect", "summarize"],
+      supportedSurfaces: ["facility"],
+      permissions: ["cameras.view"],
+      scopeRequirements: estateScope,
+      evidenceRequirements: [readRequirement("cameras", "camera_current_state")],
+      supports: (frame) => frame.domain === "cameras" || /\bcameras?\b/i.test(frame.normalizedText),
+      collect: facilityCameraEvidence,
+      answer: (_context, evidence) => {
+        const facts = factsFromEvidence(evidence);
+        if (facts.some((fact) => fact.truth_state === "unavailable")) return { status: "unavailable", answer: "Camera current-state evidence could not be loaded; I cannot call any camera offline.", presentation_policy: resultPresentation("list") };
+        const unavailable = facts.filter((fact) => text(recordOf(fact.value).overall) === "unavailable");
+        const unknown = facts.filter((fact) => text(recordOf(fact.value).overall) === "unknown");
+        const detail = facts.map((fact) => fact.statement.trim()).join(" ");
+        return { status: facts.length ? "answered" : "empty", answer: `${facts.length} accessible camera${facts.length === 1 ? " is" : "s are"} registered. ${unavailable.length} have a recent failed acquisition; ${unknown.length} have unknown current video state. Neither status proves physical disconnection.${detail ? ` ${detail}` : ""}`, presentation_policy: resultPresentation("list") };
+      },
       primary: "list",
     }),
     readModule({
@@ -553,12 +650,12 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
     readModule({
       key: "maintenance.requests.read",
       domain: "maintenance",
-      operations: ["list", "inspect"],
+      operations: ["list", "inspect", "inform"],
       supportedSurfaces: ["consumer", "facility"],
       permissions: ["maintenance.read"],
       scopeRequirements: estateScope,
       evidenceRequirements: [readRequirement("maintenance", "maintenance_request")],
-      supports: (frame) => frame.domain === "maintenance" && (frame.operation === "list" || frame.operation === "inspect" || /\bmaintenance|repair|fix|broken\b/i.test(frame.normalizedText)),
+      supports: (frame) => frame.domain === "maintenance" && (frame.operation === "list" || frame.operation === "inspect" || frame.operation === "inform" || /\bmaintenance|repair|fix|broken\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadMaintenanceRequestFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);

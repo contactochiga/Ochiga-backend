@@ -2531,6 +2531,22 @@ async function buildAmbiguousFollowUpResponse(context: CanonicalConversationRequ
   return response;
 }
 
+async function buildOutOfRangeOrdinalResponse(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, ordinal: string, tracer: ConversationTracer): Promise<ConversationRunResult> {
+  const capability = followUpCapabilityFor(resultSet);
+  const count = resultSet.object_refs.length;
+  const result: DomainResult = {
+    status: "draft",
+    answer: `The current ${resultSet.domain} result has only ${count} item${count === 1 ? "" : "s"}, so there is no ${ordinal} one. Please name the item you mean or ask for a new list.`,
+    presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
+    metadata: { followup_out_of_range: true, result_count: count },
+  };
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability, result, evidence: [] });
+  response.execution = { ...(response.execution || {}), orchestrator_v2: { request_id: tracer.requestId, correlation_id: tracer.correlationId, runtime_id: tracer.runtimeId, followup: { detected: true, resolver: "canonical", reference_type: "ordinal", source_domain: resultSet.domain, result_set_id: resultSet.result_set_id, result_count: count, resolution_status: "out_of_range" } } };
+  response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capability);
+  tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
+  return response;
+}
+
 async function resolveAndHydrateSingleObject(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, intent: FollowUpIntent, ref: import("../context/resultSetContext").ResultSetObjectRef, tracer: ConversationTracer): Promise<ConversationRunResult> {
   const capabilityForAdapter = followUpCapabilityFor(resultSet);
   // Phase 4, PR 3 -- office_* result sets have no hydrateCanonicalTarget
@@ -2783,7 +2799,10 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
   if (intent.type === "prioritize") return handlePrioritizeFollowUp(context, resolvedTurn, resultSet, tracer);
 
   const resolution = resolveFollowUpReference(resultSet, intent);
-  if (resolution.status === "unresolved") return null;
+  if (resolution.status === "unresolved") {
+    if (intent.type === "ordinal" && ["first", "second", "third"].includes(intent.ordinal)) return buildOutOfRangeOrdinalResponse(context, resolvedTurn, resultSet, intent.ordinal, tracer);
+    return null;
+  }
   if (resolution.status === "ambiguous") return buildAmbiguousFollowUpResponse(context, resolvedTurn, resultSet, intent.type, resolution.candidates, tracer);
   return resolveAndHydrateSingleObject(context, resolvedTurn, resultSet, intent, resolution.ref, tracer);
 }

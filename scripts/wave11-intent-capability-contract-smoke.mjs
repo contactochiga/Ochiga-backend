@@ -22,6 +22,7 @@ supabaseAdmin.from = () => { throw new Error("intent-capability contract must no
 supabaseAdmin.rpc = () => { throw new Error("intent-capability contract must not call RPC"); };
 const { ensureRegistered } = require("../dist/oyi-core/orchestration/ConversationOrchestrator.js");
 const { capabilityRegistry } = require("../dist/oyi-core/capabilities/CapabilityRegistry.js");
+const { capabilityService } = require("../dist/oyi-core/capabilities/CapabilityService.js");
 const { parseSemanticFrame } = require("../dist/oyi-core/interpretation/SemanticFrameParser.js");
 const { parseCommunicationSendIntent } = require("../dist/oyi-core/interpretation/communicationIntentParser.js");
 const { parseDomainSwitchIntent } = require("../dist/oyi-core/interpretation/followUpResolver.js");
@@ -84,6 +85,23 @@ for (const [id, prompt, domain, operation, capabilityKey, expected = "matched"] 
 
 assert.ok(outcomes.length >= 30, "coverage matrix must retain at least 30 distinct parser/capability classes");
 assert.ok(outcomes.some((item) => item.id === "home_summary" && item.capability_key === "home.summary.read"));
+// Facility estate-scoped overview/camera selection must never resolve to
+// Consumer Home authority, and Consumer Home selection must be unaffected.
+for (const [surface, prompt, expectedKey] of [
+  ["facility", "What's happening across the estate?", "facility.overview.read"],
+  ["facility", "What needs attention?", "facility.overview.read"],
+  ["facility", "Anything wrong?", "facility.overview.read"],
+  ["facility", "Anything I should deal with immediately?", "facility.overview.read"],
+  ["facility", "Show offline cameras.", "facility.cameras.read"],
+  ["consumer", "What's happening at home?", "home.summary.read"],
+  ["office_internal", "What is our development status?", "development.status.read"],
+  ["public_corporate", "What does Ochiga do?", "corporate.company.read"],
+]) {
+  const frame = parseSemanticFrame(prompt);
+  const actor = { id: "wave11-contract-actor", role: surface === "facility" ? "facility_manager" : surface === "consumer" ? "resident" : "admin", permissions: ["maintenance.read", "security.read", "homes.read", "development.manage"], permission_scopes: ["maintenance.read", "security.read", "homes.read", "development.manage"], estate_id: "wave11-estate", home_id: surface === "consumer" ? "wave11-home" : null };
+  const selection = capabilityService.resolve({ actor, oisContext: { actor_id: actor.id, role: actor.role, surface, estate_id: actor.estate_id, home_id: actor.home_id }, input: { message: prompt, surface, estate_id: actor.estate_id, home_id: actor.home_id }, resolvedTurn: { request_id: `wave11-collision-${surface}`, semantic_frame: frame, target: null } });
+  assert.equal(selection.matched_capability?.key, expectedKey, `${surface}: surface/scope collision for ${prompt}`);
+}
 if (process.argv.includes("--json")) console.log(JSON.stringify(outcomes, null, 2));
 else console.log(`PASS Wave 11 semantic-to-capability contract: ${outcomes.length} parser classes; explicit matched/declared-disabled outcomes; no DB/provider/action calls`);
 process.exit(0);

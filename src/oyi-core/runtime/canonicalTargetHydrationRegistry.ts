@@ -515,7 +515,11 @@ async function genericExactLoader(request: CanonicalHydrationRequest, startedAt:
     // per-asset/per-meter source exists yet, so hydration now honestly
     // returns "unsupported" for these types instead of failing a doomed
     // query against a nonexistent table on every attempt.
-    camera: { table: "facility_cameras", select: `${CAMERA_ACCESS_SELECT},name,room_id`, label: "Camera", module: "cameras" },
+    // facility_cameras has no room_id column (cameras are zone-scoped, not
+    // room-scoped); selecting it made every camera hydration attempt fail
+    // with a "column does not exist" query error, same class of defect as
+    // the home/room updated_at case above.
+    camera: { table: "facility_cameras", select: `${CAMERA_ACCESS_SELECT},name`, label: "Camera", module: "cameras" },
     wallet: { table: "wallets", select: "id,user_id,currency,is_frozen,updated_at", label: "Wallet", module: "wallet" },
     security_incident: { table: "facility_incidents", select: "id,title,estate_id,home_id,severity,status,location,opened_at,updated_at", label: "Security incident", module: "security" },
     utility_tariff: { table: "estate_service_configs", select: "id,title,service_key,estate_id,unit_cost,unit_name,currency,updated_at", label: "Utility tariff", module: "utilities" },
