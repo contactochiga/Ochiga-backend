@@ -16,22 +16,22 @@ The fixture includes one estate, three homes across two towers, four rooms, four
 
 ## Executable 100-turn baseline
 
-The original 25 four-turn journeys remain unchanged. They run sequentially by thread through the production Core entry contract. Machine-readable JSON and Markdown summary are local at `/tmp/wave11-live-behavioural-torture.json` and `/tmp/wave11-live-behavioural-torture.md`.
+The original 25 four-turn journeys remain unchanged and score 66 PASS / 34 FAIL. The same harness also ran 32 supplemental turns across Office lead/draft, public JV discovery, Facility overview, Consumer device/action continuity, and Resident B cross-home privacy journeys (18 PASS / 14 FAIL). All run sequentially by thread through the production Core entry contract. Machine-readable JSON and Markdown summary are local at `/tmp/wave11-live-behavioural-torture.json` and `/tmp/wave11-live-behavioural-torture.md`.
 
 | Surface | Turns | PASS | FAIL | BLOCKED |
 | --- | ---: | ---: | ---: | ---: |
-| Public/Osa | 16 | 9 | 7 | 0 |
-| Office/Oma | 24 | 17 | 7 | 0 |
-| Facility | 20 | 14 | 6 | 0 |
-| Consumer | 40 | 26 | 14 | 0 |
-| **Total** | **100** | **66** | **34** | **0** |
+| Public/Osa | 23 | 9 | 14 | 0 |
+| Office/Oma | 31 | 21 | 10 | 0 |
+| Facility | 27 | 18 | 9 | 0 |
+| Consumer | 51 | 36 | 15 | 0 |
+| **Total** | **132** | **84** | **48** | **0** |
 
-All 100 turns reported `persistence_saved: true` in the isolated DB. This establishes persistence for these turns, not full follow-up quality. Unsupported answers are not marked PASS merely because they returned a response.
+All 132 turns reported `persistence_saved: true` in the isolated DB. Resident B in A-102 did not receive A-101 device, visitor or wallet records in the four cross-home probes. This establishes those tested boundaries, not full follow-up or privacy coverage. Unsupported answers are not marked PASS merely because they returned a response.
 
 ## Failure inventory and repair
 
 - **P0:** No external send, device mutation or privacy disclosure was observed. This is not proof of all authority boundaries: external action execution and every adversarial identity pairing are not yet exercised.
-- **P1, brain:** 13 capability-selection and six workflow failures. Facility-wide “what needs attention?” resolves to Consumer Home attention and is surface-restricted. Facility overview/offline-camera requests often fall to unsupported. Consumer “suggest an automation” selects list/read. “Turn the second device off” after wallet history now enters `devices.power.control` and asks for the exact device rather than reading a wallet transaction or guessing a target. Public JV qualification often reaches generic fallback. Office drafting, Consumer cancellation/recurrence, and natural “what did I just ask?” continuity remain incomplete.
+- **P1, brain:** The baseline includes 13 capability-selection and six workflow failures. Facility-wide “what needs attention?” resolves to Consumer Home attention and is surface-restricted. Facility overview/offline-camera requests often fall to unsupported. Consumer “suggest an automation” selects list/read. “Turn the second device off” after wallet history now enters `devices.power.control` and asks for the exact device rather than reading a wallet transaction or guessing a target. The seven-turn public JV journey failed all seven turns, usually reaching generic fallback instead of progressive qualification. Office drafting, Consumer cancellation/recurrence, and natural “what did I just ask?” continuity remain incomplete.
 - **P1, worker/evidence:** 15 evidence failures. Live visitor reads initially failed because `visitor_access` has no `updated_at` column; the query was corrected. Device state snapshots were added to the fixture. Utility usage and report period summary are explicitly disabled, not fabricated. Other unavailable evidence remains separately visible in the JSON record.
 - **P2:** Conversational continuation, qualification and persona quality need re-scoring after structural failures.
 
@@ -47,7 +47,7 @@ Confirmed narrow repairs: the visitor query now matches the schema; “tell me a
 | `node scripts/communication-runtime-smoke.mjs` | PASS, with expected invalid placeholder-key logging in its isolated smoke |
 | Clean local baseline and migration replay | PASS |
 | Production-target refusal | PASS |
-| Live 100-turn harness | 66 PASS / 34 FAIL / 0 BLOCKED; intentionally exits nonzero |
+| Live 132-turn harness, including unchanged 100-turn baseline | 84 PASS / 48 FAIL / 0 BLOCKED; baseline 66 PASS / 34 FAIL; intentionally exits nonzero |
 | External action execution/verification | BLOCKED — no approved isolated sinks/adapters |
 
-Next: fix the preserved P1 Facility overview and continuity/evidence records in the existing canonical layers; rerun all 100 unchanged turns. Extend this same harness with the requested deeper multi-turn journeys only when action sinks can be isolated. No merge or deployment is authorized by this result.
+Next: fix the preserved P1 Facility overview, public JV qualification and continuity/evidence records in the existing canonical layers; rerun all 100 unchanged turns and the 32 supplemental turns. Isolated action sinks are still needed before safe execution/verification can be certified. No merge or deployment is authorized by this result.
