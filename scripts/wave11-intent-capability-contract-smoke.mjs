@@ -23,6 +23,12 @@ supabaseAdmin.rpc = () => { throw new Error("intent-capability contract must not
 const { ensureRegistered } = require("../dist/oyi-core/orchestration/ConversationOrchestrator.js");
 const { capabilityRegistry } = require("../dist/oyi-core/capabilities/CapabilityRegistry.js");
 const { parseSemanticFrame } = require("../dist/oyi-core/interpretation/SemanticFrameParser.js");
+const { parseCommunicationSendIntent } = require("../dist/oyi-core/interpretation/communicationIntentParser.js");
+const { parseDomainSwitchIntent } = require("../dist/oyi-core/interpretation/followUpResolver.js");
+
+assert.equal(parseCommunicationSendIntent("Tell me about the second one."), null, "a CRM detail request must not propose a communication");
+assert.ok(parseCommunicationSendIntent("Tell Ada that I will call."), "an explicit communication request remains recognized");
+assert.deepEqual(parseDomainSwitchIntent("Go back to devices."), { type: "switch", domain: "devices" });
 
 ensureRegistered();
 

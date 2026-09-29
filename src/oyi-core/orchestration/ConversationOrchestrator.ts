@@ -2728,6 +2728,10 @@ async function handleDomainSwitchFollowUp(context: CanonicalConversationRequestC
 async function attemptFollowUpResolution(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, tracer: ConversationTracer): Promise<ConversationRunResult | null> {
   if (resolvedTurn.target) return null;
   if (!context.input.thread_id) return null;
+  // An ordinal embedded in an action request must never be hydrated as a
+  // read from an unrelated active result set (e.g. wallet after devices).
+  // The governed action resolver must decide target and authority instead.
+  if (resolvedTurn.semantic_frame.mutationIntent) return null;
 
   const switchIntent = parseDomainSwitchIntent(context.input.message);
   if (switchIntent) {

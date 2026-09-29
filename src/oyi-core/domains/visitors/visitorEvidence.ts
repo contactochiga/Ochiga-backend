@@ -146,7 +146,10 @@ export async function loadVisitorAccessFacts(
   try {
     let query = supabaseAdmin
       .from("visitor_access")
-      .select("id,estate_id,home_id,visitor_name,purpose,access_code,status,expires_at,created_at,updated_at")
+      // visitor_access has no updated_at contract. Its authoritative
+      // freshness marker is created_at; selecting an imagined column turns
+      // every otherwise-authorised visitor read into an unavailable result.
+      .select("id,estate_id,home_id,visitor_name,purpose,access_code,status,expires_at,created_at")
       .order("created_at", { ascending: false })
       .limit(50);
     query = isFacilitySurface ? query.eq("estate_id", scope.estate_id) : query.eq("home_id", scope.home_id);

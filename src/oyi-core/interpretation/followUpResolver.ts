@@ -23,6 +23,7 @@ export type FollowUpIntent =
 // resolve against next. Keyword list intentionally mirrors the domain
 // names this codebase actually uses (see ReadCapabilityModules.ts).
 const DOMAIN_KEYWORDS: Array<[string, RegExp]> = [
+  ["devices", /\bdevices?\b/i],
   ["maintenance", /\bmaintenance\b/i],
   ["visitors", /\bvisitors?\b/i],
   ["security", /\bsecurity\b|\bincidents?\b/i],

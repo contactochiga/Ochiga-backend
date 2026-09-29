@@ -52,6 +52,8 @@ const CHANNEL_NOUN: Record<string, CommunicationChannelSelector> = {
 export function parseCommunicationSendIntent(rawMessage: string): CommunicationSendIntent | null {
   let message = text(rawMessage);
   if (!message || /\?\s*$/.test(message)) return null;
+  // A request for information is not an instruction to message the speaker.
+  if (/^(?:please\s+)?tell\s+me\s+(?:about|more about)\b/i.test(message)) return null;
   // "Reply and tell him I'll call later." / "Reply to her: on my way." --
   // normalize to the existing "tell X Y" shape (channel auto) rather
   // than a separate parsing path. The reply's actual channel is decided
