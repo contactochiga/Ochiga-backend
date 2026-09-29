@@ -1,146 +1,53 @@
-# Wave 11 brain behavioural certification
+# Wave 11 brain behavioural certification — isolated fixture run
 
-## Executive result
+## Result
 
-**BRAIN NOT YET CERTIFIED**
+**BRAIN NOT YET CERTIFIED.** The existing 100-turn harness now invokes the real canonical `ConversationOrchestrator` against a disposable local Supabase stack. It no longer reports all turns as infrastructure-blocked. The first executable run exposed structural capability, evidence and workflow failures; HTTP 200 and a persisted fallback do not count as success. No production database, deployment, or authoritative branch was changed.
 
-The Wave 11 contract hardening changes are built and regression-guarded, but
-the first 100-turn harness run is intentionally **BLOCKED** for end-to-end
-behaviour: this checkout has no approved isolated Supabase test fixture and no
-`OYI_LOCAL_SUPABASE_SERVICE_ROLE_KEY`. No blocked result is counted as a pass.
+## Isolation and schema
 
-## Candidate and branch
+- Local Supabase project `wave11-behavioural-fixture`: API `http://127.0.0.1:55421`, database port `55422`, separate from the pre-existing local stack and production. Live mode refuses every other URL, including the production project reference. The refusal was tested.
+- Live mode requires `OYI_LOCAL_SUPABASE_SERVICE_ROLE_KEY`, replaces the generic service-role variable with it in-process, and refuses configured external communication/device execution credentials. No key or connection URL is written to the repository or result files.
+- Clean replay: `migrations/schema.sql`, retained May foundation, `supabase/baselines/verified-production-prerequisites.sql`, all 119 tracked migrations in order (May applied once), then `supabase/baselines/verified-production-compatibility.sql`. PostgreSQL replay succeeded. This is the existing production-derived baseline, not a second test schema.
+- `scripts/wave11-behavioural-fixture-seed.sql` adds only synthetic data to the disposable DB and is deliberately outside `supabase/migrations`.
+- Queue/Redis transports are isolated in-process; Core, registry, authority, Supabase persistence and evidence readers are not mocked.
 
-- Starting authoritative Backend main: `5e3c53d5ee46067cb98c6291a1a3d9fb0eb2b1fc`
-- Wave 11 branch: `codex/wave11-brain-behavioural-hardening`
-- Contract/persistence hardening: `cad4a206a47ae85b498783c9ea8d3ec380bd8709`
-- Behavioural harness: `124a265` (this document is added by the next commit)
-- Production changes: none.
+The fixture includes one estate, three homes across two towers, four rooms, four devices with online/offline/stale state, one camera, two maintenance requests, two visitors, and a test wallet with two transactions. Synthetic actors are public Osa, Office admin, Facility manager/staff, and Residents A/B in different homes. Office snapshots include synthetic leads, opportunity, report, task, meeting, support case, partnership, document and content. There is no customer data or external-action credential.
 
-## Semantic → capability result
+## Executable 100-turn baseline
 
-The parser/registry contract is documented in
-[`WAVE11_INTENT_CAPABILITY_MATRIX.md`](WAVE11_INTENT_CAPABILITY_MATRIX.md).
-The executable smoke covers 34 distinct parser classes across Consumer,
-Facility, Office and public-corporate surfaces.
+The original 25 four-turn journeys remain unchanged. They run sequentially by thread through the production Core entry contract. Machine-readable JSON and Markdown summary are local at `/tmp/wave11-live-behavioural-torture.json` and `/tmp/wave11-live-behavioural-torture.md`.
 
-Fixed P1 parser/predicate defects:
+| Surface | Turns | PASS | FAIL | BLOCKED |
+| --- | ---: | ---: | ---: | ---: |
+| Public/Osa | 16 | 9 | 7 | 0 |
+| Office/Oma | 24 | 17 | 7 | 0 |
+| Facility | 20 | 14 | 6 | 0 |
+| Consumer | 40 | 25 | 15 | 0 |
+| **Total** | **100** | **65** | **35** | **0** |
 
-1. Broad Home wording such as “What’s happening at home?” now resolves to
-   `home.summary.read`, rather than an unclaimed `home/summarize` frame.
-2. Plural `rooms` now classifies as `rooms`.
-3. Plural `visitors` now classifies as `visitors`.
+All 100 turns reported `persistence_saved: true` in the isolated DB. This establishes persistence for these turns, not full follow-up quality. Unsupported answers are not marked PASS merely because they returned a response.
 
-Known honest non-enabled routes are classified as `declared_disabled`, not as
-missing capabilities: utility usage and period reports.
+## Failure inventory and repair
 
-## Persistence result
+- **P0:** No external send, device mutation or privacy disclosure was observed. This is not proof of all authority boundaries: external action execution and every adversarial identity pairing are not yet exercised.
+- **P1, brain:** 13 capability-selection, six workflow and one target-resolution failures. Facility-wide “what needs attention?” resolves to Consumer Home attention and is surface-restricted. Facility overview/offline-camera requests often fall to unsupported. Consumer “suggest an automation” selects list/read. “Turn the second device off” after wallet history no longer hydrates a wallet transaction, but still lands in device read instead of governed action/clarification. Public JV qualification often reaches generic fallback. Office drafting, Consumer cancellation/recurrence, and natural “what did I just ask?” continuity remain incomplete.
+- **P1, worker/evidence:** 15 evidence failures. Live visitor reads initially failed because `visitor_access` has no `updated_at` column; the query was corrected. Device state snapshots were added to the fixture. Utility usage and report period summary are explicitly disabled, not fabricated. Other unavailable evidence remains separately visible in the JSON record.
+- **P2:** Conversational continuation, qualification and persona quality need re-scoring after structural failures.
 
-The canonical writer remains the sole authority:
-`persistCanonicalConversationTurn()`.
+Confirmed narrow repairs: the visitor query now matches the schema; “tell me about the second one” remains a CRM detail read rather than an email proposal; explicit “go back to devices” recognizes the device domain; an ordinal inside a mutation is not hydrated as a read from an unrelated active result set. The cross-domain action remains failed because it still does not enter governed action routing.
 
-Before Wave 11, the normal orchestrator persisted only when
-`capabilityOwnsResponse` existed. Canonical unsupported/no-match and
-business-surface fallback responses could therefore return with
-`persistence_saved: false` without attempting persistence.
+## Validation and limits
 
-After Wave 11, the normal route has exactly one branch:
-
-```text
-capability-owned response → established capability persistence lifecycle
-terminal canonical response → terminal lifecycle → same canonical writer
-```
-
-The terminal lifecycle records an honest `general_help` request contract; it
-does not create a fabricated registry key or a second persistence store.
-Writer failure remains explicit as `persistence_saved: false`.
-
-## Observability result
-
-New canonical telemetry:
-
-- `canonical_terminal_response` trace stage
-- `oyi_conversation_terminal_outcome_total`
-- outcome labels including `capability_no_match`,
-  `canonical_unsupported`, and `business_surface_fallback`
-
-Legacy-named fields/counters remain compatibility metadata only. New canonical
-terminal responses no longer claim that a retired general-chat runtime answered.
-
-## 100-turn torture harness
-
-`scripts/wave11-behavioural-torture-harness.mjs` defines 25 four-turn
-journeys (exactly 100 conversational turns) across:
-
-- public/Osa product, JV, privacy and injection journeys;
-- Office/Oma leads, opportunities, reports, communications, tasks and
-  operations journeys;
-- Facility overview, cameras, visitors, maintenance, utilities and action
-  safety journeys;
-- Consumer home, room/device, wallet, visitors, automations, memory,
-  corrections, ambiguity and cross-domain journeys.
-
-It records every required contract field in JSON and produces a Markdown
-summary. The initial preflight output is deliberately written under `/tmp` and
-contains 100 `BLOCKED` records because no approved isolated data fixture exists.
-
-### Blocked condition
-
-| Layer | Status | Exact reason |
-| --- | --- | --- |
-| Evidence/worker reads | BLOCKED | No isolated Supabase fixture or approved local service-role key. |
-| Conversation persistence | BLOCKED | Same fixture is required to verify stored messages and thread continuity. |
-| Action confirmation/execution | BLOCKED | No isolated action fixture; real-world actions are forbidden. |
-| Quality/persona scoring | BLOCKED | It depends on actual evidence-backed canonical responses. |
-
-## Failure inventory and priority
-
-### Fixed
-
-| Layer | Finding | Result |
-| --- | --- | --- |
-| Capability selection | Broad Home summary had no matching predicate. | Fixed. |
-| Interpretation | Plural rooms/visitors were not classified. | Fixed. |
-| Persistence | Terminal canonical turns omitted the persistence lifecycle. | Fixed in code; live fixture verification pending. |
-| Observability | Canonical fallback was labelled legacy. | Canonical taxonomy added; compatibility fields retained. |
-
-### P1 candidates requiring an isolated end-to-end run
-
-| Layer | Candidate | Why it is not yet called a defect |
-| --- | --- | --- |
-| Capability selection | Facility-wide “what needs attention?” can syntactically match Consumer-only Home predicates. | The harness has no persisted Facility context, so the real orchestrator’s context/follow-up logic has not been evaluated. |
-| Context/follow-up | Office ordinal/pronoun turns require an actual persisted result set. | The preflight intentionally has no database. |
-| Worker evidence | Cameras, utilities, home summaries and CRM require authorised fixture data. | No data fixture is available. |
-
-## Validation run
-
-| Command | Result |
+| Check | Result |
 | --- | --- |
-| `npm run typecheck` | PASS |
-| `npm run build` | PASS |
-| `node scripts/wave11-intent-capability-contract-smoke.mjs` | PASS — 34 parser/capability classes, no DB/provider/action access. |
-| `node scripts/wave11-terminal-persistence-guard-smoke.mjs` | PASS — single writer and canonical telemetry guard. |
-| `node scripts/wave11-behavioural-torture-harness.mjs` | BLOCKED — 100 recorded turns; isolated fixture absent. |
-| `node scripts/business-surface-capability-smoke.mjs` | BLOCKED — this checkout lacks a valid Supabase URL/configuration for that runtime smoke. |
+| Backend `npm run typecheck` and `npm run build` | PASS |
+| `node scripts/wave11-intent-capability-contract-smoke.mjs` | PASS — 34 classes and new parser guards |
+| `node scripts/wave11-terminal-persistence-guard-smoke.mjs` | PASS |
+| `node scripts/communication-runtime-smoke.mjs` | PASS, with expected invalid placeholder-key logging in its isolated smoke |
+| Clean local baseline and migration replay | PASS |
+| Production-target refusal | PASS |
+| Live 100-turn harness | 65 PASS / 35 FAIL / 0 BLOCKED; intentionally exits nonzero |
+| External action execution/verification | BLOCKED — no approved isolated sinks/adapters |
 
-## Next executable action
-
-Provide an approved isolated Supabase fixture and a local-only service-role key
-through the existing approved secret source, then run:
-
-```bash
-cd /tmp/oyi-wave10-landing.uWVUTt
-OYI_LOCAL_SUPABASE_SERVICE_ROLE_KEY=... SUPABASE_URL=... \
-  node scripts/wave11-behavioural-torture-harness.mjs
-```
-
-The runner must be extended only to invoke the existing canonical surface
-transport with those identities; it must not use production credentials or
-execute real-world mutations.
-
-## Certification decision
-
-**BRAIN NOT YET CERTIFIED** — the remaining blocker is one concrete test
-infrastructure requirement: an approved isolated runtime fixture for the
-100-turn end-to-end journey run. No production migration, deployment, merge or
-One-Core architecture change is required for this result.
+Next: fix the preserved P1 Facility overview and cross-domain action records in the existing canonical layers, then continuity and evidence gaps; rerun all 100 unchanged turns. Extend this same harness with the requested deeper multi-turn journeys only when action sinks can be isolated. No merge or deployment is authorized by this result.
