@@ -111,6 +111,20 @@ async function canHostCommunityPostSocketResource(user: any, postId: string) {
 
 io.use(authenticateSocket);
 
+// A Socket.IO/EventEmitter listener's return value is never awaited or
+// caught by the emitter itself -- an async listener that rejects (e.g. an
+// awaited Supabase call failing) becomes a process-fatal unhandled
+// rejection with zero chance of being caught anywhere else. Reproduced and
+// confirmed in production (2026-09-29 15:02/15:05 UTC) for every async
+// listener below; wrap each one so a rejection is logged, not fatal.
+function safeSocketHandler<Args extends unknown[]>(event: string, handler: (...args: Args) => Promise<unknown>) {
+  return (...args: Args) => {
+    handler(...args).catch((error) => {
+      logger.error("socket_handler_rejected", { event, error, socket_data_present: args.length > 0 });
+    });
+  };
+}
+
 // ---------------------------
 // SOCKET.IO CONNECTIONS
 // ---------------------------
@@ -138,24 +152,24 @@ io.on("connection", (socket) => {
     socket.join(`user:${userId}`);
   });
 
-  socket.on("subscribe:room", async (roomId: string) => {
+  socket.on("subscribe:room", safeSocketHandler("subscribe:room", async (roomId: string) => {
     if (!canUseSocket(socket, "homes.read")) return denySocket(socket, "homes.read", "room", String(roomId || ""));
     const { data: room } = await supabaseAdmin.from("rooms").select("home_id").eq("id", roomId).maybeSingle();
     if (!room?.home_id || !await canAccessHomeSocketResource(socket.data.user, String(room.home_id))) {
       return denySocket(socket, "homes.read", "room", String(roomId || ""));
     }
     socket.join(`room:${roomId}`);
-  });
+  }));
 
-  socket.on("subscribe:home", async (homeId: string) => {
+  socket.on("subscribe:home", safeSocketHandler("subscribe:home", async (homeId: string) => {
     if (!canUseSocket(socket, "homes.read")) return denySocket(socket, "homes.read", "home", String(homeId || ""));
     if (!await canAccessHomeSocketResource(socket.data.user, String(homeId || ""))) {
       return denySocket(socket, "homes.read", "home", String(homeId || ""));
     }
     socket.join(`home:${homeId}`);
-  });
+  }));
 
-  socket.on("scope:replace", async (scope: { estate_id?: string; estateId?: string; home_id?: string; homeId?: string }) => {
+  socket.on("scope:replace", safeSocketHandler("scope:replace", async (scope: { estate_id?: string; estateId?: string; home_id?: string; homeId?: string }) => {
     const estateId = String(scope?.estate_id || scope?.estateId || "").trim();
     const homeId = String(scope?.home_id || scope?.homeId || "").trim();
     const user = socket.data.user;
@@ -181,9 +195,9 @@ io.on("connection", (socket) => {
     if (homeId) socket.join(`home:${homeId}`);
     socket.data.active_scope = { estate_id: estateId || null, home_id: homeId || null };
     socket.emit("scope:active", socket.data.active_scope);
-  });
+  }));
 
-  socket.on("subscribe:device", async (deviceId: string) => {
+  socket.on("subscribe:device", safeSocketHandler("subscribe:device", async (deviceId: string) => {
     if (!canUseSocket(socket, "devices.read")) return denySocket(socket, "devices.read", "device", String(deviceId || ""));
     const { data: device } = await supabaseAdmin
       .from("devices")
@@ -198,15 +212,15 @@ io.on("connection", (socket) => {
       : canUseSocket(socket, "devices.control");
     if (!estateAllowed || !homeAllowed) return denySocket(socket, "devices.read", "device", String(deviceId || ""));
     socket.join(`device:${device.id}`);
-  });
+  }));
 
-  socket.on("subscribe:thread", async (threadId: string) => {
+  socket.on("subscribe:thread", safeSocketHandler("subscribe:thread", async (threadId: string) => {
     if (!canUseSocket(socket, "support.read")) return denySocket(socket, "support.read", "thread", String(threadId || ""));
     if (!await canAccessThreadSocketResource(socket.data.user, String(threadId || ""))) {
       return denySocket(socket, "support.read", "thread", String(threadId || ""));
     }
     socket.join(`thread:${threadId}`);
-  });
+  }));
 
   registerCommunityCommunicationSocketHandlers(io, socket, {
     canAccessCommunityPost: canAccessCommunityPostSocketResource,
@@ -214,7 +228,7 @@ io.on("connection", (socket) => {
   });
   registerGenericCommunicationSocketHandlers(io, socket);
 
-  socket.on("disconnect", async () => {
+  socket.on("disconnect", safeSocketHandler("disconnect", async () => {
     operationalMetrics.increment("oyi_socket_events_total", { event: "disconnect" });
     runtimeHealthRegistry.markSocketConnected(Math.max(0, io.of("/").sockets.size - 1));
     logger.info("socket_disconnected", {
@@ -222,7 +236,7 @@ io.on("connection", (socket) => {
       user_id: socket.data.user?.id || null,
     });
     await emitCommunicationSocketDisconnect(io, socket.id);
-  });
+  }));
 });
 
 // ---------------------------
@@ -301,3 +315,18 @@ async function gracefulShutdown(signal: NodeJS.Signals) {
 
 process.once("SIGTERM", () => void gracefulShutdown("SIGTERM"));
 process.once("SIGINT", () => void gracefulShutdown("SIGINT"));
+
+// Defense in depth: Node's default unhandledRejections=throw mode turns any
+// rejection with no attached handler into a fatal uncaught exception that
+// kills the process (confirmed in production 2026-09-29 15:02/15:05 UTC,
+// twice in three minutes, via unguarded async Socket.IO listeners -- see
+// safeSocketHandler above and emitSignalSafely in realtime/emitSignal.ts
+// for the specific fixes). This is the last-resort net for anything not
+// covered by those specific fixes -- it logs with the real object shape
+// instead of Node's opaque "#<Object>" summary, and never re-throws.
+process.on("unhandledRejection", (reason) => {
+  operationalMetrics.increment("oyi_unhandled_rejection_total");
+  logger.error("unhandled_rejection", {
+    reason: reason instanceof Error ? { message: reason.message, stack: reason.stack } : reason,
+  });
+});
