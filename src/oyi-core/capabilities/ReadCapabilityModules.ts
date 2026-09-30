@@ -681,7 +681,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["visitors.read"],
       scopeRequirements: estateScope,
       evidenceRequirements: [readRequirement("visitors", "visitor_access")],
-      supports: (frame) => frame.domain === "visitors" && (frame.operation === "list" || frame.operation === "inspect" || /\bvisitors?|guest|access code|pending arrival\b/i.test(frame.normalizedText)),
+      supports: (frame) => frame.domain === "visitors" && (frame.operation === "list" || frame.operation === "inspect" || /\bvisitors?|visited|visiting|guest|access code|pending arrival\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadVisitorAccessFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);

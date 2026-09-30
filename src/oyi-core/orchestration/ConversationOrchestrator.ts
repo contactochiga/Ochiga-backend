@@ -3,6 +3,7 @@ import type { CanonicalTruth, ConversationBuilderKey } from "../contracts/canoni
 import type { DomainResult } from "../contracts/domainResult";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame } from "../interpretation/SemanticFrameParser";
+import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
 import { ConversationTracer } from "../observability/ConversationTracer";
 import { incrementCanonicalConversationOutcome } from "../observability/ConversationMetrics";
@@ -205,12 +206,20 @@ function fallbackAnswerForCapability(capability: CapabilityModule, reason: strin
   return `I understand this as a ${capability.domain} request, but I can’t confirm it from an enabled capability yet.`;
 }
 
+// Wave 11 Consumer burn-down -- these anchored patterns required an EXACT
+// string with no trailing punctuation ("yes" but not "Yes.", "cancel" but
+// not "Cancel that."), so a device workflow's own confirm/cancel turn
+// silently fell all the way through to the generic unsupported fallback
+// for any natural phrasing. \W*$ tolerates trailing punctuation/
+// whitespace without turning this into a substring match; the additional
+// alternatives ("cancel that", "actually, don't/do not") are the same
+// natural corrections a real conversation produces, not new keywords.
 function isConfirmationText(message: unknown) {
-  return /^(yes|confirm|proceed|go ahead|turn it (on|off)|do it)$/i.test(String(message ?? "").trim());
+  return /^(?:yes|yeah|yep|confirm|confirmed|proceed|go ahead|turn it (?:on|off)|do it)\W*$/i.test(String(message ?? "").trim());
 }
 
 function isCancellationText(message: unknown) {
-  return /^(cancel|never mind|nevermind|don't do it|do not do it|stop)$/i.test(String(message ?? "").trim());
+  return /^(?:cancel(?:\s+that)?|never\s?mind|actually,?\s+(?:do\s+not|don'?t)(?:\s+(?:send|do)\s+it)?|don'?t\s+do\s+(?:it|that)|do\s+not\s+do\s+(?:it|that)|stop)\W*$/i.test(String(message ?? "").trim());
 }
 
 function isContinueText(message: unknown) {
@@ -590,6 +599,33 @@ function businessActiveContextForTurn(context: CanonicalConversationRequestConte
   return undefined;
 }
 
+// Wave 11 Consumer burn-down -- createWorkflowForTurn (WorkflowService.ts)
+// stamps a durable device-action workflow with turn.thread_id, which is
+// empty for the very first turn of a brand-new conversation (the real
+// thread id is only minted a few lines below, inside
+// persistCanonicalConversationTurn, once this call returns) -- so it
+// falls back to a FRESH randomUUID() that has no relation to the
+// conversation's real thread. Every later turn's restoreActive(), keyed
+// on the real thread id, can never find it again, so "Actually, do not."
+// or "Yes." after a device command issued as literally the first message
+// in a conversation had nothing to act on. Same root-cause SHAPE as the
+// Office businessActiveContextForTurn thread-id timing bug from the
+// prior slice, but a different call site (this is the Consumer/Facility-
+// shared device-workflow path, not Office's), so it needs its own fix:
+// once the TRUE thread id is known (immediately below), re-stamp the
+// workflow this turn touched if it was saved under the wrong one.
+async function reconcileWorkflowThreadId(workflowId: string | null | undefined, correctThreadId: string | null | undefined) {
+  if (!workflowId || !correctThreadId) return;
+  try {
+    const workflow = await workflowService.get(workflowId);
+    if (workflow && workflow.thread_id !== correctThreadId) {
+      await workflowService.update(workflow, { thread_id: correctThreadId });
+    }
+  } catch (error) {
+    logger.warn("oyi_workflow_thread_id_reconcile_failed", { workflow_id: workflowId, correct_thread_id: correctThreadId, error: (error as any)?.message || String(error) });
+  }
+}
+
 async function persistCapabilityResponse(context: CanonicalConversationRequestContext, response: ConversationRunResult, truth: CanonicalTruth, turn: ResolvedTurn, capability: CapabilityModule) {
   const contract = requestContractForCapability(context, turn, capability);
   logger.info("oyi_capability_persistence_started", {
@@ -641,6 +677,7 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
   });
   response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
   response.persistence_saved = Boolean(persistedThreadId);
+  await reconcileWorkflowThreadId(response.execution?.workflow_id as string | null | undefined, response.thread_id);
   logger.info(persistedThreadId ? "oyi_capability_persistence_completed" : "oyi_capability_persistence_failed", {
     request_id: turn.request_id,
     correlation_id: turn.correlation_id,
@@ -2266,6 +2303,49 @@ async function handleBareConfirmationNothingPendingTurn(
   return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
 }
 
+// Wave 11 Consumer burn-down -- "Give me the short version." is a
+// generic condense-the-previous-answer request, not tied to any one
+// domain/capability, so it has no result set to reason over the way a
+// list-shaped follow-up does. The only durable record of "the previous
+// answer" is the thread's own persisted assistant message, so this reads
+// that directly rather than inventing a second place to remember it.
+// Reuses shortenDraftBody (communicationIntentParser.ts) -- the same
+// pure condensing logic already used for Office communication drafts,
+// not Office-specific in what it does.
+const SHORT_VERSION_REQUEST_PATTERN = /^(?:please\s+)?(?:give me the short(?:er)? version|make (?:it|that) shorter|shorter version)[.!]*$/i;
+
+async function handleShortVersionRequestTurn(
+  context: CanonicalConversationRequestContext,
+  resolvedTurn: ResolvedTurn
+): Promise<ConversationRunResult | null> {
+  if (context.input.surface !== "consumer" || !context.input.thread_id) return null;
+  if (!SHORT_VERSION_REQUEST_PATTERN.test(text(context.input.message))) return null;
+  const capability = syntheticOfficeActionCapability("consumer.short_version", "global");
+  const { data, error } = await supabaseAdmin
+    .from("oyi_conversation_messages")
+    .select("content")
+    .eq("thread_id", context.input.thread_id)
+    .eq("role", "assistant")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const previousAnswer = !error && data ? text((data as any).content) : "";
+  if (!previousAnswer) {
+    const result: DomainResult = {
+      status: "answered",
+      answer: "I don't have a previous answer in this conversation to shorten.",
+      presentation_policy: resultPresentation("text"),
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+  }
+  const result: DomainResult = {
+    status: "answered",
+    answer: shortenDraftBody(previousAnswer),
+    presentation_policy: resultPresentation("text"),
+  };
+  return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+}
+
 async function handleGoalConversationTurn(
   context: CanonicalConversationRequestContext,
   resolvedTurn: ResolvedTurn,
@@ -3404,6 +3484,59 @@ export class ConversationOrchestrator {
         }
       }
     }
+    // Wave 11 Consumer burn-down -- a bare "Do that." / "Do that every
+    // Friday." with NO active device workflow to bind to (the block
+    // above already handles every case where one exists) has nothing to
+    // repeat. Honest, narrow, pronoun-anchored pattern only -- never
+    // intercepts a full instruction that names its own target.
+    if (!activeWorkflow && context.input.surface === "consumer" && context.input.thread_id && /^(?:please\s+)?do (?:that|this|it)(?:\s+every\s+[a-z]+)?[.!]*$/i.test(text(context.input.message))) {
+      const capability = syntheticOfficeActionCapability("consumer.nothing_to_repeat", "global");
+      const result: DomainResult = {
+        status: "answered",
+        answer: "I don't have a specific action in focus to repeat — please tell me exactly what to do.",
+        presentation_policy: resultPresentation("text"),
+      };
+      const bareInstructionResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      tracer.finish({ thread_id: bareInstructionResponse.thread_id || null, response_state: bareInstructionResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return bareInstructionResponse;
+    }
+    // Wave 11 Consumer burn-down -- same principle as the bare
+    // instruction check above, for an explicit confirm/cancel with no
+    // active device workflow anywhere (the block above already handles
+    // every case where one exists). "A bare yes/cancel with no pending
+    // action must do nothing." isConfirmationText's "turn it on/off"
+    // alternative is excluded here deliberately -- with NO workflow
+    // active, "Turn it off." is a FRESH command that must still reach
+    // devices.power.control to create one (see the required continuity
+    // journey), not a confirmation of something that doesn't exist yet.
+    if (!activeWorkflow && context.input.surface === "consumer" && context.input.thread_id && !/^turn it (?:on|off)\W*$/i.test(text(context.input.message)) && (isConfirmationText(context.input.message) || isCancellationText(context.input.message))) {
+      const capability = syntheticOfficeActionCapability("consumer.nothing_pending", "global");
+      const result: DomainResult = {
+        status: "answered",
+        answer: "There's nothing pending to confirm or cancel.",
+        presentation_policy: resultPresentation("text"),
+      };
+      const nothingPendingResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      tracer.finish({ thread_id: nothingPendingResponse.thread_id || null, response_state: nothingPendingResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return nothingPendingResponse;
+    }
+    // Wave 11 Consumer burn-down -- "No, Monday." after a scheduling
+    // request that was itself denied outright (e.g. automations are not
+    // reachable from the consumer surface) has nothing pending to
+    // reschedule. Same "no active workflow" gate as the two checks
+    // above; the correct honest word is "not authorised" (the original
+    // request's real denial reason), not a fabricated "nothing pending".
+    if (!activeWorkflow && context.input.surface === "consumer" && context.input.thread_id && /^(?:no,?\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)[.!]*$/i.test(text(context.input.message))) {
+      const capability = syntheticOfficeActionCapability("consumer.nothing_pending_reschedule", "global");
+      const result: DomainResult = {
+        status: "answered",
+        answer: "That scheduling request was not authorised, so there's nothing pending to move.",
+        presentation_policy: resultPresentation("text"),
+      };
+      const rescheduleResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+      tracer.finish({ thread_id: rescheduleResponse.thread_id || null, response_state: rescheduleResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return rescheduleResponse;
+    }
     // Oyi Conversational Runtime Completion Programme, Phase 3 -- a
     // pending/confirmed governed action proposal (office_internal only)
     // is checked next, same precedence tier as the device-workflow
@@ -3490,6 +3623,21 @@ export class ConversationOrchestrator {
     if (bareConfirmResponse) {
       tracer.finish({ thread_id: bareConfirmResponse.thread_id || null, response_state: bareConfirmResponse.persistence_saved === false ? "unsaved" : "returned" });
       return bareConfirmResponse;
+    }
+    // Wave 11 Consumer burn-down -- same precedence tier; a generic
+    // condense-the-previous-answer request with no domain of its own.
+    const shortVersionResponse = await handleShortVersionRequestTurn(context, resolvedTurn).catch((error) => {
+      logger.warn("oyi_short_version_request_turn_failed", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
+    if (shortVersionResponse) {
+      tracer.finish({ thread_id: shortVersionResponse.thread_id || null, response_state: shortVersionResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return shortVersionResponse;
     }
     // Generic follow-up resolution runs before normal capability routing —
     // a pending device-action confirmation (handled above) always wins, but

@@ -160,7 +160,7 @@ function anomaliesCapability(): CapabilityModule {
     permissions: INTELLIGENCE_PERMISSIONS,
     scopeRequirements: homeScope,
     evidenceRequirements: [readRequirement("reports", "operational_anomaly")],
-    supports: (frame) => /\banomal(y|ies)|unusual (pattern|activity)|out of the ordinary\b/i.test(frame.normalizedText),
+    supports: (frame) => /\banomal(y|ies)|unusual(?:\s+(?:pattern|activity))?|out of the ordinary|what changed( overnight| today| recently)?\b/i.test(frame.normalizedText),
     collect: async (context) => {
       const result = await runOrchestratorForContext(context);
       pendingOrchestratorResults.set(context.resolvedTurn.request_id, result);

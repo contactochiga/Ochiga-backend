@@ -642,7 +642,14 @@ async function deviceActionDraft(context: CapabilityContext): Promise<DomainResu
 
 export async function continueDeviceActionWorkflow(context: CapabilityContext, workflow: OyiWorkflow): Promise<DomainResult | null> {
   if (workflow.capability_key !== "devices.power.control" || workflow.status !== "awaiting_clarification") return null;
-  if (context.resolvedTurn.semantic_frame.domain && context.resolvedTurn.semantic_frame.domain !== "devices") return null;
+  // "No, the bedroom one." answers a device clarification by naming the
+  // ROOM, not the device itself -- SemanticFrameParser classifies that as
+  // domain "rooms" (a real, valid domain), which used to be treated the
+  // same as any other unrelated topic switch and abandoned this
+  // continuation outright. A room reference is a legitimate way to
+  // disambiguate which device the pending clarification is about, so it
+  // must not be excluded here the way a genuinely unrelated domain is.
+  if (context.resolvedTurn.semantic_frame.domain && context.resolvedTurn.semantic_frame.domain !== "devices" && context.resolvedTurn.semantic_frame.domain !== "rooms") return null;
   const missing = workflow.unresolved_inputs[0] || text(workflow.metadata?.required_input);
   logger.info("oyi_workflow_continuation_detected", {
     thread_id: workflow.thread_id,

@@ -324,7 +324,7 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\b(scenes?|movie mode|good night|bedtime scene)\b/i.test(text)) return "scenes";
   if (/\b(automations?|routines?|schedules?|every\s+(?:night|morning|day|weekday)|at\s+midnight|when i leave|when i arrive|turn .* every night|make .* turn off)\b/i.test(text)) return "automations";
   if (/\b(device|switch|light|socket|plug|tv|ac|air conditioner|camera status|offline devices|hardware|channel)\b/i.test(text)) return "devices";
-  if (/\b(visitors?|guests?|passes)\b/i.test(text)) return "visitors";
+  if (/\b(visitors?|visited|visiting|guests?|passes)\b/i.test(text)) return "visitors";
   if (/\b(security|alarm|alert|gate|access denied|unusual access|incident|front door)\b/i.test(text)) return "security";
   if (/\b(access|unlock|lock|door|pin|card|fingerprint)\b/i.test(text)) return "access";
   if (/\bmaintenance|repair|technician|request|issue|overdue\b/i.test(text)) return "maintenance";

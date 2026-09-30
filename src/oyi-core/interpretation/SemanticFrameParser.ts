@@ -32,6 +32,11 @@ function operationFor(text: string, fallback: string): SemanticOperation {
   if (/\b(meter|utility)\b.*\b(balance|credit)\b|\b(balance|credit)\b.*\b(meter|utility)\b/i.test(text)) return "utilities.balance";
   if (/\bmeter\b/i.test(text)) return "utilities.meter";
   if (/\butilities?\b.*\b(spent|spend|spending|cost|costs?|paid|payment)\b|\b(how much|spend|spent|spending|cost|costs?|paid)\b.*\b(utilities?|electricity|power|water|internet|gas)\b/i.test(text)) return "utilities.spending";
+  // A bare spending question with no utility keyword ("What did I spend
+  // this week?") is a wallet question by default -- the utilities.spending
+  // branch above already wins whenever a utility keyword IS present, so
+  // this generic fallback only ever fires once that's been ruled out.
+  if (/\b(?:what did i|how much (?:did i|have i))\b[^.!?]{0,20}\b(?:spend|spent|pay|paid)\b/i.test(text)) return "wallet.history";
   return fallback as SemanticOperation;
 }
 
