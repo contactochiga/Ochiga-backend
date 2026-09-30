@@ -69,6 +69,9 @@ const fixtures = [
   ["public_oyi", "What is Oyi?", "corporate_oyi", "inspect", "corporate.oyi.read"],
   ["public_development", "Tell me about your developments", "corporate_development", "inform", "corporate.development.read"],
   ["public_partnership", "How can I partner with Ochiga?", "corporate_partnerships", "inform", "corporate.partnerships.read"],
+  ["public_development_identity", "What does Ochiga Development do?", "corporate_development", "inform", "corporate.development.identity.read"],
+  ["public_opportunity_supply", "I own land in VI.", "corporate_opportunity", "inform", "corporate.opportunity.read"],
+  ["public_opportunity_callback", "Can somebody call me?", "corporate_opportunity", "inform", "corporate.opportunity.read"],
 ];
 
 const outcomes = [];
@@ -96,11 +99,29 @@ for (const [surface, prompt, expectedKey] of [
   ["consumer", "What's happening at home?", "home.summary.read"],
   ["office_internal", "What is our development status?", "development.status.read"],
   ["public_corporate", "What does Ochiga do?", "corporate.company.read"],
+  ["public_corporate", "I own land in VI.", "corporate.opportunity.read"],
+  ["public_corporate", "Can somebody call me?", "corporate.opportunity.read"],
 ]) {
   const frame = parseSemanticFrame(prompt);
   const actor = { id: "wave11-contract-actor", role: surface === "facility" ? "facility_manager" : surface === "consumer" ? "resident" : "admin", permissions: ["maintenance.read", "security.read", "homes.read", "development.manage"], permission_scopes: ["maintenance.read", "security.read", "homes.read", "development.manage"], estate_id: "wave11-estate", home_id: surface === "consumer" ? "wave11-home" : null };
   const selection = capabilityService.resolve({ actor, oisContext: { actor_id: actor.id, role: actor.role, surface, estate_id: actor.estate_id, home_id: actor.home_id }, input: { message: prompt, surface, estate_id: actor.estate_id, home_id: actor.home_id }, resolvedTurn: { request_id: `wave11-collision-${surface}`, semantic_frame: frame, target: null } });
   assert.equal(selection.matched_capability?.key, expectedKey, `${surface}: surface/scope collision for ${prompt}`);
+}
+// Wave 11 Osa burn-down -- the same public-opportunity-shaped phrasing
+// must NEVER be AUTHORISED under a non-public surface (the ephemeral
+// objective must never become a route around any other surface's
+// capability authority). matched_capability reflects semantic matching
+// only (same as any other surface_restricted capability, e.g. crm
+// above) -- the real gate, checked here, is authority.allowed and
+// resolution_outcome. corporate.opportunity.read is
+// supportedSurfaces: ["public_corporate"] only, so this is a structural
+// guarantee, not a per-phrase guess -- this test just proves it holds.
+for (const surface of ["facility", "office_internal", "consumer"]) {
+  const frame = parseSemanticFrame("I own land in VI.");
+  const actor = { id: "wave11-contract-actor", role: surface === "facility" ? "facility_manager" : surface === "consumer" ? "resident" : "admin", permissions: [], permission_scopes: [], estate_id: "wave11-estate", home_id: surface === "consumer" ? "wave11-home" : null };
+  const selection = capabilityService.resolve({ actor, oisContext: { actor_id: actor.id, role: actor.role, surface, estate_id: actor.estate_id, home_id: actor.home_id }, input: { message: "I own land in VI.", surface, estate_id: actor.estate_id, home_id: actor.home_id }, resolvedTurn: { request_id: `wave11-opportunity-authority-${surface}`, semantic_frame: frame, target: null } });
+  assert.equal(selection.resolution_outcome, "surface_restricted", `${surface}: expected public opportunity capability to be surface-restricted, got ${selection.resolution_outcome}`);
+  assert.equal(selection.authority?.allowed, false, `${surface}: public opportunity capability must not be authorised outside public_corporate`);
 }
 if (process.argv.includes("--json")) console.log(JSON.stringify(outcomes, null, 2));
 else console.log(`PASS Wave 11 semantic-to-capability contract: ${outcomes.length} parser classes; explicit matched/declared-disabled outcomes; no DB/provider/action calls`);

@@ -611,6 +611,9 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
     pendingGoal: Object.prototype.hasOwnProperty.call(response, "pending_goal")
       ? (response as any).pending_goal
       : undefined,
+    publicOpportunityObjective: Object.prototype.hasOwnProperty.call(response, "public_opportunity_objective")
+      ? (response as any).public_opportunity_objective
+      : undefined,
   });
   response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
   response.persistence_saved = Boolean(persistedThreadId);
@@ -2823,9 +2826,11 @@ const BUSINESS_CAPABILITY_LABELS: Record<string, string> = {
   "office_content.read": "the article you have open",
   "corporate.company.read": "what Ochiga does",
   "corporate.development.read": "Ochiga's current developments",
+  "corporate.development.identity.read": "what Ochiga Development does",
   "corporate.oyi.read": "what Oyi is",
   "corporate.private.read": "Ochiga Private",
   "corporate.partnerships.read": "partnering with Ochiga",
+  "corporate.opportunity.read": "a land, development or partnership opportunity you'd like to discuss",
 };
 
 const OFFICE_OVERVIEW_CAPABILITY_KEYS = ["crm.leads.read", "crm.opportunities.read", "reports.approvals.read", "development.status.read", "financial.summary.read"];

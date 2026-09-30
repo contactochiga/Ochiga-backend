@@ -212,5 +212,12 @@ export function capabilityDomainResultToConversationResponse(input: {
     ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "pending_goal")
       ? { pending_goal: input.result.metadata!.pending_goal as Record<string, unknown> | null }
       : {}),
+    // Wave 11 Osa burn-down -- same three-state convention, for the
+    // short-lived public/Osa qualification objective (see
+    // publicOpportunityObjective.ts). Public-surface only by construction:
+    // only PublicOpportunityCapabilityModule.ts ever sets this key.
+    ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "public_opportunity_objective")
+      ? { public_opportunity_objective: input.result.metadata!.public_opportunity_objective as Record<string, unknown> | null }
+      : {}),
   };
 }

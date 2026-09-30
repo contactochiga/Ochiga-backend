@@ -48,6 +48,15 @@ export type OyiDomain =
   | "corporate_oyi"
   | "corporate_private"
   | "corporate_partnerships"
+  // Public/Osa progressive development/opportunity qualification -- a
+  // prospect supplying facts (ownership, area, structure preference,
+  // constraints), asking what's still needed, or requesting a callback,
+  // as a CONTINUATION of the same conversation. Distinct from
+  // corporate_partnerships (static "how do partnerships work" copy) and
+  // corporate_development (either the identity answer or the live
+  // project listing) -- this is the only domain that reads/writes the
+  // short-lived per-thread objective (see publicOpportunityObjective.ts).
+  | "corporate_opportunity"
   // Facility Spatial Mode Convergence, Foundation Slice 1 -- the ONE
   // canonical domain name for the digital-twin/spatial concern (matches
   // the value already used, inconsistently, in
@@ -88,6 +97,7 @@ const BUSINESS_DOMAINS = new Set<OyiDomain>([
   "corporate_oyi",
   "corporate_private",
   "corporate_partnerships",
+  "corporate_opportunity",
 ]);
 
 export function isBusinessDomain(domain: OyiDomain | null): boolean {
@@ -218,6 +228,12 @@ function classifyDomain(text: string): OyiDomain | null {
   // compound phrase "portfolio financial", not the word alone), so this
   // has no collision risk in the other direction either.
   if (/\bportfolio\b/i.test(text)) return "office_portfolio";
+  // Checked before the bare "document(s)" -> office_documents branch
+  // below: "what documents do you need for a JV" names a JV explicitly,
+  // which is a public governed-knowledge question (or, mid-qualification,
+  // a missing-information question), never an internal Office document
+  // record. Generic on the JV/structure pairing, not any one sentence.
+  if (/\b(?:documents?|structure)\b[\s\S]{0,40}\bjv\b|\bjv\b[\s\S]{0,40}\b(?:documents?|structure)\b/i.test(text)) return "corporate_opportunity";
   // No other domain in this file uses bare "document(s)" (verified: zero
   // prior occurrences), so no collision risk in either direction.
   if (/\bdocuments?\b/i.test(text)) return "office_documents";
@@ -257,9 +273,50 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\b(our\s+developments?|development\s+(?:status|update)|construction\s+(?:status|progress)|site\s+progress|units?\s+sold|happening\s+across\s+(?:our\s+)?developments?)\b/i.test(text)) return "office_development";
   if (/\b(financial\s+position|financially|recurring\s+revenue|portfolio\s+financial|financial\s+performance|financial\s+attention|cash\s+position|collections?\s+(?:this|so\s+far|for)|behind\s+on\s+collections|utility\s+(?:sales|revenue)|estate\s+(?:wallet|revenue|collections))\b/i.test(text)) return "office_financial";
   if (/\bochiga\s+private\b/i.test(text)) return "corporate_private";
-  if (/\bwhat\s+is\s+oyi\b|\btell\s+me\s+about\s+oyi\b|\babout\s+oyi\b/i.test(text)) return "corporate_oyi";
+  // Generic "Can Oyi <do anything>?" capability question -- not tied to
+  // any one verb/object (control my building, manage my energy, etc.);
+  // corporate.oyi.read already answers generally about what Oyi does.
+  if (/\bwhat\s+is\s+oyi\b|\btell\s+me\s+about\s+oyi\b|\babout\s+oyi\b|\bcan\s+oyi\b/i.test(text)) return "corporate_oyi";
+  // "Ochiga Development" named as a proper noun (the engine) routes here
+  // exactly like "your developments"/"development projects" below --
+  // corporate.development.identity.read and corporate.development.read
+  // both live on this domain and split by phrase shape (see their
+  // mutually-exclusive supports() in OfficeCorporateCapabilityModules.ts).
+  if (/\bochiga\s+development\b/i.test(text)) return "corporate_development";
   if (/\byour\s+developments?\b|\btell\s+me\s+about\s+(?:your\s+|the\s+)?developments?\b|\bdevelopment\s+projects?\b/i.test(text)) return "corporate_development";
   if (/\bwhat\s+does\s+ochiga\s+do\b|\bwhat\s+is\s+ochiga\b|\babout\s+ochiga\b|\bwho\s+is\s+ochiga\b|\bwhat\s+does\s+the\s+company\s+do\b|\btell\s+me\s+about\s+ochiga\b/i.test(text)) return "corporate_company";
+  // Public/Osa progressive opportunity qualification -- generic shapes,
+  // not any one location/area/structure-type/sentence. See
+  // publicOpportunityObjective.ts (ephemeral per-thread state) and
+  // PublicOpportunityCapabilityModule.ts (extraction + composition).
+  // Ownership/asset statement: "I own land in VI.", "I own 1,200 sqm in
+  // Abuja.", "I own a building in Lekki." -- the word after "own" plus a
+  // property/area noun within a short window, not a specific value.
+  if (/\bi\s+own\b[\s\S]{0,40}\b(?:land|plot|plots|property|building|site|facility|house|estate|sqm|square\s*meters?|hectares?|acres?|units?)\b/i.test(text)) return "corporate_opportunity";
+  // Bare area/size mention as a continuation turn: "It's about 1,200
+  // sqm.", "About 3 hectares.", "It's a 40-unit building." -- matches the
+  // unit, not the number.
+  if (/\b\d[\d,]*\s*(?:sqm|square\s*meters?|hectares?|acres?)\b|\b\d+[\s-]*units?\b/i.test(text)) return "corporate_opportunity";
+  // Structure/type preference: JV, lease, sale, or a bare partnership
+  // preference expressed as a continuation ("I am considering a JV.").
+  if (/\b(?:considering|thinking\s+about|open\s+to|prefer|interested\s+in)\s+(?:a\s+|an\s+)?(?:jv|joint\s*venture|lease|leasing|outright\s+sale|sale|partnership)\b/i.test(text)) return "corporate_opportunity";
+  // No-sale / retain-ownership constraint.
+  if (/\b(?:do\s+not|don'?t)\s+want\s+to\s+sell\b|\bnot\s+(?:for\s+sale|selling)\b|\bnot\s+interested\s+in\s+(?:a\s+)?sale\b/i.test(text)) return "corporate_opportunity";
+  // Direct partnership question phrased at Ochiga rather than as a
+  // generic "how do partnerships work" -- corporate_partnerships above
+  // already owns the latter; this is the former ("Can I partner with
+  // you?"), which corporate_partnerships's own pattern does not match.
+  if (/\bcan\s+i\s+partner\s+with\s+you\b/i.test(text)) return "corporate_opportunity";
+  // Requirements-check: "What would you need from me?" and equivalents.
+  if (/\bwhat\s+(?:would|do)\s+you\s+need\s+from\s+me\b|\bwhat\s+(?:info(?:rmation)?|details)\s+do\s+you\s+need\b|\bwhat\s+else\s+do\s+you\s+need\b/i.test(text)) return "corporate_opportunity";
+  // Non-land opportunity opener -- e.g. a technology/facility capability
+  // inquiry progressing toward staff handoff. Proves the same objective
+  // mechanism generalizes beyond development/JV (see
+  // publicOpportunityObjective.ts's "technology_inquiry" type).
+  if (/\b(?:interested\s+in|looking\s+at|considering)\s+oyi\s+for\b/i.test(text)) return "corporate_opportunity";
+  // Callback/handoff request -- generic, not JV-specific; also covers a
+  // technology/facility inquiry progressing toward staff handoff.
+  if (/\bcan\s+(?:somebody|someone|anybody|anyone)\s+call\s+me\b|\bcould\s+(?:somebody|someone)\s+(?:call|reach\s+out\s+to)\s+me\b|\brequest\s+a\s+call(?:back)?\b|\bhave\s+someone\s+(?:call|contact)\s+me\b/i.test(text)) return "corporate_opportunity";
   if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair|broken|not working)\b/i.test(text)) return "maintenance";
   if (/\b(report|analytics?|trend|comparison|compare)\b/i.test(text)) return "reports";
   if (/\bhome|house|everything|what should i check|needs attention|changed today\b/i.test(text)) return "home";

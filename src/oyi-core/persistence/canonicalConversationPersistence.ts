@@ -22,6 +22,7 @@ import { loadLastVerifiedOfficeAction } from "../context/officeAutomationSuggest
 import { loadAnyCommunicationPointer } from "../context/communicationProposal";
 import { loadPersonContext, loadPendingRecipientDisambiguation } from "../context/personContext";
 import { loadPendingGoalPointer } from "../context/goalProposal";
+import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -182,6 +183,10 @@ export async function persistCanonicalConversationTurn(input: {
   // Oyi Autonomous Work Runtime -- same undefined/null/value convention,
   // for a goal awaiting start confirmation (see goalProposal.ts).
   pendingGoal?: Record<string, unknown> | null;
+  // Wave 11 Osa burn-down -- same undefined/null/value convention, for the
+  // short-lived public/Osa qualification objective (see
+  // publicOpportunityObjective.ts).
+  publicOpportunityObjective?: Record<string, unknown> | null;
 }) {
   const { actor, contract, object, request, response, truth } = input;
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
@@ -323,6 +328,13 @@ export async function persistCanonicalConversationTurn(input: {
     const stored = await loadPendingGoalPointer(threadId, actor?.id || null).catch(() => null);
     pendingGoal = stored as unknown as Record<string, unknown> | null;
   }
+  let publicOpportunityObjective: Record<string, unknown> | null = null;
+  if (input.publicOpportunityObjective !== undefined) {
+    publicOpportunityObjective = input.publicOpportunityObjective;
+  } else {
+    const stored = await loadPublicOpportunityObjective(threadId).catch(() => null);
+    publicOpportunityObjective = stored as unknown as Record<string, unknown> | null;
+  }
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
@@ -333,6 +345,7 @@ export async function persistCanonicalConversationTurn(input: {
     last_verified_office_action: lastVerifiedOfficeAction,
     pending_communication: pendingCommunication,
     resolved_person_context: resolvedPersonContext,
+    public_opportunity_objective: publicOpportunityObjective,
     pending_recipient_disambiguation: pendingRecipientDisambiguation,
     pending_goal: pendingGoal,
     conversation_state: {

@@ -40,7 +40,8 @@ import {
 } from "../context/officeActionProposal";
 import { isAutomationScheduleOrRecurrenceMessage } from "../context/officeAutomationSuggestion";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
-import { getKnowledgeItemByCanonicalKey } from "../domains/knowledge/knowledgeRetrieval";
+import { canonicalCorporateAnswer } from "./corporateKnowledgeAnswer";
+import { publicOpportunityReadModule } from "./PublicOpportunityCapabilityModule";
 
 type OperationalSnapshot = {
   generated_at: string | null;
@@ -2751,16 +2752,6 @@ function corporateEvidenceText(evidence: OyiEvidence[], fallback: string): strin
 // static institutional fact -- converting it would violate the locked
 // semantic boundary ("institutional knowledge is NOT project-specific
 // current state").
-const CORPORATE_ANSWER_ACTOR = { agentRole: "oma" as const, audienceScope: "PUBLIC" as const };
-
-async function canonicalCorporateAnswer(canonicalKey: string, fallback: string): Promise<string> {
-  try {
-    const item = await getKnowledgeItemByCanonicalKey(canonicalKey, CORPORATE_ANSWER_ACTOR);
-    return item?.content || fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 const CORPORATE_COMPANY_FALLBACK =
   "Ochiga develops and powers intelligent places, bringing together real estate development, building technology and strategic investment partnerships. " +
@@ -2914,7 +2905,11 @@ function corporateDevelopmentReadModule(): CapabilityModule {
     supportedSurfaces: ["public_corporate"],
     permissions: [],
     evidenceRequirements: [{ domain: "corporate_development", evidence_type: "public_development_project", freshness: ["fresh", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "corporate_development",
+    // "Ochiga Development" named as a proper noun is an identity question
+    // (see corporateDevelopmentIdentityReadModule below), not a request
+    // for the current live project listing -- mutually exclusive so
+    // exactly one of the two capabilities on this domain ever matches.
+    supports: (frame: SemanticFrame) => frame.domain === "corporate_development" && !/\bochiga\s+development\b/i.test(frame.normalizedText),
     collect: async () => {
       const { projects, fetched } = await fetchLiveDevelopmentProjects();
       if (!fetched) return [];
@@ -2952,6 +2947,40 @@ function corporateDevelopmentReadModule(): CapabilityModule {
   });
 }
 
+const CORPORATE_DEVELOPMENT_IDENTITY_FALLBACK =
+  "Ochiga Development is Ochiga's real-estate development engine -- it originates, structures and delivers physical developments, from land/JV opportunities and existing-building repositioning through to completed, handed-over property. " +
+  "Oyi then continues to operate what Ochiga Development delivers. For the current live project list, ask about Ochiga's developments directly.";
+
+// Wave 11 Osa burn-down -- identity/description answer for "Ochiga
+// Development" as a named engine, distinct from corporate.development
+// .read's live Sanity project listing above (see that module's own
+// updated supports() and the comment on Deliberately NOT converged
+// further up this file). Same governed-knowledge-with-fallback pattern
+// as company/oyi/private/partnerships -- not a literal-phrase special
+// case: this answers ANY message naming "Ochiga Development", not one
+// specific sentence.
+function corporateDevelopmentIdentityReadModule(): CapabilityModule {
+  return readModule({
+    key: "corporate.development.identity.read",
+    domain: "corporate_development",
+    operations: readOperations,
+    supportedSurfaces: ["public_corporate"],
+    permissions: [],
+    evidenceRequirements: [],
+    supports: (frame: SemanticFrame) => frame.domain === "corporate_development" && /\bochiga\s+development\b/i.test(frame.normalizedText),
+    collect: async () => {
+      const answer = await canonicalCorporateAnswer("backend:corporate-development-identity", CORPORATE_DEVELOPMENT_IDENTITY_FALLBACK);
+      return [corporateEvidence("corporate_development", "corporate_development_identity", answer)];
+    },
+    answer: (context, evidence) => ({
+      status: "answered",
+      answer: corporateEvidenceText(evidence, CORPORATE_DEVELOPMENT_IDENTITY_FALLBACK),
+      presentation_policy: resultPresentation("text"),
+    }),
+    primary: "text",
+  });
+}
+
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
   return [
     crmLeadsReadModule(),
@@ -2979,5 +3008,13 @@ export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
 }
 
 export function buildPublicCorporateReadCapabilities(): CapabilityModule[] {
-  return [corporateCompanyReadModule(), corporateDevelopmentReadModule(), corporateOyiReadModule(), corporatePrivateReadModule(), corporatePartnershipsReadModule()];
+  return [
+    corporateCompanyReadModule(),
+    corporateDevelopmentReadModule(),
+    corporateDevelopmentIdentityReadModule(),
+    corporateOyiReadModule(),
+    corporatePrivateReadModule(),
+    corporatePartnershipsReadModule(),
+    publicOpportunityReadModule(),
+  ];
 }
