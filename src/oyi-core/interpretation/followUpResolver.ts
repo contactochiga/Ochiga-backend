@@ -23,6 +23,7 @@ export type FollowUpIntent =
 // resolve against next. Keyword list intentionally mirrors the domain
 // names this codebase actually uses (see ReadCapabilityModules.ts).
 const DOMAIN_KEYWORDS: Array<[string, RegExp]> = [
+  ["devices", /\bdevices?\b/i],
   ["maintenance", /\bmaintenance\b/i],
   ["visitors", /\bvisitors?\b/i],
   ["security", /\bsecurity\b|\bincidents?\b/i],
@@ -32,6 +33,19 @@ const DOMAIN_KEYWORDS: Array<[string, RegExp]> = [
   ["automations", /\bautomations?\b/i],
   ["utilities", /\butilit(?:y|ies)\b|\belectricity\b/i],
   ["wallet", /\bwallet\b|\btransactions?\b/i],
+  // Wave 11 Oma burn-down -- Office/Oma business-object domains were
+  // missing from this list entirely, so "go back to that lead" / "what
+  // about the meetings?" after switching away could never restore the
+  // CRM/task/etc. result set the same way a Consumer/Facility domain
+  // switch already could. Same domain strings the Office capability
+  // modules themselves register under (see OfficeCorporateCapability
+  // Modules.ts / OfficeActionCapabilityModules.ts).
+  ["crm", /\bleads?\b|\bopportunit(?:y|ies)\b/i],
+  ["office_tasks", /\btasks?\b/i],
+  ["office_meetings", /\bmeetings?\b/i],
+  ["office_support", /\bsupport\b/i],
+  ["office_portfolio", /\bportfolio\b/i],
+  ["corporate_partnerships", /\bpartnerships?\b/i],
 ];
 
 export type DomainSwitchIntent = { type: "switch"; domain: string } | { type: "ambiguous" } | null;
@@ -74,11 +88,26 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   // already-authorised result set, not a new broad CRM/operations query.
   // Keep this intentionally semantic and domain-neutral: ranking only uses
   // evidence attributes that the preceding capability actually supplied.
-  if ((/\bwhich ones?\b|\bwhat should i\b/.test(m) && /\b(need attention|follow up|prioriti[sz]e|handle first)\b/.test(m)) || /\bwhat should i (?:do|handle) first\b/.test(m)) {
+  if (
+    (/\bwhich ones?\b|\bwhat should i\b/.test(m) && /\b(need attention|follow up|prioriti[sz]e|handle first)\b/.test(m)) ||
+    /\bwhat should i (?:do|handle) first\b/.test(m) ||
+    // A bare "Which ones?" (no qualifier) immediately after a list is the
+    // same request without the extra words -- still a continuation over
+    // the existing result set, not a new query.
+    /^which ones?\??$/.test(m)
+  ) {
     return { type: "prioritize" };
   }
 
-  const isShortContinuation = /^(what about|and|how about|what's|whats)\b/.test(m) || m.split(/\s+/).filter(Boolean).length <= 4;
+  // A fresh imperative query ("Show meetings this week.") names its own
+  // capability and must route there, not be swallowed as a continuation
+  // over whatever result set happens to already be active -- the same
+  // "never reuse an unrelated result set" principle the ordinal resolver
+  // enforces elsewhere. Only messages that read as a genuine continuation
+  // (a continuation cue word, or short with no query verb of their own)
+  // count.
+  const looksLikeFreshQuery = /^(?:please\s+)?(show|open|list|display|give me)\b/i.test(m);
+  const isShortContinuation = !looksLikeFreshQuery && (/^(what about|and|how about|what's|whats)\b/.test(m) || m.split(/\s+/).filter(Boolean).length <= 4);
   if (isShortContinuation && (/\b(this|current)\s+week\b/.test(m) || /\b(last|previous)\s+week\b/.test(m) || /\b(this|current)\s+month\b/.test(m) || /\b(last|previous)\s+month\b/.test(m))) {
     return { type: "temporal_followup" };
   }
@@ -127,7 +156,10 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   }
   if (/\bsecond\s+one\b|\bthe second\b/.test(m)) return { type: "ordinal", ordinal: "second" };
   if (/\bthird\s+one\b|\bthe third\b/.test(m)) return { type: "ordinal", ordinal: "third" };
-  if (/\boldest\b/.test(m)) return { type: "ordinal", ordinal: "oldest" };
+  // "been X longest" is a duration superlative, not a count: the item whose
+  // status has held longest is the one with the earliest occurred_at, i.e.
+  // the same resolution as "oldest" (mirrors the newest/latest group below).
+  if (/\boldest\b|\blongest\b/.test(m)) return { type: "ordinal", ordinal: "oldest" };
   if (/\bnewest\b|\blatest\b|\bmost recent\b/.test(m)) return { type: "ordinal", ordinal: "latest" };
   if (/\blast\s+one\b|\bthe last\b/.test(m)) return { type: "ordinal", ordinal: "last" };
 
@@ -135,7 +167,14 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
 
   if (/^(is|was|did|does)\s+(it|that|this|they|he|she)\b/.test(m)) return { type: "status_check" };
 
-  if (/\bhow much\b/.test(m)) return { type: "field", field: "amount" };
+  // "How much electricity have I used?" names its own topic (a utility)
+  // and must reach that capability fresh, not be read as "how much did
+  // THAT cost" against whatever result set happens to be active -- found
+  // live: a prior wallet-history turn's transaction facts get tagged with
+  // a utility category (e.g. "electricity"), so a bare "how much" here
+  // would otherwise resolve to that unrelated transaction's amount and
+  // report it as usage data, which is a fabrication, not an answer.
+  if (/\bhow much\b/.test(m) && !/\b(electricity|water|gas|power|utility|utilities|internet)\b/i.test(m)) return { type: "field", field: "amount" };
   if (/^where\b/.test(m)) return { type: "field", field: "where" };
   if (/^when\b/.test(m)) return { type: "field", field: "when" };
   if (/^who\b/.test(m)) return { type: "field", field: "who" };

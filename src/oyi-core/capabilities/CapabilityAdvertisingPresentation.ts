@@ -15,6 +15,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   corporate_oyi: "what Oyi is",
   corporate_private: "Ochiga Private",
   corporate_partnerships: "partnering with Ochiga",
+  corporate_opportunity: "a land, development or partnership opportunity you'd like to discuss",
 };
 
 export function buildCapabilityAdvertisingResult(input: {

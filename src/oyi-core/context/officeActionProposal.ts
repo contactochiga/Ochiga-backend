@@ -516,7 +516,7 @@ export { TASK_STATUS_TRANSITIONS, MEETING_STATUS_TRANSITIONS, SUPPORT_STATUS_TRA
 // confirmations and shouldn't have their matching surface changed here.
 // ---------------------------------------------------------------------
 const OFFICE_CONFIRM_PATTERN = /^(?:yes|yeah|yep|confirm|confirmed|proceed|go ahead|do it)\b/i;
-const OFFICE_CANCEL_PATTERN = /^(?:no|nope|cancel(?: that)?|never ?mind|don'?t do (?:it|that)|stop|actually,? (?:no|don'?t))\b/i;
+const OFFICE_CANCEL_PATTERN = /^(?:no|nope|cancel(?: that)?|never ?mind|don'?t do (?:it|that)|stop|actually,? (?:no|don'?t|do not))\b/i;
 
 export function isOfficeConfirmationText(message: string): boolean {
   return OFFICE_CONFIRM_PATTERN.test(text(message));

@@ -28,6 +28,11 @@ export type CapabilitySelection = {
   matched_capability: CapabilityModule | null;
   rollout_status: CapabilityRolloutStatus | "not_registered";
   authority: CapabilityAuthorityResult | null;
+  // The semantic frame, registry key, and final routing decision are
+  // intentionally different concepts.  Keep this explicit so telemetry and
+  // callers never describe a no-match as a missing `${domain}.${operation}`
+  // capability (those strings are descriptive turn labels, not registry IDs).
+  resolution_outcome: "matched" | "declared_disabled" | "permission_restricted" | "scope_restricted" | "surface_restricted" | "no_match";
   legacy_fallback_reason: string | null;
 };
 
@@ -189,7 +194,7 @@ export class CapabilityService {
       .sort((a, b) => (Number(b.surfaceMatch) - Number(a.surfaceMatch)) || (b.score - a.score))[0]?.module || null;
     if (!candidate) {
       operationalMetrics.increment("oyi_capability_resolution_total", { outcome: "unsupported", reason: "capability_not_registered" });
-      return { capability: null, matched_capability: null, rollout_status: "not_registered", authority: null, legacy_fallback_reason: "capability_not_registered" };
+      return { capability: null, matched_capability: null, rollout_status: "not_registered", authority: null, resolution_outcome: "no_match", legacy_fallback_reason: "capability_not_registered" };
     }
     const authority = this.canUse(candidate.key, { actor: context.actor, oisContext: context.oisContext, surface, scope });
     logger.info("oyi_capability_authority_decided", {
@@ -214,14 +219,19 @@ export class CapabilityService {
     // the log line above into a queryable counter.
     if (!capabilityEnabled(candidate)) {
       operationalMetrics.increment("oyi_capability_resolution_total", { outcome: "unsupported", reason: `capability_${candidate.rolloutStatus}` });
-      return { capability: null, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: `capability_${candidate.rolloutStatus}` };
+      return { capability: null, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, resolution_outcome: "declared_disabled", legacy_fallback_reason: `capability_${candidate.rolloutStatus}` };
     }
     if (!authority.allowed) {
       operationalMetrics.increment("oyi_capability_resolution_total", { outcome: authority.reason === "missing_permission" ? "permission_restricted" : "denied", reason: authority.reason || "unknown" });
-      return { capability: candidate, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: null };
+      const resolution_outcome = authority.reason === "missing_permission"
+        ? "permission_restricted"
+        : authority.reason?.includes("scope")
+          ? "scope_restricted"
+          : "surface_restricted";
+      return { capability: candidate, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, resolution_outcome, legacy_fallback_reason: null };
     }
     operationalMetrics.increment("oyi_capability_resolution_total", { outcome: "allowed", reason: "ok" });
-    return { capability: candidate, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, legacy_fallback_reason: null };
+    return { capability: candidate, matched_capability: candidate, rollout_status: candidate.rolloutStatus, authority, resolution_outcome: "matched", legacy_fallback_reason: null };
   }
 
   assertEvidenceAllowed(module: CapabilityModule, evidence: OyiEvidence[], input: { actor: AuthUser | null; oisContext: OisContext | null | undefined; surface: OyiSurface; scope: CapabilityAuthorityResult["scope"] }) {

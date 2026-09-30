@@ -4,7 +4,7 @@ import { memoryVisibleTo, type GovernedMemory } from "../contracts/memory";
 
 export const MEMORY_RECALL_CAPABILITY = "context.memory.recall";
 export function isMemoryRecallRequest(message: string): boolean {
-  return /^(?:what do you remember about (?:me|our conversations)|what did (?:we discuss|i ask)(?: previously| recently| last time)?|show my (?:saved|conversation) context)[?.!]*$/i.test(message.trim());
+  return /^(?:what do you remember about (?:me|our conversations)|what did (?:we discuss|i ask)(?: previously| recently| last time)?|what did i just ask(?: you)?|show my (?:saved|conversation) context)[?.!]*$/i.test(message.trim());
 }
 
 /** Reflect retained context only. Never resolve a device, infer a preference,

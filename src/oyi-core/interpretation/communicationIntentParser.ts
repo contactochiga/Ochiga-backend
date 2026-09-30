@@ -11,6 +11,31 @@ export type CommunicationSendIntent = {
   body: string;
 };
 
+// "Draft a response." / "Draft a reply to that lead." / "Write a reply."
+// -- generic on the VERB+OBJECT shape only, never on a specific record
+// name or wording. Deliberately does NOT resolve a recipient or compose
+// a body itself (that needs the ACTIVE BUSINESS OBJECT, which this pure
+// parser has no access to) -- the caller (ConversationOrchestrator.ts's
+// handleCommunicationTurn) is responsible for resolving the currently
+// selected record and composing the draft.
+export function parseDraftRequestIntent(rawMessage: string): boolean {
+  const message = text(rawMessage);
+  if (!message) return false;
+  return /^(?:please\s+)?(?:draft|write|compose|prepare)\s+(?:a|an|me)?\s*(?:reply|response|email|message)\b/i.test(message);
+}
+
+// "Send it." / "Send that." / "Please send it." -- the bare promotion
+// trigger for an ALREADY-COMPOSED draft. Deliberately narrower than
+// parseCommunicationSendIntent above, which parses a full "send X to Y
+// saying Z" instruction and extracts its own recipient/body -- here the
+// draft artifact already carries the target, channel and body, so the
+// message only needs to be recognized as the trigger itself.
+export function isDraftSendTrigger(rawMessage: string): boolean {
+  const message = text(rawMessage);
+  if (!message) return false;
+  return /^(?:please\s+)?send\s+(?:it|that|this)\b\.?$/i.test(message);
+}
+
 function text(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -52,6 +77,8 @@ const CHANNEL_NOUN: Record<string, CommunicationChannelSelector> = {
 export function parseCommunicationSendIntent(rawMessage: string): CommunicationSendIntent | null {
   let message = text(rawMessage);
   if (!message || /\?\s*$/.test(message)) return null;
+  // A request for information is not an instruction to message the speaker.
+  if (/^(?:please\s+)?tell\s+me\s+(?:about|more about)\b/i.test(message)) return null;
   // "Reply and tell him I'll call later." / "Reply to her: on my way." --
   // normalize to the existing "tell X Y" shape (channel auto) rather
   // than a separate parsing path. The reply's actual channel is decided
@@ -140,21 +167,47 @@ export function parseChannelReuseIntent(rawMessage: string): ChannelReuseIntent 
   return null;
 }
 
-export type CommunicationRevisionIntent = { additionalText: string };
+export type CommunicationRevisionIntent =
+  | { mode: "append"; additionalText: string }
+  | { mode: "shorten" };
 
 // "Actually add that the meeting is Thursday." / "Also mention we
 // received the drawings." -- appends to a PENDING (unconfirmed)
 // communication's body rather than replacing it or being read as a new
-// send request. Only meaningful while a communication is pending; the
+// send request. "Make it shorter." / "Shorten that." -- condenses the
+// SAME body instead (see shortenDraftBody below), never appending.
+// Only meaningful while a draft/pending communication exists; the
 // caller is responsible for checking that.
 export function parseCommunicationRevisionIntent(rawMessage: string): CommunicationRevisionIntent | null {
   const message = text(rawMessage);
   if (!message) return null;
+  if (
+    /^(?:please\s+)?(?:can\s+you\s+)?make\s+(?:it|that|this)\s+(?:shorter|briefer|more\s+concise|more\s+brief)\b/i.test(message) ||
+    /^(?:please\s+)?(?:shorten|condense)\s+(?:it|that|this)?\b/i.test(message)
+  ) {
+    return { mode: "shorten" };
+  }
   const match = message.match(/^(?:actually\s+|also\s+)?(?:add|mention|include|say)\s+(?:that\s+)?(.+)$/i);
   if (!match) return null;
   const additionalText = text(match[1]);
   if (!additionalText) return null;
-  return { additionalText };
+  return { mode: "append", additionalText };
+}
+
+// Deterministic, non-fabricating shortening: keeps the first and last
+// sentence of a multi-sentence body (typically the greeting/opening and
+// the sign-off/call-to-action), dropping the middle filler -- never
+// invents or paraphrases content, so the shortened text is always a
+// strict subset of what was already there. A body of 2 sentences or
+// fewer is already as short as this transformation can make it and is
+// returned unchanged.
+export function shortenDraftBody(body: string): string {
+  const sentences = text(body)
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (sentences.length <= 2) return text(body);
+  return [sentences[0], sentences[sentences.length - 1]].join(" ");
 }
 
 // Resolves ONLY what's determinable from the token itself plus the

@@ -20,8 +20,10 @@ import { loadOfficeActiveContext } from "../context/officeConversationContext";
 import { loadAnyOfficeActionProposal } from "../context/officeActionProposal";
 import { loadLastVerifiedOfficeAction } from "../context/officeAutomationSuggestionStore";
 import { loadAnyCommunicationPointer } from "../context/communicationProposal";
+import { loadDraftCommunication } from "../context/communicationDraft";
 import { loadPersonContext, loadPendingRecipientDisambiguation } from "../context/personContext";
 import { loadPendingGoalPointer } from "../context/goalProposal";
+import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -176,12 +178,19 @@ export async function persistCanonicalConversationTurn(input: {
   // convention, for a communication awaiting send confirmation (see
   // communicationProposal.ts).
   pendingCommunication?: Record<string, unknown> | null;
+  // Wave 11 Oma burn-down -- the DRAFT ARTIFACT, distinct from the above
+  // (see communicationDraft.ts).
+  draftCommunication?: Record<string, unknown> | null;
   // Generic person/recipient continuity (see personContext.ts).
   resolvedPersonContext?: Record<string, unknown> | null;
   pendingRecipientDisambiguation?: Record<string, unknown> | null;
   // Oyi Autonomous Work Runtime -- same undefined/null/value convention,
   // for a goal awaiting start confirmation (see goalProposal.ts).
   pendingGoal?: Record<string, unknown> | null;
+  // Wave 11 Osa burn-down -- same undefined/null/value convention, for the
+  // short-lived public/Osa qualification objective (see
+  // publicOpportunityObjective.ts).
+  publicOpportunityObjective?: Record<string, unknown> | null;
 }) {
   const { actor, contract, object, request, response, truth } = input;
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
@@ -276,7 +285,14 @@ export async function persistCanonicalConversationTurn(input: {
   // the prior active record is deliberately cleared, not carried forward.
   let businessActiveContext: Record<string, unknown> | null = null;
   if (input.businessActiveContext !== undefined) {
-    businessActiveContext = input.businessActiveContext;
+    // threadId here is the one THIS function already resolved (request
+    // thread id, or a fresh id for a brand-new thread) -- stamped over
+    // whatever the caller had available at the time it built this object
+    // (which, for a conversation's first turn, is genuinely unknowable
+    // until this point). The field is never validated against anything
+    // on load (see usableOfficeActiveContext), so this is a correction,
+    // not a trust decision.
+    businessActiveContext = input.businessActiveContext ? { ...input.businessActiveContext, thread_id: threadId } : input.businessActiveContext;
   } else {
     businessActiveContext = await loadOfficeActiveContext(threadId, actor?.id || null).catch(() => null);
   }
@@ -302,6 +318,12 @@ export async function persistCanonicalConversationTurn(input: {
   } else {
     pendingCommunication = await loadAnyCommunicationPointer(threadId, actor?.id || null).catch(() => null);
   }
+  let draftCommunication: Record<string, unknown> | null = null;
+  if (input.draftCommunication !== undefined) {
+    draftCommunication = input.draftCommunication;
+  } else {
+    draftCommunication = await loadDraftCommunication(threadId, actor?.id || null).catch(() => null);
+  }
   let resolvedPersonContext: Record<string, unknown> | null = null;
   if (input.resolvedPersonContext !== undefined) {
     resolvedPersonContext = input.resolvedPersonContext;
@@ -323,6 +345,13 @@ export async function persistCanonicalConversationTurn(input: {
     const stored = await loadPendingGoalPointer(threadId, actor?.id || null).catch(() => null);
     pendingGoal = stored as unknown as Record<string, unknown> | null;
   }
+  let publicOpportunityObjective: Record<string, unknown> | null = null;
+  if (input.publicOpportunityObjective !== undefined) {
+    publicOpportunityObjective = input.publicOpportunityObjective;
+  } else {
+    const stored = await loadPublicOpportunityObjective(threadId).catch(() => null);
+    publicOpportunityObjective = stored as unknown as Record<string, unknown> | null;
+  }
   const threadMetadata = {
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
@@ -332,7 +361,9 @@ export async function persistCanonicalConversationTurn(input: {
     pending_action_proposal: pendingActionProposal,
     last_verified_office_action: lastVerifiedOfficeAction,
     pending_communication: pendingCommunication,
+    draft_communication: draftCommunication,
     resolved_person_context: resolvedPersonContext,
+    public_opportunity_objective: publicOpportunityObjective,
     pending_recipient_disambiguation: pendingRecipientDisambiguation,
     pending_goal: pendingGoal,
     conversation_state: {
