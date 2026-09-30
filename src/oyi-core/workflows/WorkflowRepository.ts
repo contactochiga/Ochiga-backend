@@ -15,6 +15,11 @@ export interface WorkflowRepository {
   // Count-only sibling for Overview's KPI numbers -- sinceIso optionally
   // narrows to updated_at >= sinceIso (used for "recent failures").
   countByStatuses(statuses: string[], sinceIso?: string | null): Promise<number>;
+  // Intelligence Visibility, Slice 4 -- platform-wide, status-agnostic
+  // recent listing, for Actions & Workflows' cross-source aggregate
+  // (which needs "every recent workflow regardless of status," not just
+  // the active subset listActive() above returns).
+  listRecent(limit?: number): Promise<OyiWorkflow[]>;
   save(workflow: OyiWorkflow, options?: { expectedRevision?: number | null }): Promise<OyiWorkflow>;
   saveInput?(workflowId: string, input: { input_key: string; value: unknown; source: string; validated: boolean }): Promise<void>;
 }
@@ -39,6 +44,12 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
   async listActive(limit = 50) {
     return Array.from(this.workflows.values())
       .filter((workflow) => activeWorkflowStatuses.includes(workflow.status))
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
+      .slice(0, limit);
+  }
+
+  async listRecent(limit = 50) {
+    return Array.from(this.workflows.values())
       .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
       .slice(0, limit);
   }
@@ -188,6 +199,16 @@ export class SupabaseWorkflowRepository implements WorkflowRepository {
       .from("oyi_conversation_workflows")
       .select("*")
       .in("status", activeWorkflowStatuses)
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return ((data || []) as any[]).map((row) => workflowFromRow(row));
+  }
+
+  async listRecent(limit = 50) {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_conversation_workflows")
+      .select("*")
       .order("updated_at", { ascending: false })
       .limit(limit);
     if (error) throw error;

@@ -51,8 +51,20 @@ import { checkEstateDeletionEligibility } from "../services/estateDeletionEligib
 import { loadPlatformHumanInterventionObligations, type HumanInterventionObligation, type HumanInterventionType } from "../oyi-core/presentation/humanInterventionView";
 import { healthSummary } from "../observability/http";
 import { goalRuntime } from "../services/goalRuntime/GoalRuntime";
-import { countDecisionsByStatuses, countDecisionsResolvedSince } from "../services/decisionStore/DecisionStore";
+import { countDecisionsByStatuses, countDecisionsResolvedSince, listDecisionsByStatuses, getDecision } from "../services/decisionStore/DecisionStore";
+import type { DecisionRecord, DecisionStatus } from "../contracts/decision";
+import type { GoalRecord, GoalStatus } from "../contracts/goal";
 import { SupabaseWorkflowRepository, activeWorkflowStatuses } from "../oyi-core/workflows/WorkflowRepository";
+import { normalizeLifecycleStage } from "../oyi-core/presentation/lifecycleStage";
+import {
+  loadPlatformActionAggregate,
+  deviceCommandStage,
+  communicationStage,
+  facilityAutomationStage,
+  conversationWorkflowStage,
+} from "../oyi-core/presentation/actionWorkflowView";
+import { getDeviceCommandExecution } from "../services/deviceCommandExecutionStore";
+import { communicationRuntime } from "../services/communicationRuntime/CommunicationRuntime";
 
 const router = Router();
 
@@ -3156,6 +3168,326 @@ router.get("/intelligence/workers/:worker", requireOfficeExportKey, async (req: 
     });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to load worker intelligence profile" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 4 -- Goals & Decisions and
+// Actions & Workflows.
+//
+// GOAL != DECISION != RECOMMENDATION != PLAN != WORKFLOW != ACTION
+// PROPOSAL != CONFIRMATION != EXECUTION != VERIFICATION -- every
+// projection below reads its own canonical store's own real fields;
+// nothing here re-derives one object's meaning from another's shape.
+// ---------------------------------------------------------------------
+
+const ALL_GOAL_STATUSES: GoalStatus[] = [
+  "understood", "proposed", "confirmed", "active", "observing", "action_due", "executing", "verifying",
+  "waiting", "reevaluating", "paused", "completed", "blocked", "failed", "cancelled", "expired", "needs_human",
+];
+
+// Safe step projection -- channel/action_type/status/wait_hours/skip_if/
+// executed_at only. `body` (message content) and `device_command` (raw
+// command payload) are deliberately omitted -- never safe to expose.
+function safeGoalStepProjection(step: GoalRecord["plan"][number]) {
+  return {
+    step_index: step.step_index,
+    channel: step.channel,
+    action_type: step.action_type,
+    status: step.status,
+    wait_hours: step.wait_hours,
+    skip_if: step.skip_if,
+    executed_at: step.executed_at,
+  };
+}
+
+// Safe execution-history projection -- `detail` is free text that may
+// echo reply/message content (see GoalExecutionHistoryItem's own
+// contract comment), deliberately omitted.
+function safeGoalExecutionHistoryProjection(item: GoalRecord["execution_history"][number]) {
+  return {
+    occurred_at: item.occurred_at,
+    step_index: item.step_index,
+    action: item.action,
+    outcome: item.outcome,
+  };
+}
+
+// target_entities is deliberately narrowed to opaque COMMERCIAL lineage
+// ids only (lead/contact/opportunity/organization) -- name/email/phone/
+// whatsapp_phone (real PII fields on the same object) are never
+// forwarded, and the OPERATIONAL fields (estate_id/home_id/device_id/
+// camera_id/maintenance_request_id/visitor_access_id) are excluded
+// entirely per Section 17's "home/unit identity unnecessarily" /
+// "private device identity" restrictions -- goals are overwhelmingly
+// commercial in practice (confirmed during this slice's own audit), so
+// this loses little real value.
+function safeGoalProjection(goal: GoalRecord, includeDetail: boolean) {
+  const stepStatusCounts = countIntelligenceCapabilitiesBy((goal.plan || []).map((s) => s.status));
+  const base = {
+    id: goal.id,
+    status: goal.status,
+    stage: normalizeLifecycleStage({ objectType: "goal", status: goal.status }).stage,
+    title: goal.objective,
+    surface: goal.surface,
+    created_at: goal.created_at,
+    updated_at: goal.updated_at,
+    due_at: goal.schedule?.deadline || null,
+    last_evaluated_at: goal.last_evaluated_at,
+    next_evaluation_at: goal.next_evaluation_at,
+    current_step_index: goal.current_step_index,
+    step_count: (goal.plan || []).length,
+    step_status_counts: stepStatusCounts,
+    max_attempts: goal.max_attempts,
+    attempts_completed: goal.attempts_completed,
+    needs_human: goal.status === "needs_human",
+    blocked_or_waiting: goal.status === "blocked" || goal.status === "waiting",
+    completion_reason: goal.completion_reason,
+    lineage: { canonical_signal_key: goal.canonical_signal_key },
+    reference_ids: {
+      lead_id: goal.target_entities?.lead_id || null,
+      contact_id: goal.target_entities?.contact_id || null,
+      opportunity_id: goal.target_entities?.opportunity_id || null,
+      organization_id: goal.target_entities?.organization_id || null,
+    },
+  };
+  if (!includeDetail) return base;
+  return {
+    ...base,
+    plan: (goal.plan || []).map(safeGoalStepProjection),
+    execution_history: (goal.execution_history || []).slice(-20).map(safeGoalExecutionHistoryProjection),
+  };
+}
+
+router.get("/intelligence/goals", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 200) : 100;
+    const goals = await goalRuntime.listByStatuses(ALL_GOAL_STATUSES, limit);
+    return res.json({ ok: true, generated_at: new Date().toISOString(), goals: goals.map((g) => safeGoalProjection(g, false)) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load goals" });
+  }
+});
+
+router.get("/intelligence/goals/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const goal = await goalRuntime.get(String(req.params.id || ""));
+    if (!goal) return res.status(404).json({ ok: false, error: "Goal not found" });
+    return res.json({ ok: true, generated_at: new Date().toISOString(), goal: safeGoalProjection(goal, true) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load goal" });
+  }
+});
+
+const ALL_DECISION_STATUSES: DecisionStatus[] = ["selected", "awaiting_human", "approved", "rejected", "superseded", "cancelled"];
+
+// metadata (an arbitrary Record) is deliberately never forwarded -- see
+// Section 17's "no raw evidence" instruction; every other field here is
+// a real, typed, structural DecisionRecord column.
+function safeDecisionProjection(decision: DecisionRecord) {
+  return {
+    id: decision.id,
+    decision_key: decision.decision_key,
+    entity_type: decision.entity_type,
+    entity_id: decision.entity_id,
+    action_type: decision.action_type,
+    title: decision.title,
+    reason: decision.reason,
+    status: decision.status,
+    stage: normalizeLifecycleStage({ objectType: "decision", status: decision.status }).stage,
+    requires_human: decision.requires_human,
+    selected_by: decision.selected_by,
+    authority_mode: decision.authority_mode,
+    policy_source: decision.policy_source,
+    lineage: {
+      canonical_signal_key: decision.canonical_signal_key,
+      recommendation_key: decision.recommendation_key,
+      goal_id: decision.goal_id,
+      plan_id: decision.plan_id,
+      incident_id: decision.incident_id,
+      awareness_key: decision.awareness_key,
+    },
+    superseded_by: decision.superseded_by,
+    created_at: decision.created_at,
+    updated_at: decision.updated_at,
+    decided_at: decision.decided_at,
+    closed_at: decision.closed_at,
+  };
+}
+
+router.get("/intelligence/decisions", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 200) : 100;
+    const decisions = await listDecisionsByStatuses(ALL_DECISION_STATUSES, limit);
+    return res.json({ ok: true, generated_at: new Date().toISOString(), decisions: decisions.map(safeDecisionProjection) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load decisions" });
+  }
+});
+
+router.get("/intelligence/decisions/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const decision = await getDecision(String(req.params.id || ""));
+    if (!decision) return res.status(404).json({ ok: false, error: "Decision not found" });
+    return res.json({ ok: true, generated_at: new Date().toISOString(), decision: safeDecisionProjection(decision) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load decision" });
+  }
+});
+
+router.get("/intelligence/actions", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 200) : 50;
+    const result = await loadPlatformActionAggregate(limit);
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      complete: result.complete,
+      sources: result.sources,
+      actions: result.items,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load actions and workflows" });
+  }
+});
+
+// Device command truth detail -- the full safe truth-model fields
+// Section 10 asks for (request/dispatch/provider/confirmation/
+// physical_effect/final status + truth_state), explicitly WITHOUT
+// home_id/room_id/canonical_device_id/actor_id (private device/home/
+// resident identity) or expected_state/observed_state/previous_state
+// (raw device state blobs that could carry arbitrary sensor/settings
+// data). estate_id is kept (estate-level, not home/device-level).
+function safeDeviceCommandActionDetail(record: any) {
+  const canonicalStatus = String(record.final_status || record.confirmation_status || record.provider_status || record.dispatch_status || record.request_status || "requested");
+  return {
+    source_type: "device_command" as const,
+    source_id: record.command_execution_id,
+    title: record.command_key ? `Device command: ${record.command_key}` : "A device command",
+    canonical_status: canonicalStatus,
+    presentation_stage: deviceCommandStage(canonicalStatus),
+    requested_at: record.requested_at,
+    completed_at: record.completed_at,
+    estate_id: record.estate_id || null,
+    channel_code: record.channel_code || null,
+    command_key: record.command_key || null,
+    truth: {
+      request_status: record.request_status || null,
+      dispatch_status: record.dispatch_status || null,
+      provider_status: record.provider_status || null,
+      confirmation_status: record.confirmation_status || null,
+      physical_effect_status: record.physical_effect_status || null,
+      final_status: record.final_status || null,
+      truth_state: record.truth_state || null,
+    },
+    safe_error_message: record.safe_error_message || null,
+    retryable: record.retryable ?? null,
+    timeline: (Array.isArray(record.lifecycle) ? record.lifecycle : []).map((entry: any) => ({ status: entry?.status || null, occurred_at: entry?.occurred_at || null })),
+  };
+}
+
+function safeCommunicationActionDetail(record: any) {
+  const status = String(record.status);
+  return {
+    source_type: "communication" as const,
+    source_id: record.communication_id,
+    title: record.intent ? `${record.channel}: ${record.intent}` : `A ${record.channel} message`,
+    canonical_status: status,
+    presentation_stage: communicationStage(status),
+    channel: record.channel,
+    intent: record.intent || null,
+    created_at: record.created_at,
+    sent_at: record.sent_at,
+    delivered_at: record.delivered_at,
+    completed_at: record.completed_at,
+    confirmation_required: Boolean(record.governance?.requires_confirmation),
+    outcome: record.outcome || null,
+    failure_reason: record.failure_reason || null,
+    worker: SURFACE_LABEL_FOR_ACTIONS[record.surface] || null,
+    // subject/body/plain_text/html/recipient deliberately never forwarded.
+  };
+}
+
+function safeFacilityAutomationActionDetail(row: any) {
+  const status = String(row.status);
+  return {
+    source_type: "facility_automation" as const,
+    source_id: String(row.id),
+    title: row.target_label || `${row.action_id || "automation"} on ${row.entity_type || "an entity"}`,
+    canonical_status: status,
+    presentation_stage: facilityAutomationStage(status),
+    action_id: row.action_id || null,
+    entity_type: row.entity_type || null,
+    created_at: row.created_at,
+    decided_at: row.decided_at || null,
+    executed_at: row.executed_at || null,
+    decision_note: row.decision_note || null,
+    worker: "Facility",
+    // entity_id / estate_id omitted -- facility-private operational identity.
+  };
+}
+
+function safeConversationWorkflowActionDetail(workflow: import("../oyi-core/contracts/workflow").OyiWorkflow) {
+  const status = String(workflow.status);
+  return {
+    source_type: "conversation_workflow" as const,
+    source_id: workflow.workflow_id,
+    title: workflow.operation || workflow.capability_key || "A conversation workflow",
+    canonical_status: status,
+    presentation_stage: conversationWorkflowStage(status),
+    domain: workflow.domain,
+    capability_key: workflow.capability_key,
+    operation: workflow.operation,
+    created_at: workflow.created_at,
+    updated_at: workflow.updated_at,
+    completed_at: workflow.completed_at,
+    cancelled_at: workflow.cancelled_at,
+    unresolved_inputs: workflow.unresolved_inputs || [],
+    worker: SURFACE_LABEL_FOR_ACTIONS[workflow.surface] || null,
+    target_label: workflow.target?.label || null,
+    // inputs/proposed_action/execution_record/evidence/metadata/target
+    // identity fields deliberately never forwarded -- raw workflow state.
+  };
+}
+
+const SURFACE_LABEL_FOR_ACTIONS: Record<string, string> = { office_internal: "Oma", public_corporate: "Osa", facility: "Facility", consumer: "Consumer" };
+
+router.get("/intelligence/actions/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const compoundId = String(req.params.id || "");
+    const separatorIndex = compoundId.indexOf(":");
+    if (separatorIndex < 0) return res.status(400).json({ ok: false, error: "Invalid action id" });
+    const sourceType = compoundId.slice(0, separatorIndex);
+    const sourceId = compoundId.slice(separatorIndex + 1);
+    if (!sourceId) return res.status(400).json({ ok: false, error: "Invalid action id" });
+
+    if (sourceType === "device_command") {
+      const record = await getDeviceCommandExecution(sourceId);
+      if (!record) return res.status(404).json({ ok: false, error: "Device command not found" });
+      return res.json({ ok: true, generated_at: new Date().toISOString(), action: safeDeviceCommandActionDetail(record) });
+    }
+    if (sourceType === "communication") {
+      const record = await communicationRuntime.verify(sourceId);
+      if (!record) return res.status(404).json({ ok: false, error: "Communication not found" });
+      return res.json({ ok: true, generated_at: new Date().toISOString(), action: safeCommunicationActionDetail(record) });
+    }
+    if (sourceType === "facility_automation") {
+      const { data, error } = await supabaseAdmin.from("automation_approvals").select("*").eq("id", sourceId).maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ ok: false, error: "Automation approval not found" });
+      return res.json({ ok: true, generated_at: new Date().toISOString(), action: safeFacilityAutomationActionDetail(data) });
+    }
+    if (sourceType === "conversation_workflow") {
+      const workflow = await overviewWorkflowRepository.get(sourceId);
+      if (!workflow) return res.status(404).json({ ok: false, error: "Workflow not found" });
+      return res.json({ ok: true, generated_at: new Date().toISOString(), action: safeConversationWorkflowActionDetail(workflow) });
+    }
+    return res.status(404).json({ ok: false, error: `Unknown action source type "${sourceType}"` });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load this action" });
   }
 });
 

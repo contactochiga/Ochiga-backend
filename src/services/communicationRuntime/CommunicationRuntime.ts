@@ -410,6 +410,22 @@ export class CommunicationRuntime {
     return data.map(rowToRecord);
   }
 
+  // Intelligence Visibility, Slice 4 -- multi-status sibling of
+  // listByStatus, for Actions & Workflows' cross-source aggregate (which
+  // needs "every recent communication across several statuses" in one
+  // query, not one query per status).
+  async listByStatuses(statuses: CommunicationStatus[], limit = 50): Promise<CommunicationRecord[]> {
+    if (!statuses.length) return [];
+    const { data, error } = await supabaseAdmin
+      .from("oyi_communications")
+      .select("*")
+      .in("status", statuses)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error || !data) return [];
+    return data.map(rowToRecord);
+  }
+
   // Phase K/L -- "what did you just send?" / "was that delivered?".
   // Scoped to the actor, and to the thread when given, so this never
   // surfaces another staff member's communications.
