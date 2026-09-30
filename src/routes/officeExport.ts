@@ -3,7 +3,9 @@ import nodeCrypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { projectDeviceCurrentStateRows } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
-import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
+import { conversationOrchestrator, ensureRegistered } from "../oyi-core/orchestration/ConversationOrchestrator";
+import { capabilityRegistry } from "../oyi-core/capabilities/CapabilityRegistry";
+import type { CapabilityModule } from "../oyi-core/contracts/capability";
 import { logger } from "../observability/logger";
 import { processInboundEvent } from "../services/communicationRuntime/inboundEventPipeline";
 import type { CanonicalInboundCommunicationEvent } from "../contracts/inboundCommunicationEvent";
@@ -2469,6 +2471,183 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
   } catch (err: any) {
     logger.error("communication_webhook_status_failed", { provider_message_id: providerMessageId, error: err?.message || String(err) });
     return res.status(200).json({ ok: false, error: err?.message || "webhook_event_processing_failed" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 1 -- capability introspection +
+// system summary. Office-safe projection of the LIVE capability
+// registry (capabilityRegistry.all()) -- every count and per-item field
+// below is computed fresh from the running registry on each request,
+// never hardcoded, so this contract can never silently drift from the
+// real system the way a doc or comment could.
+//
+// Two governed-action systems exist that are NOT registered capabilities
+// at all -- Communications (draft/propose/confirm/dispatch via
+// CommunicationRuntime) and Goal plan-step dispatch (GoalRuntime) -- both
+// reached directly inside ConversationOrchestrator.ts
+// (handleCommunicationTurn / handleGoalConversationTurn), both confirmed
+// office_internal-only by direct read of their own surface guard. They
+// are listed separately below and never folded into the capability
+// count, so this contract can truthfully describe the complete governed-
+// action surface without fabricating a registry entry for either.
+//
+// Exposes only structural/governance metadata: key, domain, rollout
+// status, supported surfaces, required permission/scope, risk class,
+// confirmation policy, operations, and a safe evidence-requirement
+// summary (domain + type + required/optional -- never the internal
+// evidence-loader implementation itself). No implementation file paths,
+// no provider secrets, no prompts, no private evidence content.
+// ---------------------------------------------------------------------
+const INTELLIGENCE_WORKER_BY_SURFACE: Record<string, { key: string; label: string }> = {
+  office_internal: { key: "oma", label: "Oma" },
+  public_corporate: { key: "osa", label: "Osa" },
+  facility: { key: "facility", label: "Facility" },
+  consumer: { key: "consumer", label: "Consumer" },
+};
+
+// Presentation-only, deliberately separate from ConversationOrchestrator.
+// ts's own BUSINESS_CAPABILITY_LABELS (a per-CAPABILITY conversational
+// label, not exported and not what this needs) -- this is a generic
+// per-DOMAIN humanizer for a structural inventory page.
+function humanizeIntelligenceDomain(domain: string): string {
+  return domain
+    .split("_")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(" ");
+}
+
+function classifyIntelligenceCapability(capability: CapabilityModule): "read" | "action" {
+  if (capability.risk_class && capability.risk_class !== "read") return "action";
+  if (capability.confirmation_policy && capability.confirmation_policy !== "none") return "action";
+  return "read";
+}
+
+function safeIntelligenceCapabilityProjection(capability: CapabilityModule) {
+  const surfaces = capability.supported_surfaces || [];
+  return {
+    key: capability.key,
+    domain: capability.domain,
+    domain_label: humanizeIntelligenceDomain(capability.domain),
+    rollout_status: capability.rolloutStatus,
+    supported_surfaces: surfaces,
+    supported_workers: surfaces.map((surface) => INTELLIGENCE_WORKER_BY_SURFACE[surface]?.label || surface),
+    required_permissions: capability.permission_requirements || [],
+    required_scope: capability.scope_requirements || [],
+    risk_class: capability.risk_class || "read",
+    confirmation_policy: capability.confirmation_policy || "none",
+    classification: classifyIntelligenceCapability(capability),
+    operations: capability.operations || [],
+    evidence_requirement_summary: (capability.evidence_requirements || []).map(
+      (req) => `${req.domain}:${req.evidence_type}${req.required ? " (required)" : " (optional)"}`
+    ),
+  };
+}
+
+function countIntelligenceCapabilitiesBy(values: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const value of values) out[value] = (out[value] || 0) + 1;
+  return out;
+}
+
+// Not registered capabilities (see header note above) -- surfaces
+// confirmed by direct read of handleCommunicationTurn/
+// handleGoalConversationTurn's own guard clause, not assumed.
+const INTELLIGENCE_GOVERNED_ACTION_SYSTEMS = [
+  {
+    key: "communications",
+    label: "Communications",
+    description:
+      "Email / WhatsApp / SMS / voice / internal-message sends. Governed by a draft -> propose -> confirm -> dispatch cycle (CommunicationRuntime), reached directly inside the conversation orchestrator rather than through the capability registry.",
+    worker: "oma",
+    supported_surfaces: ["office_internal"],
+  },
+  {
+    key: "goal_plan_dispatch",
+    label: "Goal Plan-Step Dispatch",
+    description:
+      "Staged, multi-step goal plans (GoalRuntime) whose individual steps dispatch through the same governed systems each step's own action already owns (e.g. a communication step through Communications above). Goal creation itself is confirmation-gated.",
+    worker: "oma",
+    supported_surfaces: ["office_internal"],
+  },
+];
+
+function buildIntelligenceCapabilityInventory() {
+  ensureRegistered();
+  const all = capabilityRegistry.all();
+  const projected = all.map(safeIntelligenceCapabilityProjection);
+  const bySurface: Record<string, number> = {};
+  for (const capability of all) {
+    for (const surface of capability.supported_surfaces || []) {
+      bySurface[surface] = (bySurface[surface] || 0) + 1;
+    }
+  }
+  const byWorker: Record<string, number> = {};
+  for (const [surface, count] of Object.entries(bySurface)) {
+    const workerKey = INTELLIGENCE_WORKER_BY_SURFACE[surface]?.key || surface;
+    byWorker[workerKey] = (byWorker[workerKey] || 0) + count;
+  }
+  return {
+    projected,
+    totalRegistered: all.length,
+    byRolloutStatus: countIntelligenceCapabilitiesBy(all.map((c) => c.rolloutStatus)),
+    readShaped: projected.filter((c) => c.classification === "read").length,
+    actionShaped: projected.filter((c) => c.classification === "action").length,
+    bySurface,
+    byWorker,
+    byRiskClass: countIntelligenceCapabilitiesBy(all.map((c) => c.risk_class || "read")),
+    byConfirmationPolicy: countIntelligenceCapabilitiesBy(all.map((c) => c.confirmation_policy || "none")),
+  };
+}
+
+router.get("/intelligence/capabilities", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const inv = buildIntelligenceCapabilityInventory();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      architecture: "one_core",
+      summary: {
+        total_registered: inv.totalRegistered,
+        by_rollout_status: inv.byRolloutStatus,
+        read_shaped: inv.readShaped,
+        action_shaped: inv.actionShaped,
+      },
+      by_surface: inv.bySurface,
+      by_worker: inv.byWorker,
+      by_risk_class: inv.byRiskClass,
+      by_confirmation_policy: inv.byConfirmationPolicy,
+      capabilities: inv.projected,
+      governed_action_systems: INTELLIGENCE_GOVERNED_ACTION_SYSTEMS,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load capability inventory" });
+  }
+});
+
+router.get("/intelligence/summary", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const inv = buildIntelligenceCapabilityInventory();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      architecture: "one_core",
+      workers: [
+        { key: "oma", label: "Oma", surface: "office_internal", capability_count: inv.bySurface.office_internal || 0 },
+        { key: "osa", label: "Osa", surface: "public_corporate", capability_count: inv.bySurface.public_corporate || 0 },
+        { key: "facility", label: "Facility", surface: "facility", capability_count: inv.bySurface.facility || 0 },
+        { key: "consumer", label: "Consumer", surface: "consumer", capability_count: inv.bySurface.consumer || 0 },
+      ],
+      capability_counts: {
+        total_registered: inv.totalRegistered,
+        by_rollout_status: inv.byRolloutStatus,
+        read_shaped: inv.readShaped,
+        action_shaped: inv.actionShaped,
+      },
+      governed_action_system_count: INTELLIGENCE_GOVERNED_ACTION_SYSTEMS.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load intelligence summary" });
   }
 });
 
