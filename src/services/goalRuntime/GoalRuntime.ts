@@ -120,6 +120,34 @@ export class GoalRuntime {
     return rowToRecord(data);
   }
 
+  // Intelligence Visibility, Slice 2 -- platform-wide (no actor filter)
+  // status listing, for a caller like Office's Intelligence Overview that
+  // needs "every goal currently needs_human", not one actor's goals. Same
+  // unscoped-status-query shape listDue() below already uses against this
+  // same table -- this is not a new query pattern, just a different status
+  // set with no next_evaluation_at gate.
+  async listByStatuses(statuses: GoalStatus[], limit = 50): Promise<GoalRecord[]> {
+    if (!statuses.length) return [];
+    const { data, error } = await supabaseAdmin
+      .from("oyi_goals")
+      .select("*")
+      .in("status", statuses)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error || !data) return [];
+    return data.map(rowToRecord);
+  }
+
+  // Intelligence Visibility, Slice 2 -- count-only sibling of
+  // listByStatuses, for Overview's KPI numbers (head:true never returns
+  // rows, so this is far cheaper than listing+counting client-side).
+  async countByStatuses(statuses: GoalStatus[]): Promise<number> {
+    if (!statuses.length) return 0;
+    const { count, error } = await supabaseAdmin.from("oyi_goals").select("id", { count: "exact", head: true }).in("status", statuses);
+    if (error) return 0;
+    return count || 0;
+  }
+
   async listDue(limit = 10): Promise<GoalRecord[]> {
     const nowIso = new Date().toISOString();
     const { data, error } = await supabaseAdmin

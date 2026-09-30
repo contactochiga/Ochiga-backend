@@ -53,6 +53,15 @@ if (!process.env.OYI_LOCAL_SUPABASE_SERVICE_ROLE_KEY) {
 process.env.SUPABASE_URL = FIXTURE_URL;
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.OYI_LOCAL_SUPABASE_SERVICE_ROLE_KEY;
 process.env.OFFICE_SYNC_API_KEY = "wave11-intelligence-smoke-test-key";
+// Intelligence Visibility, Slice 2 -- officeExport.ts now also imports
+// healthSummary() (for /intelligence/overview), which transitively
+// imports src/config/redis.ts. That module throws at import time if
+// REDIS_URL is unset, regardless of whether this test's routes (
+// /intelligence/capabilities, /intelligence/summary) ever touch it. No
+// real Redis is required to satisfy the import -- queueHealth() catches
+// a failed ping gracefully and is never exercised by this file's own
+// assertions anyway.
+process.env.REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
 
 const require = createRequire(import.meta.url);
 const queueModule = require.resolve("bullmq");

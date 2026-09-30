@@ -48,6 +48,11 @@ import {
 import { validateAutomationTrigger, nextAutomationRunAt } from "../services/automationScheduleService";
 import { rotateEstateInviteToken, revokeEstateInviteById, findPendingOwnerInvite } from "../services/estateInviteMutationService";
 import { checkEstateDeletionEligibility } from "../services/estateDeletionEligibility";
+import { loadPlatformHumanInterventionObligations, type HumanInterventionObligation, type HumanInterventionType } from "../oyi-core/presentation/humanInterventionView";
+import { healthSummary } from "../observability/http";
+import { goalRuntime } from "../services/goalRuntime/GoalRuntime";
+import { countDecisionsByStatuses, countDecisionsResolvedSince } from "../services/decisionStore/DecisionStore";
+import { SupabaseWorkflowRepository, activeWorkflowStatuses } from "../oyi-core/workflows/WorkflowRepository";
 
 const router = Router();
 
@@ -2649,6 +2654,264 @@ router.get("/intelligence/summary", requireOfficeExportKey, async (req: Request,
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to load intelligence summary" });
   }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 2 -- Overview + Attention/Human
+// Intervention. A READ MODEL over existing intelligence authority: every
+// number below is computed from a canonical store this codebase already
+// treats as authoritative (GoalRuntime/DecisionStore/WorkflowRepository/
+// CommunicationRuntime/facilityAutomationService, plus the same
+// capability registry and cross-surface observability table Slice 1
+// already exposes) -- nothing here is a new attention engine, a new
+// table, or a new intervention state.
+// ---------------------------------------------------------------------
+const overviewWorkflowRepository = new SupabaseWorkflowRepository();
+
+function requiredHumanStep(interventionType: HumanInterventionType): string {
+  switch (interventionType) {
+    case "AUTHORIZATION":
+      return "Approve or reject";
+    case "CONFIRMATION":
+      return "Confirm or cancel";
+    case "INPUT_REQUIRED":
+      return "Provide the missing information";
+    case "ESCALATION":
+      return "Review and decide the next step";
+    default:
+      return "Review";
+  }
+}
+
+// Safe projection of a HumanInterventionObligation for Office. Exposes
+// exactly what Section 2 of this slice's own brief lists (type, status,
+// priority/severity if real, created/updated time, worker/surface if
+// known, safe title/summary, why human intervention is needed, source
+// type, safe source identifier, next required human step) and nothing
+// the underlying source object itself didn't already mark safe for this
+// obligation's own title/reason fields (see humanInterventionView.ts's
+// per-source title/reason construction -- communication in particular
+// never carries subject/body/recipient here). No priority/severity field
+// exists on any of the five sources today, so none is fabricated.
+function safeInterventionProjection(obligation: HumanInterventionObligation) {
+  return {
+    id: obligation.id,
+    source_type: obligation.source_type,
+    intervention_type: obligation.intervention_type,
+    status: obligation.native_status,
+    stage: obligation.normalized_stage.stage,
+    title: obligation.title,
+    reason: obligation.reason,
+    created_at: obligation.created_at,
+    due_at: obligation.due_at,
+    worker: obligation.surface ? (INTELLIGENCE_WORKER_BY_SURFACE[obligation.surface]?.label || obligation.surface) : null,
+    source_id: obligation.source_id,
+    required_human_step: requiredHumanStep(obligation.intervention_type),
+  };
+}
+
+// GET /office/intelligence/interventions -- the canonical "what needs a
+// human right now" list, platform-wide. Reuses loadPlatformHumanInterventionObligations
+// (itself reusing the same per-source query shapes/types as the existing,
+// per-conversation humanInterventionView.ts) -- this route adds no new
+// aggregation logic of its own beyond the safe projection above.
+router.get("/intelligence/interventions", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 200) : 50;
+    const result = await loadPlatformHumanInterventionObligations(limit);
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      complete: result.complete,
+      sources: result.sources,
+      interventions: result.obligations.map(safeInterventionProjection),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load human intervention obligations" });
+  }
+});
+
+function sourceCount(sources: { source_type: string; ok: boolean; count: number }[], sourceType: string): { available: boolean; count: number } {
+  const source = sources.find((s) => s.source_type === sourceType);
+  if (!source) return { available: false, count: 0 };
+  return { available: source.ok, count: source.ok ? source.count : 0 };
+}
+
+// GET /office/intelligence/overview -- the safe summary read model
+// composing existing truth across capabilities, workers, attention
+// (human intervention), goals, decisions, workflows/actions, activity,
+// and failures. Every constituent read runs in parallel (Section 12);
+// a metric whose source failed or has no safe unscoped query today is
+// marked unavailable/omitted, never silently reported as 0 or folded
+// into "everything is fine."
+router.get("/intelligence/overview", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const overallStartedAt = Date.now();
+  const timings: Record<string, number> = {};
+
+  async function timed<T>(name: string, fn: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
+    const startedAt = Date.now();
+    try {
+      const value = await fn();
+      timings[name] = Date.now() - startedAt;
+      return { ok: true, value };
+    } catch (err: any) {
+      timings[name] = Date.now() - startedAt;
+      return { ok: false, error: err?.message || String(err) };
+    }
+  }
+
+  const sinceIso24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const [
+    capabilitiesResult,
+    interventionsResult,
+    healthResult,
+    goalsActiveResult,
+    goalsBlockedResult,
+    decisionsActiveResult,
+    decisionsResolvedResult,
+    workflowsActiveResult,
+    workflowsFailedResult,
+    activityResult,
+    activityFailedResult,
+  ] = await Promise.all([
+    timed("capabilities", async () => buildIntelligenceCapabilityInventory()),
+    timed("interventions", async () => loadPlatformHumanInterventionObligations(50)),
+    timed("health", async () => healthSummary()),
+    timed("goals_active", async () => goalRuntime.countByStatuses(["active", "observing", "action_due", "executing", "verifying", "reevaluating"])),
+    timed("goals_blocked", async () => goalRuntime.countByStatuses(["blocked", "waiting"])),
+    timed("decisions_active", async () => countDecisionsByStatuses(["selected", "awaiting_human", "approved"])),
+    timed("decisions_resolved", async () => countDecisionsResolvedSince(sinceIso24h)),
+    timed("workflows_active", async () => overviewWorkflowRepository.countByStatuses(activeWorkflowStatuses)),
+    timed("workflows_failed", async () => overviewWorkflowRepository.countByStatuses(["failed"], sinceIso24h)),
+    timed("activity", async () => {
+      const { count, error } = await supabaseAdmin
+        .from("ochiga_intelligence_events")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "oyi_observability_bridge")
+        .gte("occurred_at", sinceIso24h);
+      if (error) throw error;
+      return count || 0;
+    }),
+    timed("activity_failed", async () => {
+      const { count, error } = await supabaseAdmin
+        .from("ochiga_intelligence_events")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "oyi_observability_bridge")
+        .neq("status", "success")
+        .gte("occurred_at", sinceIso24h);
+      if (error) throw error;
+      return count || 0;
+    }),
+  ]);
+
+  const slowestSource = Object.entries(timings).sort((a, b) => b[1] - a[1])[0];
+  const totalMs = Date.now() - overallStartedAt;
+
+  const capabilities = capabilitiesResult.ok ? capabilitiesResult.value : null;
+  const interventions = interventionsResult.ok ? interventionsResult.value : null;
+  const interventionSources = interventions?.sources || [];
+
+  const automationApprovals = sourceCount(interventionSources, "automation_approval");
+  const goalEscalations = sourceCount(interventionSources, "goal_escalation");
+  const decisionAuthorizations = sourceCount(interventionSources, "decision");
+  const workflowGates = sourceCount(interventionSources, "workflow");
+  const communicationConfirmations = sourceCount(interventionSources, "communication_confirmation");
+
+  return res.json({
+    ok: true,
+    generated_at: new Date().toISOString(),
+    architecture: "one_core",
+
+    system: {
+      health: healthResult.ok
+        ? { available: true, status: healthResult.value.status, database: healthResult.value.database.status, queue: healthResult.value.queue.status }
+        : { available: false, reason: healthResult.ok === false ? healthResult.error : "unavailable" },
+    },
+
+    capabilities: capabilities
+      ? {
+          available: true,
+          total_registered: capabilities.totalRegistered,
+          by_rollout_status: capabilities.byRolloutStatus,
+          read_shaped: capabilities.readShaped,
+          action_shaped: capabilities.actionShaped,
+        }
+      : { available: false },
+
+    workers: capabilities
+      ? [
+          { key: "oma", label: "Oma", capability_count: capabilities.bySurface.office_internal || 0, pending_intervention_count: interventions ? interventions.obligations.filter((o) => o.surface === "office_internal").length : null },
+          { key: "osa", label: "Osa", capability_count: capabilities.bySurface.public_corporate || 0, pending_intervention_count: interventions ? interventions.obligations.filter((o) => o.surface === "public_corporate").length : null },
+          { key: "facility", label: "Facility", capability_count: capabilities.bySurface.facility || 0, pending_intervention_count: interventions ? interventions.obligations.filter((o) => o.surface === "facility").length : null },
+          { key: "consumer", label: "Consumer", capability_count: capabilities.bySurface.consumer || 0, pending_intervention_count: interventions ? interventions.obligations.filter((o) => o.surface === "consumer").length : null },
+        ]
+      : [],
+
+    attention: {
+      available: Boolean(interventions),
+      complete: interventions ? interventions.complete : false,
+      total: interventions ? interventions.obligations.length : 0,
+      by_source: {
+        automation_approval: automationApprovals,
+        goal_escalation: goalEscalations,
+        decision: decisionAuthorizations,
+        workflow: workflowGates,
+        communication_confirmation: communicationConfirmations,
+      },
+      oldest_outstanding: interventions && interventions.obligations.length
+        ? interventions.obligations.reduce((oldest, o) => (String(o.created_at) < String(oldest.created_at) ? o : oldest)).created_at
+        : null,
+      // conversation_proposal is a real, documented fifth source
+      // (humanInterventionView.ts) that structurally cannot be listed
+      // platform-wide -- its only storage is a JSONB sibling key on
+      // oyi_conversation_threads.metadata, with no index that would make
+      // an unscoped scan safe or fast. Reported, not silently dropped.
+      excluded_sources: [{ source_type: "conversation_proposal", reason: "no_platform_wide_listing_capability" }],
+    },
+
+    goals: {
+      active: goalsActiveResult.ok ? { available: true, count: goalsActiveResult.value } : { available: false },
+      needs_human: goalEscalations.available ? { available: true, count: goalEscalations.count } : { available: false },
+      blocked_or_waiting: goalsBlockedResult.ok ? { available: true, count: goalsBlockedResult.value } : { available: false },
+    },
+
+    decisions: {
+      active: decisionsActiveResult.ok ? { available: true, count: decisionsActiveResult.value } : { available: false },
+      awaiting_human: decisionAuthorizations.available ? { available: true, count: decisionAuthorizations.count } : { available: false },
+      recently_resolved: decisionsResolvedResult.ok ? { available: true, count: decisionsResolvedResult.value, window: "24h" } : { available: false },
+    },
+
+    workflows_actions: {
+      active_workflow: workflowsActiveResult.ok ? { available: true, count: workflowsActiveResult.value } : { available: false },
+      pending_confirmation: workflowGates.available ? { available: true, count: workflowGates.count } : { available: false },
+      automation_approvals_pending: automationApprovals.available ? { available: true, count: automationApprovals.count } : { available: false },
+      communication_awaiting_confirmation: communicationConfirmations.available ? { available: true, count: communicationConfirmations.count } : { available: false },
+      recent_failures: workflowsFailedResult.ok ? { available: true, count: workflowsFailedResult.value, window: "24h" } : { available: false },
+    },
+
+    activity: activityResult.ok
+      ? { available: true, recent_count: activityResult.value, window: "24h" }
+      : { available: false },
+
+    failures: {
+      workflow_failed: workflowsFailedResult.ok ? { available: true, count: workflowsFailedResult.value, window: "24h" } : { available: false },
+      activity_failed: activityFailedResult.ok ? { available: true, count: activityFailedResult.value, window: "24h" } : { available: false },
+      // operationalMetrics (src/observability/metrics.ts) is deliberately
+      // NOT a source here -- it is an in-memory, per-process counter
+      // registry with no persistence and no cross-instance aggregation,
+      // so it cannot honestly answer a durable "what has recently failed"
+      // question the way the two real, queryable tables above can.
+      note: "operationalMetrics (in-process counters) intentionally excluded -- not a durable/cross-instance source.",
+    },
+
+    performance: {
+      total_response_time_ms: totalMs,
+      slowest_source: slowestSource ? { name: slowestSource[0], ms: slowestSource[1] } : null,
+      source_timings_ms: timings,
+    },
+  });
 });
 
 export default router;

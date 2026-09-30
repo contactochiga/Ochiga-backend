@@ -126,6 +126,45 @@ export async function listActiveDecisionsForEntity(entityType: string, entityId:
   return listDecisionsForEntity(entityType, entityId, ACTIVE_STATUSES);
 }
 
+// Intelligence Visibility, Slice 2 -- platform-wide (no entity filter)
+// status listing, for a caller like Office's Intelligence Overview that
+// needs "every decision currently awaiting_human" across every entity,
+// not one entity's decisions. Same table, same real DecisionStatus
+// values as listDecisionsForEntity above -- just without the mandatory
+// entity_type/entity_id scope that function's own schema-driven query
+// shape requires.
+export async function listDecisionsByStatuses(statuses: DecisionStatus[], limit = 50): Promise<DecisionRecord[]> {
+  if (!statuses.length) return [];
+  const { data, error } = await supabaseAdmin
+    .from("oyi_decisions")
+    .select("*")
+    .in("status", statuses)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return data.map(rowToRecord);
+}
+
+// Intelligence Visibility, Slice 2 -- count-only siblings for Overview's
+// KPI numbers. head:true never returns rows.
+export async function countDecisionsByStatuses(statuses: DecisionStatus[]): Promise<number> {
+  if (!statuses.length) return 0;
+  const { count, error } = await supabaseAdmin.from("oyi_decisions").select("id", { count: "exact", head: true }).in("status", statuses);
+  if (error) return 0;
+  return count || 0;
+}
+
+// "Recently resolved" = has a real decided_at timestamp within the
+// window, regardless of which way it resolved (approved/rejected/
+// superseded/cancelled all set decided_at per DecisionStore's own
+// transitionDecisionStatus) -- the real field the schema already tracks,
+// not an invented simplified status.
+export async function countDecisionsResolvedSince(sinceIso: string): Promise<number> {
+  const { count, error } = await supabaseAdmin.from("oyi_decisions").select("id", { count: "exact", head: true }).not("decided_at", "is", null).gte("decided_at", sinceIso);
+  if (error) return 0;
+  return count || 0;
+}
+
 export async function listDecisionsByCanonicalSignalKey(canonicalSignalKey: string): Promise<DecisionRecord[]> {
   const { data, error } = await supabaseAdmin.from("oyi_decisions").select("*").eq("canonical_signal_key", canonicalSignalKey).order("created_at", { ascending: false }).limit(50);
   if (error || !data) return [];
