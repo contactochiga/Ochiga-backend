@@ -65,8 +65,8 @@ import {
 } from "../oyi-core/presentation/actionWorkflowView";
 import { getDeviceCommandExecution } from "../services/deviceCommandExecutionStore";
 import { communicationRuntime } from "../services/communicationRuntime/CommunicationRuntime";
-import { listKnowledgeItems, getKnowledgeItemForInspection } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
-import { KNOWLEDGE_AUTHORITY_RANK, authorityRank as knowledgeAuthorityRank, type KnowledgeItem } from "../oyi-core/domains/knowledge/knowledgeContracts";
+import { listKnowledgeItemsForActor, summarizeKnowledgeCorpusGovernance, getKnowledgeItemByCanonicalKey } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
+import { KNOWLEDGE_AUTHORITY_RANK, OFFICE_INTERNAL_KNOWLEDGE_ACTOR, authorityRank as knowledgeAuthorityRank, type KnowledgeItem } from "../oyi-core/domains/knowledge/knowledgeContracts";
 
 const router = Router();
 
@@ -927,7 +927,7 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
   // audience ceiling (may see INTERNAL_COMMERCIAL knowledge public callers
   // cannot).
   const retrievedKnowledge = await retrieveKnowledge({
-    actor: { agentRole: "office_internal", audienceScope: "INTERNAL_COMMERCIAL" },
+    actor: OFFICE_INTERNAL_KNOWLEDGE_ACTOR,
     domains: knowledgeDomainsForBusinessUnit(internalRequest.business_unit),
     query: effectiveMessage,
   }).then((result) => result.items).catch(() => []);
@@ -3502,23 +3502,26 @@ router.get("/intelligence/actions/:id", requireOfficeExportKey, async (req: Requ
 // Intelligence System Visibility, Slice 5 -- Governed Knowledge
 // Visibility.
 //
-// This is NOT a second knowledge store, a file browser, or a way to
-// widen a live caller's own retrieval authority: it reuses
-// knowledgeRetrieval.ts's own canonical index (listKnowledgeItems /
-// getKnowledgeItemForInspection, both added this slice, both reading the
-// SAME cached snapshot retrieveKnowledge() and
-// getKnowledgeItemByCanonicalKey() already use). Every item's own real
-// domain/authorityClass/audience/agentVisibility/claimBoundary is
-// returned unchanged -- Office Intelligence, an already audit.read-
-// permission-gated internal viewer, is inspecting GOVERNANCE METADATA,
-// not exercising any item's own live retrieval authority (the same
-// "metadata visibility != execution authority" principle Slice 1
-// established for the capability registry). retrieveKnowledge()'s own
-// per-actor audienceAllowed/agentAllowed gate is completely untouched
-// and still the only path a live conversational caller ever goes
-// through.
+// Exposure model (governance correction):
+//   A. Corpus-wide governance aggregates -- counts over classification
+//      labels only (authority/audience/freshness/claim boundary/source
+//      family/worker visibility), via summarizeKnowledgeCorpusGovernance.
+//      No title, key, tag, statement or subject-matter domain.
+//   B. Inspectable items -- enumeration and detail run under
+//      OFFICE_INTERNAL_KNOWLEDGE_ACTOR, the same canonical Office staff
+//      knowledge authority the Office-internal conversation route uses,
+//      through the canonical audienceAllowed/agentAllowed gate.
+//      requireOfficeExportKey authenticates the Office bridge; it grants
+//      NO additional knowledge authority. There is no admin bypass.
+//   Worker filters narrow the actor's own visible set by governed
+//   agentVisibility; they never act as that worker.
+//   Detail uses getKnowledgeItemByCanonicalKey() unchanged; a forbidden
+//   key and a nonexistent key return the identical 404.
+//   do_not_state_verbatim items expose their classification but never
+//   their statement text (see KNOWLEDGE_WITHHELD_CLAIM_BOUNDARIES).
 // ---------------------------------------------------------------------
 
+const KNOWLEDGE_VIEWER_ACTOR = OFFICE_INTERNAL_KNOWLEDGE_ACTOR;
 const KNOWLEDGE_WORKER_ROLES = ["oma", "osa", "facility", "consumer"] as const;
 const KNOWLEDGE_WORKER_LABEL: Record<string, string> = { oma: "Oma", osa: "Osa", facility: "Facility", consumer: "Consumer" };
 const KNOWLEDGE_OTHER_ROLE_LABEL: Record<string, string> = { office_internal: "Office Internal", executive: "Executive" };
@@ -3532,11 +3535,19 @@ const CLAIM_BOUNDARY_EXPLANATION: Record<string, string> = {
   do_not_state_verbatim: "Informs the agent's own reasoning only; must never be quoted or paraphrased to an external party.",
 };
 
+// Claim boundaries whose statement text Intelligence never renders.
+// do_not_state_verbatim restricts quoting/paraphrasing the statement
+// itself, so printing it on a visibility page -- even beside a warning
+// -- would be the very act the classification forbids. The other three
+// boundaries govern how an AGENT phrases the fact to a counterparty; the
+// Office viewer inspecting them is the human those boundaries route to,
+// so their text is shown.
+const KNOWLEDGE_WITHHELD_CLAIM_BOUNDARIES = new Set(["do_not_state_verbatim"]);
+
 // Section 7 -- authority-class presentation, in KNOWLEDGE_AUTHORITY_RANK's
 // own real, existing order (never re-derived). PROJECT_SOURCE currently
-// has zero real items (confirmed by direct read of officeKnowledgeManifest.ts/
-// backendInstitutionalKnowledge.ts) -- kept in the vocabulary since it is
-// a real, declared class, not removed to match today's live data.
+// has zero real items -- kept in the vocabulary since it is a real,
+// declared class, not removed to match today's live data.
 const AUTHORITY_CLASS_EXPLANATION: Record<string, string> = {
   APPROVED_INSTITUTIONAL: "Approved institutional fact -- highest trust.",
   TECHNICAL_SOURCE: "Code-grounded technical description.",
@@ -3547,23 +3558,20 @@ const AUTHORITY_CLASS_EXPLANATION: Record<string, string> = {
   UNVERIFIED_REFERENCE: "Unverified reference -- lowest trust; requires confirmation before relying on it.",
 };
 
-function knowledgeSourceFamily(item: KnowledgeItem): string {
-  return item.sourceRepo === "ochiga-office" ? "Office Knowledge Pack" : "Backend Institutional Knowledge";
+function knowledgeSourceFamilyForRepo(sourceRepo: string): string {
+  return sourceRepo === "ochiga-office" ? "Office Knowledge Pack" : "Backend Institutional Knowledge";
 }
 
 // Section 5/12 -- converts an internal repo/file path into a safe source
 // label: the bare filename only, directories stripped, never the full
-// path. Backend items sometimes carry several semicolon-separated
-// implementation paths (e.g. "src/oyi-core/orchestration/
-// ConversationOrchestrator.ts; ...") -- too implementation-specific to
-// safely reduce to one filename, so those resolve to the source family
-// name alone instead of a fabricated single file. A trailing prose
+// path. Multi-path (semicolon-separated) items resolve to the source
+// family name instead of a fabricated single file. A trailing prose
 // annotation (e.g. "x.ts (content checked against ...page.tsx)") is
 // dropped -- only the leading path is the real source file.
 function safeKnowledgeSourceIdentifier(item: KnowledgeItem): string {
-  if (item.sourceFile.includes(";")) return knowledgeSourceFamily(item);
+  if (item.sourceFile.includes(";")) return knowledgeSourceFamilyForRepo(item.sourceRepo);
   const primaryPath = item.sourceFile.split(/[\s(]/)[0] || "";
-  return primaryPath.split("/").pop() || knowledgeSourceFamily(item);
+  return primaryPath.split("/").pop() || knowledgeSourceFamilyForRepo(item.sourceRepo);
 }
 
 function safeKnowledgeListProjection(item: KnowledgeItem) {
@@ -3583,22 +3591,27 @@ function safeKnowledgeListProjection(item: KnowledgeItem) {
     freshness_class: item.freshnessClass,
     worker_visibility: workerVisibility,
     other_role_visibility: otherRoleVisibility,
-    source_family: knowledgeSourceFamily(item),
+    source_family: knowledgeSourceFamilyForRepo(item.sourceRepo),
     version_summary: item.version,
     updated_at: item.updatedAt,
   };
 }
 
 function safeKnowledgeDetailProjection(item: KnowledgeItem) {
+  const withheld = KNOWLEDGE_WITHHELD_CLAIM_BOUNDARIES.has(item.claimBoundary);
   return {
     ...safeKnowledgeListProjection(item),
-    content: item.content,
+    content: withheld ? null : item.content,
+    content_withheld: withheld,
+    content_withheld_reason: withheld ? "This item's claim boundary forbids quoting or paraphrasing its statement, so Intelligence shows its governance classification only." : null,
     tags: item.tags,
     safe_source_identifier: safeKnowledgeSourceIdentifier(item),
   };
 }
 
-function knowledgeSummaryFrom(items: KnowledgeItem[]) {
+// Section 9 KPIs over the viewer's OWN inspectable items only (domain is
+// subject matter, so it is never counted over hidden items).
+function inspectableKnowledgeSummary(items: KnowledgeItem[]) {
   const byDomain: Record<string, number> = {};
   const byAuthority: Record<string, number> = {};
   const byAudience: Record<string, number> = {};
@@ -3622,15 +3635,33 @@ function knowledgeSummaryFrom(items: KnowledgeItem[]) {
     by_audience: byAudience,
     by_freshness_class: byFreshness,
     // "Volatile" is the real, disclosed freshness class for items that
-    // "should be treated with more caution the older they get"
-    // (knowledgeContracts.ts's own comment) -- there is no separate
-    // canonical "stale"/"expired" signal to infer from created_at
-    // (Section 13's own instruction not to invent one), so this KPI uses
-    // the real freshnessClass value directly, not a date heuristic.
+    // "should be treated with more caution the older they get" -- there
+    // is no separate canonical stale/expired signal to infer from dates.
     potentially_stale: byFreshness.volatile || 0,
     high_authority: highAuthority,
     workers_covered: workerCoverage.size,
     workers_covered_list: Array.from(workerCoverage).map((r) => KNOWLEDGE_WORKER_LABEL[r]),
+  };
+}
+
+function corpusGovernanceAggregates(summary: Awaited<ReturnType<typeof summarizeKnowledgeCorpusGovernance>>) {
+  const bySourceFamily: Record<string, number> = {};
+  for (const [repo, count] of Object.entries(summary.bySourceRepo)) {
+    const family = knowledgeSourceFamilyForRepo(repo);
+    bySourceFamily[family] = (bySourceFamily[family] || 0) + count;
+  }
+  const byWorker: Record<string, number> = {};
+  for (const role of KNOWLEDGE_WORKER_ROLES) byWorker[KNOWLEDGE_WORKER_LABEL[role]] = summary.byAgentVisibility[role] || 0;
+  return {
+    total: summary.total,
+    inspectable: summary.visibleToActor,
+    not_inspectable: summary.total - summary.visibleToActor,
+    by_authority_class: summary.byAuthorityClass,
+    by_audience: summary.byAudience,
+    by_freshness_class: summary.byFreshnessClass,
+    by_claim_boundary: summary.byClaimBoundary,
+    by_source_family: bySourceFamily,
+    by_worker_visibility: byWorker,
   };
 }
 
@@ -3641,10 +3672,11 @@ router.get("/intelligence/knowledge", requireOfficeExportKey, async (req: Reques
     const toArray = (v: unknown) => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
 
     const t0 = Date.now();
-    const fullResult = await listKnowledgeItems({}); // unfiltered, actor-free -- for the summary (Section 9's "computed from real enumerable items")
+    const [corpusSummary, inspectableResult] = await Promise.all([
+      summarizeKnowledgeCorpusGovernance(KNOWLEDGE_VIEWER_ACTOR),
+      listKnowledgeItemsForActor(KNOWLEDGE_VIEWER_ACTOR, {}),
+    ]);
     const indexMs = Date.now() - t0;
-
-    const summary = knowledgeSummaryFrom(fullResult.items);
 
     const filters = {
       domains: toArray(query.domain) as any,
@@ -3656,7 +3688,7 @@ router.get("/intelligence/knowledge", requireOfficeExportKey, async (req: Reques
     };
     const hasFilters = Object.values(filters).some((v) => Array.isArray(v) && v.length);
     const t1 = Date.now();
-    const filteredResult = hasFilters ? await listKnowledgeItems(filters) : fullResult;
+    const filteredResult = hasFilters ? await listKnowledgeItemsForActor(KNOWLEDGE_VIEWER_ACTOR, filters) : inspectableResult;
     const filterMs = Date.now() - t1;
 
     const page = Math.max(1, Number(query.page) || 1);
@@ -3668,8 +3700,10 @@ router.get("/intelligence/knowledge", requireOfficeExportKey, async (req: Reques
     return res.json({
       ok: true,
       generated_at: new Date().toISOString(),
-      source: { available: fullResult.sourceOk, reason: fullResult.sourceOk ? null : fullResult.sourceReason },
-      summary,
+      source: { available: corpusSummary.sourceOk, reason: corpusSummary.sourceOk ? null : corpusSummary.sourceReason },
+      viewer_authority: { agent_role: KNOWLEDGE_VIEWER_ACTOR.agentRole, audience_ceiling: KNOWLEDGE_VIEWER_ACTOR.audienceScope },
+      corpus: corpusGovernanceAggregates(corpusSummary),
+      summary: inspectableKnowledgeSummary(inspectableResult.items),
       pagination: { page, page_size: pageSize, total: totalFiltered, total_pages: totalPages },
       items: pageItems.map(safeKnowledgeListProjection),
       authority_class_order: KNOWLEDGE_AUTHORITY_RANK,
@@ -3686,7 +3720,10 @@ router.get("/intelligence/knowledge", requireOfficeExportKey, async (req: Reques
 router.get("/intelligence/knowledge/:key", requireOfficeExportKey, async (req: Request, res: Response) => {
   try {
     const key = String(req.params.key || "");
-    const item = await getKnowledgeItemForInspection(key);
+    // Fails closed through the canonical exact-key lookup: a key outside
+    // the viewer's authority and a key that does not exist are
+    // indistinguishable (same status, same body).
+    const item = await getKnowledgeItemByCanonicalKey(key, KNOWLEDGE_VIEWER_ACTOR);
     if (!item) return res.status(404).json({ ok: false, error: "Knowledge item not found" });
     return res.json({ ok: true, generated_at: new Date().toISOString(), item: safeKnowledgeDetailProjection(item) });
   } catch (err: any) {

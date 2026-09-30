@@ -143,6 +143,17 @@ export type KnowledgeItem = {
   tags: string[];
 };
 
+// The existing Office staff knowledge authority -- the exact actor the
+// Office-internal conversation route has retrieved knowledge as since
+// Wave 9 Slice 1 (office_internal agent role, INTERNAL_COMMERCIAL
+// audience ceiling). Declared once here so every Office-internal
+// knowledge reader (that route, and Intelligence Knowledge visibility)
+// shares one authority instead of each restating it.
+export const OFFICE_INTERNAL_KNOWLEDGE_ACTOR: RetrieveKnowledgeRequest["actor"] = Object.freeze({
+  agentRole: "office_internal",
+  audienceScope: "INTERNAL_COMMERCIAL",
+});
+
 export type RetrieveKnowledgeRequest = {
   actor: {
     agentRole: KnowledgeAgentRole;
