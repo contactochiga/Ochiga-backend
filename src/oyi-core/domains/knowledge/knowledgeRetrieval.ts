@@ -4,7 +4,7 @@
 // (Section 12/43).
 import { logger } from "../../../observability/logger";
 import { operationalMetrics } from "../../../observability/metrics";
-import { authorityRank, type KnowledgeAgentRole, type KnowledgeAudience, type KnowledgeItem, type RankedKnowledgeItem, type RetrieveKnowledgeRequest, type RetrieveKnowledgeResult } from "./knowledgeContracts";
+import { authorityRank, type KnowledgeAgentRole, type KnowledgeAudience, type KnowledgeAuthorityClass, type KnowledgeItem, type RankedKnowledgeItem, type RetrieveKnowledgeRequest, type RetrieveKnowledgeResult } from "./knowledgeContracts";
 import { buildKnowledgeIndex, type KnowledgeIndexSnapshot } from "./knowledgeIndex";
 
 // Section 17 -- simplest truthful retrieval mechanism justified by the
@@ -144,6 +144,79 @@ export async function retrieveKnowledge(request: RetrieveKnowledgeRequest): Prom
 // audience/agentVisibility would otherwise exclude it.
 export function invalidateKnowledgeCache(): void {
   cached = null;
+}
+
+// Intelligence System Visibility, Slice 5 -- Governed Knowledge Visibility.
+// The browse/list contract the Phase 1 audit found missing: the live
+// retrieval paths (retrieveKnowledge above, getKnowledgeItemByCanonicalKey
+// below) answer "what
+// can THIS actor retrieve for a live conversation," gated by
+// audienceAllowed/agentAllowed against one caller's own agentRole/
+// audienceScope. This function answers a genuinely different question --
+// "what does the governed corpus contain, and what does its own
+// governance metadata say" -- for Office's Intelligence page, an
+// already-audit.read-permission-gated internal viewer inspecting
+// GOVERNANCE LABELS (domain/authorityClass/audience/agentVisibility/
+// claimBoundary), not exercising any item's own live retrieval authority.
+// Exactly the same "metadata visibility != execution authority"
+// principle Slice 1 already established for the capability registry
+// (every capability's rollout_status/worker-scoping is inspectable
+// regardless of who could actually invoke it) -- not a new bypass, the
+// same established one applied to a second governed system. Real
+// per-item audience/agentVisibility/claimBoundary/authorityClass values
+// are always returned UNCHANGED and UNFILTERED-BY-AUTHORIZATION; the
+// filters below are caller-requested narrowing, never a widening of
+// what retrieveKnowledge() itself would allow a live caller to use.
+export type ListKnowledgeFilters = {
+  domains?: KnowledgeItem["domain"][];
+  authorityClasses?: KnowledgeAuthorityClass[];
+  audiences?: KnowledgeAudience[];
+  freshnessClasses?: KnowledgeItem["freshnessClass"][];
+  claimBoundaries?: KnowledgeItem["claimBoundary"][];
+  agentRoles?: KnowledgeAgentRole[]; // "worker visibility" filter -- items visible to ANY of these roles
+};
+
+export type ListKnowledgeResult = {
+  items: KnowledgeItem[];
+  sourceOk: boolean;
+  sourceReason: string | null;
+  generatedAt: string;
+};
+
+export async function listKnowledgeItems(filters: ListKnowledgeFilters = {}): Promise<ListKnowledgeResult> {
+  const snapshot = await getIndex();
+  const domains = filters.domains?.length ? new Set(filters.domains) : null;
+  const authorityClasses = filters.authorityClasses?.length ? new Set(filters.authorityClasses) : null;
+  const audiences = filters.audiences?.length ? new Set(filters.audiences) : null;
+  const freshnessClasses = filters.freshnessClasses?.length ? new Set(filters.freshnessClasses) : null;
+  const claimBoundaries = filters.claimBoundaries?.length ? new Set(filters.claimBoundaries) : null;
+  const agentRoles = filters.agentRoles?.length ? new Set(filters.agentRoles) : null;
+
+  const items = snapshot.items.filter(
+    (item) =>
+      (!domains || domains.has(item.domain)) &&
+      (!authorityClasses || authorityClasses.has(item.authorityClass)) &&
+      (!audiences || audiences.has(item.audience)) &&
+      (!freshnessClasses || freshnessClasses.has(item.freshnessClass)) &&
+      (!claimBoundaries || claimBoundaries.has(item.claimBoundary)) &&
+      (!agentRoles || item.agentVisibility.some((role) => agentRoles.has(role)))
+  );
+
+  return {
+    items: items.slice().sort((a, b) => authorityRank(a.authorityClass) - authorityRank(b.authorityClass) || a.title.localeCompare(b.title)),
+    sourceOk: snapshot.sourceOk,
+    sourceReason: snapshot.sourceReason,
+    generatedAt: snapshot.builtAt,
+  };
+}
+
+// Same governance-inspection authority as listKnowledgeItems above --
+// exact-key lookup over the FULL corpus, no audienceAllowed/agentAllowed
+// gate. Distinct from getKnowledgeItemByCanonicalKey() below, which
+// keeps its real per-actor gate for genuine conversational retrieval.
+export async function getKnowledgeItemForInspection(canonicalKey: string): Promise<KnowledgeItem | null> {
+  const snapshot = await getIndex();
+  return snapshot.items.find((item) => item.canonicalKey === canonicalKey) || null;
 }
 
 // Wave 9 Slice 2 -- a deterministic, exact-key lookup (never ranked/fuzzy),

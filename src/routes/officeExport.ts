@@ -65,6 +65,8 @@ import {
 } from "../oyi-core/presentation/actionWorkflowView";
 import { getDeviceCommandExecution } from "../services/deviceCommandExecutionStore";
 import { communicationRuntime } from "../services/communicationRuntime/CommunicationRuntime";
+import { listKnowledgeItems, getKnowledgeItemForInspection } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
+import { KNOWLEDGE_AUTHORITY_RANK, authorityRank as knowledgeAuthorityRank, type KnowledgeItem } from "../oyi-core/domains/knowledge/knowledgeContracts";
 
 const router = Router();
 
@@ -3493,6 +3495,202 @@ router.get("/intelligence/actions/:id", requireOfficeExportKey, async (req: Requ
     return res.status(404).json({ ok: false, error: `Unknown action source type "${sourceType}"` });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to load this action" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 5 -- Governed Knowledge
+// Visibility.
+//
+// This is NOT a second knowledge store, a file browser, or a way to
+// widen a live caller's own retrieval authority: it reuses
+// knowledgeRetrieval.ts's own canonical index (listKnowledgeItems /
+// getKnowledgeItemForInspection, both added this slice, both reading the
+// SAME cached snapshot retrieveKnowledge() and
+// getKnowledgeItemByCanonicalKey() already use). Every item's own real
+// domain/authorityClass/audience/agentVisibility/claimBoundary is
+// returned unchanged -- Office Intelligence, an already audit.read-
+// permission-gated internal viewer, is inspecting GOVERNANCE METADATA,
+// not exercising any item's own live retrieval authority (the same
+// "metadata visibility != execution authority" principle Slice 1
+// established for the capability registry). retrieveKnowledge()'s own
+// per-actor audienceAllowed/agentAllowed gate is completely untouched
+// and still the only path a live conversational caller ever goes
+// through.
+// ---------------------------------------------------------------------
+
+const KNOWLEDGE_WORKER_ROLES = ["oma", "osa", "facility", "consumer"] as const;
+const KNOWLEDGE_WORKER_LABEL: Record<string, string> = { oma: "Oma", osa: "Osa", facility: "Facility", consumer: "Consumer" };
+const KNOWLEDGE_OTHER_ROLE_LABEL: Record<string, string> = { office_internal: "Office Internal", executive: "Executive" };
+
+// Section 6 -- claim-boundary presentation, transcribed directly from
+// knowledgeContracts.ts's own inline comments (not a new policy).
+const CLAIM_BOUNDARY_EXPLANATION: Record<string, string> = {
+  safe_to_state: "May be stated directly, in the agent's own words.",
+  requires_qualification: "May be stated but must be hedged/qualified (e.g. \"positioned as\", \"proposed\").",
+  requires_human_confirmation: "May only be referenced as existing; exact figures/scope must route to a human.",
+  do_not_state_verbatim: "Informs the agent's own reasoning only; must never be quoted or paraphrased to an external party.",
+};
+
+// Section 7 -- authority-class presentation, in KNOWLEDGE_AUTHORITY_RANK's
+// own real, existing order (never re-derived). PROJECT_SOURCE currently
+// has zero real items (confirmed by direct read of officeKnowledgeManifest.ts/
+// backendInstitutionalKnowledge.ts) -- kept in the vocabulary since it is
+// a real, declared class, not removed to match today's live data.
+const AUTHORITY_CLASS_EXPLANATION: Record<string, string> = {
+  APPROVED_INSTITUTIONAL: "Approved institutional fact -- highest trust.",
+  TECHNICAL_SOURCE: "Code-grounded technical description.",
+  APPROVED_COMMERCIAL: "Approved commercial doctrine.",
+  PRODUCT_SOURCE: "Product-team sourced description.",
+  PROJECT_SOURCE: "Project-specific sourced description.",
+  MARKETING_REFERENCE: "Marketing/positioning reference -- lower trust.",
+  UNVERIFIED_REFERENCE: "Unverified reference -- lowest trust; requires confirmation before relying on it.",
+};
+
+function knowledgeSourceFamily(item: KnowledgeItem): string {
+  return item.sourceRepo === "ochiga-office" ? "Office Knowledge Pack" : "Backend Institutional Knowledge";
+}
+
+// Section 5/12 -- converts an internal repo/file path into a safe source
+// label: the bare filename only, directories stripped, never the full
+// path. Backend items sometimes carry several semicolon-separated
+// implementation paths (e.g. "src/oyi-core/orchestration/
+// ConversationOrchestrator.ts; ...") -- too implementation-specific to
+// safely reduce to one filename, so those resolve to the source family
+// name alone instead of a fabricated single file. A trailing prose
+// annotation (e.g. "x.ts (content checked against ...page.tsx)") is
+// dropped -- only the leading path is the real source file.
+function safeKnowledgeSourceIdentifier(item: KnowledgeItem): string {
+  if (item.sourceFile.includes(";")) return knowledgeSourceFamily(item);
+  const primaryPath = item.sourceFile.split(/[\s(]/)[0] || "";
+  return primaryPath.split("/").pop() || knowledgeSourceFamily(item);
+}
+
+function safeKnowledgeListProjection(item: KnowledgeItem) {
+  const workerVisibility = item.agentVisibility.filter((r) => (KNOWLEDGE_WORKER_ROLES as readonly string[]).includes(r)).map((r) => KNOWLEDGE_WORKER_LABEL[r]);
+  const otherRoleVisibility = item.agentVisibility.filter((r) => r in KNOWLEDGE_OTHER_ROLE_LABEL).map((r) => KNOWLEDGE_OTHER_ROLE_LABEL[r]);
+  return {
+    canonical_key: item.canonicalKey,
+    title: item.title,
+    domain: item.domain,
+    domain_label: humanizeIntelligenceDomain(item.domain),
+    authority_class: item.authorityClass,
+    authority_rank: knowledgeAuthorityRank(item.authorityClass),
+    authority_explanation: AUTHORITY_CLASS_EXPLANATION[item.authorityClass] || null,
+    audience: item.audience,
+    claim_boundary: item.claimBoundary,
+    claim_boundary_explanation: CLAIM_BOUNDARY_EXPLANATION[item.claimBoundary] || null,
+    freshness_class: item.freshnessClass,
+    worker_visibility: workerVisibility,
+    other_role_visibility: otherRoleVisibility,
+    source_family: knowledgeSourceFamily(item),
+    version_summary: item.version,
+    updated_at: item.updatedAt,
+  };
+}
+
+function safeKnowledgeDetailProjection(item: KnowledgeItem) {
+  return {
+    ...safeKnowledgeListProjection(item),
+    content: item.content,
+    tags: item.tags,
+    safe_source_identifier: safeKnowledgeSourceIdentifier(item),
+  };
+}
+
+function knowledgeSummaryFrom(items: KnowledgeItem[]) {
+  const byDomain: Record<string, number> = {};
+  const byAuthority: Record<string, number> = {};
+  const byAudience: Record<string, number> = {};
+  const byFreshness: Record<string, number> = {};
+  const workerCoverage = new Set<string>();
+  let highAuthority = 0; // APPROVED_INSTITUTIONAL or TECHNICAL_SOURCE -- the two highest real ranks
+  for (const item of items) {
+    byDomain[item.domain] = (byDomain[item.domain] || 0) + 1;
+    byAuthority[item.authorityClass] = (byAuthority[item.authorityClass] || 0) + 1;
+    byAudience[item.audience] = (byAudience[item.audience] || 0) + 1;
+    byFreshness[item.freshnessClass] = (byFreshness[item.freshnessClass] || 0) + 1;
+    if (item.authorityClass === "APPROVED_INSTITUTIONAL" || item.authorityClass === "TECHNICAL_SOURCE") highAuthority += 1;
+    for (const role of item.agentVisibility) {
+      if ((KNOWLEDGE_WORKER_ROLES as readonly string[]).includes(role)) workerCoverage.add(role);
+    }
+  }
+  return {
+    total: items.length,
+    by_domain: byDomain,
+    by_authority_class: byAuthority,
+    by_audience: byAudience,
+    by_freshness_class: byFreshness,
+    // "Volatile" is the real, disclosed freshness class for items that
+    // "should be treated with more caution the older they get"
+    // (knowledgeContracts.ts's own comment) -- there is no separate
+    // canonical "stale"/"expired" signal to infer from created_at
+    // (Section 13's own instruction not to invent one), so this KPI uses
+    // the real freshnessClass value directly, not a date heuristic.
+    potentially_stale: byFreshness.volatile || 0,
+    high_authority: highAuthority,
+    workers_covered: workerCoverage.size,
+    workers_covered_list: Array.from(workerCoverage).map((r) => KNOWLEDGE_WORKER_LABEL[r]),
+  };
+}
+
+router.get("/intelligence/knowledge", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const query = req.query;
+    const toArray = (v: unknown) => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
+
+    const t0 = Date.now();
+    const fullResult = await listKnowledgeItems({}); // unfiltered, actor-free -- for the summary (Section 9's "computed from real enumerable items")
+    const indexMs = Date.now() - t0;
+
+    const summary = knowledgeSummaryFrom(fullResult.items);
+
+    const filters = {
+      domains: toArray(query.domain) as any,
+      authorityClasses: toArray(query.authority_class) as any,
+      audiences: toArray(query.audience) as any,
+      freshnessClasses: toArray(query.freshness) as any,
+      claimBoundaries: toArray(query.claim_boundary) as any,
+      agentRoles: toArray(query.worker) as any,
+    };
+    const hasFilters = Object.values(filters).some((v) => Array.isArray(v) && v.length);
+    const t1 = Date.now();
+    const filteredResult = hasFilters ? await listKnowledgeItems(filters) : fullResult;
+    const filterMs = Date.now() - t1;
+
+    const page = Math.max(1, Number(query.page) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(query.page_size) || 20));
+    const totalFiltered = filteredResult.items.length;
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+    const pageItems = filteredResult.items.slice((page - 1) * pageSize, page * pageSize);
+
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      source: { available: fullResult.sourceOk, reason: fullResult.sourceOk ? null : fullResult.sourceReason },
+      summary,
+      pagination: { page, page_size: pageSize, total: totalFiltered, total_pages: totalPages },
+      items: pageItems.map(safeKnowledgeListProjection),
+      authority_class_order: KNOWLEDGE_AUTHORITY_RANK,
+      performance: {
+        total_response_time_ms: Date.now() - startedAt,
+        slowest_source: indexMs >= filterMs ? { name: "index_build_or_cache", ms: indexMs } : { name: "filter", ms: filterMs },
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load knowledge" });
+  }
+});
+
+router.get("/intelligence/knowledge/:key", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const key = String(req.params.key || "");
+    const item = await getKnowledgeItemForInspection(key);
+    if (!item) return res.status(404).json({ ok: false, error: "Knowledge item not found" });
+    return res.json({ ok: true, generated_at: new Date().toISOString(), item: safeKnowledgeDetailProjection(item) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load this knowledge item" });
   }
 });
 
