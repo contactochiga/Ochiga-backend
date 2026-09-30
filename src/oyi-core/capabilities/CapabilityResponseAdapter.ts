@@ -201,6 +201,11 @@ export function capabilityDomainResultToConversationResponse(input: {
     ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "pending_communication")
       ? { pending_communication: input.result.metadata!.pending_communication as Record<string, unknown> | null }
       : {}),
+    // Wave 11 Oma burn-down -- the DRAFT ARTIFACT, distinct from the
+    // pending SEND confirmation above (see communicationDraft.ts).
+    ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "draft_communication")
+      ? { draft_communication: input.result.metadata!.draft_communication as Record<string, unknown> | null }
+      : {}),
     ...(Object.prototype.hasOwnProperty.call(input.result.metadata || {}, "resolved_person_context")
       ? { resolved_person_context: input.result.metadata!.resolved_person_context as Record<string, unknown> | null }
       : {}),

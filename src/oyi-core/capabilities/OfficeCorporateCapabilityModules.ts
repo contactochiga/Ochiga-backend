@@ -43,10 +43,15 @@ import type { IntelligenceFact } from "../contracts/canonicalConversation";
 import { canonicalCorporateAnswer } from "./corporateKnowledgeAnswer";
 import { publicOpportunityReadModule } from "./PublicOpportunityCapabilityModule";
 
-type OperationalSnapshot = {
+export type OperationalSnapshot = {
   generated_at: string | null;
   leads: {
-    needing_attention: Array<{ id: string; name: string; status: string; reason: string; last_activity_at: string | null }>;
+    // email is optional -- Office may not always supply it (not every
+    // lead has a verified address on file), and drafting a response
+    // must degrade honestly (ask for a contact method) rather than
+    // invent one when it's absent, exactly like every other evidence
+    // field in this contract.
+    needing_attention: Array<{ id: string; name: string; status: string; reason: string; last_activity_at: string | null; email?: string | null }>;
     total_open: number;
   } | null;
   opportunities: {
@@ -129,7 +134,7 @@ type OperationalSnapshot = {
   } | null;
 };
 
-function officeSnapshot(context: CapabilityContext): OperationalSnapshot | null {
+export function officeSnapshot(context: CapabilityContext): OperationalSnapshot | null {
   const requestContext = context.input.context;
   if (!requestContext || typeof requestContext !== "object" || Array.isArray(requestContext)) return null;
   const snapshot = (requestContext as Record<string, unknown>).operational_snapshot;

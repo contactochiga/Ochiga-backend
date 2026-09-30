@@ -94,7 +94,7 @@ function oisContext(actor, surface) {
 function officeSnapshot() {
   const now = new Date().toISOString();
   return { generated_at: now,
-    leads: { total_open: 2, needing_attention: [{ id: "wave11-lead-alpha", name: "Wave11 Lead Alpha", status: "new", reason: "Next action overdue", last_activity_at: now }, { id: "wave11-lead-beta", name: "Wave11 Lead Beta", status: "qualified", reason: "No recent communication", last_activity_at: now }] },
+    leads: { total_open: 2, needing_attention: [{ id: "wave11-lead-alpha", name: "Wave11 Lead Alpha", status: "new", reason: "Next action overdue", last_activity_at: now, email: "lead-alpha@wave11-fixture.test" }, { id: "wave11-lead-beta", name: "Wave11 Lead Beta", status: "qualified", reason: "No recent communication", last_activity_at: now, email: "lead-beta@wave11-fixture.test" }] },
     opportunities: { total_open: 2, stale: [{ id: "wave11-vi-development", name: "Wave11 VI Development", stage: "review", days_since_activity: 21, owner: "Wave11 Office Admin" }, { id: "wave11-abuja-jv", name: "Wave11 Abuja JV", stage: "qualification", days_since_activity: 8, owner: "Wave11 Office Admin" }] },
     tasks: { total_open: 1, open: [{ id: "wave11-task", title: "Wave11 overdue follow-up", status: "open", priority: "high", owner: "Wave11 Office Admin", due_at: now, overdue: true }] },
     reports: { pending_approval: [{ id: "wave11-report", title: "Wave11 Portfolio Report", submitted_by: "Wave11 Office Admin", submitted_at: now }] },

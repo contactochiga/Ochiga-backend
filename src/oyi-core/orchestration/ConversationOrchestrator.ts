@@ -12,7 +12,7 @@ import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdve
 import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
 import { buildDeviceActionCapabilities, continueDeviceActionWorkflow } from "../capabilities/DeviceActionCapabilityModules";
 import { buildPhaseBReadCapabilities, resultPresentation } from "../capabilities/ReadCapabilityModules";
-import { buildOfficeInternalReadCapabilities, buildPublicCorporateReadCapabilities, taskBatchContextSlot } from "../capabilities/OfficeCorporateCapabilityModules";
+import { buildOfficeInternalReadCapabilities, buildPublicCorporateReadCapabilities, taskBatchContextSlot, officeSnapshot } from "../capabilities/OfficeCorporateCapabilityModules";
 import { buildOfficeActionCapabilities } from "../capabilities/OfficeActionCapabilityModules";
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import { persistCanonicalConversationTurn } from "../persistence/canonicalConversationPersistence";
@@ -62,6 +62,7 @@ import {
   loadPendingCommunicationPointer,
   buildPendingCommunicationPointer,
 } from "../context/communicationProposal";
+import { loadDraftCommunication, buildDraftCommunicationPointer } from "../context/communicationDraft";
 import { communicationRuntime } from "../../services/communicationRuntime/CommunicationRuntime";
 import { listApprovedWhatsAppTemplates } from "../../services/communicationRuntime/adapters/WhatsAppAdapter";
 import type { CommunicationRequest, CommunicationRecord, CommunicationRecipient } from "../../contracts/communication";
@@ -74,6 +75,9 @@ import {
   isCallsTodayQuery,
   parseChannelReuseIntent,
   parseCommunicationRevisionIntent,
+  parseDraftRequestIntent,
+  isDraftSendTrigger,
+  shortenDraftBody,
   parsePersonLookupIntent,
   isPersonLookupToken,
   isPronounToken,
@@ -527,8 +531,25 @@ function requestContractForTerminalTurn(context: CanonicalConversationRequestCon
 //     ConversationTurn's own undefined-vs-null handling).
 function businessActiveContextForTurn(context: CanonicalConversationRequestContext, response: ConversationRunResult, capability: CapabilityModule): Record<string, unknown> | null | undefined {
   if (context.input.surface !== "office_internal") return undefined;
-  const threadId = text(context.input.thread_id);
-  if (!threadId) return undefined;
+  // context.input.thread_id is the INCOMING request's thread id, which is
+  // empty for the very first turn of a brand-new conversation -- the real
+  // thread id only exists once persistCanonicalConversationTurn resolves
+  // it (request thread id, or a fresh randomUUID()), a few lines below
+  // this function's caller. Bailing out on that emptiness meant domain-
+  // only continuity (buildOfficeDomainOnlyActiveContext) could never be
+  // planted on a conversation's first office-record-domain answer -- e.g.
+  // "Show overdue tasks." establishing office_tasks so "Move the first
+  // two to Monday." can resolve on the very next turn -- found live via
+  // direct reproduction, not assumed. response.thread_id is checked as a
+  // fallback (some composers set it before persistence runs); the final,
+  // authoritative id is stamped over whatever is returned here by
+  // canonicalConversationPersistence.ts itself, which already knows the
+  // truly-resolved thread id -- this function's own threadId is only used
+  // for the object's own thread_id FIELD, never as a query key, and that
+  // field is not validated against anything on load (see
+  // usableOfficeActiveContext, which checks actor_id/surface/expiry/
+  // active_domain only), so a placeholder here is corrected, not trusted.
+  const threadId = text(context.input.thread_id) || text(response.thread_id);
   const populated = populatedOfficeContextSlot(context as CapabilityContext);
   if (populated && populated.domain === capability.domain) {
     return buildOfficeActiveContext({
@@ -601,6 +622,9 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
       : undefined,
     pendingCommunication: Object.prototype.hasOwnProperty.call(response, "pending_communication")
       ? (response as any).pending_communication
+      : undefined,
+    draftCommunication: Object.prototype.hasOwnProperty.call(response, "draft_communication")
+      ? (response as any).draft_communication
       : undefined,
     resolvedPersonContext: Object.prototype.hasOwnProperty.call(response, "resolved_person_context")
       ? (response as any).resolved_person_context
@@ -1488,6 +1512,7 @@ async function handleCommunicationTurn(
       const draft = await communicationRuntime.loadDraft(pending.communication_id);
       if (draft) {
         await communicationRuntime.cancel(pending.communication_id).catch(() => null);
+        const revisedBody = revision.mode === "shorten" ? shortenDraftBody(text(draft.body)) : `${text(draft.body)} ${revision.additionalText}`.trim();
         const request: CommunicationRequest = {
           conversation_thread_id: threadId,
           actor_id: actorId,
@@ -1497,7 +1522,7 @@ async function handleCommunicationTurn(
           channel: draft.channel,
           recipient_hint: { email: draft.recipient.email, phone: draft.recipient.phone, whatsapp_phone: draft.recipient.whatsapp_phone, contact_id: draft.recipient.contact_id, lead_id: draft.recipient.lead_id, user_id: draft.recipient.user_id, organization_id: draft.recipient.organization_id, name: draft.recipient.name },
           subject: draft.subject,
-          body: `${draft.body} ${revision.additionalText}`.trim(),
+          body: revisedBody,
         };
         const result = await planAndProposeCommunication(threadId, actorId, request);
         const capability = syntheticOfficeActionCapability("communication.revised", "communications");
@@ -1513,6 +1538,161 @@ async function handleCommunicationTurn(
     // to normal routing, leaving the pending draft intact.
     if (!parseCommunicationSendIntent(message)) return null;
     await communicationRuntime.cancel(pending.communication_id).catch(() => null);
+  }
+
+  // Wave 11 Oma burn-down -- the DRAFT ARTIFACT. Kept distinct from the
+  // pending SEND confirmation handled above: "Draft a response." creates
+  // this WITHOUT requiring confirmation; "Make it shorter." revises it in
+  // place (no pending action exists yet at that point in the required
+  // journey); "Send it." is what FIRST promotes it into a governed
+  // pending send via planAndProposeCommunication, matching "Send it." ->
+  // "Actually don't." -> "Send it." -> "Yes." exactly (cancelling the
+  // pending send never touches the draft, so the second "Send it." can
+  // recreate the proposal from the same draft content and target).
+  const existingDraft = await loadDraftCommunication(threadId, actorId);
+  if (existingDraft) {
+    const draftRevision = parseCommunicationRevisionIntent(message);
+    if (draftRevision) {
+      const revisedBody =
+        draftRevision.mode === "shorten" ? shortenDraftBody(existingDraft.body) : `${existingDraft.body} ${draftRevision.additionalText}`.trim();
+      const updatedDraft = buildDraftCommunicationPointer({
+        targetDomain: existingDraft.target_domain,
+        targetRef: existingDraft.target_ref,
+        targetLabel: existingDraft.target_label,
+        channel: existingDraft.channel,
+        recipientHint: existingDraft.recipient_hint,
+        subject: existingDraft.subject,
+        body: revisedBody,
+        threadId,
+        actorId: actorId || "",
+      });
+      const capability = syntheticOfficeActionCapability("communication.draft_revised", "communications");
+      const result: DomainResult = {
+        status: "answered",
+        answer: `Updated the draft to ${existingDraft.target_label}: "${revisedBody}"`,
+        presentation_policy: resultPresentation("text"),
+        metadata: { draft_communication: updatedDraft },
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    if (isDraftSendTrigger(message) || parseCommunicationSendIntent(message)) {
+      const request: CommunicationRequest = {
+        conversation_thread_id: threadId,
+        actor_id: actorId,
+        surface: "office_internal",
+        source: "conversation",
+        intent: "office_conversation_message",
+        channel: existingDraft.channel,
+        recipient_hint: existingDraft.recipient_hint,
+        subject: existingDraft.subject,
+        body: existingDraft.body,
+      };
+      // draft_communication is passed through unchanged (not cleared) so
+      // a later cancel-then-resend still has the same draft to promote.
+      const result = await planAndProposeCommunication(threadId, actorId, request, { draft_communication: existingDraft });
+      const capability = syntheticOfficeActionCapability("communication.draft_send_proposed", "communications");
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    // Anything else with a live draft falls through to normal routing,
+    // leaving the draft untouched -- e.g. an unrelated question shouldn't
+    // silently discard work in progress.
+  }
+
+  if (!existingDraft) {
+    // No pending communication (handled above) and no draft artifact --
+    // a bare "make it shorter"/"add that..." revision has nothing to act
+    // on. Evidence truth (Step 6): say so honestly instead of falling to
+    // the generic multi-capability list, which would misrepresent an
+    // absent draft as an unrecognised request.
+    if (parseCommunicationRevisionIntent(message)) {
+      const capability = syntheticOfficeActionCapability("communication.nothing_to_revise", "communications");
+      const result: DomainResult = {
+        status: "answered",
+        answer: "There's nothing currently drafted to revise.",
+        presentation_policy: resultPresentation("text"),
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    // A cancellation-shaped message that explicitly names sending
+    // ("Actually do not send it.") with nothing pending anywhere --
+    // mirrors "a bare yes without a pending action must do nothing":
+    // the symmetric bare cancellation also does nothing, honestly.
+    // Scoped to messages that mention sending (not the bare
+    // isOfficeCancellationText pattern, which also matches plain
+    // domain-redirect phrases like "No, I meant visitor requests." --
+    // those must fall through to normal routing, not be swallowed here).
+    if (isOfficeCancellationText(message) && /\bsend\b/i.test(message)) {
+      const capability = syntheticOfficeActionCapability("communication.nothing_pending_to_cancel", "communications");
+      const result: DomainResult = {
+        status: "answered",
+        answer: "There's nothing pending to cancel.",
+        presentation_policy: resultPresentation("text"),
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+  }
+
+  if (!existingDraft && parseDraftRequestIntent(message)) {
+    // "Tell me about the second one." -> "Draft a response." must resolve
+    // against the SAME authorised lead, never an unrelated result set --
+    // resultSetContext.ts's own selected_object_ref for the crm domain is
+    // the existing, generic "which single record is active" signal
+    // (shared with Consumer/Facility) and already covers this; CRM is
+    // deliberately excluded from officeConversationContext.ts's slot
+    // system (its comment: crm_context "reads operational_snapshot, not a
+    // single selected record"), so no new slot-based active-context
+    // mechanism is introduced here -- this proves the existing contract
+    // is sufficient rather than mechanically copying Osa's
+    // public_opportunity_objective pattern into Office.
+    const { resultSets } = await loadThreadResultSetsContext(threadId);
+    const selected = resultSets.crm?.selected_object_ref || null;
+    if (!selected || selected.object_type !== "lead") {
+      const capability = syntheticOfficeActionCapability("communication.draft_no_target", "communications");
+      const result: DomainResult = {
+        status: "answered",
+        answer: "I don't have a specific lead selected to draft a response for — tell me which lead first.",
+        presentation_policy: resultPresentation("text"),
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    // Contact info can't flow through ResultSetObjectRef.attributes (its
+    // ATTRIBUTE_KEYS whitelist deliberately has no email/phone -- a
+    // shared cross-domain constant, not touched here) -- re-fetch the
+    // full lead record from the same operational_snapshot evidence the
+    // list read itself used, keyed by the selected ref's canonical_id.
+    const snapshot = officeSnapshot(context as CapabilityContext);
+    const leadRecord = snapshot?.leads?.needing_attention.find((lead) => lead.id === selected.canonical_id) || null;
+    const email = leadRecord?.email || null;
+    if (!email) {
+      const capability = syntheticOfficeActionCapability("communication.draft_missing_contact", "communications");
+      const result: DomainResult = {
+        status: "answered",
+        answer: `I don't have a verified email on file for ${selected.label} — I can't draft a response without a contact method.`,
+        presentation_policy: resultPresentation("text"),
+      };
+      return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+    }
+    const reasonClause = leadRecord?.reason ? ` I understand ${leadRecord.reason.toLowerCase()}.` : "";
+    const body = `Hi ${selected.label},\n\nFollowing up on your enquiry.${reasonClause} Let me know if you have any questions or would like to schedule a call.\n\nBest regards.`;
+    const draft = buildDraftCommunicationPointer({
+      targetDomain: "crm",
+      targetRef: selected.canonical_id,
+      targetLabel: selected.label,
+      channel: "email",
+      recipientHint: { email, lead_id: selected.canonical_id, name: selected.label },
+      subject: "Following up",
+      body,
+      threadId,
+      actorId: actorId || "",
+    });
+    const capability = syntheticOfficeActionCapability("communication.draft_created", "communications");
+    const result: DomainResult = {
+      status: "answered",
+      answer: `Here's a draft to ${selected.label}: "${body}"`,
+      presentation_policy: resultPresentation("text"),
+      metadata: { draft_communication: draft },
+    };
+    return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
   }
 
   // Programme B -- "Show me everyone who replied today." An aggregate
@@ -2023,6 +2203,67 @@ async function findGoalForControlOrQuery(
         (hint.phone && g.target_entities.phone === hint.phone)
     ) || null
   );
+}
+
+// Wave 11 Oma burn-down -- "Create a follow-up for Friday." officeAction
+// Proposal.ts's governed-mutation system (status_transition/reassign_
+// owner/change_due_date) only ever operates on EXISTING records; there is
+// no "create" operation anywhere in it, and Backend has no direct write
+// path into Office's CRM/task store to originate a brand-new record (see
+// officeSnapshot()'s header notes -- Office snapshots are read-only
+// evidence). Building a genuine create-capable governed action would mean
+// inventing a new execution path with no real adapter behind it, which is
+// exactly the kind of half-finished capability and One-Core redesign this
+// burn-down must not do. The honest answer: say plainly that creation
+// isn't supported yet and name the real path (Office directly), the same
+// pattern already used for unsupported reads (e.g. reports.period_
+// summary.read's "I can't confirm it from an enabled capability yet").
+const TASK_CREATE_REQUEST_PATTERN = /^(?:please\s+)?create\s+(?:a|an)?\s*(?:follow-?up|task|reminder)\b/i;
+
+async function handleTaskCreationRequestTurn(
+  context: CanonicalConversationRequestContext,
+  resolvedTurn: ResolvedTurn,
+  tracer: ConversationTracer
+): Promise<ConversationRunResult | null> {
+  if (context.input.surface !== "office_internal") return null;
+  if (!TASK_CREATE_REQUEST_PATTERN.test(text(context.input.message))) return null;
+  const capability = syntheticOfficeActionCapability("office_tasks.create_unsupported", "office_tasks");
+  const result: DomainResult = {
+    status: "answered",
+    answer: "I can't create new tasks or follow-ups yet — I can only update existing ones (status, owner, or due date). Please create this follow-up directly in Office.",
+    presentation_policy: resultPresentation("text"),
+  };
+  return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
+}
+
+// Wave 11 Oma burn-down -- "A bare yes without a pending action must do
+// nothing." handleOfficeActionProposalTurn, handleCommunicationTurn and
+// handleGoalConversationTurn each already return null the moment nothing
+// of theirs is pending, so reaching this point means there is genuinely
+// no pending action anywhere. A bare "Yes."/"Confirm." already does
+// nothing (no mutation executes either way) -- this only replaces the
+// generic multi-capability dump with an honest, specific statement that
+// there's nothing to confirm, the same evidence-truth treatment already
+// given to a bare cancellation in handleCommunicationTurn.
+async function handleBareConfirmationNothingPendingTurn(
+  context: CanonicalConversationRequestContext,
+  resolvedTurn: ResolvedTurn
+): Promise<ConversationRunResult | null> {
+  if (context.input.surface !== "office_internal" || !context.input.thread_id) return null;
+  if (!isOfficeConfirmationText(context.input.message)) return null;
+  // Plan review / automation suggestion confirmations are single-shot --
+  // the client resends the full context each time rather than the server
+  // remembering a pending pointer -- so they don't show up in any of the
+  // pending-action checks above and must not be preempted here.
+  const requestContext = context.input.context as Record<string, unknown> | null;
+  if (requestContext && (requestContext.plan_review_context || requestContext.automation_suggestion_context)) return null;
+  const capability = syntheticOfficeActionCapability("office.nothing_pending_to_confirm", "office_tasks");
+  const result: DomainResult = {
+    status: "answered",
+    answer: "There's nothing pending to confirm.",
+    presentation_policy: resultPresentation("text"),
+  };
+  return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
 }
 
 async function handleGoalConversationTurn(
@@ -2912,11 +3153,50 @@ async function collectBusinessOverviewSections(
   return sections;
 }
 
+// Wave 11 Oma burn-down -- "No, I meant visitor requests." parses to a
+// real, recognised domain (visitors) that simply belongs to Facility/
+// Consumer, not Office. capabilityService.resolve() already tells us this
+// precisely (authority.reason === "surface_not_supported", the
+// architecturalMismatch case below) rather than leaving it
+// indistinguishable from a genuinely unrecognised request -- name the
+// domain honestly instead of dumping the full Office capability list,
+// which would misrepresent "I know what this is, it's just not mine" as
+// "I don't understand you."
+const OUT_OF_SCOPE_DOMAIN_LABELS: Record<string, string> = {
+  visitors: "visitor requests",
+  access: "access/visitor records",
+  devices: "device control",
+  wallet: "wallet transactions",
+  utilities: "utility usage",
+  maintenance: "maintenance requests",
+  security: "security/camera records",
+};
+
 async function buildBusinessSurfaceFallbackResponse(
-  baseContext: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn }
+  baseContext: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn },
+  mismatchedDomain: string | null = null
 ): Promise<ConversationRunResult> {
   const surface = baseContext.input.surface;
   const frame = baseContext.resolvedTurn.semantic_frame;
+  if (mismatchedDomain) {
+    const label = OUT_OF_SCOPE_DOMAIN_LABELS[mismatchedDomain] || mismatchedDomain.replace(/_/g, " ");
+    const capability: CapabilityModule = {
+      key: "business_surface.out_of_scope",
+      domain: "global",
+      rolloutStatus: "enabled",
+      supported_surfaces: [surface],
+      supports: () => true,
+      resolve: async () => ({ supported: true, reason: null }),
+      collectEvidence: async () => [],
+    };
+    const result: DomainResult = {
+      status: "unsupported",
+      answer: `${surface === "office_internal" ? "Office" : "This surface"} doesn't manage ${label} — that's tracked under Facility/Consumer, not here.`,
+      presentation_policy: resultPresentation("text"),
+    };
+    const capabilityContext: CapabilityContext = { ...baseContext, legacyFallback: unavailableInsideFallback };
+    return capabilityDomainResultToConversationResponse({ context: capabilityContext, capability, result, evidence: [] });
+  }
   const listing = capabilityService
     .listForActor({ actor: baseContext.actor, oisContext: baseContext.oisContext, surface })
     .filter((item) => item.key !== "global.capabilities.read");
@@ -3161,6 +3441,23 @@ export class ConversationOrchestrator {
       tracer.finish({ thread_id: communicationResponse.thread_id || null, response_state: communicationResponse.persistence_saved === false ? "unsaved" : "returned" });
       return communicationResponse;
     }
+    // Wave 11 Oma burn-down -- same precedence tier; an honest "not
+    // supported yet" for record-creation requests, which have no
+    // governed-mutation path (see handleTaskCreationRequestTurn's header
+    // note). Returns null when the message isn't shaped like one.
+    const taskCreationResponse = await handleTaskCreationRequestTurn(context, resolvedTurn, tracer).catch((error) => {
+      logger.warn("oyi_task_creation_request_turn_failed", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
+    if (taskCreationResponse) {
+      tracer.finish({ thread_id: taskCreationResponse.thread_id || null, response_state: taskCreationResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return taskCreationResponse;
+    }
     // Oyi Autonomous Work Runtime -- same precedence tier as the
     // communication-turn check above (a separate mechanism; a pending
     // goal proposal and a pending communication/Task mutation can
@@ -3178,6 +3475,21 @@ export class ConversationOrchestrator {
     if (goalResponse) {
       tracer.finish({ thread_id: goalResponse.thread_id || null, response_state: goalResponse.persistence_saved === false ? "unsaved" : "returned" });
       return goalResponse;
+    }
+    // Wave 11 Oma burn-down -- same precedence tier; nothing above had a
+    // pending action, so a bare confirmation has nothing to act on.
+    const bareConfirmResponse = await handleBareConfirmationNothingPendingTurn(context, resolvedTurn).catch((error) => {
+      logger.warn("oyi_bare_confirmation_turn_failed", {
+        request_id: tracer.requestId,
+        correlation_id: tracer.correlationId,
+        thread_id: context.input.thread_id || null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
+    if (bareConfirmResponse) {
+      tracer.finish({ thread_id: bareConfirmResponse.thread_id || null, response_state: bareConfirmResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return bareConfirmResponse;
     }
     // Generic follow-up resolution runs before normal capability routing —
     // a pending device-action confirmation (handled above) always wins, but
@@ -3251,7 +3563,7 @@ export class ConversationOrchestrator {
           legacy_fallback_reason: reason,
           fallback_owner: "business_surface_fallback",
         });
-        return buildBusinessSurfaceFallbackResponse({ ...context, resolvedTurn });
+        return buildBusinessSurfaceFallbackResponse({ ...context, resolvedTurn }, architecturalMismatch ? selection.matched_capability?.domain || null : null);
       }
       const outcome = selection.resolution_outcome === "no_match" ? "capability_no_match" : "canonical_unsupported";
       tracer.stage("canonical_terminal_response", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason, outcome, fallback_owner: "canonical_conversation" });
