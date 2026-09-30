@@ -2914,4 +2914,249 @@ router.get("/intelligence/overview", requireOfficeExportKey, async (req: Request
   });
 });
 
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 3 -- Worker Visibility.
+//
+// THEY ARE NOT FOUR BRAINS: every field below is either (a) a live
+// filter of the SAME capability registry scan Slice 1's /intelligence/
+// capabilities already performs, (b) a live filter of the SAME platform
+// intervention aggregation Slice 2's /intelligence/interventions already
+// performs, or (c) a small, explicitly-labeled presentation mapping for
+// facts that have no live registry today (scope/permission model,
+// negative restrictions) -- never a fabricated per-worker "process
+// health". No new registry scan, no new intervention aggregation, no new
+// table.
+// ---------------------------------------------------------------------
+
+// Section 10 -- locked presentation terminology. Machine identifiers
+// (oma/osa/facility/consumer, and the OyiSurface values they map to)
+// remain the only authority identifiers anywhere in this file; these
+// labels are display-only.
+const WORKER_DEFINITIONS: Array<{
+  identity: string;
+  display_name: string;
+  surface: string;
+  purpose: string;
+  // "Can do" is always derived live from the capability registry (see
+  // buildWorkerIntelligenceProfiles). scope_model/permission_model/
+  // known_restrictions are real architectural facts this codebase's own
+  // authority boundaries already enforce (estate_id/home_id scoping,
+  // getIntelligencePermissionPolicy's policyScope, the public-corporate
+  // policy's own denial list) but have no single live registry endpoint
+  // to read from today -- presented here as an explicit, stable mapping
+  // per this slice's own instruction, not inferred from absence.
+  scope_model: string;
+  permission_model: string;
+  known_restrictions: string[];
+}> = [
+  {
+    identity: "oma",
+    display_name: "Office Intelligence",
+    surface: "office_internal",
+    purpose: "Staff-facing intelligence for Office CRM, tasks, meetings, development, partnerships, reports, and internal operations.",
+    scope_model: "Office/staff-scoped -- no estate or home boundary; governed by the signed-in staff member's Office role.",
+    permission_model: "Office permission scopes (e.g. crm.read, tasks.manage, planstudio.read).",
+    known_restrictions: [
+      "Cannot automatically access resident-private home or device truth.",
+      "Cannot execute Consumer-only device/wallet authority.",
+    ],
+  },
+  {
+    identity: "osa",
+    display_name: "Public / Ochiga Website",
+    surface: "public_corporate",
+    purpose: "Public-facing corporate intelligence for the Ochiga website -- anonymous visitors and JV/partnership inquiries.",
+    scope_model: "Public/anonymous -- no authenticated actor, no estate or home binding.",
+    permission_model: "Public corporate policy allow-list (no user permission scopes; see corporatePublicConversationPolicy).",
+    known_restrictions: [
+      "Cannot access private CRM records.",
+      "Cannot access internal finance.",
+      "Cannot access resident data.",
+      "Cannot access Facility-sensitive operational truth.",
+    ],
+  },
+  {
+    identity: "facility",
+    display_name: "Operational Intelligence",
+    surface: "facility",
+    purpose: "Estate operational intelligence -- maintenance, security, cameras, and facility-scoped devices.",
+    scope_model: "Estate-scoped -- bound to a verified estate_id.",
+    permission_model: "Facility/estate operator permission scopes.",
+    known_restrictions: [
+      "Cannot access resident wallet or private-home information without proper authority.",
+    ],
+  },
+  {
+    identity: "consumer",
+    display_name: "Home Intelligence",
+    surface: "consumer",
+    purpose: "Resident home intelligence -- authorised home, device, wallet, visitor, and service context.",
+    scope_model: "Home-scoped -- bound to a verified home_id within an estate.",
+    permission_model: "Resident permission scopes, home-boundary enforced.",
+    known_restrictions: [
+      "Cannot access estate-wide private security information.",
+      "Cannot access other residents' homes.",
+      "Cannot access Office-private corporate data.",
+    ],
+  },
+];
+
+const INTERVENTION_TYPES_ALL = ["AUTHORIZATION", "CONFIRMATION", "INPUT_REQUIRED", "ESCALATION"];
+
+// One combined computation for both /intelligence/workers and
+// /intelligence/workers/:worker -- the registry scan, the intervention
+// aggregation, and the observability-events aggregate each run exactly
+// once regardless of which route (or how many workers) is being served,
+// per this slice's own "avoid repeated registry scans" instruction.
+async function buildWorkerIntelligenceProfiles() {
+  const timings: Record<string, number> = {};
+  async function timed<T>(name: string, fn: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
+    const startedAt = Date.now();
+    try {
+      const value = await fn();
+      timings[name] = Date.now() - startedAt;
+      return { ok: true, value };
+    } catch (err: any) {
+      timings[name] = Date.now() - startedAt;
+      return { ok: false, error: err?.message || String(err) };
+    }
+  }
+
+  const sinceIso24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const [capabilitiesResult, interventionsResult, eventsResult] = await Promise.all([
+    timed("capabilities", async () => buildIntelligenceCapabilityInventory()),
+    timed("interventions", async () => loadPlatformHumanInterventionObligations(200)),
+    timed("observability_events", async () => {
+      const { data, error } = await supabaseAdmin
+        .from("ochiga_intelligence_events")
+        .select("surface,status")
+        .eq("source", "oyi_observability_bridge")
+        .gte("occurred_at", sinceIso24h)
+        .limit(2000);
+      if (error) throw error;
+      return (data || []) as Array<{ surface: string | null; status: string | null }>;
+    }),
+  ]);
+
+  const inv = capabilitiesResult.ok ? capabilitiesResult.value : null;
+  const interventions = interventionsResult.ok ? interventionsResult.value : null;
+  const events = eventsResult.ok ? eventsResult.value : null;
+
+  const workers = WORKER_DEFINITIONS.map((def) => {
+    const capsForWorker = inv ? inv.projected.filter((c) => c.supported_surfaces.includes(def.surface as any)) : [];
+    const domainCounts = new Map<string, { domain: string; domain_label: string; count: number }>();
+    for (const cap of capsForWorker) {
+      const existing = domainCounts.get(cap.domain);
+      if (existing) existing.count += 1;
+      else domainCounts.set(cap.domain, { domain: cap.domain, domain_label: cap.domain_label, count: 1 });
+    }
+    const domains = Array.from(domainCounts.values()).sort((a, b) => b.count - a.count);
+    const byRiskClass = countIntelligenceCapabilitiesBy(capsForWorker.map((c) => c.risk_class));
+    const byConfirmationPolicy = countIntelligenceCapabilitiesBy(capsForWorker.map((c) => c.confirmation_policy));
+    const byRolloutStatus = countIntelligenceCapabilitiesBy(capsForWorker.map((c) => c.rollout_status));
+    const governedActionSystems = INTELLIGENCE_GOVERNED_ACTION_SYSTEMS.filter((s) => s.supported_surfaces.includes(def.surface)).map((s) => ({ key: s.key, label: s.label }));
+
+    const workerObligations = interventions ? interventions.obligations.filter((o) => o.surface === def.surface) : [];
+    const byInterventionType: Record<string, number> = {};
+    for (const type of INTERVENTION_TYPES_ALL) byInterventionType[type] = 0;
+    for (const o of workerObligations) byInterventionType[o.intervention_type] = (byInterventionType[o.intervention_type] || 0) + 1;
+
+    const workerEvents = events ? events.filter((e) => e.surface === def.surface) : [];
+    const workerFailedEvents = workerEvents.filter((e) => e.status && e.status !== "success");
+
+    return {
+      identity: def.identity,
+      display_name: def.display_name,
+      surface: def.surface,
+      purpose: def.purpose,
+      architecture: "one_core_worker",
+      capabilities: inv
+        ? {
+            available: true,
+            total: capsForWorker.length,
+            enabled: byRolloutStatus.enabled || 0,
+            read: capsForWorker.filter((c) => c.classification === "read").length,
+            action: capsForWorker.filter((c) => c.classification === "action").length,
+            domains,
+            by_risk_class: byRiskClass,
+            by_confirmation_policy: byConfirmationPolicy,
+          }
+        : { available: false },
+      authority: {
+        scope_model: def.scope_model,
+        permission_model: def.permission_model,
+        governed_action_systems: governedActionSystems,
+        known_restrictions: def.known_restrictions,
+      },
+      attention: interventions
+        ? { available: true, pending_intervention_count: workerObligations.length, by_intervention_type: byInterventionType }
+        : { available: false, pending_intervention_count: null, by_intervention_type: null },
+      activity: events
+        ? { available: true, recent_count: workerEvents.length, window: "24h" }
+        : { available: false, recent_count: null, note: "Detailed worker activity becomes available with durable Intelligence Trace." },
+      failures: events
+        ? { available: true, recent_count: workerFailedEvents.length, window: "24h" }
+        : { available: false, recent_count: null },
+    };
+  });
+
+  const slowestSource = Object.entries(timings).sort((a, b) => b[1] - a[1])[0];
+  return {
+    workers,
+    capabilitiesAvailable: Boolean(inv),
+    capabilitiesTotal: inv ? inv.totalRegistered : null,
+    interventionsComplete: interventions ? interventions.complete : null,
+    timings,
+    slowestSource,
+  };
+}
+
+router.get("/intelligence/workers", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const result = await buildWorkerIntelligenceProfiles();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      architecture: "one_core",
+      workers: result.workers,
+      capabilities_summary: { available: result.capabilitiesAvailable, total_registered: result.capabilitiesTotal },
+      attention_complete: result.interventionsComplete,
+      performance: {
+        total_response_time_ms: Date.now() - startedAt,
+        slowest_source: result.slowestSource ? { name: result.slowestSource[0], ms: result.slowestSource[1] } : null,
+        source_timings_ms: result.timings,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load worker intelligence profiles" });
+  }
+});
+
+router.get("/intelligence/workers/:worker", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  const workerKey = String(req.params.worker || "").toLowerCase();
+  if (!WORKER_DEFINITIONS.some((d) => d.identity === workerKey)) {
+    return res.status(404).json({ ok: false, error: `Unknown worker "${workerKey}". Valid workers: oma, osa, facility, consumer.` });
+  }
+  try {
+    const result = await buildWorkerIntelligenceProfiles();
+    const worker = result.workers.find((w) => w.identity === workerKey);
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      architecture: "one_core",
+      worker,
+      performance: {
+        total_response_time_ms: Date.now() - startedAt,
+        slowest_source: result.slowestSource ? { name: result.slowestSource[0], ms: result.slowestSource[1] } : null,
+        source_timings_ms: result.timings,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load worker intelligence profile" });
+  }
+});
+
 export default router;
