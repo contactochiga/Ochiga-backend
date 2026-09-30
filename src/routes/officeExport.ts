@@ -3256,6 +3256,11 @@ function safeGoalProjection(goal: GoalRecord, includeDetail: boolean) {
     ...base,
     plan: (goal.plan || []).map(safeGoalStepProjection),
     execution_history: (goal.execution_history || []).slice(-20).map(safeGoalExecutionHistoryProjection),
+    // Structural condition literals only (e.g. {type:"reply_received"},
+    // {type:"max_attempts_reached"}) -- no message content, safe as-is.
+    success_condition: goal.success_condition,
+    stop_condition: goal.stop_condition,
+    reply_branches: (goal.reply_branches || []).map((b) => ({ on_outcomes: b.on_outcomes, action: b.action, task_title: b.task_title })),
   };
 }
 
