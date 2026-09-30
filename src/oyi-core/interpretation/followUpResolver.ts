@@ -167,7 +167,14 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
 
   if (/^(is|was|did|does)\s+(it|that|this|they|he|she)\b/.test(m)) return { type: "status_check" };
 
-  if (/\bhow much\b/.test(m)) return { type: "field", field: "amount" };
+  // "How much electricity have I used?" names its own topic (a utility)
+  // and must reach that capability fresh, not be read as "how much did
+  // THAT cost" against whatever result set happens to be active -- found
+  // live: a prior wallet-history turn's transaction facts get tagged with
+  // a utility category (e.g. "electricity"), so a bare "how much" here
+  // would otherwise resolve to that unrelated transaction's amount and
+  // report it as usage data, which is a fabrication, not an answer.
+  if (/\bhow much\b/.test(m) && !/\b(electricity|water|gas|power|utility|utilities|internet)\b/i.test(m)) return { type: "field", field: "amount" };
   if (/^where\b/.test(m)) return { type: "field", field: "where" };
   if (/^when\b/.test(m)) return { type: "field", field: "when" };
   if (/^who\b/.test(m)) return { type: "field", field: "who" };
