@@ -2,6 +2,7 @@ import { classifyProviderError } from "../device/runtime/providerErrors";
 import { logger } from "../observability/logger";
 import { getIO } from "../realtime/io";
 import { supabaseAdmin } from "../supabase/supabaseClient";
+import { isGenuineDeviceCommand } from "../oyi-core/runtime/executionLedger";
 
 export type CommandLifecycleStatus =
   | "requested"
@@ -319,4 +320,27 @@ export async function getDeviceCommandExecution(commandExecutionId: string) {
     .maybeSingle();
   if (error) throw error;
   return data ? publicRecord(data) : null;
+}
+
+// Intelligence Visibility, Slice 4 -- platform-wide recent listing for
+// Actions & Workflows' device-command source. ai_execution_ledger also
+// carries non-device-command rows (executionLedger.ts's own signal-
+// processing ledger writes to the same table -- see its
+// isGenuineDeviceCommand header note: "audit.recorded" and other signal
+// types previously showed up here as fabricated-looking device actions).
+// Over-fetches before filtering, the same discipline
+// canonicalAwarenessReadService.ts already uses for its own scope-
+// filtered reads, since this table has no action-type column indexed
+// for a precise DB-side filter.
+export async function listGenuineDeviceCommandExecutions(limit = 50) {
+  const { data, error } = await supabaseAdmin
+    .from("ai_execution_ledger")
+    .select("*")
+    .order("requested_at", { ascending: false })
+    .limit(Math.max(limit * 4, 200));
+  if (error) throw error;
+  return (data || [])
+    .filter((row: any) => isGenuineDeviceCommand(String(row?.action || row?.tool_id || "")))
+    .slice(0, limit)
+    .map(publicRecord);
 }

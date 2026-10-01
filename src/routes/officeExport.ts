@@ -3,7 +3,9 @@ import nodeCrypto from "crypto";
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { projectDeviceCurrentStateRows } from "../oyi-core/domains/devices/deviceCurrentStatePresentation";
 import { CONTRACT_VERSION, emitAuditEvent } from "../core/foundation";
-import { conversationOrchestrator } from "../oyi-core/orchestration/ConversationOrchestrator";
+import { conversationOrchestrator, ensureRegistered } from "../oyi-core/orchestration/ConversationOrchestrator";
+import { capabilityRegistry } from "../oyi-core/capabilities/CapabilityRegistry";
+import type { CapabilityModule } from "../oyi-core/contracts/capability";
 import { logger } from "../observability/logger";
 import { processInboundEvent } from "../services/communicationRuntime/inboundEventPipeline";
 import type { CanonicalInboundCommunicationEvent } from "../contracts/inboundCommunicationEvent";
@@ -46,6 +48,28 @@ import {
 import { validateAutomationTrigger, nextAutomationRunAt } from "../services/automationScheduleService";
 import { rotateEstateInviteToken, revokeEstateInviteById, findPendingOwnerInvite } from "../services/estateInviteMutationService";
 import { checkEstateDeletionEligibility } from "../services/estateDeletionEligibility";
+import { loadPlatformHumanInterventionObligations, type HumanInterventionObligation, type HumanInterventionType } from "../oyi-core/presentation/humanInterventionView";
+import { healthSummary } from "../observability/http";
+import { goalRuntime } from "../services/goalRuntime/GoalRuntime";
+import { countDecisionsByStatuses, countDecisionsResolvedSince, listDecisionsByStatuses, getDecision } from "../services/decisionStore/DecisionStore";
+import type { DecisionRecord, DecisionStatus } from "../contracts/decision";
+import type { GoalRecord, GoalStatus } from "../contracts/goal";
+import { SupabaseWorkflowRepository, activeWorkflowStatuses } from "../oyi-core/workflows/WorkflowRepository";
+import { normalizeLifecycleStage } from "../oyi-core/presentation/lifecycleStage";
+import {
+  loadPlatformActionAggregate,
+  deviceCommandStage,
+  communicationStage,
+  facilityAutomationStage,
+  conversationWorkflowStage,
+} from "../oyi-core/presentation/actionWorkflowView";
+import { getDeviceCommandExecution } from "../services/deviceCommandExecutionStore";
+import { communicationRuntime } from "../services/communicationRuntime/CommunicationRuntime";
+import { listKnowledgeItemsForActor, summarizeKnowledgeCorpusGovernance, getKnowledgeItemByCanonicalKey } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
+import { buildMemoryContextView } from "../oyi-core/presentation/memoryContextView";
+import { buildLearningView } from "../oyi-core/presentation/learningView";
+import { listConversationTraces, normalizeTraceFilters, summarizeConversationTraces, getConversationTrace, conversationTraceStoreConfig } from "../oyi-core/presentation/conversationTraceView";
+import { KNOWLEDGE_AUTHORITY_RANK, OFFICE_INTERNAL_KNOWLEDGE_ACTOR, authorityRank as knowledgeAuthorityRank, type KnowledgeItem } from "../oyi-core/domains/knowledge/knowledgeContracts";
 
 const router = Router();
 
@@ -906,7 +930,7 @@ router.post("/conversation/internal", requireOfficeExportKey, async (req: Reques
   // audience ceiling (may see INTERNAL_COMMERCIAL knowledge public callers
   // cannot).
   const retrievedKnowledge = await retrieveKnowledge({
-    actor: { agentRole: "office_internal", audienceScope: "INTERNAL_COMMERCIAL" },
+    actor: OFFICE_INTERNAL_KNOWLEDGE_ACTOR,
     domains: knowledgeDomainsForBusinessUnit(internalRequest.business_unit),
     query: effectiveMessage,
   }).then((result) => result.items).catch(() => []);
@@ -2469,6 +2493,1356 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
   } catch (err: any) {
     logger.error("communication_webhook_status_failed", { provider_message_id: providerMessageId, error: err?.message || String(err) });
     return res.status(200).json({ ok: false, error: err?.message || "webhook_event_processing_failed" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 1 -- capability introspection +
+// system summary. Office-safe projection of the LIVE capability
+// registry (capabilityRegistry.all()) -- every count and per-item field
+// below is computed fresh from the running registry on each request,
+// never hardcoded, so this contract can never silently drift from the
+// real system the way a doc or comment could.
+//
+// Two governed-action systems exist that are NOT registered capabilities
+// at all -- Communications (draft/propose/confirm/dispatch via
+// CommunicationRuntime) and Goal plan-step dispatch (GoalRuntime) -- both
+// reached directly inside ConversationOrchestrator.ts
+// (handleCommunicationTurn / handleGoalConversationTurn), both confirmed
+// office_internal-only by direct read of their own surface guard. They
+// are listed separately below and never folded into the capability
+// count, so this contract can truthfully describe the complete governed-
+// action surface without fabricating a registry entry for either.
+//
+// Exposes only structural/governance metadata: key, domain, rollout
+// status, supported surfaces, required permission/scope, risk class,
+// confirmation policy, operations, and a safe evidence-requirement
+// summary (domain + type + required/optional -- never the internal
+// evidence-loader implementation itself). No implementation file paths,
+// no provider secrets, no prompts, no private evidence content.
+// ---------------------------------------------------------------------
+const INTELLIGENCE_WORKER_BY_SURFACE: Record<string, { key: string; label: string }> = {
+  office_internal: { key: "oma", label: "Oma" },
+  public_corporate: { key: "osa", label: "Osa" },
+  facility: { key: "facility", label: "Facility" },
+  consumer: { key: "consumer", label: "Consumer" },
+};
+
+// Presentation-only, deliberately separate from ConversationOrchestrator.
+// ts's own BUSINESS_CAPABILITY_LABELS (a per-CAPABILITY conversational
+// label, not exported and not what this needs) -- this is a generic
+// per-DOMAIN humanizer for a structural inventory page.
+function humanizeIntelligenceDomain(domain: string): string {
+  return domain
+    .split("_")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(" ");
+}
+
+function classifyIntelligenceCapability(capability: CapabilityModule): "read" | "action" {
+  if (capability.risk_class && capability.risk_class !== "read") return "action";
+  if (capability.confirmation_policy && capability.confirmation_policy !== "none") return "action";
+  return "read";
+}
+
+function safeIntelligenceCapabilityProjection(capability: CapabilityModule) {
+  const surfaces = capability.supported_surfaces || [];
+  return {
+    key: capability.key,
+    domain: capability.domain,
+    domain_label: humanizeIntelligenceDomain(capability.domain),
+    rollout_status: capability.rolloutStatus,
+    supported_surfaces: surfaces,
+    supported_workers: surfaces.map((surface) => INTELLIGENCE_WORKER_BY_SURFACE[surface]?.label || surface),
+    required_permissions: capability.permission_requirements || [],
+    required_scope: capability.scope_requirements || [],
+    risk_class: capability.risk_class || "read",
+    confirmation_policy: capability.confirmation_policy || "none",
+    classification: classifyIntelligenceCapability(capability),
+    operations: capability.operations || [],
+    evidence_requirement_summary: (capability.evidence_requirements || []).map(
+      (req) => `${req.domain}:${req.evidence_type}${req.required ? " (required)" : " (optional)"}`
+    ),
+  };
+}
+
+function countIntelligenceCapabilitiesBy(values: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const value of values) out[value] = (out[value] || 0) + 1;
+  return out;
+}
+
+// Not registered capabilities (see header note above) -- surfaces
+// confirmed by direct read of handleCommunicationTurn/
+// handleGoalConversationTurn's own guard clause, not assumed.
+const INTELLIGENCE_GOVERNED_ACTION_SYSTEMS = [
+  {
+    key: "communications",
+    label: "Communications",
+    description:
+      "Email / WhatsApp / SMS / voice / internal-message sends. Governed by a draft -> propose -> confirm -> dispatch cycle (CommunicationRuntime), reached directly inside the conversation orchestrator rather than through the capability registry.",
+    worker: "oma",
+    supported_surfaces: ["office_internal"],
+  },
+  {
+    key: "goal_plan_dispatch",
+    label: "Goal Plan-Step Dispatch",
+    description:
+      "Staged, multi-step goal plans (GoalRuntime) whose individual steps dispatch through the same governed systems each step's own action already owns (e.g. a communication step through Communications above). Goal creation itself is confirmation-gated.",
+    worker: "oma",
+    supported_surfaces: ["office_internal"],
+  },
+];
+
+function buildIntelligenceCapabilityInventory() {
+  ensureRegistered();
+  const all = capabilityRegistry.all();
+  const projected = all.map(safeIntelligenceCapabilityProjection);
+  const bySurface: Record<string, number> = {};
+  for (const capability of all) {
+    for (const surface of capability.supported_surfaces || []) {
+      bySurface[surface] = (bySurface[surface] || 0) + 1;
+    }
+  }
+  const byWorker: Record<string, number> = {};
+  for (const [surface, count] of Object.entries(bySurface)) {
+    const workerKey = INTELLIGENCE_WORKER_BY_SURFACE[surface]?.key || surface;
+    byWorker[workerKey] = (byWorker[workerKey] || 0) + count;
+  }
+  return {
+    projected,
+    totalRegistered: all.length,
+    byRolloutStatus: countIntelligenceCapabilitiesBy(all.map((c) => c.rolloutStatus)),
+    readShaped: projected.filter((c) => c.classification === "read").length,
+    actionShaped: projected.filter((c) => c.classification === "action").length,
+    bySurface,
+    byWorker,
+    byRiskClass: countIntelligenceCapabilitiesBy(all.map((c) => c.risk_class || "read")),
+    byConfirmationPolicy: countIntelligenceCapabilitiesBy(all.map((c) => c.confirmation_policy || "none")),
+  };
+}
+
+router.get("/intelligence/capabilities", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const inv = buildIntelligenceCapabilityInventory();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      architecture: "one_core",
+      summary: {
+        total_registered: inv.totalRegistered,
+        by_rollout_status: inv.byRolloutStatus,
+        read_shaped: inv.readShaped,
+        action_shaped: inv.actionShaped,
+      },
+      by_surface: inv.bySurface,
+      by_worker: inv.byWorker,
+      by_risk_class: inv.byRiskClass,
+      by_confirmation_policy: inv.byConfirmationPolicy,
+      capabilities: inv.projected,
+      governed_action_systems: INTELLIGENCE_GOVERNED_ACTION_SYSTEMS,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load capability inventory" });
+  }
+});
+
+router.get("/intelligence/summary", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const inv = buildIntelligenceCapabilityInventory();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      architecture: "one_core",
+      workers: [
+        { key: "oma", label: "Oma", surface: "office_internal", capability_count: inv.bySurface.office_internal || 0 },
+        { key: "osa", label: "Osa", surface: "public_corporate", capability_count: inv.bySurface.public_corporate || 0 },
+        { key: "facility", label: "Facility", surface: "facility", capability_count: inv.bySurface.facility || 0 },
+        { key: "consumer", label: "Consumer", surface: "consumer", capability_count: inv.bySurface.consumer || 0 },
+      ],
+      capability_counts: {
+        total_registered: inv.totalRegistered,
+        by_rollout_status: inv.byRolloutStatus,
+        read_shaped: inv.readShaped,
+        action_shaped: inv.actionShaped,
+      },
+      governed_action_system_count: INTELLIGENCE_GOVERNED_ACTION_SYSTEMS.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load intelligence summary" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 2 -- Overview + Attention/Human
+// Intervention. A READ MODEL over existing intelligence authority: every
+// number below is computed from a canonical store this codebase already
+// treats as authoritative (GoalRuntime/DecisionStore/WorkflowRepository/
+// CommunicationRuntime/facilityAutomationService, plus the same
+// capability registry and cross-surface observability table Slice 1
+// already exposes) -- nothing here is a new attention engine, a new
+// table, or a new intervention state.
+// ---------------------------------------------------------------------
+const overviewWorkflowRepository = new SupabaseWorkflowRepository();
+
+function requiredHumanStep(interventionType: HumanInterventionType): string {
+  switch (interventionType) {
+    case "AUTHORIZATION":
+      return "Approve or reject";
+    case "CONFIRMATION":
+      return "Confirm or cancel";
+    case "INPUT_REQUIRED":
+      return "Provide the missing information";
+    case "ESCALATION":
+      return "Review and decide the next step";
+    default:
+      return "Review";
+  }
+}
+
+// Safe projection of a HumanInterventionObligation for Office. Exposes
+// exactly what Section 2 of this slice's own brief lists (type, status,
+// priority/severity if real, created/updated time, worker/surface if
+// known, safe title/summary, why human intervention is needed, source
+// type, safe source identifier, next required human step) and nothing
+// the underlying source object itself didn't already mark safe for this
+// obligation's own title/reason fields (see humanInterventionView.ts's
+// per-source title/reason construction -- communication in particular
+// never carries subject/body/recipient here). No priority/severity field
+// exists on any of the five sources today, so none is fabricated.
+function safeInterventionProjection(obligation: HumanInterventionObligation) {
+  return {
+    id: obligation.id,
+    source_type: obligation.source_type,
+    intervention_type: obligation.intervention_type,
+    status: obligation.native_status,
+    stage: obligation.normalized_stage.stage,
+    title: obligation.title,
+    reason: obligation.reason,
+    created_at: obligation.created_at,
+    due_at: obligation.due_at,
+    worker: obligation.surface ? (INTELLIGENCE_WORKER_BY_SURFACE[obligation.surface]?.label || obligation.surface) : null,
+    source_id: obligation.source_id,
+    required_human_step: requiredHumanStep(obligation.intervention_type),
+  };
+}
+
+// GET /office/intelligence/interventions -- the canonical "what needs a
+// human right now" list, platform-wide. Reuses loadPlatformHumanInterventionObligations
+// (itself reusing the same per-source query shapes/types as the existing,
+// per-conversation humanInterventionView.ts) -- this route adds no new
+// aggregation logic of its own beyond the safe projection above.
+router.get("/intelligence/interventions", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 200) : 50;
+    const result = await loadPlatformHumanInterventionObligations(limit);
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      complete: result.complete,
+      sources: result.sources,
+      interventions: result.obligations.map(safeInterventionProjection),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load human intervention obligations" });
+  }
+});
+
+function sourceCount(sources: { source_type: string; ok: boolean; count: number }[], sourceType: string): { available: boolean; count: number } {
+  const source = sources.find((s) => s.source_type === sourceType);
+  if (!source) return { available: false, count: 0 };
+  return { available: source.ok, count: source.ok ? source.count : 0 };
+}
+
+// GET /office/intelligence/overview -- the safe summary read model
+// composing existing truth across capabilities, workers, attention
+// (human intervention), goals, decisions, workflows/actions, activity,
+// and failures. Every constituent read runs in parallel (Section 12);
+// a metric whose source failed or has no safe unscoped query today is
+// marked unavailable/omitted, never silently reported as 0 or folded
+// into "everything is fine."
+router.get("/intelligence/overview", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const overallStartedAt = Date.now();
+  const timings: Record<string, number> = {};
+
+  async function timed<T>(name: string, fn: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
+    const startedAt = Date.now();
+    try {
+      const value = await fn();
+      timings[name] = Date.now() - startedAt;
+      return { ok: true, value };
+    } catch (err: any) {
+      timings[name] = Date.now() - startedAt;
+      return { ok: false, error: err?.message || String(err) };
+    }
+  }
+
+  const sinceIso24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const [
+    capabilitiesResult,
+    interventionsResult,
+    healthResult,
+    goalsActiveResult,
+    goalsBlockedResult,
+    decisionsActiveResult,
+    decisionsResolvedResult,
+    workflowsActiveResult,
+    workflowsFailedResult,
+    activityResult,
+    activityFailedResult,
+    canonicalTracesResult,
+  ] = await Promise.all([
+    timed("capabilities", async () => buildIntelligenceCapabilityInventory()),
+    timed("interventions", async () => loadPlatformHumanInterventionObligations(50)),
+    timed("health", async () => healthSummary()),
+    timed("goals_active", async () => goalRuntime.countByStatuses(["active", "observing", "action_due", "executing", "verifying", "reevaluating"])),
+    timed("goals_blocked", async () => goalRuntime.countByStatuses(["blocked", "waiting"])),
+    timed("decisions_active", async () => countDecisionsByStatuses(["selected", "awaiting_human", "approved"])),
+    timed("decisions_resolved", async () => countDecisionsResolvedSince(sinceIso24h)),
+    timed("workflows_active", async () => overviewWorkflowRepository.countByStatuses(activeWorkflowStatuses)),
+    timed("workflows_failed", async () => overviewWorkflowRepository.countByStatuses(["failed"], sinceIso24h)),
+    timed("activity", async () => {
+      const { count, error } = await supabaseAdmin
+        .from("ochiga_intelligence_events")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "oyi_observability_bridge")
+        .gte("occurred_at", sinceIso24h);
+      if (error) throw error;
+      return count || 0;
+    }),
+    timed("activity_failed", async () => {
+      const { count, error } = await supabaseAdmin
+        .from("ochiga_intelligence_events")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "oyi_observability_bridge")
+        .neq("status", "success")
+        .gte("occurred_at", sinceIso24h);
+      if (error) throw error;
+      return count || 0;
+    }),
+    // Slice 7 -- compact durable-trace summary (same aggregate as Activity & Trace).
+    timed("canonical_traces", async () => summarizeConversationTraces(24)),
+  ]);
+
+  const slowestSource = Object.entries(timings).sort((a, b) => b[1] - a[1])[0];
+  const totalMs = Date.now() - overallStartedAt;
+
+  const capabilities = capabilitiesResult.ok ? capabilitiesResult.value : null;
+  const interventions = interventionsResult.ok ? interventionsResult.value : null;
+  const interventionSources = interventions?.sources || [];
+
+  const automationApprovals = sourceCount(interventionSources, "automation_approval");
+  const goalEscalations = sourceCount(interventionSources, "goal_escalation");
+  const decisionAuthorizations = sourceCount(interventionSources, "decision");
+  const workflowGates = sourceCount(interventionSources, "workflow");
+  const communicationConfirmations = sourceCount(interventionSources, "communication_confirmation");
+
+  return res.json({
+    ok: true,
+    generated_at: new Date().toISOString(),
+    architecture: "one_core",
+
+    system: {
+      health: healthResult.ok
+        ? { available: true, status: healthResult.value.status, database: healthResult.value.database.status, queue: healthResult.value.queue.status }
+        : { available: false, reason: healthResult.ok === false ? healthResult.error : "unavailable" },
+    },
+
+    capabilities: capabilities
+      ? {
+          available: true,
+          total_registered: capabilities.totalRegistered,
+          by_rollout_status: capabilities.byRolloutStatus,
+          read_shaped: capabilities.readShaped,
+          action_shaped: capabilities.actionShaped,
+        }
+      : { available: false },
+
+    workers: capabilities
+      ? [
+          { key: "oma", label: "Oma", capability_count: capabilities.bySurface.office_internal || 0, pending_intervention_count: interventions ? interventions.obligations.filter((o) => o.surface === "office_internal").length : null },
+          { key: "osa", label: "Osa", capability_count: capabilities.bySurface.public_corporate || 0, pending_intervention_count: interventions ? interventions.obligations.filter((o) => o.surface === "public_corporate").length : null },
+          { key: "facility", label: "Facility", capability_count: capabilities.bySurface.facility || 0, pending_intervention_count: interventions ? interventions.obligations.filter((o) => o.surface === "facility").length : null },
+          { key: "consumer", label: "Consumer", capability_count: capabilities.bySurface.consumer || 0, pending_intervention_count: interventions ? interventions.obligations.filter((o) => o.surface === "consumer").length : null },
+        ]
+      : [],
+
+    attention: {
+      available: Boolean(interventions),
+      complete: interventions ? interventions.complete : false,
+      total: interventions ? interventions.obligations.length : 0,
+      by_source: {
+        automation_approval: automationApprovals,
+        goal_escalation: goalEscalations,
+        decision: decisionAuthorizations,
+        workflow: workflowGates,
+        communication_confirmation: communicationConfirmations,
+      },
+      oldest_outstanding: interventions && interventions.obligations.length
+        ? interventions.obligations.reduce((oldest, o) => (String(o.created_at) < String(oldest.created_at) ? o : oldest)).created_at
+        : null,
+      // conversation_proposal is a real, documented fifth source
+      // (humanInterventionView.ts) that structurally cannot be listed
+      // platform-wide -- its only storage is a JSONB sibling key on
+      // oyi_conversation_threads.metadata, with no index that would make
+      // an unscoped scan safe or fast. Reported, not silently dropped.
+      excluded_sources: [{ source_type: "conversation_proposal", reason: "no_platform_wide_listing_capability" }],
+    },
+
+    goals: {
+      active: goalsActiveResult.ok ? { available: true, count: goalsActiveResult.value } : { available: false },
+      needs_human: goalEscalations.available ? { available: true, count: goalEscalations.count } : { available: false },
+      blocked_or_waiting: goalsBlockedResult.ok ? { available: true, count: goalsBlockedResult.value } : { available: false },
+    },
+
+    decisions: {
+      active: decisionsActiveResult.ok ? { available: true, count: decisionsActiveResult.value } : { available: false },
+      awaiting_human: decisionAuthorizations.available ? { available: true, count: decisionAuthorizations.count } : { available: false },
+      recently_resolved: decisionsResolvedResult.ok ? { available: true, count: decisionsResolvedResult.value, window: "24h" } : { available: false },
+    },
+
+    workflows_actions: {
+      active_workflow: workflowsActiveResult.ok ? { available: true, count: workflowsActiveResult.value } : { available: false },
+      pending_confirmation: workflowGates.available ? { available: true, count: workflowGates.count } : { available: false },
+      automation_approvals_pending: automationApprovals.available ? { available: true, count: automationApprovals.count } : { available: false },
+      communication_awaiting_confirmation: communicationConfirmations.available ? { available: true, count: communicationConfirmations.count } : { available: false },
+      recent_failures: workflowsFailedResult.ok ? { available: true, count: workflowsFailedResult.value, window: "24h" } : { available: false },
+    },
+
+    activity: activityResult.ok
+      ? { available: true, recent_count: activityResult.value, window: "24h" }
+      : { available: false },
+    canonical_traces: canonicalTracesResult.ok
+      ? {
+          available: true,
+          window: "24h",
+          turns: canonicalTracesResult.value.turns,
+          structural_failures: canonicalTracesResult.value.structural_failures,
+          no_match: canonicalTracesResult.value.no_match,
+          authority_denied: canonicalTracesResult.value.authority_denied,
+          runtime_errors: canonicalTracesResult.value.runtime_errors,
+          persistence_failures: canonicalTracesResult.value.persistence_failures,
+          truncated: canonicalTracesResult.value.truncated,
+          recording_status: conversationTraceStoreConfig().recording_status,
+        }
+      : { available: false, recording_status: conversationTraceStoreConfig().recording_status },
+
+    failures: {
+      workflow_failed: workflowsFailedResult.ok ? { available: true, count: workflowsFailedResult.value, window: "24h" } : { available: false },
+      activity_failed: activityFailedResult.ok ? { available: true, count: activityFailedResult.value, window: "24h" } : { available: false },
+      // operationalMetrics (src/observability/metrics.ts) is deliberately
+      // NOT a source here -- it is an in-memory, per-process counter
+      // registry with no persistence and no cross-instance aggregation,
+      // so it cannot honestly answer a durable "what has recently failed"
+      // question the way the two real, queryable tables above can.
+      note: "operationalMetrics (in-process counters) intentionally excluded -- not a durable/cross-instance source.",
+    },
+
+    performance: {
+      total_response_time_ms: totalMs,
+      slowest_source: slowestSource ? { name: slowestSource[0], ms: slowestSource[1] } : null,
+      source_timings_ms: timings,
+    },
+  });
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 3 -- Worker Visibility.
+//
+// THEY ARE NOT FOUR BRAINS: every field below is either (a) a live
+// filter of the SAME capability registry scan Slice 1's /intelligence/
+// capabilities already performs, (b) a live filter of the SAME platform
+// intervention aggregation Slice 2's /intelligence/interventions already
+// performs, or (c) a small, explicitly-labeled presentation mapping for
+// facts that have no live registry today (scope/permission model,
+// negative restrictions) -- never a fabricated per-worker "process
+// health". No new registry scan, no new intervention aggregation, no new
+// table.
+// ---------------------------------------------------------------------
+
+// Section 10 -- locked presentation terminology. Machine identifiers
+// (oma/osa/facility/consumer, and the OyiSurface values they map to)
+// remain the only authority identifiers anywhere in this file; these
+// labels are display-only.
+const WORKER_DEFINITIONS: Array<{
+  identity: string;
+  display_name: string;
+  surface: string;
+  purpose: string;
+  // "Can do" is always derived live from the capability registry (see
+  // buildWorkerIntelligenceProfiles). scope_model/permission_model/
+  // known_restrictions are real architectural facts this codebase's own
+  // authority boundaries already enforce (estate_id/home_id scoping,
+  // getIntelligencePermissionPolicy's policyScope, the public-corporate
+  // policy's own denial list) but have no single live registry endpoint
+  // to read from today -- presented here as an explicit, stable mapping
+  // per this slice's own instruction, not inferred from absence.
+  scope_model: string;
+  permission_model: string;
+  known_restrictions: string[];
+}> = [
+  {
+    identity: "oma",
+    display_name: "Office Intelligence",
+    surface: "office_internal",
+    purpose: "Staff-facing intelligence for Office CRM, tasks, meetings, development, partnerships, reports, and internal operations.",
+    scope_model: "Office/staff-scoped -- no estate or home boundary; governed by the signed-in staff member's Office role.",
+    permission_model: "Office permission scopes (e.g. crm.read, tasks.manage, planstudio.read).",
+    known_restrictions: [
+      "Cannot automatically access resident-private home or device truth.",
+      "Cannot execute Consumer-only device/wallet authority.",
+    ],
+  },
+  {
+    identity: "osa",
+    display_name: "Public / Ochiga Website",
+    surface: "public_corporate",
+    purpose: "Public-facing corporate intelligence for the Ochiga website -- anonymous visitors and JV/partnership inquiries.",
+    scope_model: "Public/anonymous -- no authenticated actor, no estate or home binding.",
+    permission_model: "Public corporate policy allow-list (no user permission scopes; see corporatePublicConversationPolicy).",
+    known_restrictions: [
+      "Cannot access private CRM records.",
+      "Cannot access internal finance.",
+      "Cannot access resident data.",
+      "Cannot access Facility-sensitive operational truth.",
+    ],
+  },
+  {
+    identity: "facility",
+    display_name: "Operational Intelligence",
+    surface: "facility",
+    purpose: "Estate operational intelligence -- maintenance, security, cameras, and facility-scoped devices.",
+    scope_model: "Estate-scoped -- bound to a verified estate_id.",
+    permission_model: "Facility/estate operator permission scopes.",
+    known_restrictions: [
+      "Cannot access resident wallet or private-home information without proper authority.",
+    ],
+  },
+  {
+    identity: "consumer",
+    display_name: "Home Intelligence",
+    surface: "consumer",
+    purpose: "Resident home intelligence -- authorised home, device, wallet, visitor, and service context.",
+    scope_model: "Home-scoped -- bound to a verified home_id within an estate.",
+    permission_model: "Resident permission scopes, home-boundary enforced.",
+    known_restrictions: [
+      "Cannot access estate-wide private security information.",
+      "Cannot access other residents' homes.",
+      "Cannot access Office-private corporate data.",
+    ],
+  },
+];
+
+const INTERVENTION_TYPES_ALL = ["AUTHORIZATION", "CONFIRMATION", "INPUT_REQUIRED", "ESCALATION"];
+
+// One combined computation for both /intelligence/workers and
+// /intelligence/workers/:worker -- the registry scan, the intervention
+// aggregation, and the observability-events aggregate each run exactly
+// once regardless of which route (or how many workers) is being served,
+// per this slice's own "avoid repeated registry scans" instruction.
+async function buildWorkerIntelligenceProfiles() {
+  const timings: Record<string, number> = {};
+  async function timed<T>(name: string, fn: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
+    const startedAt = Date.now();
+    try {
+      const value = await fn();
+      timings[name] = Date.now() - startedAt;
+      return { ok: true, value };
+    } catch (err: any) {
+      timings[name] = Date.now() - startedAt;
+      return { ok: false, error: err?.message || String(err) };
+    }
+  }
+
+  const sinceIso24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const [capabilitiesResult, interventionsResult, eventsResult, tracesResult] = await Promise.all([
+    timed("capabilities", async () => buildIntelligenceCapabilityInventory()),
+    timed("interventions", async () => loadPlatformHumanInterventionObligations(200)),
+    timed("observability_events", async () => {
+      const { data, error } = await supabaseAdmin
+        .from("ochiga_intelligence_events")
+        .select("surface,status")
+        .eq("source", "oyi_observability_bridge")
+        .gte("occurred_at", sinceIso24h)
+        .limit(2000);
+      if (error) throw error;
+      return (data || []) as Array<{ surface: string | null; status: string | null }>;
+    }),
+    // Slice 7 -- durable canonical traces (one bounded 24h aggregate).
+    timed("canonical_traces", async () => summarizeConversationTraces(24)),
+  ]);
+
+  const inv = capabilitiesResult.ok ? capabilitiesResult.value : null;
+  const interventions = interventionsResult.ok ? interventionsResult.value : null;
+  const events = eventsResult.ok ? eventsResult.value : null;
+  const traceSummary = tracesResult.ok ? tracesResult.value : null;
+
+  const workers = WORKER_DEFINITIONS.map((def) => {
+    const capsForWorker = inv ? inv.projected.filter((c) => c.supported_surfaces.includes(def.surface as any)) : [];
+    const domainCounts = new Map<string, { domain: string; domain_label: string; count: number }>();
+    for (const cap of capsForWorker) {
+      const existing = domainCounts.get(cap.domain);
+      if (existing) existing.count += 1;
+      else domainCounts.set(cap.domain, { domain: cap.domain, domain_label: cap.domain_label, count: 1 });
+    }
+    const domains = Array.from(domainCounts.values()).sort((a, b) => b.count - a.count);
+    const byRiskClass = countIntelligenceCapabilitiesBy(capsForWorker.map((c) => c.risk_class));
+    const byConfirmationPolicy = countIntelligenceCapabilitiesBy(capsForWorker.map((c) => c.confirmation_policy));
+    const byRolloutStatus = countIntelligenceCapabilitiesBy(capsForWorker.map((c) => c.rollout_status));
+    const governedActionSystems = INTELLIGENCE_GOVERNED_ACTION_SYSTEMS.filter((s) => s.supported_surfaces.includes(def.surface)).map((s) => ({ key: s.key, label: s.label }));
+
+    const workerObligations = interventions ? interventions.obligations.filter((o) => o.surface === def.surface) : [];
+    const byInterventionType: Record<string, number> = {};
+    for (const type of INTERVENTION_TYPES_ALL) byInterventionType[type] = 0;
+    for (const o of workerObligations) byInterventionType[o.intervention_type] = (byInterventionType[o.intervention_type] || 0) + 1;
+
+    const workerEvents = events ? events.filter((e) => e.surface === def.surface) : [];
+    const workerFailedEvents = workerEvents.filter((e) => e.status && e.status !== "success");
+
+    return {
+      identity: def.identity,
+      display_name: def.display_name,
+      surface: def.surface,
+      purpose: def.purpose,
+      architecture: "one_core_worker",
+      capabilities: inv
+        ? {
+            available: true,
+            total: capsForWorker.length,
+            enabled: byRolloutStatus.enabled || 0,
+            read: capsForWorker.filter((c) => c.classification === "read").length,
+            action: capsForWorker.filter((c) => c.classification === "action").length,
+            domains,
+            by_risk_class: byRiskClass,
+            by_confirmation_policy: byConfirmationPolicy,
+          }
+        : { available: false },
+      authority: {
+        scope_model: def.scope_model,
+        permission_model: def.permission_model,
+        governed_action_systems: governedActionSystems,
+        known_restrictions: def.known_restrictions,
+      },
+      attention: interventions
+        ? { available: true, pending_intervention_count: workerObligations.length, by_intervention_type: byInterventionType }
+        : { available: false, pending_intervention_count: null, by_intervention_type: null },
+      activity: events
+        ? { available: true, recent_count: workerEvents.length, window: "24h" }
+        : { available: false, recent_count: null, note: "Detailed worker activity becomes available with durable Intelligence Trace." },
+      failures: events
+        ? { available: true, recent_count: workerFailedEvents.length, window: "24h" }
+        : { available: false, recent_count: null },
+      // Slice 7 -- canonical turns handled through this worker's surface,
+      // from the durable trace store. Workers are not processes: there is
+      // deliberately no uptime and no synthetic score here.
+      canonical_turns: traceSummary && (traceSummary.by_worker as any)[def.identity]
+        ? { available: true, window: "24h", ...(traceSummary.by_worker as any)[def.identity], sample_truncated: traceSummary.truncated }
+        : { available: false },
+    };
+  });
+
+  const slowestSource = Object.entries(timings).sort((a, b) => b[1] - a[1])[0];
+  return {
+    workers,
+    capabilitiesAvailable: Boolean(inv),
+    capabilitiesTotal: inv ? inv.totalRegistered : null,
+    interventionsComplete: interventions ? interventions.complete : null,
+    timings,
+    slowestSource,
+  };
+}
+
+router.get("/intelligence/workers", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const result = await buildWorkerIntelligenceProfiles();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      architecture: "one_core",
+      workers: result.workers,
+      capabilities_summary: { available: result.capabilitiesAvailable, total_registered: result.capabilitiesTotal },
+      attention_complete: result.interventionsComplete,
+      performance: {
+        total_response_time_ms: Date.now() - startedAt,
+        slowest_source: result.slowestSource ? { name: result.slowestSource[0], ms: result.slowestSource[1] } : null,
+        source_timings_ms: result.timings,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load worker intelligence profiles" });
+  }
+});
+
+router.get("/intelligence/workers/:worker", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  const workerKey = String(req.params.worker || "").toLowerCase();
+  if (!WORKER_DEFINITIONS.some((d) => d.identity === workerKey)) {
+    return res.status(404).json({ ok: false, error: `Unknown worker "${workerKey}". Valid workers: oma, osa, facility, consumer.` });
+  }
+  try {
+    const result = await buildWorkerIntelligenceProfiles();
+    const worker = result.workers.find((w) => w.identity === workerKey);
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      architecture: "one_core",
+      worker,
+      performance: {
+        total_response_time_ms: Date.now() - startedAt,
+        slowest_source: result.slowestSource ? { name: result.slowestSource[0], ms: result.slowestSource[1] } : null,
+        source_timings_ms: result.timings,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load worker intelligence profile" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 4 -- Goals & Decisions and
+// Actions & Workflows.
+//
+// GOAL != DECISION != RECOMMENDATION != PLAN != WORKFLOW != ACTION
+// PROPOSAL != CONFIRMATION != EXECUTION != VERIFICATION -- every
+// projection below reads its own canonical store's own real fields;
+// nothing here re-derives one object's meaning from another's shape.
+// ---------------------------------------------------------------------
+
+const ALL_GOAL_STATUSES: GoalStatus[] = [
+  "understood", "proposed", "confirmed", "active", "observing", "action_due", "executing", "verifying",
+  "waiting", "reevaluating", "paused", "completed", "blocked", "failed", "cancelled", "expired", "needs_human",
+];
+
+// Safe step projection -- channel/action_type/status/wait_hours/skip_if/
+// executed_at only. `body` (message content) and `device_command` (raw
+// command payload) are deliberately omitted -- never safe to expose.
+function safeGoalStepProjection(step: GoalRecord["plan"][number]) {
+  return {
+    step_index: step.step_index,
+    channel: step.channel,
+    action_type: step.action_type,
+    status: step.status,
+    wait_hours: step.wait_hours,
+    skip_if: step.skip_if,
+    executed_at: step.executed_at,
+  };
+}
+
+// Safe execution-history projection -- `detail` is free text that may
+// echo reply/message content (see GoalExecutionHistoryItem's own
+// contract comment), deliberately omitted.
+function safeGoalExecutionHistoryProjection(item: GoalRecord["execution_history"][number]) {
+  return {
+    occurred_at: item.occurred_at,
+    step_index: item.step_index,
+    action: item.action,
+    outcome: item.outcome,
+  };
+}
+
+// target_entities is deliberately narrowed to opaque COMMERCIAL lineage
+// ids only (lead/contact/opportunity/organization) -- name/email/phone/
+// whatsapp_phone (real PII fields on the same object) are never
+// forwarded, and the OPERATIONAL fields (estate_id/home_id/device_id/
+// camera_id/maintenance_request_id/visitor_access_id) are excluded
+// entirely per Section 17's "home/unit identity unnecessarily" /
+// "private device identity" restrictions -- goals are overwhelmingly
+// commercial in practice (confirmed during this slice's own audit), so
+// this loses little real value.
+function safeGoalProjection(goal: GoalRecord, includeDetail: boolean) {
+  const stepStatusCounts = countIntelligenceCapabilitiesBy((goal.plan || []).map((s) => s.status));
+  const base = {
+    id: goal.id,
+    status: goal.status,
+    stage: normalizeLifecycleStage({ objectType: "goal", status: goal.status }).stage,
+    title: goal.objective,
+    surface: goal.surface,
+    created_at: goal.created_at,
+    updated_at: goal.updated_at,
+    due_at: goal.schedule?.deadline || null,
+    last_evaluated_at: goal.last_evaluated_at,
+    next_evaluation_at: goal.next_evaluation_at,
+    current_step_index: goal.current_step_index,
+    step_count: (goal.plan || []).length,
+    step_status_counts: stepStatusCounts,
+    max_attempts: goal.max_attempts,
+    attempts_completed: goal.attempts_completed,
+    needs_human: goal.status === "needs_human",
+    blocked_or_waiting: goal.status === "blocked" || goal.status === "waiting",
+    completion_reason: goal.completion_reason,
+    lineage: { canonical_signal_key: goal.canonical_signal_key },
+    reference_ids: {
+      lead_id: goal.target_entities?.lead_id || null,
+      contact_id: goal.target_entities?.contact_id || null,
+      opportunity_id: goal.target_entities?.opportunity_id || null,
+      organization_id: goal.target_entities?.organization_id || null,
+    },
+  };
+  if (!includeDetail) return base;
+  return {
+    ...base,
+    plan: (goal.plan || []).map(safeGoalStepProjection),
+    execution_history: (goal.execution_history || []).slice(-20).map(safeGoalExecutionHistoryProjection),
+    // Structural condition literals only (e.g. {type:"reply_received"},
+    // {type:"max_attempts_reached"}) -- no message content, safe as-is.
+    success_condition: goal.success_condition,
+    stop_condition: goal.stop_condition,
+    reply_branches: (goal.reply_branches || []).map((b) => ({ on_outcomes: b.on_outcomes, action: b.action, task_title: b.task_title })),
+  };
+}
+
+router.get("/intelligence/goals", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 200) : 100;
+    const goals = await goalRuntime.listByStatuses(ALL_GOAL_STATUSES, limit);
+    return res.json({ ok: true, generated_at: new Date().toISOString(), goals: goals.map((g) => safeGoalProjection(g, false)) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load goals" });
+  }
+});
+
+router.get("/intelligence/goals/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const goal = await goalRuntime.get(String(req.params.id || ""));
+    if (!goal) return res.status(404).json({ ok: false, error: "Goal not found" });
+    return res.json({ ok: true, generated_at: new Date().toISOString(), goal: safeGoalProjection(goal, true) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load goal" });
+  }
+});
+
+const ALL_DECISION_STATUSES: DecisionStatus[] = ["selected", "awaiting_human", "approved", "rejected", "superseded", "cancelled"];
+
+// metadata (an arbitrary Record) is deliberately never forwarded -- see
+// Section 17's "no raw evidence" instruction; every other field here is
+// a real, typed, structural DecisionRecord column.
+function safeDecisionProjection(decision: DecisionRecord) {
+  return {
+    id: decision.id,
+    decision_key: decision.decision_key,
+    entity_type: decision.entity_type,
+    entity_id: decision.entity_id,
+    action_type: decision.action_type,
+    title: decision.title,
+    reason: decision.reason,
+    status: decision.status,
+    stage: normalizeLifecycleStage({ objectType: "decision", status: decision.status }).stage,
+    requires_human: decision.requires_human,
+    selected_by: decision.selected_by,
+    authority_mode: decision.authority_mode,
+    policy_source: decision.policy_source,
+    lineage: {
+      canonical_signal_key: decision.canonical_signal_key,
+      recommendation_key: decision.recommendation_key,
+      goal_id: decision.goal_id,
+      plan_id: decision.plan_id,
+      incident_id: decision.incident_id,
+      awareness_key: decision.awareness_key,
+    },
+    superseded_by: decision.superseded_by,
+    created_at: decision.created_at,
+    updated_at: decision.updated_at,
+    decided_at: decision.decided_at,
+    closed_at: decision.closed_at,
+  };
+}
+
+router.get("/intelligence/decisions", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 200) : 100;
+    const decisions = await listDecisionsByStatuses(ALL_DECISION_STATUSES, limit);
+    return res.json({ ok: true, generated_at: new Date().toISOString(), decisions: decisions.map(safeDecisionProjection) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load decisions" });
+  }
+});
+
+router.get("/intelligence/decisions/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const decision = await getDecision(String(req.params.id || ""));
+    if (!decision) return res.status(404).json({ ok: false, error: "Decision not found" });
+    return res.json({ ok: true, generated_at: new Date().toISOString(), decision: safeDecisionProjection(decision) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load decision" });
+  }
+});
+
+router.get("/intelligence/actions", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 200) : 50;
+    const result = await loadPlatformActionAggregate(limit);
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      complete: result.complete,
+      sources: result.sources,
+      actions: result.items,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load actions and workflows" });
+  }
+});
+
+// Device command truth detail -- the full safe truth-model fields
+// Section 10 asks for (request/dispatch/provider/confirmation/
+// physical_effect/final status + truth_state), explicitly WITHOUT
+// home_id/room_id/canonical_device_id/actor_id (private device/home/
+// resident identity) or expected_state/observed_state/previous_state
+// (raw device state blobs that could carry arbitrary sensor/settings
+// data). estate_id is kept (estate-level, not home/device-level).
+function safeDeviceCommandActionDetail(record: any) {
+  const canonicalStatus = String(record.final_status || record.confirmation_status || record.provider_status || record.dispatch_status || record.request_status || "requested");
+  return {
+    source_type: "device_command" as const,
+    source_id: record.command_execution_id,
+    title: record.command_key ? `Device command: ${record.command_key}` : "A device command",
+    canonical_status: canonicalStatus,
+    presentation_stage: deviceCommandStage(canonicalStatus),
+    requested_at: record.requested_at,
+    completed_at: record.completed_at,
+    estate_id: record.estate_id || null,
+    channel_code: record.channel_code || null,
+    command_key: record.command_key || null,
+    truth: {
+      request_status: record.request_status || null,
+      dispatch_status: record.dispatch_status || null,
+      provider_status: record.provider_status || null,
+      confirmation_status: record.confirmation_status || null,
+      physical_effect_status: record.physical_effect_status || null,
+      final_status: record.final_status || null,
+      truth_state: record.truth_state || null,
+    },
+    safe_error_message: record.safe_error_message || null,
+    retryable: record.retryable ?? null,
+    timeline: (Array.isArray(record.lifecycle) ? record.lifecycle : []).map((entry: any) => ({ status: entry?.status || null, occurred_at: entry?.occurred_at || null })),
+  };
+}
+
+function safeCommunicationActionDetail(record: any) {
+  const status = String(record.status);
+  return {
+    source_type: "communication" as const,
+    source_id: record.communication_id,
+    title: record.intent ? `${record.channel}: ${record.intent}` : `A ${record.channel} message`,
+    canonical_status: status,
+    presentation_stage: communicationStage(status),
+    channel: record.channel,
+    intent: record.intent || null,
+    created_at: record.created_at,
+    sent_at: record.sent_at,
+    delivered_at: record.delivered_at,
+    completed_at: record.completed_at,
+    confirmation_required: Boolean(record.governance?.requires_confirmation),
+    outcome: record.outcome || null,
+    failure_reason: record.failure_reason || null,
+    worker: SURFACE_LABEL_FOR_ACTIONS[record.surface] || null,
+    // subject/body/plain_text/html/recipient deliberately never forwarded.
+  };
+}
+
+function safeFacilityAutomationActionDetail(row: any) {
+  const status = String(row.status);
+  return {
+    source_type: "facility_automation" as const,
+    source_id: String(row.id),
+    title: row.target_label || `${row.action_id || "automation"} on ${row.entity_type || "an entity"}`,
+    canonical_status: status,
+    presentation_stage: facilityAutomationStage(status),
+    action_id: row.action_id || null,
+    entity_type: row.entity_type || null,
+    created_at: row.created_at,
+    decided_at: row.decided_at || null,
+    executed_at: row.executed_at || null,
+    decision_note: row.decision_note || null,
+    worker: "Facility",
+    // entity_id / estate_id omitted -- facility-private operational identity.
+  };
+}
+
+function safeConversationWorkflowActionDetail(workflow: import("../oyi-core/contracts/workflow").OyiWorkflow) {
+  const status = String(workflow.status);
+  return {
+    source_type: "conversation_workflow" as const,
+    source_id: workflow.workflow_id,
+    title: workflow.operation || workflow.capability_key || "A conversation workflow",
+    canonical_status: status,
+    presentation_stage: conversationWorkflowStage(status),
+    domain: workflow.domain,
+    capability_key: workflow.capability_key,
+    operation: workflow.operation,
+    created_at: workflow.created_at,
+    updated_at: workflow.updated_at,
+    completed_at: workflow.completed_at,
+    cancelled_at: workflow.cancelled_at,
+    unresolved_inputs: workflow.unresolved_inputs || [],
+    worker: SURFACE_LABEL_FOR_ACTIONS[workflow.surface] || null,
+    target_label: workflow.target?.label || null,
+    // inputs/proposed_action/execution_record/evidence/metadata/target
+    // identity fields deliberately never forwarded -- raw workflow state.
+  };
+}
+
+const SURFACE_LABEL_FOR_ACTIONS: Record<string, string> = { office_internal: "Oma", public_corporate: "Osa", facility: "Facility", consumer: "Consumer" };
+
+router.get("/intelligence/actions/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const compoundId = String(req.params.id || "");
+    const separatorIndex = compoundId.indexOf(":");
+    if (separatorIndex < 0) return res.status(400).json({ ok: false, error: "Invalid action id" });
+    const sourceType = compoundId.slice(0, separatorIndex);
+    const sourceId = compoundId.slice(separatorIndex + 1);
+    if (!sourceId) return res.status(400).json({ ok: false, error: "Invalid action id" });
+
+    if (sourceType === "device_command") {
+      const record = await getDeviceCommandExecution(sourceId);
+      if (!record) return res.status(404).json({ ok: false, error: "Device command not found" });
+      return res.json({ ok: true, generated_at: new Date().toISOString(), action: safeDeviceCommandActionDetail(record) });
+    }
+    if (sourceType === "communication") {
+      const record = await communicationRuntime.verify(sourceId);
+      if (!record) return res.status(404).json({ ok: false, error: "Communication not found" });
+      return res.json({ ok: true, generated_at: new Date().toISOString(), action: safeCommunicationActionDetail(record) });
+    }
+    if (sourceType === "facility_automation") {
+      const { data, error } = await supabaseAdmin.from("automation_approvals").select("*").eq("id", sourceId).maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ ok: false, error: "Automation approval not found" });
+      return res.json({ ok: true, generated_at: new Date().toISOString(), action: safeFacilityAutomationActionDetail(data) });
+    }
+    if (sourceType === "conversation_workflow") {
+      const workflow = await overviewWorkflowRepository.get(sourceId);
+      if (!workflow) return res.status(404).json({ ok: false, error: "Workflow not found" });
+      return res.json({ ok: true, generated_at: new Date().toISOString(), action: safeConversationWorkflowActionDetail(workflow) });
+    }
+    return res.status(404).json({ ok: false, error: `Unknown action source type "${sourceType}"` });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load this action" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 5 -- Governed Knowledge
+// Visibility.
+//
+// Exposure model (governance correction):
+//   A. Corpus-wide governance aggregates -- counts over classification
+//      labels only (authority/audience/freshness/claim boundary/source
+//      family/worker visibility), via summarizeKnowledgeCorpusGovernance.
+//      No title, key, tag, statement or subject-matter domain.
+//   B. Inspectable items -- enumeration and detail run under
+//      OFFICE_INTERNAL_KNOWLEDGE_ACTOR, the same canonical Office staff
+//      knowledge authority the Office-internal conversation route uses,
+//      through the canonical audienceAllowed/agentAllowed gate.
+//      requireOfficeExportKey authenticates the Office bridge; it grants
+//      NO additional knowledge authority. There is no admin bypass.
+//   Worker filters narrow the actor's own visible set by governed
+//   agentVisibility; they never act as that worker.
+//   Detail uses getKnowledgeItemByCanonicalKey() unchanged; a forbidden
+//   key and a nonexistent key return the identical 404.
+//   do_not_state_verbatim items expose their classification but never
+//   their statement text (see KNOWLEDGE_WITHHELD_CLAIM_BOUNDARIES).
+// ---------------------------------------------------------------------
+
+const KNOWLEDGE_VIEWER_ACTOR = OFFICE_INTERNAL_KNOWLEDGE_ACTOR;
+const KNOWLEDGE_WORKER_ROLES = ["oma", "osa", "facility", "consumer"] as const;
+const KNOWLEDGE_WORKER_LABEL: Record<string, string> = { oma: "Oma", osa: "Osa", facility: "Facility", consumer: "Consumer" };
+const KNOWLEDGE_OTHER_ROLE_LABEL: Record<string, string> = { office_internal: "Office Internal", executive: "Executive" };
+
+// Section 6 -- claim-boundary presentation, transcribed directly from
+// knowledgeContracts.ts's own inline comments (not a new policy).
+const CLAIM_BOUNDARY_EXPLANATION: Record<string, string> = {
+  safe_to_state: "May be stated directly, in the agent's own words.",
+  requires_qualification: "May be stated but must be hedged/qualified (e.g. \"positioned as\", \"proposed\").",
+  requires_human_confirmation: "May only be referenced as existing; exact figures/scope must route to a human.",
+  do_not_state_verbatim: "Informs the agent's own reasoning only; must never be quoted or paraphrased to an external party.",
+};
+
+// Claim boundaries whose statement text Intelligence never renders.
+// do_not_state_verbatim restricts quoting/paraphrasing the statement
+// itself, so printing it on a visibility page -- even beside a warning
+// -- would be the very act the classification forbids. The other three
+// boundaries govern how an AGENT phrases the fact to a counterparty; the
+// Office viewer inspecting them is the human those boundaries route to,
+// so their text is shown.
+const KNOWLEDGE_WITHHELD_CLAIM_BOUNDARIES = new Set(["do_not_state_verbatim"]);
+
+// Section 7 -- authority-class presentation, in KNOWLEDGE_AUTHORITY_RANK's
+// own real, existing order (never re-derived). PROJECT_SOURCE currently
+// has zero real items -- kept in the vocabulary since it is a real,
+// declared class, not removed to match today's live data.
+const AUTHORITY_CLASS_EXPLANATION: Record<string, string> = {
+  APPROVED_INSTITUTIONAL: "Approved institutional fact -- highest trust.",
+  TECHNICAL_SOURCE: "Code-grounded technical description.",
+  APPROVED_COMMERCIAL: "Approved commercial doctrine.",
+  PRODUCT_SOURCE: "Product-team sourced description.",
+  PROJECT_SOURCE: "Project-specific sourced description.",
+  MARKETING_REFERENCE: "Marketing/positioning reference -- lower trust.",
+  UNVERIFIED_REFERENCE: "Unverified reference -- lowest trust; requires confirmation before relying on it.",
+};
+
+function knowledgeSourceFamilyForRepo(sourceRepo: string): string {
+  return sourceRepo === "ochiga-office" ? "Office Knowledge Pack" : "Backend Institutional Knowledge";
+}
+
+// Section 5/12 -- converts an internal repo/file path into a safe source
+// label: the bare filename only, directories stripped, never the full
+// path. Multi-path (semicolon-separated) items resolve to the source
+// family name instead of a fabricated single file. A trailing prose
+// annotation (e.g. "x.ts (content checked against ...page.tsx)") is
+// dropped -- only the leading path is the real source file.
+function safeKnowledgeSourceIdentifier(item: KnowledgeItem): string {
+  if (item.sourceFile.includes(";")) return knowledgeSourceFamilyForRepo(item.sourceRepo);
+  const primaryPath = item.sourceFile.split(/[\s(]/)[0] || "";
+  return primaryPath.split("/").pop() || knowledgeSourceFamilyForRepo(item.sourceRepo);
+}
+
+function safeKnowledgeListProjection(item: KnowledgeItem) {
+  const workerVisibility = item.agentVisibility.filter((r) => (KNOWLEDGE_WORKER_ROLES as readonly string[]).includes(r)).map((r) => KNOWLEDGE_WORKER_LABEL[r]);
+  const otherRoleVisibility = item.agentVisibility.filter((r) => r in KNOWLEDGE_OTHER_ROLE_LABEL).map((r) => KNOWLEDGE_OTHER_ROLE_LABEL[r]);
+  return {
+    canonical_key: item.canonicalKey,
+    title: item.title,
+    domain: item.domain,
+    domain_label: humanizeIntelligenceDomain(item.domain),
+    authority_class: item.authorityClass,
+    authority_rank: knowledgeAuthorityRank(item.authorityClass),
+    authority_explanation: AUTHORITY_CLASS_EXPLANATION[item.authorityClass] || null,
+    audience: item.audience,
+    claim_boundary: item.claimBoundary,
+    claim_boundary_explanation: CLAIM_BOUNDARY_EXPLANATION[item.claimBoundary] || null,
+    freshness_class: item.freshnessClass,
+    worker_visibility: workerVisibility,
+    other_role_visibility: otherRoleVisibility,
+    source_family: knowledgeSourceFamilyForRepo(item.sourceRepo),
+    version_summary: item.version,
+    updated_at: item.updatedAt,
+  };
+}
+
+function safeKnowledgeDetailProjection(item: KnowledgeItem) {
+  const withheld = KNOWLEDGE_WITHHELD_CLAIM_BOUNDARIES.has(item.claimBoundary);
+  return {
+    ...safeKnowledgeListProjection(item),
+    content: withheld ? null : item.content,
+    content_withheld: withheld,
+    content_withheld_reason: withheld ? "This item's claim boundary forbids quoting or paraphrasing its statement, so Intelligence shows its governance classification only." : null,
+    tags: item.tags,
+    safe_source_identifier: safeKnowledgeSourceIdentifier(item),
+  };
+}
+
+// Section 9 KPIs over the viewer's OWN inspectable items only (domain is
+// subject matter, so it is never counted over hidden items).
+function inspectableKnowledgeSummary(items: KnowledgeItem[]) {
+  const byDomain: Record<string, number> = {};
+  const byAuthority: Record<string, number> = {};
+  const byAudience: Record<string, number> = {};
+  const byFreshness: Record<string, number> = {};
+  const workerCoverage = new Set<string>();
+  let highAuthority = 0; // APPROVED_INSTITUTIONAL or TECHNICAL_SOURCE -- the two highest real ranks
+  for (const item of items) {
+    byDomain[item.domain] = (byDomain[item.domain] || 0) + 1;
+    byAuthority[item.authorityClass] = (byAuthority[item.authorityClass] || 0) + 1;
+    byAudience[item.audience] = (byAudience[item.audience] || 0) + 1;
+    byFreshness[item.freshnessClass] = (byFreshness[item.freshnessClass] || 0) + 1;
+    if (item.authorityClass === "APPROVED_INSTITUTIONAL" || item.authorityClass === "TECHNICAL_SOURCE") highAuthority += 1;
+    for (const role of item.agentVisibility) {
+      if ((KNOWLEDGE_WORKER_ROLES as readonly string[]).includes(role)) workerCoverage.add(role);
+    }
+  }
+  return {
+    total: items.length,
+    by_domain: byDomain,
+    by_authority_class: byAuthority,
+    by_audience: byAudience,
+    by_freshness_class: byFreshness,
+    // "Volatile" is the real, disclosed freshness class for items that
+    // "should be treated with more caution the older they get" -- there
+    // is no separate canonical stale/expired signal to infer from dates.
+    potentially_stale: byFreshness.volatile || 0,
+    high_authority: highAuthority,
+    workers_covered: workerCoverage.size,
+    workers_covered_list: Array.from(workerCoverage).map((r) => KNOWLEDGE_WORKER_LABEL[r]),
+  };
+}
+
+function corpusGovernanceAggregates(summary: Awaited<ReturnType<typeof summarizeKnowledgeCorpusGovernance>>) {
+  const bySourceFamily: Record<string, number> = {};
+  for (const [repo, count] of Object.entries(summary.bySourceRepo)) {
+    const family = knowledgeSourceFamilyForRepo(repo);
+    bySourceFamily[family] = (bySourceFamily[family] || 0) + count;
+  }
+  const byWorker: Record<string, number> = {};
+  for (const role of KNOWLEDGE_WORKER_ROLES) byWorker[KNOWLEDGE_WORKER_LABEL[role]] = summary.byAgentVisibility[role] || 0;
+  return {
+    total: summary.total,
+    inspectable: summary.visibleToActor,
+    not_inspectable: summary.total - summary.visibleToActor,
+    by_authority_class: summary.byAuthorityClass,
+    by_audience: summary.byAudience,
+    by_freshness_class: summary.byFreshnessClass,
+    by_claim_boundary: summary.byClaimBoundary,
+    by_source_family: bySourceFamily,
+    by_worker_visibility: byWorker,
+  };
+}
+
+router.get("/intelligence/knowledge", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const query = req.query;
+    const toArray = (v: unknown) => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
+
+    const t0 = Date.now();
+    const [corpusSummary, inspectableResult] = await Promise.all([
+      summarizeKnowledgeCorpusGovernance(KNOWLEDGE_VIEWER_ACTOR),
+      listKnowledgeItemsForActor(KNOWLEDGE_VIEWER_ACTOR, {}),
+    ]);
+    const indexMs = Date.now() - t0;
+
+    const filters = {
+      domains: toArray(query.domain) as any,
+      authorityClasses: toArray(query.authority_class) as any,
+      audiences: toArray(query.audience) as any,
+      freshnessClasses: toArray(query.freshness) as any,
+      claimBoundaries: toArray(query.claim_boundary) as any,
+      agentRoles: toArray(query.worker) as any,
+    };
+    const hasFilters = Object.values(filters).some((v) => Array.isArray(v) && v.length);
+    const t1 = Date.now();
+    const filteredResult = hasFilters ? await listKnowledgeItemsForActor(KNOWLEDGE_VIEWER_ACTOR, filters) : inspectableResult;
+    const filterMs = Date.now() - t1;
+
+    const page = Math.max(1, Number(query.page) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(query.page_size) || 20));
+    const totalFiltered = filteredResult.items.length;
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+    const pageItems = filteredResult.items.slice((page - 1) * pageSize, page * pageSize);
+
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      source: { available: corpusSummary.sourceOk, reason: corpusSummary.sourceOk ? null : corpusSummary.sourceReason },
+      viewer_authority: { agent_role: KNOWLEDGE_VIEWER_ACTOR.agentRole, audience_ceiling: KNOWLEDGE_VIEWER_ACTOR.audienceScope },
+      corpus: corpusGovernanceAggregates(corpusSummary),
+      summary: inspectableKnowledgeSummary(inspectableResult.items),
+      pagination: { page, page_size: pageSize, total: totalFiltered, total_pages: totalPages },
+      items: pageItems.map(safeKnowledgeListProjection),
+      authority_class_order: KNOWLEDGE_AUTHORITY_RANK,
+      performance: {
+        total_response_time_ms: Date.now() - startedAt,
+        slowest_source: indexMs >= filterMs ? { name: "index_build_or_cache", ms: indexMs } : { name: "filter", ms: filterMs },
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load knowledge" });
+  }
+});
+
+router.get("/intelligence/knowledge/:key", requireOfficeExportKey, async (req: Request, res: Response) => {
+  try {
+    const key = String(req.params.key || "");
+    // Fails closed through the canonical exact-key lookup: a key outside
+    // the viewer's authority and a key that does not exist are
+    // indistinguishable (same status, same body).
+    const item = await getKnowledgeItemByCanonicalKey(key, KNOWLEDGE_VIEWER_ACTOR);
+    if (!item) return res.status(404).json({ ok: false, error: "Knowledge item not found" });
+    return res.json({ ok: true, generated_at: new Date().toISOString(), item: safeKnowledgeDetailProjection(item) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Unable to load this knowledge item" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 6 -- Memory & Context, Learning.
+//
+// Both are aggregate/structural only (see memoryContextView.ts /
+// learningView.ts for exactly what is and is never selected). Same
+// requireOfficeExportKey boundary as Slices 1-5; read-only; no control
+// endpoints (no promote/approve/reset/delete/clear/force-admission).
+// ---------------------------------------------------------------------
+
+router.get("/intelligence/memory-context", requireOfficeExportKey, async (_req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const view = await buildMemoryContextView();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      privacy: "aggregate_structural_deidentified",
+      ...view,
+      performance: { ...view.performance, total_response_time_ms: Date.now() - startedAt },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: "Unable to load memory and context visibility" });
+  }
+});
+
+router.get("/intelligence/learning", requireOfficeExportKey, async (_req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const view = await buildLearningView();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      ...view,
+      performance: { ...view.performance, total_response_time_ms: Date.now() - startedAt },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: "Unable to load learning visibility" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 7 -- durable canonical traces.
+// Read-only projection of oyi_conversation_traces (sanitized structural
+// telemetry only; see conversationTraceProjection.ts). Paginated, bounded
+// (page_size <= 50), filters narrowed to closed vocabularies. No route
+// here retrieves conversation messages: thread correlation is an opaque
+// reference plus a count.
+// ---------------------------------------------------------------------
+
+router.get("/intelligence/traces", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  const filters = normalizeTraceFilters(req.query as Record<string, unknown>);
+  const timings: Record<string, number> = {};
+  const time = async <T>(name: string, fn: () => Promise<T>) => {
+    const t0 = Date.now();
+    try { const value = await fn(); timings[name] = Date.now() - t0; return { ok: true as const, value }; }
+    catch { timings[name] = Date.now() - t0; return { ok: false as const }; }
+  };
+  const [list, summary] = await Promise.all([
+    time("trace_list", () => listConversationTraces(filters, Number(req.query.page) || 1, Number(req.query.page_size) || 20)),
+    time("trace_summary", () => summarizeConversationTraces(24)),
+  ]);
+  return res.json({
+    ok: true,
+    generated_at: new Date().toISOString(),
+    store: { available: list.ok || summary.ok, ...conversationTraceStoreConfig() },
+    filters,
+    summary: summary.ok ? { available: true, ...summary.value } : { available: false },
+    items: list.ok ? list.value.items : [],
+    pagination: list.ok ? list.value.pagination : null,
+    list_available: list.ok,
+    performance: { total_response_time_ms: Date.now() - startedAt, source_timings_ms: timings },
+  });
+});
+
+router.get("/intelligence/traces/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const trace = await getConversationTrace(String(req.params.id || ""));
+    if (!trace) return res.status(404).json({ ok: false, error: "Trace not found" });
+    return res.json({ ok: true, generated_at: new Date().toISOString(), trace, performance: { total_response_time_ms: Date.now() - startedAt } });
+  } catch {
+    return res.status(503).json({ ok: false, available: false, error: "Trace store unavailable" });
   }
 });
 

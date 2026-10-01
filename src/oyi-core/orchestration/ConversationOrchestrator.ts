@@ -8,6 +8,7 @@ import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, Scop
 import { ConversationTracer } from "../observability/ConversationTracer";
 import { incrementCanonicalConversationOutcome } from "../observability/ConversationMetrics";
 import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
+import { recordConversationTrace } from "../observability/conversationTraceRecorder";
 import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
 import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
@@ -3330,7 +3331,48 @@ import { assembleGovernedContext } from "../context/governedContextAssembly";
 import { buildMemoryRecallCapability, isMemoryRecallRequest } from "../capabilities/MemoryRecallCapability";
 
 export class ConversationOrchestrator {
+  // Intelligence Visibility, Slice 7 -- the single durable-trace
+  // finalization boundary. Every invocation -- ordinary capability
+  // returns, terminal responses, workflow continuations, confirmations/
+  // cancellations, every early return inside runTurn, and thrown
+  // exceptions -- passes through exactly one recordConversationTrace()
+  // call here. The recorder never throws and is never awaited, so trace
+  // persistence can neither block nor break the conversation response or
+  // its canonical persistence (which has already completed by now).
   async run(context: CanonicalConversationRequestContext): Promise<ConversationRunResult> {
+    const traceHolder: { tracer: ConversationTracer | null } = { tracer: null };
+    const startedAt = Date.now();
+    const finalize = (response: ConversationRunResult | null, error: unknown) => {
+      try {
+        const tracer = traceHolder.tracer;
+        recordConversationTrace({
+          events: tracer ? tracer.events() : [],
+          startedAt: tracer ? tracer.startedAt : startedAt,
+          completedAt: Date.now(),
+          requestId: tracer ? tracer.requestId : null,
+          surface: context.input?.surface,
+          threadId: context.input?.thread_id || (response as any)?.thread_id || null,
+          actor: context.actor as any,
+          response: response as any,
+          error,
+        });
+      } catch {
+        // recordConversationTrace is already non-throwing; this guard only
+        // protects the response path from any unforeseen projection input.
+      }
+    };
+    let response: ConversationRunResult;
+    try {
+      response = await this.runTurn(context, traceHolder);
+    } catch (error) {
+      finalize(null, error);
+      throw error;
+    }
+    finalize(response, null);
+    return response;
+  }
+
+  private async runTurn(context: CanonicalConversationRequestContext, traceHolder: { tracer: ConversationTracer | null }): Promise<ConversationRunResult> {
     context = await assembleGovernedContext(context);
     ensureRegistered();
     const parsedFrame = parseSemanticFrame(context.input.message);
@@ -3346,8 +3388,9 @@ export class ConversationOrchestrator {
       requestId: String((context.input.context as any)?.request_id || "") || undefined,
       correlationId: String((context.input.context as any)?.correlation_id || "") || undefined,
     });
+    traceHolder.tracer = tracer;
     tracer.stage("request_received", { surface: context.input.surface, thread_id: context.input.thread_id || null });
-    tracer.stage("turn_normalized", { domain: frame.domain, operation: frame.operation, correction_count: frame.corrections.length });
+    tracer.stage("turn_normalized", { domain: frame.domain, operation: frame.operation, correction_count: frame.corrections.length, mutation_intent: Boolean(frame.mutationIntent) });
     if (isDeviceActionFrame(frame)) {
       deviceActionOrchestratorTrace("oyi_device_action_workflow_restore_started", context, null, tracer, {
         semantic_operation: frame.operation,
@@ -3689,6 +3732,9 @@ export class ConversationOrchestrator {
       operation: resolvedTurn.operation,
       capability_key: capability?.key || matchedCapability?.key || "legacy",
       rollout_status: selection.rollout_status || "legacy_fallback",
+      resolution_outcome: selection.resolution_outcome,
+      authority_allowed: architecturalMismatch ? null : selection.authority ? selection.authority.allowed : null,
+      authority_reason: architecturalMismatch ? null : selection.authority && !selection.authority.allowed ? selection.authority.reason || null : null,
     });
 
     const legacyFallback = async () => {

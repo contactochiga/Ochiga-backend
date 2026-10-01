@@ -268,6 +268,42 @@ export async function listAutomationApprovals(estateId: string, status?: string)
   return data || [];
 }
 
+// Intelligence Visibility, Slice 2 -- the platform-wide (cross-estate)
+// counterpart to listAutomationApprovals above, for a caller like Office's
+// Intelligence Overview that has no single estateId to scope by. Same
+// table, same real status values, no new state. Does NOT run
+// expireOverdueApprovals (that sweep is estate-scoped by design; the
+// estate-scoped route above still runs it on every real call, so pending
+// rows here still reflect that sweep's own cadence, just not triggered by
+// this platform-wide read itself).
+export async function listAllPendingApprovals(limit = 50) {
+  const { data, error } = await supabaseAdmin
+    .from("automation_approvals")
+    .select("*")
+    .eq("status", "pending_approval")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
+// Intelligence Visibility, Slice 4 -- multi-status, platform-wide sibling
+// of listAllPendingApprovals, for Actions & Workflows' cross-source
+// aggregate (which needs "recent automation approvals across several
+// real statuses" -- pending_approval/executing/succeeded/
+// verification_failed/failed/rejected/expired -- not just pending ones).
+export async function listAutomationApprovalsByStatuses(statuses: string[], limit = 50) {
+  if (!statuses.length) return [];
+  const { data, error } = await supabaseAdmin
+    .from("automation_approvals")
+    .select("*")
+    .in("status", statuses)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
 // PHASE 3 (Milestone 1) -- pre-execution validation (spec Section 7).
 // executeRegisteredAction re-reads the target row before mutating it, but
 // applies the action's patch unconditionally once scope/role checks pass

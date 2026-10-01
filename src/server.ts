@@ -44,6 +44,7 @@ import { socketCorsOptions } from "./config/originPolicy";
 import { deviceRuntimeStateService } from "./services/deviceRuntimeStateService";
 import { startAutomationRuntimeV2Scheduler, stopAutomationRuntimeV2Scheduler } from "./routes/scenes";
 import { startGoalRuntimeScheduler, stopGoalRuntimeScheduler } from "./services/goalRuntime/goalScheduler";
+import { flushConversationTraceWrites } from "./oyi-core/observability/conversationTraceRecorder";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -303,6 +304,10 @@ async function gracefulShutdown(signal: NodeJS.Signals) {
     await shutdownMqttBridge().catch((error) => logger.warn("mqtt_bridge_shutdown_failed", { error }));
     if (redis.isOpen) await redis.quit().catch((error) => logger.warn("redis_shutdown_failed", { error }));
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    // Slice 7 -- give in-flight durable trace writes (fire-and-forget,
+    // off the response path) a bounded chance to land before exit. Never
+    // blocks shutdown beyond 2s; a dropped trace is best-effort telemetry.
+    await Promise.race([flushConversationTraceWrites(), new Promise((resolve) => setTimeout(resolve, 2_000).unref?.())]).catch(() => undefined);
     clearTimeout(deadline);
     logger.info("backend_shutdown_complete", { signal });
     process.exit(0);

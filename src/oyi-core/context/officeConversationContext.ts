@@ -189,7 +189,7 @@ export type OfficeActiveContext = {
 // record's linked pages and coming back to the chat, short enough that a
 // stale record-linkage doesn't silently resurface hours later in what is
 // functionally a new conversation.
-const OFFICE_ACTIVE_CONTEXT_TTL_MS = 45 * 60 * 1000;
+export const OFFICE_ACTIVE_CONTEXT_TTL_MS = 45 * 60 * 1000;
 
 export function buildOfficeActiveContext(input: {
   threadId: string;

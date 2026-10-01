@@ -6,12 +6,28 @@ import { supabaseAdmin } from "../../supabase/supabaseClient";
 export interface WorkflowRepository {
   get(workflowId: string): Promise<OyiWorkflow | null>;
   getActive(threadId: string, actorId?: string | null): Promise<OyiWorkflow | null>;
+  // Intelligence Visibility, Slice 2 -- platform-wide (no thread filter)
+  // active-status listing, for a caller like Office's Intelligence
+  // Overview that needs "every workflow currently active", not one
+  // thread's workflow. Same activeWorkflowStatuses set getActive() below
+  // already filters by -- just without the mandatory thread_id scope.
+  listActive(limit?: number): Promise<OyiWorkflow[]>;
+  // Count-only sibling for Overview's KPI numbers -- sinceIso optionally
+  // narrows to updated_at >= sinceIso (used for "recent failures").
+  countByStatuses(statuses: string[], sinceIso?: string | null): Promise<number>;
+  // Intelligence Visibility, Slice 4 -- platform-wide, status-agnostic
+  // recent listing, for Actions & Workflows' cross-source aggregate
+  // (which needs "every recent workflow regardless of status," not just
+  // the active subset listActive() above returns).
+  listRecent(limit?: number): Promise<OyiWorkflow[]>;
   save(workflow: OyiWorkflow, options?: { expectedRevision?: number | null }): Promise<OyiWorkflow>;
   saveInput?(workflowId: string, input: { input_key: string; value: unknown; source: string; validated: boolean }): Promise<void>;
 }
 
 const terminalWorkflowStatuses = ["answered", "empty", "unavailable", "unsupported", "permission_restricted", "completed", "failed", "cancelled", "expired", "superseded"];
-const activeWorkflowStatuses = ["collecting_inputs", "awaiting_clarification", "ready_for_review", "awaiting_approval", "approved", "executing", "verifying"];
+// Exported (Intelligence Visibility, Slice 2) so Overview's KPI counts
+// use this exact same set, never a re-typed duplicate that could drift.
+export const activeWorkflowStatuses = ["collecting_inputs", "awaiting_clarification", "ready_for_review", "awaiting_approval", "approved", "executing", "verifying"];
 
 export class InMemoryWorkflowRepository implements WorkflowRepository {
   private readonly workflows = new Map<string, OyiWorkflow>();
@@ -23,6 +39,25 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
 
   async getActive(threadId: string) {
     return Array.from(this.workflows.values()).find((workflow) => workflow.thread_id === threadId && !terminalWorkflowStatuses.includes(workflow.status)) || null;
+  }
+
+  async listActive(limit = 50) {
+    return Array.from(this.workflows.values())
+      .filter((workflow) => activeWorkflowStatuses.includes(workflow.status))
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
+      .slice(0, limit);
+  }
+
+  async listRecent(limit = 50) {
+    return Array.from(this.workflows.values())
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
+      .slice(0, limit);
+  }
+
+  async countByStatuses(statuses: string[], sinceIso?: string | null) {
+    return Array.from(this.workflows.values()).filter(
+      (workflow) => statuses.includes(workflow.status) && (!sinceIso || String(workflow.updated_at) >= sinceIso)
+    ).length;
   }
 
   async save(workflow: OyiWorkflow, options: { expectedRevision?: number | null } = {}) {
@@ -157,6 +192,35 @@ export class SupabaseWorkflowRepository implements WorkflowRepository {
     if (error) throw error;
     if (!data) return null;
     return workflowFromRow(data as any, await this.loadInputs(String((data as any).workflow_id)));
+  }
+
+  async listActive(limit = 50) {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_conversation_workflows")
+      .select("*")
+      .in("status", activeWorkflowStatuses)
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return ((data || []) as any[]).map((row) => workflowFromRow(row));
+  }
+
+  async listRecent(limit = 50) {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_conversation_workflows")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return ((data || []) as any[]).map((row) => workflowFromRow(row));
+  }
+
+  async countByStatuses(statuses: string[], sinceIso?: string | null) {
+    let query = supabaseAdmin.from("oyi_conversation_workflows").select("workflow_id", { count: "exact", head: true }).in("status", statuses);
+    if (sinceIso) query = query.gte("updated_at", sinceIso);
+    const { count, error } = await query;
+    if (error) return 0;
+    return count || 0;
   }
 
   async save(workflow: OyiWorkflow, options: { expectedRevision?: number | null } = {}) {

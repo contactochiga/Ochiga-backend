@@ -532,7 +532,7 @@ export function isOfficeCancellationText(message: string): boolean {
 // persistCanonicalConversationTurn, mirroring officeConversationContext.
 // ts's business_active_context -- no second write path.
 // ---------------------------------------------------------------------
-const PROPOSAL_TTL_MS = 10 * 60 * 1000; // 10 minutes -- long enough to read a confirmation card, short enough that a stale "yes" days later can't silently execute.
+export const PROPOSAL_TTL_MS = 10 * 60 * 1000; // 10 minutes -- long enough to read a confirmation card, short enough that a stale "yes" days later can't silently execute.
 
 export function buildGovernedActionProposal(input: {
   threadId: string;

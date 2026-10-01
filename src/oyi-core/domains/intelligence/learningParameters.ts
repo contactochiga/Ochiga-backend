@@ -25,9 +25,26 @@ export type LearningParameter = {
 // enforced here in code, not left to convention: any parameter name
 // matching a forbidden term is rejected before it can ever be created or
 // adjusted, regardless of what evaluation logic upstream computed.
-const FORBIDDEN_NAME_PATTERN = /permission|rls|row.level.security|access.control|financial.authority|wallet.limit|confirmation.requirement|security.policy|safety.constraint|allowed.action.type|risk_class|authority/i;
+// Exported (Intelligence Visibility, Slice 6) so Office can show the
+// real boundary; the pattern below is built from this exact list, so the
+// displayed vocabulary and the enforced one can never drift apart.
+export const LEARNING_FORBIDDEN_NAME_TERMS = [
+  "permission",
+  "rls",
+  "row.level.security",
+  "access.control",
+  "financial.authority",
+  "wallet.limit",
+  "confirmation.requirement",
+  "security.policy",
+  "safety.constraint",
+  "allowed.action.type",
+  "risk_class",
+  "authority",
+] as const;
+const FORBIDDEN_NAME_PATTERN = new RegExp(LEARNING_FORBIDDEN_NAME_TERMS.join("|"), "i");
 
-const ALLOWED_NAME_PREFIXES = [
+export const ALLOWED_NAME_PREFIXES = [
   "anomaly.",
   "prediction.",
   "forecast.",
@@ -37,7 +54,7 @@ const ALLOWED_NAME_PREFIXES = [
   "notification.suppression.",
 ];
 
-function assertLearnableParameter(name: string) {
+export function assertLearnableParameter(name: string) {
   if (FORBIDDEN_NAME_PATTERN.test(name)) {
     throw new Error(`oyi_learning_parameter_forbidden: "${name}" falls outside the permitted learning boundary (§10) and can never be tuned by learning.`);
   }

@@ -5,7 +5,8 @@ import { memoryVisibleTo, type GovernedMemory } from "../contracts/memory";
 // Context retention policy, not device/camera freshness. No historical row is
 // promoted into present operational truth or inferred to be a user preference.
 export const RESIDENT_CONTEXT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-const TYPES = new Set(["recent_intelligence_query", "favorite_scene", "conversation_context", "recent_maintenance_issue"]);
+export const RESIDENT_MEMORY_ADMITTED_TYPES = ["recent_intelligence_query", "favorite_scene", "conversation_context", "recent_maintenance_issue"] as const;
+const TYPES = new Set<string>(RESIDENT_MEMORY_ADMITTED_TYPES);
 export function residentMemoryProjection(row: Record<string, any>): GovernedMemory | null {
   if (!TYPES.has(row.memory_type) || !row.user_id || !row.id) return null;
   const observed = Date.parse(row.last_seen_at);

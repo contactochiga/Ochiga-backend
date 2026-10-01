@@ -50,6 +50,7 @@ import type {
   CommunicationRecipient,
   CommunicationRecord,
   CommunicationRequest,
+  CommunicationStatus,
   RecipientResolutionSource,
 } from "../../contracts/communication";
 
@@ -391,6 +392,38 @@ export class CommunicationRuntime {
     const draft = await this.verify(communicationId);
     if (!draft) return null;
     return this.persist({ ...draft, status: "cancelled" });
+  }
+
+  // Intelligence Visibility, Slice 2 -- platform-wide (no actor filter)
+  // status listing, for a caller like Office's Intelligence Overview that
+  // needs "every communication currently awaiting_confirmation" across
+  // every actor. Same unscoped query shape outboundCallsSince() below
+  // already uses against this same table.
+  async listByStatus(status: CommunicationStatus, limit = 50): Promise<CommunicationRecord[]> {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_communications")
+      .select("*")
+      .eq("status", status)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error || !data) return [];
+    return data.map(rowToRecord);
+  }
+
+  // Intelligence Visibility, Slice 4 -- multi-status sibling of
+  // listByStatus, for Actions & Workflows' cross-source aggregate (which
+  // needs "every recent communication across several statuses" in one
+  // query, not one query per status).
+  async listByStatuses(statuses: CommunicationStatus[], limit = 50): Promise<CommunicationRecord[]> {
+    if (!statuses.length) return [];
+    const { data, error } = await supabaseAdmin
+      .from("oyi_communications")
+      .select("*")
+      .in("status", statuses)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error || !data) return [];
+    return data.map(rowToRecord);
   }
 
   // Phase K/L -- "what did you just send?" / "was that delivered?".

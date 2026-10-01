@@ -32,7 +32,8 @@ export type PendingRecipientDisambiguation = {
   expires_at: string;
 };
 
-const TTL_MS = 10 * 60 * 1000;
+export const PERSON_CONTEXT_TTL_MS = 10 * 60 * 1000;
+const TTL_MS = PERSON_CONTEXT_TTL_MS;
 
 function text(value: unknown) {
   return String(value ?? "").trim();

@@ -26,7 +26,8 @@ export type PendingCommunicationPointer = {
   expires_at: string;
 };
 
-const TTL_MS = 10 * 60 * 1000;
+export const COMMUNICATION_PROPOSAL_TTL_MS = 10 * 60 * 1000;
+const TTL_MS = COMMUNICATION_PROPOSAL_TTL_MS;
 
 function text(value: unknown) {
   return String(value ?? "").trim();

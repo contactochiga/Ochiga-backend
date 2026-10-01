@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { logger } from "../../observability/logger";
 import { observeConversationStage } from "./ConversationMetrics";
+import { pickTraceFields, type TraceStageEvent } from "./conversationTraceProjection";
 
 export type ConversationTraceStage =
   | "request_received"
@@ -27,8 +28,12 @@ export class ConversationTracer {
   readonly requestId: string;
   readonly correlationId: string;
   readonly runtimeId: string;
-  private readonly startedAt = Date.now();
+  readonly startedAt = Date.now();
   private readonly stageStarts = new Map<string, number>();
+  // Intelligence Visibility, Slice 7 -- structural stage capture for the
+  // durable trace finalizer. Only TRACE_STAGE_FIELD_ALLOWLIST scalars are
+  // retained (pickTraceFields); the logger line below is unchanged.
+  private readonly capturedEvents: TraceStageEvent[] = [];
 
   constructor(input: { requestId?: string | null; correlationId?: string | null; runtimeId?: string | null }) {
     this.requestId = input.requestId || randomUUID();
@@ -53,6 +58,11 @@ export class ConversationTracer {
       duration_ms: duration,
     });
     this.stageStarts.set(stage, now);
+    if (this.capturedEvents.length < 64) this.capturedEvents.push({ stage, at: now, duration_ms: duration, fields: pickTraceFields(metadata) });
+  }
+
+  events(): TraceStageEvent[] {
+    return this.capturedEvents.slice();
   }
 
   finish(metadata: Record<string, unknown> = {}) {

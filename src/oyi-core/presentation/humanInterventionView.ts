@@ -47,14 +47,15 @@
 // actor/estate scope field the way automation_approvals/goals do). See
 // docs/WAVE7_SLICE5_CANONICAL_DECISION_OBJECT.md for why this scope was
 // chosen instead of widening this module's own query contract further.
-import { listAutomationApprovals } from "../../services/facilityAutomationService";
+import { listAutomationApprovals, listAllPendingApprovals } from "../../services/facilityAutomationService";
 import { goalRuntime } from "../../services/goalRuntime/GoalRuntime";
 import { loadPendingOfficeActionProposal } from "../context/officeActionProposal";
 import { SupabaseWorkflowRepository } from "../workflows/WorkflowRepository";
-import { listActiveDecisionsForEntity } from "../../services/decisionStore/DecisionStore";
+import { listActiveDecisionsForEntity, listDecisionsByStatuses } from "../../services/decisionStore/DecisionStore";
+import { communicationRuntime } from "../../services/communicationRuntime/CommunicationRuntime";
 import { normalizeLifecycleStage, type LifecycleStageResult } from "./lifecycleStage";
 
-export type HumanInterventionSourceType = "automation_approval" | "conversation_proposal" | "goal_escalation" | "workflow" | "decision";
+export type HumanInterventionSourceType = "automation_approval" | "conversation_proposal" | "goal_escalation" | "workflow" | "decision" | "communication_confirmation";
 
 // Evidence-derived, not the suggested default list taken blindly:
 //   AUTHORIZATION   -- a specific automation execution requires sign-off
@@ -90,6 +91,13 @@ export type HumanInterventionObligation = {
   required_permission: string | null;
   lineage: { canonical_signal_key: string | null };
   scope: { estate_id: string | null; thread_id: string | null };
+  // Intelligence Visibility, Slice 2 -- which of the four governed
+  // workers this obligation belongs to, ONLY where the source object
+  // carries a real surface field (goal/workflow/communication all do;
+  // automation_approval is structurally facility-only; decision carries
+  // none today). Never inferred/guessed -- null means genuinely unknown,
+  // not "office" by default.
+  surface: string | null;
 };
 
 export type HumanInterventionQuery = {
@@ -153,6 +161,7 @@ async function loadAutomationApprovalSource(estateId: string): Promise<{ health:
       required_permission: null,
       lineage: { canonical_signal_key: null },
       scope: { estate_id: String(row.estate_id), thread_id: null },
+      surface: "facility",
     }));
     return { health: { source_type: "automation_approval", queried: true, ok: true, error: null, count: obligations.length }, obligations };
   } catch (error: any) {
@@ -179,6 +188,7 @@ async function loadGoalEscalationSource(actorId: string): Promise<{ health: Huma
       required_permission: null,
       lineage: { canonical_signal_key: goal.canonical_signal_key },
       scope: { estate_id: null, thread_id: goal.conversation_thread_id },
+      surface: textOrNull(goal.surface),
     }));
     return { health: { source_type: "goal_escalation", queried: true, ok: true, error: null, count: obligations.length }, obligations };
   } catch (error: any) {
@@ -206,6 +216,7 @@ async function loadConversationProposalSource(threadId: string, actorId: string)
       required_permission: null,
       lineage: { canonical_signal_key: null },
       scope: { estate_id: null, thread_id: proposal.thread_id },
+      surface: "office_internal",
     };
     return { health: { source_type: "conversation_proposal", queried: true, ok: true, error: null, count: 1 }, obligations: [obligation] };
   } catch (error: any) {
@@ -240,6 +251,7 @@ async function loadWorkflowSource(threadId: string, actorId: string): Promise<{ 
       required_permission: null,
       lineage: { canonical_signal_key: null },
       scope: { estate_id: workflow.target?.estate_id || null, thread_id: workflow.thread_id },
+      surface: textOrNull(workflow.surface),
     };
     return { health: { source_type: "workflow", queried: true, ok: true, error: null, count: 1 }, obligations: [obligation] };
   } catch (error: any) {
@@ -271,11 +283,220 @@ async function loadDecisionSource(entityType: string, entityId: string): Promise
       required_permission: null,
       lineage: { canonical_signal_key: d.canonical_signal_key },
       scope: { estate_id: null, thread_id: null },
+      surface: null,
     }));
     return { health: { source_type: "decision", queried: true, ok: true, error: null, count: obligations.length }, obligations };
   } catch (error: any) {
     return { health: { source_type: "decision", queried: true, ok: false, error: String(error?.message || error), count: 0 }, obligations: [] };
   }
+}
+
+// ---------------------------------------------------------------------
+// Intelligence Visibility, Slice 2 -- PLATFORM-WIDE variant.
+//
+// loadHumanInterventionObligations() above is, by its own query shape,
+// scoped to a single estate/actor/thread/entity -- correct for a live
+// conversation turn, but structurally unable to answer Office's "what
+// needs a human right now, across the whole platform" question: there is
+// no single estateId/actorId/threadId/entityId to pass for a
+// platform-wide dashboard. Real audit of every source this file composes
+// (see the store-level additions this slice made: listAllPendingApprovals,
+// GoalRuntime.listByStatuses, listDecisionsByStatuses,
+// WorkflowRepository.listActive, communicationRuntime.listByStatus)
+// confirmed each is backed by its own real, dedicated table that CAN be
+// queried unscoped -- except conversation_proposal, whose only storage is
+// a JSONB sibling key on oyi_conversation_threads.metadata with no
+// broader listing capability (and no index that would make an unscoped
+// scan safe or fast), exactly as this file's own top-of-file audit
+// already documented for the per-actor case. That source is therefore
+// EXCLUDED here too, not silently worked around with a new table this
+// slice was not asked to build.
+//
+// communication_confirmation is a NEW fifth source (Section 6 of this
+// slice's own brief: "communication confirmations"), reusing the real
+// CommunicationStatus="awaiting_confirmation" value and the real
+// oyi_communications table CommunicationRuntime already owns -- not a new
+// state or a new store.
+const PLATFORM_INTERVENTION_LIMIT_DEFAULT = 50;
+
+async function loadPlatformAutomationApprovalSource(limit: number): Promise<{ health: HumanInterventionSourceHealth; obligations: HumanInterventionObligation[] }> {
+  try {
+    const rows = await listAllPendingApprovals(limit);
+    const obligations = rows.map((row: any) => ({
+      id: `automation_approval:${row.id}`,
+      source_type: "automation_approval" as const,
+      source_id: String(row.id),
+      intervention_type: "AUTHORIZATION" as const,
+      native_status: String(row.status),
+      normalized_stage: normalizeLifecycleStage({ objectType: "automation_approval", status: row.status }),
+      title: approvalTitle(row),
+      reason: textOrNull(row.reason),
+      created_at: String(row.created_at),
+      due_at: textOrNull(row.expires_at),
+      actor: { id: null, estate_id: String(row.estate_id) },
+      required_role: null,
+      required_permission: null,
+      lineage: { canonical_signal_key: null },
+      scope: { estate_id: String(row.estate_id), thread_id: null },
+      surface: "facility",
+    }));
+    return { health: { source_type: "automation_approval", queried: true, ok: true, error: null, count: obligations.length }, obligations };
+  } catch (error: any) {
+    return { health: { source_type: "automation_approval", queried: true, ok: false, error: String(error?.message || error), count: 0 }, obligations: [] };
+  }
+}
+
+async function loadPlatformGoalEscalationSource(limit: number): Promise<{ health: HumanInterventionSourceHealth; obligations: HumanInterventionObligation[] }> {
+  try {
+    const goals = await goalRuntime.listByStatuses(["needs_human"], limit);
+    const obligations = goals.map((goal) => ({
+      id: `goal_escalation:${goal.id}`,
+      source_type: "goal_escalation" as const,
+      source_id: goal.id,
+      intervention_type: "ESCALATION" as const,
+      native_status: String(goal.status),
+      normalized_stage: normalizeLifecycleStage({ objectType: "goal", status: goal.status }),
+      title: goalTitle(goal.objective),
+      reason: textOrNull((goal as any).completion_reason),
+      created_at: String((goal as any).created_at || ""),
+      due_at: null,
+      actor: { id: goal.requesting_actor_id, estate_id: null },
+      required_role: null,
+      required_permission: null,
+      lineage: { canonical_signal_key: goal.canonical_signal_key },
+      scope: { estate_id: null, thread_id: goal.conversation_thread_id },
+      surface: textOrNull(goal.surface),
+    }));
+    return { health: { source_type: "goal_escalation", queried: true, ok: true, error: null, count: obligations.length }, obligations };
+  } catch (error: any) {
+    return { health: { source_type: "goal_escalation", queried: true, ok: false, error: String(error?.message || error), count: 0 }, obligations: [] };
+  }
+}
+
+async function loadPlatformWorkflowSource(limit: number): Promise<{ health: HumanInterventionSourceHealth; obligations: HumanInterventionObligation[] }> {
+  try {
+    const workflows = await workflowRepository.listActive(limit);
+    const obligations: HumanInterventionObligation[] = [];
+    for (const workflow of workflows) {
+      const status = String(workflow.status);
+      let interventionType: HumanInterventionType | null = null;
+      if (WORKFLOW_CONFIRMATION_STATUSES.has(status)) interventionType = "CONFIRMATION";
+      else if (WORKFLOW_INPUT_STATUSES.has(status)) interventionType = "INPUT_REQUIRED";
+      if (!interventionType) continue; // active-but-not-yet-human-facing (e.g. collecting_inputs/executing) -- real work, not a human gate, same exclusion rule as the per-thread loader.
+      obligations.push({
+        id: `workflow:${workflow.workflow_id}`,
+        source_type: "workflow",
+        source_id: workflow.workflow_id,
+        intervention_type: interventionType,
+        native_status: status,
+        normalized_stage: normalizeLifecycleStage({ objectType: "workflow", status }),
+        title: textOrNull(workflow.operation) || textOrNull(workflow.capability_key) || "A device-action workflow",
+        reason: workflow.unresolved_inputs && workflow.unresolved_inputs.length ? `Missing: ${workflow.unresolved_inputs.join(", ")}` : null,
+        created_at: workflow.created_at,
+        due_at: textOrNull(workflow.expires_at),
+        actor: { id: workflow.actor_id, estate_id: workflow.target?.estate_id || null },
+        required_role: null,
+        required_permission: null,
+        lineage: { canonical_signal_key: null },
+        scope: { estate_id: workflow.target?.estate_id || null, thread_id: workflow.thread_id },
+        surface: textOrNull(workflow.surface),
+      });
+    }
+    return { health: { source_type: "workflow", queried: true, ok: true, error: null, count: obligations.length }, obligations };
+  } catch (error: any) {
+    return { health: { source_type: "workflow", queried: true, ok: false, error: String(error?.message || error), count: 0 }, obligations: [] };
+  }
+}
+
+async function loadPlatformDecisionSource(limit: number): Promise<{ health: HumanInterventionSourceHealth; obligations: HumanInterventionObligation[] }> {
+  try {
+    const decisions = await listDecisionsByStatuses(["awaiting_human"], limit);
+    const obligations = decisions.map((d) => ({
+      id: `decision:${d.id}`,
+      source_type: "decision" as const,
+      source_id: d.id,
+      intervention_type: "AUTHORIZATION" as const,
+      native_status: d.status,
+      normalized_stage: normalizeLifecycleStage({ objectType: "decision", status: d.status }),
+      title: d.title,
+      reason: d.reason,
+      created_at: d.created_at,
+      due_at: null,
+      actor: { id: d.selected_by === "system" ? null : d.selected_by, estate_id: null },
+      required_role: null,
+      required_permission: null,
+      lineage: { canonical_signal_key: d.canonical_signal_key },
+      scope: { estate_id: null, thread_id: null },
+      surface: null,
+    }));
+    return { health: { source_type: "decision", queried: true, ok: true, error: null, count: obligations.length }, obligations };
+  } catch (error: any) {
+    return { health: { source_type: "decision", queried: true, ok: false, error: String(error?.message || error), count: 0 }, obligations: [] };
+  }
+}
+
+// communication_confirmation title deliberately built from channel+intent
+// ONLY -- never subject/body/recipient (see CommunicationRecord's own
+// contract: recipient carries name/email/phone/whatsapp_phone, subject/
+// body/plain_text/html carry the actual message). intent is documented on
+// the contract itself as "short human-readable label... not a closed
+// taxonomy", the same class of field capability domain_label already
+// safely exposes.
+function communicationTitle(record: { channel: string; intent: string }): string {
+  const intent = textOrNull(record.intent);
+  return intent ? `${record.channel}: ${intent}` : `A pending ${record.channel} message`;
+}
+
+async function loadPlatformCommunicationConfirmationSource(limit: number): Promise<{ health: HumanInterventionSourceHealth; obligations: HumanInterventionObligation[] }> {
+  try {
+    const records = await communicationRuntime.listByStatus("awaiting_confirmation", limit);
+    const obligations = records.map((record) => ({
+      id: `communication_confirmation:${record.communication_id}`,
+      source_type: "communication_confirmation" as const,
+      source_id: record.communication_id,
+      intervention_type: "CONFIRMATION" as const,
+      native_status: String(record.status),
+      normalized_stage: normalizeLifecycleStage({ objectType: "communication", status: record.status }),
+      title: communicationTitle(record),
+      reason: null,
+      created_at: record.created_at,
+      due_at: null, // CommunicationRecord carries no confirmation TTL field today -- honestly null, not guessed.
+      actor: { id: record.actor_id, estate_id: null },
+      required_role: null,
+      required_permission: record.governance?.permission_scope ? String(record.governance.permission_scope) : null,
+      lineage: { canonical_signal_key: null },
+      scope: { estate_id: null, thread_id: record.conversation_thread_id },
+      surface: textOrNull(record.surface),
+    }));
+    return { health: { source_type: "communication_confirmation", queried: true, ok: true, error: null, count: obligations.length }, obligations };
+  } catch (error: any) {
+    return { health: { source_type: "communication_confirmation", queried: true, ok: false, error: String(error?.message || error), count: 0 }, obligations: [] };
+  }
+}
+
+// The one platform-wide entry point -- Office's Intelligence Overview and
+// /office/intelligence/interventions both call this, never the per-scope
+// loadHumanInterventionObligations() above (which they have no
+// estateId/actorId/threadId/entityId to satisfy). Parallel reads across
+// all five sources; complete=false (same contract as the per-scope
+// function) if any source's own query failed, so a caller never presents
+// a partial list as "nothing needs attention."
+export async function loadPlatformHumanInterventionObligations(limit: number = PLATFORM_INTERVENTION_LIMIT_DEFAULT): Promise<HumanInterventionResult> {
+  const results = await Promise.all([
+    loadPlatformAutomationApprovalSource(limit),
+    loadPlatformGoalEscalationSource(limit),
+    loadPlatformDecisionSource(limit),
+    loadPlatformWorkflowSource(limit),
+    loadPlatformCommunicationConfirmationSource(limit),
+  ]);
+  const obligations: HumanInterventionObligation[] = [];
+  const sources: HumanInterventionSourceHealth[] = [];
+  for (const result of results) {
+    sources.push(result.health);
+    obligations.push(...result.obligations);
+  }
+  obligations.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  return { obligations, sources, complete: sources.every((s) => s.ok) };
 }
 
 // Read-only. Composes only whichever sources the caller supplies a real,
