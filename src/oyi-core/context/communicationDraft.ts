@@ -38,7 +38,8 @@ export type DraftCommunicationPointer = {
   expires_at: string;
 };
 
-const TTL_MS = 30 * 60 * 1000;
+export const COMMUNICATION_DRAFT_TTL_MS = 30 * 60 * 1000;
+const TTL_MS = COMMUNICATION_DRAFT_TTL_MS;
 
 function text(value: unknown) {
   return String(value ?? "").trim();

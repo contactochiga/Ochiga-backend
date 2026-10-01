@@ -5,7 +5,7 @@ import { logger } from "../../observability/logger";
 import { operationalMetrics } from "../../observability/metrics";
 import { runIntelligenceOrchestrator } from "../domains/intelligence/intelligenceOrchestrator";
 import { evaluateOpenPredictions } from "../domains/intelligence/outcomeEvaluation";
-import { runLearningProposalPass } from "../domains/intelligence/learningProposalPass";
+import { runLearningProposalPass, learningProposalPassEnabledInThisProcess } from "../domains/intelligence/learningProposalPass";
 import type { CanonicalConversationRequest } from "../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../interpretation/conversationIntentRouting";
 
@@ -46,7 +46,7 @@ const MAX_DELIVERIES_PER_RUN = Math.max(1, Number(process.env.OYI_PROACTIVE_SCHE
 // proposals aggregate global evidence and are only meaningful to
 // recompute infrequently (default: once a day), unlike the per-home
 // proactive tick.
-const LEARNING_PROPOSAL_ENABLED = String(process.env.OYI_LEARNING_PROPOSAL_ENABLED || "").toLowerCase() === "true";
+const LEARNING_PROPOSAL_ENABLED = learningProposalPassEnabledInThisProcess();
 const LEARNING_PROPOSAL_INTERVAL_MS = Number(process.env.OYI_LEARNING_PROPOSAL_INTERVAL_MS || 24 * 60 * 60 * 1000);
 
 let connection: IORedis | null = null;

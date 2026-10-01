@@ -66,6 +66,8 @@ import {
 import { getDeviceCommandExecution } from "../services/deviceCommandExecutionStore";
 import { communicationRuntime } from "../services/communicationRuntime/CommunicationRuntime";
 import { listKnowledgeItemsForActor, summarizeKnowledgeCorpusGovernance, getKnowledgeItemByCanonicalKey } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
+import { buildMemoryContextView } from "../oyi-core/presentation/memoryContextView";
+import { buildLearningView } from "../oyi-core/presentation/learningView";
 import { KNOWLEDGE_AUTHORITY_RANK, OFFICE_INTERNAL_KNOWLEDGE_ACTOR, authorityRank as knowledgeAuthorityRank, type KnowledgeItem } from "../oyi-core/domains/knowledge/knowledgeContracts";
 
 const router = Router();
@@ -3728,6 +3730,46 @@ router.get("/intelligence/knowledge/:key", requireOfficeExportKey, async (req: R
     return res.json({ ok: true, generated_at: new Date().toISOString(), item: safeKnowledgeDetailProjection(item) });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || "Unable to load this knowledge item" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 6 -- Memory & Context, Learning.
+//
+// Both are aggregate/structural only (see memoryContextView.ts /
+// learningView.ts for exactly what is and is never selected). Same
+// requireOfficeExportKey boundary as Slices 1-5; read-only; no control
+// endpoints (no promote/approve/reset/delete/clear/force-admission).
+// ---------------------------------------------------------------------
+
+router.get("/intelligence/memory-context", requireOfficeExportKey, async (_req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const view = await buildMemoryContextView();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      privacy: "aggregate_structural_deidentified",
+      ...view,
+      performance: { ...view.performance, total_response_time_ms: Date.now() - startedAt },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: "Unable to load memory and context visibility" });
+  }
+});
+
+router.get("/intelligence/learning", requireOfficeExportKey, async (_req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const view = await buildLearningView();
+    return res.json({
+      ok: true,
+      generated_at: new Date().toISOString(),
+      ...view,
+      performance: { ...view.performance, total_response_time_ms: Date.now() - startedAt },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: "Unable to load learning visibility" });
   }
 });
 

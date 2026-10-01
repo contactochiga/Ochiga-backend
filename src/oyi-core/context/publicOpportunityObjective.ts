@@ -44,7 +44,8 @@ export type PublicOpportunityObjective = {
   updated_at: string;
 };
 
-const TTL_MS = 30 * 60 * 1000;
+export const PUBLIC_OPPORTUNITY_OBJECTIVE_TTL_MS = 30 * 60 * 1000;
+const TTL_MS = PUBLIC_OPPORTUNITY_OBJECTIVE_TTL_MS;
 
 function text(value: unknown) {
   return String(value ?? "").trim();

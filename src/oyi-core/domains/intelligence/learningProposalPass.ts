@@ -15,7 +15,17 @@ import { getLearningParameter, proposeLearningParameterAdjustment } from "./lear
 // real evaluator would fabricate learning from nothing.
 const EVALUABLE_PREDICTION_TYPES = ["device_reliability_risk", "maintenance_sla_risk", "automation_failure_risk"] as const;
 
-const MIN_SAMPLE_THRESHOLD = Math.max(1, Number(process.env.OYI_LEARNING_MIN_SAMPLE_THRESHOLD || 20));
+export const LEARNING_MIN_SAMPLE_THRESHOLD = Math.max(1, Number(process.env.OYI_LEARNING_MIN_SAMPLE_THRESHOLD || 20));
+const MIN_SAMPLE_THRESHOLD = LEARNING_MIN_SAMPLE_THRESHOLD;
+export { EVALUABLE_PREDICTION_TYPES };
+
+// The scheduler's own enable flag, read here so a reader (Intelligence
+// Visibility) can report it without importing the scheduler module (which
+// opens a BullMQ/Redis connection at import time). Reflects the env of the
+// process that calls it -- the scheduler runs in the separate worker process.
+export function learningProposalPassEnabledInThisProcess(): boolean {
+  return String(process.env.OYI_LEARNING_PROPOSAL_ENABLED || "").toLowerCase() === "true";
+}
 
 function parameterNameFor(predictionType: string) {
   // Under the "prediction." namespace learningParameters.ts already
