@@ -8,6 +8,7 @@ import { startProactiveIntelligenceScheduler } from "./oyi-core/runtime/proactiv
 import { startCameraMediaRetentionWorker } from "./workers/cameraMediaRetentionWorker";
 import { startCameraHealthTransitionWorker } from "./workers/cameraHealthTransitionWorker";
 import { startCanonicalMaterializationWorker } from "./workers/canonicalMaterializationWorker";
+import { startConversationTraceRetentionWorker } from "./workers/conversationTraceRetentionWorker";
 
 startAutomationWorker();
 startIntentWorker();
@@ -16,5 +17,6 @@ startProactiveIntelligenceScheduler();
 startCameraMediaRetentionWorker();
 startCameraHealthTransitionWorker();
 startCanonicalMaterializationWorker();
+startConversationTraceRetentionWorker();
 
 console.log("🧠 Workers running");

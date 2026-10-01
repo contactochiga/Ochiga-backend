@@ -68,6 +68,7 @@ import { communicationRuntime } from "../services/communicationRuntime/Communica
 import { listKnowledgeItemsForActor, summarizeKnowledgeCorpusGovernance, getKnowledgeItemByCanonicalKey } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
 import { buildMemoryContextView } from "../oyi-core/presentation/memoryContextView";
 import { buildLearningView } from "../oyi-core/presentation/learningView";
+import { listConversationTraces, normalizeTraceFilters, summarizeConversationTraces, getConversationTrace, conversationTraceStoreConfig } from "../oyi-core/presentation/conversationTraceView";
 import { KNOWLEDGE_AUTHORITY_RANK, OFFICE_INTERNAL_KNOWLEDGE_ACTOR, authorityRank as knowledgeAuthorityRank, type KnowledgeItem } from "../oyi-core/domains/knowledge/knowledgeContracts";
 
 const router = Router();
@@ -2791,6 +2792,7 @@ router.get("/intelligence/overview", requireOfficeExportKey, async (req: Request
     workflowsFailedResult,
     activityResult,
     activityFailedResult,
+    canonicalTracesResult,
   ] = await Promise.all([
     timed("capabilities", async () => buildIntelligenceCapabilityInventory()),
     timed("interventions", async () => loadPlatformHumanInterventionObligations(50)),
@@ -2820,6 +2822,8 @@ router.get("/intelligence/overview", requireOfficeExportKey, async (req: Request
       if (error) throw error;
       return count || 0;
     }),
+    // Slice 7 -- compact durable-trace summary (same aggregate as Activity & Trace).
+    timed("canonical_traces", async () => summarizeConversationTraces(24)),
   ]);
 
   const slowestSource = Object.entries(timings).sort((a, b) => b[1] - a[1])[0];
@@ -2909,6 +2913,19 @@ router.get("/intelligence/overview", requireOfficeExportKey, async (req: Request
 
     activity: activityResult.ok
       ? { available: true, recent_count: activityResult.value, window: "24h" }
+      : { available: false },
+    canonical_traces: canonicalTracesResult.ok
+      ? {
+          available: true,
+          window: "24h",
+          turns: canonicalTracesResult.value.turns,
+          structural_failures: canonicalTracesResult.value.structural_failures,
+          no_match: canonicalTracesResult.value.no_match,
+          authority_denied: canonicalTracesResult.value.authority_denied,
+          runtime_errors: canonicalTracesResult.value.runtime_errors,
+          persistence_failures: canonicalTracesResult.value.persistence_failures,
+          truncated: canonicalTracesResult.value.truncated,
+        }
       : { available: false },
 
     failures: {
@@ -3040,7 +3057,7 @@ async function buildWorkerIntelligenceProfiles() {
 
   const sinceIso24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  const [capabilitiesResult, interventionsResult, eventsResult] = await Promise.all([
+  const [capabilitiesResult, interventionsResult, eventsResult, tracesResult] = await Promise.all([
     timed("capabilities", async () => buildIntelligenceCapabilityInventory()),
     timed("interventions", async () => loadPlatformHumanInterventionObligations(200)),
     timed("observability_events", async () => {
@@ -3053,11 +3070,14 @@ async function buildWorkerIntelligenceProfiles() {
       if (error) throw error;
       return (data || []) as Array<{ surface: string | null; status: string | null }>;
     }),
+    // Slice 7 -- durable canonical traces (one bounded 24h aggregate).
+    timed("canonical_traces", async () => summarizeConversationTraces(24)),
   ]);
 
   const inv = capabilitiesResult.ok ? capabilitiesResult.value : null;
   const interventions = interventionsResult.ok ? interventionsResult.value : null;
   const events = eventsResult.ok ? eventsResult.value : null;
+  const traceSummary = tracesResult.ok ? tracesResult.value : null;
 
   const workers = WORKER_DEFINITIONS.map((def) => {
     const capsForWorker = inv ? inv.projected.filter((c) => c.supported_surfaces.includes(def.surface as any)) : [];
@@ -3114,6 +3134,12 @@ async function buildWorkerIntelligenceProfiles() {
       failures: events
         ? { available: true, recent_count: workerFailedEvents.length, window: "24h" }
         : { available: false, recent_count: null },
+      // Slice 7 -- canonical turns handled through this worker's surface,
+      // from the durable trace store. Workers are not processes: there is
+      // deliberately no uptime and no synthetic score here.
+      canonical_turns: traceSummary && (traceSummary.by_worker as any)[def.identity]
+        ? { available: true, window: "24h", ...(traceSummary.by_worker as any)[def.identity], sample_truncated: traceSummary.truncated }
+        : { available: false },
     };
   });
 
@@ -3770,6 +3796,52 @@ router.get("/intelligence/learning", requireOfficeExportKey, async (_req: Reques
     });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: "Unable to load learning visibility" });
+  }
+});
+
+// ---------------------------------------------------------------------
+// Intelligence System Visibility, Slice 7 -- durable canonical traces.
+// Read-only projection of oyi_conversation_traces (sanitized structural
+// telemetry only; see conversationTraceProjection.ts). Paginated, bounded
+// (page_size <= 50), filters narrowed to closed vocabularies. No route
+// here retrieves conversation messages: thread correlation is an opaque
+// reference plus a count.
+// ---------------------------------------------------------------------
+
+router.get("/intelligence/traces", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  const filters = normalizeTraceFilters(req.query as Record<string, unknown>);
+  const timings: Record<string, number> = {};
+  const time = async <T>(name: string, fn: () => Promise<T>) => {
+    const t0 = Date.now();
+    try { const value = await fn(); timings[name] = Date.now() - t0; return { ok: true as const, value }; }
+    catch { timings[name] = Date.now() - t0; return { ok: false as const }; }
+  };
+  const [list, summary] = await Promise.all([
+    time("trace_list", () => listConversationTraces(filters, Number(req.query.page) || 1, Number(req.query.page_size) || 20)),
+    time("trace_summary", () => summarizeConversationTraces(24)),
+  ]);
+  return res.json({
+    ok: true,
+    generated_at: new Date().toISOString(),
+    store: { available: list.ok || summary.ok, ...conversationTraceStoreConfig() },
+    filters,
+    summary: summary.ok ? { available: true, ...summary.value } : { available: false },
+    items: list.ok ? list.value.items : [],
+    pagination: list.ok ? list.value.pagination : null,
+    list_available: list.ok,
+    performance: { total_response_time_ms: Date.now() - startedAt, source_timings_ms: timings },
+  });
+});
+
+router.get("/intelligence/traces/:id", requireOfficeExportKey, async (req: Request, res: Response) => {
+  const startedAt = Date.now();
+  try {
+    const trace = await getConversationTrace(String(req.params.id || ""));
+    if (!trace) return res.status(404).json({ ok: false, error: "Trace not found" });
+    return res.json({ ok: true, generated_at: new Date().toISOString(), trace, performance: { total_response_time_ms: Date.now() - startedAt } });
+  } catch {
+    return res.status(503).json({ ok: false, available: false, error: "Trace store unavailable" });
   }
 });
 
