@@ -17,7 +17,7 @@
 //   - capability keys must be REGISTERED capability keys;
 //   - lineage references must be UUIDs;
 //   - thread correlation is a keyed one-way hash, never the thread id.
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
 import { LEGACY_ROLE_ALIASES, PLATFORM_ROLES } from "../../core/foundation/permissions";
 import type { ConversationTraceStage } from "./ConversationTracer";
@@ -231,16 +231,26 @@ function boolish(value: unknown): boolean | null {
   return null;
 }
 
-// Keyed one-way hash. OYI_TRACE_REFERENCE_KEY should be set per
-// deployment; without it a domain-separated unkeyed hash is used (still
-// one-way for random UUIDs, but linkable by anyone already holding the
-// raw id -- documented weaker mode).
+// Keyed one-way pseudonymization. OYI_TRACE_REFERENCE_KEY is REQUIRED
+// (>= TRACE_REFERENCE_KEY_MIN_LENGTH chars); there is deliberately no
+// unkeyed fallback -- an unkeyed deterministic hash of a thread id would
+// be linkable by anyone already holding that id. Without a key, no
+// reference can be produced and the recorder does not persist traces.
+export const TRACE_REFERENCE_KEY_MIN_LENGTH = 32;
+export function traceReferenceKeyConfigured(): boolean {
+  const key = process.env.OYI_TRACE_REFERENCE_KEY;
+  return typeof key === "string" && key.length >= TRACE_REFERENCE_KEY_MIN_LENGTH;
+}
+export class TraceReferenceKeyUnavailableError extends Error {
+  constructor() {
+    super("trace_reference_key_unavailable");
+    this.name = "TraceReferenceKeyUnavailableError";
+  }
+}
 export function opaqueReference(kind: "thread" | "turn", raw: unknown): string | null {
   if (typeof raw !== "string" || !raw) return null;
-  const key = process.env.OYI_TRACE_REFERENCE_KEY;
-  const digest = key
-    ? createHmac("sha256", key).update(`${kind}:${raw}`).digest("hex")
-    : createHash("sha256").update(`oyi-trace-${kind}-v1:${raw}`).digest("hex");
+  if (!traceReferenceKeyConfigured()) throw new TraceReferenceKeyUnavailableError();
+  const digest = createHmac("sha256", process.env.OYI_TRACE_REFERENCE_KEY as string).update(`${kind}:${raw}`).digest("hex");
   return `${kind === "thread" ? "th" : "tu"}_${digest.slice(0, 20)}`;
 }
 

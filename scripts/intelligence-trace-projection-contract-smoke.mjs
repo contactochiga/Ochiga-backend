@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:55421";
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "projection-contract-placeholder-not-used";
 process.env.REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+process.env.OYI_TRACE_REFERENCE_KEY = "contract-smoke-reference-key-0123456789abcdef";
 const require = createRequire(import.meta.url);
 for (const [mod, exp] of [["bullmq", { Queue: class {}, Worker: class {} }]]) {
   const p = require.resolve(mod); require.cache[p] = { id: p, filename: p, loaded: true, exports: exp };
@@ -139,14 +140,22 @@ const opSrc = [...sfSrc.match(/export type SemanticOperation =([\s\S]*?);/)[1].m
 assert.deepEqual([...P.TRACE_OPERATIONS], [...opSrc, "automation.suggest"], "TRACE_OPERATIONS mirrors SemanticOperation");
 pass(`closed vocabularies: domain in OyiDomain (${domainSrc.length}), operation in SemanticOperation (${opSrc.length}) + override; lowercase single-word user text rejected`);
 
-// --- 8. opaque references ---
-const before = P.opaqueReference("thread", S.thread);
-process.env.OYI_TRACE_REFERENCE_KEY = "local-test-reference-key";
+// --- 8. opaque references: keyed only, no unkeyed fallback ---
 const keyed = P.opaqueReference("thread", S.thread);
-assert.notEqual(before, keyed); assert.equal(P.opaqueReference("thread", S.thread), keyed, "stable for correlation");
-assert.ok(!keyed.includes(S.thread.slice(0, 8)));
+assert.match(keyed, /^th_[0-9a-f]{20}$/); assert.equal(P.opaqueReference("thread", S.thread), keyed, "stable for correlation");
+process.env.OYI_TRACE_REFERENCE_KEY = "a-different-reference-key-0123456789abcdef";
+assert.notEqual(P.opaqueReference("thread", S.thread), keyed, "pseudonym depends on the deployment key");
+const saved = process.env.OYI_TRACE_REFERENCE_KEY;
 delete process.env.OYI_TRACE_REFERENCE_KEY;
-pass("references: thread/turn refs are one-way, stable for correlation, keyed when OYI_TRACE_REFERENCE_KEY is set");
+assert.equal(P.traceReferenceKeyConfigured(), false);
+assert.throws(() => P.opaqueReference("thread", S.thread), (e) => e.name === "TraceReferenceKeyUnavailableError", "no key -> no reference, never an unkeyed hash");
+process.env.OYI_TRACE_REFERENCE_KEY = "too-short-key";
+assert.equal(P.traceReferenceKeyConfigured(), false, "keys shorter than 32 chars are rejected");
+assert.throws(() => P.opaqueReference("turn", "x"));
+process.env.OYI_TRACE_REFERENCE_KEY = saved;
+const projSrc = fs.readFileSync("src/oyi-core/observability/conversationTraceProjection.ts", "utf8").split("\n").map((l) => l.replace(/\/\/.*$/, "")).join("\n");
+assert.doesNotMatch(projSrc, /createHash\(|oyi-trace-\$\{kind\}-v1/, "no unkeyed hashing code remains");
+pass("references: HMAC-only pseudonyms (stable per key, change with key); missing/short key throws -- no unkeyed fallback exists in code");
 
 // --- 9. static: no spreading into the record ---
 const src = fs.readFileSync("src/oyi-core/observability/conversationTraceProjection.ts", "utf8").split("\n").map((l) => l.replace(/\/\/.*$/, "")).join("\n");

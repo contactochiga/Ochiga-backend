@@ -14,6 +14,12 @@ One sanitized, structural record per `ConversationOrchestrator.run()` invocation
 - Semantics: best-effort, at most once per turn. `gracefulShutdown` (server.ts) flushes in-flight
   writes for up to 2s. A process that calls `process.exit()` directly can drop its final write.
 - Kill switch: `OYI_CONVERSATION_TRACE_ENABLED=false`.
+- **Required:** `OYI_TRACE_REFERENCE_KEY` (secret, >= 32 characters, unique per deployment; never
+  committed or logged). Without a usable key, recording status is `unconfigured`: no trace row is
+  written, `oyi_conversation_trace_write_total{outcome="unconfigured"}` increments, a throttled
+  `oyi_conversation_trace_unconfigured` warning is logged (without the key), and the trace API /
+  Overview report recording as degraded. Conversations and canonical conversation persistence are
+  unaffected. There is no unkeyed fallback.
 
 ## Projection (`conversationTraceProjection.ts`)
 Every column is listed in `TRACE_FIELD_CLASSIFICATION` (AVAILABLE_NOW / DERIVED_SAFELY);
@@ -21,8 +27,7 @@ Every column is listed in `TRACE_FIELD_CLASSIFICATION` (AVAILABLE_NOW / DERIVED_
 target ids and labels, evidence, context, memory, knowledge, communication, error messages,
 credentials). Values are closed vocabularies (OyiDomain, SemanticOperation, Wave 11 resolution
 outcomes, TargetSource, rollout statuses), registered capability keys, UUID-only lineage, and
-keyed one-way references (`OYI_TRACE_REFERENCE_KEY`; without it an unkeyed domain-separated hash
-is used). Only the 12 stages the runtime actually emits are persisted; declared-but-never-emitted
+keyed one-way references (HMAC-SHA256 with `OYI_TRACE_REFERENCE_KEY`; no unkeyed fallback). Only the 12 stages the runtime actually emits are persisted; declared-but-never-emitted
 stages are never fabricated. Errors persist a class name only.
 
 Terminal outcomes (canonical taxonomy): capability_response, governed_continuation,

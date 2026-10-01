@@ -2925,8 +2925,9 @@ router.get("/intelligence/overview", requireOfficeExportKey, async (req: Request
           runtime_errors: canonicalTracesResult.value.runtime_errors,
           persistence_failures: canonicalTracesResult.value.persistence_failures,
           truncated: canonicalTracesResult.value.truncated,
+          recording_status: conversationTraceStoreConfig().recording_status,
         }
-      : { available: false },
+      : { available: false, recording_status: conversationTraceStoreConfig().recording_status },
 
     failures: {
       workflow_failed: workflowsFailedResult.ok ? { available: true, count: workflowsFailedResult.value, window: "24h" } : { available: false },

@@ -15,13 +15,26 @@
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import { logger } from "../../observability/logger";
 import { operationalMetrics } from "../../observability/metrics";
-import { projectConversationTrace, type ConversationTraceRecord, type TraceProjectionInput } from "./conversationTraceProjection";
+import { projectConversationTrace, traceReferenceKeyConfigured, TRACE_REFERENCE_KEY_MIN_LENGTH, type ConversationTraceRecord, type TraceProjectionInput } from "./conversationTraceProjection";
 
 export const CONVERSATION_TRACE_TABLE = "oyi_conversation_traces";
 
 export function conversationTraceEnabled(): boolean {
   return String(process.env.OYI_CONVERSATION_TRACE_ENABLED ?? "true").toLowerCase() !== "false";
 }
+
+// Recording status: "active" (enabled + reference key configured),
+// "disabled" (explicit kill switch), "unconfigured" (no usable
+// OYI_TRACE_REFERENCE_KEY -- traces are not persisted; conversations are
+// entirely unaffected).
+export type TraceRecordingStatus = "active" | "disabled" | "unconfigured";
+export function conversationTraceRecordingStatus(): TraceRecordingStatus {
+  if (!conversationTraceEnabled()) return "disabled";
+  return traceReferenceKeyConfigured() ? "active" : "unconfigured";
+}
+
+const UNCONFIGURED_LOG_INTERVAL_MS = 10 * 60_000;
+let lastUnconfiguredLogAt = 0;
 
 const inFlight = new Set<Promise<void>>();
 const FAILURE_LOG_INTERVAL_MS = 60_000;
@@ -61,8 +74,19 @@ export type TraceRecordOutcome = { attempted: boolean; trace_id: string | null }
 // Synchronous, non-throwing entry point. Returns immediately; the write
 // continues in the background.
 export function recordConversationTrace(input: TraceProjectionInput): TraceRecordOutcome {
-  if (!conversationTraceEnabled()) {
+  const status = conversationTraceRecordingStatus();
+  if (status === "disabled") {
     operationalMetrics.increment("oyi_conversation_trace_write_total", { outcome: "disabled", stage: "config" });
+    return { attempted: false, trace_id: null };
+  }
+  if (status === "unconfigured") {
+    operationalMetrics.increment("oyi_conversation_trace_write_total", { outcome: "unconfigured", stage: "config" });
+    const now = Date.now();
+    if (now - lastUnconfiguredLogAt >= UNCONFIGURED_LOG_INTERVAL_MS) {
+      // Never logs the key (or any part of it) -- only that it is unusable.
+      logger.warn("oyi_conversation_trace_unconfigured", { reason: "OYI_TRACE_REFERENCE_KEY missing or too short", min_length: TRACE_REFERENCE_KEY_MIN_LENGTH });
+      lastUnconfiguredLogAt = now;
+    }
     return { attempted: false, trace_id: null };
   }
   let record: ConversationTraceRecord;

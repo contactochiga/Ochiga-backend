@@ -20,7 +20,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.OYI_LOCAL_SUPABASE_SERVICE_R
 process.env.OFFICE_SYNC_API_KEY = "wave11-intelligence-slice7-smoke-test-key";
 process.env.OFFICE_APP_URL = "http://127.0.0.1:9";
 process.env.REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
-process.env.OYI_TRACE_REFERENCE_KEY = "slice7-local-reference-key";
+process.env.OYI_TRACE_REFERENCE_KEY = "slice7-local-reference-key-0123456789abcdef";
 
 const require = createRequire(import.meta.url);
 const qm = require.resolve("bullmq"); require.cache[qm] = { id: qm, filename: qm, loaded: true, exports: { Queue: class { add() { return Promise.resolve(); } }, Worker: class {} } };
@@ -273,6 +273,31 @@ try {
   assert.equal(overviewDown.status, 200); assert.equal(overviewDown.json.canonical_traces.available, false);
   pass(`failure isolation: insert failure -> response + canonical persistence intact, failure metric +1, no row claimed; 1.5s trace store -> turn ${slowMs}ms (not blocked); read outage -> list 200 store.available=false, detail 503, Overview canonical_traces unavailable but page 200`);
 
+  // ---- key absent: trace degraded, conversation unaffected ----
+  const savedKey = process.env.OYI_TRACE_REFERENCE_KEY;
+  delete process.env.OYI_TRACE_REFERENCE_KEY;
+  const unconfBefore = operationalMetrics.snapshot().filter((p) => p.name === "oyi_conversation_trace_write_total" && p.labels.outcome === "unconfigured").reduce((a, p) => a + p.value, 0);
+  const noKeyResponse = await turn("no_reference_key", "resident", "consumer", "Which devices are offline?");
+  const noKeyRequest = runs.at(-1).requestId;
+  await recorder.flushConversationTraceWrites();
+  const unconfAfter = operationalMetrics.snapshot().filter((p) => p.name === "oyi_conversation_trace_write_total" && p.labels.outcome === "unconfigured").reduce((a, p) => a + p.value, 0);
+  const degradedList = await get("/office/intelligence/traces");
+  const degradedOverview = await get("/office/intelligence/overview");
+  process.env.OYI_TRACE_REFERENCE_KEY = savedKey;
+  assert.ok(noKeyResponse && (noKeyResponse.reply || noKeyResponse.answer), "conversation succeeds without a trace key");
+  assert.notEqual(noKeyResponse.persistence_saved, false, "canonical conversation persistence unaffected");
+  const noKeyMsgs = await supabaseAdmin.from("oyi_conversation_messages").select("id", { count: "exact", head: true }).eq("thread_id", noKeyResponse.thread_id);
+  assert.ok((noKeyMsgs.count || 0) >= 2, "conversation turn rows persisted without a trace key");
+  const noKeyRow = (await traceRowsSince()).filter((r) => r.turn_ref === turnRef(noKeyRequest));
+  assert.equal(noKeyRow.length, 0, "no durable trace row without a reference key");
+  assert.equal(unconfAfter - unconfBefore, 1, "trace degradation observable (metric outcome=unconfigured)");
+  assert.equal(degradedList.json.store.recording_status, "unconfigured"); assert.equal(degradedList.json.store.recording_degraded, true);
+  assert.equal(degradedOverview.json.canonical_traces.recording_status, "unconfigured");
+  const keyed = await turn("reference_key_restored", "resident", "consumer", "Which devices are offline?");
+  assert.ok(keyed);
+  assert.equal((await traceRowsSince()).filter((r) => r.turn_ref === turnRef(runs.at(-1).requestId)).length, 1, "key present -> trace persists again");
+  pass("reference key: absent -> conversation + canonical persistence succeed, no trace row, metric unconfigured +1, trace API/Overview report recording unconfigured; present -> trace persists");
+
   // ---- retention ----
   const expiredIds = [randomUUID(), randomUUID(), randomUUID()];
   const base = { ...ours[0], turn_ref: null, thread_ref: null, recorded_at: undefined };
@@ -288,7 +313,7 @@ try {
   assert.equal(remainingExpired.count, 0);
   // Two turns deliberately have no row: the failing-insert turn and the
   // slow stub (which delays but never inserts).
-  const persistedRuns = runs.filter((x) => x.label !== "trace_write_failure" && x.label !== "slow_trace_store");
+  const persistedRuns = runs.filter((x) => !["trace_write_failure", "slow_trace_store", "no_reference_key"].includes(x.label));
   const liveRows = (await traceRowsSince()).filter((r) => persistedRuns.some((x) => turnRef(x.requestId) === r.turn_ref));
   assert.equal(liveRows.length, persistedRuns.length, "unexpired traces untouched by cleanup");
   assert.equal(projection.traceRetentionDays(), 30);
