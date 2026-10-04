@@ -161,7 +161,7 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
   const retain = old && (!switched || answeringPending) && (!old.suspended || assessmentContinuation(frame.rawText)
     || subjects.some(d => old.subject_domains?.includes(d)));
   const anaphoric = assessmentContinuation(frame.rawText) && !correction;
-  const explicitSubjectQuestion = /^(?:what|how) about\b/i.test(frame.rawText) && subjects.length > 0
+  const explicitSubjectQuestion = /^(?:(?:what|how) about|go back|return)\b/i.test(frame.rawText) && subjects.length > 0
     && !/^(?:what|how) about (?:this|that|it|them|the (?:first|second|third) one)\b/i.test(frame.rawText);
   const subjectDomains = correction || explicitSubjectQuestion ? subjects : retain && anaphoric ? old.subject_domains
     : subjects.length ? subjects : retain ? old.subject_domains : undefined;

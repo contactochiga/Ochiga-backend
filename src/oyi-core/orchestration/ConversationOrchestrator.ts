@@ -3757,7 +3757,9 @@ export class ConversationOrchestrator {
         && await loadThreadResultSetContext(context.input.thread_id);
       const existingOfficeOverview = !previousAssessment && context.input.surface === "office_internal"
         && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
-      if (!publicAssessment && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis && !existingRelativePrioritization) {
+      const existingDomainReturn = /^(?:go back|return)\b/i.test(frame.rawText) && !frame.cognitiveObjective
+        && !assessment.subject_label && declaredRead?.risk_class === "read" && selection.authority?.allowed;
+      if (!publicAssessment && !existingDomainReturn && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis && !existingRelativePrioritization) {
         // Acknowledging an objective grants no evidence access. Do not turn a
         // lexical match to an unrelated restricted capability into a claim
         // that the user's assessment question itself is forbidden.
