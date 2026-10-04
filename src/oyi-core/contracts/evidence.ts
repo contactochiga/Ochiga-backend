@@ -68,6 +68,38 @@ export type OyiEvidence = {
   payload: Record<string, unknown>;
 };
 
+// Collection truth is distinct from the truth/freshness of an individual record.
+// Existing OyiEvidence[] collectors do not establish these proofs implicitly.
+export type EvidenceReadStatus =
+  | "available_complete" | "available_partial" | "available_zero"
+  | "unavailable" | "authority_denied" | "scope_unsupported"
+  | "scope_insufficient" | "stale" | "error" | "timeout";
+
+export type EvidenceReadScope = OyiEvidence["authorised_scope"] & {
+  actor_id?: string | null;
+};
+
+export type EvidenceReadOutcome = {
+  capability_key: string;
+  domain: OyiEvidence["domain"];
+  status: EvidenceReadStatus;
+  requested_scope: EvidenceReadScope;
+  effective_scope: EvidenceReadScope | null;
+  authority: "allowed" | "denied";
+  query_executed: boolean;
+  // Names the bounded population/predicate, not a claim about the whole domain.
+  population: string;
+  complete: boolean;
+  zero_proven: boolean;
+  truncated: boolean;
+  freshness: "current" | "stale" | "historical" | "unknown";
+  records: OyiEvidence[];
+  record_count: number;
+  source_total: number | null;
+  lifecycle: Array<{ evidence_id: string; relevance: "active" | "historical" | "unknown" }>;
+  error_class: "source_unavailable" | "source_error" | "deadline_exceeded" | null;
+};
+
 export type IntelligenceFact = {
   fact_id: string;
   domain: OyiDomain | "unknown";
