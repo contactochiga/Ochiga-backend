@@ -1,0 +1,911 @@
+{
+  "contract": "oyi.conversation.execution.action",
+  "version": 1,
+  "generated_by": "Ochiga-backend scripts/oyi-action-truth-contract-smoke.mjs",
+  "canonical_statuses": [
+    "draft",
+    "awaiting_confirmation",
+    "approved",
+    "queued",
+    "sent",
+    "provider_accepted",
+    "provider_rejected",
+    "verifying",
+    "confirmed",
+    "unobservable",
+    "timed_out",
+    "failed",
+    "cancelled",
+    "superseded"
+  ],
+  "public_truth_fields": [
+    "request_status",
+    "dispatch_status",
+    "provider_status",
+    "confirmation_status",
+    "physical_effect_status",
+    "final_status",
+    "truth_state",
+    "retryable"
+  ],
+  "cases": [
+    {
+      "id": "A",
+      "matrix": "A",
+      "title": "confirmation required",
+      "response": {
+        "execution": {
+          "status": "pending_confirmation",
+          "current_turn_execution": false,
+          "capability_result": "awaiting_confirmation",
+          "action": {
+            "action_id": "action-A",
+            "status": "awaiting_confirmation",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": null
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-A",
+          "status": "awaiting_confirmation",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": null
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-A",
+          "status": "awaiting_approval",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "B",
+      "matrix": "B",
+      "title": "user approved (not verified)",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": false,
+          "capability_result": "answered",
+          "action": {
+            "action_id": "action-B",
+            "status": "approved",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": null
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-B",
+          "status": "approved",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": null
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-B",
+          "status": "answered",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "C",
+      "matrix": "C",
+      "title": "provider accepted, physical effect unknown",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": true,
+          "capability_result": "answered",
+          "action": {
+            "action_id": "action-C",
+            "status": "unobservable",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "request_status": "accepted",
+              "dispatch_status": "dispatched",
+              "provider_status": "accepted",
+              "confirmation_status": "not_observable",
+              "physical_effect_status": "unknown",
+              "final_status": "provider_accepted",
+              "truth_state": "provider_ack_only_physical_unknown"
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-C",
+          "status": "unobservable",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "request_status": "accepted",
+            "dispatch_status": "dispatched",
+            "provider_status": "accepted",
+            "confirmation_status": "not_observable",
+            "physical_effect_status": "unknown",
+            "final_status": "provider_accepted",
+            "truth_state": "provider_ack_only_physical_unknown"
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-C",
+          "status": "completed",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "C2",
+      "matrix": "C",
+      "title": "provider accepted (in flight)",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": false,
+          "capability_result": "answered",
+          "action": {
+            "action_id": "action-C2",
+            "status": "provider_accepted",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "request_status": "accepted",
+              "dispatch_status": "dispatched",
+              "provider_status": "accepted",
+              "confirmation_status": "not_observable",
+              "physical_effect_status": "unknown",
+              "final_status": "provider_accepted",
+              "truth_state": "provider_ack_only_physical_unknown"
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-C2",
+          "status": "provider_accepted",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "request_status": "accepted",
+            "dispatch_status": "dispatched",
+            "provider_status": "accepted",
+            "confirmation_status": "not_observable",
+            "physical_effect_status": "unknown",
+            "final_status": "provider_accepted",
+            "truth_state": "provider_ack_only_physical_unknown"
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-C2",
+          "status": "answered",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "D",
+      "matrix": "D",
+      "title": "verified",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": true,
+          "capability_result": "answered",
+          "action": {
+            "action_id": "action-D",
+            "status": "confirmed",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "request_status": "accepted",
+              "dispatch_status": "dispatched",
+              "provider_status": "accepted",
+              "confirmation_status": "state_confirmed",
+              "physical_effect_status": "confirmed",
+              "final_status": "state_confirmed",
+              "truth_state": "confirmed"
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-D",
+          "status": "confirmed",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "request_status": "accepted",
+            "dispatch_status": "dispatched",
+            "provider_status": "accepted",
+            "confirmation_status": "state_confirmed",
+            "physical_effect_status": "confirmed",
+            "final_status": "state_confirmed",
+            "truth_state": "confirmed"
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-D",
+          "status": "completed",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "E",
+      "matrix": "E",
+      "title": "accepted, not verifiable in this turn",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": true,
+          "capability_result": "answered",
+          "action": {
+            "action_id": "action-E",
+            "status": "unobservable",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "request_status": "accepted",
+              "dispatch_status": "dispatched",
+              "provider_status": "accepted",
+              "confirmation_status": "awaiting_state_confirmation",
+              "physical_effect_status": "unknown",
+              "final_status": "awaiting_state_confirmation",
+              "truth_state": "awaiting_state_confirmation"
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-E",
+          "status": "unobservable",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "request_status": "accepted",
+            "dispatch_status": "dispatched",
+            "provider_status": "accepted",
+            "confirmation_status": "awaiting_state_confirmation",
+            "physical_effect_status": "unknown",
+            "final_status": "awaiting_state_confirmation",
+            "truth_state": "awaiting_state_confirmation"
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-E",
+          "status": "completed",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "F",
+      "matrix": "F",
+      "title": "failed (state mismatch)",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": true,
+          "capability_result": "unavailable",
+          "action": {
+            "action_id": "action-F",
+            "status": "failed",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "request_status": "accepted",
+              "dispatch_status": "dispatched",
+              "provider_status": "accepted",
+              "confirmation_status": "state_mismatch",
+              "physical_effect_status": "mismatch",
+              "final_status": "state_mismatch",
+              "truth_state": "failed",
+              "retryable": true
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-F",
+          "status": "failed",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "request_status": "accepted",
+            "dispatch_status": "dispatched",
+            "provider_status": "accepted",
+            "confirmation_status": "state_mismatch",
+            "physical_effect_status": "mismatch",
+            "final_status": "state_mismatch",
+            "truth_state": "failed",
+            "retryable": true
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-F",
+          "status": "failed",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "F2",
+      "matrix": "F",
+      "title": "failed before dispatch (executor error is recorded, not stranded)",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": true,
+          "capability_result": "unavailable",
+          "action": {
+            "action_id": "action-F2",
+            "status": "failed",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "request_status": "accepted",
+              "dispatch_status": "not_dispatched",
+              "provider_status": "not_dispatched",
+              "confirmation_status": "failed",
+              "physical_effect_status": "unknown",
+              "final_status": "failed",
+              "truth_state": "failed",
+              "retryable": true
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-F2",
+          "status": "failed",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "request_status": "accepted",
+            "dispatch_status": "not_dispatched",
+            "provider_status": "not_dispatched",
+            "confirmation_status": "failed",
+            "physical_effect_status": "unknown",
+            "final_status": "failed",
+            "truth_state": "failed",
+            "retryable": true
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-F2",
+          "status": "failed",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "G",
+      "matrix": "G",
+      "title": "confirmation timed out (adapter reports failed)",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": true,
+          "capability_result": "unavailable",
+          "action": {
+            "action_id": "action-G",
+            "status": "failed",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "request_status": "accepted",
+              "dispatch_status": "dispatched",
+              "provider_status": "accepted",
+              "confirmation_status": "confirmation_timed_out",
+              "physical_effect_status": "unknown",
+              "final_status": "confirmation_timed_out",
+              "truth_state": "failed",
+              "retryable": true
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-G",
+          "status": "failed",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "request_status": "accepted",
+            "dispatch_status": "dispatched",
+            "provider_status": "accepted",
+            "confirmation_status": "confirmation_timed_out",
+            "physical_effect_status": "unknown",
+            "final_status": "confirmation_timed_out",
+            "truth_state": "failed",
+            "retryable": true
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-G",
+          "status": "failed",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "G2",
+      "matrix": "G",
+      "title": "timed out (canonical status)",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": false,
+          "capability_result": "unavailable",
+          "action": {
+            "action_id": "action-G2",
+            "status": "timed_out",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "final_status": "confirmation_timed_out"
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-G2",
+          "status": "timed_out",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "final_status": "confirmation_timed_out"
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-G2",
+          "status": "unavailable",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "H",
+      "matrix": "H",
+      "title": "cancelled",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": false,
+          "capability_result": "answered",
+          "action": {
+            "action_id": "action-H",
+            "status": "cancelled",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": null
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-H",
+          "status": "cancelled",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": null
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-H",
+          "status": "cancelled",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "I",
+      "matrix": "I",
+      "title": "superseded",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": false,
+          "capability_result": "answered",
+          "action": {
+            "action_id": "action-I",
+            "status": "superseded",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": null
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-I",
+          "status": "superseded",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": null
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-I",
+          "status": "answered",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "J",
+      "matrix": "J",
+      "title": "provider rejected",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": true,
+          "capability_result": "unavailable",
+          "action": {
+            "action_id": "action-J",
+            "status": "provider_rejected",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "request_status": "accepted",
+              "dispatch_status": "failed",
+              "provider_status": "rejected",
+              "confirmation_status": "failed",
+              "physical_effect_status": "unknown",
+              "final_status": "provider_rejected",
+              "truth_state": "failed",
+              "retryable": false
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-J",
+          "status": "provider_rejected",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "request_status": "accepted",
+            "dispatch_status": "failed",
+            "provider_status": "rejected",
+            "confirmation_status": "failed",
+            "physical_effect_status": "unknown",
+            "final_status": "provider_rejected",
+            "truth_state": "failed",
+            "retryable": false
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-J",
+          "status": "failed",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "J2",
+      "matrix": "J",
+      "title": "provider error thrown by executor",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": true,
+          "capability_result": "unavailable",
+          "action": {
+            "action_id": "action-J2",
+            "status": "provider_rejected",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": {
+              "request_status": "accepted",
+              "dispatch_status": "failed",
+              "provider_status": "rejected",
+              "confirmation_status": "failed",
+              "physical_effect_status": "unknown",
+              "final_status": "provider_rejected",
+              "truth_state": "failed",
+              "retryable": true
+            }
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-J2",
+          "status": "provider_rejected",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": {
+            "request_status": "accepted",
+            "dispatch_status": "failed",
+            "provider_status": "rejected",
+            "confirmation_status": "failed",
+            "physical_effect_status": "unknown",
+            "final_status": "provider_rejected",
+            "truth_state": "failed",
+            "retryable": true
+          }
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-J2",
+          "status": "failed",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "K",
+      "matrix": "K",
+      "title": "read-only answer",
+      "response": {
+        "execution": {
+          "status": "read_only",
+          "current_turn_execution": false,
+          "capability_result": "answered",
+          "action": null
+        }
+      },
+      "restored_metadata": {
+        "action": {},
+        "workflow": {}
+      }
+    },
+    {
+      "id": "L",
+      "matrix": "L",
+      "title": "ordinary answer",
+      "response": {
+        "execution": {
+          "status": "read_only",
+          "current_turn_execution": false,
+          "capability_result": "answered",
+          "action": null
+        }
+      },
+      "restored_metadata": {
+        "action": {},
+        "workflow": {}
+      }
+    },
+    {
+      "id": "M",
+      "matrix": "M",
+      "title": "permission restricted",
+      "response": {
+        "execution": {
+          "status": "read_only",
+          "current_turn_execution": false,
+          "capability_result": "permission_restricted",
+          "action": null
+        }
+      },
+      "restored_metadata": {
+        "action": {},
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "act-m",
+          "status": "permission_restricted",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    },
+    {
+      "id": "N",
+      "matrix": "N",
+      "title": "confirmation cancelled",
+      "response": {
+        "execution": {
+          "status": "action_result",
+          "current_turn_execution": false,
+          "capability_result": "answered",
+          "action": {
+            "action_id": "action-N",
+            "status": "cancelled",
+            "requested_operation": "device.power.on",
+            "requested_state": true,
+            "target": {
+              "label": "Hall Light"
+            },
+            "truth": null
+          }
+        }
+      },
+      "restored_metadata": {
+        "action": {
+          "action_id": "action-N",
+          "status": "cancelled",
+          "requested_operation": "device.power.on",
+          "requested_state": true,
+          "target": {
+            "label": "Hall Light"
+          },
+          "truth": null
+        },
+        "workflow": {
+          "workflow_id": "wf-1",
+          "action_id": "action-N",
+          "status": "cancelled",
+          "capability_key": "devices.power.control",
+          "missing_input": null,
+          "target_id": null,
+          "channel_code": null,
+          "desired_state": null
+        }
+      }
+    }
+  ]
+}

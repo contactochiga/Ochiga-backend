@@ -19,6 +19,10 @@ const ALLOWED: Record<OyiActionStatus, OyiActionStatus[]> = {
   superseded: [],
 };
 
+// The canonical action status vocabulary, derived from the transition
+// table above so it can never drift from the state machine itself.
+export const OYI_ACTION_STATUSES = Object.keys(ALLOWED) as OyiActionStatus[];
+
 export function isTerminalActionStatus(status: OyiActionStatus) {
   return TERMINAL.includes(status);
 }

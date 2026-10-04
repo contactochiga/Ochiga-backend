@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type { CanonicalConversationResponse, CanonicalTruth, IntelligenceFact } from "../contracts/canonicalConversation";
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import type { DomainResult } from "../contracts/domainResult";
+import { sanitizeConversationAction } from "../actions/actionTruthProjection";
 import type { OyiEvidence } from "../contracts/evidence";
 
 function factsFromEvidencePayload(evidence: OyiEvidence[]): IntelligenceFact[] {
@@ -90,6 +91,9 @@ export function capabilityDomainResultToConversationResponse(input: {
   const sources = dedupeSources(input.evidence, input.capability);
   const firstEvidence = input.evidence[0] || null;
   const confirmationRequired = input.result.status === "awaiting_confirmation";
+  // Canonical action truth (actionTruthProjection): whitelisted at this
+  // boundary whatever the capability supplied.
+  const action = sanitizeConversationAction(input.result.metadata?.action);
   const confirmations = Array.isArray(input.result.metadata?.confirmations) ? input.result.metadata.confirmations as Array<Record<string, unknown>> : [];
   const activeExecution = input.result.metadata?.workflow_id || input.result.metadata?.action_id
     ? {
@@ -155,13 +159,18 @@ export function capabilityDomainResultToConversationResponse(input: {
       },
     },
     execution: {
-      status: confirmationRequired ? "pending_confirmation" : "read_only",
-      current_turn_execution: false,
+      // pending_confirmation: waiting for the user's explicit approval;
+      // action_result: an action outcome is reported (execution.action.status
+      // is the canonical OyiActionStatus -- only "confirmed" means verified);
+      // read_only: no action involved.
+      status: confirmationRequired ? "pending_confirmation" : action ? "action_result" : "read_only",
+      current_turn_execution: input.result.metadata?.executed_this_turn === true,
       capability_key: input.capability.key,
       capability_result: input.result.status,
       workflow_id: input.result.metadata?.workflow_id || null,
       action_id: input.result.metadata?.action_id || null,
       workflow: workflowMetadata,
+      action,
       failure_stage: typeof input.result.metadata?.failure_stage === "string" ? input.result.metadata.failure_stage : null,
       safe_error_code: typeof input.result.metadata?.safe_error_code === "string" ? input.result.metadata.safe_error_code : null,
     },

@@ -8,6 +8,7 @@ import { logger } from "../../observability/logger";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import { namedDevicePhraseFromControlMessage, requestedChannelCode, resolveNamedDeviceForRead } from "../runtime/conversationTargetResolver";
 import { actionService, workflowService } from "../workflows/defaultWorkflowActionServices";
+import { conversationActionProjection } from "../actions/actionTruthProjection";
 
 function desiredState(frame: SemanticFrame) {
   if (frame.operation === "device.power.on") return true;
@@ -620,6 +621,7 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
     metadata: {
       workflow_id: nextWorkflow.workflow_id,
       action_id: action.action_id,
+      action: conversationActionProjection({ ...action, target: { ...action.target, label: deviceLabel } }),
       confirmations: [{
         type: "device_command_confirmation",
         workflow_id: nextWorkflow.workflow_id,

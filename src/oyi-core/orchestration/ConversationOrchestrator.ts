@@ -23,6 +23,7 @@ import { assertNoUnverifiedGenericSuccess } from "../presentation/FallbackFirewa
 import { logger } from "../../observability/logger";
 import { actionService, workflowService } from "../workflows/defaultWorkflowActionServices";
 import { DeviceConversationActionAdapter } from "../domains/devices/deviceActionAdapter";
+import { conversationActionProjection } from "../actions/actionTruthProjection";
 import type { OyiWorkflow } from "../contracts/workflow";
 import { assertClaimDoesNotPromoteUnavailable, type CanonicalClaimState, type CanonicalResponseClaim } from "../contracts/evidence";
 import type { OyiEvidence } from "../contracts/evidence";
@@ -279,6 +280,7 @@ async function pendingWorkflowStatusResult(workflow: OyiWorkflow): Promise<Domai
     metadata: {
       workflow_id: workflow.workflow_id,
       action_id: action.action_id,
+      action: conversationActionProjection(action),
       confirmations: [{
         type: "device_command_confirmation",
         workflow_id: workflow.workflow_id,
@@ -299,13 +301,13 @@ async function durableWorkflowContinuationResult(context: CanonicalConversationR
   const actionId = String(workflow.action_id || "");
   if (isCancellationText(context.input.message)) {
     const action = actionId ? await actionService.get(actionId) : null;
-    if (action && action.status === "awaiting_confirmation") await actionService.cancel(action, context.actor?.id || null);
+    const cancelledAction = action && action.status === "awaiting_confirmation" ? await actionService.cancel(action, context.actor?.id || null) : null;
     const cancelled = await workflowService.cancel(workflow);
     return {
       status: "answered",
       answer: "Cancelled. I did not send that device command.",
       presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
-      metadata: { workflow_id: cancelled.workflow_id, action_id: actionId || null, workflow_status: cancelled.status },
+      metadata: { workflow_id: cancelled.workflow_id, action_id: actionId || null, workflow_status: cancelled.status, action: cancelledAction ? conversationActionProjection(cancelledAction) : null },
     };
   }
   if (!isConfirmationText(context.input.message)) return null;
@@ -364,7 +366,16 @@ async function durableWorkflowContinuationResult(context: CanonicalConversationR
     status: executed.status === "confirmed" || executed.status === "unobservable" ? "answered" : "unavailable",
     answer,
     presentation_policy: { primary: "execution", allowed_supporting_blocks: ["text"], allowed_action_types: [], suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true, snapshot_mode: "none", auto_navigation: false },
-    metadata: { workflow_id: terminalWorkflow.workflow_id, action_id: executed.action_id, action_status: executed.status },
+    metadata: {
+      workflow_id: terminalWorkflow.workflow_id,
+      workflow_status: terminalWorkflow.status,
+      action_id: executed.action_id,
+      action_status: executed.status,
+      // Canonical action truth for the response (actionTruthProjection):
+      // OyiActionStatus + the device ledger's public truth fields only.
+      action: conversationActionProjection(executed, executed.result ?? undefined),
+      executed_this_turn: true,
+    },
   };
 }
 
