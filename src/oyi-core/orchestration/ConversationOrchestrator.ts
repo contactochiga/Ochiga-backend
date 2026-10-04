@@ -4,7 +4,7 @@ import type { DomainResult } from "../contracts/domainResult";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/SemanticFrameParser";
 import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective, isAssessmentInformation, assessmentContinuation, assessmentSubjectDomains, assessmentEvidenceRequirements, assessmentEvidenceAnswer, ASSESSMENT_TTL_MS } from "../context/conversationAssessmentContext";
-import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
+import { loadPublicOpportunityObjective, correctedPublicFacts } from "../context/publicOpportunityObjective";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
 import { ConversationTracer } from "../observability/ConversationTracer";
@@ -3380,8 +3380,10 @@ export class ConversationOrchestrator {
     context = await assembleGovernedContext(context);
     ensureRegistered();
     const parsedFrame = parseSemanticFrame(context.input.message);
+    const publicCorrection = context.input.surface === "public_corporate"
+      && correctedPublicFacts(await loadPublicOpportunityObjective(context.input.thread_id), context.input.message);
     const publicAssessment = context.input.surface === "public_corporate"
-      && (isAssessmentObjective(parsedFrame.cognitiveObjective) || parsedFrame.cognitiveObjective === "summarize") && !parsedFrame.mutationIntent
+      && (publicCorrection || ((isAssessmentObjective(parsedFrame.cognitiveObjective) || parsedFrame.cognitiveObjective === "summarize") && !parsedFrame.mutationIntent))
       && !/\b(?:leads?|investors?|internal|private|staff)\b/i.test(parsedFrame.rawText)
       && await loadPublicOpportunityObjective(context.input.thread_id);
     const planReview = context.input.surface === "office_internal" && normalizePlanReviewContext((context.input.context as any)?.plan_review_context);
@@ -3392,7 +3394,7 @@ export class ConversationOrchestrator {
     const frame = planReview ? { ...parsedFrame, domain: "office_development" as const, operation: "plan.review" as const, mutationIntent: false, references: [], primaryEntity: null }
       : automationSuggestion ? { ...parsedFrame, domain: "automations" as const, operation: "automation.suggest" as any, mutationIntent: false, references: [], primaryEntity: null }
       : memoryRecall ? { ...parsedFrame, domain: "global" as const, operation: "memory.recall" as const, mutationIntent: false, references: [], primaryEntity: null }
-      : publicAssessment ? { ...parsedFrame, domain: "corporate_opportunity" as const, operation: "inspect" as const } : parsedFrame;
+      : publicAssessment ? { ...parsedFrame, domain: "corporate_opportunity" as const, operation: "inspect" as const, ...(publicCorrection ? { mutationIntent: false } : {}) } : parsedFrame;
     const tracer = new ConversationTracer({
       requestId: String((context.input.context as any)?.request_id || "") || undefined,
       correlationId: String((context.input.context as any)?.correlation_id || "") || undefined,
@@ -3696,14 +3698,14 @@ export class ConversationOrchestrator {
     // retrieval, capability key or authority is introduced here.
     const previousAssessment = await loadConversationAssessment(context.input, context.actor?.id || null).catch(() => null);
     let assessment = nextConversationAssessment(previousAssessment, frame, context.input.surface);
-    if (assessment && !frame.mutationIntent && frame.operation !== "cancel") {
+    if (assessment && !assessment.suspended && !frame.mutationIntent && frame.operation !== "cancel") {
       const selection = capabilityService.resolve({ ...context, resolvedTurn });
       const eligibleReads = capabilityRegistry.enabled().filter(m => m.risk_class === "read"
         && capabilityService.canUse(m.key, { actor: context.actor, oisContext: context.oisContext, surface: context.input.surface }).allowed);
       const currentSet = await loadThreadResultSetContext(context.input.thread_id);
       const usableSet = currentSet && Date.now() - Date.parse(currentSet.created_at) >= 0 && Date.now() - Date.parse(currentSet.created_at) < ASSESSMENT_TTL_MS
         && eligibleReads.some(m => m.key === currentSet.capability_key) ? currentSet : null;
-      if (context.input.surface === "office_internal" && frame.domain === "messages" && /\b(?:reply|response|draft)\b/i.test(frame.rawText)) {
+      if (context.input.surface === "office_internal" && /\b(?:reply|response|draft|send this)\b/i.test(frame.rawText)) {
         const draft = await loadDraftCommunication(context.input.thread_id, context.actor?.id);
         if (draft || usableSet) {
           // Scope only: a record list does not establish a recipient or
@@ -3712,6 +3714,10 @@ export class ConversationOrchestrator {
           assessment.domain = assessment.subject_domains[0];
           assessment.subject_label = draft ? draft.target_label : "reply target not confirmed";
         }
+      }
+      if (frame.cognitiveObjective === "compare" && /\b(?:this|that|it)\b.*\bwith\b/i.test(frame.rawText) && usableSet) {
+        assessment.subject_domains = [...new Set([usableSet.domain, ...assessment.subject_domains || []])];
+        assessment.domain = assessment.subject_domains.length === 1 ? assessment.subject_domains[0] : null;
       }
       if (!previousAssessment && usableSet && (assessmentContinuation(frame.rawText) || /\bwhich\s+(?:one|two|three|ones)\b/i.test(frame.rawText)) && !assessmentSubjectDomains(frame, context.input.surface).length) {
         assessment.subject_domains = [usableSet.domain]; assessment.domain = usableSet.domain;

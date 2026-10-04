@@ -13,6 +13,7 @@ const {nextConversationAssessment,validAssessment,ASSESSMENT_TTL_MS,loadConversa
 const {conversationOrchestrator}=await import('../dist/oyi-core/orchestration/ConversationOrchestrator.js');
 const {supabaseAdmin:db}=await import('../dist/supabase/supabaseClient.js');
 const {workflowService}=await import('../dist/oyi-core/workflows/defaultWorkflowActionServices.js');
+const {correctedPublicFacts}=await import('../dist/oyi-core/context/publicOpportunityObjective.js');
 const source=fs.readFileSync('scripts/wave11-behavioural-torture-harness.mjs','utf8');
 const {actorFor,oisContext,officeSnapshot}=new Function(`${source.slice(source.indexOf('const ids = '),source.indexOf('function expected(prompt)'))};return {actorFor,oisContext,officeSnapshot};`)();
 const cases=[
@@ -40,7 +41,7 @@ assert.notEqual(parseSemanticFrame('Why?').operation,'device.diagnosis');
 const now=Date.now();const initial=nextConversationAssessment(null,parseSemanticFrame('What matters most?'),'office_internal',now);assert(initial);
 assert.equal(validAssessment(initial,'consumer',now),null);
 assert.equal(validAssessment(initial,'office_internal',now+ASSESSMENT_TTL_MS),null);
-assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Show wallet history.'),'office_internal',now+1),null);
+assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Show wallet history.'),'office_internal',now+1).suspended,true);
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame("Actually don't."),'office_internal',now+1),null);
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Why?'),'office_internal',now+1).question,initial.question);
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Is that just the biggest deal?'),'office_internal',now+1).question,initial.question);
@@ -54,7 +55,7 @@ const withClaim={...initial,target_ref:{canonical_id:'test-only',object_type:'le
 const scopeChanged=nextConversationAssessment(withClaim,parseSemanticFrame('Actually, forget the leads. I mean the developments.'),'office_internal',now+1);
 assert.equal(scopeChanged.target_ref,null);assert.equal(scopeChanged.pending_information,null);assert.equal(scopeChanged.material_information,null);
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame("No, that's not what I mean."),'office_internal',now+1)?.objective,'prioritize');
-assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Show devices.'),'consumer',now+1),null);
+assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Show devices.'),'consumer',now+1),null); // cross-surface context remains invalid
 const informed=nextConversationAssessment(initial,parseSemanticFrame('The Chairman for that project says financing is secured.'),'office_internal',now+1);
 const absence=parseSemanticFrame('There is no supporting feasibility study.');
 assert.equal(absence.mutationIntent,false);
@@ -63,14 +64,39 @@ assert.equal(nextConversationAssessment(initial,absence,'office_internal',now+1)
 assert.equal(nextConversationAssessment(null,absence,'office_internal',now+1),null);
 const opportunityAssessment=nextConversationAssessment(null,parseSemanticFrame('Compare the opportunities.'),'office_internal',now);
 assert.equal(nextConversationAssessment(opportunityAssessment,absence,'office_internal',now+1).subject_label,null,'A feasibility study is not a room');
+const funding=nextConversationAssessment(null,parseSemanticFrame('Can we promise funding?'),'office_internal',now);
+const interrupted=nextConversationAssessment(funding,parseSemanticFrame('Make the commitment now.'),'office_internal',now+1);
+assert(interrupted.suspended);assert.equal(interrupted.target_ref,null);
+assert.deepEqual(nextConversationAssessment(interrupted,parseSemanticFrame('What authority would be needed?'),'office_internal',now+2).subject_domains,['office_financial']);
+assert.equal(nextConversationAssessment(interrupted,parseSemanticFrame("Actually don't."),'office_internal',now+2),null);
+const publicPrior={objective_type:'development_partnership',known_facts:{location:'Lekki',land_size:'1,200 sqm'},constraints:[],turns:1};
+assert.equal(correctedPublicFacts(publicPrior,"Actually it's Epe, not Lekki.").location,'Epe');
+assert.equal(correctedPublicFacts(publicPrior,"I said 1,200 sqm; it's closer to 900.").land_size,'900 sqm');
+assert.equal(correctedPublicFacts(publicPrior,"It's family property, not mine personally.").ownership_status,'family property; personal ownership not asserted');
+assert.equal(parseSemanticFrame('What evidence would change your view?').cognitiveObjective,'assess');
 assert.equal(nextConversationAssessment(informed,parseSemanticFrame('The VI development.'),'office_internal',now+2).pending_information,informed.pending_information);
 const results=[];
+{
+ const actor=actorFor('public','public_corporate');let thread=null;
+ const prompts=['I own land in Lekki.',"Actually it's Epe, not Lekki.","It's 1,200 sqm.","I said 1,200 sqm; it's closer to 900.","It's family property, not mine personally.","I don't want to sell.",'Can you summarize the corrected opportunity?'];
+ for(const [i,prompt]of prompts.entries()){
+  const r=await conversationOrchestrator.run({actor,oisContext:oisContext(actor,'public_corporate'),input:{surface:'public_corporate',message:prompt,thread_id:thread}});thread=r.thread_id;
+  assert(r.persistence_saved);assert.notEqual(r.execution.current_turn_execution,true);
+  const q=await db.from('oyi_conversation_threads').select('metadata').eq('id',thread).single();assert(!q.error);
+  const o=q.data.metadata.public_opportunity_objective;assert(o);
+  if(i>=1)assert.equal(o.known_facts.location,'Epe');
+  if(i>=3)assert.equal(o.known_facts.land_size,'900 sqm');
+  if(i>=4)assert.equal(o.known_facts.ownership_status,'family property; personal ownership not asserted');
+  if(i>=5)assert(o.constraints.includes('no_sale'));
+  results.push({surface:'public_corporate',prompt,answer:r.answer,objective:o,persisted:r.persistence_saved});
+ }
+}
 {
  const actor=actorFor('resident','consumer');let thread=null;
  for(const prompt of ['The bedroom is too hot.','Actually I mean the study.','Show wallet history.','Go back to the hot room.','Which room are we discussing?']){
   const r=await conversationOrchestrator.run({actor,oisContext:oisContext(actor,'consumer'),input:{surface:'consumer',message:prompt,thread_id:thread,estate_id:actor.estate_id,home_id:actor.home_id}});thread=r.thread_id;
   assert(r.persistence_saved);assert.notEqual(r.execution.current_turn_execution,true);
-  if(prompt==='Which room are we discussing?'){assert.doesNotMatch(r.answer,/rooms on record/);assert.match(r.answer,/Which room do you mean/);}
+  if(prompt==='Which room are we discussing?'){assert.doesNotMatch(r.answer,/rooms on record/);assert.match(r.answer,/study/i);}
   results.push({surface:'consumer',prompt,answer:r.answer,persisted:r.persistence_saved});
  }
 }
@@ -126,7 +152,7 @@ for(const [surface,role,prompts]of [
   const r=await conversationOrchestrator.run({actor,oisContext:oisContext(actor,'office_internal'),input});thread=r.thread_id;assert(r.persistence_saved);
   const assessment=await loadConversationAssessment({...input,thread_id:thread},actor.id);
   if(prompt.includes('I mean'))assert.equal(assessment.domain,'office_development');
-  if(prompt.startsWith('Show'))assert.equal(assessment,null);
+  if(prompt.startsWith('Show'))assert.equal(assessment?.suspended,true);
   results.push({surface:'office_internal',prompt,answer:r.answer,assessment,persisted:r.persistence_saved});
  }
  const input={surface:'office_internal',message:'What matters most?',thread_id:thread,context:{operational_snapshot:officeSnapshot()}};

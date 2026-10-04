@@ -15,6 +15,7 @@ export function isCapabilityInquiry(text: string): boolean {
 // question forms are independent of domain vocabulary and never grant action.
 export function cognitiveObjectiveFor(text: string): CognitiveObjective | null {
   if (isCancellationUtterance(text) || isCapabilityInquiry(text)) return null;
+  if (/\b(?:what|which) evidence\b.*\b(?:would|could)\b.*\bchange\b/i.test(text)) return "assess";
   // Grammatical families precede incidental domain words. A question about
   // a recommendation is not an instruction to perform its referenced action.
   if (!/\b(?:do not|don't)\s+change\b/i.test(text) && /\b(?:still|change|changed|changes|alter|affect|given that)\b/i.test(text)

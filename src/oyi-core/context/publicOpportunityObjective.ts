@@ -45,6 +45,22 @@ export type PublicOpportunityObjective = {
 };
 
 export const PUBLIC_OPPORTUNITY_OBJECTIVE_TTL_MS = 30 * 60 * 1000;
+// Caller-supplied correction, never verified ownership/title evidence.
+export function correctedPublicFacts(prior: PublicOpportunityObjective | null, message: string): Record<string,string> | null {
+  if (!prior) return null;
+  const facts = { ...prior.known_facts }; let changed = false;
+  const location = message.match(/^(?:sorry|actually)[, ]+(?:(?:it['’]s|it is)\s+)?([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,2}),?\s+not\s+(.+?)[.!]?$/i);
+  if (location && facts.location && location[2].toLowerCase().replace(/[.!]$/,'') === facts.location.toLowerCase()) { facts.location=location[1]; changed=true; }
+  if (/\b(?:actually|closer to|correction|i meant|not)\b/i.test(message)) {
+    const areas=[...message.matchAll(/(\d[\d,]*\s*(?:sqm|square\s*meters?|hectares?|acres?))/gi)];
+    if(areas.length){ facts.land_size=areas[areas.length-1][1]; changed=true; }
+    const correctedAmount=message.match(/\b(?:closer to|i meant)\s+(\d[\d,]*)[.!]?$/i);
+    const unit=(facts.land_size || '').match(/(?:sqm|square\s*meters?|hectares?|acres?)$/i)?.[0];
+    if(correctedAmount&&unit){facts.land_size=`${correctedAmount[1]} ${unit}`;changed=true;}
+  }
+  if (/\bfamily property\b/i.test(message) && /\bnot (?:mine|my|owned by me)\b/i.test(message)) {facts.ownership_status='family property; personal ownership not asserted';changed=true;}
+  return changed ? facts : null;
+}
 const TTL_MS = PUBLIC_OPPORTUNITY_OBJECTIVE_TTL_MS;
 
 function text(value: unknown) {

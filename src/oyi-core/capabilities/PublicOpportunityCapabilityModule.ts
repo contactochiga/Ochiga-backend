@@ -23,6 +23,7 @@ import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { isAssessmentObjective } from "../context/conversationAssessmentContext";
+import { correctedPublicFacts } from "../context/publicOpportunityObjective";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
 import { canonicalCorporateAnswer } from "./corporateKnowledgeAnswer";
@@ -201,7 +202,8 @@ function composeJvRequirementsAnswer(objective: PublicOpportunityObjective): str
   const missingText = stillMissing.length
     ? ` To move this forward, it would help to know: ${stillMissing.map((field) => field.replace(/_/g, " ")).join(", ")}.`
     : " That's everything we typically need to take a first look.";
-  return `Here's what I have so far -- ${known}.${constraintsText}${missingText}`.replace(/\s+/g, " ").trim();
+  const ownership = objective.known_facts.ownership_status ? ` Your stated ownership status: ${objective.known_facts.ownership_status}.` : "";
+  return `Here's what I have so far -- ${known}.${ownership}${constraintsText}${missingText}`.replace(/\s+/g, " ").trim();
 }
 
 function composeGenericRequirementsAnswer(objective: PublicOpportunityObjective): string {
@@ -274,6 +276,12 @@ export function publicOpportunityReadModule(): CapabilityModule {
     answer: async (context, evidence): Promise<DomainResult> => {
       const prior = (evidence[0]?.payload as { objective: PublicOpportunityObjective | null } | undefined)?.objective || null;
       const message = text(context.input.message);
+      const corrected = correctedPublicFacts(prior, message);
+      if (prior && corrected) {
+        const updated = { ...prior, known_facts: corrected, current_subject: corrected.location || prior.current_subject, updated_at: new Date().toISOString(), turns: prior.turns + 1 };
+        return { status: "answered", answer: `I have replaced the earlier detail with your correction. These remain details supplied by you, not independently verified. ${composeJvRequirementsAnswer(updated)}`,
+          presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: updated } };
+      }
 
       // General informational JV question, asked ad hoc -- governed
       // static content, regardless of whether a qualification objective
