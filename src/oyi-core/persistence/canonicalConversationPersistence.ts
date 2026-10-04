@@ -26,6 +26,7 @@ import { loadPendingGoalPointer } from "../context/goalProposal";
 import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
 import { loadConversationAssessment, nextConversationAssessment } from "../context/conversationAssessmentContext";
 import { parseSemanticFrame } from "../interpretation/SemanticFrameParser";
+import type { SemanticFrame } from "../contracts/semanticFrame";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -354,9 +355,12 @@ export async function persistCanonicalConversationTurn(input: {
     const stored = await loadPublicOpportunityObjective(threadId).catch(() => null);
     publicOpportunityObjective = stored as unknown as Record<string, unknown> | null;
   }
+  const responseFrame = recordOf(recordOf(response.execution).orchestrator_v2).semantic_frame as SemanticFrame | undefined;
+  const assessmentFrame = responseFrame?.rawText === request.message ? responseFrame : parseSemanticFrame(request.message);
   const assessmentContext = nextConversationAssessment(
     await loadConversationAssessment(request, actor?.id || null).catch(() => null),
-    parseSemanticFrame(request.message), request.surface);
+    assessmentFrame, request.surface);
+  if (assessmentContext && recordOf(response.execution).assessment_status === "evidence_needed") assessmentContext.status = "evidence_needed";
   const assessmentResult = recordOf(response.result_set);
   if (assessmentContext && assessmentResult.source_request_id === contract.conversation_request_id
     && assessmentContext.objective === "prioritize"

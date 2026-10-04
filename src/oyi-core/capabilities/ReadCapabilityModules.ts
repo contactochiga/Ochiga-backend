@@ -306,8 +306,10 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["maintenance.read", "security.read"],
       scopeRequirements: estateScope,
       evidenceRequirements: [readRequirement("maintenance", "maintenance_request"), readRequirement("security", "security_incident")],
-      supports: (frame) => /\b(?:estate|building|what needs attention|anything wrong|(?:i should|should i) deal with|what needs my attention)\b/i.test(frame.normalizedText)
-        && /\b(?:happening|overview|status|wrong|attention|issues?|deal with)\b/i.test(frame.normalizedText),
+      supports: (frame) => ((frame.domain === null || frame.domain === "global")
+        && ["assess", "advise"].includes(frame.cognitiveObjective || ""))
+        || (/\b(?:estate|building|what needs attention|anything wrong|(?:i should|should i) deal with|what needs my attention)\b/i.test(frame.normalizedText)
+        && /\b(?:happening|overview|status|wrong|attention|issues?|deal with)\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const contract = requestContract(context);
         const [maintenance, incidents] = await Promise.all([

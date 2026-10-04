@@ -3,7 +3,7 @@ import type { CanonicalTruth, ConversationBuilderKey } from "../contracts/canoni
 import type { DomainResult } from "../contracts/domainResult";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/SemanticFrameParser";
-import { loadConversationAssessment, nextConversationAssessment, assessmentContinuation, isAssessmentObjective } from "../context/conversationAssessmentContext";
+import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective } from "../context/conversationAssessmentContext";
 import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
@@ -3698,25 +3698,24 @@ export class ConversationOrchestrator {
     const assessment = nextConversationAssessment(previousAssessment, frame, context.input.surface);
     if (assessment && !frame.mutationIntent && frame.operation !== "cancel") {
       const selection = capabilityService.resolve({ ...context, resolvedTurn });
-      const continuing = Boolean(previousAssessment && (isAssessmentObjective(frame.cognitiveObjective) || assessmentContinuation(frame.rawText)));
       // Existing bounded domain evidence/assessment remains available for a
       // fresh question. A continuation must not silently substitute an older
       // raw list for a derived assessment that has never been established.
       const declaredRead = selection.capability || selection.matched_capability;
-      const noGovernedRead = !declaredRead?.buildReadResponse;
       const sameDerivedResult = previousAssessment?.result_set_id && !frame.cognitiveObjective
         && (await loadThreadResultSetContext(context.input.thread_id))?.result_set_id === previousAssessment.result_set_id;
       const existingObjectExplanation = !previousAssessment && frame.cognitiveObjective === "explain"
         && !/\b(?:second|third|others|rather than|more important)\b/i.test(frame.rawText)
         && (await loadThreadResultSetContext(context.input.thread_id))?.selected_object_ref;
-      const boundedDomainAssessment = frame.cognitiveObjective === "assess" && selection.authority?.allowed
+      const boundedDomainAssessment = ["assess", "advise", "prioritize"].includes(frame.cognitiveObjective || "") && selection.authority?.allowed
         && ["facility.overview.read", "home.summary.read"].includes(selection.capability?.key || "");
-      const existingBoundedAnalysis = ["anomalies.read", "recommendations.read"].includes(declaredRead?.key || "");
-      const surfaceMismatch = selection.authority?.reason === "surface_not_supported";
+      const existingBoundedAnalysis = ["anomalies.read", "recommendations.read"].includes(declaredRead?.key || "")
+        && declaredRead?.supported_surfaces?.includes(context.input.surface);
+      const existingRelativePrioritization = !previousAssessment && parseFollowUpIntent(frame.rawText)?.type === "prioritize"
+        && await loadThreadResultSetContext(context.input.thread_id);
       const existingOfficeOverview = !previousAssessment && context.input.surface === "office_internal"
         && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
-      if (!publicAssessment && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis
-        && (continuing || noGovernedRead || surfaceMismatch)) {
+      if (!publicAssessment && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis && !existingRelativePrioritization) {
         const needsReference = /\b(?:second|third|that project|that opportunity|that one)\b/i.test(frame.rawText);
         // Acknowledging an objective grants no evidence access. Do not turn a
         // lexical match to an unrelated restricted capability into a claim

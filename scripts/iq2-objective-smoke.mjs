@@ -44,7 +44,7 @@ for(const [surface,role,prompts]of [
  ['office_internal','ochiga_staff',["Show me today's leads.",'Which three things matter most?','Why is the second one more important?','The Chairman for that project says financing is already secured.','Does that change your priority?']],
  ['public_corporate','public',['Is this a strong opportunity?','What should I do next?','Why?']],
  ['facility','facility_manager',['Anything dangerous?','What can wait?','Why?']],
- ['consumer','resident',['Is everything okay?','What would you do?','Why?']],
+ ['consumer','resident',['Is everything okay?','What would you do?','Why?','Does that prove the AC caused it?']],
 ]){
  const actor=actorFor(role,surface);let thread=null;
  for(const prompt of prompts){const input={message:prompt,surface,thread_id:thread,estate_id:actor?.estate_id,home_id:actor?.home_id,context:{request_id:randomUUID(),...(surface==='office_internal'?{operational_snapshot:officeSnapshot()}:{})}};
@@ -54,6 +54,7 @@ for(const [surface,role,prompts]of [
   if(prompt==="Show me today's leads."){const q=await db.from('oyi_conversation_threads').select('metadata').eq('id',thread).single();assert(!q.error);assert(q.data.metadata.result_sets.crm.object_refs.length>1,'Collision test needs a real previous CRM list');}
   assert.doesNotMatch(r.answer,/office_tasks query read|Ask me about any of these directly/);
   if(prompt.includes('second one'))assert.doesNotMatch(r.answer,/IQ Qualified Abuja JV/);
+  if(prompt.includes('prove the AC'))assert.notEqual(r.capability_key,'devices.availability.read');
   const assessment=await loadConversationAssessment({...input,thread_id:thread},actor?.id||null);
   if(prompt!=="Show me today's leads.")assert(assessment,`${surface}: ${prompt}`);
   results.push({surface,prompt,answer:r.answer,assessment,persisted:r.persistence_saved});
