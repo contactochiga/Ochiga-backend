@@ -24,7 +24,7 @@ const rows=()=>[
  {id:'b-request',estate_id:resident.oisContext.estate_id,home_id:homeB,room_id:null,title:'B distinctive',visitor_name:'B distinctive',status:'resolved',created_at:'2026-10-04T00:00:00Z',updated_at:'2026-10-04T00:00:00Z',opened_at:'2026-10-04T00:00:00Z'},
 ];
 const results=[];
-const check=(id,fn)=>fn().then(()=>results.push({id,status:'PASS'}));
+const check=(id,fn)=>fn().then(()=>results.push({id,status:'PASS'})).catch(error=>{error.message=`${id}: ${error.message}`;throw error;});
 try{
  db.from=table=>{
   assert(['maintenance_requests','facility_incidents','visitor_access'].includes(table));queryCount++;
@@ -58,14 +58,41 @@ try{
   ['reports.approvals.read','reports','pending_approval',{id:'report-a',title:'Office A',submitted_by:null,submitted_at:null}],
   ['development.status.read','development','projects',{id:'project-a',name:'Office A',status:'planning'}],
   ['financial.summary.read','financial','estates',{estate_id:'estate-a',name:'Office A'}],
+  ['office_tasks.query.read','tasks','open',{id:'task-a',title:'Task A',status:'open',overdue:false}],
+  ['office_automations.query.read','automations','items',{id:'automation-a',name:'Automation A',enabled:true}],
+  ['office_meetings.query.read','meetings','items',{id:'meeting-a',title:'Meeting A',status:'scheduled'}],
+  ['office_support.query.read','support','items',{id:'support-a',title:'Support A',status:'open'}],
+  ['office_portfolio.query.read','portfolio','items',{id:'portfolio-a',name:'Portfolio A',status:'attention'}],
+  ['office_partnerships.query.read','partnerships','items',{id:'partnership-a',name:'Partnership A',status:'active'}],
+  ['office_documents.query.read','documents','items',{id:'document-a',title:'Document A',status:'draft'}],
+  ['office_content.query.read','content','items',{id:'content-a',title:'Content A',status:'draft'}],
  ];
  for(const [key,field,list,item]of snapshotCases){
+  // Synthetic authorised principal for this module; narrower-role cases below
+  // separately exercise the real policy without these explicit grants.
+  office.actor.permissions=[...new Set([...office.actor.permissions,...capabilityRegistry.get(key).permission_requirements])];
   const withRows=items=>({...office,input:{...office.input,context:{operational_snapshot:{[field]:{[list]:items,total_open:39}}}}});
   await check(`${key}:snapshot-absent`,async()=>{const n=queryCount;const r=await capabilityService.readEvidence(key,office);assert.equal(r.status,'unavailable');assert.equal(r.zero_proven,false);assert.equal(queryCount,n);});
   await check(`${key}:snapshot-empty-not-global-zero`,async()=>{const r=await capabilityService.readEvidence(key,withRows([]));assert.equal(r.status,'available_partial');assert.equal(r.zero_proven,false);});
   await check(`${key}:snapshot-bounded`,async()=>{const n=queryCount;const r=await capabilityService.readEvidence(key,withRows(Array.from({length:60},(_,i)=>({...item,id:`item-${i}`}))));assert.equal(r.record_count,50);assert.equal(r.complete,false);assert.equal(r.truncated,true);assert.equal(r.freshness,'unknown');assert.equal(queryCount,n);});
   await check(`${key}:public-cannot-use-snapshot`,async()=>{const c=context('public_corporate','public');const r=await capabilityService.readEvidence(key,{...c,input:{...c.input,context:withRows([item]).input.context}});assert.equal(r.status,'authority_denied');assert.equal(r.record_count,0);});
-  await check(`${key}:ordinary-staff-permission`,async()=>{const c=context('office_internal','ochiga_staff');c.actor.permissions=[];c.actor.permission_scopes=[];c.oisContext.permissions=[];const r=await capabilityService.readEvidence(key,c);assert.equal(r.status,'authority_denied');});
+  await check(`${key}:ordinary-staff-permission`,async()=>{const c=context('office_internal','ochiga_staff');c.actor.permissions=[];c.actor.permission_scopes=[];c.oisContext.permissions=[];const allowed=capabilityService.canUse(key,{actor:c.actor,oisContext:c.oisContext,surface:'office_internal'}).allowed;const r=await capabilityService.readEvidence(key,c);assert.equal(r.status,allowed?'unavailable':'authority_denied');assert.equal(r.record_count,0);});
+  await check(`${key}:no-actor-denied`,async()=>{const r=await capabilityService.readEvidence(key,{...withRows([item]),actor:null});assert.equal(r.status,'authority_denied');assert.equal(r.record_count,0);});
+  await check(`${key}:malformed-section-not-zero`,async()=>{const r=await capabilityService.readEvidence(key,withRows({total:0}));assert.equal(r.status,'unavailable');assert.equal(r.zero_proven,false);});
+  await check(`${key}:building-scope-not-snapshot`,async()=>{const c=withRows([item]);c.input.context.building_id='building-a';const r=await capabilityService.readEvidence(key,c);assert.equal(r.status,'scope_unsupported');assert.equal(r.record_count,0);});
+  await check(`${key}:mismatched-actor-context`,async()=>{const c=withRows([item]);c.oisContext={...c.oisContext,actor_id:'different-actor'};const r=await capabilityService.readEvidence(key,c);assert.equal(r.status,'authority_denied');assert.equal(r.record_count,0);});
+  if(key.startsWith('office_'))await check(`${key}:lifecycle-not-invented`,async()=>{const r=await capabilityService.readEvidence(key,withRows([{...item,status:'completed',workflow_status:'completed'}]));assert.equal(r.freshness,'unknown');assert.equal(r.lifecycle[0].relevance,key==='office_automations.query.read'?'unknown':'historical');});
+  const filter={
+   'office_tasks.query.read':['show overdue tasks',{overdue:true},{overdue:false}],
+   'office_automations.query.read':['show active automations',{enabled:true},{enabled:false}],
+   'office_meetings.query.read':['show meetings today',{scheduled_at:new Date().toISOString()},{scheduled_at:'2001-01-01T00:00:00Z'}],
+   'office_support.query.read':['show critical support cases',{severity:'critical'},{severity:'low'}],
+   'office_portfolio.query.read':['show at risk portfolio entries',{status:'attention'},{status:'healthy'}],
+  }[key];
+  if(filter){
+   await check(`${key}:module-filter-retained`,async()=>{const [message,yes,no]=filter;const c=withRows([{...item,...yes,id:'included'},{...item,...no,id:'excluded'}]);c.input.message=message;const r=await capabilityService.readEvidence(key,c);assert.deepEqual(r.records.map(x=>x.object_id),['included']);assert.equal(r.complete,false);assert.equal(r.zero_proven,false);});
+   await check(`${key}:filtered-empty-not-universal-zero`,async()=>{const [message,,no]=filter;const c=withRows([{...item,...no,id:'excluded'}]);c.input.message=message;const r=await capabilityService.readEvidence(key,c);assert.equal(r.record_count,0);assert.equal(r.status,'available_partial');assert.equal(r.zero_proven,false);});
+  }
  }
  // Public cannot obtain Office sources through this new collection boundary.
  for(const module of capabilityRegistry.all().filter(m=>m.supported_surfaces?.includes('office_internal')&&!m.supported_surfaces?.includes('public_corporate'))){
@@ -114,18 +141,29 @@ try{
  }));
  const pre=JSON.parse(fs.readFileSync('artifacts/intelligence-quality-v1-iq3-preimplementation-audit.json'));
  const readiness=pre.records.filter(r=>r.classification==='EVIDENCE_PLANNING').map(r=>{
-  const candidates=r.candidate_capabilities.filter(c=>c.authority.allowed);
-  const required=r.required_evidence_domains;
-  const missing=required.filter(d=>!candidates.some(c=>c.evidence_requirements.some(e=>e.domain===d)));
+  // Benchmark-required classes must not disappear merely because IQ-2's
+  // recorded requirement was narrower. Re-evaluate existing authority using
+  // the same fixture identities; do not query any of these sources here.
+  const required=[...new Set([...r.required_evidence_domains,...(r.expected.must_consider_domains||[])])];
+  const actorContext=context(r.surface,{office_internal:'ochiga_staff',public_corporate:'public',facility:'facility_manager',consumer:'resident'}[r.surface]);
+  const candidates=capabilityRegistry.all().filter(c=>c.risk_class==='read'&&required.some(d=>c.domain===d||c.evidence_requirements.some(e=>e.domain===d))).map(c=>({...c,authority:capabilityService.canUse(c.key,{actor:actorContext.actor,oisContext:actorContext.oisContext,surface:r.surface})})).filter(c=>c.authority.allowed);
+  const matches=(c,d)=>c.domain===d||c.evidence_requirements.some(e=>e.domain===d);
+  const missing=required.filter(d=>!candidates.some(c=>matches(c,d)));
   const absent=missing.filter(d=>!capabilityRegistry.all().some(c=>c.risk_class==='read'&&c.evidence_requirements?.some(e=>e.domain===d)));
   const uncertified=candidates.filter(c=>!capabilityRegistry.get(c.key)?.evidence_read).map(c=>c.key);
+  // A composite alternative is not mandatory when the required domain has a
+  // directly certified source. This is diagnostic coverage, not planner
+  // selection/execution. All required domains still need explicit coverage.
+  const sourceCoverage=required.map(domain=>({domain,sources:candidates.filter(c=>c.evidence_read&&matches(c,domain)&&((c.evidence_read.kind==='office_snapshot'&&r.surface==='office_internal')||(c.evidence_read.kind==='operational_scope'&&['consumer','facility'].includes(r.surface)))).map(c=>c.key)}));
   const unsupportedSubject=Boolean(r.assessment?.subject_label||r.assessment?.target_ref);
-  const covered=required.length>0&&!missing.length&&candidates.length>0&&!uncertified.length&&!unsupportedSubject;
+  const covered=required.length>0&&sourceCoverage.every(x=>x.sources.length>0)&&!unsupportedSubject;
   return{id:r.id,status:covered?'PLANNER_READY_PARTIAL':absent.length?'MISSING_CAPABILITY':'SOURCE_CONTRACT_BLOCKED',
    required_domains:required,candidate_sources:candidates.map(c=>c.key),uncertified_sources:uncertified,missing_domains:missing,
+   recorded_iq2_domains:r.required_evidence_domains,benchmark_domains:r.expected.must_consider_domains,
+   required_source_coverage:sourceCoverage,
    absent_capability_domains:absent,
    unresolved_or_exact_subject:unsupportedSubject,
-   reason:covered?'All eligible matching source contracts are certified partial; this does not establish evidence sufficiency or assessment completion.':absent.length?'No registered read source declares the required evidence domain.':'At least one source lacks certification/eligibility, or no explicit admissible evidence requirement exists.',
+   reason:covered?'Every required domain has an eligible certified partial source; unselected composite alternatives are not mandatory. This does not establish judgment sufficiency.':absent.length?'No registered read source declares the required evidence domain.':'A required domain lacks a certified source, exact subject/scope is unsupported, or no explicit admissible evidence requirement exists.',
   };
  });assert.equal(readiness.length,133);
  const certified=inventory.filter(r=>r.planner_eligible).length;

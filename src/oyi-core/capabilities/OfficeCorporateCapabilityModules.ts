@@ -912,6 +912,7 @@ function officeTasksQueryRows(tasks: NonNullable<OperationalSnapshot["tasks"]>, 
 function officeTasksQueryReadModule(): CapabilityModule {
   return readModule({
     key: "office_tasks.query.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_tasks_query_subset", snapshotField: "tasks", snapshotRows: "open" },
     domain: "office_tasks",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -1218,6 +1219,7 @@ function automationQueryRows(automations: NonNullable<OperationalSnapshot["autom
 function officeAutomationsQueryReadModule(): CapabilityModule {
   return readModule({
     key: "office_automations.query.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_automations_query_subset", snapshotField: "automations", snapshotRows: "items" },
     domain: "automations",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -1472,6 +1474,7 @@ function meetingQueryRows(meetings: NonNullable<OperationalSnapshot["meetings"]>
 function officeMeetingsQueryReadModule(): CapabilityModule {
   return readModule({
     key: "office_meetings.query.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_meetings_query_subset", snapshotField: "meetings", snapshotRows: "items" },
     domain: "office_meetings",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -1725,6 +1728,7 @@ function supportQueryRows(support: NonNullable<OperationalSnapshot["support"]>, 
 function officeSupportQueryReadModule(): CapabilityModule {
   return readModule({
     key: "office_support.query.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_support_query_subset", snapshotField: "support", snapshotRows: "items" },
     domain: "office_support",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -1993,6 +1997,7 @@ function portfolioQueryRows(portfolio: NonNullable<OperationalSnapshot["portfoli
 function officePortfolioQueryReadModule(): CapabilityModule {
   return readModule({
     key: "office_portfolio.query.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_portfolio_query_subset", snapshotField: "portfolio", snapshotRows: "items" },
     domain: "office_portfolio",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -2226,6 +2231,7 @@ function partnershipOpenFact(entry: NonNullable<OperationalSnapshot["partnership
 function officePartnershipsQueryReadModule(): CapabilityModule {
   return readModule({
     key: "office_partnerships.query.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_partnerships_query_subset", snapshotField: "partnerships", snapshotRows: "items" },
     domain: "corporate_partnerships",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -2438,6 +2444,7 @@ function documentListFact(doc: NonNullable<OperationalSnapshot["documents"]>["it
 function officeDocumentsQueryReadModule(): CapabilityModule {
   return readModule({
     key: "office_documents.query.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_documents_query_subset", snapshotField: "documents", snapshotRows: "items" },
     domain: "office_documents",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -2653,6 +2660,7 @@ function contentListFact(item: NonNullable<OperationalSnapshot["content"]>["item
 function officeContentQueryReadModule(): CapabilityModule {
   return readModule({
     key: "office_content.query.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_content_query_subset", snapshotField: "content", snapshotRows: "items" },
     domain: "office_content",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],

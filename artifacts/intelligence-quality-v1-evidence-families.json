@@ -1,0 +1,862 @@
+{
+  "starting_head": "dbe824656c6f539acd61b6cb58472b237684eef7",
+  "status": "FAMILY_MAPPING_COMPLETE_SOURCE_CERTIFICATION_INCOMPLETE",
+  "blocked_input_count": 58,
+  "family_count": 13,
+  "families": [
+    {
+      "id": "NO_COLLECTION",
+      "keys": [
+        "automations.suggest",
+        "global.capabilities.read"
+      ],
+      "owner": "capabilities/ReadCapabilityModules.ts",
+      "contract": "No evidence collection exists. Empty collector is not proof of operational zero.",
+      "gap": "These are proposal/discovery interfaces, not operational evidence sources.",
+      "member_count": 2,
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "SUPPLIED_CONTEXT_OBJECT",
+      "keys": [
+        "office.plan_studio.review",
+        "office_tasks.read",
+        "office_automations.read",
+        "office_meetings.read",
+        "office_support.read",
+        "office_portfolio.read",
+        "office_partnerships.read",
+        "office_documents.read",
+        "office_content.read"
+      ],
+      "owner": "capabilities/OfficeCorporateCapabilityModules.ts",
+      "contract": "Require authenticated context provenance and a valid requested object; distinguish absent context from scoped object not found. One object cannot establish collection zero.",
+      "gap": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract.",
+      "member_count": 9,
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "GOVERNED_MEMORY",
+      "keys": [
+        "context.memory.recall"
+      ],
+      "owner": "capabilities/MemoryRecallCapability.ts",
+      "contract": "Actor-bound governed memory status and visibility filter; eight-record window is historical, not complete conversation history.",
+      "gap": "Collector returns [] for unavailable memory and ineligible context; outcome must retain governed memory_status.",
+      "member_count": 1,
+      "source_sha256": "8fadb113bdf749f0027d122472c7d03e3e496b607ec9a8b6fbe70c1bf7525d1e",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "OPERATIONAL_COMPOSITE",
+      "keys": [
+        "facility.overview.read",
+        "utilities.active.read",
+        "services.active.read"
+      ],
+      "owner": "domains/utilities/utilityEvidence.ts",
+      "contract": "Each child source needs availability and truncation; combined empty is proven only if every required child succeeded in the requested scope.",
+      "gap": "Facility combines two scoped sources; service account/assignment joins each cap at 200. Child completeness is not exposed in the resulting fact array.",
+      "member_count": 3,
+      "source_sha256": "bd8ba59a6568d716b39f8ce0f25438c439264eef32d9677ea44424b183ed3393",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "CURRENT_STATE",
+      "keys": [
+        "facility.cameras.read",
+        "devices.status.read",
+        "devices.availability.read",
+        "devices.relationships.read",
+        "devices.capabilities.read"
+      ],
+      "owner": "domains/devices/deviceEvidence.ts",
+      "contract": "Inventory existence is distinct from observed current state. Preserve canonical availability/freshness and provider-unobservable state; scoped inventory bounds do not prove complete physical truth.",
+      "gap": "Device inventory catches query failures as []; camera inventory/current-state composition needs independently tested policy and source outcomes. Room filtering after inventory limit cannot prove room completeness.",
+      "member_count": 5,
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "EXECUTION_AUDIT_HISTORY",
+      "keys": [
+        "devices.activity.read",
+        "devices.failures.read",
+        "devices.diagnosis.read"
+      ],
+      "owner": "domains/devices/deviceEvidence.ts",
+      "contract": "History needs time window, scope, per-source availability and limits. A command receipt is not proof of current physical effect.",
+      "gap": "Execution and audit query failures are logged and omitted; supplied recent executions are also merged. Cannot certify the final array as a complete or fully available history.",
+      "member_count": 3,
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "TRANSACTION_HISTORY",
+      "keys": [
+        "wallet.transactions.read",
+        "utilities.spending.read",
+        "utilities.purchases.read",
+        "automations.runs.read"
+      ],
+      "owner": "domains/wallet/walletEvidence.ts",
+      "contract": "Enforce authenticated account/home plus actual temporal filters; bounded rows are partial. Sum only the represented population and distinguish source failure.",
+      "gap": "Different loaders use wallet/account joins or execution status. Per-module query/filter/sentinel and truncation tests are still required; a common database client proves nothing.",
+      "member_count": 4,
+      "source_sha256": "8ce7025cc8822140d554adc74652a7409d21d8b3ffd21d47744fb6bbe6dbb7f8",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "BOUNDED_COLLECTION",
+      "keys": [
+        "wallet.balance.read",
+        "utilities.tariff.read",
+        "community.latest.read",
+        "scenes.list.read",
+        "automations.list.read",
+        "rooms.inventory.read",
+        "corporate.development.read"
+      ],
+      "owner": "capabilities/ReadCapabilityModules.ts",
+      "contract": "Successful scoped source read plus complete applicable population is needed for zero. Limits/filtering/joins are module-specific; not-found cannot generalize to all records.",
+      "gap": "Underlying limits vary (10/50/100 or no explicit source bound). Public development collapses failed fetch to empty collector and marks fetched data fresh without source age.",
+      "member_count": 7,
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "HOME_ROOM_AGGREGATE",
+      "keys": [
+        "home.summary.read",
+        "home.attention.read",
+        "home.activity.read",
+        "room.status.read",
+        "room.attention.read",
+        "room.activity.read"
+      ],
+      "owner": "domains/roomHome/roomHomeCapabilities.ts",
+      "contract": "Population/scope/time and every contributor availability must survive aggregation; output fact count is not source total.",
+      "gap": "collect() stores aggregate/unresolved state in pendingAggregates for answer(); standalone array loses that state. Cannot safely opt in without adapting the shared aggregate result.",
+      "member_count": 6,
+      "source_sha256": "2985033256ae649e57d68f3850d9a057707ca3e630f9de6e239ecd584a887032",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "PERSISTING_INTELLIGENCE_COMPOSITE",
+      "keys": [
+        "anomalies.read",
+        "predictions.read",
+        "forecasts.read",
+        "recommendations.read"
+      ],
+      "owner": "domains/intelligence/intelligenceCapabilities.ts",
+      "contract": "Assessment evidence collection must not invoke persistence-producing computation or promote predictions to observed facts.",
+      "gap": "runOrchestratorForContext uses persist:true. Exclude these collection implementations from read-only planner eligibility; do not run them to manufacture evidence.",
+      "member_count": 4,
+      "source_sha256": "9004512d40389d153bcb3f3892e84c6316edd861382e0eeee684bb7b39b674dc",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "OFFICE_SUPPLIED_SNAPSHOT",
+      "keys": [
+        "office_tasks.query.read",
+        "office_automations.query.read",
+        "office_meetings.query.read",
+        "office_support.query.read",
+        "office_portfolio.query.read",
+        "office_partnerships.query.read",
+        "office_documents.query.read",
+        "office_content.query.read"
+      ],
+      "owner": "capabilities/OfficeCorporateCapabilityModules.ts",
+      "contract": "Permission-gated supplied snapshot only; absent/malformed section unavailable; present arrays bounded before module filtering; empty subset partial, never global zero. Unknown freshness unless proven.",
+      "gap": "Shared snapshot adapter now reused, but module-specific filtering and authority tests remain mandatory; no inheritance-only certification.",
+      "member_count": 8,
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "PUBLIC_KNOWLEDGE_LOOKUP",
+      "keys": [
+        "corporate.company.read",
+        "corporate.development.identity.read",
+        "corporate.oyi.read",
+        "corporate.private.read",
+        "corporate.partnerships.read"
+      ],
+      "owner": "capabilities/corporateKnowledgeAnswer.ts",
+      "contract": "Only audience/worker-visible approved lookup matches; no match is not absence of organisational knowledge. Preserve source provenance and distinguish fallback from retrieved evidence.",
+      "gap": "Shared helper returns a string fallback on missing item or exception, discarding provenance/availability. String envelope alone cannot certify a governed retrieval outcome.",
+      "member_count": 5,
+      "source_sha256": "964ddb8e08cca5f2aaea87a8823453a28edcfde8af8f514c00e97a59ef73a6fa",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    },
+    {
+      "id": "PUBLIC_THREAD_OBJECTIVE",
+      "keys": [
+        "corporate.opportunity.read"
+      ],
+      "owner": "capabilities/PublicOpportunityCapabilityModule.ts",
+      "contract": "Session-owned supplied facts are user claims, not verified operational truth. Missing/expired objective and load error must be distinct; no callback side effects in collection.",
+      "gap": "Collector loads by thread id; source certification still needs ingress/session ownership and persistence-error tests, not merely public privacy metadata.",
+      "member_count": 1,
+      "source_sha256": "87e5257819bf51be70b298fcb63306bfb6d766efe0495299bd16f419ab81708c",
+      "timeout": "Existing single-source acceptance deadline; no implied underlying cancellation",
+      "certification_rule": "Family contract alone never grants module eligibility"
+    }
+  ],
+  "records": [
+    {
+      "capability_key": "office.plan_studio.review",
+      "primary_family": "SUPPLIED_CONTEXT_OBJECT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const project = normalizePlanReviewContext(context.input.context?.plan_review_context);\n            if (!project)\n                return [];\n            return [(0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    evidence_id: `office-plan:${project.project_id}:${project.updated_at || \"unversioned\"}`,\n                    domain: \"office_development\", type: \"office_plan_draft\", object_type: \"project\", object_id: project.project_id,\n                    source: \"domain_adapter\", source_type: \"domain_adapter\", source_id: project.project_id,\n                    observed_at: project.updated_at, freshness: \"unknown\", truth_class: \"source_record\",\n                    privacy_class: \"corporate_private\", permissions: [\"planstudio.read\"],\n                    authorised_scope: { estate_id: null, home_id: null, room_id: null }, confidence: 1,\n                    payload: project,\n                })];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract."
+    },
+    {
+      "capability_key": "automations.suggest",
+      "primary_family": "NO_COLLECTION",
+      "source_owner": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "collector_body": "async collectEvidence() { return []; }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "These are proposal/discovery interfaces, not operational evidence sources."
+    },
+    {
+      "capability_key": "context.memory.recall",
+      "primary_family": "GOVERNED_MEMORY",
+      "source_owner": "src/oyi-core/capabilities/MemoryRecallCapability.ts",
+      "source_sha256": "8fadb113bdf749f0027d122472c7d03e3e496b607ec9a8b6fbe70c1bf7525d1e",
+      "collector_body": "async (context) => {\n            const actor = context.actor;\n            if (!actor || actor.role !== \"resident\" || context.input.surface !== \"consumer\")\n                return [];\n            const governed = context.input.context?.governed_context;\n            if (governed?.identity?.actor_id !== actor.id || governed?.memory_status !== \"available\")\n                return [];\n            const scope = { actorId: actor.id, estateId: context.oisContext?.estate_id || actor.estate_id || null,\n                homeId: context.oisContext?.home_id || actor.home_id || null, sessionId: context.input.thread_id || null };\n            return (Array.isArray(governed.memory) ? governed.memory : []).filter((memory) => (0, memory_1.memoryVisibleTo)(memory, scope)).slice(0, 8)\n                .map((memory) => (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                evidence_id: `memory:${memory.id}`, domain: \"global\", type: \"retained_context\", source: \"history\", source_type: \"conversation\",\n                object_type: null, object_id: null,\n                source_id: memory.provenance.recordId, observed_at: memory.provenance.observedAt,\n                truth_class: \"historical_record\", freshness: \"unknown\", privacy_class: \"resident_private\",\n                authorised_scope: { estate_id: scope.estateId, home_id: scope.homeId, room_id: null },\n                permissions: [], confidence: 1, payload: { prompt: memory.value.prompt, title: memory.value.title, observed_at: memory.provenance.observedAt },\n            }));\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Collector returns [] for unavailable memory and ineligible context; outcome must retain governed memory_status."
+    },
+    {
+      "capability_key": "global.capabilities.read",
+      "primary_family": "NO_COLLECTION",
+      "source_owner": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "collector_body": "async () => []",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "These are proposal/discovery interfaces, not operational evidence sources."
+    },
+    {
+      "capability_key": "facility.overview.read",
+      "primary_family": "OPERATIONAL_COMPOSITE",
+      "source_owner": "src/oyi-core/domains/utilities/utilityEvidence.ts",
+      "source_sha256": "bd8ba59a6568d716b39f8ce0f25438c439264eef32d9677ea44424b183ed3393",
+      "collector_body": "async (context) => {\n                const contract = requestContract(context);\n                const [maintenance, incidents] = await Promise.all([\n                    (0, maintenanceEvidence_1.loadMaintenanceRequestFacts)(context.input, context.oisContext, contract),\n                    (0, securityEvidence_1.loadSecurityIncidentFacts)(context.input, context.oisContext, contract),\n                ]);\n                return [...maintenance, ...incidents].map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Facility combines two scoped sources; service account/assignment joins each cap at 200. Child completeness is not exposed in the resulting fact array."
+    },
+    {
+      "capability_key": "facility.cameras.read",
+      "primary_family": "CURRENT_STATE",
+      "source_owner": "src/oyi-core/domains/devices/deviceEvidence.ts",
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "collector_body": "async function facilityCameraEvidence(context) {\n    const estateId = text(context.oisContext?.estate_id || context.actor?.estate_id);\n    if (!estateId || !context.actor?.id)\n        return [];\n    const accessActor = (0, cameraAccess_policy_1.cameraAccessActor)(context.actor, { estate_id: estateId, home_id: null });\n    try {\n        const { data, error } = await supabaseClient_1.supabaseAdmin.from(\"facility_cameras\")\n            .select(\"id,estate_id,home_id,privacy_scope,metadata,name,location\")\n            .eq(\"estate_id\", estateId).limit(100);\n        if (error)\n            throw error;\n        const authorised = (data || []).filter((row) => (0, cameraAccess_policy_1.canAccessCamera)(row, accessActor).ok);\n        const states = await (0, cameraCurrentStateAuthority_1.resolveCameraCurrentStates)(estateId, authorised.map((row) => row.id), accessActor);\n        const names = new Map(authorised.map((row) => [String(row.id), text(row.name) || \"Camera\"]));\n        return states.map((state) => evidenceFromFact({\n            fact_id: `camera-current-state:${state.cameraId}`,\n            domain: \"cameras\", fact_type: \"camera_current_state\",\n            scope: { estate_id: estateId, home_id: null, room_id: null },\n            object: { object_type: \"camera\", canonical_id: state.cameraId, label: names.get(state.cameraId) || \"Camera\" },\n            statement: `${names.get(state.cameraId) || \"Camera\"}: ${(0, cameraCurrentStatePresentation_1.cameraStateExplanation)(state)} `,\n            value: { overall: state.overall, video_evidence: state.videoEvidence, observed_at: state.observedAt },\n            previous_value: null, occurred_at: state.observedAt, observed_at: new Date().toISOString(),\n            source_type: \"database\", source_id: state.cameraId, truth_state: \"confirmed\",\n            confidence: state.overall === \"unknown\" ? 0.4 : 0.9,\n            freshness: state.observedAt || \"unknown\", privacy_class: \"facility_sensitive\",\n            permissions: [\"cameras.view\"], evidence: [{ type: \"camera_current_state\", id: state.cameraId, overall: state.overall }],\n        }));\n    }\n    catch {\n        return [evidenceFromFact({\n                fact_id: `camera-current-state-unavailable:${context.resolvedTurn.request_id}`,\n                domain: \"cameras\", fact_type: \"camera_current_state\",\n                scope: { estate_id: estateId, home_id: null, room_id: null },\n                object: { object_type: \"camera\", canonical_id: estateId, label: \"Estate cameras\" },\n                statement: \"Camera current-state evidence could not be loaded.\", value: null,\n                previous_value: null, occurred_at: null, observed_at: new Date().toISOString(),\n                source_type: \"database\", source_id: null, truth_state: \"unavailable\",\n                confidence: 0, freshness: \"unavailable\", privacy_class: \"facility_sensitive\",\n                permissions: [\"cameras.view\"], evidence: [{ type: \"camera_current_state\", status: \"unavailable\" }],\n            })];\n    }\n}",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Device inventory catches query failures as []; camera inventory/current-state composition needs independently tested policy and source outcomes. Room filtering after inventory limit cannot prove room completeness."
+    },
+    {
+      "capability_key": "devices.status.read",
+      "primary_family": "CURRENT_STATE",
+      "source_owner": "src/oyi-core/domains/devices/deviceEvidence.ts",
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "collector_body": "async function deviceInventoryEvidence(context) {\n    const facts = await (0, deviceEvidence_1.loadHomeDeviceInventoryFacts)(context.input, context.oisContext);\n    return (0, deviceEvidence_1.dedupeIntelligenceFacts)(facts).map(evidenceFromFact);\n}",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Device inventory catches query failures as []; camera inventory/current-state composition needs independently tested policy and source outcomes. Room filtering after inventory limit cannot prove room completeness."
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "primary_family": "CURRENT_STATE",
+      "source_owner": "src/oyi-core/domains/devices/deviceEvidence.ts",
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "collector_body": "async function deviceInventoryEvidence(context) {\n    const facts = await (0, deviceEvidence_1.loadHomeDeviceInventoryFacts)(context.input, context.oisContext);\n    return (0, deviceEvidence_1.dedupeIntelligenceFacts)(facts).map(evidenceFromFact);\n}",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Device inventory catches query failures as []; camera inventory/current-state composition needs independently tested policy and source outcomes. Room filtering after inventory limit cannot prove room completeness."
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "primary_family": "EXECUTION_AUDIT_HISTORY",
+      "source_owner": "src/oyi-core/domains/devices/deviceEvidence.ts",
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "collector_body": "async function recentDeviceEvidence(context) {\n    const contract = requestContract(context);\n    const facts = await (0, deviceEvidence_1.loadRecentDeviceChangeFacts)(context.input, context.oisContext, contract, null);\n    return (0, deviceEvidence_1.dedupeIntelligenceFacts)(facts).map(evidenceFromFact);\n}",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Execution and audit query failures are logged and omitted; supplied recent executions are also merged. Cannot certify the final array as a complete or fully available history."
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "primary_family": "EXECUTION_AUDIT_HISTORY",
+      "source_owner": "src/oyi-core/domains/devices/deviceEvidence.ts",
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "collector_body": "async (context) => {\n                const evidence = await recentDeviceEvidence(context);\n                return evidence.filter((item) => (0, canonicalTurnResolution_1.isFailureFact)(recordOf(item.payload).fact));\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Execution and audit query failures are logged and omitted; supplied recent executions are also merged. Cannot certify the final array as a complete or fully available history."
+    },
+    {
+      "capability_key": "devices.diagnosis.read",
+      "primary_family": "EXECUTION_AUDIT_HISTORY",
+      "source_owner": "src/oyi-core/domains/devices/deviceEvidence.ts",
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "collector_body": "async function recentDeviceEvidence(context) {\n    const contract = requestContract(context);\n    const facts = await (0, deviceEvidence_1.loadRecentDeviceChangeFacts)(context.input, context.oisContext, contract, null);\n    return (0, deviceEvidence_1.dedupeIntelligenceFacts)(facts).map(evidenceFromFact);\n}",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Execution and audit query failures are logged and omitted; supplied recent executions are also merged. Cannot certify the final array as a complete or fully available history."
+    },
+    {
+      "capability_key": "devices.relationships.read",
+      "primary_family": "CURRENT_STATE",
+      "source_owner": "src/oyi-core/domains/devices/deviceEvidence.ts",
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "collector_body": "async function deviceInventoryEvidence(context) {\n    const facts = await (0, deviceEvidence_1.loadHomeDeviceInventoryFacts)(context.input, context.oisContext);\n    return (0, deviceEvidence_1.dedupeIntelligenceFacts)(facts).map(evidenceFromFact);\n}",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Device inventory catches query failures as []; camera inventory/current-state composition needs independently tested policy and source outcomes. Room filtering after inventory limit cannot prove room completeness."
+    },
+    {
+      "capability_key": "devices.capabilities.read",
+      "primary_family": "CURRENT_STATE",
+      "source_owner": "src/oyi-core/domains/devices/deviceEvidence.ts",
+      "source_sha256": "65d33ac0aefba83e7c3c1a2fea8af73e61db5e38e8ba3e74ee1bd32ec2e6b73a",
+      "collector_body": "async function deviceInventoryEvidence(context) {\n    const facts = await (0, deviceEvidence_1.loadHomeDeviceInventoryFacts)(context.input, context.oisContext);\n    return (0, deviceEvidence_1.dedupeIntelligenceFacts)(facts).map(evidenceFromFact);\n}",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Device inventory catches query failures as []; camera inventory/current-state composition needs independently tested policy and source outcomes. Room filtering after inventory limit cannot prove room completeness."
+    },
+    {
+      "capability_key": "wallet.transactions.read",
+      "primary_family": "TRANSACTION_HISTORY",
+      "source_owner": "src/oyi-core/domains/wallet/walletEvidence.ts",
+      "source_sha256": "8ce7025cc8822140d554adc74652a7409d21d8b3ffd21d47744fb6bbe6dbb7f8",
+      "collector_body": "async (context) => {\n                const facts = await (0, walletEvidence_1.loadWalletTransactionFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Different loaders use wallet/account joins or execution status. Per-module query/filter/sentinel and truncation tests are still required; a common database client proves nothing."
+    },
+    {
+      "capability_key": "wallet.balance.read",
+      "primary_family": "BOUNDED_COLLECTION",
+      "source_owner": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "collector_body": "async (context) => {\n                const facts = await (0, walletEvidence_1.loadWalletBalanceFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Underlying limits vary (10/50/100 or no explicit source bound). Public development collapses failed fetch to empty collector and marks fetched data fresh without source age."
+    },
+    {
+      "capability_key": "utilities.spending.read",
+      "primary_family": "TRANSACTION_HISTORY",
+      "source_owner": "src/oyi-core/domains/wallet/walletEvidence.ts",
+      "source_sha256": "8ce7025cc8822140d554adc74652a7409d21d8b3ffd21d47744fb6bbe6dbb7f8",
+      "collector_body": "async (context) => {\n                const facts = await (0, utilityEvidence_1.loadUtilitySpendingFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Different loaders use wallet/account joins or execution status. Per-module query/filter/sentinel and truncation tests are still required; a common database client proves nothing."
+    },
+    {
+      "capability_key": "utilities.active.read",
+      "primary_family": "OPERATIONAL_COMPOSITE",
+      "source_owner": "src/oyi-core/domains/utilities/utilityEvidence.ts",
+      "source_sha256": "bd8ba59a6568d716b39f8ce0f25438c439264eef32d9677ea44424b183ed3393",
+      "collector_body": "async (context) => {\n                const facts = await (0, utilityEvidence_1.loadServiceAccountFacts)(context.input, context.oisContext, requestContract(context), { onlyServiceKeys: utilityEvidence_1.UTILITY_SERVICE_KEYS, domain: \"utilities\" });\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Facility combines two scoped sources; service account/assignment joins each cap at 200. Child completeness is not exposed in the resulting fact array."
+    },
+    {
+      "capability_key": "utilities.tariff.read",
+      "primary_family": "BOUNDED_COLLECTION",
+      "source_owner": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "collector_body": "async (context) => {\n                const facts = await (0, utilityEvidence_1.loadUtilityTariffFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Underlying limits vary (10/50/100 or no explicit source bound). Public development collapses failed fetch to empty collector and marks fetched data fresh without source age."
+    },
+    {
+      "capability_key": "utilities.purchases.read",
+      "primary_family": "TRANSACTION_HISTORY",
+      "source_owner": "src/oyi-core/domains/wallet/walletEvidence.ts",
+      "source_sha256": "8ce7025cc8822140d554adc74652a7409d21d8b3ffd21d47744fb6bbe6dbb7f8",
+      "collector_body": "async (context) => {\n                const facts = await (0, utilityEvidence_1.loadUtilityPurchaseFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Different loaders use wallet/account joins or execution status. Per-module query/filter/sentinel and truncation tests are still required; a common database client proves nothing."
+    },
+    {
+      "capability_key": "services.active.read",
+      "primary_family": "OPERATIONAL_COMPOSITE",
+      "source_owner": "src/oyi-core/domains/utilities/utilityEvidence.ts",
+      "source_sha256": "bd8ba59a6568d716b39f8ce0f25438c439264eef32d9677ea44424b183ed3393",
+      "collector_body": "async (context) => {\n                const facts = await (0, serviceEvidence_1.loadServicesActiveFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Facility combines two scoped sources; service account/assignment joins each cap at 200. Child completeness is not exposed in the resulting fact array."
+    },
+    {
+      "capability_key": "community.latest.read",
+      "primary_family": "BOUNDED_COLLECTION",
+      "source_owner": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "collector_body": "async (context) => {\n                const facts = await (0, communityEvidence_1.loadCommunityPostFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Underlying limits vary (10/50/100 or no explicit source bound). Public development collapses failed fetch to empty collector and marks fetched data fresh without source age."
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "primary_family": "BOUNDED_COLLECTION",
+      "source_owner": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "collector_body": "async (context) => {\n                const facts = await (0, sceneAutomationEvidence_1.loadSceneFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Underlying limits vary (10/50/100 or no explicit source bound). Public development collapses failed fetch to empty collector and marks fetched data fresh without source age."
+    },
+    {
+      "capability_key": "automations.list.read",
+      "primary_family": "BOUNDED_COLLECTION",
+      "source_owner": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "collector_body": "async (context) => {\n                const facts = await (0, sceneAutomationEvidence_1.loadAutomationFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Underlying limits vary (10/50/100 or no explicit source bound). Public development collapses failed fetch to empty collector and marks fetched data fresh without source age."
+    },
+    {
+      "capability_key": "automations.runs.read",
+      "primary_family": "TRANSACTION_HISTORY",
+      "source_owner": "src/oyi-core/domains/wallet/walletEvidence.ts",
+      "source_sha256": "8ce7025cc8822140d554adc74652a7409d21d8b3ffd21d47744fb6bbe6dbb7f8",
+      "collector_body": "async (context) => {\n                const facts = await (0, sceneAutomationEvidence_1.loadAutomationRunFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact);\n            }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Different loaders use wallet/account joins or execution status. Per-module query/filter/sentinel and truncation tests are still required; a common database client proves nothing."
+    },
+    {
+      "capability_key": "home.summary.read",
+      "primary_family": "HOME_ROOM_AGGREGATE",
+      "source_owner": "src/oyi-core/domains/roomHome/roomHomeCapabilities.ts",
+      "source_sha256": "2985033256ae649e57d68f3850d9a057707ca3e630f9de6e239ecd584a887032",
+      "collector_body": "async (context) => {\n            const aggregate = await runHomeAggregate(context, operation, devicesFacts, key);\n            pendingAggregates.set(context.resolvedTurn.request_id, aggregate);\n            return boundedFactsForEvidence(aggregate).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "collect() stores aggregate/unresolved state in pendingAggregates for answer(); standalone array loses that state. Cannot safely opt in without adapting the shared aggregate result."
+    },
+    {
+      "capability_key": "home.attention.read",
+      "primary_family": "HOME_ROOM_AGGREGATE",
+      "source_owner": "src/oyi-core/domains/roomHome/roomHomeCapabilities.ts",
+      "source_sha256": "2985033256ae649e57d68f3850d9a057707ca3e630f9de6e239ecd584a887032",
+      "collector_body": "async (context) => {\n            const aggregate = await runHomeAggregate(context, operation, devicesFacts, key);\n            pendingAggregates.set(context.resolvedTurn.request_id, aggregate);\n            return boundedFactsForEvidence(aggregate).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "collect() stores aggregate/unresolved state in pendingAggregates for answer(); standalone array loses that state. Cannot safely opt in without adapting the shared aggregate result."
+    },
+    {
+      "capability_key": "home.activity.read",
+      "primary_family": "HOME_ROOM_AGGREGATE",
+      "source_owner": "src/oyi-core/domains/roomHome/roomHomeCapabilities.ts",
+      "source_sha256": "2985033256ae649e57d68f3850d9a057707ca3e630f9de6e239ecd584a887032",
+      "collector_body": "async (context) => {\n            const aggregate = await runHomeAggregate(context, operation, devicesFacts, key);\n            pendingAggregates.set(context.resolvedTurn.request_id, aggregate);\n            return boundedFactsForEvidence(aggregate).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "collect() stores aggregate/unresolved state in pendingAggregates for answer(); standalone array loses that state. Cannot safely opt in without adapting the shared aggregate result."
+    },
+    {
+      "capability_key": "room.status.read",
+      "primary_family": "HOME_ROOM_AGGREGATE",
+      "source_owner": "src/oyi-core/domains/roomHome/roomHomeCapabilities.ts",
+      "source_sha256": "2985033256ae649e57d68f3850d9a057707ca3e630f9de6e239ecd584a887032",
+      "collector_body": "async (context) => {\n            const { aggregate, unresolved } = await runRoomAggregate(context, operation, key);\n            const requestId = context.resolvedTurn.request_id;\n            if (unresolved) {\n                pendingAggregates.delete(requestId);\n                pendingRoomUnresolved.set(requestId, unresolved);\n                return [];\n            }\n            pendingAggregates.set(requestId, aggregate);\n            return boundedFactsForEvidence(aggregate).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "collect() stores aggregate/unresolved state in pendingAggregates for answer(); standalone array loses that state. Cannot safely opt in without adapting the shared aggregate result."
+    },
+    {
+      "capability_key": "room.attention.read",
+      "primary_family": "HOME_ROOM_AGGREGATE",
+      "source_owner": "src/oyi-core/domains/roomHome/roomHomeCapabilities.ts",
+      "source_sha256": "2985033256ae649e57d68f3850d9a057707ca3e630f9de6e239ecd584a887032",
+      "collector_body": "async (context) => {\n            const { aggregate, unresolved } = await runRoomAggregate(context, operation, key);\n            const requestId = context.resolvedTurn.request_id;\n            if (unresolved) {\n                pendingAggregates.delete(requestId);\n                pendingRoomUnresolved.set(requestId, unresolved);\n                return [];\n            }\n            pendingAggregates.set(requestId, aggregate);\n            return boundedFactsForEvidence(aggregate).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "collect() stores aggregate/unresolved state in pendingAggregates for answer(); standalone array loses that state. Cannot safely opt in without adapting the shared aggregate result."
+    },
+    {
+      "capability_key": "room.activity.read",
+      "primary_family": "HOME_ROOM_AGGREGATE",
+      "source_owner": "src/oyi-core/domains/roomHome/roomHomeCapabilities.ts",
+      "source_sha256": "2985033256ae649e57d68f3850d9a057707ca3e630f9de6e239ecd584a887032",
+      "collector_body": "async (context) => {\n            const { aggregate, unresolved } = await runRoomAggregate(context, operation, key);\n            const requestId = context.resolvedTurn.request_id;\n            if (unresolved) {\n                pendingAggregates.delete(requestId);\n                pendingRoomUnresolved.set(requestId, unresolved);\n                return [];\n            }\n            pendingAggregates.set(requestId, aggregate);\n            return boundedFactsForEvidence(aggregate).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "collect() stores aggregate/unresolved state in pendingAggregates for answer(); standalone array loses that state. Cannot safely opt in without adapting the shared aggregate result."
+    },
+    {
+      "capability_key": "rooms.inventory.read",
+      "primary_family": "BOUNDED_COLLECTION",
+      "source_owner": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "collector_body": "async (context) => {\n            const facts = await loadRoomsInventoryFacts(context);\n            return facts.map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Underlying limits vary (10/50/100 or no explicit source bound). Public development collapses failed fetch to empty collector and marks fetched data fresh without source age."
+    },
+    {
+      "capability_key": "anomalies.read",
+      "primary_family": "PERSISTING_INTELLIGENCE_COMPOSITE",
+      "source_owner": "src/oyi-core/domains/intelligence/intelligenceCapabilities.ts",
+      "source_sha256": "9004512d40389d153bcb3f3892e84c6316edd861382e0eeee684bb7b39b674dc",
+      "collector_body": "async (context) => {\n            const result = await runOrchestratorForContext(context);\n            pendingOrchestratorResults.set(context.resolvedTurn.request_id, result);\n            return result.anomalies.map(factFromAnomaly).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "runOrchestratorForContext uses persist:true. Exclude these collection implementations from read-only planner eligibility; do not run them to manufacture evidence."
+    },
+    {
+      "capability_key": "predictions.read",
+      "primary_family": "PERSISTING_INTELLIGENCE_COMPOSITE",
+      "source_owner": "src/oyi-core/domains/intelligence/intelligenceCapabilities.ts",
+      "source_sha256": "9004512d40389d153bcb3f3892e84c6316edd861382e0eeee684bb7b39b674dc",
+      "collector_body": "async (context) => {\n            const result = await runOrchestratorForContext(context);\n            pendingOrchestratorResults.set(context.resolvedTurn.request_id, result);\n            return result.predictions.map(factFromPrediction).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "runOrchestratorForContext uses persist:true. Exclude these collection implementations from read-only planner eligibility; do not run them to manufacture evidence."
+    },
+    {
+      "capability_key": "forecasts.read",
+      "primary_family": "PERSISTING_INTELLIGENCE_COMPOSITE",
+      "source_owner": "src/oyi-core/domains/intelligence/intelligenceCapabilities.ts",
+      "source_sha256": "9004512d40389d153bcb3f3892e84c6316edd861382e0eeee684bb7b39b674dc",
+      "collector_body": "async (context) => {\n            const result = await runOrchestratorForContext(context);\n            pendingOrchestratorResults.set(context.resolvedTurn.request_id, result);\n            return result.forecasts.map(factFromForecast).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "runOrchestratorForContext uses persist:true. Exclude these collection implementations from read-only planner eligibility; do not run them to manufacture evidence."
+    },
+    {
+      "capability_key": "recommendations.read",
+      "primary_family": "PERSISTING_INTELLIGENCE_COMPOSITE",
+      "source_owner": "src/oyi-core/domains/intelligence/intelligenceCapabilities.ts",
+      "source_sha256": "9004512d40389d153bcb3f3892e84c6316edd861382e0eeee684bb7b39b674dc",
+      "collector_body": "async (context) => {\n            const result = await runOrchestratorForContext(context);\n            pendingOrchestratorResults.set(context.resolvedTurn.request_id, result);\n            return result.recommendations.map(factFromRecommendation).map(ReadCapabilityModules_1.evidenceFromFact);\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "runOrchestratorForContext uses persist:true. Exclude these collection implementations from read-only planner eligibility; do not run them to manufacture evidence."
+    },
+    {
+      "capability_key": "office_tasks.read",
+      "primary_family": "SUPPLIED_CONTEXT_OBJECT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const task = taskContextSlot(context);\n            if (!task || !(task.safe_summary || task.title))\n                return [];\n            return [\n                (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    domain: \"office_tasks\",\n                    type: \"office_task_selected\",\n                    object_type: \"task\",\n                    object_id: task.task_ref,\n                    source: \"domain_adapter\",\n                    observed_at: null,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.9,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { task },\n                }),\n            ];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract."
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "primary_family": "OFFICE_SUPPLIED_SNAPSHOT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const snapshot = officeSnapshot(context);\n            const tasks = snapshot?.tasks;\n            if (!tasks)\n                return [];\n            // Phase 4 hotfix (found in live production verification): collect()\n            // must filter the SAME way answer() does below (see\n            // officeTasksQueryRows), not return every open task regardless of\n            // phrasing. Previously \"show me my overdue tasks\" ANSWERED with\n            // only the overdue ones but registered ALL open tasks (including\n            // non-overdue ones) as the persisted result set -- so \"move the\n            // first two\" on the next turn resolved against the wrong,\n            // unfiltered list instead of the two tasks actually shown.\n            const rows = officeTasksQueryRows(tasks, normalizeMessage(context));\n            // Phase 4 hotfix (found in live production verification, not\n            // caught by unit tests that call collect()/answer() directly and\n            // so never exercise CapabilityService's assertEvidenceAllowed\n            // gate) -- evidenceFromFact() is a Consumer/Facility helper whose\n            // privacyForFact() ignores whatever privacy_class the fact itself\n            // carries and defaults anything it doesn't recognize (every\n            // office_* domain) to \"household_private\", which privacyAllowed()\n            // then unconditionally blocks on office_internal. Every OTHER\n            // office_internal capability in this file builds its envelope via\n            // evidenceEnvelope() directly with an explicit corporate privacy_\n            // class for exactly this reason; this one now matches.\n            return rows.map((task) => {\n                const fact = taskOpenFact(task);\n                return (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    evidence_id: `capability:${fact.fact_id}`,\n                    domain: \"office_tasks\",\n                    type: fact.fact_type,\n                    object_type: \"task\",\n                    object_id: task.id,\n                    source: \"domain_adapter\",\n                    observed_at: fact.observed_at,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.85,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { fact },\n                });\n            });\n        }",
+      "state": "CERTIFIED_PARTIAL",
+      "planner_eligible": true,
+      "certification_inherited": false,
+      "remaining_boundary": null
+    },
+    {
+      "capability_key": "office_automations.read",
+      "primary_family": "SUPPLIED_CONTEXT_OBJECT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const automation = automationContextSlot(context);\n            if (!automation || !(automation.safe_summary || automation.name))\n                return [];\n            return [\n                (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    domain: \"automations\",\n                    type: \"office_automation_selected\",\n                    object_type: \"automation\",\n                    object_id: automation.automation_ref,\n                    source: \"domain_adapter\",\n                    observed_at: automation.last_run_at || null,\n                    freshness: automation.last_run_at ? \"fresh\" : \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.9,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { automation },\n                }),\n            ];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract."
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "primary_family": "OFFICE_SUPPLIED_SNAPSHOT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const snapshot = officeSnapshot(context);\n            const automations = snapshot?.automations;\n            if (!automations)\n                return [];\n            const rows = automationQueryRows(automations, normalizeMessage(context));\n            return rows.map((automation) => {\n                const fact = automationOpenFact(automation);\n                return (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    evidence_id: `capability:${fact.fact_id}`,\n                    domain: \"automations\",\n                    type: fact.fact_type,\n                    object_type: \"automation\",\n                    object_id: automation.id,\n                    source: \"domain_adapter\",\n                    observed_at: fact.observed_at,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.85,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { fact },\n                });\n            });\n        }",
+      "state": "CERTIFIED_PARTIAL",
+      "planner_eligible": true,
+      "certification_inherited": false,
+      "remaining_boundary": null
+    },
+    {
+      "capability_key": "office_meetings.read",
+      "primary_family": "SUPPLIED_CONTEXT_OBJECT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const meeting = meetingContextSlot(context);\n            if (!meeting || !(meeting.safe_summary || meeting.title))\n                return [];\n            return [\n                (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    domain: \"office_meetings\",\n                    type: \"office_meeting_selected\",\n                    object_type: \"meeting\",\n                    object_id: meeting.meeting_ref,\n                    source: \"domain_adapter\",\n                    observed_at: meeting.scheduled_at || null,\n                    freshness: meeting.scheduled_at ? \"fresh\" : \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.9,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { meeting },\n                }),\n            ];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract."
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "primary_family": "OFFICE_SUPPLIED_SNAPSHOT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const snapshot = officeSnapshot(context);\n            const meetings = snapshot?.meetings;\n            if (!meetings)\n                return [];\n            const rows = meetingQueryRows(meetings, normalizeMessage(context));\n            return rows.map((meeting) => {\n                const fact = meetingOpenFact(meeting);\n                return (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    evidence_id: `capability:${fact.fact_id}`,\n                    domain: \"office_meetings\",\n                    type: fact.fact_type,\n                    object_type: \"meeting\",\n                    object_id: meeting.id,\n                    source: \"domain_adapter\",\n                    observed_at: fact.observed_at,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.85,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { fact },\n                });\n            });\n        }",
+      "state": "CERTIFIED_PARTIAL",
+      "planner_eligible": true,
+      "certification_inherited": false,
+      "remaining_boundary": null
+    },
+    {
+      "capability_key": "office_support.read",
+      "primary_family": "SUPPLIED_CONTEXT_OBJECT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const support = supportContextSlot(context);\n            if (!support || !(support.safe_summary || support.title))\n                return [];\n            return [\n                (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    domain: \"office_support\",\n                    type: \"office_support_case_selected\",\n                    object_type: \"support_case\",\n                    object_id: support.support_case_ref,\n                    source: \"domain_adapter\",\n                    observed_at: null,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.9,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { support },\n                }),\n            ];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract."
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "primary_family": "OFFICE_SUPPLIED_SNAPSHOT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const snapshot = officeSnapshot(context);\n            const support = snapshot?.support;\n            if (!support)\n                return [];\n            const rows = supportQueryRows(support, normalizeMessage(context));\n            return rows.map((item) => {\n                const fact = supportOpenFact(item);\n                return (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    evidence_id: `capability:${fact.fact_id}`,\n                    domain: \"office_support\",\n                    type: fact.fact_type,\n                    object_type: \"support_case\",\n                    object_id: item.id,\n                    source: \"domain_adapter\",\n                    observed_at: fact.observed_at,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.85,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { fact },\n                });\n            });\n        }",
+      "state": "CERTIFIED_PARTIAL",
+      "planner_eligible": true,
+      "certification_inherited": false,
+      "remaining_boundary": null
+    },
+    {
+      "capability_key": "office_portfolio.read",
+      "primary_family": "SUPPLIED_CONTEXT_OBJECT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const portfolio = portfolioContextSlot(context);\n            if (!portfolio || !(portfolio.safe_summary || portfolio.name))\n                return [];\n            return [\n                (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    domain: \"office_portfolio\",\n                    type: \"office_portfolio_entry_selected\",\n                    object_type: \"portfolio_entry\",\n                    object_id: portfolio.portfolio_ref,\n                    source: \"domain_adapter\",\n                    observed_at: null,\n                    freshness: portfolio.projection_state === \"linked\" ? \"fresh\" : \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.9,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { portfolio },\n                }),\n            ];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract."
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "primary_family": "OFFICE_SUPPLIED_SNAPSHOT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const snapshot = officeSnapshot(context);\n            const portfolio = snapshot?.portfolio;\n            if (!portfolio)\n                return [];\n            const rows = portfolioQueryRows(portfolio, normalizeMessage(context));\n            return rows.map((entry) => {\n                const fact = portfolioOpenFact(entry);\n                return (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    evidence_id: `capability:${fact.fact_id}`,\n                    domain: \"office_portfolio\",\n                    type: fact.fact_type,\n                    object_type: \"portfolio_entry\",\n                    object_id: entry.id,\n                    source: \"domain_adapter\",\n                    observed_at: fact.observed_at,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.85,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { fact },\n                });\n            });\n        }",
+      "state": "CERTIFIED_PARTIAL",
+      "planner_eligible": true,
+      "certification_inherited": false,
+      "remaining_boundary": null
+    },
+    {
+      "capability_key": "office_partnerships.read",
+      "primary_family": "SUPPLIED_CONTEXT_OBJECT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const partnership = partnershipContextSlot(context);\n            if (!partnership || !partnership.safe_summary)\n                return [];\n            return [\n                (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    domain: \"corporate_partnerships\",\n                    type: \"office_partnership_selected\",\n                    object_type: \"partnership_relationship\",\n                    object_id: partnership.partnership_ref,\n                    source: \"domain_adapter\",\n                    observed_at: null,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.9,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { partnership },\n                }),\n            ];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract."
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "primary_family": "OFFICE_SUPPLIED_SNAPSHOT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const snapshot = officeSnapshot(context);\n            const partnerships = snapshot?.partnerships;\n            if (!partnerships)\n                return [];\n            return partnerships.items.map((entry) => {\n                const fact = partnershipOpenFact(entry);\n                return (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    evidence_id: `capability:${fact.fact_id}`,\n                    domain: \"corporate_partnerships\",\n                    type: fact.fact_type,\n                    object_type: \"partnership_relationship\",\n                    object_id: entry.id,\n                    source: \"domain_adapter\",\n                    observed_at: fact.observed_at,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.85,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { fact },\n                });\n            });\n        }",
+      "state": "CERTIFIED_PARTIAL",
+      "planner_eligible": true,
+      "certification_inherited": false,
+      "remaining_boundary": null
+    },
+    {
+      "capability_key": "office_documents.read",
+      "primary_family": "SUPPLIED_CONTEXT_OBJECT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const document = documentContextSlot(context);\n            if (!document || !(document.safe_summary || document.title))\n                return [];\n            return [\n                (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    domain: \"office_documents\",\n                    type: \"office_document_selected\",\n                    object_type: \"document\",\n                    object_id: document.document_ref,\n                    source: \"domain_adapter\",\n                    observed_at: null,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.9,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { document },\n                }),\n            ];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract."
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "primary_family": "OFFICE_SUPPLIED_SNAPSHOT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const snapshot = officeSnapshot(context);\n            const documents = snapshot?.documents;\n            if (!documents)\n                return [];\n            return documents.items.map((doc) => {\n                const fact = documentListFact(doc);\n                return (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    evidence_id: `capability:${fact.fact_id}`,\n                    domain: \"office_documents\",\n                    type: fact.fact_type,\n                    object_type: \"document\",\n                    object_id: doc.id,\n                    source: \"domain_adapter\",\n                    observed_at: fact.observed_at,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.85,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { fact },\n                });\n            });\n        }",
+      "state": "CERTIFIED_PARTIAL",
+      "planner_eligible": true,
+      "certification_inherited": false,
+      "remaining_boundary": null
+    },
+    {
+      "capability_key": "office_content.read",
+      "primary_family": "SUPPLIED_CONTEXT_OBJECT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const content = contentContextSlot(context);\n            if (!content || !(content.safe_summary || content.title))\n                return [];\n            return [\n                (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    domain: \"office_content\",\n                    type: \"office_content_selected\",\n                    object_type: \"content_article\",\n                    object_id: content.content_ref,\n                    source: \"domain_adapter\",\n                    observed_at: null,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.9,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { content },\n                }),\n            ];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Context-slot absence and source absence both return []; no source-outcome adapter. Plan Studio uses a distinct plan context contract."
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "primary_family": "OFFICE_SUPPLIED_SNAPSHOT",
+      "source_owner": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "source_sha256": "776cde9836802f7b3cf071c6855fca21a089f0d6913783a1d3022c8820973ae8",
+      "collector_body": "async (context) => {\n            const snapshot = officeSnapshot(context);\n            const content = snapshot?.content;\n            if (!content)\n                return [];\n            return content.items.map((item) => {\n                const fact = contentListFact(item);\n                return (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                    evidence_id: `capability:${fact.fact_id}`,\n                    domain: \"office_content\",\n                    type: fact.fact_type,\n                    object_type: \"content_item\",\n                    object_id: item.id,\n                    source: \"domain_adapter\",\n                    observed_at: fact.observed_at,\n                    freshness: \"unknown\",\n                    privacy_class: officePrivate,\n                    confidence: 0.85,\n                    authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                    payload: { fact },\n                });\n            });\n        }",
+      "state": "CERTIFIED_PARTIAL",
+      "planner_eligible": true,
+      "certification_inherited": false,
+      "remaining_boundary": null
+    },
+    {
+      "capability_key": "corporate.company.read",
+      "primary_family": "PUBLIC_KNOWLEDGE_LOOKUP",
+      "source_owner": "src/oyi-core/capabilities/corporateKnowledgeAnswer.ts",
+      "source_sha256": "964ddb8e08cca5f2aaea87a8823453a28edcfde8af8f514c00e97a59ef73a6fa",
+      "collector_body": "async () => {\n            const answer = await (0, corporateKnowledgeAnswer_1.canonicalCorporateAnswer)(\"backend:corporate-company\", CORPORATE_COMPANY_FALLBACK);\n            return [corporateEvidence(\"corporate_company\", \"corporate_company_profile\", answer)];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Shared helper returns a string fallback on missing item or exception, discarding provenance/availability. String envelope alone cannot certify a governed retrieval outcome."
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "primary_family": "BOUNDED_COLLECTION",
+      "source_owner": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+      "source_sha256": "5625ee8e7eb327f22182b4836ab39e74a35249431f41fb4e0f54e2324119a588",
+      "collector_body": "async () => {\n            const { projects, fetched } = await fetchLiveDevelopmentProjects();\n            if (!fetched)\n                return [];\n            return projects.map((project) => (0, EvidenceEnvelope_1.evidenceEnvelope)({\n                domain: \"corporate_development\",\n                type: \"public_development_project\",\n                object_type: \"development_project\",\n                object_id: project.slug || project.name || null,\n                source: \"provider\",\n                source_type: \"provider_api\",\n                observed_at: new Date().toISOString(),\n                freshness: \"fresh\",\n                privacy_class: publicEvidence,\n                confidence: 0.95,\n                authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },\n                payload: { project },\n            }));\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Underlying limits vary (10/50/100 or no explicit source bound). Public development collapses failed fetch to empty collector and marks fetched data fresh without source age."
+    },
+    {
+      "capability_key": "corporate.development.identity.read",
+      "primary_family": "PUBLIC_KNOWLEDGE_LOOKUP",
+      "source_owner": "src/oyi-core/capabilities/corporateKnowledgeAnswer.ts",
+      "source_sha256": "964ddb8e08cca5f2aaea87a8823453a28edcfde8af8f514c00e97a59ef73a6fa",
+      "collector_body": "async () => {\n            const answer = await (0, corporateKnowledgeAnswer_1.canonicalCorporateAnswer)(\"backend:corporate-development-identity\", CORPORATE_DEVELOPMENT_IDENTITY_FALLBACK);\n            return [corporateEvidence(\"corporate_development\", \"corporate_development_identity\", answer)];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Shared helper returns a string fallback on missing item or exception, discarding provenance/availability. String envelope alone cannot certify a governed retrieval outcome."
+    },
+    {
+      "capability_key": "corporate.oyi.read",
+      "primary_family": "PUBLIC_KNOWLEDGE_LOOKUP",
+      "source_owner": "src/oyi-core/capabilities/corporateKnowledgeAnswer.ts",
+      "source_sha256": "964ddb8e08cca5f2aaea87a8823453a28edcfde8af8f514c00e97a59ef73a6fa",
+      "collector_body": "async () => {\n            const answer = await (0, corporateKnowledgeAnswer_1.canonicalCorporateAnswer)(\"backend:corporate-oyi\", CORPORATE_OYI_FALLBACK);\n            return [corporateEvidence(\"corporate_oyi\", \"corporate_oyi_profile\", answer)];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Shared helper returns a string fallback on missing item or exception, discarding provenance/availability. String envelope alone cannot certify a governed retrieval outcome."
+    },
+    {
+      "capability_key": "corporate.private.read",
+      "primary_family": "PUBLIC_KNOWLEDGE_LOOKUP",
+      "source_owner": "src/oyi-core/capabilities/corporateKnowledgeAnswer.ts",
+      "source_sha256": "964ddb8e08cca5f2aaea87a8823453a28edcfde8af8f514c00e97a59ef73a6fa",
+      "collector_body": "async () => {\n            const answer = await (0, corporateKnowledgeAnswer_1.canonicalCorporateAnswer)(\"backend:corporate-private\", CORPORATE_PRIVATE_FALLBACK);\n            return [corporateEvidence(\"corporate_private\", \"corporate_private_profile\", answer)];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Shared helper returns a string fallback on missing item or exception, discarding provenance/availability. String envelope alone cannot certify a governed retrieval outcome."
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "primary_family": "PUBLIC_KNOWLEDGE_LOOKUP",
+      "source_owner": "src/oyi-core/capabilities/corporateKnowledgeAnswer.ts",
+      "source_sha256": "964ddb8e08cca5f2aaea87a8823453a28edcfde8af8f514c00e97a59ef73a6fa",
+      "collector_body": "async () => {\n            const answer = await (0, corporateKnowledgeAnswer_1.canonicalCorporateAnswer)(\"backend:corporate-partnerships\", CORPORATE_PARTNERSHIPS_FALLBACK);\n            return [corporateEvidence(\"corporate_partnerships\", \"corporate_partnerships_profile\", answer)];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Shared helper returns a string fallback on missing item or exception, discarding provenance/availability. String envelope alone cannot certify a governed retrieval outcome."
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "primary_family": "PUBLIC_THREAD_OBJECTIVE",
+      "source_owner": "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts",
+      "source_sha256": "87e5257819bf51be70b298fcb63306bfb6d766efe0495299bd16f419ab81708c",
+      "collector_body": "async (context) => {\n            const objective = await (0, publicOpportunityObjective_2.loadPublicOpportunityObjective)(text(context.input.thread_id));\n            return [publicOpportunityEvidence(objective)];\n        }",
+      "state": "NOT_ELIGIBLE_COMPLETENESS",
+      "planner_eligible": false,
+      "certification_inherited": false,
+      "remaining_boundary": "Collector loads by thread id; source certification still needs ingress/session ownership and persistence-error tests, not merely public privacy metadata."
+    }
+  ]
+}

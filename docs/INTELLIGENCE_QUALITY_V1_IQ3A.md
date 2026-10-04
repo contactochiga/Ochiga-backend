@@ -229,3 +229,132 @@ Generated inventories, source hashes, raw-run hashes and validation evidence:
 `artifacts/intelligence-quality-v1-evidence-certification.json`.
 
 **IQ-3A NOT YET CERTIFIED** — source-level audit coverage remains incomplete.
+
+## Collector-family convergence checkpoint
+
+Starting HEAD: `dbe824656c6f539acd61b6cb58472b237684eef7`.
+The original 58 completeness-blocked modules map exactly once to 13 primary
+families. `scripts/iq3a-collector-families.mjs` checks membership against that
+commit, verifies collector implementation signatures, and records source hashes.
+This is an architecture grouping, **not certification by family inheritance**.
+
+| Family | Original blocked modules |
+| --- | ---: |
+| No collection (proposal/discovery) | 2 |
+| Supplied context object | 9 |
+| Governed memory | 1 |
+| Operational composite | 3 |
+| Current state/telemetry | 5 |
+| Execution/audit history | 3 |
+| Transaction history | 4 |
+| Bounded collection | 7 |
+| Home/room aggregate | 6 |
+| Persisting intelligence composite | 4 |
+| Office supplied snapshot | 8 |
+| Public knowledge lookup | 5 |
+| Public thread objective | 1 |
+| **Total** | **58** |
+
+### Implemented, tested extension
+
+Eight Office query modules now opt into the existing shared snapshot boundary:
+tasks, automations, meetings, support, portfolio, partnerships, documents and
+content. No new evidence system or backend Office query was added. Their original
+query filters remain in their canonical collectors. Tests prove overdue/active/
+today/critical/at-risk filtering, filtered-empty partial semantics, malformed and
+absent snapshots, 50-record bounds, actor mismatch, public denial, unsupported
+building scope, role-policy equivalence and lifecycle interpretation.
+
+The positive test principal receives each module's explicit existing permission;
+negative tests independently retain the real narrower staff policy. Removing an
+explicit permission array is not equivalent to denying a role-granted permission.
+Content lifecycle uses `workflow_status`, not an invented `status` field.
+Automation enabled/paused status remains unknown in the generic lifecycle bucket;
+it is not mislabeled completed or currently actionable.
+
+Final module counts at this checkpoint: **0 CERTIFIED complete / 16
+CERTIFIED_PARTIAL / 50 NOT_ELIGIBLE_COMPLETENESS / 5 disabled NOT_ELIGIBLE_OTHER**.
+The inventory additionally records collector × surface × scope states. For opted-in
+sources only Office/unscoped supplied snapshot, Consumer/verified home, or
+Facility/verified estate is admitted as appropriate. Building/room/exact-object
+requests remain rejected. These rows never replace the existing permission check.
+
+### Shared boundaries still preventing closure
+
+- Device inventory catches source errors and returns `[]`; no certified availability
+  outcome exists at that loader boundary. Device room filtering occurs after the
+  100-row source limit. A last-known state is not new physical observation.
+- Execution/audit history logs and omits failed subqueries, then merges supplied
+  history. Its combined array loses source-level availability and bounds.
+- Home/room aggregates and intelligence composites retain side state for their
+  ordinary answer handlers. An extracted fact array does not certify aggregate
+  population/completeness. Intelligence collection additionally uses `persist:true`;
+  it is not eligible for read-only planner reuse as-is.
+- Public knowledge's shared helper returns fallback text both for no visible match
+  and query failure; provenance and source availability are lost in the string.
+  This cannot certify knowledge retrieval, even though ordinary fallback copy is
+  public-safe. Public development similarly collapses failed fetch into an empty
+  collector and lacks a bounded source query.
+- Context-slot and public-thread lookup require explicit not-found/unavailable and
+  ownership proofs; supplied context absence is not a collection-zero result.
+- Transaction, utility/service and other bounded loaders still require individual
+  scope/sentinel/truncation tests. The family artifact records these boundaries,
+  not a claim that all source audits are complete.
+
+No additional ordinary-response false-zero fix is claimed in this checkpoint.
+Expanded tests prevent absent/filtered/partial Office subsets from becoming proven
+zero at the planner source boundary. The full collector-and-composer false-zero
+review remains incomplete, so the certification gate is not met.
+
+### Corrected planner-readiness accounting
+
+Readiness now considers the union of IQ-2 recorded requirements and the frozen
+benchmark's `must_consider_domains`. A narrower interpretation must not silently
+remove a mandatory source. Conversely, an uncertified composite alternative is
+not mandatory when a direct certified source covers the same required domain.
+Every row contains explicit required-domain source coverage; no reads are executed.
+
+All 133 reconcile to **64 PLANNER_READY_PARTIAL / 69 SOURCE_CONTRACT_BLOCKED /
+0 PLANNER_READY_COMPLETE / 0 MISSING_CAPABILITY / 0 DOWNSTREAM_NOT_IQ3**.
+Although totals are unchanged, membership changed: seven Facility rows now have
+direct-source coverage; seven Consumer rows lost provisional readiness because
+benchmark-required domains were previously omitted. These are diagnostic
+corrections, not changes to frozen expectations or runtime interpretation.
+Unsafe/unproven sources have not been relabeled product debt to obtain certification.
+
+### Validation and performance
+
+```text
+node scripts/iq1-local-run.mjs script /tmp/iq3a-family-sources-final2 scripts/iq3a-source-certification.mjs
+node scripts/iq3a-collector-families.mjs
+node scripts/iq1-local-run.mjs script /tmp/iq3a-family-isolation scripts/iq3a-source-local-isolation.mjs
+node scripts/iq3a-evidence-outcome-smoke.mjs
+node scripts/iq1-local-run.mjs iq /tmp/iq3a-family-final-iq
+node scripts/iq1-local-run.mjs wave11 /tmp/iq3a-family-final-wave11
+node scripts/iq1-local-run.mjs adversarial /tmp/iq3a-family-final-safety
+node scripts/iq1-local-run.mjs script /tmp/iq3a-family-final-objective scripts/iq2-objective-smoke.mjs
+node scripts/iq1-regression-run.mjs /tmp/iq3a-family-final-regressions
+node scripts/iq3a-source-review.mjs /tmp/iq3a-family-final /tmp/iq3a-family-isolation.json dbe824656c6f539acd61b6cb58472b237684eef7
+npm run build
+npm run typecheck
+git diff --check
+```
+
+- **264 source tests PASS**; 28 outcome + 4 deadline cases PASS.
+- Real local cross-home isolation for the three operational sources PASS; three
+  synthetic rows removed. Other Consumer sources are not certified by this test.
+- IQ **51 PASS / 224 FAIL / 5 BLOCKED**, answers and envelopes identical; 280/280
+  persisted and trace-correlated. Wave 11 **131 PASS / 1 known FAIL**.
+- IQ-1 adversarial and IQ-2 focused PASS. Regression matrix **19 PASS / 4 known
+  unchanged FAIL**, checked against stored controls. Build/typecheck PASS.
+- Office bounded-source tests assert **zero database queries**. This extension
+  adds no count queries and changes no ordinary conversation execution path.
+  No production-latency or broad telemetry/knowledge source certification is claimed.
+- Frozen baseline, expectations and previous IQ artifacts remain untouched.
+
+Family membership/contracts and source hashes:
+`artifacts/intelligence-quality-v1-evidence-families.json`.
+The source inventory and certification artifacts include current scope matrices,
+test results, required-source coverage and regression evidence.
+
+**IQ-3A NOT YET CERTIFIED. IQ-3B must not begin.**
