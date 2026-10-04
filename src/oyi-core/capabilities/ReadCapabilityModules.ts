@@ -105,7 +105,7 @@ export function evidenceFromFact(fact: IntelligenceFact): OyiEvidence {
       home_id: fact.scope?.home_id || null,
       room_id: fact.scope?.room_id || null,
     },
-    confidence: Number(fact.confidence || 0.75),
+    confidence: typeof fact.confidence === "number" && Number.isFinite(fact.confidence) ? fact.confidence : 0,
     payload: { fact },
   });
 }

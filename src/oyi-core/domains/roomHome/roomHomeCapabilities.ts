@@ -40,8 +40,8 @@ const pendingRoomUnresolved = new Map<string, DomainResult>();
 
 function currentScope(context: CapabilityContext) {
   return {
-    estate_id: context.input.estate_id || context.oisContext?.estate_id || null,
-    home_id: context.input.home_id || context.oisContext?.home_id || null,
+    estate_id: context.oisContext?.estate_id || context.input.estate_id || null,
+    home_id: context.oisContext?.home_id || context.input.home_id || null,
   };
 }
 
@@ -313,6 +313,9 @@ function roomsInventoryCapability(): CapabilityModule {
     },
     answer: (context, evidence) => {
       const facts = factsFromEvidence(evidence);
+      if (facts.some(fact => fact.truth_state === "unavailable")) {
+        return { status: "unavailable", answer: "Room inventory evidence is unavailable; I cannot conclude that this home has no registered rooms.", presentation_policy: resultPresentation("text") };
+      }
       const answer = facts.length
         ? `${facts.length} room${facts.length === 1 ? "" : "s"} on record: ${facts.slice(0, 10).map((fact) => fact.object?.label).filter(Boolean).join(", ")}.`
         : "I do not see any registered rooms for this home.";
@@ -336,11 +339,21 @@ export function buildRoomHomeCapabilities(): CapabilityModule[] {
 
 export async function loadRoomsInventoryFacts(context: CapabilityContext): Promise<IntelligenceFact[]> {
   const scope = currentScope(context);
-  if (!scope.home_id) return [];
+  const unavailable = (): IntelligenceFact[] => [{
+    fact_id: `rooms-unavailable:${context.resolvedTurn.request_id}`,
+    domain: "rooms", fact_type: "room_inventory_unavailable",
+    scope: { estate_id: scope.estate_id, home_id: scope.home_id, room_id: null },
+    object: { object_type: "home", canonical_id: scope.home_id || "unknown-scope", label: "Room inventory" },
+    statement: "Room inventory evidence is unavailable.", value: null, previous_value: null,
+    occurred_at: null, observed_at: new Date().toISOString(), source_type: "database", source_id: null,
+    truth_state: "unavailable", confidence: 0, freshness: "unavailable",
+    privacy_class: "resident_home_private", permissions: ["homes.read"], evidence: [],
+  }];
+  if (!scope.home_id) return unavailable();
   const { data, error } = await supabaseAdmin.from("rooms").select("id,name,home_id,estate_id,type,floor,created_at").eq("home_id", scope.home_id).limit(100);
   if (error) {
     logger.warn("oyi_rooms_inventory_load_failed", { home_id: scope.home_id, error });
-    return [];
+    return unavailable();
   }
   const rows = Array.isArray(data) ? data : [];
   return rows.map((row: any): IntelligenceFact => ({
