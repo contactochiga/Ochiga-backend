@@ -1,0 +1,2367 @@
+{
+  "version": 1,
+  "verification": {
+    "baseline_commit": "e092ff45c9114a1aa9eab75b11e44b4895ce764e",
+    "baseline_sha256": "edd8914212a3661691ebb0046153f8d65b6081c7f5c1e63a4f36e45c0dba667d",
+    "journeys": 40,
+    "turns": 280,
+    "totals": {
+      "FAIL": 235,
+      "PASS": 40,
+      "BLOCKED": 5
+    },
+    "frozen_severity": {
+      "P0": 4,
+      "P1": 217,
+      "P2": 14
+    },
+    "persisted": 280,
+    "trace_correlated": 280,
+    "unique_traces": 280,
+    "failed_clusters": 15,
+    "fixture_clusters": 3,
+    "diagnostic_latent_p0_observations": 4,
+    "diagnostic_p0_distinct_root_causes": 3,
+    "note": "Frozen severity unchanged. Diagnostic P0 is four observed truth failures plus four workflow observations of one latent safety defect; no executed physical mutation was observed."
+  },
+  "method": "Offline explicit source-backed decomposition; no replay, counterfactual repair experiment, fixture edit, evaluator edit or runtime change. Root IDs are diagnostic hypotheses at canonical repair boundaries, not measured causal effect sizes.",
+  "dimension_failure_definition": "FAIL turns with a non-null score <=2; correlated downstream scores are not independent causes.",
+  "dimensions": {
+    "understanding": {
+      "scored": 275,
+      "not_observable": 5,
+      "mean": 1.8181818181818181,
+      "distribution": {
+        "0": 0,
+        "1": 177,
+        "2": 24,
+        "3": 21,
+        "4": 53,
+        "5": 0
+      },
+      "failed_turns_scoring_0_to_2": 201,
+      "workers": [
+        "OMA",
+        "OSA",
+        "FAC",
+        "CON"
+      ],
+      "root_causes": {
+        "IQRC-006": 74,
+        "IQRC-009": 14,
+        "IQRC-008": 19,
+        "IQRC-004": 38,
+        "IQRC-014": 5,
+        "IQRC-007": 42,
+        "IQRC-005": 3,
+        "IQRC-015": 2,
+        "IQRC-003": 4
+      }
+    },
+    "context_memory": {
+      "scored": 275,
+      "not_observable": 5,
+      "mean": 1.5454545454545454,
+      "distribution": {
+        "0": 19,
+        "1": 180,
+        "2": 12,
+        "3": 35,
+        "4": 29,
+        "5": 0
+      },
+      "failed_turns_scoring_0_to_2": 211,
+      "workers": [
+        "OMA",
+        "OSA",
+        "FAC",
+        "CON"
+      ],
+      "root_causes": {
+        "IQRC-001": 2,
+        "IQRC-006": 74,
+        "IQRC-009": 14,
+        "IQRC-008": 19,
+        "IQRC-010": 7,
+        "IQRC-004": 38,
+        "IQRC-014": 5,
+        "IQRC-007": 42,
+        "IQRC-013": 1,
+        "IQRC-005": 3,
+        "IQRC-015": 2,
+        "IQRC-003": 4
+      }
+    },
+    "evidence": {
+      "scored": 263,
+      "not_observable": 17,
+      "mean": 1,
+      "distribution": {
+        "0": 168,
+        "1": 31,
+        "2": 10,
+        "3": 11,
+        "4": 36,
+        "5": 7
+      },
+      "failed_turns_scoring_0_to_2": 209,
+      "workers": [
+        "OMA",
+        "OSA",
+        "FAC",
+        "CON"
+      ],
+      "root_causes": {
+        "IQRC-006": 74,
+        "IQRC-009": 14,
+        "IQRC-008": 19,
+        "IQRC-010": 7,
+        "IQRC-004": 38,
+        "IQRC-014": 5,
+        "IQRC-007": 42,
+        "IQRC-002": 2,
+        "IQRC-013": 1,
+        "IQRC-005": 3,
+        "IQRC-003": 4
+      }
+    },
+    "reasoning_judgment": {
+      "scored": 41,
+      "not_observable": 239,
+      "mean": 2.024390243902439,
+      "distribution": {
+        "0": 4,
+        "1": 17,
+        "2": 1,
+        "3": 12,
+        "4": 7,
+        "5": 0
+      },
+      "failed_turns_scoring_0_to_2": 22,
+      "workers": [
+        "OMA",
+        "OSA",
+        "FAC",
+        "CON"
+      ],
+      "root_causes": {
+        "IQRC-001": 3,
+        "IQRC-010": 7,
+        "IQRC-011": 8,
+        "IQRC-002": 2,
+        "IQRC-013": 1,
+        "IQRC-012": 1
+      }
+    },
+    "initiative": {
+      "scored": 275,
+      "not_observable": 5,
+      "mean": 0.5890909090909091,
+      "distribution": {
+        "0": 199,
+        "1": 19,
+        "2": 28,
+        "3": 29,
+        "4": 0,
+        "5": 0
+      },
+      "failed_turns_scoring_0_to_2": 235,
+      "workers": [
+        "OMA",
+        "OSA",
+        "FAC",
+        "CON"
+      ],
+      "root_causes": {
+        "IQRC-001": 3,
+        "IQRC-006": 74,
+        "IQRC-009": 14,
+        "IQRC-008": 19,
+        "IQRC-010": 7,
+        "IQRC-004": 38,
+        "IQRC-011": 8,
+        "IQRC-014": 5,
+        "IQRC-013": 13,
+        "IQRC-007": 42,
+        "IQRC-002": 2,
+        "IQRC-005": 3,
+        "IQRC-012": 1,
+        "IQRC-015": 2,
+        "IQRC-003": 4
+      }
+    },
+    "communication": {
+      "scored": 275,
+      "not_observable": 5,
+      "mean": 1.9090909090909092,
+      "distribution": {
+        "0": 4,
+        "1": 127,
+        "2": 75,
+        "3": 28,
+        "4": 41,
+        "5": 0
+      },
+      "failed_turns_scoring_0_to_2": 206,
+      "workers": [
+        "OMA",
+        "OSA",
+        "FAC",
+        "CON"
+      ],
+      "root_causes": {
+        "IQRC-001": 3,
+        "IQRC-006": 74,
+        "IQRC-009": 14,
+        "IQRC-008": 19,
+        "IQRC-004": 38,
+        "IQRC-014": 5,
+        "IQRC-007": 42,
+        "IQRC-002": 2,
+        "IQRC-005": 3,
+        "IQRC-015": 2,
+        "IQRC-003": 4
+      }
+    },
+    "action_judgment": {
+      "scored": 275,
+      "not_observable": 5,
+      "mean": 1.5818181818181818,
+      "distribution": {
+        "0": 11,
+        "1": 190,
+        "2": 19,
+        "3": 13,
+        "4": 42,
+        "5": 0
+      },
+      "failed_turns_scoring_0_to_2": 220,
+      "workers": [
+        "OMA",
+        "OSA",
+        "FAC",
+        "CON"
+      ],
+      "root_causes": {
+        "IQRC-001": 2,
+        "IQRC-006": 74,
+        "IQRC-009": 14,
+        "IQRC-008": 19,
+        "IQRC-010": 7,
+        "IQRC-004": 38,
+        "IQRC-011": 8,
+        "IQRC-014": 5,
+        "IQRC-007": 42,
+        "IQRC-002": 2,
+        "IQRC-013": 1,
+        "IQRC-005": 3,
+        "IQRC-012": 1,
+        "IQRC-003": 4
+      }
+    }
+  },
+  "workers": {
+    "OMA": {
+      "totals": {
+        "FAIL": 62,
+        "PASS": 6,
+        "BLOCKED": 2
+      },
+      "root_causes": {
+        "IQRC-001": 3,
+        "IQRC-006": 27,
+        "IQRC-009": 3,
+        "IQRC-008": 11,
+        "IQRC-010": 3,
+        "IQRC-004": 13,
+        "IQRC-011": 1,
+        "IQRC-014": 1
+      },
+      "dimensions": {
+        "understanding": {
+          "scored": 68,
+          "mean": 1.5441176470588236
+        },
+        "context_memory": {
+          "scored": 68,
+          "mean": 1.338235294117647
+        },
+        "evidence": {
+          "scored": 68,
+          "mean": 0.7058823529411765
+        },
+        "reasoning_judgment": {
+          "scored": 7,
+          "mean": 0.8571428571428571
+        },
+        "initiative": {
+          "scored": 68,
+          "mean": 0.36764705882352944
+        },
+        "communication": {
+          "scored": 68,
+          "mean": 1.6176470588235294
+        },
+        "action_judgment": {
+          "scored": 68,
+          "mean": 1.3676470588235294
+        }
+      }
+    },
+    "OSA": {
+      "totals": {
+        "FAIL": 62,
+        "PASS": 8
+      },
+      "root_causes": {
+        "IQRC-013": 13,
+        "IQRC-007": 42,
+        "IQRC-004": 4,
+        "IQRC-002": 2,
+        "IQRC-008": 1
+      },
+      "dimensions": {
+        "understanding": {
+          "scored": 70,
+          "mean": 1.9714285714285715
+        },
+        "context_memory": {
+          "scored": 70,
+          "mean": 1.6571428571428573
+        },
+        "evidence": {
+          "scored": 58,
+          "mean": 0.7241379310344828
+        },
+        "reasoning_judgment": {
+          "scored": 15,
+          "mean": 2.466666666666667
+        },
+        "initiative": {
+          "scored": 70,
+          "mean": 0.7
+        },
+        "communication": {
+          "scored": 70,
+          "mean": 1.9142857142857144
+        },
+        "action_judgment": {
+          "scored": 70,
+          "mean": 1.6714285714285715
+        }
+      }
+    },
+    "FAC": {
+      "totals": {
+        "PASS": 16,
+        "FAIL": 52,
+        "BLOCKED": 2
+      },
+      "root_causes": {
+        "IQRC-009": 5,
+        "IQRC-006": 28,
+        "IQRC-011": 5,
+        "IQRC-004": 9,
+        "IQRC-010": 3,
+        "IQRC-008": 1,
+        "IQRC-014": 1
+      },
+      "dimensions": {
+        "understanding": {
+          "scored": 68,
+          "mean": 2.0588235294117645
+        },
+        "context_memory": {
+          "scored": 68,
+          "mean": 1.7941176470588236
+        },
+        "evidence": {
+          "scored": 68,
+          "mean": 1.4264705882352942
+        },
+        "reasoning_judgment": {
+          "scored": 14,
+          "mean": 2.2857142857142856
+        },
+        "initiative": {
+          "scored": 68,
+          "mean": 0.7941176470588235
+        },
+        "communication": {
+          "scored": 68,
+          "mean": 2.1323529411764706
+        },
+        "action_judgment": {
+          "scored": 68,
+          "mean": 1.8088235294117647
+        }
+      }
+    },
+    "CON": {
+      "totals": {
+        "FAIL": 59,
+        "PASS": 10,
+        "BLOCKED": 1
+      },
+      "root_causes": {
+        "IQRC-005": 3,
+        "IQRC-006": 19,
+        "IQRC-004": 12,
+        "IQRC-008": 6,
+        "IQRC-009": 6,
+        "IQRC-011": 2,
+        "IQRC-014": 3,
+        "IQRC-010": 1,
+        "IQRC-012": 1,
+        "IQRC-015": 2,
+        "IQRC-003": 4
+      },
+      "dimensions": {
+        "understanding": {
+          "scored": 69,
+          "mean": 1.6956521739130435
+        },
+        "context_memory": {
+          "scored": 69,
+          "mean": 1.391304347826087
+        },
+        "evidence": {
+          "scored": 69,
+          "mean": 1.1014492753623188
+        },
+        "reasoning_judgment": {
+          "scored": 5,
+          "mean": 1.6
+        },
+        "initiative": {
+          "scored": 69,
+          "mean": 0.4927536231884058
+        },
+        "communication": {
+          "scored": 69,
+          "mean": 1.9710144927536233
+        },
+        "action_judgment": {
+          "scored": 69,
+          "mean": 1.4782608695652173
+        }
+      }
+    }
+  },
+  "diagnostic_patterns": [
+    {
+      "id": "A",
+      "description": "Wrong/underspecified cognitive interpretation; downstream judgment not fairly measurable.",
+      "failures": 117,
+      "blocked": 0
+    },
+    {
+      "id": "B",
+      "description": "Right broad domain; predicate/operation selection reaches wrong capability (semantic detail may contribute).",
+      "failures": 3,
+      "blocked": 0
+    },
+    {
+      "id": "C",
+      "description": "Relevant domain reached but evidence subset/scope/relationship insufficient for requested conclusion.",
+      "failures": 7,
+      "blocked": 0
+    },
+    {
+      "id": "D",
+      "description": "Relevant evidence supports a bounded explanation, but status repetition/priority eligibility fails; not proof all evidence for optimal decision exists.",
+      "failures": 9,
+      "blocked": 0
+    },
+    {
+      "id": "E",
+      "description": "Useful intake state survives; next move is weak or ignores a material qualification requirement.",
+      "failures": 13,
+      "blocked": 0
+    },
+    {
+      "id": "F",
+      "description": "Scoped source/action state available; composition misstates coverage, commitment or requested scope.",
+      "failures": 7,
+      "blocked": 0
+    },
+    {
+      "id": "G",
+      "description": "Context/reference/re-entry failed before any valid comparative reasoning.",
+      "failures": 56,
+      "blocked": 0
+    },
+    {
+      "id": "H",
+      "description": "Claim/correction/reassessment dependency not represented.",
+      "failures": 19,
+      "blocked": 0
+    },
+    {
+      "id": "S",
+      "description": "Negated mutation retained as workflow intent; latent safety risk, no execution observed.",
+      "failures": 4,
+      "blocked": 0
+    },
+    {
+      "id": "X",
+      "description": "Fixture cannot establish sufficient authorized evidence/provenance.",
+      "failures": 0,
+      "blocked": 5
+    }
+  ],
+  "root_causes": [
+    {
+      "id": "IQRC-003",
+      "name": "Negation misses cancellation and creates/retains device intent",
+      "primary_layer": "WORKFLOW",
+      "diagnostic_pattern": "S",
+      "canonical_owners": [
+        "src/oyi-core/interpretation/SemanticFrameParser.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts",
+        "src/oyi-core/capabilities/DeviceActionCapabilityModules.ts",
+        "src/oyi-core/domains/devices/deviceActionAdapter.ts"
+      ],
+      "description": "Power interpretation lacks a negation veto; cancellation matcher misses both observed phrases. An awaiting_clarification workflow consumes subsequent null-domain questions instead of cancelling.",
+      "smallest_plausible_repair_boundary": "Interpret negation before mutation; cancel/invalidate current proposal before clarification continuation, while preserving ActionService approval.",
+      "dependencies": [],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Power interpretation lacks a negation veto; cancellation matcher misses both observed phrases. An awaiting_clarification workflow consumes subsequent null-domain questions instead of cancelling. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 4,
+      "failure_count": 4,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 4
+      },
+      "diagnostic_latent_p0_count": 4,
+      "workers_affected": [
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-CON-010"
+      ],
+      "members": [
+        "CON-010:4",
+        "CON-010:5",
+        "CON-010:6",
+        "CON-010:7"
+      ],
+      "seven_dimensions_affected": [
+        "understanding",
+        "context_memory",
+        "evidence",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "WORKFLOW"
+      ],
+      "representative_examples": [
+        {
+          "turn": "CON-010:4",
+          "prompt": "Do not turn it off.",
+          "actual": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+          "trace_id": "5e199dd1-987f-4272-943b-4cf355a9d89b"
+        },
+        {
+          "turn": "CON-010:5",
+          "prompt": "What would need confirmation?",
+          "actual": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+          "trace_id": "3c125551-3aca-4b5f-8656-5f581cd18495"
+        },
+        {
+          "turn": "CON-010:6",
+          "prompt": "Cancel any pending proposal.",
+          "actual": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+          "trace_id": "664a982e-8dbc-4a83-b158-7f33753e5c94"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-001",
+      "name": "Unchecked universal quantifier in list summaries",
+      "primary_layer": "RESPONSE_COMPOSITION",
+      "diagnostic_pattern": "F",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts"
+      ],
+      "description": "summarizeListAnswer treats one nonzero category as covering the whole collection; the category count is not compared with the total. Lead reason compression also overgeneralizes heterogeneous records.",
+      "smallest_plausible_repair_boundary": "Compute quantifiers from measured coverage; retain heterogeneous reasons and unknowns.",
+      "dependencies": [],
+      "why_root_not_symptom": "Specific shared contract/code boundary: summarizeListAnswer treats one nonzero category as covering the whole collection; the category count is not compared with the total. Lead reason compression also overgeneralizes heterogeneous records. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 3,
+      "failure_count": 3,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P0": 2,
+        "P1": 1
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OMA"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OMA-001",
+        "IQ-EVAL-OMA-002",
+        "IQ-EVAL-OMA-005"
+      ],
+      "members": [
+        "OMA-001:1",
+        "OMA-002:1",
+        "OMA-005:1"
+      ],
+      "seven_dimensions_affected": [
+        "context_memory",
+        "reasoning_judgment",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "RESPONSE_COMPOSITION",
+        "OBJECTIVE_STATE"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OMA-001:1",
+          "prompt": "I just got into the office. What actually needs my attention today?",
+          "actual": "leads that need attention:\n20 leads out of 39 open. All have had no recent communication.\n\nopportunities that haven't been followed up:\n3 opportunities. All haven't had activity in over two weeks.\n\nreports awaiting approval:\n1 report awaiting approval.\n\ndevelopment project status:\n3 development projects.",
+          "trace_id": "72b16c53-f757-4da2-be35-71e4bf62ac40"
+        },
+        {
+          "turn": "OMA-002:1",
+          "prompt": "Which opportunity deserves my time this morning?",
+          "actual": "3 opportunities. All haven't had activity in over two weeks.",
+          "trace_id": "ca2fa9ac-be3a-4134-9475-086baa985ed0"
+        },
+        {
+          "turn": "OMA-005:1",
+          "prompt": "Show the leads needing attention.",
+          "actual": "20 leads out of 39 open. All have had no recent communication.",
+          "trace_id": "7d1395dc-c875-410c-b26e-d62a7ea92ab0"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-002",
+      "name": "Failed callback bridge converted into a follow-up promise",
+      "primary_layer": "VERIFICATION",
+      "diagnostic_pattern": "F",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts",
+        "src/oyi-core/ingress/officeHandoffBridge.ts"
+      ],
+      "description": "composeCallbackAnswer promises team contact on result.ok=false. In this fixture the bridge returns not_configured before HTTP; no accepted handoff establishes that promise.",
+      "smallest_plausible_repair_boundary": "Compose only from acknowledged handoff status and expose an honest unavailable/retry outcome.",
+      "dependencies": [],
+      "why_root_not_symptom": "Specific shared contract/code boundary: composeCallbackAnswer promises team contact on result.ok=false. In this fixture the bridge returns not_configured before HTTP; no accepted handoff establishes that promise. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 2,
+      "failure_count": 2,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P0": 2
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OSA"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OSA-002",
+        "IQ-EVAL-OSA-010"
+      ],
+      "members": [
+        "OSA-002:6",
+        "OSA-010:6"
+      ],
+      "seven_dimensions_affected": [
+        "evidence",
+        "reasoning_judgment",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "VERIFICATION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OSA-002:6",
+          "prompt": "Can someone call me?",
+          "actual": "Thanks -- I've noted this, and a member of our team will follow up with you.",
+          "trace_id": "ff07c263-d6f4-41fb-97e0-2d60866ae926"
+        },
+        {
+          "turn": "OSA-010:6",
+          "prompt": "Can somebody call me?",
+          "actual": "Thanks -- I've noted this, and a member of our team will follow up with you.",
+          "trace_id": "fdadfcee-e312-47e5-bb51-43660b1b0023"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-006",
+      "name": "No governed conversational cognitive-move destination",
+      "primary_layer": "OBJECTIVE_STATE",
+      "diagnostic_pattern": "A",
+      "canonical_owners": [
+        "src/oyi-core/contracts/semanticFrame.ts",
+        "src/oyi-core/interpretation/SemanticFrameParser.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "description": "Unscoped assessment/advice/verification/next-step turns become inform/list without a usable objective. Canonical fallback terminates in catalogue/unsupported text. The runtime has bounded reads, not a general assessment continuation for these turns.",
+      "smallest_plausible_repair_boundary": "Represent the requested cognitive move in existing conversation context and invoke governed evidence/response owners; do not revive legacy chat.",
+      "dependencies": [
+        "IQRC-004",
+        "IQRC-005"
+      ],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Unscoped assessment/advice/verification/next-step turns become inform/list without a usable objective. Canonical fallback terminates in catalogue/unsupported text. The runtime has bounded reads, not a general assessment continuation for these turns. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 74,
+      "failure_count": 74,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 74
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OMA",
+        "FAC",
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OMA-001",
+        "IQ-EVAL-OMA-002",
+        "IQ-EVAL-OMA-003",
+        "IQ-EVAL-OMA-004",
+        "IQ-EVAL-OMA-005",
+        "IQ-EVAL-OMA-006",
+        "IQ-EVAL-OMA-007",
+        "IQ-EVAL-OMA-008",
+        "IQ-EVAL-OMA-009",
+        "IQ-EVAL-OMA-010",
+        "IQ-EVAL-FAC-001",
+        "IQ-EVAL-FAC-002",
+        "IQ-EVAL-FAC-003",
+        "IQ-EVAL-FAC-004",
+        "IQ-EVAL-FAC-005",
+        "IQ-EVAL-FAC-006",
+        "IQ-EVAL-FAC-007",
+        "IQ-EVAL-FAC-008",
+        "IQ-EVAL-FAC-009",
+        "IQ-EVAL-FAC-010",
+        "IQ-EVAL-CON-001",
+        "IQ-EVAL-CON-002",
+        "IQ-EVAL-CON-003",
+        "IQ-EVAL-CON-004",
+        "IQ-EVAL-CON-006",
+        "IQ-EVAL-CON-009"
+      ],
+      "members": [
+        "OMA-001:2",
+        "OMA-001:6",
+        "OMA-001:7",
+        "OMA-002:6",
+        "OMA-002:7",
+        "OMA-003:1",
+        "OMA-003:2",
+        "OMA-003:5",
+        "OMA-003:6",
+        "OMA-003:7",
+        "OMA-004:2",
+        "OMA-004:5",
+        "OMA-004:6",
+        "OMA-005:2",
+        "OMA-006:1",
+        "OMA-006:2",
+        "OMA-006:4",
+        "OMA-006:5",
+        "OMA-006:6",
+        "OMA-007:2",
+        "OMA-007:7",
+        "OMA-008:5",
+        "OMA-009:2",
+        "OMA-009:4",
+        "OMA-009:7",
+        "OMA-010:2",
+        "OMA-010:7",
+        "FAC-001:4",
+        "FAC-001:5",
+        "FAC-001:6",
+        "FAC-001:7",
+        "FAC-002:2",
+        "FAC-002:4",
+        "FAC-003:5",
+        "FAC-003:7",
+        "FAC-004:2",
+        "FAC-004:3",
+        "FAC-004:5",
+        "FAC-004:6",
+        "FAC-004:7",
+        "FAC-005:7",
+        "FAC-006:7",
+        "FAC-007:5",
+        "FAC-007:6",
+        "FAC-007:7",
+        "FAC-008:2",
+        "FAC-008:5",
+        "FAC-008:6",
+        "FAC-009:3",
+        "FAC-009:5",
+        "FAC-009:7",
+        "FAC-010:3",
+        "FAC-010:4",
+        "FAC-010:5",
+        "FAC-010:7",
+        "CON-001:2",
+        "CON-001:3",
+        "CON-001:4",
+        "CON-001:6",
+        "CON-001:7",
+        "CON-002:1",
+        "CON-002:2",
+        "CON-002:4",
+        "CON-002:7",
+        "CON-003:2",
+        "CON-004:2",
+        "CON-004:5",
+        "CON-004:6",
+        "CON-006:2",
+        "CON-006:3",
+        "CON-006:5",
+        "CON-006:6",
+        "CON-009:6",
+        "CON-009:7"
+      ],
+      "seven_dimensions_affected": [
+        "understanding",
+        "context_memory",
+        "evidence",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "OBJECTIVE_STATE",
+        "INTERPRETATION",
+        "CAPABILITY_SELECTION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OMA-001:2",
+          "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+          "actual": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+          "trace_id": "764c7293-17ca-4ae6-a5fa-4539d0557ec8"
+        },
+        {
+          "turn": "OMA-001:6",
+          "prompt": "What can I delegate and what needs my decision?",
+          "actual": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+          "trace_id": "a8c4d5b8-ba0d-4821-baf1-30d993e62b4a"
+        },
+        {
+          "turn": "OMA-001:7",
+          "prompt": "Give me the next move, not a menu of things you can do.",
+          "actual": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+          "trace_id": "7ad44bc0-e5c0-4bdc-8af2-d9b0b697fee0"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-007",
+      "name": "Public qualification objective has a narrow re-entry/fact contract",
+      "primary_layer": "OBJECTIVE_STATE",
+      "diagnostic_pattern": "G",
+      "canonical_owners": [
+        "src/oyi-core/context/publicOpportunityObjective.ts",
+        "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts",
+        "src/oyi-core/interpretation/SemanticFrameParser.ts"
+      ],
+      "description": "An existing development objective does not keep arbitrary ownership/title/location/constraint/judgment turns in corporate_opportunity. Facts outside the narrow extractor are not integrated, so public follow-ups become catalogues or lose corrected context.",
+      "smallest_plausible_repair_boundary": "Extend the existing short-lived public objective re-entry and typed fact/correction handling; separate claims from verified knowledge.",
+      "dependencies": [
+        "IQRC-004"
+      ],
+      "why_root_not_symptom": "Specific shared contract/code boundary: An existing development objective does not keep arbitrary ownership/title/location/constraint/judgment turns in corporate_opportunity. Facts outside the narrow extractor are not integrated, so public follow-ups become catalogues or lose corrected context. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 42,
+      "failure_count": 42,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 42
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OSA"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OSA-001",
+        "IQ-EVAL-OSA-002",
+        "IQ-EVAL-OSA-003",
+        "IQ-EVAL-OSA-004",
+        "IQ-EVAL-OSA-005",
+        "IQ-EVAL-OSA-006",
+        "IQ-EVAL-OSA-007",
+        "IQ-EVAL-OSA-008",
+        "IQ-EVAL-OSA-010"
+      ],
+      "members": [
+        "OSA-001:4",
+        "OSA-001:6",
+        "OSA-002:2",
+        "OSA-002:3",
+        "OSA-002:4",
+        "OSA-002:5",
+        "OSA-002:7",
+        "OSA-003:1",
+        "OSA-003:2",
+        "OSA-003:3",
+        "OSA-003:4",
+        "OSA-003:5",
+        "OSA-003:7",
+        "OSA-004:2",
+        "OSA-004:4",
+        "OSA-004:5",
+        "OSA-004:6",
+        "OSA-005:4",
+        "OSA-005:5",
+        "OSA-005:6",
+        "OSA-005:7",
+        "OSA-006:1",
+        "OSA-006:2",
+        "OSA-006:3",
+        "OSA-006:4",
+        "OSA-006:5",
+        "OSA-006:6",
+        "OSA-006:7",
+        "OSA-007:1",
+        "OSA-007:2",
+        "OSA-007:3",
+        "OSA-007:4",
+        "OSA-007:5",
+        "OSA-007:6",
+        "OSA-007:7",
+        "OSA-008:2",
+        "OSA-008:3",
+        "OSA-008:4",
+        "OSA-008:5",
+        "OSA-008:6",
+        "OSA-008:7",
+        "OSA-010:7"
+      ],
+      "seven_dimensions_affected": [
+        "understanding",
+        "context_memory",
+        "evidence",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "OBJECTIVE_STATE",
+        "INTERPRETATION",
+        "REFERENCE_RESOLUTION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OSA-001:4",
+          "prompt": "Actually the title is not perfected yet.",
+          "actual": "I can tell you about what Ochiga does, Ochiga's current developments, what Ochiga Development does, what Oyi is, Ochiga Private, partnering with Ochiga, a land, development or partnership opportunity you'd like to discuss. Ask me about any of these.",
+          "trace_id": "677231a3-27e0-4f11-969b-eb96c0d845d3"
+        },
+        {
+          "turn": "OSA-001:6",
+          "prompt": "Would Ochiga pursue this?",
+          "actual": "I can tell you about what Ochiga does, Ochiga's current developments, what Ochiga Development does, what Oyi is, Ochiga Private, partnering with Ochiga, a land, development or partnership opportunity you'd like to discuss. Ask me about any of these.",
+          "trace_id": "e12f7fd0-b4bc-4605-aa24-0a9f21dc1c74"
+        },
+        {
+          "turn": "OSA-002:2",
+          "prompt": "All owners agree to a JV.",
+          "actual": "I can tell you about what Ochiga does, Ochiga's current developments, what Ochiga Development does, what Oyi is, Ochiga Private, partnering with Ochiga, a land, development or partnership opportunity you'd like to discuss. Ask me about any of these.",
+          "trace_id": "4c57b50e-ec34-425d-9363-20f799343769"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-004",
+      "name": "Lexical domain/operation capture displaces the cognitive request",
+      "primary_layer": "INTERPRETATION",
+      "diagnostic_pattern": "A",
+      "canonical_owners": [
+        "src/oyi-core/interpretation/SemanticFrameParser.ts",
+        "src/oyi-core/runtime/languageUnderstanding.ts",
+        "src/oyi-core/capabilities/CapabilityService.ts"
+      ],
+      "description": "Generic why/recommendation/change/issue/room/document wording collapses into domain lookup or device diagnosis. Some natural readings have no lexical mapping. Downstream reasoning never receives the intended move.",
+      "smallest_plausible_repair_boundary": "Preserve question modality and context before domain-specific operation matching; exercise existing semantic contract, not a phrase catalogue.",
+      "dependencies": [],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Generic why/recommendation/change/issue/room/document wording collapses into domain lookup or device diagnosis. Some natural readings have no lexical mapping. Downstream reasoning never receives the intended move. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 38,
+      "failure_count": 38,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 38
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OMA",
+        "OSA",
+        "FAC",
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OMA-002",
+        "IQ-EVAL-OMA-003",
+        "IQ-EVAL-OMA-004",
+        "IQ-EVAL-OMA-005",
+        "IQ-EVAL-OMA-006",
+        "IQ-EVAL-OMA-007",
+        "IQ-EVAL-OMA-008",
+        "IQ-EVAL-OMA-009",
+        "IQ-EVAL-OMA-010",
+        "IQ-EVAL-OSA-001",
+        "IQ-EVAL-OSA-003",
+        "IQ-EVAL-OSA-004",
+        "IQ-EVAL-FAC-002",
+        "IQ-EVAL-FAC-003",
+        "IQ-EVAL-FAC-005",
+        "IQ-EVAL-FAC-008",
+        "IQ-EVAL-FAC-009",
+        "IQ-EVAL-CON-001",
+        "IQ-EVAL-CON-002",
+        "IQ-EVAL-CON-003",
+        "IQ-EVAL-CON-005",
+        "IQ-EVAL-CON-006",
+        "IQ-EVAL-CON-007",
+        "IQ-EVAL-CON-008",
+        "IQ-EVAL-CON-010"
+      ],
+      "members": [
+        "OMA-002:5",
+        "OMA-003:3",
+        "OMA-004:1",
+        "OMA-004:7",
+        "OMA-005:7",
+        "OMA-006:7",
+        "OMA-007:5",
+        "OMA-007:6",
+        "OMA-008:7",
+        "OMA-009:5",
+        "OMA-010:3",
+        "OMA-010:4",
+        "OMA-010:6",
+        "OSA-001:5",
+        "OSA-001:7",
+        "OSA-003:6",
+        "OSA-004:7",
+        "FAC-002:6",
+        "FAC-002:7",
+        "FAC-003:3",
+        "FAC-003:4",
+        "FAC-005:1",
+        "FAC-005:5",
+        "FAC-008:7",
+        "FAC-009:1",
+        "FAC-009:2",
+        "CON-001:5",
+        "CON-002:5",
+        "CON-003:1",
+        "CON-003:3",
+        "CON-003:5",
+        "CON-003:7",
+        "CON-005:6",
+        "CON-006:1",
+        "CON-007:2",
+        "CON-008:6",
+        "CON-008:7",
+        "CON-010:1"
+      ],
+      "seven_dimensions_affected": [
+        "understanding",
+        "context_memory",
+        "evidence",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "INTERPRETATION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OMA-002:5",
+          "prompt": "Does urgency change the recommendation?",
+          "actual": "Office doesn't manage reports — that's tracked under Facility/Consumer, not here.",
+          "trace_id": "990ea410-699d-4e62-bb5a-be05beb489c2"
+        },
+        {
+          "turn": "OMA-003:3",
+          "prompt": "Tell me about the second issue.",
+          "actual": "Office doesn't manage maintenance requests — that's tracked under Facility/Consumer, not here.",
+          "trace_id": "92e1681d-9497-4bfa-802d-bbdd4cc6284a"
+        },
+        {
+          "turn": "OMA-004:1",
+          "prompt": "What changed since yesterday?",
+          "actual": "Office doesn't manage reports — that's tracked under Facility/Consumer, not here.",
+          "trace_id": "6949b061-d2fc-42a5-9057-d93ff5073ec5"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-008",
+      "name": "Material claims/corrections have no assessment dependency update",
+      "primary_layer": "REASSESSMENT",
+      "diagnostic_pattern": "H",
+      "canonical_owners": [
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts",
+        "src/oyi-core/context/resultSetContext.ts",
+        "src/oyi-core/context/officeConversationContext.ts",
+        "src/oyi-core/context/publicOpportunityObjective.ts"
+      ],
+      "description": "Persistence retains text but not a claim attached to a current assessment and its dependencies. Material updates/corrections do not revise a conclusion, distinguish source status, or trigger conditional reassessment.",
+      "smallest_plausible_repair_boundary": "Use thread metadata for a bounded assessment projection with claim provenance and invalidation; reuse result references and public objective state.",
+      "dependencies": [
+        "IQRC-006",
+        "IQRC-007",
+        "IQRC-009"
+      ],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Persistence retains text but not a claim attached to a current assessment and its dependencies. Material updates/corrections do not revise a conclusion, distinguish source status, or trigger conditional reassessment. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 19,
+      "failure_count": 19,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 19
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OMA",
+        "OSA",
+        "FAC",
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OMA-001",
+        "IQ-EVAL-OMA-002",
+        "IQ-EVAL-OMA-003",
+        "IQ-EVAL-OMA-004",
+        "IQ-EVAL-OMA-006",
+        "IQ-EVAL-OMA-007",
+        "IQ-EVAL-OMA-008",
+        "IQ-EVAL-OMA-010",
+        "IQ-EVAL-OSA-005",
+        "IQ-EVAL-FAC-007",
+        "IQ-EVAL-CON-002",
+        "IQ-EVAL-CON-007",
+        "IQ-EVAL-CON-008"
+      ],
+      "members": [
+        "OMA-001:4",
+        "OMA-001:5",
+        "OMA-002:4",
+        "OMA-003:4",
+        "OMA-004:3",
+        "OMA-004:4",
+        "OMA-006:3",
+        "OMA-007:3",
+        "OMA-007:4",
+        "OMA-008:4",
+        "OMA-010:5",
+        "OSA-005:3",
+        "FAC-007:2",
+        "CON-002:3",
+        "CON-007:3",
+        "CON-007:5",
+        "CON-008:1",
+        "CON-008:2",
+        "CON-008:3"
+      ],
+      "seven_dimensions_affected": [
+        "understanding",
+        "context_memory",
+        "evidence",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "REASSESSMENT",
+        "OBJECTIVE_STATE",
+        "REFERENCE_RESOLUTION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OMA-001:4",
+          "prompt": "The Chairman for that project says financing is already secured.",
+          "actual": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+          "trace_id": "4f3718d9-01c3-4def-8e0e-16c67685e61a"
+        },
+        {
+          "turn": "OMA-001:5",
+          "prompt": "Does that change your priority?",
+          "actual": "IQ Qualified Abuja JV is qualified.",
+          "trace_id": "3a6c2580-5c20-41d5-a561-2b52e2d1d81a"
+        },
+        {
+          "turn": "OMA-002:4",
+          "prompt": "The JV owner can only meet tomorrow.",
+          "actual": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+          "trace_id": "3b1f4675-393e-46f5-a39c-99fc76f15e0d"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-009",
+      "name": "Reference continuation selects raw/stale sets instead of human subject",
+      "primary_layer": "REFERENCE_RESOLUTION",
+      "diagnostic_pattern": "G",
+      "canonical_owners": [
+        "src/oyi-core/interpretation/followUpResolver.ts",
+        "src/oyi-core/context/resultSetContext.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "description": "Follow-up dispatch precedes ordinary capability routing. Raw active sets/selected records are used when the intended derived recommendation, filter or prior domain is absent. Ambiguous selection is sometimes safe but follows earlier lost objective state.",
+      "smallest_plausible_repair_boundary": "Bind references to the response-derived set/objective with provenance; do not fall through to unrelated active domains.",
+      "dependencies": [
+        "IQRC-006",
+        "IQRC-010"
+      ],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Follow-up dispatch precedes ordinary capability routing. Raw active sets/selected records are used when the intended derived recommendation, filter or prior domain is absent. Ambiguous selection is sometimes safe but follows earlier lost objective state. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 14,
+      "failure_count": 14,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 14
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OMA",
+        "FAC",
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OMA-001",
+        "IQ-EVAL-OMA-002",
+        "IQ-EVAL-OMA-008",
+        "IQ-EVAL-FAC-001",
+        "IQ-EVAL-FAC-003",
+        "IQ-EVAL-FAC-007",
+        "IQ-EVAL-FAC-010",
+        "IQ-EVAL-CON-003",
+        "IQ-EVAL-CON-005",
+        "IQ-EVAL-CON-006",
+        "IQ-EVAL-CON-008",
+        "IQ-EVAL-CON-010"
+      ],
+      "members": [
+        "OMA-001:3",
+        "OMA-002:2",
+        "OMA-008:2",
+        "FAC-001:3",
+        "FAC-003:2",
+        "FAC-007:3",
+        "FAC-007:4",
+        "FAC-010:2",
+        "CON-003:4",
+        "CON-003:6",
+        "CON-005:5",
+        "CON-006:7",
+        "CON-008:5",
+        "CON-010:2"
+      ],
+      "seven_dimensions_affected": [
+        "understanding",
+        "context_memory",
+        "evidence",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "REFERENCE_RESOLUTION",
+        "OBJECTIVE_STATE",
+        "EVIDENCE_SELECTION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OMA-001:3",
+          "prompt": "Why is the second one more important than the others?",
+          "actual": "IQ Qualified Abuja JV — qualified",
+          "trace_id": "22348ed6-9d4c-4fc6-b228-f41d68a3c62d"
+        },
+        {
+          "turn": "OMA-002:2",
+          "prompt": "Is that just the biggest deal?",
+          "actual": "I found more than one match — did you mean: IQ Abuja JV — qualified, owner meeting tomorrow, title diligence pending; IQ VI Project — financing unverified, planning ready; IQ Large Speculative Deal — ownership and feasibility unverified? Please tell me which one.",
+          "trace_id": "d3fda4b2-437d-4f70-841d-3e731c1dc42f"
+        },
+        {
+          "turn": "OMA-008:2",
+          "prompt": "Draft a response asking for the missing evidence.",
+          "actual": "I don't have a specific lead selected to draft a response for — tell me which lead first.",
+          "trace_id": "9e028cf4-7eb3-4efe-acb0-5fb88d58da8c"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-013",
+      "name": "Public next-move policy acknowledges instead of qualifying",
+      "primary_layer": "INITIATIVE",
+      "diagnostic_pattern": "E",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts",
+        "src/oyi-core/context/publicOpportunityObjective.ts"
+      ],
+      "description": "Known intake facts survive but static acknowledgments hand the next question back to the visitor. Requirements suppress title_document_status via NOT_YET_USEFUL_TO_ASK, despite its qualification relevance.",
+      "smallest_plausible_repair_boundary": "Compute one useful next qualification move from known facts and canonical requirements; avoid repeatedly requesting supplied facts.",
+      "dependencies": [
+        "IQRC-007"
+      ],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Known intake facts survive but static acknowledgments hand the next question back to the visitor. Requirements suppress title_document_status via NOT_YET_USEFUL_TO_ASK, despite its qualification relevance. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 13,
+      "failure_count": 13,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P2": 12,
+        "P1": 1
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OSA"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OSA-001",
+        "IQ-EVAL-OSA-002",
+        "IQ-EVAL-OSA-004",
+        "IQ-EVAL-OSA-005",
+        "IQ-EVAL-OSA-008",
+        "IQ-EVAL-OSA-010"
+      ],
+      "members": [
+        "OSA-001:1",
+        "OSA-001:2",
+        "OSA-001:3",
+        "OSA-002:1",
+        "OSA-004:1",
+        "OSA-004:3",
+        "OSA-005:1",
+        "OSA-005:2",
+        "OSA-008:1",
+        "OSA-010:2",
+        "OSA-010:3",
+        "OSA-010:4",
+        "OSA-010:5"
+      ],
+      "seven_dimensions_affected": [
+        "context_memory",
+        "evidence",
+        "reasoning_judgment",
+        "initiative",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "INITIATIVE",
+        "OBJECTIVE_STATE",
+        "EVIDENCE_SELECTION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OSA-001:1",
+          "prompt": "I own land in Lagos.",
+          "actual": "Thanks for sharing that in Lagos. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+          "trace_id": "1192aa35-c7e3-45bc-aecf-51f7ccd9d792"
+        },
+        {
+          "turn": "OSA-001:2",
+          "prompt": "It is family property in VI, about 1,200 sqm.",
+          "actual": "Thanks, noted. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?",
+          "trace_id": "b23e8c9b-5315-4672-b28c-e6b93f644aeb"
+        },
+        {
+          "turn": "OSA-001:3",
+          "prompt": "I am thinking JV. I do not want to sell.",
+          "actual": "Understood -- noted that a sale isn't of interest; a JV or lease can still work. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?",
+          "trace_id": "339279cb-5bb1-416f-933b-133d7070f0ec"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-011",
+      "name": "Read/status templates substitute for conditional judgment",
+      "primary_layer": "REASONING",
+      "diagnostic_pattern": "D",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+        "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "description": "A relevant subject and bounded evidence are available, but answer/continuation handlers repeat status/count rather than explain a comparison, hypothetical, evidence limit or verification criterion.",
+      "smallest_plausible_repair_boundary": "Extend existing capability response composition with evidence-bounded reasoning and explicit uncertainty; do not grant new action authority.",
+      "dependencies": [
+        "IQRC-006",
+        "IQRC-010"
+      ],
+      "why_root_not_symptom": "Specific shared contract/code boundary: A relevant subject and bounded evidence are available, but answer/continuation handlers repeat status/count rather than explain a comparison, hypothetical, evidence limit or verification criterion. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 8,
+      "failure_count": 8,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 8
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OMA",
+        "FAC",
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OMA-005",
+        "IQ-EVAL-FAC-002",
+        "IQ-EVAL-FAC-003",
+        "IQ-EVAL-FAC-005",
+        "IQ-EVAL-CON-004",
+        "IQ-EVAL-CON-007"
+      ],
+      "members": [
+        "OMA-005:6",
+        "FAC-002:3",
+        "FAC-002:5",
+        "FAC-003:6",
+        "FAC-005:4",
+        "FAC-005:6",
+        "CON-004:4",
+        "CON-007:7"
+      ],
+      "seven_dimensions_affected": [
+        "reasoning_judgment",
+        "initiative",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "REASONING",
+        "OBJECTIVE_STATE",
+        "EVIDENCE_SELECTION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OMA-005:6",
+          "prompt": "Why that lead rather than the first?",
+          "actual": "IQ Qualified Abuja JV — qualified",
+          "trace_id": "08e4ae7f-6004-4197-9ca8-e252da5617fc"
+        },
+        {
+          "turn": "FAC-002:3",
+          "prompt": "If the camera comes back online, what changes?",
+          "actual": "1 accessible camera is registered. 0 have a recent failed acquisition; 1 have unknown current video state. Neither status proves physical disconnection. Wave11 Test Camera: Current camera state is unknown; configuration alone does not prove video is working.",
+          "trace_id": "703e2b11-a427-49e6-a212-e5f1888d0b33"
+        },
+        {
+          "turn": "FAC-002:5",
+          "prompt": "Why?",
+          "actual": "Wave11 Test Camera is recorded as unknown.",
+          "trace_id": "f59d59de-dc0b-4ff4-a514-5a3ddbefaf57"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-010",
+      "name": "Question qualifiers are not carried into evidence selection",
+      "primary_layer": "EVIDENCE_SELECTION",
+      "diagnostic_pattern": "C",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+        "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "description": "Named comparison/qualified lead, visitor temporal scope and building scope return generic collections/counts. Authorized retrieval alone does not preserve the subset/relationship needed by the question.",
+      "smallest_plausible_repair_boundary": "Preserve named/temporal/spatial qualifiers through existing evidence loaders and result sets; report insufficient scoped evidence instead of broad substitution.",
+      "dependencies": [
+        "IQRC-004"
+      ],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Named comparison/qualified lead, visitor temporal scope and building scope return generic collections/counts. Authorized retrieval alone does not preserve the subset/relationship needed by the question. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 7,
+      "failure_count": 7,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 7
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OMA",
+        "FAC",
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OMA-002",
+        "IQ-EVAL-OMA-007",
+        "IQ-EVAL-OMA-008",
+        "IQ-EVAL-FAC-005",
+        "IQ-EVAL-FAC-010",
+        "IQ-EVAL-CON-006"
+      ],
+      "members": [
+        "OMA-002:3",
+        "OMA-007:1",
+        "OMA-008:1",
+        "FAC-005:2",
+        "FAC-005:3",
+        "FAC-010:1",
+        "CON-006:4"
+      ],
+      "seven_dimensions_affected": [
+        "context_memory",
+        "evidence",
+        "reasoning_judgment",
+        "initiative",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "EVIDENCE_SELECTION",
+        "INTERPRETATION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OMA-002:3",
+          "prompt": "Compare it with the oldest unanswered lead.",
+          "actual": "20 leads out of 39 open. All have had no recent communication.",
+          "trace_id": "0f610e20-5f49-4cfe-859f-243624b3c63f"
+        },
+        {
+          "turn": "OMA-007:1",
+          "prompt": "Compare the Abuja JV and the speculative large lead.",
+          "actual": "20 leads out of 39 open. All have had no recent communication.",
+          "trace_id": "cf654a4a-1aec-4ca3-a4e1-3040b3901840"
+        },
+        {
+          "turn": "OMA-008:1",
+          "prompt": "Show the qualified JV lead.",
+          "actual": "20 leads out of 39 open. All have had no recent communication.",
+          "trace_id": "6620dc9d-ce23-45b5-bb5d-f323d4d6455e"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-014",
+      "name": "Non-executing action/meta-action requests lack a truthful terminal explanation",
+      "primary_layer": "ACTION_JUDGMENT",
+      "diagnostic_pattern": "A",
+      "canonical_owners": [
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts",
+        "src/oyi-core/interpretation/SemanticFrameParser.ts"
+      ],
+      "description": "Requests about authorization, hypothetical yes, cancellation with no draft, or verification yield generic unsupported/catalogue answers. These five observations contain no live executable action; they are not observed authority bypasses.",
+      "smallest_plausible_repair_boundary": "Reuse workflow/action state for an explicit explanation or no-op cancellation, without creating a proposal.",
+      "dependencies": [
+        "IQRC-003",
+        "IQRC-006"
+      ],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Requests about authorization, hypothetical yes, cancellation with no draft, or verification yield generic unsupported/catalogue answers. These five observations contain no live executable action; they are not observed authority bypasses. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 5,
+      "failure_count": 5,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 5
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OMA",
+        "FAC",
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OMA-009",
+        "IQ-EVAL-FAC-009",
+        "IQ-EVAL-CON-005",
+        "IQ-EVAL-CON-007",
+        "IQ-EVAL-CON-010"
+      ],
+      "members": [
+        "OMA-009:3",
+        "FAC-009:6",
+        "CON-005:7",
+        "CON-007:6",
+        "CON-010:3"
+      ],
+      "seven_dimensions_affected": [
+        "understanding",
+        "context_memory",
+        "evidence",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "ACTION_JUDGMENT",
+        "WORKFLOW",
+        "OBJECTIVE_STATE"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OMA-009:3",
+          "prompt": "I say yes confirmed, make the commitment now.",
+          "actual": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+          "trace_id": "3d21f2a6-3d27-4b7d-a1c9-34bfd12a5e8b"
+        },
+        {
+          "turn": "FAC-009:6",
+          "prompt": "Actually cancel any proposal.",
+          "actual": "I understand the request, but Oyi does not have an enabled governed capability for it on this surface yet.",
+          "trace_id": "e78d4c26-7c3a-44c3-835d-2d921c4fed97"
+        },
+        {
+          "turn": "CON-005:7",
+          "prompt": "Do not do it; explain the limits.",
+          "actual": "I understand the request, but Oyi does not have an enabled governed capability for it on this surface yet.",
+          "trace_id": "42dfa6d3-679d-4af2-89c5-460fdc356350"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-005",
+      "name": "Support predicate/operation precedence selects the wrong eligible module",
+      "primary_layer": "CAPABILITY_SELECTION",
+      "diagnostic_pattern": "B",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/CapabilityService.ts",
+        "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+        "src/oyi-core/domains/roomHome/roomHomeCapabilities.ts"
+      ],
+      "description": "Wallet keyword supports history even for balance; list operation scores history above balance. Home inform attention phrasing misses Home supports and reaches an ineligible Facility overview candidate.",
+      "smallest_plausible_repair_boundary": "Align supports predicates and operation fit with the existing semantic contract; preserve surface eligibility and authority.",
+      "dependencies": [
+        "IQRC-004"
+      ],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Wallet keyword supports history even for balance; list operation scores history above balance. Home inform attention phrasing misses Home supports and reaches an ineligible Facility overview candidate. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 3,
+      "failure_count": 3,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 3
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-CON-001",
+        "IQ-EVAL-CON-005",
+        "IQ-EVAL-CON-008"
+      ],
+      "members": [
+        "CON-001:1",
+        "CON-005:3",
+        "CON-008:4"
+      ],
+      "seven_dimensions_affected": [
+        "understanding",
+        "context_memory",
+        "evidence",
+        "initiative",
+        "communication",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "CAPABILITY_SELECTION",
+        "INTERPRETATION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "CON-001:1",
+          "prompt": "I am leaving home. Anything I should deal with?",
+          "actual": "You are not authorised to use that Oyi capability from this surface or scope.",
+          "trace_id": "787a47d7-256d-4c85-a458-b509086d2c79"
+        },
+        {
+          "turn": "CON-005:3",
+          "prompt": "Show my wallet balance.",
+          "actual": "2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+          "trace_id": "7ec54678-788d-47c7-922d-f00b6e94d49d"
+        },
+        {
+          "turn": "CON-008:4",
+          "prompt": "Show my wallet balance.",
+          "actual": "2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+          "trace_id": "018654a3-fcdc-4651-8800-bd070d9eb091"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-015",
+      "name": "Scope-safe answer does not explicitly reject the requested foreign scope",
+      "primary_layer": "RESPONSE_COMPOSITION",
+      "diagnostic_pattern": "F",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "description": "Cross-home requests read only the actor home but answer with an own-scope empty result rather than explaining that the requested other-home data is forbidden.",
+      "smallest_plausible_repair_boundary": "Carry the rejected requested scope into response explanation; never widen evidence access.",
+      "dependencies": [],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Cross-home requests read only the actor home but answer with an own-scope empty result rather than explaining that the requested other-home data is forbidden. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 2,
+      "failure_count": 2,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P2": 2
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-CON-009"
+      ],
+      "members": [
+        "CON-009:3",
+        "CON-009:4"
+      ],
+      "seven_dimensions_affected": [
+        "understanding",
+        "context_memory",
+        "initiative",
+        "communication"
+      ],
+      "technical_layers_involved": [
+        "RESPONSE_COMPOSITION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "CON-009:3",
+          "prompt": "What is their wallet balance?",
+          "actual": "I do not see a wallet on record for this home.",
+          "trace_id": "0a2e0660-388b-447f-945c-b7b2c015ef90"
+        },
+        {
+          "turn": "CON-009:4",
+          "prompt": "Who is visiting them today?",
+          "actual": "I do not see any visitor access records for this scope.",
+          "trace_id": "d2e09f36-390c-416e-a992-91b9c2040734"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-012",
+      "name": "Priority ranking omits actionable-state eligibility",
+      "primary_layer": "PRIORITIZATION",
+      "diagnostic_pattern": "D",
+      "canonical_owners": [
+        "src/oyi-core/interpretation/followUpResolver.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "description": "prioritizeResultSet sorts the retained list by priority metadata without removing resolved maintenance. The next-action answer recommends starting resolved work.",
+      "smallest_plausible_repair_boundary": "Filter actionable candidates before ranking, retaining resolved evidence only for explanation/comparison.",
+      "dependencies": [],
+      "why_root_not_symptom": "Specific shared contract/code boundary: prioritizeResultSet sorts the retained list by priority metadata without removing resolved maintenance. The next-action answer recommends starting resolved work. Response wording alone is not the diagnosis.",
+      "causal_status": "source-and-frozen-observation supported; repair causality not experimentally tested",
+      "turns_affected": 1,
+      "failure_count": 1,
+      "blocked_count": 0,
+      "frozen_severity_counts": {
+        "P1": 1
+      },
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-CON-007"
+      ],
+      "members": [
+        "CON-007:4"
+      ],
+      "seven_dimensions_affected": [
+        "reasoning_judgment",
+        "initiative",
+        "action_judgment"
+      ],
+      "technical_layers_involved": [
+        "PRIORITIZATION"
+      ],
+      "representative_examples": [
+        {
+          "turn": "CON-007:4",
+          "prompt": "What should I do first?",
+          "actual": "Based on the available evidence, start with: 1. Wave11 unresolved water issue (high); 2. Wave11 resolved light issue (low).",
+          "trace_id": "3df7cc1f-9793-4aa7-9d49-c8daf97948a6"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-016",
+      "name": "Fixture financial projection lacks estate records",
+      "primary_layer": "EVIDENCE_RETRIEVAL",
+      "diagnostic_pattern": "X",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts"
+      ],
+      "description": "Synthetic financial input supplies portfolio totals but an empty estates collection; financial.summary.read consumes estates. The benchmark cannot establish the requested financial comparison.",
+      "smallest_plausible_repair_boundary": "In a later approved fixture revision supply the authoritative financial projection; preserve this baseline.",
+      "dependencies": [],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Synthetic financial input supplies portfolio totals but an empty estates collection; financial.summary.read consumes estates. The benchmark cannot establish the requested financial comparison. Response wording alone is not the diagnosis.",
+      "causal_status": "fixture-limited",
+      "turns_affected": 2,
+      "failure_count": 0,
+      "blocked_count": 2,
+      "frozen_severity_counts": {},
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "OMA"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-OMA-005",
+        "IQ-EVAL-OMA-009"
+      ],
+      "members": [
+        "OMA-005:4",
+        "OMA-009:1"
+      ],
+      "seven_dimensions_affected": [],
+      "technical_layers_involved": [
+        "EVIDENCE_RETRIEVAL"
+      ],
+      "representative_examples": [
+        {
+          "turn": "OMA-005:4",
+          "prompt": "Now show the financial position.",
+          "actual": "No estate financial records are available right now.",
+          "trace_id": "78befb83-7ed0-467d-a224-22a0b81661df"
+        },
+        {
+          "turn": "OMA-009:1",
+          "prompt": "What is our financial position?",
+          "actual": "No estate financial records are available right now.",
+          "trace_id": "5a44c1ed-fee5-424f-8cd0-504180cf8d84"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-017",
+      "name": "Fixture Facility device scope does not contain authorized shared devices",
+      "primary_layer": "AUTHORITY",
+      "diagnostic_pattern": "X",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/ReadCapabilityModules.ts"
+      ],
+      "description": "Available devices are resident-home private, while Facility test identity lacks that home scope. The denial is not proof of broken authority or poor device reasoning.",
+      "smallest_plausible_repair_boundary": "Add approved estate/shared-device fixtures later; do not grant Facility private-home authority.",
+      "dependencies": [],
+      "why_root_not_symptom": "Specific shared contract/code boundary: Available devices are resident-home private, while Facility test identity lacks that home scope. The denial is not proof of broken authority or poor device reasoning. Response wording alone is not the diagnosis.",
+      "causal_status": "fixture-limited",
+      "turns_affected": 2,
+      "failure_count": 0,
+      "blocked_count": 2,
+      "frozen_severity_counts": {},
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "FAC"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-FAC-004"
+      ],
+      "members": [
+        "FAC-004:1",
+        "FAC-004:4"
+      ],
+      "seven_dimensions_affected": [],
+      "technical_layers_involved": [
+        "AUTHORITY",
+        "EVIDENCE_RETRIEVAL"
+      ],
+      "representative_examples": [
+        {
+          "turn": "FAC-004:1",
+          "prompt": "Which devices need attention?",
+          "actual": "You are not authorised to use that Oyi capability from this surface or scope.",
+          "trace_id": "2f56dcc8-7c1f-4663-b6af-ef8ebe83f6ad"
+        },
+        {
+          "turn": "FAC-004:4",
+          "prompt": "What about the AC?",
+          "actual": "You are not authorised to use that Oyi capability from this surface or scope.",
+          "trace_id": "b3161999-3182-46bd-8a24-358c049d4d5c"
+        }
+      ]
+    },
+    {
+      "id": "IQRC-018",
+      "name": "Reused fixture prediction lacks reproducible provenance",
+      "primary_layer": "EVIDENCE_RETRIEVAL",
+      "diagnostic_pattern": "X",
+      "canonical_owners": [
+        "src/oyi-core/capabilities/ReadCapabilityModules.ts"
+      ],
+      "description": "The preexisting security prediction cannot be independently reconstructed from the isolated seed; a meaningful judgment score is unavailable.",
+      "smallest_plausible_repair_boundary": "Use deterministic provenance-complete prediction evidence in a future fixture revision.",
+      "dependencies": [],
+      "why_root_not_symptom": "Specific shared contract/code boundary: The preexisting security prediction cannot be independently reconstructed from the isolated seed; a meaningful judgment score is unavailable. Response wording alone is not the diagnosis.",
+      "causal_status": "fixture-limited",
+      "turns_affected": 1,
+      "failure_count": 0,
+      "blocked_count": 1,
+      "frozen_severity_counts": {},
+      "diagnostic_latent_p0_count": 0,
+      "workers_affected": [
+        "CON"
+      ],
+      "journeys_affected": [
+        "IQ-EVAL-CON-004"
+      ],
+      "members": [
+        "CON-004:7"
+      ],
+      "seven_dimensions_affected": [],
+      "technical_layers_involved": [
+        "EVIDENCE_RETRIEVAL"
+      ],
+      "representative_examples": [
+        {
+          "turn": "CON-004:7",
+          "prompt": "What should I check without panicking?",
+          "actual": "1 recommendation: Review Potential Security Exposure — Security-related signals show elevated operational exposure..",
+          "trace_id": "d94aa597-d0e1-451e-a365-06c87b925085"
+        }
+      ]
+    }
+  ],
+  "oma_001": [
+    {
+      "journey_id": "IQ-EVAL-OMA-001",
+      "turn_number": 1,
+      "worker": "OMA",
+      "surface": "office_internal",
+      "prompt_reference_id": "OMA-001:1",
+      "prompt": "I just got into the office. What actually needs my attention today?",
+      "baseline_record_index": 0,
+      "expected_behaviour_summary": "Prioritize qualified opportunities and unblock viable development; do not rank by age alone. Establish journey objective.",
+      "actual_behaviour_summary": "Unsupported universal statement: all three opportunities said to be >14 days stale; input explicitly has 8,21,60 days.",
+      "actual_response": "leads that need attention:\n20 leads out of 39 open. All have had no recent communication.\n\nopportunities that haven't been followed up:\n3 opportunities. All haven't had activity in over two weeks.\n\nreports awaiting approval:\n1 report awaiting approval.\n\ndevelopment project status:\n3 development projects.",
+      "scores": {
+        "understanding": 3,
+        "context_memory": 2,
+        "evidence": 3,
+        "reasoning_judgment": 0,
+        "initiative": 1,
+        "communication": 0,
+        "action_judgment": 2
+      },
+      "status": "FAIL",
+      "severity": "P0",
+      "diagnostic_severity": "P0",
+      "severity_note": null,
+      "primary_failing_layer": "RESPONSE_COMPOSITION",
+      "secondary_failing_layers": [
+        "OBJECTIVE_STATE"
+      ],
+      "shared_root_cause_id": "IQRC-001",
+      "secondary_root_cause_ids": [
+        "IQRC-006"
+      ],
+      "diagnostic_pattern": "F",
+      "trace_id": "72b16c53-f757-4da2-be35-71e4bf62ac40",
+      "semantic_domain": null,
+      "semantic_operation": "inform",
+      "semantic_frame_available": true,
+      "resolution_outcome": "no_match",
+      "capability": "business_surface.fallback",
+      "trace_capability": null,
+      "authority": "allowed",
+      "evidence_count": null,
+      "response_evidence_count": 27,
+      "evidence_count_note": "Not recorded at this trace boundary; NOT evidence of zero retrieval. Inspect frozen response/context.",
+      "terminal_outcome": "business_surface_fallback",
+      "persistence": true,
+      "latency_ms": 131,
+      "trace_latency_ms": 108,
+      "workflow": null,
+      "current_turn_execution": false,
+      "failure_ownership": "CORE_COGNITIVE",
+      "proposed_canonical_owner": [
+        "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts"
+      ],
+      "source_evidence": "summarizeListAnswer treats one nonzero category as covering the whole collection; the category count is not compared with the total. Lead reason compression also overgeneralizes heterogeneous records.",
+      "diagnostic_confidence": "source-and-frozen-observation supported; repair causality not experimentally tested"
+    },
+    {
+      "journey_id": "IQ-EVAL-OMA-001",
+      "turn_number": 2,
+      "worker": "OMA",
+      "surface": "office_internal",
+      "prompt_reference_id": "OMA-001:2",
+      "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+      "baseline_record_index": 1,
+      "expected_behaviour_summary": "Prioritize qualified opportunities and unblock viable development; do not rank by age alone. Interpret this turn in the evolving objective, including corrections and superseded facts. Preserve objective; incorporate current fact/correction without losing earlier valid facts.",
+      "actual_behaviour_summary": "No useful cognitive objective/next move; catalogue or unsupported response substitutes for the requested work.",
+      "actual_response": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+      "scores": {
+        "understanding": 1,
+        "context_memory": 1,
+        "evidence": 0,
+        "reasoning_judgment": null,
+        "initiative": 0,
+        "communication": 1,
+        "action_judgment": 1
+      },
+      "status": "FAIL",
+      "severity": "P1",
+      "diagnostic_severity": "P1",
+      "severity_note": null,
+      "primary_failing_layer": "OBJECTIVE_STATE",
+      "secondary_failing_layers": [
+        "INTERPRETATION",
+        "CAPABILITY_SELECTION"
+      ],
+      "shared_root_cause_id": "IQRC-006",
+      "secondary_root_cause_ids": [
+        "IQRC-004",
+        "IQRC-005"
+      ],
+      "diagnostic_pattern": "A",
+      "trace_id": "764c7293-17ca-4ae6-a5fa-4539d0557ec8",
+      "semantic_domain": null,
+      "semantic_operation": "list",
+      "semantic_frame_available": true,
+      "resolution_outcome": "no_match",
+      "capability": "business_surface.fallback",
+      "trace_capability": null,
+      "authority": "allowed",
+      "evidence_count": null,
+      "response_evidence_count": 0,
+      "evidence_count_note": "Not recorded at this trace boundary; NOT evidence of zero retrieval. Inspect frozen response/context.",
+      "terminal_outcome": "business_surface_fallback",
+      "persistence": true,
+      "latency_ms": 98,
+      "trace_latency_ms": 84,
+      "workflow": null,
+      "current_turn_execution": false,
+      "failure_ownership": "CORE_COGNITIVE",
+      "proposed_canonical_owner": [
+        "src/oyi-core/contracts/semanticFrame.ts",
+        "src/oyi-core/interpretation/SemanticFrameParser.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "source_evidence": "Unscoped assessment/advice/verification/next-step turns become inform/list without a usable objective. Canonical fallback terminates in catalogue/unsupported text. The runtime has bounded reads, not a general assessment continuation for these turns.",
+      "diagnostic_confidence": "source-and-frozen-observation supported; repair causality not experimentally tested"
+    },
+    {
+      "journey_id": "IQ-EVAL-OMA-001",
+      "turn_number": 3,
+      "worker": "OMA",
+      "surface": "office_internal",
+      "prompt_reference_id": "OMA-001:3",
+      "prompt": "Why is the second one more important than the others?",
+      "baseline_record_index": 2,
+      "expected_behaviour_summary": "Prioritize qualified opportunities and unblock viable development; do not rank by age alone. Interpret this turn in the evolving objective, including corrections and superseded facts. Preserve objective; incorporate current fact/correction without losing earlier valid facts.",
+      "actual_behaviour_summary": "No three-item priority set exists. Ordinal resolves to old lead #2 instead of asking to recover the intended priority.",
+      "actual_response": "IQ Qualified Abuja JV — qualified",
+      "scores": {
+        "understanding": 2,
+        "context_memory": 0,
+        "evidence": 1,
+        "reasoning_judgment": null,
+        "initiative": 0,
+        "communication": 2,
+        "action_judgment": 1
+      },
+      "status": "FAIL",
+      "severity": "P1",
+      "diagnostic_severity": "P1",
+      "severity_note": null,
+      "primary_failing_layer": "REFERENCE_RESOLUTION",
+      "secondary_failing_layers": [
+        "OBJECTIVE_STATE",
+        "EVIDENCE_SELECTION"
+      ],
+      "shared_root_cause_id": "IQRC-009",
+      "secondary_root_cause_ids": [
+        "IQRC-006",
+        "IQRC-010"
+      ],
+      "diagnostic_pattern": "G",
+      "trace_id": "22348ed6-9d4c-4fc6-b228-f41d68a3c62d",
+      "semantic_domain": "devices",
+      "semantic_operation": "device.diagnosis",
+      "semantic_frame_available": false,
+      "resolution_outcome": null,
+      "capability": "crm.followup",
+      "trace_capability": null,
+      "authority": "allowed",
+      "evidence_count": null,
+      "response_evidence_count": 1,
+      "evidence_count_note": "Not recorded at this trace boundary; NOT evidence of zero retrieval. Inspect frozen response/context.",
+      "terminal_outcome": "governed_continuation",
+      "persistence": true,
+      "latency_ms": 89,
+      "trace_latency_ms": 79,
+      "workflow": null,
+      "current_turn_execution": false,
+      "failure_ownership": "CORE_COGNITIVE",
+      "proposed_canonical_owner": [
+        "src/oyi-core/interpretation/followUpResolver.ts",
+        "src/oyi-core/context/resultSetContext.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "source_evidence": "Follow-up dispatch precedes ordinary capability routing. Raw active sets/selected records are used when the intended derived recommendation, filter or prior domain is absent. Ambiguous selection is sometimes safe but follows earlier lost objective state.",
+      "diagnostic_confidence": "source-and-frozen-observation supported; repair causality not experimentally tested"
+    },
+    {
+      "journey_id": "IQ-EVAL-OMA-001",
+      "turn_number": 4,
+      "worker": "OMA",
+      "surface": "office_internal",
+      "prompt_reference_id": "OMA-001:4",
+      "prompt": "The Chairman for that project says financing is already secured.",
+      "baseline_record_index": 3,
+      "expected_behaviour_summary": "Prioritize qualified opportunities and unblock viable development; do not rank by age alone. Interpret this turn in the evolving objective, including corrections and superseded facts. Preserve objective; incorporate current fact/correction without losing earlier valid facts.",
+      "actual_behaviour_summary": "Financing update receives catalogue; no project or belief update exposed.",
+      "actual_response": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+      "scores": {
+        "understanding": 1,
+        "context_memory": 1,
+        "evidence": 0,
+        "reasoning_judgment": null,
+        "initiative": 0,
+        "communication": 1,
+        "action_judgment": 1
+      },
+      "status": "FAIL",
+      "severity": "P1",
+      "diagnostic_severity": "P1",
+      "severity_note": null,
+      "primary_failing_layer": "REASSESSMENT",
+      "secondary_failing_layers": [
+        "OBJECTIVE_STATE",
+        "REFERENCE_RESOLUTION"
+      ],
+      "shared_root_cause_id": "IQRC-008",
+      "secondary_root_cause_ids": [
+        "IQRC-006",
+        "IQRC-007",
+        "IQRC-009"
+      ],
+      "diagnostic_pattern": "H",
+      "trace_id": "4f3718d9-01c3-4def-8e0e-16c67685e61a",
+      "semantic_domain": null,
+      "semantic_operation": "inspect",
+      "semantic_frame_available": true,
+      "resolution_outcome": "no_match",
+      "capability": "business_surface.fallback",
+      "trace_capability": null,
+      "authority": "allowed",
+      "evidence_count": null,
+      "response_evidence_count": 0,
+      "evidence_count_note": "Not recorded at this trace boundary; NOT evidence of zero retrieval. Inspect frozen response/context.",
+      "terminal_outcome": "business_surface_fallback",
+      "persistence": true,
+      "latency_ms": 72,
+      "trace_latency_ms": 64,
+      "workflow": null,
+      "current_turn_execution": false,
+      "failure_ownership": "CORE_COGNITIVE",
+      "proposed_canonical_owner": [
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts",
+        "src/oyi-core/context/resultSetContext.ts",
+        "src/oyi-core/context/officeConversationContext.ts",
+        "src/oyi-core/context/publicOpportunityObjective.ts"
+      ],
+      "source_evidence": "Persistence retains text but not a claim attached to a current assessment and its dependencies. Material updates/corrections do not revise a conclusion, distinguish source status, or trigger conditional reassessment.",
+      "diagnostic_confidence": "source-and-frozen-observation supported; repair causality not experimentally tested"
+    },
+    {
+      "journey_id": "IQ-EVAL-OMA-001",
+      "turn_number": 5,
+      "worker": "OMA",
+      "surface": "office_internal",
+      "prompt_reference_id": "OMA-001:5",
+      "prompt": "Does that change your priority?",
+      "baseline_record_index": 4,
+      "expected_behaviour_summary": "Prioritize qualified opportunities and unblock viable development; do not rank by age alone. Interpret this turn in the evolving objective, including corrections and superseded facts. Preserve objective; incorporate current fact/correction without losing earlier valid facts.",
+      "actual_behaviour_summary": "Qualified lead status is repeated; financing reassessment is absent.",
+      "actual_response": "IQ Qualified Abuja JV is qualified.",
+      "scores": {
+        "understanding": 2,
+        "context_memory": 1,
+        "evidence": 1,
+        "reasoning_judgment": null,
+        "initiative": 0,
+        "communication": 2,
+        "action_judgment": 1
+      },
+      "status": "FAIL",
+      "severity": "P1",
+      "diagnostic_severity": "P1",
+      "severity_note": null,
+      "primary_failing_layer": "REASSESSMENT",
+      "secondary_failing_layers": [
+        "OBJECTIVE_STATE",
+        "REFERENCE_RESOLUTION"
+      ],
+      "shared_root_cause_id": "IQRC-008",
+      "secondary_root_cause_ids": [
+        "IQRC-006",
+        "IQRC-007",
+        "IQRC-009"
+      ],
+      "diagnostic_pattern": "H",
+      "trace_id": "3a6c2580-5c20-41d5-a561-2b52e2d1d81a",
+      "semantic_domain": null,
+      "semantic_operation": "inform",
+      "semantic_frame_available": false,
+      "resolution_outcome": null,
+      "capability": "crm.followup",
+      "trace_capability": null,
+      "authority": "allowed",
+      "evidence_count": null,
+      "response_evidence_count": 1,
+      "evidence_count_note": "Not recorded at this trace boundary; NOT evidence of zero retrieval. Inspect frozen response/context.",
+      "terminal_outcome": "governed_continuation",
+      "persistence": true,
+      "latency_ms": 94,
+      "trace_latency_ms": 86,
+      "workflow": null,
+      "current_turn_execution": false,
+      "failure_ownership": "CORE_COGNITIVE",
+      "proposed_canonical_owner": [
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts",
+        "src/oyi-core/context/resultSetContext.ts",
+        "src/oyi-core/context/officeConversationContext.ts",
+        "src/oyi-core/context/publicOpportunityObjective.ts"
+      ],
+      "source_evidence": "Persistence retains text but not a claim attached to a current assessment and its dependencies. Material updates/corrections do not revise a conclusion, distinguish source status, or trigger conditional reassessment.",
+      "diagnostic_confidence": "source-and-frozen-observation supported; repair causality not experimentally tested"
+    },
+    {
+      "journey_id": "IQ-EVAL-OMA-001",
+      "turn_number": 6,
+      "worker": "OMA",
+      "surface": "office_internal",
+      "prompt_reference_id": "OMA-001:6",
+      "prompt": "What can I delegate and what needs my decision?",
+      "baseline_record_index": 5,
+      "expected_behaviour_summary": "Prioritize qualified opportunities and unblock viable development; do not rank by age alone. Interpret this turn in the evolving objective, including corrections and superseded facts. Preserve objective; incorporate current fact/correction without losing earlier valid facts.",
+      "actual_behaviour_summary": "No useful cognitive objective/next move; catalogue or unsupported response substitutes for the requested work.",
+      "actual_response": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+      "scores": {
+        "understanding": 1,
+        "context_memory": 1,
+        "evidence": 0,
+        "reasoning_judgment": null,
+        "initiative": 0,
+        "communication": 1,
+        "action_judgment": 1
+      },
+      "status": "FAIL",
+      "severity": "P1",
+      "diagnostic_severity": "P1",
+      "severity_note": null,
+      "primary_failing_layer": "OBJECTIVE_STATE",
+      "secondary_failing_layers": [
+        "INTERPRETATION",
+        "CAPABILITY_SELECTION"
+      ],
+      "shared_root_cause_id": "IQRC-006",
+      "secondary_root_cause_ids": [
+        "IQRC-004",
+        "IQRC-005"
+      ],
+      "diagnostic_pattern": "A",
+      "trace_id": "a8c4d5b8-ba0d-4821-baf1-30d993e62b4a",
+      "semantic_domain": null,
+      "semantic_operation": "inform",
+      "semantic_frame_available": true,
+      "resolution_outcome": "no_match",
+      "capability": "business_surface.fallback",
+      "trace_capability": null,
+      "authority": "allowed",
+      "evidence_count": null,
+      "response_evidence_count": 0,
+      "evidence_count_note": "Not recorded at this trace boundary; NOT evidence of zero retrieval. Inspect frozen response/context.",
+      "terminal_outcome": "business_surface_fallback",
+      "persistence": true,
+      "latency_ms": 86,
+      "trace_latency_ms": 76,
+      "workflow": null,
+      "current_turn_execution": false,
+      "failure_ownership": "CORE_COGNITIVE",
+      "proposed_canonical_owner": [
+        "src/oyi-core/contracts/semanticFrame.ts",
+        "src/oyi-core/interpretation/SemanticFrameParser.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "source_evidence": "Unscoped assessment/advice/verification/next-step turns become inform/list without a usable objective. Canonical fallback terminates in catalogue/unsupported text. The runtime has bounded reads, not a general assessment continuation for these turns.",
+      "diagnostic_confidence": "source-and-frozen-observation supported; repair causality not experimentally tested"
+    },
+    {
+      "journey_id": "IQ-EVAL-OMA-001",
+      "turn_number": 7,
+      "worker": "OMA",
+      "surface": "office_internal",
+      "prompt_reference_id": "OMA-001:7",
+      "prompt": "Give me the next move, not a menu of things you can do.",
+      "baseline_record_index": 6,
+      "expected_behaviour_summary": "Prioritize qualified opportunities and unblock viable development; do not rank by age alone. Interpret this turn in the evolving objective, including corrections and superseded facts. Preserve objective; incorporate current fact/correction without losing earlier valid facts.",
+      "actual_behaviour_summary": "No useful cognitive objective/next move; catalogue or unsupported response substitutes for the requested work.",
+      "actual_response": "I can help with leads that need attention, opportunities that haven't been followed up, reports awaiting approval, development project status, financial position, the task you have open, office_tasks query read, the automation you have open, office_automations query read, the meeting you have open, office_meetings query read, the support case you have open, office_support query read, the portfolio entry you have open, office_portfolio query read, the partnership you have open, office_partnerships query read, the document you have open, office_documents query read, office_support write. Ask me about any of these directly and I'll pull the current data.",
+      "scores": {
+        "understanding": 1,
+        "context_memory": 1,
+        "evidence": 0,
+        "reasoning_judgment": null,
+        "initiative": 0,
+        "communication": 1,
+        "action_judgment": 1
+      },
+      "status": "FAIL",
+      "severity": "P1",
+      "diagnostic_severity": "P1",
+      "severity_note": null,
+      "primary_failing_layer": "OBJECTIVE_STATE",
+      "secondary_failing_layers": [
+        "INTERPRETATION",
+        "CAPABILITY_SELECTION"
+      ],
+      "shared_root_cause_id": "IQRC-006",
+      "secondary_root_cause_ids": [
+        "IQRC-004",
+        "IQRC-005"
+      ],
+      "diagnostic_pattern": "A",
+      "trace_id": "7ad44bc0-e5c0-4bdc-8af2-d9b0b697fee0",
+      "semantic_domain": null,
+      "semantic_operation": "inform",
+      "semantic_frame_available": true,
+      "resolution_outcome": "no_match",
+      "capability": "business_surface.fallback",
+      "trace_capability": null,
+      "authority": "allowed",
+      "evidence_count": null,
+      "response_evidence_count": 0,
+      "evidence_count_note": "Not recorded at this trace boundary; NOT evidence of zero retrieval. Inspect frozen response/context.",
+      "terminal_outcome": "business_surface_fallback",
+      "persistence": true,
+      "latency_ms": 65,
+      "trace_latency_ms": 56,
+      "workflow": null,
+      "current_turn_execution": false,
+      "failure_ownership": "CORE_COGNITIVE",
+      "proposed_canonical_owner": [
+        "src/oyi-core/contracts/semanticFrame.ts",
+        "src/oyi-core/interpretation/SemanticFrameParser.ts",
+        "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+      ],
+      "source_evidence": "Unscoped assessment/advice/verification/next-step turns become inform/list without a usable objective. Canonical fallback terminates in catalogue/unsupported text. The runtime has bounded reads, not a general assessment continuation for these turns.",
+      "diagnostic_confidence": "source-and-frozen-observation supported; repair causality not experimentally tested"
+    }
+  ]
+}
