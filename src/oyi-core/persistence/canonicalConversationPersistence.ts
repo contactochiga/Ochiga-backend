@@ -24,6 +24,8 @@ import { loadDraftCommunication } from "../context/communicationDraft";
 import { loadPersonContext, loadPendingRecipientDisambiguation } from "../context/personContext";
 import { loadPendingGoalPointer } from "../context/goalProposal";
 import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
+import { loadConversationAssessment, nextConversationAssessment } from "../context/conversationAssessmentContext";
+import { parseSemanticFrame } from "../interpretation/SemanticFrameParser";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -352,7 +354,24 @@ export async function persistCanonicalConversationTurn(input: {
     const stored = await loadPublicOpportunityObjective(threadId).catch(() => null);
     publicOpportunityObjective = stored as unknown as Record<string, unknown> | null;
   }
+  const assessmentContext = nextConversationAssessment(
+    await loadConversationAssessment(request, actor?.id || null).catch(() => null),
+    parseSemanticFrame(request.message), request.surface);
+  const assessmentResult = recordOf(response.result_set);
+  if (assessmentContext && assessmentResult.source_request_id === contract.conversation_request_id
+    && assessmentContext.objective === "prioritize"
+    && (recordOf(response.execution).orchestrator_v2 as any)?.followup?.reference_type === "prioritize") {
+    assessmentContext.result_set_id = text(assessmentResult.result_set_id) || null;
+  }
+  const boundedResult = recordOf(activeDomain ? recordOf(mergedResultSets)[activeDomain] : null);
+  if (assessmentContext && ["facility.overview.read", "home.summary.read"].includes(text(response.capability_key))
+    && boundedResult?.source_request_id === contract.conversation_request_id) {
+    assessmentContext.result_set_id = text(boundedResult.result_set_id) || null;
+  }
   const threadMetadata = {
+    // Same writer/lifecycle as result sets and public qualification; never a
+    // second memory store. Explicit retrieval/mutation/cancellation clears it.
+    conversation_assessment: assessmentContext,
     thread_state_version: 2,
     active_target: object ? { object_type: object.object_type, object_id: object.canonical_id, object_name: object.label } : null,
     result_sets: mergedResultSets,

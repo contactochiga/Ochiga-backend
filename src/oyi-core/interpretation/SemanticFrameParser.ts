@@ -1,4 +1,4 @@
-import type { SemanticFrame, SemanticConstraint, SemanticEntity, SemanticOperation } from "../contracts/semanticFrame";
+import type { CognitiveObjective, SemanticFrame, SemanticConstraint, SemanticEntity, SemanticOperation } from "../contracts/semanticFrame";
 import { type OyiDomain, isBusinessDomain } from "../runtime/languageUnderstanding";
 import { normalizeLanguage } from "./LanguageNormalizer";
 import { resolveReferences } from "./ReferenceResolver";
@@ -6,6 +6,33 @@ import { resolveTemporalScope } from "./TemporalResolver";
 
 const ROOM_PATTERN = /\b(Bedroom\s*\d+|living room|master bedroom|kitchen|bathroom|room\s+\d+)\b/i;
 const DEVICE_PATTERN = /\b([A-Za-z0-9' -]+?(?:light|switch|socket|plug|tv|air conditioner|ac|camera|channel\s*\d+))\b/i;
+
+export function isCapabilityInquiry(text: string): boolean {
+  return /\bwhat (?:can|could) (?:you|oyi|oma|osa) (?:do|help)\b|\bwhat (?:actions|capabilities|tools) (?:can|do)\b/i.test(text);
+}
+
+// This is part of the existing parser, not a second intent router. These
+// question forms are independent of domain vocabulary and never grant action.
+export function cognitiveObjectiveFor(text: string): CognitiveObjective | null {
+  if (isCancellationUtterance(text) || isCapabilityInquiry(text)) return null;
+  if (/^\s*would you (?:please )?(?:turn|switch)\b.*\b(?:on|off)\b/i.test(text)) return null;
+  if (/^(?:please\s+)?(?:show|list|find|get|open|inspect)\b/i.test(text)) return "retrieve";
+  if (/\b(?:recommendation|priority|assessment|reasoning)\b.*\bchange[ds]?\b|\bwhat changed in\b/i.test(text)) return "reassess";
+  if (/^\s*explain\b/i.test(text)) return "explain";
+  if (/\bwhat (?:has )?changed\b/i.test(text)) return "compare";
+  if (/\b(?:what|which)\b.*\bcan (?:safely )?wait\b|\bwhich\b.*\b(?:worth pursuing|blocks? progress|come first)\b/i.test(text)) return "prioritize";
+  if (/^\s*(?:would|should)\s+(?:you|we|i|turning|changing)\b|\bwhat (?:should|would)\b|\bjust advise\b/i.test(text)) return "advise";
+  if (/\b(?:does|is|can|do)\b.*\b(?:prove|mean broken|actually verify|actually know|need to worry|enough to)\b|\bwhat (?:is|remains) (?:known|unknown|unresolved)\b|\b(?:what|which) evidence\b/i.test(text)) return "assess";
+  if (/\b(?:does|would|will|should|has)\b.*\b(?:change|alter|affect)\b.*\b(?:priority|recommendation|assessment|anything|decision|ranking)\b|\bstill (?:your|the|a) (?:priority|recommendation)\b|\breassess\b/i.test(text)) return "reassess";
+  if (/^\s*why\b|\bexplain (?:why|your|that|the reasoning)\b/i.test(text)) return "explain";
+  if (/\bcompare\b|\btrade[- ]?offs?\b|\bwhich\b.*\b(?:better|versus|rather than)\b/i.test(text)) return "compare";
+  if (/\b(?:matter|matters) most\b|\b(?:attention|deal with|focus on) first\b|\b(?:what|which)\b.*\b(?:priorit|priority|priorities|most important|biggest blocker|can wait|deserves? my time)\b|\bwhich\b.*\b(?:three|3|top)\b.*\b(?:things|priorities|matter|move|focus)\b/i.test(text)) return "prioritize";
+  if (/\bwhat (?:would|should) (?:you|i|we|the facility manager) do\b|\bwhat should (?:i|we)\b|\bnext (?:move|step)\b|\bwhat can i delegate\b|\bwhat would you recommend\b/i.test(text)) return "advise";
+  if (/\b(?:needs?|needing|deserves?) (?:my |our |immediate )?attention\b|\bwhat (?:actually )?matters\b|\bis (?:everything|this|that|it) (?:okay|ok|safe|a strong|a good)\b|\banything (?:wrong|dangerous|unusual|i should)\b|\bshould i (?:worry|be concerned)\b|\b(?:would|could) ochiga (?:pursue|consider)\b|\bdoes this sound\b|\bwhat (?:are we neglecting|can move)\b/i.test(text)) return "assess";
+  if (/\b(?:summari[sz]e|summary|short version|overview)\b/i.test(text)) return "summarize";
+  if (/^(?:please\s+)?(?:show|list|find|get|open)\b/i.test(text)) return "retrieve";
+  return null;
+}
 
 // Shared by interpretation and device workflow continuation: a negated power
 // instruction must never become a positive command while cancellation fails
@@ -104,8 +131,22 @@ function constraintsFor(text: string, domain: OyiDomain | null): SemanticConstra
 
 export function parseSemanticFrame(rawText: unknown): SemanticFrame {
   const normalized = normalizeLanguage(rawText);
-  const operation = operationFor(normalized.normalized_text, normalized.operation);
-  const domain = domainFor(normalized.normalized_text, normalized.domain, operation);
+  // Explicit self-correction names the intended scope; rejected vocabulary
+  // earlier in the same turn must not win lexical domain precedence.
+  const correctedScope = normalized.normalized_text.match(/\b(?:i mean|i meant)\s+(.+)$/i)?.[1];
+  const intended = correctedScope ? normalizeLanguage(correctedScope) : normalized;
+  const cognitiveObjective = cognitiveObjectiveFor(normalized.normalized_text);
+  // A generic "why" is not device diagnosis. Explicit device questions still
+  // use the existing device worker; objective metadata does not choose it.
+  const genericExplanation = cognitiveObjective === "explain" && !/\b(devices?|light|switch|socket|plug|tv|air conditioner|ac)\b/i.test(normalized.normalized_text);
+  const parsedOperation = genericExplanation ? normalized.operation as SemanticOperation : operationFor(normalized.normalized_text, normalized.operation);
+  // Hypothetical/advisory questions about an action are not commands. They
+  // may discuss a device without creating a confirmable power proposal.
+  const advisory = cognitiveObjective !== null && !["retrieve", "summarize"].includes(cognitiveObjective);
+  const meaningCorrection = /\bnot what i (?:mean|meant)\b/i.test(normalized.normalized_text);
+  const operation = meaningCorrection ? "clarify" : advisory && parsedOperation.startsWith("device.power.") ? "inform" : parsedOperation;
+  const domain = domainFor(intended.normalized_text, intended.domain, operation)
+    || (correctedScope && /\bdevelopments?\b/i.test(correctedScope) ? "corporate_development" : null);
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);
   return {
@@ -120,6 +161,8 @@ export function parseSemanticFrame(rawText: unknown): SemanticFrame {
     confidence: primaryEntity ? Math.max(0.75, primaryEntity.confidence) : 0.72,
     ambiguity: { required: false, reason: null, candidates: [] },
     corrections: normalized.corrections,
-    mutationIntent: operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
+    mutationIntent: !meaningCorrection && !advisory && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
+    cognitiveObjective,
+    capabilityInquiry: isCapabilityInquiry(normalized.normalized_text),
   };
 }

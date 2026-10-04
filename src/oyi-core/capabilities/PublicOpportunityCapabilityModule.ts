@@ -22,6 +22,7 @@ import type { CapabilityModule, CapabilityContext } from "../contracts/capabilit
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
 import type { SemanticFrame } from "../contracts/semanticFrame";
+import { isAssessmentObjective } from "../context/conversationAssessmentContext";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
 import { canonicalCorporateAnswer } from "./corporateKnowledgeAnswer";
@@ -288,6 +289,16 @@ export function publicOpportunityReadModule(): CapabilityModule {
         // verbatim rather than letting persistence's undefined-fallback
         // reload path run twice.
         return { status, answer, presentation_policy: resultPresentation("text"), metadata: { ...metadata, public_opportunity_objective: prior } };
+      }
+
+      // Existing bounded qualification assessment; no company commitment,
+      // new evidence source, provider call or autonomous goal. Caller facts
+      // remain caller-supplied, not verified title/financing evidence.
+      if (prior && isAssessmentObjective(context.resolvedTurn.semantic_frame.cognitiveObjective)) {
+        const requirements = prior.objective_type === "development_partnership"
+          ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
+        return { status: "answered", answer: `Based on what you've told me, not independent verification: ${requirements} This is preliminary qualification, not a commitment by Ochiga to proceed.`,
+          presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
       }
 
       if (isRequirementsCheck(message)) {

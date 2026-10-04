@@ -1,5 +1,9 @@
 import type { OyiDomain } from "../runtime/languageUnderstanding";
 
+// What the person wants to do with evidence, not an evidence domain or a
+// capability key. Optional for older callers constructing semantic frames.
+export type CognitiveObjective = "retrieve" | "summarize" | "assess" | "prioritize" | "compare" | "explain" | "advise" | "reassess";
+
 export type SemanticOperation =
   | "memory.recall"
   | "plan.review"
@@ -63,4 +67,6 @@ export type SemanticFrame = {
   };
   corrections: Array<{ original: string; normalized: string; confidence: number }>;
   mutationIntent: boolean;
+  cognitiveObjective?: CognitiveObjective | null;
+  capabilityInquiry?: boolean;
 };

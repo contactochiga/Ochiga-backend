@@ -3,6 +3,8 @@ import type { CanonicalTruth, ConversationBuilderKey } from "../contracts/canoni
 import type { DomainResult } from "../contracts/domainResult";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/SemanticFrameParser";
+import { loadConversationAssessment, nextConversationAssessment, assessmentContinuation, isAssessmentObjective } from "../context/conversationAssessmentContext";
+import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
 import { ConversationTracer } from "../observability/ConversationTracer";
@@ -3169,6 +3171,7 @@ function unavailableInsideFallback(): Promise<ConversationRunResult> {
 async function canonicalUnavailableFallback(
   context: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn },
   reason: string,
+  terminalResult?: Pick<DomainResult, "status" | "answer">,
 ): Promise<ConversationRunResult> {
   const capability: CapabilityModule = {
     key: "canonical.conversation.unsupported",
@@ -3188,6 +3191,7 @@ async function canonicalUnavailableFallback(
       fallback_owner: "canonical_conversation",
       legacy_fallback_used: false,
     },
+    ...terminalResult,
   };
   return capabilityDomainResultToConversationResponse({
     context: { ...context, legacyFallback: unavailableInsideFallback },
@@ -3376,6 +3380,10 @@ export class ConversationOrchestrator {
     context = await assembleGovernedContext(context);
     ensureRegistered();
     const parsedFrame = parseSemanticFrame(context.input.message);
+    const publicAssessment = context.input.surface === "public_corporate"
+      && isAssessmentObjective(parsedFrame.cognitiveObjective) && !parsedFrame.mutationIntent
+      && !/\b(?:leads?|investors?|internal|private|staff)\b/i.test(parsedFrame.rawText)
+      && await loadPublicOpportunityObjective(context.input.thread_id);
     const planReview = context.input.surface === "office_internal" && normalizePlanReviewContext((context.input.context as any)?.plan_review_context);
     const automationSuggestion = Boolean((context.input.context as any)?.automation_suggestion_context);
     // Explicit read-only host request; still passes the normal capability
@@ -3383,14 +3391,15 @@ export class ConversationOrchestrator {
     const memoryRecall = context.input.surface === "consumer" && isMemoryRecallRequest(context.input.message);
     const frame = planReview ? { ...parsedFrame, domain: "office_development" as const, operation: "plan.review" as const, mutationIntent: false, references: [], primaryEntity: null }
       : automationSuggestion ? { ...parsedFrame, domain: "automations" as const, operation: "automation.suggest" as any, mutationIntent: false, references: [], primaryEntity: null }
-      : memoryRecall ? { ...parsedFrame, domain: "global" as const, operation: "memory.recall" as const, mutationIntent: false, references: [], primaryEntity: null } : parsedFrame;
+      : memoryRecall ? { ...parsedFrame, domain: "global" as const, operation: "memory.recall" as const, mutationIntent: false, references: [], primaryEntity: null }
+      : publicAssessment ? { ...parsedFrame, domain: "corporate_opportunity" as const, operation: "inspect" as const } : parsedFrame;
     const tracer = new ConversationTracer({
       requestId: String((context.input.context as any)?.request_id || "") || undefined,
       correlationId: String((context.input.context as any)?.correlation_id || "") || undefined,
     });
     traceHolder.tracer = tracer;
     tracer.stage("request_received", { surface: context.input.surface, thread_id: context.input.thread_id || null });
-    tracer.stage("turn_normalized", { domain: frame.domain, operation: frame.operation, correction_count: frame.corrections.length, mutation_intent: Boolean(frame.mutationIntent) });
+    tracer.stage("turn_normalized", { domain: frame.domain, operation: frame.operation, cognitive_objective: frame.cognitiveObjective || null, correction_count: frame.corrections.length, mutation_intent: Boolean(frame.mutationIntent) });
     if (isDeviceActionFrame(frame)) {
       deviceActionOrchestratorTrace("oyi_device_action_workflow_restore_started", context, null, tracer, {
         semantic_operation: frame.operation,
@@ -3495,7 +3504,7 @@ export class ConversationOrchestrator {
         const workflowContext = { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "durable_workflow_continuation") };
         if (isConfirmationText(context.input.message) || isCancellationText(context.input.message)) {
           continuation = await durableWorkflowContinuationResult(context, activeWorkflow, workflowCapability);
-        } else if (activeWorkflow.status === "awaiting_clarification") {
+        } else if (activeWorkflow.status === "awaiting_clarification" && !isAssessmentObjective(frame.cognitiveObjective)) {
           continuation = await continueDeviceActionWorkflow(workflowContext, activeWorkflow);
         } else if (isContinueText(context.input.message)) {
           continuation = await pendingWorkflowStatusResult(activeWorkflow);
@@ -3681,6 +3690,55 @@ export class ConversationOrchestrator {
     if (shortVersionResponse) {
       tracer.finish({ thread_id: shortVersionResponse.thread_id || null, response_state: shortVersionResponse.persistence_saved === false ? "unsaved" : "returned" });
       return shortVersionResponse;
+    }
+    // Cognitive follow-ups precede raw-list ordinals, but never confirmations,
+    // cancellations or pending governed workflows handled above. No new
+    // retrieval, capability key or authority is introduced here.
+    const previousAssessment = await loadConversationAssessment(context.input, context.actor?.id || null).catch(() => null);
+    const assessment = nextConversationAssessment(previousAssessment, frame, context.input.surface);
+    if (assessment && !frame.mutationIntent && frame.operation !== "cancel") {
+      const selection = capabilityService.resolve({ ...context, resolvedTurn });
+      const continuing = Boolean(previousAssessment && (isAssessmentObjective(frame.cognitiveObjective) || assessmentContinuation(frame.rawText)));
+      // Existing bounded domain evidence/assessment remains available for a
+      // fresh question. A continuation must not silently substitute an older
+      // raw list for a derived assessment that has never been established.
+      const declaredRead = selection.capability || selection.matched_capability;
+      const noGovernedRead = !declaredRead?.buildReadResponse;
+      const sameDerivedResult = previousAssessment?.result_set_id && !frame.cognitiveObjective
+        && (await loadThreadResultSetContext(context.input.thread_id))?.result_set_id === previousAssessment.result_set_id;
+      const existingObjectExplanation = !previousAssessment && frame.cognitiveObjective === "explain"
+        && !/\b(?:second|third|others|rather than|more important)\b/i.test(frame.rawText)
+        && (await loadThreadResultSetContext(context.input.thread_id))?.selected_object_ref;
+      const boundedDomainAssessment = frame.cognitiveObjective === "assess" && selection.authority?.allowed
+        && ["facility.overview.read", "home.summary.read"].includes(selection.capability?.key || "");
+      const existingBoundedAnalysis = ["anomalies.read", "recommendations.read"].includes(declaredRead?.key || "");
+      const surfaceMismatch = selection.authority?.reason === "surface_not_supported";
+      const existingOfficeOverview = !previousAssessment && context.input.surface === "office_internal"
+        && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
+      if (!publicAssessment && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis
+        && (continuing || noGovernedRead || surfaceMismatch)) {
+        const needsReference = /\b(?:second|third|that project|that opportunity|that one)\b/i.test(frame.rawText);
+        // Acknowledging an objective grants no evidence access. Do not turn a
+        // lexical match to an unrelated restricted capability into a claim
+        // that the user's assessment question itself is forbidden.
+        const answer = frame.operation === "clarify"
+            ? "What did you mean to assess? I won't turn that correction into an action."
+          : needsReference
+            ? "I haven't established a ranked assessment to identify that item. Which item do you mean? I won't substitute an older list or attach new information to an unconfirmed target."
+            : assessment.objective === "reassess"
+              ? "I understand you want to revisit the assessment. I haven't established a supported recommendation yet, so I can't claim its priority has changed. We need the relevant current evidence and a confirmed subject first."
+              : assessment.objective === "explain" || assessment.objective === "compare"
+                ? "You're asking for the reasoning behind the assessment. I can't confirm a supported comparison from the context available for this question; an earlier list alone doesn't prove which item matters more."
+                : "You're asking for an assessment, not a list of capabilities. I can't confirm a recommendation from the relevant current evidence yet. We need to establish that evidence before I can say what matters most or what you should do next.";
+        let response = await canonicalUnavailableFallback({ ...context, resolvedTurn }, "assessment_evidence_needed", { status: "unavailable", answer });
+        response.execution = { ...response.execution, cognitive_objective: assessment.objective,
+          assessment_status: "evidence_needed", current_turn_execution: false,
+          orchestrator_v2: { semantic_frame: frame, resolved_turn: resolvedTurn, resolution_outcome: "intentionally_unsupported", capability_key: null } };
+        tracer.stage("canonical_terminal_response", { cognitive_objective: assessment.objective, domain: assessment.domain, evidence_count: 0, outcome: "assessment_pending", reason: "assessment_evidence_needed" });
+        response = await persistTerminalConversationResponse(context, response, response.truth, resolvedTurn, "assessment_evidence_needed");
+        tracer.finish({ thread_id: response.thread_id, response_state: response.persistence_saved ? "returned" : "unsaved" });
+        return response;
+      }
     }
     // Generic follow-up resolution runs before normal capability routing —
     // a pending device-action confirmation (handled above) always wins, but
@@ -3952,6 +4010,12 @@ export class ConversationOrchestrator {
         legacy_fallback_used: !capability || Boolean(selection.legacy_fallback_reason),
       },
     };
+    if (capability?.key === "anomalies.read" && frame.cognitiveObjective === "compare") {
+      // The existing worker reports current anomalies, not a historical delta.
+      // Keep its authorised evidence without claiming it proves what changed.
+      const boundedAnswer = `These are current observations, not a verified comparison with the earlier period. ${response.answer}`;
+      response.answer = response.reply = response.message = response.summary = boundedAnswer;
+    }
     if (capabilityOwnsResponse) {
       response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityOwnsResponse);
     } else {
