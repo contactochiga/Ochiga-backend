@@ -8,7 +8,7 @@ const ROOM_PATTERN = /\b(Bedroom(?:\s*\d+)?|living room|master bedroom|kitchen|b
 const DEVICE_PATTERN = /\b([A-Za-z0-9' -]+?(?:light|switch|socket|plug|tv|air conditioner|ac|camera|channel\s*\d+))\b/i;
 
 export function isCapabilityInquiry(text: string): boolean {
-  return /\bwhat (?:can|could) (?:you|oyi|oma|osa) (?:do|help|access)\b|\bwhat (?:actions|capabilities|tools) (?:can|do)\b/i.test(text);
+  return /\bwhat (?:can|could) (?:you|oyi|oma|osa) (?:do|help|access)\b|\bwhat (?:actions|capabilities|tools) (?:can|do)\b|\bwhat (?:public )?information (?:can|could) (?:you|oyi|oma|osa) (?:share|provide|access)\b/i.test(text);
 }
 
 // This is part of the existing parser, not a second intent router. These

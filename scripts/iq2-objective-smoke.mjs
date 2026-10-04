@@ -16,7 +16,7 @@ const {workflowService}=await import('../dist/oyi-core/workflows/defaultWorkflow
 const source=fs.readFileSync('scripts/wave11-behavioural-torture-harness.mjs','utf8');
 const {actorFor,oisContext,officeSnapshot}=new Function(`${source.slice(source.indexOf('const ids = '),source.indexOf('function expected(prompt)'))};return {actorFor,oisContext,officeSnapshot};`)();
 const cases=[
- ['What can you do?',null],['What can Oma help me with?',null],['What actions can you perform?',null],
+ ['What can you do?',null],['What can Oma help me with?',null],['What actions can you perform?',null],['What public information can you share?',null],
  ["Show me today's leads.",'retrieve'],['Give me the short version.','summarize'],
  ['What actually needs my attention?','assess'],['Is everything okay?','assess'],['Anything dangerous?','assess'],
  ['Does this sound like something Ochiga would pursue?','assess'],['Is this a strong opportunity?','assess'],
@@ -61,6 +61,8 @@ assert.equal(absence.mutationIntent,false);
 assert.equal(absence.operation,'inform');
 assert.equal(nextConversationAssessment(initial,absence,'office_internal',now+1).pending_information,absence.rawText);
 assert.equal(nextConversationAssessment(null,absence,'office_internal',now+1),null);
+const opportunityAssessment=nextConversationAssessment(null,parseSemanticFrame('Compare the opportunities.'),'office_internal',now);
+assert.equal(nextConversationAssessment(opportunityAssessment,absence,'office_internal',now+1).subject_label,null,'A feasibility study is not a room');
 assert.equal(nextConversationAssessment(informed,parseSemanticFrame('The VI development.'),'office_internal',now+2).pending_information,informed.pending_information);
 const results=[];
 {

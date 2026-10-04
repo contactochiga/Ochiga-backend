@@ -149,7 +149,9 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
   const subjectDomains = correction ? subjects : retain && anaphoric ? old.subject_domains
     : subjects.length ? subjects : retain ? old.subject_domains : undefined;
   const nextSubjects = subjectDomains?.length ? subjectDomains : defaultSubject(surface);
-  const label = frame.rawText.match(/\b(?:tower\s+[A-Z0-9]+|building\s+[A-Z0-9]+|master bedroom|bedroom|living room|study|kitchen)\b/i)?.[0] || null;
+  const label = frame.rawText.match(/\b(?:tower\s+[A-Z0-9]+|building\s+[A-Z0-9]+)\b/i)?.[0]
+    || (nextSubjects.some(d => d === "rooms" || d === "devices")
+      ? frame.rawText.match(/\b(?:master bedroom|bedroom|living room|study|kitchen)\b/i)?.[0] : null) || null;
   const replaceCandidates = correction || !retain || (!anaphoric && ["prioritize", "compare"].includes(frame.cognitiveObjective || ""));
   const stamp = new Date(now).toISOString();
   return {
