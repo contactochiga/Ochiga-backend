@@ -3738,7 +3738,8 @@ export class ConversationOrchestrator {
         && (await loadThreadResultSetContext(context.input.thread_id))?.result_set_id === previousAssessment.result_set_id;
       const existingObjectExplanation = !previousAssessment && frame.cognitiveObjective === "explain"
         && !/\b(?:second|third|others|rather than|more important)\b/i.test(frame.rawText)
-        && (await loadThreadResultSetContext(context.input.thread_id))?.selected_object_ref;
+        && !/\bwhich room\b.*\bdiscuss/i.test(frame.rawText)
+        && usableSet?.selected_object_ref && assessment.subject_domains?.includes(usableSet.domain);
       const boundedDomainAssessment = ["assess", "advise", "prioritize"].includes(frame.cognitiveObjective || "") && selection.authority?.allowed
         && ["facility.overview.read", "home.summary.read"].includes(selection.capability?.key || "")
         && (assessment.subject_domains!.length > 1 || assessment.subject_domains!.every(d => (declaredRead?.evidence_requirements || []).some(e => e.domain === d)))

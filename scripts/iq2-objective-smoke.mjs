@@ -56,8 +56,22 @@ assert.equal(scopeChanged.target_ref,null);assert.equal(scopeChanged.pending_inf
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame("No, that's not what I mean."),'office_internal',now+1)?.objective,'prioritize');
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Show devices.'),'consumer',now+1),null);
 const informed=nextConversationAssessment(initial,parseSemanticFrame('The Chairman for that project says financing is secured.'),'office_internal',now+1);
+const absence=parseSemanticFrame('There is no supporting feasibility study.');
+assert.equal(absence.mutationIntent,false);
+assert.equal(absence.operation,'inform');
+assert.equal(nextConversationAssessment(initial,absence,'office_internal',now+1).pending_information,absence.rawText);
+assert.equal(nextConversationAssessment(null,absence,'office_internal',now+1),null);
 assert.equal(nextConversationAssessment(informed,parseSemanticFrame('The VI development.'),'office_internal',now+2).pending_information,informed.pending_information);
 const results=[];
+{
+ const actor=actorFor('resident','consumer');let thread=null;
+ for(const prompt of ['The bedroom is too hot.','Actually I mean the study.','Show wallet history.','Go back to the hot room.','Which room are we discussing?']){
+  const r=await conversationOrchestrator.run({actor,oisContext:oisContext(actor,'consumer'),input:{surface:'consumer',message:prompt,thread_id:thread,estate_id:actor.estate_id,home_id:actor.home_id}});thread=r.thread_id;
+  assert(r.persistence_saved);assert.notEqual(r.execution.current_turn_execution,true);
+  if(prompt==='Which room are we discussing?'){assert.doesNotMatch(r.answer,/rooms on record/);assert.match(r.answer,/Which room do you mean/);}
+  results.push({surface:'consumer',prompt,answer:r.answer,persisted:r.persistence_saved});
+ }
+}
 for(const [surface,role,prompts]of [
  ['office_internal','ochiga_staff',["I just got into the office. What actually needs my attention today?","Show me today's leads.",'Which three things matter most?','Why is the second one more important?','The Chairman for that project says financing is already secured.','Does that change your priority?']],
  ['public_corporate','public',['Is this a strong opportunity?','What should I do next?','Why?']],

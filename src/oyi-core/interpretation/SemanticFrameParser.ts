@@ -165,7 +165,12 @@ export function parseSemanticFrame(rawText: unknown): SemanticFrame {
   // may discuss a device without creating a confirmable power proposal.
   const advisory = cognitiveObjective !== null && !["retrieve", "summarize"].includes(cognitiveObjective);
   const meaningCorrection = /\bnot what i (?:mean|meant)\b/i.test(normalized.normalized_text);
-  const operation = meaningCorrection ? "clarify" : /\b(?:draft|compose)\b/i.test(normalized.normalized_text) && cognitiveObjective ? "compose" : advisory && parsedOperation.startsWith("device.power.") ? "inform"
+  // Existential absence is evidence, not a rejection/confirmation command.
+  // Keep imperative cancellation and compound instructions on their existing
+  // governed path; this only removes authority from a declarative statement.
+  const absenceStatement = /^there\s+(?:is|are|was|were)\s+no\b[^;?!]*[.!]?$/i.test(normalized.normalized_text)
+    && !/\b(?:then|please|confirm|execute|send|turn|approve|cancel)\b/i.test(normalized.normalized_text);
+  const operation = absenceStatement ? "inform" : meaningCorrection ? "clarify" : /\b(?:draft|compose)\b/i.test(normalized.normalized_text) && cognitiveObjective ? "compose" : advisory && parsedOperation.startsWith("device.power.") ? "inform"
     : /\b(?:show|list)\b.*\b(?:spent|spending)\b/i.test(normalized.normalized_text) && !/\b(?:utilities|electricity|water)\b/i.test(normalized.normalized_text) ? "wallet.history" : parsedOperation;
   const domain = /\bwho\b.*\b(?:expected|coming)\b/i.test(normalized.normalized_text) ? "visitors"
     : domainFor(intended.normalized_text, intended.domain, operation)
@@ -184,7 +189,7 @@ export function parseSemanticFrame(rawText: unknown): SemanticFrame {
     confidence: primaryEntity ? Math.max(0.75, primaryEntity.confidence) : 0.72,
     ambiguity: { required: false, reason: null, candidates: [] },
     corrections: normalized.corrections,
-    mutationIntent: !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
+    mutationIntent: !absenceStatement && !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
     cognitiveObjective,
     capabilityInquiry: isCapabilityInquiry(normalized.normalized_text),
   };
