@@ -35,13 +35,16 @@ assert.equal(validAssessment(initial,'office_internal',now+ASSESSMENT_TTL_MS),nu
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Show wallet history.'),'office_internal',now+1),null);
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame("Actually don't."),'office_internal',now+1),null);
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Why?'),'office_internal',now+1).question,initial.question);
+assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Is that just the biggest deal?'),'office_internal',now+1).question,initial.question);
 const corrected=nextConversationAssessment(initial,parseSemanticFrame('Actually, forget the leads. I mean the developments.'),'office_internal',now+1);
 assert.equal(corrected.domain,'office_development');
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame("No, that's not what I mean."),'office_internal',now+1)?.objective,'prioritize');
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Show devices.'),'consumer',now+1),null);
+const informed=nextConversationAssessment(initial,parseSemanticFrame('The Chairman for that project says financing is secured.'),'office_internal',now+1);
+assert.equal(nextConversationAssessment(informed,parseSemanticFrame('The VI development.'),'office_internal',now+2).pending_information,informed.pending_information);
 const results=[];
 for(const [surface,role,prompts]of [
- ['office_internal','ochiga_staff',["Show me today's leads.",'Which three things matter most?','Why is the second one more important?','The Chairman for that project says financing is already secured.','Does that change your priority?']],
+ ['office_internal','ochiga_staff',["I just got into the office. What actually needs my attention today?","Show me today's leads.",'Which three things matter most?','Why is the second one more important?','The Chairman for that project says financing is already secured.','Does that change your priority?']],
  ['public_corporate','public',['Is this a strong opportunity?','What should I do next?','Why?']],
  ['facility','facility_manager',['Anything dangerous?','What can wait?','Why?']],
  ['consumer','resident',['Is everything okay?','What would you do?','Why?','Does that prove the AC caused it?']],
@@ -53,10 +56,12 @@ for(const [surface,role,prompts]of [
   if(prompt==="Show me today's leads.")assert.doesNotMatch(r.answer,/not authorised|not available/);
   if(prompt==="Show me today's leads."){const q=await db.from('oyi_conversation_threads').select('metadata').eq('id',thread).single();assert(!q.error);assert(q.data.metadata.result_sets.crm.object_refs.length>1,'Collision test needs a real previous CRM list');}
   assert.doesNotMatch(r.answer,/office_tasks query read|Ask me about any of these directly/);
+  if(prompt.includes('got into the office')){assert.doesNotMatch(r.answer,/doesn't manage global/);assert.match(r.answer,/leads|opportunities/);}
   if(prompt.includes('second one'))assert.doesNotMatch(r.answer,/IQ Qualified Abuja JV/);
   if(prompt.includes('prove the AC'))assert.notEqual(r.capability_key,'devices.availability.read');
   const assessment=await loadConversationAssessment({...input,thread_id:thread},actor?.id||null);
   if(prompt!=="Show me today's leads.")assert(assessment,`${surface}: ${prompt}`);
+  if(prompt.includes('Chairman'))assert.equal(assessment.pending_information,prompt);
   results.push({surface,prompt,answer:r.answer,assessment,persisted:r.persistence_saved});
  }
 }

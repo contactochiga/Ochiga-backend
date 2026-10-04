@@ -8,7 +8,7 @@ const ROOM_PATTERN = /\b(Bedroom\s*\d+|living room|master bedroom|kitchen|bathro
 const DEVICE_PATTERN = /\b([A-Za-z0-9' -]+?(?:light|switch|socket|plug|tv|air conditioner|ac|camera|channel\s*\d+))\b/i;
 
 export function isCapabilityInquiry(text: string): boolean {
-  return /\bwhat (?:can|could) (?:you|oyi|oma|osa) (?:do|help)\b|\bwhat (?:actions|capabilities|tools) (?:can|do)\b/i.test(text);
+  return /\bwhat (?:can|could) (?:you|oyi|oma|osa) (?:do|help|access)\b|\bwhat (?:actions|capabilities|tools) (?:can|do)\b/i.test(text);
 }
 
 // This is part of the existing parser, not a second intent router. These
@@ -21,7 +21,7 @@ export function cognitiveObjectiveFor(text: string): CognitiveObjective | null {
   if (/^\s*explain\b/i.test(text)) return "explain";
   if (/\bwhat (?:has )?changed\b/i.test(text)) return "compare";
   if (/\b(?:what|which)\b.*\bcan (?:safely )?wait\b|\bwhich\b.*\b(?:worth pursuing|blocks? progress|come first)\b/i.test(text)) return "prioritize";
-  if (/^\s*(?:would|should)\s+(?:you|we|i|turning|changing)\b|\bwhat (?:should|would)\b|\bjust advise\b/i.test(text)) return "advise";
+  if (/^\s*(?:would|should)\s+(?:you|we|i|turning|changing)\b|\bwhat\b[^.!?]{0,40}\b(?:should|would)\b|\bjust advise\b/i.test(text)) return "advise";
   if (/\b(?:does|is|can|do)\b.*\b(?:prove|mean broken|actually verify|actually know|need to worry|enough to)\b|\bwhat (?:is|remains) (?:known|unknown|unresolved)\b|\b(?:what|which) evidence\b/i.test(text)) return "assess";
   if (/\b(?:does|would|will|should|has)\b.*\b(?:change|alter|affect)\b.*\b(?:priority|recommendation|assessment|anything|decision|ranking)\b|\bstill (?:your|the|a) (?:priority|recommendation)\b|\breassess\b/i.test(text)) return "reassess";
   if (/^\s*why\b|\bexplain (?:why|your|that|the reasoning)\b/i.test(text)) return "explain";

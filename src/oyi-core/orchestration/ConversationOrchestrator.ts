@@ -3,7 +3,7 @@ import type { CanonicalTruth, ConversationBuilderKey } from "../contracts/canoni
 import type { DomainResult } from "../contracts/domainResult";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/SemanticFrameParser";
-import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective } from "../context/conversationAssessmentContext";
+import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective, isAssessmentInformation } from "../context/conversationAssessmentContext";
 import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
@@ -3722,6 +3722,8 @@ export class ConversationOrchestrator {
         // that the user's assessment question itself is forbidden.
         const answer = frame.operation === "clarify"
             ? "What did you mean to assess? I won't turn that correction into an action."
+          : isAssessmentInformation(frame.rawText)
+            ? "That is information from you, not independently verified evidence. Which item should I attach it to for this assessment? I won't assign it to an older unrelated result."
           : needsReference
             ? "I haven't established a ranked assessment to identify that item. Which item do you mean? I won't substitute an older list or attach new information to an unconfirmed target."
             : assessment.objective === "reassess"
@@ -3814,7 +3816,10 @@ export class ConversationOrchestrator {
           legacy_fallback_reason: reason,
           fallback_owner: "business_surface_fallback",
         });
-        return buildBusinessSurfaceFallbackResponse({ ...context, resolvedTurn }, architecturalMismatch ? selection.matched_capability?.domain || null : null);
+        // An ineligible lexical match does not redefine the user's domain.
+        // In particular, a domain-free attention question is not a request
+        // for the Consumer-only global recommendations worker.
+        return buildBusinessSurfaceFallbackResponse({ ...context, resolvedTurn }, architecturalMismatch ? frame.domain || null : null);
       }
       const outcome = selection.resolution_outcome === "no_match" ? "capability_no_match" : "canonical_unsupported";
       tracer.stage("canonical_terminal_response", { domain: resolvedTurn.domain, operation: resolvedTurn.operation, reason, outcome, fallback_owner: "canonical_conversation" });
