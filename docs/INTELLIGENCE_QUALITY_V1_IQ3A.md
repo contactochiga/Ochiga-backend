@@ -138,3 +138,94 @@ share the same cognitive cause or lack source data. Per-source causal subdivisio
 remains part of the outstanding audit. IQ-3B must not begin on this result.
 
 **IQ-3A NOT YET CERTIFIED**
+
+## Source-certification continuation (2026-10-04)
+
+Starting commit: `321db68813d8b5585ff5837ecdfff3185b6faec9`.
+This checkpoint does **not** complete the requested exhaustive source audit.
+The generated inventory covers all 71 registered read modules; actual source-level
+certification is complete for eight only. The remaining entries explicitly retain
+`audit_complete: false` and cannot be used by the new single-source read boundary.
+
+| State | Sources |
+| --- | ---: |
+| CERTIFIED_PARTIAL | 8 |
+| NOT_ELIGIBLE_COMPLETENESS | 58 |
+| NOT_ELIGIBLE_OTHER (disabled rollout) | 5 |
+
+The eight partial sources are maintenance, security incidents, visitors, and the
+Office snapshot projections for leads, opportunities, report approvals, development
+projects and financial estates. `CapabilityService.readEvidence` reuses existing
+registration, authority and collectors; it never invokes response/action execution.
+It is not called by ordinary conversation and implements no planner or fan-out.
+
+### Scope and truth findings
+
+- Maintenance, security and visitors enforce Facility estate scope or verified
+  Consumer estate/home scope. Building, room and exact-record requests are rejected
+  before collection. Homes have a canonical building relationship, but these
+  collectors do not join it; estate evidence is therefore never certified as
+  building-complete. No label-derived membership was added.
+- Real local Supabase isolation tests inserted distinctive Resident B rows in all
+  three sources. Resident A records, counts, zero/completeness and truncation were
+  unchanged. All three inserted rows were removed. This proves these three sources,
+  not every Consumer source.
+- Operational empty collections prove zero only after successful scoped queries
+  with no unavailable sentinel. Nonempty collections remain partial conservatively;
+  reaching 50 also marks truncation. Zero describes the declared all-status source
+  population, not a newly invented attention/active-only query.
+- Office uses supplied permission-gated snapshots only. Absent sections mean
+  unavailable. Empty supplied subsets are partial, never global zero. Lists are
+  bounded to 50 before collector mapping. `20 of 39` is not complete.
+- Snapshot timestamps do not prove freshness: Office freshness remains unknown.
+  Explicit source lifecycle states identify resolved/historical vs active records;
+  unsupported states remain unknown. No importance ranking was introduced.
+- Public callers cannot access these operational/Office reads, even with a forged
+  private snapshot. Public knowledge/opportunity sources themselves remain uncertified.
+- Facility home-only device sources remain excluded; no home is manufactured.
+- Deadlines isolate/discard late results. Existing collectors do not accept query
+  cancellation, so timeout does not claim the underlying database work stopped.
+
+No additional ordinary-response false-zero fix was made in this continuation.
+The prior room-query truth fix remains intact. The exhaustive composition false-zero
+hunt and certification of cameras, devices, utilities, wallet, home/rooms, remaining
+Office and public sources remain outstanding.
+
+### Readiness accounting
+
+The generated conservative mapping accounts for all 133 planning rows:
+**64 PLANNER_READY_PARTIAL / 69 SOURCE_CONTRACT_BLOCKED**; all other categories zero.
+Readiness uses required domains, current authority, opted-in sources and unsupported
+subject/target rejection. It is not evidence of executed assessment planning or good
+judgment. Eight partial sources do not authorize beginning IQ-3B before this audit closes.
+
+### Reproducible validation
+
+```text
+node scripts/iq1-local-run.mjs script /tmp/iq3a-sources-frozen-final scripts/iq3a-source-certification.mjs
+node scripts/iq1-local-run.mjs script /tmp/iq3a-source-isolation-final scripts/iq3a-source-local-isolation.mjs
+node scripts/iq3a-evidence-outcome-smoke.mjs
+node scripts/iq1-local-run.mjs iq /tmp/iq3a-source-final-iq
+node scripts/iq1-local-run.mjs wave11 /tmp/iq3a-source-final-wave11
+node scripts/iq1-local-run.mjs adversarial /tmp/iq3a-source-final-safety
+node scripts/iq1-local-run.mjs script /tmp/iq3a-source-final-objective scripts/iq2-objective-smoke.mjs
+node scripts/iq1-regression-run.mjs /tmp/iq3a-source-final-regressions
+node scripts/iq3a-source-review.mjs
+npm run typecheck
+npm run build
+git diff --check
+```
+
+Source/authority/scope/snapshot tests: **162 PASS**. Outcome/deadline tests:
+**28 + 4 PASS**. Live local isolation: **3 sources PASS**. Build/typecheck PASS.
+IQ remains **51 PASS / 224 FAIL / 5 BLOCKED**, with identical answers/envelopes,
+280/280 persisted and trace-correlated. Wave 11 remains **131 PASS / 1 known FAIL**.
+IQ-1 adversarial and IQ-2 focused suites PASS. The 23-suite matrix remains
+**19 PASS / 4 FAIL**, with assertions matching stored pre-IQ1 controls. No failures
+are counted as passes. Frozen artifacts and expectations remain unchanged.
+
+Generated inventories, source hashes, raw-run hashes and validation evidence:
+`artifacts/intelligence-quality-v1-evidence-source-inventory.json` and
+`artifacts/intelligence-quality-v1-evidence-certification.json`.
+
+**IQ-3A NOT YET CERTIFIED** — source-level audit coverage remains incomplete.

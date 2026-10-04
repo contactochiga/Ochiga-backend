@@ -5,7 +5,9 @@ import { operationalMetrics } from "../../observability/metrics";
 import type { OisContext } from "../../types/oisContext";
 import type { OyiSurface } from "../../services/oyiUnifiedIntelligenceService";
 import type { CapabilityContext, CapabilityModule, CapabilityRolloutStatus } from "../contracts/capability";
-import type { OyiEvidence } from "../contracts/evidence";
+import type { OyiEvidence, EvidenceReadOutcome } from "../contracts/evidence";
+import { evidenceReadOutcome, withinEvidenceDeadline } from "../evidence/EvidenceReadOutcome";
+import { actorHasFacilityReadScope } from "../../intelligence-core/permissionEngine";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { capabilityRegistry } from "./CapabilityRegistry";
 import { capabilityEnabled } from "./CapabilityRollout";
@@ -242,6 +244,47 @@ export class CapabilityService {
 
   actorPermissions(actor: AuthUser | null) {
     return actorPermissions(actor);
+  }
+
+  // A single certified read, NOT assessment planning or fan-out. All ordinary
+  // conversation paths retain their existing behaviour until separately wired.
+  async readEvidence(key: string, context: CapabilityContext, timeoutMs = 2000): Promise<EvidenceReadOutcome> {
+    const module = capabilityRegistry.get(key);
+    const scope = scopeFrom(context);
+    const base = {
+      capability_key: key, domain: module?.domain || "unknown" as const,
+      requested_scope: scope, effective_scope: scope, authority: "allowed" as const,
+      scope: "enforced" as const, query_executed: false, availability: "unavailable" as const,
+      population: module?.evidence_read?.population || "uncertified_source",
+      complete: false, truncated: false, freshness: "unknown" as const, records: [],
+    };
+    const authority = this.canUse(key, { actor: context.actor, oisContext: context.oisContext, surface: context.input.surface, scope });
+    if (!authority.allowed || module?.risk_class !== "read") return evidenceReadOutcome({ ...base, authority: "denied" });
+    if (!module.evidence_read) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+    // Certified sources currently enforce estate OR home, not building/room.
+    if (scope.building_id || scope.room_id || context.resolvedTurn.target?.canonical_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+    const verified = context.oisContext;
+    if (!context.actor || !verified || verified.actor_id !== context.actor.id || verified.role !== context.actor.role) {
+      return evidenceReadOutcome({ ...base, authority: "denied" });
+    }
+    if (scope.estate_id !== verified.estate_id || (scope.home_id && scope.home_id !== verified.home_id)) {
+      return evidenceReadOutcome({ ...base, authority: "denied" });
+    }
+    if (module.evidence_read.kind === "office_snapshot") {
+      if (context.input.surface !== "office_internal") return evidenceReadOutcome({ ...base, authority: "denied" });
+      if (scope.estate_id || scope.home_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+    } else if (context.input.surface === "facility") {
+      if (!actorHasFacilityReadScope(context.actor.role)) return evidenceReadOutcome({ ...base, authority: "denied" });
+      if (scope.home_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+      if (!scope.estate_id) return evidenceReadOutcome({ ...base, scope: "insufficient" });
+    } else if (context.input.surface === "consumer") {
+      if (!scope.home_id || !scope.estate_id) return evidenceReadOutcome({ ...base, scope: "insufficient" });
+      if (context.actor.home_id !== scope.home_id || context.actor.estate_id !== scope.estate_id) return evidenceReadOutcome({ ...base, authority: "denied" });
+    } else return evidenceReadOutcome({ ...base, authority: "denied" });
+    const read = await withinEvidenceDeadline(() => module.evidence_read!.collect(context, scope), timeoutMs);
+    if (read.status !== "completed") return evidenceReadOutcome({ ...base, query_executed: true, availability: read.status });
+    const privacy = this.assertEvidenceAllowed(module, read.value.records, { actor: context.actor, oisContext: verified, surface: context.input.surface, scope });
+    return privacy.allowed ? read.value : evidenceReadOutcome({ ...base, query_executed: true, authority: "denied" });
   }
 }
 

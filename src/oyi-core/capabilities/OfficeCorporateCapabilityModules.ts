@@ -292,6 +292,7 @@ function crmLeadAttentionFact(lead: NonNullable<OperationalSnapshot["leads"]>["n
 function crmLeadsReadModule(): CapabilityModule {
   return readModule({
     key: "crm.leads.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_attention_lead_subset", snapshotField: "leads", snapshotRows: "needing_attention" },
     domain: "crm",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -404,6 +405,7 @@ function crmOpportunityStaleFact(opportunity: NonNullable<OperationalSnapshot["o
 function crmOpportunitiesReadModule(): CapabilityModule {
   return readModule({
     key: "crm.opportunities.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_stale_opportunity_subset", snapshotField: "opportunities", snapshotRows: "stale" },
     domain: "crm",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -484,6 +486,7 @@ function crmOpportunitiesReadModule(): CapabilityModule {
 function reportsApprovalsReadModule(): CapabilityModule {
   return readModule({
     key: "reports.approvals.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_pending_report_subset", snapshotField: "reports", snapshotRows: "pending_approval" },
     domain: "office_reports",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -548,6 +551,7 @@ function reportsApprovalsReadModule(): CapabilityModule {
 function developmentStatusReadModule(): CapabilityModule {
   return readModule({
     key: "development.status.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_development_projects", snapshotField: "development", snapshotRows: "projects" },
     domain: "office_development",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],
@@ -627,6 +631,7 @@ function developmentStatusReadModule(): CapabilityModule {
 function financialSummaryReadModule(): CapabilityModule {
   return readModule({
     key: "financial.summary.read",
+    certifiedSource: { module: "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts", population: "supplied_estate_financial_summaries", snapshotField: "financial", snapshotRows: "estates" },
     domain: "office_financial",
     operations: readOperations,
     supportedSurfaces: ["office_internal"],

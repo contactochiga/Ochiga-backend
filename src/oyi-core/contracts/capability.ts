@@ -1,6 +1,6 @@
 import type { AuthorityDecision } from "./authority";
 import type { DomainResult } from "./domainResult";
-import type { OyiEvidence } from "./evidence";
+import type { OyiEvidence, EvidenceReadOutcome, EvidenceReadScope } from "./evidence";
 import type { ResolvedTurn } from "./resolvedTurn";
 import type { SemanticFrame } from "./semanticFrame";
 import type { OyiAction } from "./action";
@@ -104,6 +104,14 @@ export interface CapabilityModule {
   supports(frame: SemanticFrame): boolean;
   resolve(context: CapabilityContext): Promise<CapabilityResolution>;
   collectEvidence(context: CapabilityContext): Promise<OyiEvidence[]>;
+  // Opt-in audited single-source boundary; absence means not planner eligible.
+  evidence_read?: {
+    kind: "operational_scope" | "office_snapshot";
+    source_module: string;
+    population: string;
+    source_limit: number;
+    collect(context: CapabilityContext, scope: EvidenceReadScope): Promise<EvidenceReadOutcome>;
+  };
   buildReadResponse?(context: CapabilityContext, evidence: OyiEvidence[]): Promise<DomainResult | ConversationRunResult>;
   createDraft?(context: CapabilityContext): Promise<DomainResult | ConversationRunResult>;
   authorize?(context: CapabilityContext): Promise<AuthorityDecision>;

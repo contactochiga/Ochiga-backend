@@ -2,6 +2,7 @@ import type { CapabilityContext, CapabilityModule, CapabilityPresentationPolicy,
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
+import { evidenceReadOutcome } from "../evidence/EvidenceReadOutcome";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 import type { OyiDomain } from "../runtime/languageUnderstanding";
 import type { PresentationPolicy } from "../contracts/presentation";
@@ -166,6 +167,7 @@ export type ReadModuleInput = {
   answer: (context: CapabilityContext, evidence: OyiEvidence[]) => Promise<DomainResult> | DomainResult;
   rolloutStatus?: CapabilityRolloutStatus;
   primary?: CapabilityPresentationPolicy["primary"];
+  certifiedSource?: { module: string; population: string; snapshotField?: string; snapshotRows?: string };
 };
 
 export function readModule(input: ReadModuleInput): CapabilityModule {
@@ -186,6 +188,48 @@ export function readModule(input: ReadModuleInput): CapabilityModule {
       return { supported: true, reason: null };
     },
     collectEvidence: input.collect,
+    evidence_read: input.certifiedSource ? {
+      kind: input.certifiedSource.snapshotField ? "office_snapshot" : "operational_scope",
+      source_module: input.certifiedSource.module,
+      population: input.certifiedSource.population,
+      source_limit: 50,
+      async collect(context, scope) {
+        const definition = input.certifiedSource!;
+        const requestContext = recordOf(context.input.context);
+        const snapshot = recordOf(requestContext.operational_snapshot);
+        const section = definition.snapshotField ? recordOf(snapshot[definition.snapshotField]) : null;
+        const snapshotRows = section && definition.snapshotRows ? section[definition.snapshotRows] : null;
+        const missingSnapshot = Boolean(definition.snapshotField && !Array.isArray(snapshotRows));
+        const boundedContext = definition.snapshotField && definition.snapshotRows && Array.isArray(snapshotRows)
+          ? { ...context, input: { ...context.input, context: { ...requestContext, operational_snapshot: { ...snapshot, [definition.snapshotField]: { ...section, [definition.snapshotRows]: snapshotRows.slice(0, 50) } } } } }
+          : context;
+        const collected = missingSnapshot ? [] : await input.collect(boundedContext);
+        // These snapshots have no canonical age/TTL proof. A date being present
+        // does not establish freshness; keep its observed_at without promotion.
+        const records = definition.snapshotField ? collected.map(r => ({ ...r, freshness: "unknown" as const })) : collected;
+        const lifecycle = records.map(record => {
+          const fact = recordOf(record.payload.fact);
+          const value = recordOf(fact.value || record.payload.lead || record.payload.opportunity || record.payload.project);
+          const status = text(value.status || value.stage).toLowerCase();
+          const expires = record.domain === "visitors" ? Date.parse(text(value.expires_at)) : NaN;
+          const historical = /^(resolved|closed|completed|cancelled|canceled|expired|exited|checked_out)$/.test(status)
+            || (record.domain === "visitors" && status === "inactive")
+            || (Number.isFinite(expires) && expires <= Date.now());
+          const active = /^(open|pending|in_progress|acknowledged|expected|approved|active|new|qualified|planning|review)$/.test(status);
+          return { evidence_id: record.evidence_id, relevance: historical ? "historical" as const : active ? "active" as const : "unknown" as const };
+        });
+        return evidenceReadOutcome({
+          capability_key: input.key, domain: input.domain, requested_scope: scope, effective_scope: scope,
+          authority: "allowed", scope: "enforced", query_executed: !missingSnapshot, availability: missingSnapshot ? "unavailable" : "available",
+          population: input.certifiedSource!.population,
+          // Array loaders lack count/pagination provenance. Non-empty must stay
+          // partial even below the query limit; failure sentinels block zero.
+          complete: !definition.snapshotField && records.length === 0,
+          truncated: records.length >= 50 || (Array.isArray(snapshotRows) && snapshotRows.length > 50),
+          freshness: !definition.snapshotField && records.length === 0 ? "current" : "unknown", records, lifecycle,
+        });
+      },
+    } : undefined,
     buildReadResponse: async (context, evidence) => input.answer(context, evidence),
   };
 }
@@ -651,6 +695,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
     }),
     readModule({
       key: "maintenance.requests.read",
+      certifiedSource: { module: "src/oyi-core/domains/maintenance/maintenanceEvidence.ts", population: "all_status_maintenance_in_authorized_scope" },
       domain: "maintenance",
       operations: ["list", "inspect", "inform"],
       supportedSurfaces: ["consumer", "facility"],
@@ -677,6 +722,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
     }),
     readModule({
       key: "visitors.pending.read",
+      certifiedSource: { module: "src/oyi-core/domains/visitors/visitorEvidence.ts", population: "all_status_visitor_access_in_authorized_scope" },
       domain: "visitors",
       operations: ["list", "inspect"],
       supportedSurfaces: ["consumer", "facility"],
@@ -703,6 +749,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
     }),
     readModule({
       key: "security.incidents.read",
+      certifiedSource: { module: "src/oyi-core/domains/security/securityEvidence.ts", population: "all_status_incidents_in_authorized_scope" },
       domain: "security",
       operations: ["list", "inspect"],
       supportedSurfaces: ["consumer", "facility"],
