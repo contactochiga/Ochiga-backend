@@ -32,6 +32,7 @@ const cases=[
  ['Does that change your view?','reassess'],['Would you still prioritize it?','reassess'],['Given that, what now?','reassess'],
  ['Who is coming today?','retrieve'],['Do you have a yesterday baseline?','assess'],
  ['Do not invent an owner.','assess'],['Draft a decision brief.','summarize'],['What can be delegated?','advise'],
+ ['Which resident is causing the problem?','assess'],['Would your approach be different?','compare'],
 ];
 for(const [prompt,objective]of cases)assert.equal(parseSemanticFrame(prompt).cognitiveObjective,objective,prompt);
 assert.equal(parseSemanticFrame('Would turning off the kitchen light help save energy?').mutationIntent,false);

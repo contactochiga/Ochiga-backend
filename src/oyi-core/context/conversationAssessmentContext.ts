@@ -57,6 +57,7 @@ export function assessmentContinuation(text: string): boolean {
     || /^\s*(?:is|does|would|could|can|will|has|are|do)\s+(?:that|this|it|those|these|they)\b/i.test(text)
     || /^\s*(?:and now|so|then what|still|which one|the (?:first|second|third) one)[?.! ]*$/i.test(text)
     || /\b(?:that|this|it|those|these|they|them|earlier|still|given that)\b/i.test(text)
+    || /\bthe (?:problem|issue|work|opportunity|project|room)\b/i.test(text)
     || (/\b(?:evidence|verification|uncertainty|missing|authority|authorization|measurement)\b/i.test(text)
       && !/\b(?:about|across|instead|i mean)\b/i.test(text))
     || isAssessmentInformation(text);
@@ -124,7 +125,8 @@ export function assessmentEvidenceAnswer(state: ConversationAssessmentContext, f
   const historical = /\b(?:yesterday|baseline|changed|earlier)\b/i.test(frame.rawText) ? " A comparison also requires a comparable earlier observation; current records alone do not prove a change." : "";
   const scope = /\b(?:tower|building|scope)\b/i.test(frame.rawText) ? " A building label is not a verified building scope; estate-wide records cannot establish that narrower view." : "";
   const policy = /\b(?:authority|authorization|confirmation)\b/i.test(frame.rawText) ? " Any proposed action must still pass its own permission, scope and confirmation checks; this assessment grants none." : "";
-  return `To ${job} ${subject}, ${need.charAt(0).toLowerCase()+need.slice(1)} I have not loaded additional sources or established a new recommendation.${references}${roomReference}${claim}${historical}${scope}${policy}`;
+  const attribution = /\b(?:who|which resident)\b.*\bcaus/i.test(frame.rawText) ? " Identifying a cause or a person responsible requires corroborating evidence; an open issue alone does not establish blame." : "";
+  return `To ${job} ${subject}, ${need.charAt(0).toLowerCase()+need.slice(1)} I have not loaded additional sources or established a new recommendation.${references}${roomReference}${claim}${historical}${scope}${policy}${attribution}`;
 }
 
 export function isAssessmentInformation(text: string): boolean {

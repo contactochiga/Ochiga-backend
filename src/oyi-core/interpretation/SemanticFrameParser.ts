@@ -20,7 +20,7 @@ export function cognitiveObjectiveFor(text: string): CognitiveObjective | null {
   if (!/\b(?:do not|don't)\s+change\b/i.test(text) && /\b(?:still|change|changed|changes|alter|affect|given that)\b/i.test(text)
     && /\b(?:view|priority|prioritize|recommendation|assessment|reasoning|explanation|anything|decision|ranking|do that|what now|come first)\b/i.test(text)) return "reassess";
   if (/^\s*(?:why\b|how come\b)/i.test(text)) return "explain";
-  if (/\b(?:compare|trade[- ]?offs?|more important|rather than|versus)\b|\bwhich\b.*\bbetter\b/i.test(text)) return "compare";
+  if (/\b(?:compare|trade[- ]?offs?|more important|rather than|versus)\b|\bwhich\b.*\bbetter\b|\b(?:would|could|is|does)\b.*\b(?:different|differ)\b/i.test(text)) return "compare";
   if (/\b(?:which|what)\b.*\b(?:discussing|did i.*correct)\b/i.test(text)) return "explain";
   if (/\b(?:which|what)\b.*\b(?:choose|come first|worth pursuing|most useful|most important|order of work)\b|\b(?:give|offer)\b.*\border of work\b|\bmatters? most\b/i.test(text)) return "prioritize";
   if (/\b(?:summari[sz]e|summary|handover|decision brief|short version)\b/i.test(text)) return "summarize";

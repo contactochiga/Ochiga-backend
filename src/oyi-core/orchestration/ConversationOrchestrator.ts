@@ -3742,7 +3742,7 @@ export class ConversationOrchestrator {
       const boundedDomainAssessment = ["assess", "advise", "prioritize"].includes(frame.cognitiveObjective || "") && selection.authority?.allowed
         && ["facility.overview.read", "home.summary.read"].includes(selection.capability?.key || "")
         && (assessment.subject_domains!.length > 1 || assessment.subject_domains!.every(d => (declaredRead?.evidence_requirements || []).some(e => e.domain === d)))
-        && !/\b(?:stale|broken|verify|replac|authorization|unknown|missing|not be attempted|scope|privacy)\w*\b/i.test(frame.rawText);
+        && !/\b(?:stale|broken|verify|replac|authorization|unknown|missing|not be attempted|scope|privacy|caus)\w*\b/i.test(frame.rawText);
       const existingBoundedAnalysis = ["anomalies.read", "recommendations.read", "automations.list.read"].includes(declaredRead?.key || "")
         && declaredRead?.supported_surfaces?.includes(context.input.surface)
         && (!previousAssessment || assessment.subject_domains!.length > 1 || (declaredRead?.key === "automations.list.read" && assessment.subject_domains?.includes("automations")));
