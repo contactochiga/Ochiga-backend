@@ -1,4 +1,6 @@
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
+import { isCancellationUtterance } from "../interpretation/SemanticFrameParser";
+import { isTerminalWorkflowStatus } from "../workflows/WorkflowStateMachine";
 import type { DomainResult } from "../contracts/domainResult";
 import type { PresentationPolicy } from "../contracts/presentation";
 import type { SemanticFrame } from "../contracts/semanticFrame";
@@ -318,6 +320,11 @@ async function resolveTargetForAction(context: CapabilityContext, workflow: OyiW
 }
 
 export async function createOrContinueDeviceActionDraft(context: CapabilityContext, workflow: OyiWorkflow | null = null, options: { requested?: unknown } = {}): Promise<DomainResult> {
+  // Defence at the proposal boundary as well as ingress. A stale adapter or
+  // an explicitly supplied requested-state must not revive a terminal intent.
+  if (isCancellationUtterance(context.input.message) || (workflow && isTerminalWorkflowStatus(workflow.status))) {
+    return { status: "unsupported", answer: "That device intent cannot be continued. No device command was sent.", presentation_policy: { ...clarificationPresentation(), primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [] } };
+  }
   deviceActionTrace("oyi_device_action_request_started", context, {
     workflow_id: workflow?.workflow_id || null,
     workflow_status: workflow?.status || null,

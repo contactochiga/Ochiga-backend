@@ -210,7 +210,7 @@ function composeGenericRequirementsAnswer(objective: PublicOpportunityObjective)
   return `Here's what I have so far -- ${known}.${constraintsText} If there's anything specific you'd like us to know before someone follows up, feel free to share it -- otherwise I can arrange for someone to reach out.`;
 }
 
-async function composeCallbackAnswer(context: CapabilityContext, objective: PublicOpportunityObjective | null): Promise<{ answer: string; metadata: Record<string, unknown> }> {
+async function composeCallbackAnswer(context: CapabilityContext, objective: PublicOpportunityObjective | null): Promise<{ status: "answered" | "unavailable"; answer: string; metadata: Record<string, unknown> }> {
   const summary = objective
     ? `Public opportunity inquiry (${objective.objective_type}): ${Object.entries(objective.known_facts).map(([key, value]) => `${key}=${value}`).join(", ") || "no details yet"}${objective.constraints.length ? `; constraints: ${objective.constraints.join(", ")}` : ""}`
     : "Public inquiry requesting a callback with no prior details captured in this conversation.";
@@ -222,10 +222,19 @@ async function composeCallbackAnswer(context: CapabilityContext, objective: Publ
     reason: summary,
     priority: "normal",
   });
-  const answer = result.ok
-    ? "Thanks -- I've passed this to our team and someone will be in touch with you directly."
-    : "Thanks -- I've noted this, and a member of our team will follow up with you.";
-  return { answer, metadata: { office_handoff_requested: true, office_handoff_ok: result.ok } };
+  // Acceptance is not a booked call or a guarantee of future contact. Even a
+  // successful transport needs an acknowledged handoff receipt.
+  const accepted = result.ok && Boolean(result.handoff_id) && !/failed|rejected|cancelled/i.test(`${result.status} ${result.routing_status}`);
+  const answer = accepted
+    ? "The team has received your callback request. A call has not been booked or confirmed."
+    : "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact."
+      + (objective ? " Your opportunity details remain in this conversation; you don't need to start again." : "");
+  return { status: accepted ? "answered" : "unavailable", answer, metadata: {
+    office_handoff_requested: true, office_handoff_ok: accepted,
+    office_handoff_status: accepted ? "accepted" : "unavailable",
+    office_handoff_id: result.ok ? result.handoff_id || null : null,
+    office_handoff_retryable: !accepted,
+  } };
 }
 
 const CORPORATE_JV_STRUCTURE_FALLBACK =
@@ -274,11 +283,11 @@ export function publicOpportunityReadModule(): CapabilityModule {
       }
 
       if (isCallbackRequest(message)) {
-        const { answer, metadata } = await composeCallbackAnswer(context, prior);
+        const { status, answer, metadata } = await composeCallbackAnswer(context, prior);
         // A callback request doesn't change the objective -- preserve it
         // verbatim rather than letting persistence's undefined-fallback
         // reload path run twice.
-        return { status: "answered", answer, presentation_policy: resultPresentation("text"), metadata: { ...metadata, public_opportunity_objective: prior } };
+        return { status, answer, presentation_policy: resultPresentation("text"), metadata: { ...metadata, public_opportunity_objective: prior } };
       }
 
       if (isRequirementsCheck(message)) {

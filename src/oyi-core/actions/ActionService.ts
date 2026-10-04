@@ -4,6 +4,7 @@ import type { OyiWorkflow } from "../contracts/workflow";
 import type { CanonicalTarget } from "../contracts/target";
 import { actionIdempotencyKey } from "./ActionIdempotency";
 import { assertActionTransition, isTerminalActionStatus } from "./ActionStateMachine";
+import { isTerminalWorkflowStatus } from "../workflows/WorkflowStateMachine";
 import type { ActionRepository } from "./ActionRepository";
 import { InMemoryActionRepository, SupabaseActionRepository } from "./ActionRepository";
 import { logger } from "../../observability/logger";
@@ -102,6 +103,9 @@ export class ActionService {
     requestedOperation: string;
     requestedState: unknown;
   }) {
+    if (isTerminalWorkflowStatus(input.workflow.status)) {
+      throw new Error("Cannot create an action for a terminal workflow");
+    }
     const draft = createActionForWorkflow(input);
     const existing = await this.repository.findActiveEquivalent(draft.idempotency_key);
     if (existing) {

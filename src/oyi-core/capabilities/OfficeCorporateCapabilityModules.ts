@@ -168,9 +168,13 @@ function summarizeListAnswer(input: {
     sentence += ` out of ${input.totalCount} ${input.totalQualifier || plural}`;
   }
   sentence += ".";
-  const categories = (input.categories || []).filter((c) => c.count > 0);
+  const categories = (input.categories || []).filter((c) => Number.isInteger(c.count) && c.count > 0 && c.count <= input.count);
   if (categories.length === 1) {
-    sentence += ` All ${categories[0].label}.`;
+    // The applicable total is the returned subset, not all open records.
+    // One known category does not prove that uncategorized records share it.
+    sentence += categories[0].count === input.count
+      ? ` All ${categories[0].label}.`
+      : ` ${categories[0].count} ${categories[0].label}.`;
   } else if (categories.length >= 2) {
     const parts = categories.slice(0, 3).map((c) => `${c.count} ${c.label}`);
     sentence += ` ${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}.`;
@@ -334,7 +338,8 @@ function crmLeadsReadModule(): CapabilityModule {
       // them for an honest "why" breakdown instead of restating every
       // lead's own reason text in prose (that's what the table is for).
       const overdueCount = items.filter((lead) => /^next action overdue/i.test(lead.reason)).length;
-      const noRecentContactCount = items.filter((lead) => !/^next action overdue/i.test(lead.reason)).length;
+      const noRecentContactCount = items.filter((lead) => /^no (?:recent communication|activity in \d+ days?)\b/i.test(lead.reason)).length;
+      const noRecordedContactCount = items.filter((lead) => /^no recorded contact yet\b/i.test(lead.reason)).length;
       return {
         status: "answered",
         answer: summarizeListAnswer({
@@ -345,6 +350,7 @@ function crmLeadsReadModule(): CapabilityModule {
           categories: [
             { label: overdueCount === 1 ? "has an overdue follow-up" : "have overdue follow-ups", count: overdueCount },
             { label: noRecentContactCount === 1 ? "has had no recent communication" : "have had no recent communication", count: noRecentContactCount },
+            { label: noRecordedContactCount === 1 ? "has no recorded contact yet" : "have no recorded contact yet", count: noRecordedContactCount },
           ],
         }),
         blocks: [
@@ -434,7 +440,7 @@ function crmOpportunitiesReadModule(): CapabilityModule {
       if (!items.length) {
         return {
           status: "empty",
-          answer: `All ${totalOpen} open opportunit${totalOpen === 1 ? "y" : "ies"} have been followed up recently — none are stale.`,
+          answer: `No opportunities are flagged as stale in this snapshot (${totalOpen} open in total). This does not establish when each was last followed up.`,
           presentation_policy: resultPresentation("list"),
           metadata: { total_open: totalOpen },
         };
@@ -447,7 +453,7 @@ function crmOpportunitiesReadModule(): CapabilityModule {
           itemLabel: "opportunity",
           itemLabelPlural: "opportunities",
           categories: longStaleCount
-            ? [{ label: longStaleCount === 1 ? "hasn't had activity in over two weeks" : "haven't had activity in over two weeks", count: longStaleCount }]
+            ? [{ label: longStaleCount === 1 ? "hasn't had activity in at least two weeks" : "haven't had activity in at least two weeks", count: longStaleCount }]
             : [],
         }),
         blocks: [

@@ -2,7 +2,7 @@ import type { CanonicalConversationRequestContext, ConversationRunResult } from 
 import type { CanonicalTruth, ConversationBuilderKey } from "../contracts/canonicalConversation";
 import type { DomainResult } from "../contracts/domainResult";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
-import { parseSemanticFrame } from "../interpretation/SemanticFrameParser";
+import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/SemanticFrameParser";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
 import { ConversationTracer } from "../observability/ConversationTracer";
@@ -220,7 +220,7 @@ function isConfirmationText(message: unknown) {
 }
 
 function isCancellationText(message: unknown) {
-  return /^(?:cancel(?:\s+that)?|never\s?mind|actually,?\s+(?:do\s+not|don'?t)(?:\s+(?:send|do)\s+it)?|don'?t\s+do\s+(?:it|that)|do\s+not\s+do\s+(?:it|that)|stop)\W*$/i.test(String(message ?? "").trim());
+  return isCancellationUtterance(message);
 }
 
 function isContinueText(message: unknown) {
@@ -299,7 +299,7 @@ async function durableWorkflowContinuationResult(context: CanonicalConversationR
   const actionId = String(workflow.action_id || "");
   if (isCancellationText(context.input.message)) {
     const action = actionId ? await actionService.get(actionId) : null;
-    if (action && action.status === "awaiting_confirmation") await actionService.cancel(action, context.actor?.id || null);
+    if (action && ["draft", "awaiting_confirmation", "approved"].includes(action.status)) await actionService.cancel(action, context.actor?.id || null);
     const cancelled = await workflowService.cancel(workflow);
     return {
       status: "answered",
@@ -3552,7 +3552,7 @@ export class ConversationOrchestrator {
     // active, "Turn it off." is a FRESH command that must still reach
     // devices.power.control to create one (see the required continuity
     // journey), not a confirmation of something that doesn't exist yet.
-    if (!activeWorkflow && context.input.surface === "consumer" && context.input.thread_id && !/^turn it (?:on|off)\W*$/i.test(text(context.input.message)) && (isConfirmationText(context.input.message) || isCancellationText(context.input.message))) {
+    if (!activeWorkflow && ["consumer", "facility"].includes(context.input.surface) && (isCancellationText(context.input.message) || (context.input.thread_id && !/^turn it (?:on|off)\W*$/i.test(text(context.input.message)) && isConfirmationText(context.input.message)))) {
       const capability = syntheticOfficeActionCapability("consumer.nothing_pending", "global");
       const result: DomainResult = {
         status: "answered",

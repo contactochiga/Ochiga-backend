@@ -7,6 +7,16 @@ import { resolveTemporalScope } from "./TemporalResolver";
 const ROOM_PATTERN = /\b(Bedroom\s*\d+|living room|master bedroom|kitchen|bathroom|room\s+\d+)\b/i;
 const DEVICE_PATTERN = /\b([A-Za-z0-9' -]+?(?:light|switch|socket|plug|tv|air conditioner|ac|camera|channel\s*\d+))\b/i;
 
+// Shared by interpretation and device workflow continuation: a negated power
+// instruction must never become a positive command while cancellation fails
+// to recognize it. This is an intent veto, not an execution permission.
+export function isCancellationUtterance(message: unknown): boolean {
+  const text = String(message ?? "").trim().replace(/[’‘]/g, "'").replace(/^(?:(?:actually|please)[,\s]+)+/i, "");
+  return /^(?:cancel(?:\s+(?:(?:any|the|this|that|my)\s+)?(?:pending\s+)?(?:proposal|action|command|request|draft))?|cancel\s+that|never\s?mind|no|(?:do\s+not|don'?t)(?:\s+(?:send|do)\s+(?:it|that))?|stop)\W*$/i.test(text)
+    || /^(?:no[,\s]+)?(?:please\s+)?(?:do\s+not|don'?t|never)\s+(?:turn|switch)\b/i.test(text)
+    || /^(?:do\s+not|don'?t)\s+(?:do|send)\s+(?:it|that)(?:[.;,!?]|$)/i.test(text);
+}
+
 function deviceOperation(text: string): SemanticOperation | null {
   if (/\bturn\s+on|switch\s+on\b/i.test(text)) return "device.power.on";
   if (/\bturn\s+off|switch\s+off\b/i.test(text)) return "device.power.off";
@@ -24,6 +34,7 @@ function deviceOperation(text: string): SemanticOperation | null {
 }
 
 function operationFor(text: string, fallback: string): SemanticOperation {
+  if (isCancellationUtterance(text)) return "cancel";
   const device = deviceOperation(text);
   if (device) return device;
   if (/\b(wallet|transactions?)\b.*\b(history|transactions?|recent)\b|\bshow wallet history\b|\brecent transactions?\b/i.test(text)) return "wallet.history";
@@ -109,6 +120,6 @@ export function parseSemanticFrame(rawText: unknown): SemanticFrame {
     confidence: primaryEntity ? Math.max(0.75, primaryEntity.confidence) : 0.72,
     ambiguity: { required: false, reason: null, candidates: [] },
     corrections: normalized.corrections,
-    mutationIntent: normalized.mutation_intent || operation.startsWith("device.power."),
+    mutationIntent: operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
   };
 }
