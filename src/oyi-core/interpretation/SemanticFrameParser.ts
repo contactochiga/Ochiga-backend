@@ -4,7 +4,7 @@ import { normalizeLanguage } from "./LanguageNormalizer";
 import { resolveReferences } from "./ReferenceResolver";
 import { resolveTemporalScope } from "./TemporalResolver";
 
-const ROOM_PATTERN = /\b(Bedroom\s*\d+|living room|master bedroom|kitchen|bathroom|room\s+\d+)\b/i;
+const ROOM_PATTERN = /\b(Bedroom(?:\s*\d+)?|living room|master bedroom|kitchen|bathroom|study|room\s+\d+)\b/i;
 const DEVICE_PATTERN = /\b([A-Za-z0-9' -]+?(?:light|switch|socket|plug|tv|air conditioner|ac|camera|channel\s*\d+))\b/i;
 
 export function isCapabilityInquiry(text: string): boolean {
@@ -15,6 +15,27 @@ export function isCapabilityInquiry(text: string): boolean {
 // question forms are independent of domain vocabulary and never grant action.
 export function cognitiveObjectiveFor(text: string): CognitiveObjective | null {
   if (isCancellationUtterance(text) || isCapabilityInquiry(text)) return null;
+  // Grammatical families precede incidental domain words. A question about
+  // a recommendation is not an instruction to perform its referenced action.
+  if (!/\b(?:do not|don't)\s+change\b/i.test(text) && /\b(?:still|change|changed|changes|alter|affect|given that)\b/i.test(text)
+    && /\b(?:view|priority|prioritize|recommendation|assessment|reasoning|explanation|anything|decision|ranking|do that|what now|come first)\b/i.test(text)) return "reassess";
+  if (/^\s*(?:why\b|how come\b)/i.test(text)) return "explain";
+  if (/\b(?:compare|trade[- ]?offs?|more important|rather than|versus)\b|\bwhich\b.*\bbetter\b/i.test(text)) return "compare";
+  if (/\b(?:which|what)\b.*\b(?:discussing|did i.*correct)\b/i.test(text)) return "explain";
+  if (/\b(?:which|what)\b.*\b(?:choose|come first|worth pursuing|most useful|most important|order of work)\b|\b(?:give|offer)\b.*\border of work\b|\bmatters? most\b/i.test(text)) return "prioritize";
+  if (/\b(?:summari[sz]e|summary|handover|decision brief|short version)\b/i.test(text)) return "summarize";
+  if (/\b(?:draft|compose)\b|\b(?:turn|put)\b.*\binto\b.*\b(?:recommendation|brief|summary)\b/i.test(text)) return "advise";
+  if (/\b(?:recommend|suggest|advise|delegate|delegated|next step|next move|next action)\b|\b(?:offer|give)\b.*\b(?:safe way|reason)\b/i.test(text)) return "advise";
+  // Evidence audits, epistemic constraints and implicit routine assessment.
+  if (/\b(?:do|does|can|could|have|has|is|are)\b.*\b(?:know|known|observe|verify|confirmed|baseline|scope|conclude|evidence|reading|arrived|physically changed)\b/i.test(text)
+    || /\b(?:which|what)\b.*\b(?:information|missing|unknown|known|uncertainty|actually tell|say estate|deserves? attention|care about)\b/i.test(text)
+    || /\b(?:do not|don't|separate)\b.*\b(?:invent|claim|report|promise|observed|uncertainty)\b/i.test(text)
+    || /\bask me before\b|\b(?:too hot|too cold|feels? (?:hot|cold|unsafe))\b|\bwhich\b.*\bcausing\b/i.test(text)
+    || /\b(?:i am|i'm)\s+(?:going to bed|leaving (?:the )?home)\b/i.test(text)
+    || /\b(?:is|are|should)\b.*\b(?:worth|secure|safe|okay|ok|worry|important|still open)\b/i.test(text)
+    || /\b(?:what matters|anything important|what do you think|what'?s your view|what is your view)\b/i.test(text)) return "assess";
+  if (/\bwho\b.*\b(?:expected|coming|owns?|own the work)\b|\bwhich room\b.*\bdiscuss/i.test(text)) return "retrieve";
+  if (/\b(?:can|could|would|should)\s+(?:we|i|you)\b.*\b(?:pursue|proceed|promise|commit|investigate)\b/i.test(text)) return "advise";
   if (/^\s*would you (?:please )?(?:turn|switch)\b.*\b(?:on|off)\b/i.test(text)) return null;
   if (/^(?:please\s+)?(?:show|list|find|get|open|inspect)\b/i.test(text)) return "retrieve";
   if (/\b(?:recommendation|priority|assessment|reasoning)\b.*\bchange[ds]?\b|\bwhat changed in\b/i.test(text)) return "reassess";
@@ -144,8 +165,10 @@ export function parseSemanticFrame(rawText: unknown): SemanticFrame {
   // may discuss a device without creating a confirmable power proposal.
   const advisory = cognitiveObjective !== null && !["retrieve", "summarize"].includes(cognitiveObjective);
   const meaningCorrection = /\bnot what i (?:mean|meant)\b/i.test(normalized.normalized_text);
-  const operation = meaningCorrection ? "clarify" : advisory && parsedOperation.startsWith("device.power.") ? "inform" : parsedOperation;
-  const domain = domainFor(intended.normalized_text, intended.domain, operation)
+  const operation = meaningCorrection ? "clarify" : /\b(?:draft|compose)\b/i.test(normalized.normalized_text) && cognitiveObjective ? "compose" : advisory && parsedOperation.startsWith("device.power.") ? "inform"
+    : /\b(?:show|list)\b.*\b(?:spent|spending)\b/i.test(normalized.normalized_text) && !/\b(?:utilities|electricity|water)\b/i.test(normalized.normalized_text) ? "wallet.history" : parsedOperation;
+  const domain = /\bwho\b.*\b(?:expected|coming)\b/i.test(normalized.normalized_text) ? "visitors"
+    : domainFor(intended.normalized_text, intended.domain, operation)
     || (correctedScope && /\bdevelopments?\b/i.test(correctedScope) ? "corporate_development" : null);
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);
@@ -161,7 +184,7 @@ export function parseSemanticFrame(rawText: unknown): SemanticFrame {
     confidence: primaryEntity ? Math.max(0.75, primaryEntity.confidence) : 0.72,
     ambiguity: { required: false, reason: null, candidates: [] },
     corrections: normalized.corrections,
-    mutationIntent: !meaningCorrection && !advisory && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
+    mutationIntent: !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
     cognitiveObjective,
     capabilityInquiry: isCapabilityInquiry(normalized.normalized_text),
   };

@@ -265,7 +265,7 @@ export function publicOpportunityReadModule(): CapabilityModule {
     operations: ["inform", "inspect", "summarize", "reject"],
     supportedSurfaces: ["public_corporate"],
     permissions: [],
-    evidenceRequirements: [],
+    evidenceRequirements: [{ domain: "corporate_opportunity", evidence_type: "public_opportunity_objective", freshness: ["unknown"], required: false }],
     supports: (frame: SemanticFrame) => frame.domain === "corporate_opportunity",
     collect: async (context) => {
       const objective = await loadPublicOpportunityObjective(text(context.input.thread_id));
@@ -294,7 +294,7 @@ export function publicOpportunityReadModule(): CapabilityModule {
       // Existing bounded qualification assessment; no company commitment,
       // new evidence source, provider call or autonomous goal. Caller facts
       // remain caller-supplied, not verified title/financing evidence.
-      if (prior && isAssessmentObjective(context.resolvedTurn.semantic_frame.cognitiveObjective)) {
+      if (prior && (isAssessmentObjective(context.resolvedTurn.semantic_frame.cognitiveObjective) || context.resolvedTurn.semantic_frame.cognitiveObjective === "summarize")) {
         const requirements = prior.objective_type === "development_partnership"
           ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
         return { status: "answered", answer: `Based on what you've told me, not independent verification: ${requirements} This is preliminary qualification, not a commitment by Ochiga to proceed.`,

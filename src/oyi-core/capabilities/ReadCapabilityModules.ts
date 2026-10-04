@@ -290,7 +290,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       supportedSurfaces: ["consumer", "facility", "office_internal", "public_corporate"],
       permissions: [],
       evidenceRequirements: [],
-      supports: (frame) => frame.domain === "global" && /\bwhat can you do|help|capabilit/i.test(frame.normalizedText),
+      supports: (frame) => frame.capabilityInquiry === true || (!frame.cognitiveObjective && frame.domain === "global" && /\bwhat can you do|help|capabilit/i.test(frame.normalizedText)),
       collect: async () => [],
       answer: () => ({ status: "answered", answer: "Capability listing is generated from the registry.", presentation_policy: resultPresentation("list") }),
       primary: "list",

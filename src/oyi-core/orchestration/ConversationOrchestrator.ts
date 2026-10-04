@@ -3,7 +3,7 @@ import type { CanonicalTruth, ConversationBuilderKey } from "../contracts/canoni
 import type { DomainResult } from "../contracts/domainResult";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/SemanticFrameParser";
-import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective, isAssessmentInformation } from "../context/conversationAssessmentContext";
+import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective, isAssessmentInformation, assessmentContinuation, assessmentSubjectDomains, assessmentEvidenceRequirements, assessmentEvidenceAnswer, ASSESSMENT_TTL_MS } from "../context/conversationAssessmentContext";
 import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
@@ -3381,7 +3381,7 @@ export class ConversationOrchestrator {
     ensureRegistered();
     const parsedFrame = parseSemanticFrame(context.input.message);
     const publicAssessment = context.input.surface === "public_corporate"
-      && isAssessmentObjective(parsedFrame.cognitiveObjective) && !parsedFrame.mutationIntent
+      && (isAssessmentObjective(parsedFrame.cognitiveObjective) || parsedFrame.cognitiveObjective === "summarize") && !parsedFrame.mutationIntent
       && !/\b(?:leads?|investors?|internal|private|staff)\b/i.test(parsedFrame.rawText)
       && await loadPublicOpportunityObjective(context.input.thread_id);
     const planReview = context.input.surface === "office_internal" && normalizePlanReviewContext((context.input.context as any)?.plan_review_context);
@@ -3695,45 +3695,70 @@ export class ConversationOrchestrator {
     // cancellations or pending governed workflows handled above. No new
     // retrieval, capability key or authority is introduced here.
     const previousAssessment = await loadConversationAssessment(context.input, context.actor?.id || null).catch(() => null);
-    const assessment = nextConversationAssessment(previousAssessment, frame, context.input.surface);
+    let assessment = nextConversationAssessment(previousAssessment, frame, context.input.surface);
     if (assessment && !frame.mutationIntent && frame.operation !== "cancel") {
       const selection = capabilityService.resolve({ ...context, resolvedTurn });
+      const eligibleReads = capabilityRegistry.enabled().filter(m => m.risk_class === "read"
+        && capabilityService.canUse(m.key, { actor: context.actor, oisContext: context.oisContext, surface: context.input.surface }).allowed);
+      const currentSet = await loadThreadResultSetContext(context.input.thread_id);
+      const usableSet = currentSet && Date.now() - Date.parse(currentSet.created_at) >= 0 && Date.now() - Date.parse(currentSet.created_at) < ASSESSMENT_TTL_MS
+        && eligibleReads.some(m => m.key === currentSet.capability_key) ? currentSet : null;
+      if (context.input.surface === "office_internal" && frame.domain === "messages" && /\b(?:reply|response|draft)\b/i.test(frame.rawText)) {
+        const draft = await loadDraftCommunication(context.input.thread_id, context.actor?.id);
+        if (draft || usableSet) {
+          // Scope only: a record list does not establish a recipient or
+          // restore a cancelled send. Those remain governed draft state.
+          assessment.subject_domains = [draft?.target_domain || usableSet!.domain];
+          assessment.domain = assessment.subject_domains[0];
+          assessment.subject_label = draft ? draft.target_label : "reply target not confirmed";
+        }
+      }
+      if (!previousAssessment && usableSet && (assessmentContinuation(frame.rawText) || /\bwhich\s+(?:one|two|three|ones)\b/i.test(frame.rawText)) && !assessmentSubjectDomains(frame, context.input.surface).length) {
+        assessment.subject_domains = [usableSet.domain]; assessment.domain = usableSet.domain;
+      }
+      // A selected record can seed an assessment, but a raw list cannot stand
+      // in for a derived ranked set. Later claims bind only to this pointer.
+      if (!previousAssessment && usableSet?.selected_object_ref && assessment.subject_domains?.includes(usableSet.domain)) {
+        assessment.target_ref = usableSet.selected_object_ref;
+      }
+      const assertionTypeMatches = !/\b(?:other|another|different)\b/i.test(frame.rawText)
+        && (!/\b(?:project|development)\b/i.test(frame.rawText)
+          || /project|development/i.test(assessment.target_ref?.object_type || ""));
+      if (isAssessmentInformation(frame.rawText) && assessment.target_ref && assertionTypeMatches) {
+        assessment.material_information = { text: frame.rawText.slice(0, 1000), target_id: assessment.target_ref.canonical_id, source: "user_assertion" };
+        assessment.pending_information = null;
+      }
+      if (isAssessmentInformation(frame.rawText) && !assertionTypeMatches) assessment.target_ref = null;
+      assessment = assessmentEvidenceRequirements(assessment, eligibleReads, [...assessment.available_evidence_domains || [], ...usableSet ? [usableSet.domain] : []]);
       // Existing bounded domain evidence/assessment remains available for a
       // fresh question. A continuation must not silently substitute an older
       // raw list for a derived assessment that has never been established.
       const declaredRead = selection.capability || selection.matched_capability;
-      const sameDerivedResult = previousAssessment?.result_set_id && !frame.cognitiveObjective
+      const sameDerivedResult = previousAssessment?.result_set_id && !frame.cognitiveObjective && !isAssessmentInformation(frame.rawText)
         && (await loadThreadResultSetContext(context.input.thread_id))?.result_set_id === previousAssessment.result_set_id;
       const existingObjectExplanation = !previousAssessment && frame.cognitiveObjective === "explain"
         && !/\b(?:second|third|others|rather than|more important)\b/i.test(frame.rawText)
         && (await loadThreadResultSetContext(context.input.thread_id))?.selected_object_ref;
       const boundedDomainAssessment = ["assess", "advise", "prioritize"].includes(frame.cognitiveObjective || "") && selection.authority?.allowed
-        && ["facility.overview.read", "home.summary.read"].includes(selection.capability?.key || "");
-      const existingBoundedAnalysis = ["anomalies.read", "recommendations.read"].includes(declaredRead?.key || "")
-        && declaredRead?.supported_surfaces?.includes(context.input.surface);
+        && ["facility.overview.read", "home.summary.read"].includes(selection.capability?.key || "")
+        && (assessment.subject_domains!.length > 1 || assessment.subject_domains!.every(d => (declaredRead?.evidence_requirements || []).some(e => e.domain === d)))
+        && !/\b(?:stale|broken|verify|replac|authorization|unknown|missing|not be attempted|scope|privacy)\w*\b/i.test(frame.rawText);
+      const existingBoundedAnalysis = ["anomalies.read", "recommendations.read", "automations.list.read"].includes(declaredRead?.key || "")
+        && declaredRead?.supported_surfaces?.includes(context.input.surface)
+        && (!previousAssessment || assessment.subject_domains!.length > 1 || (declaredRead?.key === "automations.list.read" && assessment.subject_domains?.includes("automations")));
       const existingRelativePrioritization = !previousAssessment && parseFollowUpIntent(frame.rawText)?.type === "prioritize"
         && await loadThreadResultSetContext(context.input.thread_id);
       const existingOfficeOverview = !previousAssessment && context.input.surface === "office_internal"
         && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
       if (!publicAssessment && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis && !existingRelativePrioritization) {
-        const needsReference = /\b(?:second|third|that project|that opportunity|that one)\b/i.test(frame.rawText);
         // Acknowledging an objective grants no evidence access. Do not turn a
         // lexical match to an unrelated restricted capability into a claim
         // that the user's assessment question itself is forbidden.
-        const answer = frame.operation === "clarify"
-            ? "What did you mean to assess? I won't turn that correction into an action."
-          : isAssessmentInformation(frame.rawText)
-            ? "That is information from you, not independently verified evidence. Which item should I attach it to for this assessment? I won't assign it to an older unrelated result."
-          : needsReference
-            ? "I haven't established a ranked assessment to identify that item. Which item do you mean? I won't substitute an older list or attach new information to an unconfirmed target."
-            : assessment.objective === "reassess"
-              ? "I understand you want to revisit the assessment. I haven't established a supported recommendation yet, so I can't claim its priority has changed. We need the relevant current evidence and a confirmed subject first."
-              : assessment.objective === "explain" || assessment.objective === "compare"
-                ? "You're asking for the reasoning behind the assessment. I can't confirm a supported comparison from the context available for this question; an earlier list alone doesn't prove which item matters more."
-                : "You're asking for an assessment, not a list of capabilities. I can't confirm a recommendation from the relevant current evidence yet. We need to establish that evidence before I can say what matters most or what you should do next.";
+        const answer = assessmentEvidenceAnswer(assessment, frame);
         let response = await canonicalUnavailableFallback({ ...context, resolvedTurn }, "assessment_evidence_needed", { status: "unavailable", answer });
-        response.execution = { ...response.execution, cognitive_objective: assessment.objective,
+        response.execution = { ...response.execution, cognitive_objective: frame.cognitiveObjective || assessment.objective,
           assessment_status: "evidence_needed", current_turn_execution: false,
+          assessment_context: assessment,
           orchestrator_v2: { semantic_frame: frame, resolved_turn: resolvedTurn, resolution_outcome: "intentionally_unsupported", capability_key: null } };
         tracer.stage("canonical_terminal_response", { cognitive_objective: assessment.objective, domain: assessment.domain, evidence_count: 0, outcome: "assessment_pending", reason: "assessment_evidence_needed" });
         response = await persistTerminalConversationResponse(context, response, response.truth, resolvedTurn, "assessment_evidence_needed");

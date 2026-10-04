@@ -1,6 +1,7 @@
 import type { CognitiveObjective, SemanticFrame } from "../contracts/semanticFrame";
 import type { CanonicalConversationRequest } from "../contracts/canonicalConversation";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
+import type { CapabilityModule } from "../contracts/capability";
 
 // Ephemeral conversational state, persisted ONLY by canonical conversation
 // persistence. It contains neither evidence nor an execution directive.
@@ -13,12 +14,21 @@ export type ConversationAssessmentContext = {
   result_set_id?: string | null;
   // An unverified, not-yet-bound conversational claim, never a live fact.
   pending_information?: string | null;
+  subject_domains?: string[];
+  subject_label?: string | null;
+  required_evidence_domains?: string[];
+  available_evidence_domains?: string[];
+  missing_evidence_domains?: string[];
+  restricted_evidence_domains?: string[];
+  // Only an already-selected, same-scope result may bind an assertion.
+  target_ref?: { canonical_id: string; object_type: string; label: string } | null;
+  material_information?: { text: string; target_id: string; source: "user_assertion" } | null;
   created_at: string;
   updated_at: string;
   expires_at: string;
 };
 export const ASSESSMENT_TTL_MS = 30 * 60 * 1000;
-export const isAssessmentObjective = (objective: unknown): objective is CognitiveObjective =>
+export const isAssessmentObjective = (objective: unknown): objective is Exclude<CognitiveObjective, "retrieve" | "summarize"> =>
   ["assess", "prioritize", "compare", "explain", "advise", "reassess"].includes(String(objective));
 
 export function validAssessment(value: unknown, surface: string, now = Date.now()): ConversationAssessmentContext | null {
@@ -45,11 +55,80 @@ export async function loadConversationAssessment(request: CanonicalConversationR
 export function assessmentContinuation(text: string): boolean {
   return /\b(?:second|first|third|that one|the others|those|that project|that opportunity)\b|^\s*(?:why|what about|no[, ]+that|actually[, ]+forget)\b/i.test(text)
     || /^\s*(?:is|does|would|could|can|will|has|are|do)\s+(?:that|this|it|those|these|they)\b/i.test(text)
+    || /^\s*(?:and now|so|then what|still|which one|the (?:first|second|third) one)[?.! ]*$/i.test(text)
+    || /\b(?:that|this|it|those|these|they|them|earlier|still|given that)\b/i.test(text)
+    || (/\b(?:evidence|verification|uncertainty|missing|authority|authorization|measurement)\b/i.test(text)
+      && !/\b(?:about|across|instead|i mean)\b/i.test(text))
     || isAssessmentInformation(text);
 }
 
+// Subject vocabulary, not a capability registry or an execution plan. These
+// existing domain names describe what the question is ABOUT. Permission is
+// evaluated separately against the real registry before listing requirements.
+export function assessmentSubjectDomains(frame: SemanticFrame, surface: string): string[] {
+  const t = frame.rawText.split(/\b(?:i mean|i meant|instead of|rather than)\b/i).slice(-1)[0];
+  if (/\b(?:across|estate-wide|estate overview|estate operations)\b|\b(?:everything|anything)\b.*\b(?:estate|home)\b/i.test(t)) return defaultSubject(surface);
+  if (surface === "public_corporate" && /\b(?:land|opportunity|jv|title|ownership|planning|partnership|documents?)\b/i.test(t)) return ["corporate_opportunity"];
+  if (/\b(?:water|light|repair|resolved|open)\b.*\b(?:issue|problem|leak)|\b(?:maintenance|leak)\b/i.test(t)) return ["maintenance"];
+  if (/\b(?:opportunit(?:y|ies)|leads?|prospects?)\b/i.test(t)) return [surface === "public_corporate" ? "corporate_opportunity" : "crm"];
+  if (/\b(?:developments?|projects?)\b/i.test(t)) return [surface === "office_internal" ? "office_development" : "corporate_development"];
+  if (/\b(?:electricity|consumption|usage|meter)\b/i.test(t)) return ["utilities"];
+  if (/\b(?:cameras?|cctv)\b/i.test(t)) return ["cameras"];
+  if (/\b(?:visitors?|who.*(?:expected|coming)|arrival|arrived|expired access)\b/i.test(t)) return ["visitors"];
+  if (/\b(?:bedroom|study|kitchen|living room|temperature|sensor)\b/i.test(t)) return ["rooms", "devices"];
+  if (/\b(?:sensor|temperature|telemetry|hardware|devices?|ac|light|lock)\b/i.test(t)) return ["devices"];
+  if (/\b(?:wallet|spent|spending|transactions?)\b/i.test(t)) return ["wallet"];
+  if (/\b(?:secure|security|danger)\b/i.test(t)) return ["security"];
+  if (/\b(?:financ|funding|funded)\w*\b/i.test(t)) return [surface === "office_internal" ? "office_financial" : "corporate_opportunity"];
+  if (frame.domain && !["global", "reports", "home"].includes(frame.domain)) return [frame.domain];
+  return [];
+}
+
+function defaultSubject(surface: string): string[] {
+  if (surface === "office_internal") return ["crm", "office_development", "office_reports", "office_financial"];
+  if (surface === "public_corporate") return ["corporate_opportunity"];
+  if (surface === "facility") return ["maintenance", "security", "devices", "cameras", "utilities"];
+  return ["home", "devices", "security", "visitors", "utilities"];
+}
+
+export function assessmentEvidenceRequirements(state: ConversationAssessmentContext, eligible: CapabilityModule[], available: string[] = state.available_evidence_domains || []): ConversationAssessmentContext {
+  const subjects = state.subject_domains || (state.domain ? [state.domain] : defaultSubject(state.surface));
+  const modules = eligible.filter(m => subjects.includes(m.domain) && m.risk_class === "read");
+  const required = [...new Set(modules.flatMap(m => (m.evidence_requirements || []).map(e => e.domain)))].filter(d => d !== "unknown");
+  const covered = subjects.filter(d => modules.some(m => m.domain === d));
+  const present = required.filter(d => available.includes(d));
+  return { ...state, subject_domains: subjects, required_evidence_domains: required,
+    available_evidence_domains: present, missing_evidence_domains: required.filter(d => !present.includes(d)),
+    restricted_evidence_domains: subjects.filter(d => !covered.includes(d)) };
+}
+
+export function assessmentSubjectLabel(state: ConversationAssessmentContext): string {
+  const domains = (state.subject_domains || [state.domain || "current subject"]).map(d => ({crm:"opportunities and leads",office_development:"development projects",office_reports:"pending decisions and reports",office_financial:"financial position",corporate_opportunity:"the opportunity you are exploring",home:"home operations",devices:"device state",cameras:"camera state",utilities:"utility readings"} as Record<string,string>)[d] || d.replace(/^office_|^corporate_/, "").replace(/_/g," ")).join(", ");
+  return state.subject_label ? `${domains} (${state.subject_label}, as described by you)` : domains;
+}
+
+export function assessmentEvidenceAnswer(state: ConversationAssessmentContext, frame: SemanticFrame): string {
+  const subject = assessmentSubjectLabel(state);
+  const requirements = (state.missing_evidence_domains?.length ? state.missing_evidence_domains : state.required_evidence_domains) || [];
+  const names = assessmentSubjectLabel({ ...state, subject_domains: requirements, subject_label: null });
+  const job = ({assess:"assess",prioritize:"prioritize",compare:"compare",explain:"explain",advise:"recommend a next step for",reassess:"reassess",summarize:"summarize",retrieve:"inspect"})[frame.cognitiveObjective || state.objective];
+  const need = requirements.length ? `The evidence requirement is current ${names} evidence within your permitted scope.`
+    : "There is no eligible read-evidence contract for that subject in this scope; I cannot claim access to it.";
+  const references = /\b(?:second|third|other one|that project)\b/i.test(frame.rawText) && !state.target_ref
+    ? " Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list." : "";
+  const roomReference = /\bwhich room\b.*\bdiscuss/i.test(frame.rawText) && !state.subject_label
+    ? " Which room do you mean? I don't have a confirmed active room reference, so I won't pick one from a room list." : "";
+  const claim = isAssessmentInformation(frame.rawText) ? state.target_ref
+    ? ` I am treating your information about ${state.target_ref.label} as an unverified user assertion, not confirmed operational evidence.`
+    : " Your information is unverified. Which item should it attach to?" : "";
+  const historical = /\b(?:yesterday|baseline|changed|earlier)\b/i.test(frame.rawText) ? " A comparison also requires a comparable earlier observation; current records alone do not prove a change." : "";
+  const scope = /\b(?:tower|building|scope)\b/i.test(frame.rawText) ? " A building label is not a verified building scope; estate-wide records cannot establish that narrower view." : "";
+  const policy = /\b(?:authority|authorization|confirmation)\b/i.test(frame.rawText) ? " Any proposed action must still pass its own permission, scope and confirmation checks; this assessment grants none." : "";
+  return `To ${job} ${subject}, ${need.charAt(0).toLowerCase()+need.slice(1)} I have not loaded additional sources or established a new recommendation.${references}${roomReference}${claim}${historical}${scope}${policy}`;
+}
+
 export function isAssessmentInformation(text: string): boolean {
-  return /^(?:the|my|our|that|this|it|they|he|she)\b[^?!]*\b(?:is|are|was|were|has|have|says|said)\b/i.test(text) && !text.includes("?");
+  return /^(?:(?:actually|but)[, ]+)?(?:the|my|our|their|there|that|this|it|they|he|she)\b[^?!]*\b(?:is|are|was|were|has|have|says|said|can|could|promises?|feels?|needs?|wants?)\b/i.test(text) && !text.includes("?");
 }
 
 export function nextConversationAssessment(previous: ConversationAssessmentContext | null, frame: SemanticFrame, surface: string, now = Date.now()): ConversationAssessmentContext | null {
@@ -57,23 +136,35 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
   if (frame.operation === "cancel" || frame.mutationIntent || frame.capabilityInquiry || frame.cognitiveObjective === "retrieve") return null;
   const answeringPending = Boolean(old?.pending_information && !frame.cognitiveObjective
     && !/^(?:what|why|who|when|where|how|show|list|open|now)\b/i.test(frame.rawText));
-  const followUp = old && (answeringPending || assessmentContinuation(frame.rawText) || isAssessmentObjective(frame.cognitiveObjective));
+  const followUp = old && (answeringPending || assessmentContinuation(frame.rawText) || isAssessmentObjective(frame.cognitiveObjective) || frame.cognitiveObjective === "summarize");
   if (!isAssessmentObjective(frame.cognitiveObjective) && !followUp) return null;
-  const correction = /\b(?:i mean|i meant|instead|forget)\b/i.test(frame.rawText);
-  const explicitDomain = frame.domain === "corporate_development" && surface === "office_internal" ? "office_development"
-    : frame.domain && !["global", "unknown"].includes(frame.domain) ? frame.domain : null;
+  const correction = /\b(?:i mean|i meant|instead|forget|actually.*\bnot\b)\b/i.test(frame.rawText);
+  const subjects = assessmentSubjectDomains(frame, surface);
+  const explicitDomain = subjects.length === 1 ? subjects[0] : null;
   const switched = explicitDomain && old?.domain && explicitDomain !== old.domain && !assessmentContinuation(frame.rawText);
   const retain = old && (!switched || answeringPending);
+  const anaphoric = assessmentContinuation(frame.rawText) && !correction;
+  const subjectDomains = correction ? subjects : retain && anaphoric ? old.subject_domains
+    : subjects.length ? subjects : retain ? old.subject_domains : undefined;
+  const nextSubjects = subjectDomains?.length ? subjectDomains : defaultSubject(surface);
+  const label = frame.rawText.match(/\b(?:tower\s+[A-Z0-9]+|building\s+[A-Z0-9]+|master bedroom|bedroom|living room|study|kitchen)\b/i)?.[0] || null;
+  const replaceCandidates = correction || !retain || (!anaphoric && ["prioritize", "compare"].includes(frame.cognitiveObjective || ""));
   const stamp = new Date(now).toISOString();
   return {
     objective: frame.cognitiveObjective && isAssessmentObjective(frame.cognitiveObjective) ? frame.cognitiveObjective : old!.objective,
     surface,
-    domain: correction || !retain ? explicitDomain : old.domain || explicitDomain,
+    domain: nextSubjects.length === 1 ? nextSubjects[0] : null,
+    subject_domains: nextSubjects,
+    subject_label: label || (retain && !correction ? old.subject_label : null),
+    available_evidence_domains: retain && !correction && now - Date.parse(old.created_at) < ASSESSMENT_TTL_MS ? old.available_evidence_domains || [] : [],
+    target_ref: !replaceCandidates ? old!.target_ref : null,
+    result_set_id: !replaceCandidates ? old!.result_set_id : null,
     question: retain && !correction && !["assess", "prioritize", "compare"].includes(frame.cognitiveObjective || "")
       ? old.question : frame.rawText.slice(0, 1000),
     status: "assessment_pending",
-    pending_information: retain && isAssessmentInformation(frame.rawText) ? frame.rawText.slice(0, 1000)
-      : retain ? old.pending_information || null : null,
+    pending_information: retain && !correction && isAssessmentInformation(frame.rawText) ? frame.rawText.slice(0, 1000)
+      : retain && !correction ? old.pending_information || null : null,
+    material_information: retain && !correction ? old.material_information : null,
     created_at: retain ? old.created_at : stamp,
     updated_at: stamp,
     expires_at: new Date(now + ASSESSMENT_TTL_MS).toISOString(),

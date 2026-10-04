@@ -25,6 +25,13 @@ const cases=[
  ['What would you do?','advise'],['What should I do next?','advise'],['Does that change your priority?','reassess'],
  ['Would turning off the kitchen light help save energy?','advise'],
  ["Actually don't.",null],['No, the bedroom one.',null],
+ ['What matters here?','assess'],['What should I care about?','assess'],['What deserves attention?','assess'],
+ ['Anything important?','assess'],['Which is more important?','compare'],['Which would you choose?','prioritize'],
+ ['What do you think?','assess'],["What's your view?",'assess'],['Would you pursue it?','advise'],
+ ['Is this worth it?','assess'],['Should I worry?','assess'],['How come?','explain'],
+ ['Does that change your view?','reassess'],['Would you still prioritize it?','reassess'],['Given that, what now?','reassess'],
+ ['Who is coming today?','retrieve'],['Do you have a yesterday baseline?','assess'],
+ ['Do not invent an owner.','assess'],['Draft a decision brief.','summarize'],['What can be delegated?','advise'],
 ];
 for(const [prompt,objective]of cases)assert.equal(parseSemanticFrame(prompt).cognitiveObjective,objective,prompt);
 assert.equal(parseSemanticFrame('Would turning off the kitchen light help save energy?').mutationIntent,false);
@@ -36,8 +43,15 @@ assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Show wallet 
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame("Actually don't."),'office_internal',now+1),null);
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Why?'),'office_internal',now+1).question,initial.question);
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Is that just the biggest deal?'),'office_internal',now+1).question,initial.question);
+for(const prompt of ['Why that?','Why not the other one?','What about this?','And now?','So?','Then what?','Still?','Which one?','The second one?']) {
+ const state=nextConversationAssessment(initial,parseSemanticFrame(prompt),'office_internal',now+1);
+ assert(state,prompt);assert.deepEqual(state.subject_domains,initial.subject_domains,prompt);
+}
 const corrected=nextConversationAssessment(initial,parseSemanticFrame('Actually, forget the leads. I mean the developments.'),'office_internal',now+1);
 assert.equal(corrected.domain,'office_development');
+const withClaim={...initial,target_ref:{canonical_id:'test-only',object_type:'lead',label:'synthetic'},pending_information:'unverified',material_information:{text:'unverified',target_id:'test-only',source:'user_assertion'}};
+const scopeChanged=nextConversationAssessment(withClaim,parseSemanticFrame('Actually, forget the leads. I mean the developments.'),'office_internal',now+1);
+assert.equal(scopeChanged.target_ref,null);assert.equal(scopeChanged.pending_information,null);assert.equal(scopeChanged.material_information,null);
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame("No, that's not what I mean."),'office_internal',now+1)?.objective,'prioritize');
 assert.equal(nextConversationAssessment(initial,parseSemanticFrame('Show devices.'),'consumer',now+1),null);
 const informed=nextConversationAssessment(initial,parseSemanticFrame('The Chairman for that project says financing is secured.'),'office_internal',now+1);
@@ -61,9 +75,18 @@ for(const [surface,role,prompts]of [
   if(prompt.includes('prove the AC'))assert.notEqual(r.capability_key,'devices.availability.read');
   const assessment=await loadConversationAssessment({...input,thread_id:thread},actor?.id||null);
   if(prompt!=="Show me today's leads.")assert(assessment,`${surface}: ${prompt}`);
+  if(assessment){assert(assessment.subject_domains.length);assert(assessment.required_evidence_domains.length||assessment.restricted_evidence_domains.length);assert(assessment.missing_evidence_domains.every(d=>assessment.required_evidence_domains.includes(d)));}
   if(prompt.includes('Chairman'))assert.equal(assessment.pending_information,prompt);
   results.push({surface,prompt,answer:r.answer,assessment,persisted:r.persistence_saved});
  }
+}
+// Public capability discovery remains explicit; assessment prose must not
+// select that worker accidentally. No new transport or execution sink.
+{
+ const actor=actorFor('resident','consumer');
+ const r=await conversationOrchestrator.run({actor,oisContext:oisContext(actor,'consumer'),input:{surface:'consumer',message:'What can you access for my own home?',estate_id:actor.estate_id,home_id:actor.home_id}});
+ assert.equal(r.capability_key,'global.capabilities.read');assert(r.persistence_saved);assert.notEqual(r.execution.current_turn_execution,true);
+ results.push({surface:'consumer',prompt:'What can you access for my own home?',answer:r.answer,persisted:r.persistence_saved});
 }
 {
  const actor=actorFor('resident','consumer');let thread=null,workflowId=null;
@@ -97,6 +120,36 @@ for(const [surface,role,prompts]of [
  assert.equal(await loadConversationAssessment(input,actor.id),null);
  assert.equal(await loadConversationAssessment(input,'30000000-0000-4000-8000-000000000002'),null);
  results.push({surface:'office_internal',prompt:input.message,answer:r.answer,expired_context_rejected:true,persisted:r.persistence_saved});
+}
+// Bind a claim only to an actually selected, authorized result. Corrections
+// must remove that pointer; no claim or confirmation executes anything.
+{
+ const actor=actorFor('ochiga_staff','office_internal');let thread=null,target=null;
+ const prompts=["Show me today's leads.",'Tell me about the second one.','Would you pursue it?',
+  'The owner can only meet tomorrow.','Does that change your view?',
+  'Actually, forget the leads. I mean the developments.'];
+ for(const [i,prompt]of prompts.entries()){
+  const input={surface:'office_internal',message:prompt,thread_id:thread,context:{operational_snapshot:officeSnapshot()}};
+  const r=await conversationOrchestrator.run({actor,oisContext:oisContext(actor,'office_internal'),input});thread=r.thread_id;
+  assert(r.persistence_saved);assert.notEqual(r.execution.current_turn_execution,true);
+  const a=await loadConversationAssessment({...input,thread_id:thread},actor.id);
+  if(i===2){assert(a.target_ref,'The live selected lead must seed the assessment');target=a.target_ref.canonical_id;}
+  if(i===3){assert.equal(a.material_information.target_id,target);assert.equal(a.material_information.source,'user_assertion');assert.equal(a.material_information.text,prompt);}
+  if(i===4){assert.equal(a.objective,'reassess');assert.equal(a.material_information.target_id,target);}
+  if(i===5){assert.equal(a.target_ref,null);assert.equal(a.material_information,null);assert.deepEqual(a.subject_domains,['office_development']);}
+  results.push({surface:input.surface,prompt,answer:r.answer,assessment:a,persisted:r.persistence_saved});
+ }
+}
+for(const [surface,role]of [['office_internal','ochiga_staff'],['public_corporate','public'],['facility','facility_manager'],['consumer','resident']]){
+ const actor=actorFor(role,surface);let thread=null,subjects=null;
+ for(const prompt of ['What matters most?','How come?','And now?','So?','Then what?','Still?','Which one?']){
+  const input={surface,message:prompt,thread_id:thread,estate_id:actor?.estate_id,home_id:actor?.home_id};
+  const r=await conversationOrchestrator.run({actor,oisContext:oisContext(actor,surface),input});thread=r.thread_id;
+  const a=await loadConversationAssessment({...input,thread_id:thread},actor?.id||null);assert(a,prompt);
+  if(subjects)assert.deepEqual(a.subject_domains,subjects,`${surface}: ${prompt}`);subjects=a.subject_domains;
+  assert.doesNotMatch(r.answer,/Ask me about any of these|office_tasks query read/);assert(r.persistence_saved);assert.notEqual(r.execution.current_turn_execution,true);
+  results.push({surface,prompt,answer:r.answer,assessment:a,persisted:r.persistence_saved});
+ }
 }
 fs.writeFileSync(`${process.env.WAVE11_HARNESS_OUT}.json`,JSON.stringify({status:'PASS',parser_cases:cases.length,turns:results},null,2)+'\n');
 console.log(JSON.stringify({status:'PASS',parser_cases:cases.length,live_turns:results.length}));

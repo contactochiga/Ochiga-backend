@@ -24,7 +24,9 @@ import { loadDraftCommunication } from "../context/communicationDraft";
 import { loadPersonContext, loadPendingRecipientDisambiguation } from "../context/personContext";
 import { loadPendingGoalPointer } from "../context/goalProposal";
 import { loadPublicOpportunityObjective } from "../context/publicOpportunityObjective";
-import { loadConversationAssessment, nextConversationAssessment } from "../context/conversationAssessmentContext";
+import { loadConversationAssessment, nextConversationAssessment, validAssessment, assessmentEvidenceRequirements } from "../context/conversationAssessmentContext";
+import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
+import { capabilityService } from "../capabilities/CapabilityService";
 import { parseSemanticFrame } from "../interpretation/SemanticFrameParser";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 
@@ -357,9 +359,20 @@ export async function persistCanonicalConversationTurn(input: {
   }
   const responseFrame = recordOf(recordOf(response.execution).orchestrator_v2).semantic_frame as SemanticFrame | undefined;
   const assessmentFrame = responseFrame?.rawText === request.message ? responseFrame : parseSemanticFrame(request.message);
-  const assessmentContext = nextConversationAssessment(
+  let assessmentContext = validAssessment(recordOf(response.execution).assessment_context, request.surface) || nextConversationAssessment(
     await loadConversationAssessment(request, actor?.id || null).catch(() => null),
     assessmentFrame, request.surface);
+  if (assessmentContext) {
+    const eligible = capabilityRegistry.enabled().filter(m => m.risk_class === "read"
+      && capabilityService.canUse(m.key, { actor, oisContext: input.oisContext, surface: request.surface }).allowed);
+    const currentFacts = (Array.isArray(response.facts) ? response.facts as IntelligenceFact[] : [])
+      .filter(f => f.freshness === "fresh" && !["unavailable", "permission_restricted"].includes(f.truth_state))
+      .map(f => f.domain);
+    assessmentContext = assessmentEvidenceRequirements(assessmentContext, eligible, [...assessmentContext.available_evidence_domains || [], ...currentFacts]);
+  }
+  if (assessmentContext) {
+    response.execution = { ...recordOf(response.execution), assessment_context: assessmentContext };
+  }
   if (assessmentContext && recordOf(response.execution).assessment_status === "evidence_needed") assessmentContext.status = "evidence_needed";
   const assessmentResult = recordOf(response.result_set);
   if (assessmentContext && assessmentResult.source_request_id === contract.conversation_request_id
