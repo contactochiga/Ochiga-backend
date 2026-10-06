@@ -358,3 +358,46 @@ The source inventory and certification artifacts include current scope matrices,
 test results, required-source coverage and regression evidence.
 
 **IQ-3A NOT YET CERTIFIED. IQ-3B must not begin.**
+
+## Benchmark-required source closure — Phase 1: frozen blocker graph
+
+Starting HEAD: `00daff730bb4bf188db4fa340779e6d591d21994` (clean tree; no IQ-3B).
+`scripts/iq3a-blocker-graph.mjs` builds `artifacts/intelligence-quality-v1-iq3a-blocker-graph.json`
+from the frozen envelopes and the starting-HEAD certification state (read from git, so later
+regeneration cannot change it). It executes no collector and no query.
+
+The earlier readiness counted every registry candidate for a domain and every unconfirmed
+subject as a source-contract block. The graph instead classifies each of the 69 turns' evidence
+classes from the frozen envelope and the turn's own request:
+
+- **Mandatory** — the assessment cannot responsibly be made without it.
+- **Optional** — could improve judgment; never blocks readiness.
+- **Excluded by design** — the envelope requires *considering and refusing* it (Facility wallet,
+  substituting a Consumer home for a building, Resident B reading Resident A).
+- **Downstream** — no evidence read needed (reference continuity, confirmation policy, advice
+  about a missing measurement).
+
+`home_aggregate` is a composite of direct sources. Cross-domain composition is IQ-3B, so it is
+optional whenever its direct components are mandatory-covered; its contributor false-zero
+defects are still fixed independently. Unconfirmed reply targets perform no exact read, so the
+broad certified read is admissible; this is a planning constraint, not a source defect.
+
+### Result (pre-hardening, frozen)
+
+| Disposition if mandatory sources are hardened | Turns |
+|---|---:|
+| Ready now (previous block came from optional/excluded/unconfirmed-target items only) | 22 |
+| Ready after hardening 9 mandatory sources | 31 |
+| MISSING_CAPABILITY_PRODUCT_DEBT (a mandatory class has no safe implemented source) | 12 |
+| DOWNSTREAM_NOT_IQ3 | 4 |
+
+Unique mandatory blocking sources: **9** — `devices.status`, `devices.availability`,
+`devices.activity`, `devices.failures`, `facility.cameras`, `scenes.list`,
+`corporate.opportunity`, `corporate.development`, `corporate.partnerships`.
+Mandatory classes with no safe capability: Consumer cameras, electricity consumption
+(usage/meter declared, not enabled), device observed values (lock position/temperature —
+device facts expose availability/freshness only) and Facility estate device history.
+Nine other uncertified candidate sources (4 utilities, 3 home aggregates, 2 wallet) and
+`facility.overview` are mandatory for no turn: NON_BENCHMARK_EVIDENCE_DEBT.
+
+The graph is a diagnostic. Runtime hardening follows in later commits.
