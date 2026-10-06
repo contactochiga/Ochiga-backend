@@ -38,16 +38,18 @@ const records=blocked.map(prior=>{
 for(const r of inventory.records){
  const family=records.find(x=>x.capability_key===r.capability_key);
  if(family)r.collector_family=family.primary_family;
- // This matrix mirrors the actual conservative admission gate. It does not
- // grant new permissions or claim untested scopes are supported.
- r.surface_scope_certification=r.surfaces.flatMap(surface=>['unscoped','estate','building','home','room','exact_object'].map(scope=>{
-  const office=r.query==='supplied operational_snapshot; no DB query';
-  const eligible=r.planner_eligible&&(office?surface==='office_internal'&&scope==='unscoped':surface==='consumer'&&scope==='home'||surface==='facility'&&scope==='estate');
-  return{surface,scope,state:eligible?'CERTIFIED_PARTIAL':r.planner_eligible?'NOT_ELIGIBLE_SCOPE':r.state,authority:'Existing canUse plus verified actor/OIS required; row is not a permission grant'};
+ // This matrix mirrors the actual admission gate in CapabilityService.readEvidence: each certified
+ // collector declares the surface x scope classes it was certified for; everything else is rejected
+ // before collection. It does not grant new permissions.
+ const classFor=(surface,scope)=>({office_internal:{unscoped:'office_permissioned_snapshot'},consumer:{home:'consumer_home',room:'consumer_room'},facility:{estate:'facility_estate',building:'facility_building',home:'facility_home',room:'facility_room'},public_corporate:{unscoped:'public_corporate',thread:'public_thread'}})[surface]?.[scope]||null;
+ r.surface_scope_certification=r.surfaces.flatMap(surface=>['unscoped','estate','building','home','room','thread','exact_object'].filter(scope=>scope==='exact_object'||classFor(surface,scope)).map(scope=>{
+  const cls=classFor(surface,scope),declared=r.certified_scopes||[];
+  const eligible=Boolean(r.planner_eligible&&cls&&(declared.includes(cls)||(cls==='public_thread'&&declared.includes('public_corporate'))));
+  return{surface,scope,scope_class:cls,state:eligible?'CERTIFIED_PARTIAL':r.planner_eligible?'NOT_ELIGIBLE_SCOPE':r.state,authority:'Existing canUse plus verified actor/OIS required; row is not a permission grant'};
  }));
 }
-const result={starting_head:start,status:'FAMILY_MAPPING_COMPLETE_SOURCE_CERTIFICATION_INCOMPLETE',blocked_input_count:58,family_count:definitions.length,
- families:definitions.map(({signature,...d})=>({...d,member_count:d.keys.length,source_sha256:hash(root+d.owner),timeout:'Existing single-source acceptance deadline; no implied underlying cancellation',certification_rule:'Family contract alone never grants module eligibility'})),records};
+const result={starting_head:start,status:'FAMILY_MAPPING_COMPLETE_BENCHMARK_REQUIRED_SOURCES_CERTIFIED_REMAINING_NON_BENCHMARK_DEBT',blocked_input_count:58,family_count:definitions.length,
+ families:definitions.map(({signature,...d})=>({...d,member_count:d.keys.length,certified_members:d.keys.filter(k=>inventory.records.find(r=>r.capability_key===k)?.planner_eligible).map(k=>k),not_certified_members:d.keys.filter(k=>!inventory.records.find(r=>r.capability_key===k)?.planner_eligible),source_sha256:hash(root+d.owner),timeout:'Existing single-source acceptance deadline; no implied underlying cancellation',certification_rule:'Family contract alone never grants module eligibility'})),records};
 fs.writeFileSync('artifacts/intelligence-quality-v1-evidence-families.json',JSON.stringify(result,null,2)+'\n');
 fs.writeFileSync(inventoryPath,JSON.stringify(inventory,null,2)+'\n');
 console.log(JSON.stringify({families:definitions.length,members:records.length,counts:Object.fromEntries(definitions.map(d=>[d.id,d.keys.length]))}));

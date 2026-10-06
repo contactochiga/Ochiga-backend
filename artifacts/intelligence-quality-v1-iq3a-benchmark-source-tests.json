@@ -1,0 +1,2094 @@
+{
+  "status": "PASS",
+  "test_mode": "Real collectors and CapabilityService.readEvidence with deterministic query/provider/network fault injection on the local loopback fixture client; no production target; no real network",
+  "counts": {
+    "PASS": 127
+  },
+  "results": [
+    {
+      "id": "devices.status.read:complete-below-bound",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:proven-zero-registered-devices",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:query-error-object-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:query-throws-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:state-hydration-failure-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:truncated-at-row-bound",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:cross-home-never-returned",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:other-home-request-denied-before-query",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:facility-home-only-source-not-admitted",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:public-denied",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:building-scope-unsupported",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:exact-object-not-broadened",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:late-result-discarded-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:room-scope-pushed-into-query-not-after-limit",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:room-not-in-home-is-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:empty-room-in-home-is-proven-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:room-membership-query-failure-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:room-name-enrichment-failure-is-degraded-not-complete",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:stale-telemetry-is-stale-not-current",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:complete-below-bound",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:proven-zero-registered-devices",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:query-error-object-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:query-throws-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:state-hydration-failure-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:truncated-at-row-bound",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:cross-home-never-returned",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:other-home-request-denied-before-query",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:facility-home-only-source-not-admitted",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:public-denied",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:building-scope-unsupported",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:exact-object-not-broadened",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:late-result-discarded-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:room-scope-pushed-into-query-not-after-limit",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:room-not-in-home-is-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:empty-room-in-home-is-proven-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:room-membership-query-failure-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:room-name-enrichment-failure-is-degraded-not-complete",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.availability.read:stale-telemetry-is-stale-not-current",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:ledger-failure-is-error-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:ledger-throws-is-error",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:ledger-ok-empty-is-window-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:ledger-bound-reached-is-truncated-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:supplied-history-is-not-a-source",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:cross-home-ledger-rows-filtered-by-query",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:room-scope-not-certified",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:facility-not-admitted",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:late-result-discarded-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:device-name-enrichment-failure-is-degraded",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:ledger-failure-is-error-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:ledger-throws-is-error",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:ledger-ok-empty-is-window-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:ledger-bound-reached-is-truncated-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:supplied-history-is-not-a-source",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:cross-home-ledger-rows-filtered-by-query",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:room-scope-not-certified",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:facility-not-admitted",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:late-result-discarded-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:device-name-enrichment-failure-is-degraded",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:selects-failures-only",
+      "status": "PASS"
+    },
+    {
+      "id": "device-observed-value:evidence-exposes-availability-and-freshness-only",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:facility-estate-device-history-has-no-safe-source",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:unknown-state-is-unobservable-never-offline",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:registry-failure-is-error-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:state-resolution-failure-is-error-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:zero-accessible-cameras-proven",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:registry-bound-before-access-filter-is-truncated",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:home-private-camera-excluded-for-facility",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:consumer-not-admitted",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:public-not-admitted",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:building-scope-unsupported",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:home-and-room-scope-unsupported",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:late-result-discarded-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "scenes.list.read:nonempty-is-partial-in-scope",
+      "status": "PASS"
+    },
+    {
+      "id": "scenes.list.read:proven-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "scenes.list.read:query-failure-is-unavailable-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "scenes.list.read:bound-is-truncated",
+      "status": "PASS"
+    },
+    {
+      "id": "scenes.list.read:facility-and-public-denied",
+      "status": "PASS"
+    },
+    {
+      "id": "scenes.list.read:room-scope-unsupported",
+      "status": "PASS"
+    },
+    {
+      "id": "scenes.list.read:late-result-discarded-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.partnerships.read:governed-item-carries-provenance",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.partnerships.read:provenance-leaks-no-paths-or-hidden-metadata",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.partnerships.read:retrieval-failure-is-error-not-fallback-text",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.partnerships.read:degraded-index-is-unavailable-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.partnerships.read:no-authorised-match-is-distinct-from-failure",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.partnerships.read:internal-item-not-reachable-by-public-key",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.partnerships.read:consumer-office-facility-denied",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.partnerships.read:public-with-home-scope-unsupported",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:provider-ok-lists-projects-unknown-freshness",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:empty-listing-is-not-proven-current-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:http-failure-is-unavailable-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:network-failure-is-error-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:provider-timeout-is-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:malformed-body-is-not-an-empty-listing",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:bound-is-truncated",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:slow-provider-late-result-discarded",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:ordinary-answer-malformed-body-is-unavailable",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.development.read:consumer-facility-office-denied",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.opportunity.read:own-thread-objective-is-user-assertion",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.opportunity.read:no-objective-is-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.opportunity.read:expired-objective-is-not-current",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.opportunity.read:query-failure-is-error-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.opportunity.read:someone-elses-thread-denied-no-content",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.opportunity.read:non-public-thread-denied",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.opportunity.read:missing-thread-is-insufficient-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.opportunity.read:consumer-facility-office-denied",
+      "status": "PASS"
+    },
+    {
+      "id": "corporate.opportunity.read:ordinary-load-failure-does-not-overwrite-stored-facts",
+      "status": "PASS"
+    },
+    {
+      "id": "osa:public-cannot-read-any-private-or-operational-source",
+      "status": "PASS"
+    },
+    {
+      "id": "pure-read:db-writes-and-rpc-refused-and-surface-as-error",
+      "status": "PASS"
+    },
+    {
+      "id": "pure-read:writes-outside-a-pure-read-are-unchanged",
+      "status": "PASS"
+    },
+    {
+      "id": "pure-read:guard-covers-every-durable-state-class",
+      "status": "PASS"
+    },
+    {
+      "id": "pure-read:persisting-intelligence-collectors-not-planner-eligible",
+      "status": "PASS"
+    },
+    {
+      "id": "pure-read:certified-adapter-modules-satisfy-import-allowlist",
+      "status": "PASS"
+    },
+    {
+      "id": "home.summary.read:devices-contributor-failure-is-unavailable-not-no-devices",
+      "status": "PASS"
+    },
+    {
+      "id": "home.summary.read:empty-registry-is-a-real-empty-contributor",
+      "status": "PASS"
+    },
+    {
+      "id": "home.summary.read:truncated-inventory-says-so",
+      "status": "PASS"
+    },
+    {
+      "id": "home.summary.read:aggregate-with-unavailable-contributor-is-never-stable",
+      "status": "PASS"
+    },
+    {
+      "id": "room.status.read:devices-room-not-in-home-is-unavailable-not-empty-room",
+      "status": "PASS"
+    },
+    {
+      "id": "room.status.read:empty-room-in-home-is-empty",
+      "status": "PASS"
+    },
+    {
+      "id": "room.status.read:room-devices-found-in-large-home",
+      "status": "PASS"
+    },
+    {
+      "id": "home.activity.read:ledger-failure-is-unavailable-contributor",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.activity.read:ordinary-answer-ledger-failure-is-not-no-changes",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.failures.read:ordinary-answer-ledger-failure-is-not-no-failures",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.diagnosis.read:ordinary-answer-ledger-failure-is-unavailable",
+      "status": "PASS"
+    },
+    {
+      "id": "devices.status.read:ordinary-answer-query-failure-is-could-not-load",
+      "status": "PASS"
+    },
+    {
+      "id": "facility.cameras.read:ordinary-answer-failure-cannot-call-any-camera-offline",
+      "status": "PASS"
+    },
+    {
+      "id": "matrix:every-certified-collector-admits-only-its-declared-surface-scope-classes",
+      "status": "PASS"
+    },
+    {
+      "id": "matrix:no-certified-collector-admits-a-wider-class-than-declared-for-exact-objects",
+      "status": "PASS"
+    }
+  ],
+  "surface_scope_matrix": [
+    {
+      "capability_key": "facility.cameras.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "facility.cameras.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "facility.cameras.read",
+      "scope_class": "facility_estate",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "facility.cameras.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "facility.cameras.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "facility.cameras.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "facility.cameras.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "facility.cameras.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "facility.cameras.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.status.read",
+      "scope_class": "consumer_home",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "devices.status.read",
+      "scope_class": "consumer_room",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "devices.status.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.status.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.status.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.status.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.status.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.status.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.status.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "scope_class": "consumer_home",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "scope_class": "consumer_room",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.availability.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "scope_class": "consumer_home",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.activity.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "scope_class": "consumer_home",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "devices.failures.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "maintenance.requests.read",
+      "scope_class": "consumer_home",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "maintenance.requests.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "maintenance.requests.read",
+      "scope_class": "facility_estate",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "maintenance.requests.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "maintenance.requests.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "maintenance.requests.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "maintenance.requests.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "maintenance.requests.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "maintenance.requests.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "visitors.pending.read",
+      "scope_class": "consumer_home",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "visitors.pending.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "visitors.pending.read",
+      "scope_class": "facility_estate",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "visitors.pending.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "visitors.pending.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "visitors.pending.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "visitors.pending.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "visitors.pending.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "visitors.pending.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "security.incidents.read",
+      "scope_class": "consumer_home",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "security.incidents.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "security.incidents.read",
+      "scope_class": "facility_estate",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "security.incidents.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "security.incidents.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "security.incidents.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "security.incidents.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "security.incidents.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "security.incidents.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "scope_class": "consumer_home",
+      "declared": true,
+      "status": "available_zero",
+      "admitted": true
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "scope_unsupported",
+      "admitted": false
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "scenes.list.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.leads.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.leads.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.leads.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.leads.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.leads.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.leads.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.leads.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "crm.leads.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.leads.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.opportunities.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.opportunities.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.opportunities.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.opportunities.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.opportunities.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.opportunities.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.opportunities.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "crm.opportunities.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "crm.opportunities.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "reports.approvals.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "reports.approvals.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "reports.approvals.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "reports.approvals.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "reports.approvals.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "reports.approvals.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "reports.approvals.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "reports.approvals.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "reports.approvals.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "development.status.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "development.status.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "development.status.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "development.status.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "development.status.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "development.status.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "development.status.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "development.status.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "development.status.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "financial.summary.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "financial.summary.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "financial.summary.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "financial.summary.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "financial.summary.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "financial.summary.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "financial.summary.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "financial.summary.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "financial.summary.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_tasks.query.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_automations.query.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_meetings.query.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_support.query.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_portfolio.query.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_partnerships.query.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_documents.query.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": true,
+      "status": "unavailable",
+      "admitted": true
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "scope_class": "public_thread",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "office_content.query.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "scope_class": "public_thread",
+      "declared": true,
+      "status": "available_partial",
+      "admitted": true
+    },
+    {
+      "capability_key": "corporate.development.read",
+      "scope_class": "public_corporate",
+      "declared": true,
+      "status": "available_partial",
+      "admitted": true
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "scope_class": "public_thread",
+      "declared": true,
+      "status": "available_complete",
+      "admitted": true
+    },
+    {
+      "capability_key": "corporate.partnerships.read",
+      "scope_class": "public_corporate",
+      "declared": true,
+      "status": "available_complete",
+      "admitted": true
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "scope_class": "consumer_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "scope_class": "consumer_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "scope_class": "facility_estate",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "scope_class": "facility_building",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "scope_class": "facility_home",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "scope_class": "facility_room",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "scope_class": "office_permissioned_snapshot",
+      "declared": false,
+      "status": "authority_denied",
+      "admitted": false
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "scope_class": "public_thread",
+      "declared": true,
+      "status": "available_complete",
+      "admitted": true
+    },
+    {
+      "capability_key": "corporate.opportunity.read",
+      "scope_class": "public_corporate",
+      "declared": false,
+      "status": "scope_insufficient",
+      "admitted": false
+    }
+  ]
+}

@@ -401,3 +401,116 @@ Nine other uncertified candidate sources (4 utilities, 3 home aggregates, 2 wall
 `facility.overview` are mandatory for no turn: NON_BENCHMARK_EVIDENCE_DEBT.
 
 The graph is a diagnostic. Runtime hardening follows in later commits.
+
+## Benchmark-required source closure — Phase 2: hardening and certification
+
+Starting HEAD `00daff730bb4bf188db4fa340779e6d591d21994`. Earlier sections of this document are
+historical checkpoints; this section supersedes their "NOT YET CERTIFIED" conclusions.
+No production, schema, merge, deployment or IQ-3B work. All fixture runs used the isolated local
+loopback Supabase (127.0.0.1:55421); the launcher refuses any other target.
+
+### What was hardened (only the 9 sources the frozen graph requires)
+
+| Source | Surface x scope certified | Defect fixed |
+|---|---|---|
+| `devices.status`, `devices.availability` | Consumer home, Consumer room | Loader caught query/hydration errors and returned `[]`; room filter ran **after** the 100-row limit; no truncation signal |
+| `devices.activity`, `devices.failures` | Consumer home | Ledger failure was logged and the rest returned as if complete; audit events (estate-wide, optional home attribution) and caller-supplied history were mixed in |
+| `facility.cameras.read` | Facility estate | 100-row registry bound applied **before** the camera access policy; unknown video state needed to stay unobservable, never offline |
+| `scenes.list.read` | Consumer home | Existing error sentinel proven; bound/zero/scope admission added |
+| `corporate.partnerships.read` | Public | Knowledge lookup returned the same fallback text for "no authorised match" and "retrieval failed"; no provenance |
+| `corporate.development.read` | Public | A malformed provider body was returned as an empty listing; failure/timeout collapsed |
+| `corporate.opportunity.read` | Public thread | Load failure became "no objective" and the next turn **overwrote the caller's stored facts**; no ownership proof |
+
+Shared mechanisms (not per-module copies): `EvidenceReadOutcome.degraded_sources` (a failed mandatory
+sub-source is an error, an optional one is partial), per-collector `scopes` (surface x scope admission
+in `CapabilityService.readEvidence`), `readHomeDeviceInventory` / `readRecentDeviceChanges` (outcome-aware
+loaders; the old loaders are thin wrappers with unchanged return shape), and the adapters in
+`src/oyi-core/evidence/sources/`.
+
+### Device contract
+Query/provider/hydration failure -> `error`; room not provably in the verified home -> `scope_insufficient`
+(never an empty room); room scope is part of the query; 100 rows -> truncated, never complete; any stale
+record -> status `stale`; an unobserved device is kept as an `unobservable` record (it is a registered device,
+not a failure sentinel). Zero is proven only for a successful home/room query (an empty room also needs a
+`rooms` row for the verified home).
+
+### Knowledge provenance
+Governed items carry canonical key, domain, authority class, audience, worker visibility, freshness class,
+claim boundary, version and source family. Source file/repo paths, tags and hidden items are never exposed
+(tested). In-code fallback copy is never evidence. `no_authorised_match` (zero) is distinct from degraded
+index (`unavailable`) and failure (`error`). Governed does not mean verified-current: freshness stays `unknown`.
+
+### Pure-read invariant
+`evidence/PureReadGuard.ts`, reusable by IQ-3B. Runtime: inside `readEvidence`, every table write verb and RPC
+is refused and the outcome is `error` / `pure_read_violation` (tested for insert/update/upsert/delete/rpc and for
+every durable-state class: goals, decisions, recommendations, awareness, workflows, communications, action
+proposals, device commands, memory, learning). Static: adapters under `evidence/sources` may import only an
+allowlist (deny-listed writer/dispatcher modules are also rejected); each certified collector body is scanned
+for writer/dispatcher calls. `anomalies`, `predictions`, `forecasts`, `recommendations` keep `persist: true`
+intrinsically: they are **not planner eligible** (case C); no benchmark turn requires them.
+
+### Ordinary-response behaviour changes (all other wording untouched)
+1. Home/Room **devices contributor**: a failed inventory read now yields an `unavailable` contributor (aggregate
+   state `partial`), where it previously read "No registered devices found" and could produce an all-clear.
+2. Home activity contributor: failed ledger read -> unavailable, not "No recent device changes".
+3. `devices.activity/failures/diagnosis` answers: failed ledger read -> "could not load recent device activity",
+   not "no meaningful recent changes" / "no confirmed failures".
+4. Room-scoped device inventory is filtered in the query (a large home can no longer hide room devices).
+5. `corporate.development.read`: malformed provider body is "unavailable", not an empty listing.
+6. Public opportunity: a failed objective load no longer overwrites the caller's stored facts.
+Full 280-turn IQ: **0 answer or envelope differences** from the accepted run.
+
+### Validation
+- 255 source/authority/scope tests + **127 benchmark-source tests** PASS (fault injection: error object, throw,
+  state-hydration failure, truncation, cross-home, room scope, stale, timeout/late result, malformed provider body,
+  ownership, public-only, pure-read, aggregate contributors, ordinary-path regressions).
+- **225-row surface x scope matrix**: 32 declared-and-admitted, 193 undeclared-and-rejected, 0 undeclared-but-admitted.
+- **Live local-database isolation** (real rows for the other home; real rooms): devices (incl. bedroom/kitchen/study room
+  scope, the empty Study proven zero, another home's room not provable), ledger, scenes, cameras (home-private camera
+  excluded for Facility) and the original three sources. 10 synthetic rows inserted and removed; 0 left.
+- IQ **51 PASS / 224 FAIL / 5 BLOCKED** (identical answers/envelopes, 280/280 persisted and trace-correlated);
+  Wave 11 **131 PASS / 1 known FAIL**; IQ-1 adversarial PASS (0 execution attempts); IQ-2 objective PASS;
+  23-suite matrix **19 PASS / 4 FAIL**, the four being the same pre-IQ1 failures, assertion text compared with the
+  control assertions stored in the IQ-1 artifact (control head `45e89d2`). Typecheck, build, `git diff --check` clean.
+
+### Result
+Source certification: **25 CERTIFIED_PARTIAL / 0 CERTIFIED_COMPLETE / 41 NOT_ELIGIBLE_COMPLETENESS / 5 disabled**.
+All 133 evidence-planning turns: **117 PLANNER_READY_PARTIAL / 12 MISSING_CAPABILITY_PRODUCT_DEBT /
+4 DOWNSTREAM_NOT_IQ3 / 0 PLANNER_READY_COMPLETE / 0 SOURCE_CONTRACT_BLOCKED**.
+"Ready" means the evidence substrate is trustworthy for that turn; it is not evidence that any judgment is good.
+
+### Proven missing capabilities (MISSING_CAPABILITY_PRODUCT_DEBT, 12 turns)
+Nothing was fabricated, enabled or relabelled to certify; each has a test-bound absence proof in the certification artifact.
+- Electricity consumption (CON-003 x5): `utilities.usage/meter/balance` are declared, not enabled; spending is money, not kWh.
+- Consumer camera current state (CON-004 x3): the only camera read is Facility-only.
+- Device observed values — lock position, temperature, power (CON-001:4, CON-002:4, CON-008:7): device evidence carries
+  availability and freshness only.
+- Facility estate-scoped device history (FAC-009:7): device sources require a home scope.
+
+### Judgment calls a reviewer should contest
+The mandatory/optional classification was frozen and committed (`ca04380`) before hardening, from the frozen envelopes.
+It is judgment, not mechanical. Most consequential: `home_aggregate` is treated as a **composite** (cross-domain composition
+is IQ-3B) and therefore optional where its direct components are covered. Of the 25 Consumer turns whose envelope lists
+`home`, this decides 18 ready turns. If `home.summary/attention/activity` were required, they would need their own
+certification (their contributor false-zero defects are fixed regardless). Wallet is excluded by design on Facility and
+optional on Consumer; unconfirmed reply targets perform no exact read (planning constraint, not a source defect).
+
+### NON_BENCHMARK_EVIDENCE_DEBT
+41 read modules remain uncertified and are not required by any frozen turn (e.g. utilities active/tariff/spending/purchases,
+wallet, home/room aggregates, `facility.overview`, the 4 persisting intelligence composites, the other public knowledge items,
+automations, services, community) plus 5 declared-not-enabled capabilities. They keep their prior states.
+
+### Remaining P0/P1/P2
+- P0: none known.
+- P1: the `home_aggregate` classification above is the largest open judgment; `PureReadGuard` wraps the shared Supabase client's
+  `from`/`rpc` on first planner read (a global, idempotent patch) — IQ-3B should inject a dedicated guarded client instead.
+- P2: building scope is unsupported for every source (homes have a building relation the collectors do not join);
+  audit events are excluded from device history (estate-wide, optional home attribution); `retrieval_failed` for governed knowledge is
+  proven by dependency injection, not by breaking the real index; no query cancellation (a timed-out read may still finish).
+
+### Query impact
+Planner reads add no count queries and are not called by ordinary conversation. Ordinary paths: one extra `rooms` membership query
+only when a room-scoped device read returns zero rows; otherwise the same queries. Planner read cost: devices <=4 queries,
+history 3, cameras 2-3, scenes 1, public 0-1 (+ one bounded GET).
+
+**IQ-3A EVIDENCE CONTRACT CERTIFIED — IQ-3B APPROVAL REQUIRED**
