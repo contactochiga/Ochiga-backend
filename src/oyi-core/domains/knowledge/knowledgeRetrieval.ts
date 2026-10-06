@@ -290,3 +290,24 @@ export async function getKnowledgeItemByCanonicalKey(
   if (!audienceAllowed(item.audience, actor.audienceScope) || !agentAllowed(item, actor.agentRole)) return null;
   return item;
 }
+
+// IQ-3A -- evidence-planning lookup that does not collapse "no authorised match"
+// and "retrieval could not run". Same visibility gates as
+// getKnowledgeItemByCanonicalKey (audience ceiling + agent visibility). A hidden
+// item and an absent item are deliberately indistinguishable to the caller.
+export type KnowledgeLookupOutcome =
+  | { status: "found"; item: KnowledgeItem }
+  | { status: "no_authorised_match" }
+  // The index was built without its Office source and the key is not among the
+  // in-process items, so absence cannot be proven.
+  | { status: "index_degraded" };
+
+export async function lookupKnowledgeItemByCanonicalKey(
+  canonicalKey: string,
+  actor: { agentRole: KnowledgeAgentRole; audienceScope: KnowledgeAudience }
+): Promise<KnowledgeLookupOutcome> {
+  const snapshot = await getIndex();
+  const item = snapshot.items.find((candidate) => candidate.canonicalKey === canonicalKey);
+  if (item && audienceAllowed(item.audience, actor.audienceScope) && agentAllowed(item, actor.agentRole)) return { status: "found", item };
+  return snapshot.sourceOk ? { status: "no_authorised_match" } : { status: "index_degraded" };
+}

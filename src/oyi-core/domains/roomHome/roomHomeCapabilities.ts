@@ -21,8 +21,8 @@ import { buildAggregateSummary, buildAggregateActivitySummary } from "./roomHome
 import { resolveRoomTargetFromMessage, roomPhraseForIntelligence } from "./roomTargetResolution";
 import type { AggregateResult, AggregateOperation } from "./aggregateContract";
 import type { ContributorContext } from "./contributorTypes";
-import { loadHomeDeviceInventoryFacts, loadRecentDeviceChangeFacts } from "../devices/deviceEvidence";
-import { buildContributorSummary } from "../contributorSummary";
+import { readRecentDeviceChanges } from "../devices/deviceEvidence";
+import { buildContributorSummary, unavailableContributorSummary } from "../contributorSummary";
 import { buildResultSetContext, type ResultSetContext } from "../../context/resultSetContext";
 
 function text(value: unknown) {
@@ -115,7 +115,11 @@ const recentDevicesHomeContributor = {
   domain: "devices",
   supports: () => true,
   contribute: async (context: ContributorContext) => {
-    const facts = await loadRecentDeviceChangeFacts(context.input, context.oisContext, context.contract, null);
+    const read = await readRecentDeviceChanges(context.input, context.oisContext, context.contract, null);
+    // A failed primary (ledger) read is not "no recent device changes"; a failed
+    // secondary read with nothing found cannot prove it either.
+    if (read.ledger === "failed" || (read.audit === "failed" && !read.facts.length)) return unavailableContributorSummary("devices", read.ledger === "failed" ? "execution_ledger_failed" : "audit_events_failed");
+    const facts = read.facts;
     return buildContributorSummary({
       domain: "devices",
       facts,

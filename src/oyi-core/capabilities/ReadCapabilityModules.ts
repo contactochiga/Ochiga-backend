@@ -1,13 +1,14 @@
 import type { CapabilityContext, CapabilityModule, CapabilityPresentationPolicy, CapabilityRolloutStatus, EvidenceRequirement, ScopeRequirement } from "../contracts/capability";
 import type { DomainResult } from "../contracts/domainResult";
-import type { OyiEvidence } from "../contracts/evidence";
+import type { EvidenceReadOutcome, EvidenceReadScope, EvidenceScopeClass, OyiEvidence } from "../contracts/evidence";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { evidenceReadOutcome } from "../evidence/EvidenceReadOutcome";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 import type { OyiDomain } from "../runtime/languageUnderstanding";
 import type { PresentationPolicy } from "../contracts/presentation";
 import { resolveIntentContract, factAppliesToContract, isFailureFact, presentationFactPredicates } from "../runtime/canonicalTurnResolution";
-import { loadHomeDeviceInventoryFacts, loadRecentDeviceChangeFacts, dedupeIntelligenceFacts } from "../domains/devices/deviceEvidence";
+import { deviceInventoryEvidence, deviceInventoryRead, deviceHistoryRead, recentDeviceEvidence, historyUnavailable, HISTORY_UNAVAILABLE_TEXT } from "../evidence/sources/deviceReads";
+import { facilityCameraEvidence, facilityCameraOutcome } from "../evidence/sources/cameraReads";
 import { buildDeviceAvailabilityInventoryAnswer, buildRecentChangesAnswer, buildWalletHistoryAnswer, tableBlockForContract } from "../presentation/conversationAnswerPresentation";
 import { buildDeviceFailureHistoryAnswer, buildDeviceDiagnosisAnswer, buildDeviceRelationshipsAnswer } from "../domains/devices/deviceConversationAnswers";
 import { loadWalletTransactionFacts, loadWalletBalanceFacts } from "../domains/wallet/walletEvidence";
@@ -41,79 +42,8 @@ function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-// Wave 6 Slice 12: fact.freshness carries two legitimate shapes across the
-// codebase -- (a) an already-classified OyiEvidence bucket literal (e.g.
-// runtimeEvidenceForDevice, which runs contracts/freshness.ts's own
-// classifier before the fact is built) or (b) a raw ISO observation
-// timestamp / domain sentinel ("unknown"/"unavailable"/"historical"), the
-// contract every other evidence loader follows (see deviceEvidence.ts's own
-// "raw timestamp-or-unknown" comment). Shape (a) must pass through
-// unchanged; shape (b) must be classified by age using the existing
-// domain-aware classifier, never defaulted to "fresh" just because it looks
-// date-shaped -- that silently fabricated freshness regardless of actual age.
-const EVIDENCE_FRESHNESS_LITERALS = new Set(["fresh", "stale", "expired", "unknown", "unobservable", "provider_disconnected"]);
-
-function mapFreshnessBucketToEvidenceFreshness(bucket: FreshnessBucket): OyiEvidence["freshness"] {
-  switch (bucket) {
-    case "fresh": return "fresh";
-    case "recent": return "stale";
-    case "stale": return "stale";
-    case "historical": return "expired";
-    case "unavailable": return "unobservable";
-    case "unknown":
-    default:
-      return "unknown";
-  }
-}
-
-function normalizeFreshness(value: unknown, domain: string): OyiEvidence["freshness"] {
-  const raw = text(value).toLowerCase();
-  if (EVIDENCE_FRESHNESS_LITERALS.has(raw)) return raw as OyiEvidence["freshness"];
-  return mapFreshnessBucketToEvidenceFreshness(classifyFreshnessBucket(domain, value, Date.now()));
-}
-
-function privacyForFact(fact: IntelligenceFact): OyiEvidence["privacy_class"] {
-  const raw = text((fact as any).privacy_class).toLowerCase();
-  if (/financial|wallet|transaction/.test(`${raw} ${fact.domain} ${fact.fact_type}`)) return "financial_sensitive";
-  if (/security|credential|access/.test(`${raw} ${fact.domain} ${fact.fact_type}`)) return "security_sensitive";
-  if (/resident|home|household|device/.test(raw)) return "household_private";
-  return "household_private";
-}
-
-export function evidenceFromFact(fact: IntelligenceFact): OyiEvidence {
-  return evidenceEnvelope({
-    evidence_id: `capability:${fact.fact_id}`,
-    domain: fact.domain as OyiDomain,
-    type: fact.fact_type,
-    object_type: fact.object?.object_type || null,
-    object_id: fact.object?.canonical_id || null,
-    object_ref: {
-      object_type: fact.object?.object_type || null,
-      object_id: fact.object?.canonical_id || null,
-      label: fact.object?.label || null,
-    },
-    source: "domain_adapter",
-    source_type: fact.source_type as any,
-    source_id: fact.source_id || fact.fact_id,
-    observed_at: fact.observed_at || fact.occurred_at || null,
-    freshness: normalizeFreshness(fact.freshness, fact.domain),
-    truth_class: fact.truth_state === "permission_restricted" ? "permission_restricted" : fact.truth_state === "unavailable" ? "unavailable" : "source_record",
-    privacy_class: privacyForFact(fact),
-    permissions: fact.permissions || [],
-    authorised_scope: {
-      estate_id: fact.scope?.estate_id || null,
-      building_id: (fact.scope as any)?.building_id || null,
-      home_id: fact.scope?.home_id || null,
-      room_id: fact.scope?.room_id || null,
-    },
-    confidence: typeof fact.confidence === "number" && Number.isFinite(fact.confidence) ? fact.confidence : 0,
-    payload: { fact },
-  });
-}
-
-export function factsFromEvidence(evidence: OyiEvidence[]): IntelligenceFact[] {
-  return evidence.map((item) => recordOf(item.payload).fact).filter((item): item is IntelligenceFact => Boolean(item && typeof item === "object"));
-}
+export { evidenceFromFact, factsFromEvidence } from "../evidence/sources/evidenceFromFact";
+import { evidenceFromFact, factsFromEvidence } from "../evidence/sources/evidenceFromFact";
 
 export function targetRecord(context: CapabilityContext) {
   return {
@@ -167,7 +97,16 @@ export type ReadModuleInput = {
   answer: (context: CapabilityContext, evidence: OyiEvidence[]) => Promise<DomainResult> | DomainResult;
   rolloutStatus?: CapabilityRolloutStatus;
   primary?: CapabilityPresentationPolicy["primary"];
-  certifiedSource?: { module: string; population: string; snapshotField?: string; snapshotRows?: string };
+  certifiedSource?: {
+    module: string; population: string; snapshotField?: string; snapshotRows?: string;
+    // Defaults preserve the original two certifications: Office snapshot, or
+    // Consumer home + Facility estate. Hardened sources declare theirs explicitly.
+    kind?: NonNullable<CapabilityModule["evidence_read"]>["kind"];
+    scopes?: EvidenceScopeClass[];
+    // Source-specific outcome adapter. It must obey the evidence-read contract:
+    // failures are never empty, zero needs proof, and it must be a pure read.
+    read?: (context: CapabilityContext, scope: EvidenceReadScope) => Promise<EvidenceReadOutcome>;
+  };
 };
 
 export function readModule(input: ReadModuleInput): CapabilityModule {
@@ -189,12 +128,14 @@ export function readModule(input: ReadModuleInput): CapabilityModule {
     },
     collectEvidence: input.collect,
     evidence_read: input.certifiedSource ? {
-      kind: input.certifiedSource.snapshotField ? "office_snapshot" : "operational_scope",
+      kind: input.certifiedSource.kind || (input.certifiedSource.snapshotField ? "office_snapshot" : "operational_scope"),
+      scopes: input.certifiedSource.scopes || (input.certifiedSource.snapshotField ? ["office_permissioned_snapshot"] : ["consumer_home", "facility_estate"]),
       source_module: input.certifiedSource.module,
       population: input.certifiedSource.population,
       source_limit: 50,
       async collect(context, scope) {
         const definition = input.certifiedSource!;
+        if (definition.read) return definition.read(context, scope);
         const requestContext = recordOf(context.input.context);
         const snapshot = recordOf(requestContext.operational_snapshot);
         const section = definition.snapshotField ? recordOf(snapshot[definition.snapshotField]) : null;
@@ -267,57 +208,6 @@ function declaredModule(input: {
   });
 }
 
-async function deviceInventoryEvidence(context: CapabilityContext) {
-  const facts = await loadHomeDeviceInventoryFacts(context.input, context.oisContext);
-  return dedupeIntelligenceFacts(facts).map(evidenceFromFact);
-}
-
-async function recentDeviceEvidence(context: CapabilityContext) {
-  const contract = requestContract(context);
-  const facts = await loadRecentDeviceChangeFacts(context.input, context.oisContext, contract, null);
-  return dedupeIntelligenceFacts(facts).map(evidenceFromFact);
-}
-
-async function facilityCameraEvidence(context: CapabilityContext): Promise<OyiEvidence[]> {
-  const estateId = text(context.oisContext?.estate_id || context.actor?.estate_id);
-  if (!estateId || !context.actor?.id) return [];
-  const accessActor = cameraAccessActor(context.actor, { estate_id: estateId, home_id: null });
-  try {
-    const { data, error } = await supabaseAdmin.from("facility_cameras")
-      .select("id,estate_id,home_id,privacy_scope,metadata,name,location")
-      .eq("estate_id", estateId).limit(100);
-    if (error) throw error;
-    const authorised = (data || []).filter((row: any) => canAccessCamera(row, accessActor).ok);
-    const states = await resolveCameraCurrentStates(estateId, authorised.map((row: any) => row.id), accessActor);
-    const names = new Map(authorised.map((row: any) => [String(row.id), text(row.name) || "Camera"]));
-    return states.map((state) => evidenceFromFact({
-      fact_id: `camera-current-state:${state.cameraId}`,
-      domain: "cameras", fact_type: "camera_current_state",
-      scope: { estate_id: estateId, home_id: null, room_id: null },
-      object: { object_type: "camera", canonical_id: state.cameraId, label: names.get(state.cameraId) || "Camera" },
-      statement: `${names.get(state.cameraId) || "Camera"}: ${cameraStateExplanation(state)} `,
-      value: { overall: state.overall, video_evidence: state.videoEvidence, observed_at: state.observedAt },
-      previous_value: null, occurred_at: state.observedAt, observed_at: new Date().toISOString(),
-      source_type: "database", source_id: state.cameraId, truth_state: "confirmed",
-      confidence: state.overall === "unknown" ? 0.4 : 0.9,
-      freshness: state.observedAt || "unknown", privacy_class: "facility_sensitive",
-      permissions: ["cameras.view"], evidence: [{ type: "camera_current_state", id: state.cameraId, overall: state.overall }],
-    } as IntelligenceFact));
-  } catch {
-    return [evidenceFromFact({
-      fact_id: `camera-current-state-unavailable:${context.resolvedTurn.request_id}`,
-      domain: "cameras", fact_type: "camera_current_state",
-      scope: { estate_id: estateId, home_id: null, room_id: null },
-      object: { object_type: "camera", canonical_id: estateId, label: "Estate cameras" },
-      statement: "Camera current-state evidence could not be loaded.", value: null,
-      previous_value: null, occurred_at: null, observed_at: new Date().toISOString(),
-      source_type: "database", source_id: null, truth_state: "unavailable",
-      confidence: 0, freshness: "unavailable", privacy_class: "facility_sensitive",
-      permissions: ["cameras.view"], evidence: [{ type: "camera_current_state", status: "unavailable" }],
-    } as IntelligenceFact)];
-  }
-}
-
 function deviceStatusSupports(frame: SemanticFrame) {
   return frame.domain === "devices" && ["inform", "inspect", "list", "summarize", "device.status"].includes(frame.operation);
 }
@@ -384,6 +274,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       evidenceRequirements: [readRequirement("cameras", "camera_current_state")],
       supports: (frame) => frame.domain === "cameras" || /\bcameras?\b/i.test(frame.normalizedText),
       collect: facilityCameraEvidence,
+      certifiedSource: { module: "src/oyi-core/evidence/sources/cameraReads.ts", kind: "estate_scope", scopes: ["facility_estate"], population: "cameras_in_verified_estate_accessible_to_actor_registry_limit_100", read: facilityCameraOutcome },
       answer: (_context, evidence) => {
         const facts = factsFromEvidence(evidence);
         if (facts.some((fact) => fact.truth_state === "unavailable")) return { status: "unavailable", answer: "Camera current-state evidence could not be loaded; I cannot call any camera offline.", presentation_policy: resultPresentation("list") };
@@ -404,6 +295,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       evidenceRequirements: deviceEvidence,
       supports: deviceStatusSupports,
       collect: deviceInventoryEvidence,
+      certifiedSource: { module: "src/oyi-core/evidence/sources/deviceReads.ts", kind: "home_scope", scopes: ["consumer_home", "consumer_room"], population: "registered_devices_in_verified_home_or_room_limit_100", read: deviceInventoryRead("devices.status.read") },
       answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);
         const contract = requestContract(context);
@@ -423,6 +315,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       evidenceRequirements: deviceEvidence,
       supports: (frame) => frame.domain === "devices" && (frame.operation === "device.availability" || /\boffline|online|available|availability|devices?\b/i.test(frame.normalizedText)),
       collect: deviceInventoryEvidence,
+      certifiedSource: { module: "src/oyi-core/evidence/sources/deviceReads.ts", kind: "home_scope", scopes: ["consumer_home", "consumer_room"], population: "registered_devices_in_verified_home_or_room_limit_100", read: deviceInventoryRead("devices.availability.read") },
       answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);
         const contract = requestContract(context);
@@ -442,8 +335,10 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       evidenceRequirements: activityEvidence,
       supports: (frame) => frame.domain === "devices" && (frame.operation === "device.activity" || /\bactivity|history|what happened|changed|changes\b/i.test(frame.normalizedText)),
       collect: recentDeviceEvidence,
+      certifiedSource: { module: "src/oyi-core/evidence/sources/deviceReads.ts", kind: "home_scope", scopes: ["consumer_home"], population: "resident_visible_device_command_executions_in_ledger_for_verified_home_limit_25", read: deviceHistoryRead("devices.activity.read", facts => facts) },
       answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);
+        if (historyUnavailable(facts)) return { status: "unavailable", answer: HISTORY_UNAVAILABLE_TEXT, presentation_policy: resultPresentation("text") };
         const contract = requestContract(context);
         const answer = buildRecentChangesAnswer(facts, contract, presentationFactPredicates);
         const block = tableBlockForContract(contract, facts, presentationFactPredicates);
@@ -462,10 +357,12 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       supports: (frame) => frame.domain === "devices" && (frame.operation === "device.failures" || /\bfailures?|failed|faults?|offline\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const evidence = await recentDeviceEvidence(context);
-        return evidence.filter((item) => isFailureFact(recordOf(item.payload).fact as IntelligenceFact));
+        return evidence.filter((item) => historyUnavailable([recordOf(item.payload).fact as IntelligenceFact]) || isFailureFact(recordOf(item.payload).fact as IntelligenceFact));
       },
+      certifiedSource: { module: "src/oyi-core/evidence/sources/deviceReads.ts", kind: "home_scope", scopes: ["consumer_home"], population: "resident_visible_device_command_executions_in_ledger_for_verified_home_limit_25", read: deviceHistoryRead("devices.failures.read", facts => facts.filter(f => isFailureFact(f))) },
       answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);
+        if (historyUnavailable(facts)) return { status: "unavailable", answer: HISTORY_UNAVAILABLE_TEXT, presentation_policy: resultPresentation("list") };
         const contract = requestContract(context);
         return { status: facts.length ? "answered" : "empty", answer: buildDeviceFailureHistoryAnswer(facts, contract, { factAppliesToContract, isFailureFact }), presentation_policy: resultPresentation("list") };
       },
@@ -483,6 +380,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       collect: recentDeviceEvidence,
       answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);
+        if (historyUnavailable(facts)) return { status: "unavailable", answer: HISTORY_UNAVAILABLE_TEXT, presentation_policy: resultPresentation("text") };
         const answer = facts.length
           ? buildRecentChangesAnswer(facts, requestContract(context), presentationFactPredicates)
           : "I do not see enough confirmed device evidence to diagnose this from the authorised scope.";
@@ -828,6 +726,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         const facts = await loadSceneFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);
       },
+      certifiedSource: { module: "src/oyi-core/domains/automations/sceneAutomationEvidence.ts", kind: "home_scope", scopes: ["consumer_home"], population: "all_scenes_in_verified_home_limit_50" },
       answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);
         if (facts.some((fact) => fact.truth_state === "unavailable")) {

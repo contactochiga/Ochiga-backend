@@ -97,8 +97,26 @@ export type EvidenceReadOutcome = {
   record_count: number;
   source_total: number | null;
   lifecycle: Array<{ evidence_id: string; relevance: "active" | "historical" | "unknown" }>;
-  error_class: "source_unavailable" | "source_error" | "deadline_exceeded" | null;
+  error_class: "source_unavailable" | "source_error" | "deadline_exceeded" | "pure_read_violation" | null;
+  // Sub-sources (history, enrichment) that failed while the read still produced
+  // a result. A mandatory sub-source failure is an error; an optional one makes
+  // the result partial. Absent means no sub-source degraded.
+  degraded_sources?: EvidenceDegradedSource[];
 };
+
+export type EvidenceDegradedSource = {
+  source: string;
+  availability: "unavailable" | "error" | "timeout";
+  mandatory: boolean;
+};
+
+// Surface x scope classes a certified source may be admitted for. Certification is
+// per collector x surface x scope, never global.
+export type EvidenceScopeClass =
+  | "office_permissioned_snapshot"
+  | "consumer_home" | "consumer_room"
+  | "facility_estate" | "facility_building" | "facility_home" | "facility_room"
+  | "public_thread" | "public_corporate";
 
 export type IntelligenceFact = {
   fact_id: string;

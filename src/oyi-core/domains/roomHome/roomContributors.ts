@@ -1,6 +1,6 @@
-import { buildContributorSummary } from "../contributorSummary";
+import { buildContributorSummary, unavailableContributorSummary } from "../contributorSummary";
 import type { Contributor, ContributorContext, ContributorScope } from "./contributorTypes";
-import { loadHomeDeviceInventoryFacts } from "../devices/deviceEvidence";
+import { readHomeDeviceInventory } from "../devices/deviceEvidence";
 import { loadMaintenanceRequestFacts } from "../maintenance/maintenanceEvidence";
 import { loadSecurityIncidentFacts } from "../security/securityEvidence";
 import { runIntelligenceOrchestrator } from "../intelligence/intelligenceOrchestrator";
@@ -33,10 +33,13 @@ const devicesRoomContributor: Contributor = {
   domain: "devices",
   supports: roomIdRequired,
   contribute: async (context: ContributorContext) => {
-    // loadHomeDeviceInventoryFacts already filters by input.room_id when
-    // present (deviceEvidence.ts) — native room filtering, not a second
-    // query path.
-    const facts = await loadHomeDeviceInventoryFacts({ ...context.input, room_id: context.scope.room_id }, context.oisContext);
+    // readHomeDeviceInventory filters by room in the query itself
+    // (deviceEvidence.ts) — native room filtering, not a second query path. A
+    // failed read, or a room that cannot be shown to belong to the home, is
+    // unavailable, never "no devices registered in this room".
+    const read = await readHomeDeviceInventory({ ...context.input, room_id: context.scope.room_id }, context.oisContext);
+    if (read.availability !== "available") return unavailableContributorSummary("devices", read.reason);
+    const facts = read.facts;
     return buildContributorSummary({
       domain: "devices",
       facts,

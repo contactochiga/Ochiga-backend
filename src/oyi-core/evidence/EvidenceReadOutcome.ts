@@ -1,4 +1,4 @@
-import type { EvidenceReadOutcome, EvidenceReadScope, OyiEvidence } from "../contracts/evidence";
+import type { EvidenceDegradedSource, EvidenceReadOutcome, EvidenceReadScope, OyiEvidence } from "../contracts/evidence";
 
 // Matches the existing maintenance/security source row bound. This is an
 // acceptance bound, not a claim that an upstream query was itself bounded.
@@ -22,6 +22,8 @@ export type EvidenceReadProof = {
   freshness: EvidenceReadOutcome["freshness"];
   records: OyiEvidence[];
   lifecycle?: EvidenceReadOutcome["lifecycle"];
+  // Failed sub-sources that did not stop the read. Empty/undefined means none failed.
+  degraded_sources?: EvidenceDegradedSource[];
 };
 
 /** Normalize audited source proofs. This function neither authorizes nor reads. */
@@ -58,11 +60,17 @@ export function evidenceReadOutcome(proof: EvidenceReadProof): EvidenceReadOutco
   // Failure sentinel records are not observations and cannot prove zero.
   if (proof.records.some(r => r.truth_class === "permission_restricted")) return { ...base, effective_scope: null, status: "authority_denied", authority: "denied" };
   const unavailable = proof.records.some(r => r.truth_class === "unavailable" || r.freshness === "provider_disconnected");
+  // A failed mandatory sub-source (e.g. the primary history query) is an error, not
+  // a result: nothing from the read may be taken as evidence of absence.
+  const degraded = proof.degraded_sources || [];
+  if (degraded.some(d => d.mandatory)) {
+    return { ...base, status: "error", error_class: "source_error", degraded_sources: degraded };
+  }
   const accepted = proof.records.filter(r => r.truth_class !== "unavailable" && r.freshness !== "provider_disconnected");
   const records = accepted.slice(0, MAX_EVIDENCE_READ_RECORDS);
   const total = Number.isInteger(proof.source_total) && Number(proof.source_total) >= 0 ? Number(proof.source_total) : null;
   const truncated = proof.truncated || accepted.length > records.length || (total !== null && total > records.length);
-  const complete = proof.complete && !truncated && !unavailable && (total === null || total === records.length);
+  const complete = proof.complete && !truncated && !unavailable && degraded.length === 0 && (total === null || total === records.length);
   const stale = proof.freshness === "stale" || records.some(r => r.freshness === "stale" || r.freshness === "expired");
   const zero = complete && records.length === 0 && proof.freshness === "current";
   const ids = new Set(records.map(r => r.evidence_id));
@@ -72,7 +80,8 @@ export function evidenceReadOutcome(proof: EvidenceReadProof): EvidenceReadOutco
     freshness: stale ? "stale" : proof.freshness,
     lifecycle: (proof.lifecycle || []).filter(r => ids.has(r.evidence_id)),
     status: unavailable && !records.length ? "unavailable" : stale ? "stale" : zero ? "available_zero" : complete && records.length > 0 ? "available_complete" : "available_partial",
-    error_class: unavailable ? "source_unavailable" : null,
+    error_class: unavailable ? "source_unavailable" : degraded.length ? "source_error" : null,
+    ...(degraded.length ? { degraded_sources: degraded } : {}),
   };
 }
 

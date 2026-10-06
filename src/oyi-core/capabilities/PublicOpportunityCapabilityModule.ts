@@ -21,6 +21,7 @@
 import type { CapabilityModule, CapabilityContext } from "../contracts/capability";
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
+import { publicOpportunityOutcome } from "../evidence/sources/publicReads";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { isAssessmentObjective } from "../context/conversationAssessmentContext";
 import { correctedPublicFacts } from "../context/publicOpportunityObjective";
@@ -28,7 +29,7 @@ import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
 import { canonicalCorporateAnswer } from "./corporateKnowledgeAnswer";
 import {
-  loadPublicOpportunityObjective,
+  readPublicOpportunityObjective,
   type PublicOpportunityObjective,
   type PublicOpportunityType,
 } from "../context/publicOpportunityObjective";
@@ -244,7 +245,7 @@ const CORPORATE_JV_STRUCTURE_FALLBACK =
   "A typical Ochiga JV moves through Introduce, Review, Structure, Align, Execute. Early on we usually look at opportunity type, location, land size, and any documents already in hand (title, survey, or existing approvals if a building already exists); " +
   "a target equity split is discussed once those are clear, subject to negotiation. Start a conversation at ochiga.com.ng/partnerships or ochiga.com.ng/contact.";
 
-function publicOpportunityEvidence(objective: PublicOpportunityObjective | null): OyiEvidence {
+function publicOpportunityEvidence(objective: PublicOpportunityObjective | null, loadFailed = false): OyiEvidence {
   return evidenceEnvelope({
     domain: "corporate_opportunity",
     type: "public_opportunity_objective",
@@ -256,7 +257,7 @@ function publicOpportunityEvidence(objective: PublicOpportunityObjective | null)
     privacy_class: publicEvidence,
     confidence: 0.85,
     authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
-    payload: { objective },
+    payload: { objective, load_failed: loadFailed },
   });
 }
 
@@ -269,12 +270,18 @@ export function publicOpportunityReadModule(): CapabilityModule {
     permissions: [],
     evidenceRequirements: [{ domain: "corporate_opportunity", evidence_type: "public_opportunity_objective", freshness: ["unknown"], required: false }],
     supports: (frame: SemanticFrame) => frame.domain === "corporate_opportunity",
+    certifiedSource: { module: "src/oyi-core/evidence/sources/publicReads.ts", kind: "public_thread", scopes: ["public_thread"], population: "unexpired_caller_supplied_opportunity_objective_of_owned_public_thread", read: publicOpportunityOutcome },
     collect: async (context) => {
-      const objective = await loadPublicOpportunityObjective(text(context.input.thread_id));
-      return [publicOpportunityEvidence(objective)];
+      const read = await readPublicOpportunityObjective(text(context.input.thread_id), context.actor?.id);
+      return [publicOpportunityEvidence(read.status === "found" ? read.objective : null, read.status === "error")];
     },
     answer: async (context, evidence): Promise<DomainResult> => {
       const prior = (evidence[0]?.payload as { objective: PublicOpportunityObjective | null } | undefined)?.objective || null;
+      // A failed objective load is not "no earlier details": answering as if the caller had
+      // supplied nothing would merge this turn over, and so overwrite, what they already gave.
+      if ((evidence[0]?.payload as { load_failed?: boolean } | undefined)?.load_failed) {
+        return { status: "unavailable", answer: "I couldn't load the details you gave earlier just now, so I haven't changed anything. Please try again in a moment.", presentation_policy: resultPresentation("text") };
+      }
       const message = text(context.input.message);
       const corrected = correctedPublicFacts(prior, message);
       if (prior && corrected) {

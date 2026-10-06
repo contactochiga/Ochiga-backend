@@ -1,6 +1,6 @@
 import type { AuthorityDecision } from "./authority";
 import type { DomainResult } from "./domainResult";
-import type { OyiEvidence, EvidenceReadOutcome, EvidenceReadScope } from "./evidence";
+import type { OyiEvidence, EvidenceReadOutcome, EvidenceReadScope, EvidenceScopeClass } from "./evidence";
 import type { ResolvedTurn } from "./resolvedTurn";
 import type { SemanticFrame } from "./semanticFrame";
 import type { OyiAction } from "./action";
@@ -106,7 +106,10 @@ export interface CapabilityModule {
   collectEvidence(context: CapabilityContext): Promise<OyiEvidence[]>;
   // Opt-in audited single-source boundary; absence means not planner eligible.
   evidence_read?: {
-    kind: "operational_scope" | "office_snapshot";
+    kind: "operational_scope" | "office_snapshot" | "home_scope" | "estate_scope" | "public_thread" | "public_source";
+    // Certification is per surface x scope. A request whose scope class is not
+    // listed here is rejected before any collection, never widened.
+    scopes: EvidenceScopeClass[];
     source_module: string;
     population: string;
     source_limit: number;

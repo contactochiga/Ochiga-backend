@@ -5,8 +5,10 @@ import { operationalMetrics } from "../../observability/metrics";
 import type { OisContext } from "../../types/oisContext";
 import type { OyiSurface } from "../../services/oyiUnifiedIntelligenceService";
 import type { CapabilityContext, CapabilityModule, CapabilityRolloutStatus } from "../contracts/capability";
-import type { OyiEvidence, EvidenceReadOutcome } from "../contracts/evidence";
+import type { OyiEvidence, EvidenceReadOutcome, EvidenceScopeClass } from "../contracts/evidence";
 import { evidenceReadOutcome, withinEvidenceDeadline } from "../evidence/EvidenceReadOutcome";
+import { runPureRead } from "../evidence/PureReadGuard";
+import { supabaseAdmin } from "../../supabase/supabaseClient";
 import { actorHasFacilityReadScope } from "../../intelligence-core/permissionEngine";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { capabilityRegistry } from "./CapabilityRegistry";
@@ -261,8 +263,8 @@ export class CapabilityService {
     const authority = this.canUse(key, { actor: context.actor, oisContext: context.oisContext, surface: context.input.surface, scope });
     if (!authority.allowed || module?.risk_class !== "read") return evidenceReadOutcome({ ...base, authority: "denied" });
     if (!module.evidence_read) return evidenceReadOutcome({ ...base, scope: "unsupported" });
-    // Certified sources currently enforce estate OR home, not building/room.
-    if (scope.building_id || scope.room_id || context.resolvedTurn.target?.canonical_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+    // Exact-record reads are never silently broadened to a collection read.
+    if (context.resolvedTurn.target?.canonical_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
     const verified = context.oisContext;
     if (!context.actor || !verified || verified.actor_id !== context.actor.id || verified.role !== context.actor.role) {
       return evidenceReadOutcome({ ...base, authority: "denied" });
@@ -270,18 +272,46 @@ export class CapabilityService {
     if (scope.estate_id !== verified.estate_id || (scope.home_id && scope.home_id !== verified.home_id)) {
       return evidenceReadOutcome({ ...base, authority: "denied" });
     }
-    if (module.evidence_read.kind === "office_snapshot") {
-      if (context.input.surface !== "office_internal") return evidenceReadOutcome({ ...base, authority: "denied" });
-      if (scope.estate_id || scope.home_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
-    } else if (context.input.surface === "facility") {
+    // Surface x scope admission. The request's scope class must be one this
+    // collector was certified for; otherwise it is rejected before collection.
+    const admitted = module.evidence_read.scopes;
+    const surface = context.input.surface;
+    let scopeClass: EvidenceScopeClass;
+    if (surface === "office_internal") {
+      if (!admitted.includes("office_permissioned_snapshot")) return evidenceReadOutcome({ ...base, authority: "denied" });
+      if (scope.estate_id || scope.home_id || scope.building_id || scope.room_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+      scopeClass = "office_permissioned_snapshot";
+    } else if (surface === "facility") {
       if (!actorHasFacilityReadScope(context.actor.role)) return evidenceReadOutcome({ ...base, authority: "denied" });
-      if (scope.home_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
-      if (!scope.estate_id) return evidenceReadOutcome({ ...base, scope: "insufficient" });
-    } else if (context.input.surface === "consumer") {
+      scopeClass = scope.room_id ? "facility_room" : scope.building_id ? "facility_building" : scope.home_id ? "facility_home" : "facility_estate";
+      if (scopeClass === "facility_estate" && !scope.estate_id) return evidenceReadOutcome({ ...base, scope: "insufficient" });
+      if (!admitted.includes(scopeClass)) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+    } else if (surface === "consumer") {
       if (!scope.home_id || !scope.estate_id) return evidenceReadOutcome({ ...base, scope: "insufficient" });
       if (context.actor.home_id !== scope.home_id || context.actor.estate_id !== scope.estate_id) return evidenceReadOutcome({ ...base, authority: "denied" });
+      if (scope.building_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+      scopeClass = scope.room_id ? "consumer_room" : "consumer_home";
+      if (!admitted.includes(scopeClass)) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+    } else if (surface === "public_corporate") {
+      if (!admitted.includes("public_thread") && !admitted.includes("public_corporate")) return evidenceReadOutcome({ ...base, authority: "denied" });
+      if (scope.estate_id || scope.home_id || scope.building_id || scope.room_id) return evidenceReadOutcome({ ...base, scope: "unsupported" });
+      // A thread-state source needs a thread; public knowledge/listing sources do not.
+      if (admitted.includes("public_thread") && !text(context.input.thread_id)) return evidenceReadOutcome({ ...base, scope: "insufficient" });
+      scopeClass = admitted.includes("public_thread") ? "public_thread" : "public_corporate";
     } else return evidenceReadOutcome({ ...base, authority: "denied" });
-    const read = await withinEvidenceDeadline(() => module.evidence_read!.collect(context, scope), timeoutMs);
+    // PURE READ: collection runs with durable-write and RPC verbs refused. A
+    // violation is an error outcome, never a partial result.
+    let violations: string[] = [];
+    const read = await withinEvidenceDeadline(async () => {
+      const run = await runPureRead(supabaseAdmin as any, () => module.evidence_read!.collect(context, scope));
+      violations = run.violations;
+      if ("error" in run) throw run.error;
+      return run.value as EvidenceReadOutcome;
+    }, timeoutMs);
+    if (violations.length) {
+      logger.error("oyi_evidence_read_pure_read_violation", { capability_key: key, violations });
+      return { ...evidenceReadOutcome({ ...base, query_executed: true, availability: "error" }), error_class: "pure_read_violation" };
+    }
     if (read.status !== "completed") return evidenceReadOutcome({ ...base, query_executed: true, availability: read.status });
     const privacy = this.assertEvidenceAllowed(module, read.value.records, { actor: context.actor, oisContext: verified, surface: context.input.surface, scope });
     return privacy.allowed ? read.value : evidenceReadOutcome({ ...base, query_executed: true, authority: "denied" });

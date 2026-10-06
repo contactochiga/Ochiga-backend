@@ -27,6 +27,7 @@
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
+import { corporateKnowledgeOutcome, corporateDevelopmentOutcome, fetchLiveDevelopmentProjects, type SanityDevelopmentProject } from "../evidence/sources/publicReads";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
@@ -2871,6 +2872,7 @@ function corporatePartnershipsReadModule(): CapabilityModule {
     permissions: [],
     evidenceRequirements: [],
     supports: (frame: SemanticFrame) => frame.domain === "corporate_partnerships",
+    certifiedSource: { module: "src/oyi-core/evidence/sources/publicReads.ts", kind: "public_source", scopes: ["public_corporate"], population: "governed_knowledge_item_backend:corporate-partnerships_visible_to_public_actor", read: (_context, scope) => corporateKnowledgeOutcome("corporate.partnerships.read", "corporate_partnerships", "backend:corporate-partnerships", scope) },
     collect: async () => {
       const answer = await canonicalCorporateAnswer("backend:corporate-partnerships", CORPORATE_PARTNERSHIPS_FALLBACK);
       return [corporateEvidence("corporate_partnerships", "corporate_partnerships_profile", answer)];
@@ -2889,38 +2891,6 @@ function corporatePartnershipsReadModule(): CapabilityModule {
 // dataset (same project/dataset the website itself renders from). A
 // credential-free CDN read — no new secrets, nothing private.
 // ---------------------------------------------------------------------
-const SANITY_PROJECT_ID = "ap1ku6sf";
-const SANITY_DATASET = "production";
-const DEVELOPMENT_PROJECTS_GROQ = `*[_type == "developmentProject"] | order(order asc) {
-  name,
-  "slug": slug.current,
-  typeLine,
-  location,
-  status,
-  oneLiner
-}`;
-
-type SanityDevelopmentProject = {
-  name?: string;
-  slug?: string;
-  typeLine?: string;
-  location?: string;
-  status?: string;
-  oneLiner?: string;
-};
-
-async function fetchLiveDevelopmentProjects(): Promise<{ projects: SanityDevelopmentProject[]; fetched: boolean }> {
-  try {
-    const url = `https://${SANITY_PROJECT_ID}.apicdn.sanity.io/v2024-01-01/data/query/${SANITY_DATASET}?query=${encodeURIComponent(DEVELOPMENT_PROJECTS_GROQ)}`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
-    if (!response.ok) return { projects: [], fetched: false };
-    const body = (await response.json()) as { result?: SanityDevelopmentProject[] };
-    return { projects: Array.isArray(body.result) ? body.result : [], fetched: true };
-  } catch {
-    return { projects: [], fetched: false };
-  }
-}
-
 function corporateDevelopmentReadModule(): CapabilityModule {
   return readModule({
     key: "corporate.development.read",
@@ -2934,6 +2904,7 @@ function corporateDevelopmentReadModule(): CapabilityModule {
     // for the current live project listing -- mutually exclusive so
     // exactly one of the two capabilities on this domain ever matches.
     supports: (frame: SemanticFrame) => frame.domain === "corporate_development" && !/\bochiga\s+development\b/i.test(frame.normalizedText),
+    certifiedSource: { module: "src/oyi-core/evidence/sources/publicReads.ts", kind: "public_source", scopes: ["public_corporate"], population: "published_development_projects_in_public_website_dataset", read: (_context, scope) => corporateDevelopmentOutcome(scope) },
     collect: async () => {
       const { projects, fetched } = await fetchLiveDevelopmentProjects();
       if (!fetched) return [];

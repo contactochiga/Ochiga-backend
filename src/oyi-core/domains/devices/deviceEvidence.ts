@@ -14,6 +14,7 @@ import type {
 } from "../../contracts/canonicalConversation";
 import type { OisContext } from "../../../types/oisContext";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
+import type { EvidenceDegradedSource } from "../../contracts/evidence";
 
 export function runtimeEvidenceForDevice(input: {
   device: Record<string, unknown>;
@@ -229,29 +230,63 @@ function truthStateFromRuntimeFreshness(freshness: FreshnessClassification): Tru
   return "observed";
 }
 
-export async function loadHomeDeviceInventoryFacts(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
+export const DEVICE_INVENTORY_ROW_LIMIT = 100;
+
+// Source-level outcome of the shared device inventory read. Ordinary callers use
+// loadHomeDeviceInventoryFacts (facts only, unchanged shape); evidence-planning and
+// aggregate callers use this so a failed read can never be mistaken for "no devices".
+export type DeviceInventoryRead = {
+  facts: IntelligenceFact[];
+  availability: "available" | "unavailable" | "error";
+  // Why the read is not usable: no verified home, or a room that cannot be shown to
+  // belong to the verified home (an empty room result would otherwise be a false zero).
+  reason: "ok" | "home_scope_missing" | "room_not_in_home" | "query_failed" | "state_hydration_failed" | "room_membership_unverified";
+  row_limit: number;
+  source_rows: number;
+  truncated: boolean;
+  room_filter: "none" | "query";
+  degraded: EvidenceDegradedSource[];
+};
+
+function inventoryFailure(reason: DeviceInventoryRead["reason"], availability: "unavailable" | "error", roomFilter: DeviceInventoryRead["room_filter"], sourceRows = 0): DeviceInventoryRead {
+  return { facts: [], availability, reason, row_limit: DEVICE_INVENTORY_ROW_LIMIT, source_rows: sourceRows, truncated: false, room_filter: roomFilter, degraded: [] };
+}
+
+export async function readHomeDeviceInventory(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined): Promise<DeviceInventoryRead> {
   const scope = conversationScope(input, oisContext);
-  if (!scope.home_id) return [];
+  if (!scope.home_id) return inventoryFailure("home_scope_missing", "unavailable", "none");
+  const roomFilter: DeviceInventoryRead["room_filter"] = scope.room_id ? "query" : "none";
+  const degraded: EvidenceDegradedSource[] = [];
   try {
-    const { data: devices, error: deviceError } = await supabaseAdmin
+    // Room scope is pushed into the query: filtering after the row limit could miss
+    // valid room devices in a large home and then report a false empty room.
+    let query = supabaseAdmin
       .from("devices")
       .select(deviceCurrentStateSelect("name,estate_id,home_id,room_id,last_seen_at,updated_at"))
-      .eq("home_id", scope.home_id)
-      .limit(100);
+      .eq("home_id", scope.home_id);
+    if (scope.room_id) query = query.eq("room_id", scope.room_id);
+    const { data: devices, error: deviceError } = await query.limit(DEVICE_INVENTORY_ROW_LIMIT);
     if (deviceError) throw deviceError;
-    const ids = (devices || []).map((device: any) => String(device.id)).filter(Boolean);
-    const roomIds = Array.from(new Set((devices || []).map((device: any) => text(device.room_id)).filter(Boolean)));
+    const rows = (devices || []) as any[];
+    // A room with no device rows is only an empty room if it belongs to this home.
+    if (scope.room_id && !rows.length) {
+      const room = await supabaseAdmin.from("rooms").select("id").eq("id", scope.room_id).eq("home_id", scope.home_id).limit(1);
+      if (room.error) return inventoryFailure("room_membership_unverified", "error", roomFilter);
+      if (!room.data?.length) return inventoryFailure("room_not_in_home", "unavailable", roomFilter);
+    }
+    const roomIds = Array.from(new Set(rows.map((device: any) => text(device.room_id)).filter(Boolean)));
     const rooms = roomIds.length
       ? await supabaseAdmin.from("rooms").select("id,name").in("id", roomIds)
       : { data: [], error: null };
-    if (rooms.error) logger.warn("conversation_home_room_names_load_failed", { error: rooms.error, home_id: scope.home_id });
+    if (rooms.error) {
+      logger.warn("conversation_home_room_names_load_failed", { error: rooms.error, home_id: scope.home_id });
+      degraded.push({ source: "room_names", availability: "error", mandatory: false });
+    }
     const roomById = new Map((rooms.data || []).map((row: any) => [String(row.id), cleanLabel(row.name, "")]));
     // Current-state authority: cache-first, batched single-query hydration from persisted
     // device_states when uncached, never a live provider poll (Wave 6 Slice 13).
-    const currentStateByDevice = await resolveDeviceCurrentStates(devices || []);
-    return (devices || [])
-      .filter((device: any) => !scope.room_id || String(device.room_id || "") === String(scope.room_id))
-      .map((device: any): IntelligenceFact => {
+    const currentStateByDevice = await resolveDeviceCurrentStates(rows);
+    const facts = rows.map((device: any): IntelligenceFact => {
         const current = currentStateByDevice.get(String(device.id)) || null;
         const availability = current?.availability || "unknown";
         const freshness: FreshnessClassification = current?.freshness || "unknown";
@@ -293,11 +328,38 @@ export async function loadHomeDeviceInventoryFacts(input: CanonicalConversationR
           evidence: [{ source: current?.source || "unavailable", device_id: String(device.id), observed_at: observedAt, freshness }],
         };
       });
+    return { facts, availability: "available", reason: "ok", row_limit: DEVICE_INVENTORY_ROW_LIMIT, source_rows: rows.length, truncated: rows.length >= DEVICE_INVENTORY_ROW_LIMIT, room_filter: roomFilter, degraded };
   } catch (error) {
     logger.warn("conversation_home_device_inventory_load_failed", { error, home_id: scope.home_id, estate_id: scope.estate_id });
-    return [];
+    return inventoryFailure("query_failed", "error", roomFilter);
   }
 }
+
+export async function loadHomeDeviceInventoryFacts(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined) {
+  return (await readHomeDeviceInventory(input, oisContext)).facts;
+}
+
+export const DEVICE_LEDGER_ROW_LIMIT = 25;
+export const DEVICE_AUDIT_ROW_LIMIT = 20;
+
+// Source-level outcome of the recent device change read. The execution ledger is the
+// primary (mandatory) source; audit events and name/room enrichment are secondary: their
+// failure is recorded and the read is partial, never silently complete. Ordinary callers
+// keep loadRecentDeviceChangeFacts (facts only).
+export type DeviceChangeRead = {
+  facts: IntelligenceFact[];
+  ledger: "available" | "failed";
+  ledger_rows: number;
+  audit: "available" | "failed";
+  audit_rows: number;
+  // Ledger/audit queries are bounded before visibility filtering; hitting a bound means
+  // older matching rows may exist, so a filtered-empty result is not a proven zero.
+  ledger_truncated: boolean;
+  audit_truncated: boolean;
+  supplied_history_used: boolean;
+  window_from: string;
+  degraded: EvidenceDegradedSource[];
+};
 
 export async function loadRecentDeviceChangeFacts(
   input: CanonicalConversationRequest,
@@ -305,27 +367,49 @@ export async function loadRecentDeviceChangeFacts(
   contract: IntelligenceRequestContract,
   object: OperationalObject | null,
 ) {
+  return (await readRecentDeviceChanges(input, oisContext, contract, object)).facts;
+}
+
+export async function readRecentDeviceChanges(
+  input: CanonicalConversationRequest,
+  oisContext: OisContext | null | undefined,
+  contract: IntelligenceRequestContract,
+  object: OperationalObject | null,
+  options: { audit?: boolean } = {},
+): Promise<DeviceChangeRead> {
   const scope = conversationScope(input, oisContext);
+  const degraded: EvidenceDegradedSource[] = [];
+  let ledger: DeviceChangeRead["ledger"] = "available";
+  let audit: DeviceChangeRead["audit"] = "available";
+  let ledgerRows = 0;
+  let auditRows = 0;
   const fromIso = contract.temporal_scope.from || new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
   const facts: IntelligenceFact[] = [];
   const executionSelect = "id,device_id,home_id,estate_id,action,execution_status,result_summary,requested_at,completed_at,error_message,metadata,verified,verification_method";
   try {
-    let q = supabaseAdmin.from("ai_execution_ledger").select(executionSelect).gte("requested_at", fromIso).order("requested_at", { ascending: false }).limit(25);
+    let q = supabaseAdmin.from("ai_execution_ledger").select(executionSelect).gte("requested_at", fromIso).order("requested_at", { ascending: false }).limit(DEVICE_LEDGER_ROW_LIMIT);
     if (object?.canonical_id && (object.object_type === "device" || object.object_type === "device_channel")) q = q.eq("device_id", object.object_type === "device_channel" ? object.parent_id || object.canonical_id.split(":")[0] : object.canonical_id);
     else if (scope.home_id) q = q.eq("home_id", scope.home_id);
     else if (scope.estate_id) q = q.eq("estate_id", scope.estate_id);
     const { data, error } = await q;
     if (error) throw error;
+    ledgerRows = Array.isArray(data) ? data.length : 0;
     const executionDeviceIds = Array.from(new Set((Array.isArray(data) ? data : []).map((row: any) => text(row.device_id)).filter(Boolean)));
     const executionDevices = executionDeviceIds.length
       ? await supabaseAdmin.from("devices").select("id,name,room_id,category,type,metadata").in("id", executionDeviceIds)
       : { data: [], error: null };
-    if (executionDevices.error) logger.warn("conversation_recent_changes_device_names_load_failed", { error: executionDevices.error, home_id: scope.home_id });
+    if (executionDevices.error) {
+      logger.warn("conversation_recent_changes_device_names_load_failed", { error: executionDevices.error, home_id: scope.home_id });
+      degraded.push({ source: "execution_device_names", availability: "error", mandatory: false });
+    }
     const executionRoomIds = Array.from(new Set((executionDevices.data || []).map((row: any) => text(row.room_id)).filter(Boolean)));
     const executionRooms = executionRoomIds.length
       ? await supabaseAdmin.from("rooms").select("id,name").in("id", executionRoomIds)
       : { data: [], error: null };
-    if (executionRooms.error) logger.warn("conversation_recent_changes_room_names_load_failed", { error: executionRooms.error, home_id: scope.home_id });
+    if (executionRooms.error) {
+      logger.warn("conversation_recent_changes_room_names_load_failed", { error: executionRooms.error, home_id: scope.home_id });
+      degraded.push({ source: "execution_room_names", availability: "error", mandatory: false });
+    }
     const roomNameById = new Map((executionRooms.data || []).map((row: any) => [String(row.id), cleanLabel(row.name, "")]));
     const deviceById = new Map((executionDevices.data || []).map((row: any) => [String(row.id), row]));
     for (const row of Array.isArray(data) ? data : []) {
@@ -379,46 +463,54 @@ export async function loadRecentDeviceChangeFacts(
     }
   } catch (error) {
     logger.warn("conversation_recent_changes_execution_load_failed", { error, home_id: scope.home_id, estate_id: scope.estate_id });
+    ledger = "failed";
+    degraded.push({ source: "execution_ledger", availability: "error", mandatory: true });
   }
+  if (options.audit !== false) {
   try {
-    let q = supabaseAdmin.from("audit_events").select("id,action,resource_type,resource_id,estate_id,metadata,status,created_at").gte("created_at", fromIso).order("created_at", { ascending: false }).limit(20);
-    if (scope.estate_id) q = q.eq("estate_id", scope.estate_id);
-    const { data, error } = await q;
-    if (error) throw error;
-    for (const row of Array.isArray(data) ? data : []) {
-      const metadata = recordOf(row.metadata);
-      const privacy = text(metadata.privacy_class);
-      const hiddenReason = internalEventReason({ action: row.action, metadata, resource_type: row.resource_type });
-      const auditOnly = /^device\./.test(text(row.action)) || Boolean(hiddenReason);
-      if (auditOnly) {
-        if (hiddenReason) logger.info("conversation_internal_event_suppressed", { reason: hiddenReason, source_type: "audit", source_id: row.id, domain: row.resource_type });
-        continue;
+      let q = supabaseAdmin.from("audit_events").select("id,action,resource_type,resource_id,estate_id,metadata,status,created_at").gte("created_at", fromIso).order("created_at", { ascending: false }).limit(DEVICE_AUDIT_ROW_LIMIT);
+      if (scope.estate_id) q = q.eq("estate_id", scope.estate_id);
+      const { data, error } = await q;
+      if (error) throw error;
+      auditRows = Array.isArray(data) ? data.length : 0;
+      for (const row of Array.isArray(data) ? data : []) {
+        const metadata = recordOf(row.metadata);
+        const privacy = text(metadata.privacy_class);
+        const hiddenReason = internalEventReason({ action: row.action, metadata, resource_type: row.resource_type });
+        const auditOnly = /^device\./.test(text(row.action)) || Boolean(hiddenReason);
+        if (auditOnly) {
+          if (hiddenReason) logger.info("conversation_internal_event_suppressed", { reason: hiddenReason, source_type: "audit", source_id: row.id, domain: row.resource_type });
+          continue;
+        }
+        if (scope.home_id && text(metadata.home_id) && text(metadata.home_id) !== scope.home_id) continue;
+        facts.push({
+          fact_id: `audit:${row.id}`,
+          domain: text(row.resource_type) || "operations",
+          fact_type: "audit_change",
+          scope: { estate_id: row.estate_id || scope.estate_id, home_id: text(metadata.home_id) || scope.home_id, room_id: text(metadata.room_id) || null },
+          object: row.resource_id ? { object_type: text(row.resource_type) || "record", canonical_id: String(row.resource_id), label: text(metadata.object_name || row.resource_type || row.action) || "Record" } : null,
+          statement: `${human(row.action)} was recorded at ${safeDateLabel(row.created_at)}.`,
+          value: { action: row.action, status: row.status },
+          previous_value: null,
+          occurred_at: row.created_at || null,
+          observed_at: new Date().toISOString(),
+          source_type: "audit",
+          source_id: String(row.id),
+          truth_state: "observed",
+          confidence: 0.75,
+          freshness: row.created_at || "unknown",
+          privacy_class: privacy || "home_private",
+          permissions: [],
+          evidence: [{ type: "audit_events", id: row.id }],
+        });
       }
-      if (scope.home_id && text(metadata.home_id) && text(metadata.home_id) !== scope.home_id) continue;
-      facts.push({
-        fact_id: `audit:${row.id}`,
-        domain: text(row.resource_type) || "operations",
-        fact_type: "audit_change",
-        scope: { estate_id: row.estate_id || scope.estate_id, home_id: text(metadata.home_id) || scope.home_id, room_id: text(metadata.room_id) || null },
-        object: row.resource_id ? { object_type: text(row.resource_type) || "record", canonical_id: String(row.resource_id), label: text(metadata.object_name || row.resource_type || row.action) || "Record" } : null,
-        statement: `${human(row.action)} was recorded at ${safeDateLabel(row.created_at)}.`,
-        value: { action: row.action, status: row.status },
-        previous_value: null,
-        occurred_at: row.created_at || null,
-        observed_at: new Date().toISOString(),
-        source_type: "audit",
-        source_id: String(row.id),
-        truth_state: "observed",
-        confidence: 0.75,
-        freshness: row.created_at || "unknown",
-        privacy_class: privacy || "home_private",
-        permissions: [],
-        evidence: [{ type: "audit_events", id: row.id }],
-      });
+    } catch (error) {
+      logger.warn("conversation_recent_changes_audit_load_failed", { error, home_id: scope.home_id, estate_id: scope.estate_id });
+      audit = "failed";
+      degraded.push({ source: "audit_events", availability: "error", mandatory: false });
     }
-  } catch (error) {
-    logger.warn("conversation_recent_changes_audit_load_failed", { error, home_id: scope.home_id, estate_id: scope.estate_id });
   }
+  const suppliedHistory = Array.isArray(input.recent_executions) || Array.isArray(recordOf(recordOf(object?.relationships).recent_executions));
   const recentExecutions = Array.isArray(input.recent_executions) ? input.recent_executions : Array.isArray(recordOf(recordOf(object?.relationships).recent_executions)) ? recordOf(object?.relationships).recent_executions as any[] : [];
   for (const row of recentExecutions.map(recordOf).slice(0, 8)) {
     const summary = text(row.summary || row.result_summary || row.status);
@@ -455,7 +547,11 @@ export async function loadRecentDeviceChangeFacts(
     final_fact_count: deduped.length,
     grouping_keys: ["domain", "object", "fact_type", "value_transition", "source_id", "timestamp_window"],
   });
-  return deduped;
+  return {
+    facts: deduped, ledger, ledger_rows: ledgerRows, audit, audit_rows: auditRows,
+    ledger_truncated: ledgerRows >= DEVICE_LEDGER_ROW_LIMIT, audit_truncated: auditRows >= DEVICE_AUDIT_ROW_LIMIT,
+    supplied_history_used: suppliedHistory, window_from: fromIso, degraded,
+  };
 }
 
 export async function loadLatestCommandFact(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined, object: OperationalObject | null) {

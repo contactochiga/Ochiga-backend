@@ -99,3 +99,35 @@ export async function loadPublicOpportunityObjective(threadId: string | null | u
     return null;
   }
 }
+
+// IQ-3A -- evidence-planning read of this thread's own objective. Unlike
+// loadPublicOpportunityObjective, it separates absence from failure and proves
+// ownership: the thread row must belong to the same public principal and surface.
+export type PublicOpportunityObjectiveRead =
+  | { status: "found"; objective: PublicOpportunityObjective }
+  | { status: "none" }
+  | { status: "expired" }
+  | { status: "thread_not_found" }
+  | { status: "not_owned" }
+  | { status: "error" };
+
+export async function readPublicOpportunityObjective(threadId: string | null | undefined, actorId: string | null | undefined): Promise<PublicOpportunityObjectiveRead> {
+  if (!threadId || !actorId) return { status: "thread_not_found" };
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_conversation_threads")
+      .select("metadata,surface,user_id")
+      .eq("id", threadId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return { status: "thread_not_found" };
+    if (text((data as any).surface) !== "public_corporate" || text((data as any).user_id) !== actorId) return { status: "not_owned" };
+    const stored = recordOf((data as any).metadata).public_opportunity_objective;
+    if (!isValidPublicOpportunityObjective(stored)) return { status: "none" };
+    if (!stored.updated_at || Date.now() - Date.parse(stored.updated_at) > TTL_MS) return { status: "expired" };
+    return { status: "found", objective: stored };
+  } catch (error) {
+    logger.warn("oyi_public_opportunity_objective_read_failed", { thread_id: threadId, error });
+    return { status: "error" };
+  }
+}

@@ -1,7 +1,7 @@
 import type { IntelligenceFact } from "../../contracts/canonicalConversation";
-import { buildContributorSummary, type ContributorSeverity } from "../contributorSummary";
+import { buildContributorSummary, unavailableContributorSummary, type ContributorSeverity } from "../contributorSummary";
 import type { Contributor, ContributorContext } from "./contributorTypes";
-import { loadHomeDeviceInventoryFacts } from "../devices/deviceEvidence";
+import { readHomeDeviceInventory } from "../devices/deviceEvidence";
 import { loadMaintenanceRequestFacts } from "../maintenance/maintenanceEvidence";
 import { loadVisitorAccessFacts } from "../visitors/visitorEvidence";
 import { loadSecurityIncidentFacts } from "../security/securityEvidence";
@@ -30,11 +30,15 @@ const devicesContributor: Contributor = {
   domain: "devices",
   supports: alwaysSupports,
   contribute: async (context: ContributorContext) => {
-    const facts = await loadHomeDeviceInventoryFacts(context.input, context.oisContext);
+    const read = await readHomeDeviceInventory(context.input, context.oisContext);
+    // A failed inventory query is not "no registered devices": report it as
+    // unavailable so the aggregate cannot present an all-clear.
+    if (read.availability !== "available") return unavailableContributorSummary("devices", read.reason);
+    const facts = read.facts;
     return buildContributorSummary({
       domain: "devices",
       facts,
-      summary: facts.length ? `${facts.length} device${facts.length === 1 ? "" : "s"} on record.` : "No registered devices found.",
+      summary: facts.length ? `${facts.length} device${facts.length === 1 ? "" : "s"} on record${read.truncated ? ` (first ${read.row_limit} shown; more may exist)` : ""}.` : "No registered devices found.",
       isAttention: (fact) => recordOf(fact.value).online === false || /offline|unreachable|error/i.test(text(recordOf(fact.value).status)),
       severityFor: (attention) => (attention.length > Math.max(2, facts.length * 0.3) ? "warning" : attention.length ? "attention" : "none"),
     });
