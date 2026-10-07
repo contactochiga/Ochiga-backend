@@ -36,10 +36,10 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     if (capabilityKey === "utilities.spending.read" && /\b(?:use|used|burn|burnt|consum\w*|usage|kwh|units)\b/i.test(frame.rawText) && !/\b(?:spend|spent|cost|paid|pay|bill|bills|price)\b/i.test(frame.rawText))
       return { ...result, answer: `I can't tell you how much you used: I can see what you spent, but consumption (usage) readings are not available yet.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "LIMITATION", limitation_targeted: true } };
     if (tgt0.response_intent === "REFUSAL") return { ...result, answer: limitationAnswer(tgt0, frame.rawText), metadata: { ...(result.metadata || {}), answer_target: "REFUSAL", limitation_targeted: true } };
-    if (tgt0.response_intent === "YES_NO_WITH_REASON" && tgt0.yes_no?.kind === "state") {
+    if (tgt0.response_intent === "YES_NO_WITH_REASON" && (tgt0.yes_no?.kind === "state" || tgt0.yes_no?.kind === "capability")) {
       const T0 = frame.rawText.toLowerCase();
       if (capabilityKey === "facility.cameras.read" && /unknown current video state/.test(result.answer)) return { ...result, answer: `I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
-      if (capabilityKey === "visitors.pending.read" && /\b(?:arriv\w*|turned up|shown up|here|inside|already in|left|departed|gone|came|come)\b/.test(T0)) return { ...result, answer: `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
+      if (capabilityKey === "visitors.pending.read" && /\b(?:arriv\w*|turned up|shown up|here|inside|already in|premises|on site|onsite|present|left|departed|gone|came|come|home)\b/.test(T0)) return { ...result, answer: `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
     }
     const overview = result.metadata?.overview_view as OverviewView | undefined;
     if (overview) {

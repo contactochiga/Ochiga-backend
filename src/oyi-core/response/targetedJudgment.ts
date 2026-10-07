@@ -15,8 +15,9 @@ import { limitationAnswer } from "./limitationTarget";
 
 export type TargetedLead = { lead: string; support: string[] };
 const GENERIC = new Set(["issue", "issues", "request", "requests", "item", "items", "problem", "problems", "ticket", "tickets", "lead", "leads", "report", "reports", "task", "tasks", "estate", "record", "records", "thing", "things", "one", "ones"]);
-const OPENISH = new Set(["open", "active", "unresolved", "ongoing", "outstanding", "pending", "current", "live"]);
-const CLOSEDISH = new Set(["resolved", "fixed", "closed", "done", "completed", "repaired", "finished", "solved", "sorted"]);
+import { conceptTokens, isConcept } from "../interpretation/conceptLexicon";
+const OPENISH = new Set([...conceptTokens("open"), "current"]);
+const CLOSEDISH = new Set(conceptTokens("resolved"));
 const lc = (s: string) => s.toLowerCase();
 const sentence = (s: string) => { const t = s.trim(); return t ? (/[.!?]$/.test(t) ? t : t + ".") : t; };
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -43,7 +44,7 @@ const facts = (c: Candidate) => describe(c).filter(x => !/^(open\/active|resolve
 const withFacts = (c: Candidate) => `${c.ref.label || "that item"} is recorded as ${stateWord(c)}${facts(c) ? ` (${facts(c)})` : ""}`;
 
 // Which evidence source a counting/listing question is about, from its content words (domain nouns, not phrases).
-const SOURCE_BY_NOUN: Array<[RegExp, string]> = [[/^(?:leads?|prospects?)$/, "crm.leads"], [/^opportunit/, "crm.opportunities"], [/^(?:projects?|developments?)$/, "development."], [/^reports?$/, "reports."], [/^tasks?$/, "office_tasks"], [/^devices?$/, "devices."], [/^visitors?$/, "visitors."], [/^cameras?$/, "cameras"], [/^incidents?$/, "security."], [/^(?:requests?|tickets?|maintenance)$/, "maintenance."]];
+const SOURCE_BY_NOUN: Array<[RegExp, string]> = [[/^(?:leads?|prospects?)$/, "crm.leads"], [/^(?:opportunit\w*|deals?)$/, "crm.opportunities"], [/^(?:projects?|developments?)$/, "development."], [/^reports?$/, "reports."], [/^tasks?$/, "office_tasks"], [/^(?:devices?|gadgets?|appliances?|sensors?)$/, "devices."], [/^(?:visitors?|guests?|passes|pass|invitations?)$/, "visitors."], [/^cameras?$/, "cameras"], [/^incidents?$/, "security."], [/^(?:requests?|tickets?|maintenance)$/, "maintenance."]];
 function sourceFor(state: CompactEvidencePlanState, T: string[]) {
   for (const t of T) for (const [re, key] of SOURCE_BY_NOUN) if (re.test(t)) { const c = state.contributions.find(k => k.availability === "available" && k.source_key.includes(key)); if (c) return c; }
   return null;
@@ -68,15 +69,17 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       const deviceU = unc.find(u => /readings for/.test(u) && /stale/.test(u)), cameraU = unc.find(u => /^Camera state is unobservable/.test(u));
       if (classes.includes("devices") && deviceU) return { lead: sentence(`I can't give their current state: ${lower(deviceU.replace(/\.$/, ""))}`), support: [] };
       if (classes.includes("cameras") && cameraU) return { lead: sentence(`I can't give the current state: ${lower(cameraU.replace(/\.$/, ""))}`), support: [] };
+      const secF = ctx.facts.find(f => /security incident/.test(f));
+      if (classes.includes("security") && secF && !named.length) return { lead: sentence(cap(secF)), support: [] };
       if (named.length === 1 && !named[0].needs_comparative_judgment) return { lead: sentence(withFacts(named[0])), support: [] };
       if (named.length === 1) { const c = named[0]; return { lead: sentence(`${c.ref.label} is recorded as ${c.factors.map(f => f.level).filter(Boolean).join(", ") || "in the records I read"}${c.signals[0] ? ` (${c.signals[0].text})` : ""}`), support: [] }; }
       return null;
     }
     case "COUNT": {
       const k = sourceFor(state, T); if (!k) return null;
-      const staleAsked = T.includes("stale") && k.freshness === "stale";
+      const staleAsked = T.some(t => isConcept(t, "stale")) && k.freshness === "stale";
       const openAsked = T.some(t => OPENISH.has(t)) && !T.some(t => CLOSEDISH.has(t));
-      const overdueAsked = T.some(t => ["overdue", "late"].includes(t));
+      const overdueAsked = T.some(t => isConcept(t, "overdue"));
       let n = k.record_count; const noun = SOURCE_NOUN[k.source_key] || k.source_key;
       const fromSource = index.candidates.filter(c => c.source_key === k.source_key);
       if (fromSource.length && openAsked) n = fromSource.filter(c => levelOf(c, "lifecycle") === "active").length;
@@ -184,7 +187,7 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
         const found = (sides[0].length ? sides[0] : sides[1])[0], missingSide = (sides[0].length ? target.compare_terms[1] : target.compare_terms[0]).join(" ");
         return { lead: sentence(`I can't compare them: I only found ${found.ref.label} in the evidence I read, and nothing matching "${missingSide}"`), support: [] };
       }
-      if (noJudgment) return { lead: sentence(`I can't compare these on judgment grounds: ${lower(limitNote)}`), support: [] };
+      if (noJudgment) { const nm = target.compare_terms.map(g => g.filter(t => !["which", "one", "better", "worse", "stronger", "weaker", "best", "worst", "more", "most", "who", "ahead", "comes", "out", "serious", "bigger"].includes(t)).join(" ")).filter(Boolean); return { lead: sentence(`I can't compare ${nm.length === 2 ? `${nm[0]} and ${nm[1]}` : "these"} on judgment grounds: ${lower(limitNote)}`), support: [] }; }
       return null;
     }
     case "RANKING": case "ASSESSMENT": case "DIRECT_ANSWER": case "ADVICE": case "NEXT_STEP": {
@@ -203,9 +206,9 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       const src = sourceFor(state, T);
       if (src && src.material.length && !T.some(t => ["unknown", "unresolved", "missing", "confirmation", "remains", "remain"].includes(t))) {
         const names = src.material.map(itemName).filter(Boolean);
-        if (names.length) return { lead: sentence(`${cap(SOURCE_NOUN[src.source_key] || src.source_key)}${T.includes("stale") && src.freshness === "stale" && src.evidence_class === "device_availability" ? " with stale readings" : ""}: ${names.slice(0, 8).join(", ")}${names.length > 8 ? `, and ${names.length - 8} more` : ""}`), support: [] };
+        if (names.length) return { lead: sentence(`${cap(SOURCE_NOUN[src.source_key] || src.source_key)}${T.some(t => isConcept(t, "stale")) && src.freshness === "stale" && src.evidence_class === "device_availability" ? " with stale readings" : ""}: ${names.slice(0, 8).join(", ")}${names.length > 8 ? `, and ${names.length - 8} more` : ""}`), support: [] };
       }
-      if (T.includes("stale") && !src) { const st = state.contributions.filter(c => c.availability === "available" && c.freshness === "stale"); if (st.length) return { lead: sentence(`Stale: ${st.map(c => `the latest readings for ${c.record_count} ${SOURCE_NOUN[c.source_key] || c.source_key}`).join("; ")}`), support: [] }; }
+      if (T.some(t => isConcept(t, "stale")) && !src) { const st = state.contributions.filter(c => c.availability === "available" && c.freshness === "stale"); if (st.length) return { lead: sentence(`Stale: ${st.map(c => `the latest readings for ${c.record_count} ${SOURCE_NOUN[c.source_key] || c.source_key}`).join("; ")}`), support: [] }; }
       const miss = T.some(t => ["unknown", "unresolved", "missing", "confirmation", "remains", "remain"].includes(t));
       if (miss && unc.length) return { lead: sentence(`What I cannot confirm: ${unc.slice(0, 4).map(u => lower(u.replace(/\.$/, ""))).join("; ")}`), support: [] };
       if (T.includes("evidence") && T.includes("have")) return { lead: sentence(`I have read ${state.contributions.filter(c => c.availability === "available").map(c => `${c.record_count} ${SOURCE_NOUN[c.source_key] || c.source_key}`).join(", ") || "no usable source"}`), support: [] };
@@ -213,7 +216,7 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       const devices = state.contributions.find(c => c.evidence_class === "device_availability" && c.availability === "available");
       if (classes.includes("devices") && devices && devices.material.length) {
         const names = devices.material.map(m => String(m.label || m.name || "")).filter(Boolean);
-        const stale = devices.freshness === "stale" || T.includes("stale");
+        const stale = devices.freshness === "stale" || T.some(t => isConcept(t, "stale"));
         if (names.length) return { lead: sentence(`${stale ? "Devices with stale readings" : "Devices"}: ${names.join(", ")}`), support: [] };
       }
       const open = T.some(t => OPENISH.has(t));

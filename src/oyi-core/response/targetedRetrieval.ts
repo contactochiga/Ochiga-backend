@@ -12,7 +12,10 @@ const GENERIC = new Set(["issue", "issues", "request", "requests", "item", "item
 const QUAL = new Set(["open", "closed", "resolved", "unresolved", "stale", "expired", "overdue", "pending", "qualified", "new", "active", "inactive", "offline", "online", "high", "low", "urgent", "critical", "late", "outstanding", "unassigned", "approved", "historical"]);
 const OPENISH = new Set(["open", "active", "unresolved", "ongoing", "outstanding", "pending", "current", "live"]);
 const CLOSEDISH = new Set(["resolved", "fixed", "closed", "done", "completed", "repaired", "finished", "solved", "sorted"]);
+import { conceptOf } from "../interpretation/conceptLexicon";
 const norm = (s: string) => s.toLowerCase();
+const CANON: Record<string, string> = { open: "open", resolved: "resolved", stale: "stale", overdue: "overdue" };
+const canonQual = (t: string) => CANON[conceptOf(t) ?? ""] ?? t;
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const nameTokens = (s: string) => contentTokens(analyse(s).tokens).filter(t => !/^wave\d*$/.test(t));
 const stem = (w: string) => w.replace(/(?:ing|ed|es|s)$/, "");
@@ -59,7 +62,7 @@ export function targetedRetrieval(original: string, ar: AnswerRows, target: Answ
   if (!["LIST", "COUNT", "STATUS", "YES_NO_WITH_REASON"].includes(intent)) return null;
   if (intent === "YES_NO_WITH_REASON" && target.yes_no?.kind !== "state") return null;
   const T = analyse(question).tokens, q = new Set(T);
-  const quals = [...new Set(T.filter(t => QUAL.has(t)))];
+  const quals = [...new Set(T.filter(t => QUAL.has(t) || ["open", "resolved", "stale", "overdue"].includes(conceptOf(t) ?? "")).map(canonQual))];
   // narrow to the rows the question names, then by qualifiers that actually describe rows
   const named = new Set(contentTokens(T).filter(t => !GENERIC.has(t) && !QUAL.has(t)));
   const namedRows = ar.rows.filter(r => nameTokens(r.label).some(t => named.has(t) && !GENERIC.has(t)));

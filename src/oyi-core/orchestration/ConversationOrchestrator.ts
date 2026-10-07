@@ -3598,7 +3598,7 @@ export class ConversationOrchestrator {
     if (!activeWorkflow && !resolvedTurn.semantic_frame.mutationIntent) {
       const sf = resolvedTurn.semantic_frame, earlyTarget = deriveAnswerTarget(sf.rawText, { objective: sf.cognitiveObjective, activeAssessment: Boolean(earlyAssessment) });
       let direct: string | null = null, key = "";
-      if (earlyTarget.confirmation_kind === "constraint" && sf.operation !== "cancel") { direct = `Understood — noted for this conversation: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. Nothing I do here sends, shares or changes anything unless you ask and confirm it.`; key = "answer_target.constraint_acknowledged"; }
+      if (earlyTarget.confirmation_kind === "constraint") { direct = `Understood — noted for this conversation: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. Nothing I do here sends, shares or changes anything unless you ask and confirm it.`; key = "answer_target.constraint_acknowledged"; }
       else if (!earlyAssessment && isHazardReport(sf.rawText) && ["facility", "consumer"].includes(context.input.surface)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action.`; key = "answer_target.safety_report"; }
       else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = actionTruthLead(await threadActionTruth(context.input.thread_id)); key = "answer_target.action_result"; }
       if (direct) {

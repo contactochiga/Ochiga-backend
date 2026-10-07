@@ -273,7 +273,7 @@ function classifyDomain(text: string): OyiDomain | null {
   // instead of just loosening the trailing pattern, to stay minimal and
   // avoid touching the three qualified phrases' matching at all.
   if (/\bpartner(?:ship)?s?\s+with\s+ochiga\b|\bhow\s+can\s+i\s+partner\b|\bbecome\s+a\s+partner\b|\bpartnership\b|\bpartnerships\b/i.test(text)) return "corporate_partnerships";
-  if (/\b(leads?|prospects?|opportunit(?:y|ies)|pipeline|follow(?:ed)?[\s-]?up on|crm)\b/i.test(text)) return "crm";
+  if (/\b(leads?|prospects?|opportunit(?:y|ies)|deals?|pipeline|follow(?:ed)?[\s-]?up on|crm)\b/i.test(text)) return "crm";
   if (/\b(reports?\s+(?:are\s+)?(?:awaiting|pending|needing)\s+approval|approval\s+queue|pending\s+approvals?)\b/i.test(text)) return "office_reports";
   // a report together with the act of approving it (any wording): the approvals queue
   if (/\breports?\b[\s\S]{0,50}\b(?:approv\w*|sign[\s-]?off)\b|\b(?:approv\w*|sign[\s-]?off)\b[\s\S]{0,30}\breports?\b/i.test(text)) return "office_reports";

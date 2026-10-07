@@ -412,7 +412,7 @@ function crmOpportunitiesReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["crm.read"],
     evidenceRequirements: [{ domain: "crm", evidence_type: "crm_opportunity_stale", freshness: ["fresh", "stale", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\bopportunit/i.test(frame.normalizedText),
+    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\b(?:opportunit\w*|deals?)\b/i.test(frame.normalizedText),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const opportunities = snapshot?.opportunities;
@@ -745,7 +745,7 @@ function financialSummaryReadModule(): CapabilityModule {
 // that capability. Mutual exclusion by construction, same pattern as the
 // read/write split -- no score tie-break to reason about.
 function isTaskListIntent(message: string): boolean {
-  return /\btasks\b|\btask\s+list\b/i.test(message);
+  return /\btasks\b|\btask\s+list\b|\bany\s+task\b/i.test(message);
 }
 
 // Production bug found in live Milestone 1 verification, generalized in
