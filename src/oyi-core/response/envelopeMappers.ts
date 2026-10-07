@@ -77,6 +77,7 @@ export function mapResultEnvelope(key: string, result: DomainResult, ctx: { capa
   if (availability === "denied") limitations.push({ kind: "AUTHORITY_DENIED" });
   if (availability === "unavailable") limitations.push({ kind: "UNAVAILABLE" });
   if (ctx.capability_status === "declared" && availability !== "unsupported") limitations.push({ kind: "MISSING_CAPABILITY", label: fam?.facets[0] === "usage" ? "consumption (usage) readings" : undefined });
+  if (Array.isArray(facts.limitations)) for (const l of facts.limitations as Limitation[]) limitations.push(l);
   const stateFacts = facts.state_facts as ResultEnvelope["state_facts"] | undefined;
   if (stateFacts?.unobserved) limitations.push({ kind: "UNOBSERVED", label: key === "facility.cameras.read" ? "camera state" : undefined });
   if (records && records.length && records.every(r => r.state === "stale")) limitations.push({ kind: "STALE" });

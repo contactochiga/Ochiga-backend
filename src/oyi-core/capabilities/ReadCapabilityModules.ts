@@ -311,7 +311,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         const contract = requestContract(context);
         const answer = buildDeviceAvailabilityInventoryAnswer(facts, contract, context.input.message);
         const block = tableBlockForContract(contract, facts, presentationFactPredicates, context.input.message);
-        return { status: facts.length ? "answered" : "empty", answer, blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table") };
+        return { status: facts.length ? "answered" : "empty", answer, blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table"), metadata: facts.some((f) => f.fact_type === "device_availability") ? undefined : { result_facts: { limitations: [{ kind: "UNAVAILABLE", label: "device inventory" }] } } };
       },
       primary: "table",
     }),
@@ -331,7 +331,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         const contract = requestContract(context);
         const answer = buildDeviceAvailabilityInventoryAnswer(facts, contract, context.input.message);
         const block = tableBlockForContract(contract, facts, presentationFactPredicates, context.input.message);
-        return { status: facts.length ? "answered" : "empty", answer, blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table") };
+        return { status: facts.length ? "answered" : "empty", answer, blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table"), metadata: facts.some((f) => f.fact_type === "device_availability") ? undefined : { result_facts: { limitations: [{ kind: "UNAVAILABLE", label: "device inventory" }] } } };
       },
       primary: "table",
     }),

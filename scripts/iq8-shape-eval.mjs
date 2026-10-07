@@ -81,7 +81,7 @@ const out = [];
 for (const it of suite.items) {
   const {turns} = await converse(it.s, ROLE[it.s], [...(it.seeds || []), it.u]); const t = turns[turns.length - 1];
   const a = t.answer, cap = String(t.capability || ''), checks = shapeCheck(it, a, cap, t.status);
-  out.push({id: it.id, s: it.s, worker: it.worker || null, shape: it.shape, kind: it.kind, u: it.u, capability: cap, status: t.status, lead: a.replace(/\s+/g, ' ').slice(0, 200), checks, pass: Object.values(checks).every(Boolean)});
+  out.push({id: it.id, s: it.s, worker: it.worker || null, shape: it.shape, kind: it.kind, u: it.u, capability: cap, status: t.status, lead: a.replace(/\s+/g, ' ').slice(0, Number(process.env.IQ8_LEAD_LEN || 200)), checks, pass: Object.values(checks).every(Boolean)});
 }
 const rate = rs => ({n: rs.length, pass: rs.filter(r => r.pass).length, rate: rs.length ? +(rs.filter(r => r.pass).length / rs.length).toFixed(3) : null});
 const byShape = Object.fromEntries([...new Set(out.map(o => o.shape))].map(s => [s, rate(out.filter(o => o.shape === s))]));

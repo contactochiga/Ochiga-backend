@@ -111,6 +111,9 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
     if (e.hints?.permission_only && t.state_concept && (t.state_concept === "arrived" || t.state_concept === "departed")) return done("YES_NO", `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.`, legacy);
   }
   if (!e.records && e.hints?.requires_judgment && (intent === "RANKING" || intent === "COMPARISON")) return done("LIMITATION", "I can't put them in order or pick one: that takes comparative judgment on their recorded notes, which I don't have here.", legacy);
+  // an empty read whose capability could not load its source is an unavailable source, never "there are none"
+  const unavailable = e.limitations?.find(l => l.kind === "UNAVAILABLE" && l.label);
+  if (unavailable && !e.records?.length && ["LIST", "COUNT", "STATUS", "DIRECT_ANSWER", "SUMMARY", "YES_NO_WITH_REASON"].includes(intent)) return done("LIMITATION", `I could not load a current ${unavailable.label}, so I can't tell you what is there — that is not the same as there being none.`, legacy);
   if (!e.records) return null;
   const n = narrow(t, e), rows = n.rows, noun = e.subject.noun, one = e.subject.singular;
   const askedN = (c: number) => `${c} ${c === 1 ? one : noun}`;
@@ -194,6 +197,7 @@ function projectHeld(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string })
   if (t.response_intent === "COMPARISON") {
     if (t.subject_tokens.includes("versus") || (t.subject_tokens.includes("know") && t.subject_tokens.some(w => ["check", "need", "missing", "unknown"].includes(w)))) return done("LIST", `What I know: ${knownText || "very little so far"}. What still needs checking: ${modelled && missing.length ? joinList(missing.map(nice)) : "nothing further for a first look"}.`);
     const sides = t.compare_terms.map(g => g.join(" ")).filter(Boolean);
+    if (sides.length < 2) return done("LIMITATION", `I can't say yet whether the approach would differ: that depends on what you want from it${modelled && missing.length ? ` and on ${joinList(missing.slice(0, 2).map(nice))}, which I don't have` : ""}.`);
     return done("LIMITATION", `I can't say which of ${sides.length === 2 ? `${sides[0]} or ${sides[1]}` : "those"} suits you better yet: that depends on what you want from the property${modelled && missing.length ? ` and on ${joinList(missing.slice(0, 2).map(nice))}, which I don't have` : ""}.`);
   }
   if ((t.response_intent === "ADVICE" || t.response_intent === "NEXT_STEP") && modelled && missing.length) return done("ADVICE", `The first thing that would help is ${joinList(missing.slice(0, 2).map(nice))}.`);

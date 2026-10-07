@@ -145,6 +145,9 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   // Safety: an utterance that carries a withdrawal or negation marker never keeps executable intent (ambiguity clarifies, it does not execute).
   const holdOrCallback = isHoldDirective(normalized.raw_text) || isCallbackRequest(normalized.raw_text);
   const withdrawalMarked = analyse(normalized.normalized_text).tokens.some(t => ["no", "nope", "nah", "not", "never", "forget", "scrap", "cancel", "abort", "undo", "nevermind"].includes(t));
+  // IQ-8D3: the ONE answer target is derived here, before the frame is assembled, so the frame's own mutation intent can honour it: a past-tense
+  // question about what was done ("did you switch it off?") asks for the truth of an action, it is never a command to perform it.
+  const answerTarget = deriveAnswerTarget(normalized.raw_text, { objective: cognitiveObjective, activeAssessment: opts.activeAssessment, ambiguity: { required: false, reason: null }, pronounRef: resolveReferences(normalized.normalized_text).some((r) => r.kind === "pronoun") });
   return {
     rawText: normalized.raw_text,
     concepts,
@@ -158,10 +161,10 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
     confidence: primaryEntity ? Math.max(0.75, primaryEntity.confidence) : 0.72,
     ambiguity: { required: false, reason: null, candidates: [] },
     corrections: normalized.corrections,
-    mutationIntent: !withdrawalMarked && !holdOrCallback && !absenceStatement && !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
+    mutationIntent: answerTarget.response_intent !== "ACTION_RESULT" && !withdrawalMarked && !holdOrCallback && !absenceStatement && !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
     cognitiveObjective,
     capabilityInquiry: isCapabilityInquiry(normalized.normalized_text),
     // IQ-8D: derived ONCE, here, and carried on the frame; no downstream layer derives it again
-    answerTarget: deriveAnswerTarget(normalized.raw_text, { objective: cognitiveObjective, activeAssessment: opts.activeAssessment, ambiguity: { required: false, reason: null }, pronounRef: resolveReferences(normalized.normalized_text).some((r) => r.kind === "pronoun") }),
+    answerTarget,
   };
 }

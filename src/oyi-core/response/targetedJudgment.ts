@@ -60,7 +60,8 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
   const recordedFacts = (cs: Candidate[]) => cs.map(c => `${c.ref.label || "item"}: ${describe(c).join(", ")}${c.signals[0] ? ` (${c.signals[0].text})` : ""}`).join("; ");
   const supportOf = (extra: string[] = []) => [...extra];
   const missing = missingCapability(state);
-  const notAvail = unc.find(u => /^Not available in Oyi yet:/.test(u));
+  const notAvailAll = unc.filter(u => /^Not available in Oyi yet:/.test(u));
+  const notAvail = bestUncertainty(notAvailAll, T) ?? notAvailAll[0]; // the unavailable source that matches what was asked, not merely the first
   const quote = (u: string) => lower(u.replace(/^Not available in Oyi yet:\s*/i, "").replace(/\.$/, ""));
 
   switch (target.response_intent) {
@@ -125,7 +126,7 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
         const ex = sourceFor(state, T);
         if (ex && (T.includes("any") || T.includes("have") || T.includes("there") || T.some(t => OPENISH.has(t) || ["overdue", "late", "pending"].includes(t)) || T[0] === "do" || T[0] === "does")) {
           const names = ex.material.map(itemName).filter(Boolean), noun = SOURCE_NOUN[ex.source_key] || ex.source_key;
-          return ex.record_count > 0 ? { lead: sentence(`Yes — ${ex.record_count} ${noun}${names.length ? `: ${names.slice(0, 4).join(", ")}` : ""}`), support: [] } : { lead: sentence(`No — I found no ${noun} in what I read`), support: [] };
+          return ex.record_count > 0 ? { lead: sentence(`Yes — ${ex.record_count} ${ex.record_count === 1 ? noun.replace(/ies$/, "y").replace(/s$/, "") : noun}${names.length ? `: ${names.slice(0, 4).join(", ")}` : ""}`), support: [] } : { lead: sentence(`No — I found no ${noun} in what I read`), support: [] };
         }
       }
       if (noJudgment && business.length && !named.length) return { lead: sentence(`I can't judge that: ${lower(limitNote)}`), support: [businessSummary(index)] };
@@ -161,6 +162,13 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       }
       if (/^why\b/.test(T.join(" ")) && T.some(t => ["cannot", "can", "not", "unable"].includes(t)) && T.some(t => ["you"].includes(t))) {
         const u = bestUncertainty(unc, T) ?? unc[0]; if (u) return { lead: sentence(`Because ${lower(u.replace(/\.$/, ""))}`), support: [] };
+      }
+      // a named record that needs comparative judgment still has a RECORDED rationale (its own signals); say that, then be plain about what is not judged
+      if (named.length === 1 && named[0].needs_comparative_judgment) {
+        const c = named[0], askedSrc = SOURCE_BY_NOUN.find(([re]) => T.some(t => re.test(t)));
+        const askedTok = askedSrc ? T.find(t => askedSrc[0].test(t)) : null;
+        if (askedSrc && !String(c.source_key || "").includes(askedSrc[1])) return { lead: sentence(`I have no ${askedTok} record under that name — the only record I read is ${c.ref.label} (${SOURCE_NOUN[c.source_key] || c.source_key}: ${describe(c).join(", ")}), so I can't say why it counts that way`), support: [] };
+        return { lead: sentence(`${c.ref.label} is on the list because of what is recorded: ${describe(c).join(", ")}${c.signals[0] && !describe(c).includes(c.signals[0].text) ? ` (${c.signals[0].text})` : ""}`), support: [`I can't weigh how serious that is: ${lower(limitNote)}`] };
       }
       const pick = named.length ? named : index.candidates.filter(c => levelOf(c, "lifecycle") === "active").slice(0, 1);
       if (pick.length === 1 && !pick[0].needs_comparative_judgment) { const c = pick[0]; return { lead: sentence(`${c.ref.label || "That item"} matters because ${withFacts(c).replace(/^.*? is recorded as /, "it is recorded as ")}`), support: [] }; }
@@ -251,6 +259,8 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
     }
     case "LIMITATION": {
       if (noJudgment) return { lead: sentence(`I can't do that: ${lower(limitNote)}`), support: [businessSummary(index)] };
+      const meas = T.find(t => ["temperature", "humidity", "noise", "decibels", "airflow", "pollution"].includes(t));
+      if (meas) return { lead: sentence(`I don't have ${meas} data: no ${meas} sensor reading is available to me here`), support: [] };
       const u = notAvail ? `${cap(quote(notAvail))} is not available as an evidence source yet` : unc[0];
       return u ? { lead: sentence(`I can't answer that from what I can read — ${lower(u.replace(/\.$/, ""))}`), support: [] } : null;
     }

@@ -342,7 +342,9 @@ export function isCapabilityInquiryUtterance(u: Utterance): boolean {
   if (verbAt < 0 && !ableAfter) return false;
   if (ableAfter && verbAt < 0) return true;
   const verb = T[verbAt];
-  const after = T.slice(verbAt + 1);
+  const afterAll = T.slice(verbAt + 1);
+  const asAt = afterAll.indexOf("as"); // a role phrase ("as a resident") says who is asking, not what about
+  const after = asAt >= 0 ? afterAll.slice(0, asAt) : afterAll;
   const topical = after.filter(t => !GENERIC.has(t));
   const prepAt = after.findIndex(t => ["about", "for", "with", "on", "regarding"].includes(t));
   if ((verb === "do" || verb === "help" || verb === "assist") && prepAt >= 0 && after.slice(prepAt + 1).some(t => !GENERIC.has(t))) return false;

@@ -60,8 +60,9 @@ const NEGATION = new Set(["no", "not", "never", "nothing", "without", "none", "i
 /** A declarative report of a hazard (not a question, a negation or a supposition): safety-relevant, unverified. */
 export function isHazardReport(text: string): boolean {
   const u = analyse(text), T = u.tokens;
+  const intrusion = T.some(t => ["burglary", "burglar", "burglars", "intruder", "intruders", "robbery", "robbed", "trespasser", "trespassers", "breakin"].includes(t)) || T.some((t, i) => (t === "break" || t === "broke" || t === "broken") && T[i + 1] === "in");
   const pairedHazard = T.some(t => WET.includes(t)) && T.some(t => ELECTRIC.includes(t));
-  if (!u.declarative || u.q || !(T.some(t => HAZARD.includes(t)) || pairedHazard) || T.some(t => NEGATION.has(t))) return false;
+  if (!u.declarative || u.q || !(T.some(t => HAZARD.includes(t)) || pairedHazard || intrusion) || T.some(t => NEGATION.has(t))) return false;
   return !["if", "suppose", "imagine", "assume", "what", "when", "hypothetically"].includes(T[0]);
 }
 const WET = ["water", "wet", "flooding", "flooded", "leaking", "liquid", "dripping", "damp"], ELECTRIC = ["socket", "sockets", "outlet", "outlets", "panel", "wiring", "wire", "wires", "cable", "cables", "plug", "fuse", "breaker", "electrical", "electric"];
@@ -82,7 +83,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const cond = /^\s*(?:if|when|once|assuming|given|because|since|as)\b[^,]{3,80},\s*(.+\?\s*)$/i.exec(text);
   if (cond) return deriveAnswerTarget(cond[1], opts);
   const sents = sentencesOf(text);
-  if (sents.length > 1) { const last = analyse(sents[sents.length - 1]); if (last.q || last.wh || last.auxLead || last.imperative) { const inner = deriveAnswerTarget(sents[sents.length - 1], opts); return { ...inner, safety_relevant: inner.safety_relevant || isHazardText(text) }; } }
+  if (sents.length > 1) { const last = analyse(sents[sents.length - 1]); if (last.q || last.wh || last.auxLead || last.imperative) { const inner = deriveAnswerTarget(sents[sents.length - 1], opts); const refused = sents.slice(0, -1).map(x => deriveAnswerTarget(x, opts)).find(x => x.response_intent === "REFUSAL"); return { ...(refused ?? inner), safety_relevant: inner.safety_relevant || isHazardText(text) }; } }
   const u: Utterance = analyse(text), T = u.tokens, lead = T[0] ?? "";
   const objective = opts.objective !== undefined ? opts.objective : objectiveOf(text, { activeAssessment: opts.activeAssessment });
   const content = contentTokens(T), qualifiers = T.filter(t => STATUS_WORDS.includes(t));
@@ -163,6 +164,23 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   if (u.wh && T.includes("reasoning") && T.some(t => ["changed", "change"].includes(t))) return base("EXPLANATION", { must_answer: "whether the reasoning changed and why", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   const topN = (() => { const i = T.findIndex(t => ["top", "first", "best"].includes(t)); if (i >= 0 && T[i + 1] && NUM[T[i + 1]]) return NUM[T[i + 1]]; const m = T.find(t => /^\d+$/.test(t)); return m && (T.includes("top") || T.includes("first")) ? Number(m) : null; })();
 
+  // semantic request families that must be recognised from speech-act structure BEFORE the objective-driven shapes
+  const rankMark = T.some(t => ["first", "rank", "ranked", "best", "top", "should", "next", "order"].includes(t));
+  // a state ellipsis ("light issue fixed?") asks whether that state holds
+  if (u.q && !u.wh && !u.auxLead && !u.imperative && cpt.state && ["open", "resolved", "stale", "overdue"].includes(cpt.state) && T.length <= 6) return base("YES_NO_WITH_REASON", { yes_no: { kind: "state" }, must_answer: "yes / no first, then the recorded state", must_not_substitute: ["capability_menu", "evidence_readiness"] });
+  // existence ("is there ...", "any ...") is a yes/no on what is recorded, or a list when the names are asked for
+  const existential = (["is", "are"].includes(lead) && T[1] === "there") || lead === "any";
+  if (existential && !rankMark) {
+    if (T.some(t => ["names", "name", "list", "which", "show"].includes(t))) return base("LIST", { quantity: "list", must_answer: "the items themselves (names/records)", must_not_substitute: ["capability_menu", "count_for_list"] });
+    if (lead !== "any") return base("YES_NO_WITH_REASON", { yes_no: { kind: "state" }, must_answer: "yes / no first, then what is recorded", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  }
+  // "between X and Y, which ...?" names the two sides of a comparison
+  if (lead === "between" && T.includes("and")) return base("COMPARISON", { compare_terms: splitSides(T.slice(1)), must_answer: "the comparison itself (what is recorded for each)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  // "what's the concern there?" about a named item asks why it is flagged
+  if (T.indexOf("what") >= 0 && T.indexOf("what") <= 3 && !u.auxLead && T.some(t => ["concern", "worry", "problem", "issue", "trouble"].includes(t)) && T.some(t => ["there", "here", "with", "about"].includes(t)))
+    return base("EXPLANATION", { must_answer: "the recorded reason it is flagged", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  // a measurement nobody records here ("what is the temperature in X")
+  if (u.wh && lead === "what" && T.some(t => ["temperature", "humidity", "noise", "decibels", "airflow", "pollution"].includes(t))) return base("LIMITATION", { must_answer: "that this measurement is not available, specifically", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (lead === "why" && T.includes("rather") && T.includes("than")) return base("COMPARISON", { compare_terms: splitSides(T.slice(1)), must_answer: "why one rather than the other (the contrast itself)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (objective === "compare") return base("COMPARISON", { compare_terms: splitSides(T.filter(t => !["compare", "comparing", "difference", "differ", "differs", "versus"].includes(t) || t === "versus")), top_n: topN, must_answer: "the comparison itself (which, how they differ), not two independent summaries", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (objective === "prioritize") return base("RANKING", { top_n: topN, must_answer: "the ordering (or why none can be given) first", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
@@ -173,7 +191,9 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const judgeWords = T.some(t => ["worry", "worried", "should", "why", "compare", "rank", "matter", "matters", "priority", "important", "urgent", "better", "worse", "safe", "risk", "concern"].includes(t));
   const listVerb = ["show", "list", "display", "name", "bring", "pull"].includes(lead) || (["give", "tell"].includes(lead) && T[1] === "me" && T.some(t => ["names", "name", "list", "which", "all", "every"].includes(t)));
   const whichList = lead === "which" && T.length <= 9 && !T.some(t => ["or", "more", "most", "less", "worse", "better", "first", "should"].includes(t));
-  if (!judgeWords && (listVerb || whichList))
+  const judgeStrong = T.some(t => ["compare", "rank", "better", "worse", "best", "worst", "first", "top", "most", "priority", "important", "urgent"].includes(t));
+  const whichObjectList = lead === "which" && cpt.object !== null && !judgeStrong && T.length <= 14 && !T.some(t => ["or", "more", "less"].includes(t));
+  if ((!judgeWords && (listVerb || whichList)) || whichObjectList)
     return base("LIST", { quantity: "list", top_n: topN, must_answer: "the items themselves (names/records), with any count only as support", must_not_substitute: ["capability_menu", "count_for_list"] });
   if (objective === "summarize") return base("SUMMARY", { must_answer: "the summary itself", must_not_substitute: ["capability_menu"] });
   if (objective === "advise" && u.auxLead && ["can", "could", "would", "should", "shall", "will", "may"].includes(lead) && !T.includes("or") && T.length <= 12) {
