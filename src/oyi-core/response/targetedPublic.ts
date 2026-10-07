@@ -23,7 +23,7 @@ export function publicLead(target: AnswerTarget, question: string, view: PublicV
     }
     case "LIST": case "STATUS": case "ASSESSMENT": case "DIRECT_ANSWER": case "SUMMARY": case "EXPLANATION": {
       if (asksSoFar) return Object.keys(v.known).length ? `So far you have told me: ${knownText(v.known)}.` : "You haven't given me any opportunity details yet.";
-      if ((T.includes("need") || T.includes("missing") || T.includes("still") || T.includes("require") || T.includes("lack") || T.includes("lacking") || T.includes("else") || T.includes("further")) && modelled) return v.missing.length ? `What I still need from you: ${list(v.missing.map(nice))}.` : "I don't need anything further for a first look.";
+      if ((T.includes("need") || T.includes("missing") || T.includes("still") || T.includes("require") || T.includes("lack") || T.includes("lacking") || T.includes("else") || T.includes("further") || (T.includes("more") && T.some(t => ["know", "need", "want", "tell"].includes(t)))) && modelled) return v.missing.length ? `What I still need from you: ${list(v.missing.map(nice))}.` : "I don't need anything further for a first look.";
       return null;
     }
     case "RANKING": return modelled && v.missing.length ? `The most important thing I still need is ${nice(v.missing[0])}.` : null;

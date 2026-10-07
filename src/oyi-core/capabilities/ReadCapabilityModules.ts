@@ -439,7 +439,8 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["wallet.read"],
       scopeRequirements: homeScope,
       evidenceRequirements: walletEvidence,
-      supports: (frame) => frame.domain === "wallet" && (frame.operation === "wallet.history" || /\btransactions?|history|wallet\b/i.test(frame.normalizedText)) && (!/\bbalance\b/i.test(frame.normalizedText) || /\btransactions?|history|spent|spending\b/i.test(frame.normalizedText)),
+      // IQ-8B: the facet (balance vs transactions) comes from the concept bridge, not from re-reading the wording
+      supports: (frame) => frame.domain === "wallet" && (frame.concepts ? frame.concepts.facet !== "balance" : (frame.operation === "wallet.history" || /\btransactions?|history|wallet\b/i.test(frame.normalizedText))),
       collect: async (context) => {
         const facts = await loadWalletTransactionFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);
@@ -467,7 +468,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["wallet.read"],
       scopeRequirements: homeScope,
       evidenceRequirements: [readRequirement("wallet", "wallet_balance")],
-      supports: (frame) => frame.domain === "wallet" && /\bbalance|how much (do i have|is in|left)|current balance\b/i.test(frame.normalizedText),
+      supports: (frame) => frame.domain === "wallet" && (frame.concepts?.facet === "balance" || /\bbalance|how much (do i have|is in|left)|current balance\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadWalletBalanceFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);
@@ -491,7 +492,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       // Excludes explicit "forecast" wording — "forecast my electricity
       // spending" is forward-looking (Programme 3's forecasts.read), not a
       // historical-spend read, even though it shares "spending" vocabulary.
-      supports: (frame) => frame.domain === "utilities" && !/\bforecast\b/i.test(frame.normalizedText) && (frame.operation === "utilities.spending" || /\bspent|spending|how much|costs?|paid|payment\b/i.test(frame.normalizedText)),
+      supports: (frame) => frame.domain === "utilities" && frame.concepts?.facet !== "usage" && !/\bforecast\b/i.test(frame.normalizedText) && (frame.operation === "utilities.spending" || /\bspent|spending|how much|costs?|paid|payment\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadUtilitySpendingFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);
@@ -628,7 +629,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["visitors.read"],
       scopeRequirements: estateScope,
       evidenceRequirements: [readRequirement("visitors", "visitor_access")],
-      supports: (frame) => frame.domain === "visitors" && (frame.operation === "list" || frame.operation === "inspect" || /\bvisitors?|visited|visiting|guest|access code|pending arrival\b/i.test(frame.normalizedText)),
+      supports: (frame) => frame.domain === "visitors" && (frame.operation === "list" || frame.operation === "inspect" || frame.operation === "inform" || frame.operation === "summarize" || /\bvisitors?|visited|visiting|guest|access code|pending arrival\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadVisitorAccessFacts(context.input, context.oisContext, requestContract(context), context.evidence_db);
         return facts.map(evidenceFromFact);
@@ -655,7 +656,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["security.read"],
       scopeRequirements: estateScope,
       evidenceRequirements: [readRequirement("security", "security_incident")],
-      supports: (frame) => frame.domain === "security" && (frame.operation === "list" || frame.operation === "inspect" || /\bsecurity|incident|alert|unresolved|failed access\b/i.test(frame.normalizedText)),
+      supports: (frame) => frame.domain === "security" && (frame.operation === "list" || frame.operation === "inspect" || frame.operation === "inform" || frame.operation === "summarize" || /\bsecurity|incident|alert|unresolved|failed access\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadSecurityIncidentFacts(context.input, context.oisContext, requestContract(context), context.evidence_db);
         return facts.map(evidenceFromFact);

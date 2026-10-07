@@ -164,6 +164,8 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       }
       const pick = named.length ? named : index.candidates.filter(c => levelOf(c, "lifecycle") === "active").slice(0, 1);
       if (pick.length === 1 && !pick[0].needs_comparative_judgment) { const c = pick[0]; return { lead: sentence(`${c.ref.label || "That item"} matters because ${withFacts(c).replace(/^.*? is recorded as /, "it is recorded as ")}`), support: [] }; }
+      const staleU = unc.find(u => /readings for/.test(u) && /stale/.test(u));
+      if (staleU && topicClasses(T).includes("devices")) return { lead: sentence(`Because ${lower(staleU.replace(/\.$/, ""))}`), support: [] };
       const bare = T.filter(t => !["why", "not", "so", "then"].includes(t)).length === 0 || T.some(t => ["ranked", "ordered", "order", "ranking", "ordering", "priority", "reasoning", "recommend", "recommendation", "said"].includes(t));
       if (notAvail && !bare) return { lead: sentence(`I can't explain that: ${lower(quote(notAvail))} is not available as an evidence source yet`), support: [] };
       if (bare && (noJudgment || !hadPrevious)) return { lead: "I haven't ranked or recommended anything yet, so there is no ordering or reasoning of mine to explain.", support: [] };

@@ -113,6 +113,7 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (u.wh && has(u, "we", "i", "you") && !has(u, "can", "could", "would", "should", "will", "shall") && !has(u, "recently", "yesterday", "last", "ago", "week", "weeks", "month", "months", "days", "previous*", "discussed", "talked", "spoke") && has(u, "discuss*", "talk*", "refer*", "meant", "mean", "said", "say", "asked", "ask", "mentioned", "correct*", "told", "decid*", "agree*", "chose", "choose")) s.explain += 4;
   if (lead === "how" && T[1] === "come") s.explain += 4;
   if (has(u, "explain*", "justif*", "rationale", "reasoning", "logic")) s.explain += 3;
+  if (u.wh && has(u, "behind") && has(u, "recommendation", "ranking", "order", "choice", "decision", "answer", "advice")) s.explain += 6;
   if (u.wh && has(u, "driving", "behind", "makes", "made") && !has(u, "sense") && !(lead === "how" && has(u, "many", "much"))) s.explain += 3;
   if (lead === "how" && has(u, "did", "do", "does") && has(u, "land", "arrive", "decide", "conclude", "pick", "rank", "choose", "reach", "get") && has(u, "you", "that", "it", "this")) s.explain += 3;
   if (lead === "how" && T[1] === "so") s.explain += 3;
@@ -154,6 +155,8 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (has(u, "or") && has(u, "which", "better", "smarter", "safer", "best", "prefer", "worse") ) s.compare += 3;
   // ---- prioritisation
   if (has(u, "priorit*", "rank*", "triage")) s.prioritize += 3;
+  if (has(u, "best", "top", "strongest", "most") && has(u, "first") && (u.imperative || ask) && has(u, "line", "lining", "arrange", "sort", "order", "put", "list", "rank")) s.prioritize += 4;
+  if (u.wh && lead === "who" && has(u, "best", "most", "strongest", "top") && has(u, "promising", "valuable", "likely", "urgent", "important", "hot", "hottest", "worth", "chase", "call", "contact", "pursue")) s.prioritize += 4;
   if (((has(u, "most") && has(u, "least")) || (has(u, "best") && has(u, "worst"))) && has(u, "from", "to") && (u.imperative || ask)) s.prioritize += 4; // "from most to least X" is an ordering request
   if (has(u, "sort", "order") && (has(u, "by", "importance", "urgency", "risk", "priority", "them", "these", "those", "sensible", "running", "short", "out") || lead === "order")) s.prioritize += 3;
   if (u.wh && has(u, ...SUPERLATIVE.filter(x => x !== "first" && x !== "most"), "useful", "helpful", "valuable", "important")) s.prioritize += 2;
@@ -332,7 +335,7 @@ export function isCapabilityInquiryUtterance(u: Utterance): boolean {
   if (whAt < 0 || whAt > j) return false;
   const modalBefore = T.slice(whAt, j + 1).some(t => ["can", "could", "are", "do", "does"].includes(t));
   const modalAfter = ["can", "could"].includes(T[j + 1] ?? "");
-  const ableAfter = T.slice(j + 1, j + 4).some(t => t === "able" || t === "capable") || (T.slice(j + 1, j + 4).includes("good") && T.slice(j + 1, j + 5).includes("at"));
+  const ableAfter = T.slice(j + 1, j + 4).some(t => t === "able" || t === "capable") || (T.slice(j + 1, j + 4).includes("good") && (T.slice(j + 1, j + 5).includes("at") || T.slice(j + 1, j + 5).includes("for")));
   if (!(modalBefore || modalAfter || ableAfter)) return false;
   if (T.slice(whAt, j + 1).includes("would") || T.slice(whAt, j + 1).includes("should")) return false;
   const verbAt = T.findIndex((t, i) => i > whAt && ABILITY_VERB.includes(t) && i !== j);

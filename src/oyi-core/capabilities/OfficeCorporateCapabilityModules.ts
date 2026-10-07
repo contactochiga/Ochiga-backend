@@ -299,7 +299,7 @@ function crmLeadsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["crm.read"],
     evidenceRequirements: [{ domain: "crm", evidence_type: "crm_lead_needs_attention", freshness: ["fresh", "stale", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\b(?:leads?|prospects?)\b/i.test(frame.normalizedText),
+    supports: (frame: SemanticFrame) => frame.domain === "crm" && (frame.concepts?.object === "lead" || /\b(?:leads?|prospects?)\b/i.test(frame.normalizedText)),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const leads = snapshot?.leads;
@@ -412,7 +412,7 @@ function crmOpportunitiesReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["crm.read"],
     evidenceRequirements: [{ domain: "crm", evidence_type: "crm_opportunity_stale", freshness: ["fresh", "stale", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\b(?:opportunit\w*|deals)\b/i.test(frame.normalizedText),
+    supports: (frame: SemanticFrame) => frame.domain === "crm" && (frame.concepts?.object === "opportunity" || /\b(?:opportunit\w*|deals)\b/i.test(frame.normalizedText)),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const opportunities = snapshot?.opportunities;
@@ -906,7 +906,7 @@ function taskOpenFact(task: NonNullable<OperationalSnapshot["tasks"]>["open"][nu
 // to the user. Previously duplicated independently in each, which is
 // exactly how they drifted out of sync.
 function officeTasksQueryRows(tasks: NonNullable<OperationalSnapshot["tasks"]>, normalizedMessage: string) {
-  const wantsOverdueOnly = /\boverdue\b/i.test(normalizedMessage);
+  const wantsOverdueOnly = /\boverdue\b/i.test(normalizedMessage) || /\b(?:late|behind|slipped|delayed)\b/i.test(normalizedMessage);
   return wantsOverdueOnly ? tasks.open.filter((task) => task.overdue) : tasks.open;
 }
 
@@ -969,7 +969,7 @@ function officeTasksQueryReadModule(): CapabilityModule {
         return unavailableResult("I don't have a current read on tasks for this session — the Office tasks snapshot wasn't attached to this request.");
       }
       const message = normalizeMessage(context);
-      const wantsOverdueOnly = /\boverdue\b/i.test(message);
+      const wantsOverdueOnly = /\boverdue\b/i.test(message) || context.resolvedTurn.semantic_frame.concepts?.state === "overdue";
       const { total_open: totalOpen } = snapshot.tasks;
       const rows = officeTasksQueryRows(snapshot.tasks, message);
       if (!rows.length) {

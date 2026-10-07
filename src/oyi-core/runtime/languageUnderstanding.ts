@@ -1,5 +1,4 @@
 import { analyse, responseMove } from "../interpretation/semanticObjective";
-import { domainHits } from "../interpretation/domainVocabulary";
 export type OyiOperation =
   | "inform"
   | "summarize"
@@ -361,9 +360,6 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\bnotification|notifications|alert|alerts\b/i.test(text)) return "notifications";
   if (/\bincident|outage|fault|emergency\b/i.test(text)) return "incidents";
   if (/\b(?:hazards?|hazardous|dangers?|dangerous|unsafe|safety)\b/i.test(text)) return "home";
-  // IQ-8: an unclassified turn takes the domain of its first governed domain NOUN (the same vocabulary IQ-7 uses for subjects), never a phrase list.
-  const hit = domainHits(analyse(text).tokens).find(h => h.domain !== "environment");
-  if (hit) return ({ devices: "devices", visitors: "visitors", maintenance: "maintenance", security: "security", cameras: "cameras", utilities: "utilities", wallet: "wallet", rooms: "rooms", crm: "crm", office_reports: "office_reports", office_financial: "office_financial", office_tasks: "office_tasks" } as Record<string, OyiDomain>)[hit.domain] ?? null;
   return null;
 }
 

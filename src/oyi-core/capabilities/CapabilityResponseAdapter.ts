@@ -41,6 +41,10 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
       if (capabilityKey === "facility.cameras.read" && /unknown current video state/.test(result.answer)) return { ...result, answer: `I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
       if (capabilityKey === "visitors.pending.read" && /\b(?:arriv\w*|turned up|shown up|here|inside|already in|premises|on site|onsite|present|left|departed|gone|came|come|home)\b/.test(T0)) return { ...result, answer: `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
     }
+    if (tgt0.response_intent === "YES_NO_WITH_REASON" && tgt0.yes_no?.kind === "inference" && (result.status === "answered" || result.status === "empty"))
+      return { ...result, answer: `No — that does not establish it: what I can read only covers what is recorded, and a record showing nothing is not an all-clear.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
+    if ((tgt0.response_intent === "RANKING" || tgt0.response_intent === "COMPARISON") && ROW_NOUNS[capabilityKey] && (result.status === "answered" || result.status === "empty"))
+      return { ...result, answer: `I can't put these in order or pick one: that takes comparative judgment on their recorded notes, which is not available right now.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: tgt0.response_intent, limitation_targeted: true } };
     const overview = result.metadata?.overview_view as OverviewView | undefined;
     if (overview) {
       const ot = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });

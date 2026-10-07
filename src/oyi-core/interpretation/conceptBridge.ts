@@ -19,9 +19,9 @@ export type SemanticConcepts = {
 };
 
 const OBJECT_STEMS: Array<[ObjectClass, string[]]> = [
-  ["lead", ["lead", "leads", "prospect*"]], ["opportunity", ["opportunit*", "deals"]], ["report", ["report*"]], ["task", ["task*", "todo", "chore*"]],
+  ["lead", ["lead", "leads", "prospect*"]], ["opportunity", ["opportunit*", "deals", "jv"]], ["report", ["report*"]], ["task", ["task*", "todo", "chore*"]],
   ["project", ["project*", "development*"]], ["document", ["document*", "file*", "contract*"]], ["wallet", ["wallet", "balance", "transaction*", "spent", "spending"]],
-  ["visitor", ["visitor*", "guest*", "pass", "passes", "invit*"]], ["device", ["device*", "gadget*", "appliance*", "sensor*", "thermostat", "light", "lights", "lighting", "lamp*", "socket*", "plug*"]],
+  ["visitor", ["visitor*", "guest*", "pass", "passes", "invit*", "visit", "visits", "visiting", "visited"]], ["device", ["device*", "gadget*", "appliance*", "sensor*", "thermostat", "light", "lights", "lighting", "lamp*", "socket*", "plug*"]],
   ["camera", ["camera*", "cctv"]], ["maintenance_request", ["ticket*", "repair*", "request", "requests", "fault*", "leak*", "job", "jobs", "issue*", "problem*", "maintenance"]],
   ["incident", ["incident*", "alert*"]], ["utility", ["electricity", "energy", "power", "gas", "internet", "bill", "bills", "meter*", "tariff*", "kwh", "consumption", "usage"]], ["room", ["room", "rooms", "bedroom*", "kitchen", "lounge"]],
 ];
@@ -47,7 +47,7 @@ export function resolveConcepts(text: string): SemanticConcepts {
   for (let k = 0; k + 1 < objectAt.length; k++) if (objectAt[k + 1].i === objectAt[k].i + 1 && objectAt[k + 1].c === "maintenance_request") object = "maintenance_request";
   void hit;
   const has = (c: Exclude<Facet, null>) => T.some(t => FACET_TOKENS[c].includes(t));
-  const facet: Facet = object === "wallet" || T.includes("wallet") ? (has("transactions") || (has("spending") && !has("balance")) ? "transactions" : has("balance") || T.includes("wallet") ? "balance" : null)
+  const facet: Facet = object === "wallet" || T.includes("wallet") ? (has("transactions") || (has("spending") && !has("balance")) ? "transactions" : has("balance") ? "balance" : null)
     : object === "utility" || head === "utilities" ? (has("usage") && !has("spending") ? "usage" : has("spending") ? "spending" : null)
     : has("history") && T.some(t => ["changed", "since", "yesterday", "earlier", "ago"].includes(t)) ? "history" : has("status") ? "status" : null;
   const quantity = T[0] === "how" && ["many", "much"].includes(T[1] ?? "") || (T.includes("number") && T.includes("of")) || T.includes("count") ? "count" : null;
