@@ -63,6 +63,13 @@ export function deriveRequirements(input: { surface: string; objective: string; 
     if (!classes) { add(`domain:${d}`, "mandatory", `explicit subject ${d} has no evidence class`); continue; }
     for (const c of classes) add(c, "mandatory", `explicit subject ${d}`);
   }
+  // A security assessment inherently spans who has access, what the devices say and what cameras can show.
+  // Companions are optional (never block); their absence is disclosed, never filled in.
+  if (domains.includes("security")) {
+    add("visitors", "optional", "security assessments span visitor access");
+    if (input.surface === "consumer") for (const c of ["device_availability", "cameras", "device_observed_value"]) add(c, "optional", "security assessments span device state and camera/observed-value availability");
+    if (input.surface === "facility") add("cameras", "optional", "security assessments span camera state");
+  }
   if (input.surface === "public_corporate" && domains.includes("corporate_opportunity") && FRAMING_OBJECTIVES.has(input.objective)) {
     // The public development listing is a network source: it is gathered only when the subject names developments.
     add("corporate_partnerships", "optional", "approved public framing for an opportunity assessment");

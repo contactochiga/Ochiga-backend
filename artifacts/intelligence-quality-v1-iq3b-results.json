@@ -1,0 +1,4249 @@
+{
+  "version": 1,
+  "status": "IQ3B_REVIEW",
+  "raw_sha256": "1dfe0fc14a9f0d5868037bf00d7b5005e1075c7e86a9a3e74688f1cc594fcec2",
+  "note": "PASS/FAIL/BLOCKED retained from the accepted IQ-2C run; no turn promoted. The planner states evidence readiness and does not judge.",
+  "preserved_pass_turns": [
+    {
+      "id": "OMA-005:3",
+      "previous_review_reason": "Existing PASS reviewed and preserved; no authority or action-execution regression observed.",
+      "check_holds": true
+    },
+    {
+      "id": "CON-002:6",
+      "previous_review_reason": "Existing PASS reviewed and preserved; no authority or action-execution regression observed.",
+      "check_holds": true
+    },
+    {
+      "id": "CON-008:5",
+      "previous_review_reason": "The explicit return restores the corrected Study subject, not wallet evidence; additional physical observations are not claimed.",
+      "check_holds": true
+    },
+    {
+      "id": "CON-008:6",
+      "previous_review_reason": "The room reference correctly identifies Study from conversation, rather than a raw room list or stale wallet result.",
+      "check_holds": true
+    }
+  ],
+  "summary": {
+    "turns_total": 280,
+    "status_retained": {
+      "FAIL": 224,
+      "PASS": 51,
+      "BLOCKED": 5
+    },
+    "answers_changed": 144,
+    "answers_changed_by_previous_status": {
+      "FAIL": 138,
+      "PASS": 4,
+      "BLOCKED": 2
+    },
+    "answers_changed_outside_the_133": [
+      {
+        "id": "OMA-005:3",
+        "previous_status": "PASS",
+        "previous_class": null
+      },
+      {
+        "id": "FAC-004:1",
+        "previous_status": "BLOCKED",
+        "previous_class": "FIXTURE_BLOCKED"
+      },
+      {
+        "id": "FAC-004:2",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "FAC-004:3",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "FAC-004:4",
+        "previous_status": "BLOCKED",
+        "previous_class": "FIXTURE_BLOCKED"
+      },
+      {
+        "id": "FAC-004:5",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "FAC-004:6",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "FAC-004:7",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "CON-002:6",
+        "previous_status": "PASS",
+        "previous_class": null
+      },
+      {
+        "id": "CON-008:5",
+        "previous_status": "PASS",
+        "previous_class": null
+      },
+      {
+        "id": "CON-008:6",
+        "previous_status": "PASS",
+        "previous_class": null
+      }
+    ],
+    "evidence_planning_133": {
+      "evidence_outcome": {
+        "PLANNER_PARTIAL_SUCCESS": 69,
+        "EVIDENCE_GAP": 44,
+        "PLANNER_SUCCESS": 4,
+        "MISSING_CAPABILITY_PRODUCT_DEBT": 11,
+        "NO_EVIDENCE_REQUIRED_BY_TURN": 4,
+        "NO_PLAN": 1
+      },
+      "final_class": {
+        "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 20,
+        "REFERENCE_CONTINUITY": 28,
+        "REASSESSMENT": 3,
+        "INITIATIVE": 26,
+        "OTHER": 45,
+        "MISSING_CAPABILITY_PRODUCT_DEBT": 11
+      },
+      "moved_out_of_evidence_planning": 88,
+      "moved_to_judgment_iq4": 20,
+      "remaining_evidence_planning_failures": [
+        {
+          "id": "OMA-003:1",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_documents:not_requested"
+        },
+        {
+          "id": "OMA-003:2",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_documents:not_requested"
+        },
+        {
+          "id": "OMA-003:3",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_documents:not_requested"
+        },
+        {
+          "id": "OMA-003:4",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_documents:not_requested"
+        },
+        {
+          "id": "OMA-003:5",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_documents:not_requested"
+        },
+        {
+          "id": "OMA-003:6",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_documents:not_requested"
+        },
+        {
+          "id": "OMA-003:7",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_documents:not_requested"
+        },
+        {
+          "id": "OMA-004:5",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_development:not_requested"
+        },
+        {
+          "id": "OMA-004:6",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_development:not_requested"
+        },
+        {
+          "id": "OMA-004:7",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_development:not_requested"
+        },
+        {
+          "id": "OMA-005:2",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_financial:not_requested"
+        },
+        {
+          "id": "OMA-005:6",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "office_financial:not_requested"
+        },
+        {
+          "id": "OMA-007:1",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
+        },
+        {
+          "id": "OMA-007:2",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
+        },
+        {
+          "id": "OMA-007:3",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
+        },
+        {
+          "id": "OMA-007:4",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
+        },
+        {
+          "id": "OMA-007:5",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
+        },
+        {
+          "id": "OMA-007:6",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
+        },
+        {
+          "id": "OMA-007:7",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
+        },
+        {
+          "id": "OMA-008:4",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "crm:not_requested, office_documents:not_requested"
+        },
+        {
+          "id": "OMA-009:2",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "crm:not_requested"
+        },
+        {
+          "id": "OMA-009:4",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "crm:not_requested"
+        },
+        {
+          "id": "OMA-009:5",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "crm:not_requested"
+        },
+        {
+          "id": "OMA-010:5",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "crm:not_requested, office_development:not_requested"
+        },
+        {
+          "id": "OMA-010:6",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "crm:not_requested, office_development:not_requested"
+        },
+        {
+          "id": "OMA-010:7",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "crm:not_requested, office_development:not_requested"
+        },
+        {
+          "id": "OSA-007:3",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_development:not_requested"
+        },
+        {
+          "id": "OSA-007:5",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_development:not_requested"
+        },
+        {
+          "id": "OSA-007:6",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_development:not_requested"
+        },
+        {
+          "id": "OSA-007:7",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "corporate_development:not_requested"
+        },
+        {
+          "id": "FAC-002:2",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "maintenance:not_requested"
+        },
+        {
+          "id": "FAC-002:4",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "cameras:not_requested"
+        },
+        {
+          "id": "FAC-002:5",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "cameras:not_requested"
+        },
+        {
+          "id": "FAC-002:6",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "cameras:not_requested"
+        },
+        {
+          "id": "FAC-002:7",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "maintenance:not_requested"
+        },
+        {
+          "id": "FAC-005:5",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "security:not_requested"
+        },
+        {
+          "id": "FAC-005:6",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "visitors:not_requested, maintenance:not_requested"
+        },
+        {
+          "id": "FAC-005:7",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "visitors:not_requested, maintenance:not_requested"
+        },
+        {
+          "id": "FAC-009:7",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "proven product debt not surfaced by the plan: device_history (the IQ-2 subject did not request it)"
+        },
+        {
+          "id": "CON-001:3",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "device_availability:not_requested, visitors:not_requested"
+        },
+        {
+          "id": "CON-006:2",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "security:not_requested"
+        },
+        {
+          "id": "CON-006:3",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "security:not_requested"
+        },
+        {
+          "id": "CON-006:5",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "security:not_requested"
+        },
+        {
+          "id": "CON-006:6",
+          "evidence_outcome": "EVIDENCE_GAP",
+          "gap": "security:not_requested"
+        },
+        {
+          "id": "CON-006:7",
+          "evidence_outcome": "NO_PLAN",
+          "gap": "no evidence plan was produced for this turn (an existing certified path answered it)"
+        }
+      ],
+      "by_surface": {
+        "office_internal": {
+          "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 10,
+          "REFERENCE_CONTINUITY": 9,
+          "REASSESSMENT": 2,
+          "INITIATIVE": 8,
+          "OTHER": 26
+        },
+        "public_corporate": {
+          "INITIATIVE": 5,
+          "REFERENCE_CONTINUITY": 1,
+          "OTHER": 4
+        },
+        "facility": {
+          "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 7,
+          "OTHER": 9,
+          "REFERENCE_CONTINUITY": 6,
+          "INITIATIVE": 5,
+          "REASSESSMENT": 1
+        },
+        "consumer": {
+          "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 3,
+          "OTHER": 6,
+          "MISSING_CAPABILITY_PRODUCT_DEBT": 11,
+          "INITIATIVE": 8,
+          "REFERENCE_CONTINUITY": 12
+        }
+      }
+    },
+    "plan_status": {
+      "MANDATORY_PARTIAL": 109,
+      "MANDATORY_COMPLETE_ENOUGH": 16,
+      "MANDATORY_MISSING_CAPABILITY": 6,
+      "MANDATORY_UNAVAILABLE": 1
+    },
+    "performance": {
+      "6_8_sources": {
+        "turns": 4,
+        "planner_latency_ms": {
+          "n": 4,
+          "mean": 1.3,
+          "max": 2,
+          "p95": 2
+        },
+        "turn_latency_ms": {
+          "n": 4,
+          "mean": 79.3,
+          "max": 97,
+          "p95": 97
+        }
+      },
+      "reused_only": {
+        "turns": 66,
+        "planner_latency_ms": {
+          "n": 66,
+          "mean": 0.2,
+          "max": 1,
+          "p95": 1
+        },
+        "turn_latency_ms": {
+          "n": 66,
+          "mean": 76.9,
+          "max": 142,
+          "p95": 101
+        }
+      },
+      "4_5_sources": {
+        "turns": 15,
+        "planner_latency_ms": {
+          "n": 15,
+          "mean": 8,
+          "max": 17,
+          "p95": 17
+        },
+        "turn_latency_ms": {
+          "n": 15,
+          "mean": 74.9,
+          "max": 109,
+          "p95": 109
+        }
+      },
+      "3_sources": {
+        "turns": 3,
+        "planner_latency_ms": {
+          "n": 3,
+          "mean": 2,
+          "max": 5,
+          "p95": 5
+        },
+        "turn_latency_ms": {
+          "n": 3,
+          "mean": 82.3,
+          "max": 88,
+          "p95": 88
+        }
+      },
+      "2_sources": {
+        "turns": 15,
+        "planner_latency_ms": {
+          "n": 15,
+          "mean": 1.5,
+          "max": 5,
+          "p95": 5
+        },
+        "turn_latency_ms": {
+          "n": 15,
+          "mean": 80.4,
+          "max": 129,
+          "p95": 129
+        }
+      },
+      "1_source": {
+        "turns": 29,
+        "planner_latency_ms": {
+          "n": 29,
+          "mean": 4.6,
+          "max": 14,
+          "p95": 9
+        },
+        "turn_latency_ms": {
+          "n": 29,
+          "mean": 73.9,
+          "max": 134,
+          "p95": 100
+        }
+      }
+    },
+    "reuse": {
+      "sources_attempted": 170,
+      "sources_reused": 181,
+      "reads_avoided_pct": 51.6
+    }
+  },
+  "oma001": [
+    {
+      "id": "OMA-001:1",
+      "prompt": "I just got into the office. What actually needs my attention today?",
+      "answer": "leads that need attention:\n20 leads out of 39 open.\n\nopportunities that haven't been followed up:\n3 opportunities. 2 haven't had activity in at least two weeks.\n\nreports awaiting approval:\n1 report awaiting approval.\n\ndevelopment project status:\n3 development projects.",
+      "plan_status": null,
+      "attempted": null,
+      "reused": null,
+      "invalidation": null
+    },
+    {
+      "id": "OMA-001:2",
+      "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+      "answer": "I checked the evidence I am permitted to read for this. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read; tasks: 2 (partial view); support cases: 1 (partial view); meetings: 1 (partial view). From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries, tasks, support cases, meetings: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 8,
+      "reused": 0,
+      "invalidation": []
+    },
+    {
+      "id": "OMA-001:3",
+      "prompt": "Why is the second one more important than the others?",
+      "answer": "I am using the evidence I already gathered for this assessment, which is still current. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read. From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 0,
+      "reused": 5,
+      "invalidation": []
+    },
+    {
+      "id": "OMA-001:4",
+      "prompt": "The Chairman for that project says financing is already secured.",
+      "answer": "I checked the evidence I am permitted to read for this. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read. From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list. Your information is unverified. Which item should it attach to?",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 5,
+      "reused": 0,
+      "invalidation": [
+        "material_fact_changed"
+      ]
+    },
+    {
+      "id": "OMA-001:5",
+      "prompt": "Does that change your priority?",
+      "answer": "I am using the evidence I already gathered for this assessment, which is still current. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read. From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 0,
+      "reused": 5,
+      "invalidation": []
+    },
+    {
+      "id": "OMA-001:6",
+      "prompt": "What can I delegate and what needs my decision?",
+      "answer": "I checked the evidence I am permitted to read, reusing what was already current. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read; tasks: 2 (partial view); support cases: 1 (partial view); meetings: 1 (partial view). From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries, tasks, support cases, meetings: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 3,
+      "reused": 5,
+      "invalidation": []
+    },
+    {
+      "id": "OMA-001:7",
+      "prompt": "Give me the next move, not a menu of things you can do.",
+      "answer": "I am using the evidence I already gathered for this assessment, which is still current. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read; tasks: 2 (partial view); support cases: 1 (partial view); meetings: 1 (partial view). From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries, tasks, support cases, meetings: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 0,
+      "reused": 8,
+      "invalidation": []
+    }
+  ],
+  "turns": [
+    {
+      "id": "OMA-001:2",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 8,
+      "sources_reused": 0,
+      "planner_latency_ms": 2,
+      "turn_latency_ms": 97,
+      "baseline_turn_latency_ms": 111,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-001:3",
+      "surface": "office_internal",
+      "objective": "explain",
+      "previous_boundary": "DERIVED_RESULT_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 5,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 86,
+      "baseline_turn_latency_ms": 84,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-001:4",
+      "surface": "office_internal",
+      "objective": "explain",
+      "previous_boundary": "DERIVED_RESULT_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 109,
+      "baseline_turn_latency_ms": 82,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-001:5",
+      "surface": "office_internal",
+      "objective": "reassess",
+      "previous_boundary": "FACT_UPDATE_REASSESSMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REASSESSMENT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 5,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 86,
+      "baseline_turn_latency_ms": 96,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-001:6",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 3,
+      "sources_reused": 5,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 85,
+      "baseline_turn_latency_ms": 138,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-001:7",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 8,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 95,
+      "baseline_turn_latency_ms": 115,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-002:1",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 2,
+      "turn_latency_ms": 74,
+      "baseline_turn_latency_ms": 68,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-002:2",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 99,
+      "baseline_turn_latency_ms": 98,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-002:3",
+      "surface": "office_internal",
+      "objective": "compare",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 101,
+      "baseline_turn_latency_ms": 101,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-002:4",
+      "surface": "office_internal",
+      "objective": "compare",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 94,
+      "baseline_turn_latency_ms": 106,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-002:5",
+      "surface": "office_internal",
+      "objective": "reassess",
+      "previous_boundary": "FACT_UPDATE_REASSESSMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REASSESSMENT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 96,
+      "baseline_turn_latency_ms": 80,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-002:6",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 93,
+      "baseline_turn_latency_ms": 96,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-002:7",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 99,
+      "baseline_turn_latency_ms": 115,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-003:1",
+      "surface": "office_internal",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 61,
+      "baseline_turn_latency_ms": 144,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-003:2",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 124,
+      "baseline_turn_latency_ms": 109,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-003:3",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "previous_boundary": "DERIVED_RESULT_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 94,
+      "baseline_turn_latency_ms": 93,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-003:4",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "previous_boundary": "DERIVED_RESULT_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 92,
+      "baseline_turn_latency_ms": 104,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-003:5",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 98,
+      "baseline_turn_latency_ms": 91,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-003:6",
+      "surface": "office_internal",
+      "objective": "assess",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 78,
+      "baseline_turn_latency_ms": 90,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-003:7",
+      "surface": "office_internal",
+      "objective": "summarize",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 99,
+      "baseline_turn_latency_ms": 121,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-004:1",
+      "surface": "office_internal",
+      "objective": "compare",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 55,
+      "baseline_turn_latency_ms": 52,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-004:2",
+      "surface": "office_internal",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 3,
+      "sources_reused": 5,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 88,
+      "baseline_turn_latency_ms": 84,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-004:5",
+      "surface": "office_internal",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_development:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 82,
+      "baseline_turn_latency_ms": 90,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-004:6",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_development:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 96,
+      "baseline_turn_latency_ms": 79,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-004:7",
+      "surface": "office_internal",
+      "objective": "explain",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_development:not_requested",
+      "required_classes": [
+        {
+          "class": "office_development",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 76,
+      "baseline_turn_latency_ms": 78,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-005:2",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_financial:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 86,
+      "baseline_turn_latency_ms": 90,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-005:6",
+      "surface": "office_internal",
+      "objective": "explain",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "office_financial:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 83,
+      "baseline_turn_latency_ms": 91,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-005:7",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 92,
+      "baseline_turn_latency_ms": 105,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-006:1",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 8,
+      "sources_reused": 0,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 64,
+      "baseline_turn_latency_ms": 52,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-006:2",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 8,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 83,
+      "baseline_turn_latency_ms": 88,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-006:3",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "DERIVED_RESULT_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 8,
+      "sources_reused": 0,
+      "planner_latency_ms": 2,
+      "turn_latency_ms": 85,
+      "baseline_turn_latency_ms": 77,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-006:4",
+      "surface": "office_internal",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 8,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 97,
+      "baseline_turn_latency_ms": 79,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-006:5",
+      "surface": "office_internal",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 8,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 81,
+      "baseline_turn_latency_ms": 93,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-006:6",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 8,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 89,
+      "baseline_turn_latency_ms": 91,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-006:7",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 8,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 92,
+      "baseline_turn_latency_ms": 85,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-007:1",
+      "surface": "office_internal",
+      "objective": "compare",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "corporate_partnerships",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 82,
+      "baseline_turn_latency_ms": 53,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-007:2",
+      "surface": "office_internal",
+      "objective": "compare",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "corporate_partnerships",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 86,
+      "baseline_turn_latency_ms": 82,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-007:3",
+      "surface": "office_internal",
+      "objective": "compare",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "corporate_partnerships",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 80,
+      "baseline_turn_latency_ms": 88,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-007:4",
+      "surface": "office_internal",
+      "objective": "compare",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "corporate_partnerships",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 83,
+      "baseline_turn_latency_ms": 132,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-007:5",
+      "surface": "office_internal",
+      "objective": "reassess",
+      "previous_boundary": "FACT_UPDATE_REASSESSMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "corporate_partnerships",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 88,
+      "baseline_turn_latency_ms": 144,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-007:6",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "corporate_partnerships",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 72,
+      "baseline_turn_latency_ms": 144,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-007:7",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "corporate_partnerships",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 75,
+      "baseline_turn_latency_ms": 81,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-008:4",
+      "surface": "office_internal",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "crm:not_requested, office_documents:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_documents",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 100,
+      "baseline_turn_latency_ms": 85,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-008:5",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 80,
+      "baseline_turn_latency_ms": 82,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-008:7",
+      "surface": "office_internal",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 81,
+      "baseline_turn_latency_ms": 103,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-009:2",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "crm:not_requested",
+      "required_classes": [
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "crm",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 68,
+      "baseline_turn_latency_ms": 75,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-009:4",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "crm:not_requested",
+      "required_classes": [
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "crm",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 77,
+      "baseline_turn_latency_ms": 76,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-009:5",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "crm:not_requested",
+      "required_classes": [
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "crm",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 71,
+      "baseline_turn_latency_ms": 77,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-009:7",
+      "surface": "office_internal",
+      "objective": "explain",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 76,
+      "baseline_turn_latency_ms": 91,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-010:2",
+      "surface": "office_internal",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 8,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 71,
+      "baseline_turn_latency_ms": 75,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-010:3",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 8,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 77,
+      "baseline_turn_latency_ms": 82,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-010:4",
+      "surface": "office_internal",
+      "objective": "explain",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 5,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 81,
+      "baseline_turn_latency_ms": 80,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-010:5",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "crm:not_requested, office_development:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_development",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 79,
+      "baseline_turn_latency_ms": 77,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-010:6",
+      "surface": "office_internal",
+      "objective": "reassess",
+      "previous_boundary": "FACT_UPDATE_REASSESSMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "crm:not_requested, office_development:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_development",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 70,
+      "baseline_turn_latency_ms": 79,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-010:7",
+      "surface": "office_internal",
+      "objective": "advise",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "crm:not_requested, office_development:not_requested",
+      "required_classes": [
+        {
+          "class": "crm",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "office_development",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 106,
+      "baseline_turn_latency_ms": 82,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-003:5",
+      "surface": "public_corporate",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 4,
+      "turn_latency_ms": 129,
+      "baseline_turn_latency_ms": 74,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-003:6",
+      "surface": "public_corporate",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 58,
+      "baseline_turn_latency_ms": 70,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-003:7",
+      "surface": "public_corporate",
+      "objective": "summarize",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 59,
+      "baseline_turn_latency_ms": 65,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-006:5",
+      "surface": "public_corporate",
+      "objective": "compare",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "corporate_partnerships",
+          "state": "gathered",
+          "planner_status": "OPTIONAL_GATHERED"
+        },
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 2,
+      "turn_latency_ms": 58,
+      "baseline_turn_latency_ms": 63,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-006:6",
+      "surface": "public_corporate",
+      "objective": "compare",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "corporate_partnerships",
+          "state": "gathered",
+          "planner_status": "OPTIONAL_GATHERED"
+        },
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 60,
+      "baseline_turn_latency_ms": 61,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-006:7",
+      "surface": "public_corporate",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "corporate_partnerships",
+          "state": "gathered",
+          "planner_status": "OPTIONAL_GATHERED"
+        },
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 62,
+      "baseline_turn_latency_ms": 64,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-007:3",
+      "surface": "public_corporate",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_development:not_requested",
+      "required_classes": [
+        {
+          "class": "corporate_development",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 2,
+      "turn_latency_ms": 61,
+      "baseline_turn_latency_ms": 68,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-007:5",
+      "surface": "public_corporate",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_development:not_requested",
+      "required_classes": [
+        {
+          "class": "corporate_development",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 2,
+      "turn_latency_ms": 61,
+      "baseline_turn_latency_ms": 69,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-007:6",
+      "surface": "public_corporate",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_development:not_requested",
+      "required_classes": [
+        {
+          "class": "corporate_development",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 68,
+      "baseline_turn_latency_ms": 66,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-007:7",
+      "surface": "public_corporate",
+      "objective": "explain",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "corporate_development:not_requested",
+      "required_classes": [
+        {
+          "class": "corporate_development",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "corporate_opportunity",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 0,
+      "sources_reused": 2,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 68,
+      "baseline_turn_latency_ms": 70,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-001:3",
+      "surface": "facility",
+      "objective": "explain",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        },
+        {
+          "class": "cameras",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 4,
+      "sources_reused": 0,
+      "planner_latency_ms": 11,
+      "turn_latency_ms": 66,
+      "baseline_turn_latency_ms": 59,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-001:4",
+      "surface": "facility",
+      "objective": "prioritize",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        },
+        {
+          "class": "cameras",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 4,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 63,
+      "baseline_turn_latency_ms": 58,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-002:2",
+      "surface": "facility",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "maintenance:not_requested",
+      "required_classes": [
+        {
+          "class": "cameras",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "maintenance",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 61,
+      "baseline_turn_latency_ms": 60,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-002:4",
+      "surface": "facility",
+      "objective": "reassess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "cameras:not_requested",
+      "required_classes": [
+        {
+          "class": "cameras",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 6,
+      "turn_latency_ms": 134,
+      "baseline_turn_latency_ms": 57,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-002:5",
+      "surface": "facility",
+      "objective": "explain",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "cameras:not_requested",
+      "required_classes": [
+        {
+          "class": "cameras",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 142,
+      "baseline_turn_latency_ms": 70,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-002:6",
+      "surface": "facility",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "cameras:not_requested",
+      "required_classes": [
+        {
+          "class": "cameras",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 68,
+      "baseline_turn_latency_ms": 66,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-002:7",
+      "surface": "facility",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "maintenance:not_requested",
+      "required_classes": [
+        {
+          "class": "cameras",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "maintenance",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 5,
+      "turn_latency_ms": 68,
+      "baseline_turn_latency_ms": 64,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-003:3",
+      "surface": "facility",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 4,
+      "turn_latency_ms": 66,
+      "baseline_turn_latency_ms": 57,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-003:4",
+      "surface": "facility",
+      "objective": "compare",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 65,
+      "baseline_turn_latency_ms": 65,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-003:6",
+      "surface": "facility",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 65,
+      "baseline_turn_latency_ms": 72,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-003:7",
+      "surface": "facility",
+      "objective": "prioritize",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 59,
+      "baseline_turn_latency_ms": 61,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-005:5",
+      "surface": "facility",
+      "objective": "compare",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "security:not_requested",
+      "required_classes": [
+        {
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 2,
+      "sources_reused": 0,
+      "planner_latency_ms": 5,
+      "turn_latency_ms": 62,
+      "baseline_turn_latency_ms": 63,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-005:6",
+      "surface": "facility",
+      "objective": "compare",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "visitors:not_requested, maintenance:not_requested",
+      "required_classes": [
+        {
+          "class": "visitors",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "maintenance",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 4,
+      "turn_latency_ms": 64,
+      "baseline_turn_latency_ms": 62,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-005:7",
+      "surface": "facility",
+      "objective": "prioritize",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "visitors:not_requested, maintenance:not_requested",
+      "required_classes": [
+        {
+          "class": "visitors",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "maintenance",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 57,
+      "baseline_turn_latency_ms": 63,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-007:2",
+      "surface": "facility",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 4,
+      "sources_reused": 0,
+      "planner_latency_ms": 9,
+      "turn_latency_ms": 66,
+      "baseline_turn_latency_ms": 60,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-007:3",
+      "surface": "facility",
+      "objective": "reassess",
+      "previous_boundary": "FACT_UPDATE_REASSESSMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REASSESSMENT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 4,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 59,
+      "baseline_turn_latency_ms": 62,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-007:6",
+      "surface": "facility",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 4,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 59,
+      "baseline_turn_latency_ms": 75,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-007:7",
+      "surface": "facility",
+      "objective": "summarize",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 4,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 97,
+      "baseline_turn_latency_ms": 68,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-008:2",
+      "surface": "facility",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 58,
+      "baseline_turn_latency_ms": 64,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-008:6",
+      "surface": "facility",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 4,
+      "sources_reused": 0,
+      "planner_latency_ms": 8,
+      "turn_latency_ms": 63,
+      "baseline_turn_latency_ms": 63,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-008:7",
+      "surface": "facility",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 4,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 57,
+      "baseline_turn_latency_ms": 59,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-009:1",
+      "surface": "facility",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 47,
+      "baseline_turn_latency_ms": 49,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-009:2",
+      "surface": "facility",
+      "objective": "explain",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 56,
+      "baseline_turn_latency_ms": 80,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-009:5",
+      "surface": "facility",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 56,
+      "baseline_turn_latency_ms": 65,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-009:7",
+      "surface": "facility",
+      "objective": "reassess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "proven product debt not surfaced by the plan: device_history (the IQ-2 subject did not request it)",
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "device_history",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 58,
+      "baseline_turn_latency_ms": 65,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-010:3",
+      "surface": "facility",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 4,
+      "sources_reused": 0,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 63,
+      "baseline_turn_latency_ms": 66,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-010:5",
+      "surface": "facility",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 4,
+      "sources_reused": 0,
+      "planner_latency_ms": 9,
+      "turn_latency_ms": 74,
+      "baseline_turn_latency_ms": 63,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-010:7",
+      "surface": "facility",
+      "objective": "summarize",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 4,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 58,
+      "baseline_turn_latency_ms": 64,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-001:1",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        },
+        {
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 17,
+      "turn_latency_ms": 89,
+      "baseline_turn_latency_ms": 53,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-001:2",
+      "surface": "consumer",
+      "objective": "prioritize",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        },
+        {
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 5,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 63,
+      "baseline_turn_latency_ms": 68,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-001:3",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "device_availability:not_requested, visitors:not_requested",
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        },
+        {
+          "class": "visitors",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 4,
+      "turn_latency_ms": 63,
+      "baseline_turn_latency_ms": 92,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-001:4",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "device_observed_value",
+          "state": "debt_disclosed",
+          "planner_status": "OPTIONAL_UNAVAILABLE"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 9,
+      "turn_latency_ms": 74,
+      "baseline_turn_latency_ms": 68,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-001:6",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        },
+        {
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 10,
+      "turn_latency_ms": 71,
+      "baseline_turn_latency_ms": 67,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-001:7",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        },
+        {
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 5,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 60,
+      "baseline_turn_latency_ms": 65,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-002:1",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "scenes",
+          "state": "gathered",
+          "planner_status": "OPTIONAL_GATHERED"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 9,
+      "turn_latency_ms": 57,
+      "baseline_turn_latency_ms": 53,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-002:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "scenes",
+          "state": "gathered",
+          "planner_status": "OPTIONAL_GATHERED"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 5,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 65,
+      "baseline_turn_latency_ms": 75,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-002:3",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 10,
+      "turn_latency_ms": 86,
+      "baseline_turn_latency_ms": 71,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-002:4",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "device_observed_value",
+          "state": "debt_disclosed",
+          "planner_status": "OPTIONAL_UNAVAILABLE"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 14,
+      "turn_latency_ms": 79,
+      "baseline_turn_latency_ms": 63,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-002:5",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 6,
+      "turn_latency_ms": 70,
+      "baseline_turn_latency_ms": 64,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-002:7",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 72,
+      "baseline_turn_latency_ms": 78,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-003:1",
+      "surface": "consumer",
+      "objective": "explain",
+      "previous_boundary": "JUDGMENT",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "utilities_usage",
+          "state": "debt_disclosed",
+          "planner_status": "MANDATORY_MISSING_CAPABILITY"
+        }
+      ],
+      "plan_status": "MANDATORY_MISSING_CAPABILITY",
+      "sources_attempted": 0,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 53,
+      "baseline_turn_latency_ms": 57,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-003:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "utilities_usage",
+          "state": "debt_disclosed",
+          "planner_status": "MANDATORY_MISSING_CAPABILITY"
+        }
+      ],
+      "plan_status": "MANDATORY_MISSING_CAPABILITY",
+      "sources_attempted": 0,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 67,
+      "baseline_turn_latency_ms": 70,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-003:4",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "utilities_usage",
+          "state": "debt_disclosed",
+          "planner_status": "MANDATORY_MISSING_CAPABILITY"
+        },
+        {
+          "class": "device_history",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_MISSING_CAPABILITY",
+      "sources_attempted": 0,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 66,
+      "baseline_turn_latency_ms": 70,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-003:5",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "DERIVED_RESULT_CONTINUITY",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "utilities_usage",
+          "state": "debt_disclosed",
+          "planner_status": "MANDATORY_MISSING_CAPABILITY"
+        },
+        {
+          "class": "device_history",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_MISSING_CAPABILITY",
+      "sources_attempted": 0,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 66,
+      "baseline_turn_latency_ms": 72,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-003:6",
+      "surface": "consumer",
+      "objective": "reassess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "utilities_usage",
+          "state": "debt_disclosed",
+          "planner_status": "MANDATORY_MISSING_CAPABILITY"
+        },
+        {
+          "class": "device_history",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_MISSING_CAPABILITY",
+      "sources_attempted": 0,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 69,
+      "baseline_turn_latency_ms": 73,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-003:7",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "NO_EVIDENCE_REQUIRED_BY_TURN",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [],
+      "plan_status": "MANDATORY_MISSING_CAPABILITY",
+      "sources_attempted": 0,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 68,
+      "baseline_turn_latency_ms": 69,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-004:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "cameras",
+          "state": "debt_disclosed",
+          "planner_status": "OPTIONAL_UNAVAILABLE"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 10,
+      "turn_latency_ms": 86,
+      "baseline_turn_latency_ms": 77,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-004:5",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "cameras",
+          "state": "debt_disclosed",
+          "planner_status": "OPTIONAL_UNAVAILABLE"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 9,
+      "turn_latency_ms": 83,
+      "baseline_turn_latency_ms": 85,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-004:6",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "cameras",
+          "state": "debt_disclosed",
+          "planner_status": "OPTIONAL_UNAVAILABLE"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 5,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 70,
+      "baseline_turn_latency_ms": 70,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-005:6",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 6,
+      "turn_latency_ms": 72,
+      "baseline_turn_latency_ms": 73,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-006:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "security:not_requested",
+      "required_classes": [
+        {
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 6,
+      "turn_latency_ms": 93,
+      "baseline_turn_latency_ms": 65,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-006:3",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "security:not_requested",
+      "required_classes": [
+        {
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 77,
+      "baseline_turn_latency_ms": 69,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-006:5",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "security:not_requested",
+      "required_classes": [
+        {
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 4,
+      "turn_latency_ms": 69,
+      "baseline_turn_latency_ms": 67,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-006:6",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "EVIDENCE_GAP",
+      "final_class": "OTHER",
+      "gap": "security:not_requested",
+      "required_classes": [
+        {
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "security",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 73,
+      "baseline_turn_latency_ms": 63,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-006:7",
+      "surface": "consumer",
+      "objective": null,
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "NO_PLAN",
+      "final_class": "OTHER",
+      "gap": "no evidence plan was produced for this turn (an existing certified path answered it)",
+      "required_classes": [
+        {
+          "class": "visitors",
+          "state": "not_requested",
+          "planner_status": null
+        },
+        {
+          "class": "security",
+          "state": "not_requested",
+          "planner_status": null
+        }
+      ],
+      "plan_status": null,
+      "sources_attempted": 0,
+      "sources_reused": 0,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 68,
+      "baseline_turn_latency_ms": 68,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-007:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 4,
+      "turn_latency_ms": 76,
+      "baseline_turn_latency_ms": 78,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-007:3",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 70,
+      "baseline_turn_latency_ms": 72,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-007:4",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 65,
+      "baseline_turn_latency_ms": 71,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-007:5",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 66,
+      "baseline_turn_latency_ms": 66,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-007:6",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 68,
+      "baseline_turn_latency_ms": 62,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-007:7",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "maintenance",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 0,
+      "sources_reused": 1,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 76,
+      "baseline_turn_latency_ms": 67,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-008:1",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 8,
+      "turn_latency_ms": 67,
+      "baseline_turn_latency_ms": 54,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-008:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "PLANNER_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 77,
+      "baseline_turn_latency_ms": 64,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-008:3",
+      "surface": "consumer",
+      "objective": "explain",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "NO_EVIDENCE_REQUIRED_BY_TURN",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 1,
+      "sources_reused": 1,
+      "planner_latency_ms": 6,
+      "turn_latency_ms": 81,
+      "baseline_turn_latency_ms": 73,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-008:7",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        },
+        {
+          "class": "device_observed_value",
+          "state": "debt_disclosed",
+          "planner_status": "OPTIONAL_UNAVAILABLE"
+        }
+      ],
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 77,
+      "baseline_turn_latency_ms": 67,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-009:7",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
+      "evidence_outcome": "NO_EVIDENCE_REQUIRED_BY_TURN",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "required_classes": [],
+      "plan_status": "MANDATORY_UNAVAILABLE",
+      "sources_attempted": 3,
+      "sources_reused": 0,
+      "planner_latency_ms": 5,
+      "turn_latency_ms": 74,
+      "baseline_turn_latency_ms": 59,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-010:1",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [
+        {
+          "class": "device_availability",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 1,
+      "sources_reused": 0,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 66,
+      "baseline_turn_latency_ms": 57,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-010:5",
+      "surface": "consumer",
+      "objective": "advise",
+      "previous_boundary": "INITIATIVE",
+      "evidence_outcome": "NO_EVIDENCE_REQUIRED_BY_TURN",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "required_classes": [],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 10,
+      "turn_latency_ms": 79,
+      "baseline_turn_latency_ms": 63,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    }
+  ]
+}
