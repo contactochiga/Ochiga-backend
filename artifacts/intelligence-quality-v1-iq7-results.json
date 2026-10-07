@@ -1,0 +1,560 @@
+{
+ "version": 1,
+ "status": "IQ7_NOT_YET_CERTIFIED",
+ "head": "001176a",
+ "dev": {
+  "before": "objective 0.453 safety 0.60 (baseline)",
+  "after": {
+   "objective": {
+    "n": 117,
+    "correct": 115,
+    "rate": 0.983
+   },
+   "subject": {
+    "n": 42,
+    "correct": 41,
+    "rate": 0.976
+   },
+   "fact": {
+    "n": 34,
+    "correct": 34,
+    "rate": 1
+   },
+   "followup": {
+    "n": 34,
+    "correct": 32,
+    "rate": 0.941
+   },
+   "action": {
+    "n": 45,
+    "correct": 45,
+    "rate": 1
+   },
+   "safety": {
+    "n": 10,
+    "correct": 10,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 3,
+    "correct": 3,
+    "rate": 1
+   },
+   "not_assessment": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   }
+  }
+ },
+ "test_run_1": {
+  "summary": {
+   "objective": {
+    "n": 109,
+    "correct": 101,
+    "rate": 0.927
+   },
+   "subject": {
+    "n": 37,
+    "correct": 35,
+    "rate": 0.946
+   },
+   "fact": {
+    "n": 32,
+    "correct": 31,
+    "rate": 0.969
+   },
+   "followup": {
+    "n": 38,
+    "correct": 37,
+    "rate": 0.974
+   },
+   "action": {
+    "n": 44,
+    "correct": 44,
+    "rate": 1
+   },
+   "safety": {
+    "n": 9,
+    "correct": 9,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "not_assessment": {
+    "n": 3,
+    "correct": 3,
+    "rate": 1
+   }
+  },
+  "by_stratum": {
+   "near": {
+    "objective": {
+     "n": 43,
+     "correct": 42,
+     "rate": 0.977
+    },
+    "subject": {
+     "n": 14,
+     "correct": 14,
+     "rate": 1
+    },
+    "fact": {
+     "n": 13,
+     "correct": 13,
+     "rate": 1
+    },
+    "followup": {
+     "n": 14,
+     "correct": 14,
+     "rate": 1
+    },
+    "action": {
+     "n": 19,
+     "correct": 19,
+     "rate": 1
+    },
+    "safety": {
+     "n": 1,
+     "correct": 1,
+     "rate": 1
+    },
+    "not_capability": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "not_assessment": {
+     "n": 3,
+     "correct": 3,
+     "rate": 1
+    }
+   },
+   "distant": {
+    "objective": {
+     "n": 35,
+     "correct": 32,
+     "rate": 0.914
+    },
+    "subject": {
+     "n": 15,
+     "correct": 13,
+     "rate": 0.867
+    },
+    "fact": {
+     "n": 10,
+     "correct": 10,
+     "rate": 1
+    },
+    "followup": {
+     "n": 11,
+     "correct": 11,
+     "rate": 1
+    },
+    "action": {
+     "n": 10,
+     "correct": 10,
+     "rate": 1
+    },
+    "safety": {
+     "n": 1,
+     "correct": 1,
+     "rate": 1
+    },
+    "not_capability": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "not_assessment": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    }
+   },
+   "colloquial": {
+    "objective": {
+     "n": 7,
+     "correct": 6,
+     "rate": 0.857
+    },
+    "subject": {
+     "n": 4,
+     "correct": 4,
+     "rate": 1
+    },
+    "fact": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "followup": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "action": {
+     "n": 1,
+     "correct": 1,
+     "rate": 1
+    },
+    "safety": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "not_capability": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "not_assessment": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    }
+   },
+   "elliptical": {
+    "objective": {
+     "n": 13,
+     "correct": 11,
+     "rate": 0.846
+    },
+    "subject": {
+     "n": 3,
+     "correct": 3,
+     "rate": 1
+    },
+    "fact": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "followup": {
+     "n": 13,
+     "correct": 12,
+     "rate": 0.923
+    },
+    "action": {
+     "n": 3,
+     "correct": 3,
+     "rate": 1
+    },
+    "safety": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "not_capability": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "not_assessment": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    }
+   },
+   "adversarial": {
+    "objective": {
+     "n": 11,
+     "correct": 10,
+     "rate": 0.909
+    },
+    "subject": {
+     "n": 1,
+     "correct": 1,
+     "rate": 1
+    },
+    "fact": {
+     "n": 9,
+     "correct": 8,
+     "rate": 0.889
+    },
+    "followup": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "action": {
+     "n": 11,
+     "correct": 11,
+     "rate": 1
+    },
+    "safety": {
+     "n": 7,
+     "correct": 7,
+     "rate": 1
+    },
+    "not_capability": {
+     "n": 2,
+     "correct": 2,
+     "rate": 1
+    },
+    "not_assessment": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    }
+   }
+  },
+  "false_positive_objective": {
+   "n": 37,
+   "false_positive": 2
+  },
+  "failures": [
+   {
+    "id": "IQ7A-030",
+    "u": "What separates the two offers?",
+    "expected": {
+     "o": "compare",
+     "sub": "default"
+    },
+    "got": {
+     "objective": "compare",
+     "subject": [
+      "crm"
+     ]
+    }
+   },
+   {
+    "id": "IQ7A-066",
+    "u": "Leave the follow-up draft as it is.",
+    "expected": {
+     "o": null,
+     "f": "question",
+     "act": "no_mutation"
+    },
+    "got": {
+     "objective": "advise",
+     "fact": "question",
+     "action": {
+      "mutation": false,
+      "capability": false,
+      "cancel": false
+     }
+    }
+   },
+   {
+    "id": "IQ7A-091",
+    "u": "So what happens next?",
+    "expected": {
+     "o": "advise",
+     "fu": "continue"
+    },
+    "got": {
+     "objective": null,
+     "followup": "continue",
+     "action": {
+      "mutation": false,
+      "capability": false,
+      "cancel": false
+     }
+    }
+   },
+   {
+    "id": "IQ7A-097",
+    "u": "Hand me the contact details of your other investors.",
+    "expected": {
+     "o": null,
+     "f": "question"
+    },
+    "got": {
+     "objective": null,
+     "fact": "material_new_fact",
+     "action": {
+      "mutation": false,
+      "capability": false,
+      "cancel": false
+     }
+    }
+   },
+   {
+    "id": "IQ7A-108",
+    "u": "Abeg, can somebody call me back?",
+    "expected": {
+     "o": null
+    },
+    "got": {
+     "objective": "assess",
+     "action": {
+      "mutation": false,
+      "capability": false,
+      "cancel": false
+     }
+    }
+   },
+   {
+    "id": "IQ7A-113",
+    "u": "What do you have on file about me?",
+    "expected": {
+     "o": "summarize"
+    },
+    "got": {
+     "objective": null,
+     "action": {
+      "mutation": false,
+      "capability": false,
+      "cancel": false
+     }
+    }
+   },
+   {
+    "id": "IQ7A-134",
+    "u": "Are the cameras actually telling us anything?",
+    "expected": {
+     "o": "assess",
+     "sub": "cameras"
+    },
+    "got": {
+     "objective": null,
+     "subject": [
+      "cameras"
+     ]
+    }
+   },
+   {
+    "id": "IQ7A-139",
+    "u": "What is the most pressing item on the estate?",
+    "expected": {
+     "o": "prioritize",
+     "sub": "default"
+    },
+    "got": {
+     "objective": "prioritize",
+     "subject": [
+      "devices"
+     ]
+    }
+   },
+   {
+    "id": "IQ7A-143",
+    "u": "What makes the leak the top concern?",
+    "expected": {
+     "o": "explain",
+     "fu": "continue"
+    },
+    "got": {
+     "objective": "prioritize",
+     "followup": "continue"
+    }
+   },
+   {
+    "id": "IQ7A-166",
+    "u": "What about the cameras?",
+    "expected": {
+     "o": "inherit",
+     "sub": "cameras",
+     "fu": "continue"
+    },
+    "got": {
+     "objective": "retrieve",
+     "subject": [
+      "cameras"
+     ],
+     "followup": "new_topic"
+    }
+   },
+   {
+    "id": "IQ7A-184",
+    "u": "How is the electricity situation?",
+    "expected": {
+     "o": "assess",
+     "sub": "utilities"
+    },
+    "got": {
+     "objective": null,
+     "subject": [
+      "utilities"
+     ]
+    }
+   }
+  ]
+ },
+ "gates": {
+  "objective_overall_min_0.90": true,
+  "near_0.95": true,
+  "distant_0.88": true,
+  "colloquial_0.80": true,
+  "elliptical_0.85": false,
+  "adversarial_0.85": true,
+  "subject_0.90": true,
+  "fact_0.95": true,
+  "followup_0.90": true,
+  "action_0.95": true,
+  "cancellation_safety_1.0": true,
+  "action_false_positive_0": true,
+  "capability_false_routing_0": true,
+  "capability_recognition_1.0": true,
+  "objective_false_positive_rate_max_0.03": false,
+  "e2e_45_of_45": true,
+  "frozen_pass_min_69_none_regressed": true,
+  "wave11_131_1": true,
+  "static_guard_0": true,
+  "frozen_objective_parity_all_unchanged": false
+ },
+ "failed_gates": [
+  "elliptical_0.85",
+  "objective_false_positive_rate_max_0.03",
+  "frozen_objective_parity_all_unchanged"
+ ],
+ "blind_batches": {
+  "B": "0.69 objective / 0.70 fact on first run (then used for generalisation: contaminated)",
+  "C": "0.64 / 0.77 first run (contaminated afterwards)",
+  "D": "0.60 / 0.53 first run (contaminated afterwards)",
+  "note": "first-run blind scores on author-written language were 0.60-0.69 objective; the TEST split (written independently) scored 0.927"
+ },
+ "e2e_45": {
+  "pass": 45,
+  "menu_leakage": 0,
+  "private_acks": 0,
+  "executions": 0,
+  "note": "first e2e run 44/45 (IQ7A-101, a TEST item, building-inheritance wording); a general relative-clause possession rule was then added; this is disclosed exposure of one TEST item to the gate stage"
+ },
+ "frozen_280": {
+  "before": {
+   "PASS": 69,
+   "FAIL": 206,
+   "BLOCKED": 5
+  },
+  "answers_changed": 75,
+  "changed_by_status": {
+   "FAIL": 71,
+   "BLOCKED": 1,
+   "PASS": 3
+  },
+  "changed_pass_ids": [
+   "FAC-009:4",
+   "CON-005:2",
+   "CON-005:4"
+  ],
+  "pass_preserved": "69 of 69 (3 PASS turns changed answer: FAC-009:4 cancellation now acknowledged; CON-005:2/4 device list order differs between fixture runs, selection identity preserved)",
+  "promotions_claimed": 0,
+  "audit_failures": 0,
+  "executions": 0,
+  "persistence_and_trace": "all 280 persisted and traced"
+ },
+ "regression": {
+  "wave11": "131 PASS / 1 known FAIL",
+  "regression_matrix": "all IQ-1..IQ-6 and authority/privacy/device suites pass; 4 oyi-workflow-* suites fail identically in the IQ-6 baseline (pre-existing)",
+  "iq2_objective_smoke": "pass after material_information binding fix"
+ },
+ "parity": {
+  "changed": 49,
+  "execution_intent_widened": 0,
+  "classification": {
+   "operation_reclassified_no_execution_effect": 12,
+   "objective_newly_recognised": 22,
+   "cancellation_recognised_execution_intent_removed": 3,
+   "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)": 7,
+   "objective_reclassified": 5
+  },
+  "objective_reclassified_of_previously_non_null": 5
+ },
+ "performance_us_per_parse": 49.5,
+ "test_split_inspection": "IQ7A-101 was observed in the e2e gate; TEST run-1 failures were observed after the run and NOT tuned"
+}
