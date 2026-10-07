@@ -1,0 +1,1435 @@
+{
+ "version": 1,
+ "batch": "IQ7B_CLOSURE",
+ "status": "IQ7B_CLOSURE_FROZEN_PRE_IMPLEMENTATION",
+ "note": "Frozen before any IQ-7B runtime change. Runtime must never read this file (static guard). Authored independently of the 11 failures inspected in TEST run 1.",
+ "contexts": {
+  "o_none": null,
+  "o_rank": {
+   "surface": "office_internal",
+   "objective": "prioritize",
+   "domains": [
+    "crm",
+    "office_development",
+    "office_reports",
+    "office_financial"
+   ],
+   "seed": [
+    "Forget the small stuff. Which three things can actually move Ochiga forward?"
+   ]
+  },
+  "o_dev": {
+   "surface": "office_internal",
+   "objective": "assess",
+   "domains": [
+    "office_development"
+   ],
+   "seed": [
+    "What are we neglecting in development?"
+   ]
+  },
+  "o_crm": {
+   "surface": "office_internal",
+   "objective": "assess",
+   "domains": [
+    "crm"
+   ],
+   "seed": [
+    "Which opportunity deserves my time this morning?"
+   ]
+  },
+  "p_none": null,
+  "p_obj": {
+   "surface": "public_corporate",
+   "objective": "assess",
+   "domains": [
+    "corporate_opportunity"
+   ],
+   "seed": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  "f_none": null,
+  "f_assess": {
+   "surface": "facility",
+   "objective": "assess",
+   "domains": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "seed": [
+    "Does the water problem still come first?"
+   ]
+  },
+  "c_none": null,
+  "c_assess": {
+   "surface": "consumer",
+   "objective": "assess",
+   "domains": [
+    "home",
+    "devices",
+    "security",
+    "visitors",
+    "utilities"
+   ],
+   "seed": [
+    "I am leaving home. Anything I should deal with?"
+   ]
+  },
+  "c_room": {
+   "surface": "consumer",
+   "objective": "assess",
+   "domains": [
+    "rooms",
+    "devices"
+   ],
+   "label": "bedroom",
+   "seed": [
+    "The bedroom feels too hot."
+   ]
+  }
+ },
+ "items": [
+  {
+   "id": "IQ7BC-001",
+   "split": "closure",
+   "k": "status",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "What is the condition of the east pump?",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-002",
+   "split": "closure",
+   "k": "status",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Give me the status of the boiler.",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-003",
+   "split": "closure",
+   "k": "status",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "What's going on with the lift?",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-004",
+   "split": "closure",
+   "k": "status",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "What is the state of the hallway lights?",
+   "o": "retrieve",
+   "sub": "devices"
+  },
+  {
+   "id": "IQ7BC-005",
+   "split": "closure",
+   "k": "status",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "How is the thermostat doing?",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-006",
+   "split": "closure",
+   "k": "status",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_none",
+   "u": "Where do things stand with the garage door?",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-007",
+   "split": "closure",
+   "k": "status",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "What is the state of the Yaba scheme?",
+   "o": "retrieve",
+   "sub": "office_development"
+  },
+  {
+   "id": "IQ7BC-008",
+   "split": "closure",
+   "k": "status",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "What's the status of the pending approvals?",
+   "o": "retrieve",
+   "sub": "office_reports"
+  },
+  {
+   "id": "IQ7BC-009",
+   "split": "closure",
+   "k": "status",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "What's happening with the Ajah lead?",
+   "o": "retrieve",
+   "sub": "crm"
+  },
+  {
+   "id": "IQ7BC-010",
+   "split": "closure",
+   "k": "status",
+   "s": "facility",
+   "st": "colloquial",
+   "c": "f_none",
+   "u": "How the generator dey now?",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-011",
+   "split": "closure",
+   "k": "status",
+   "s": "consumer",
+   "st": "colloquial",
+   "c": "c_none",
+   "u": "Wetin dey happen with my meter?",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-012",
+   "split": "closure",
+   "k": "status",
+   "s": "facility",
+   "st": "distant",
+   "c": "f_none",
+   "u": "What is the current state of water supply on the estate?",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-013",
+   "split": "closure",
+   "k": "status",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Tell me the condition of the back gate sensor.",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-014",
+   "split": "closure",
+   "k": "status",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Where is the permit application at the moment?",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-015",
+   "split": "closure",
+   "k": "status",
+   "s": "facility",
+   "st": "adversarial",
+   "c": "f_none",
+   "u": "Don't analyse it, just tell me the state of the alarm panel.",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7BC-016",
+   "split": "closure",
+   "k": "status",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Is the back gate okay?",
+   "o": "assess"
+  },
+  {
+   "id": "IQ7BC-017",
+   "split": "closure",
+   "k": "status",
+   "s": "facility",
+   "st": "distant",
+   "c": "f_none",
+   "u": "Is the water supply a worry at the moment?",
+   "o": "assess"
+  },
+  {
+   "id": "IQ7BC-018",
+   "split": "closure",
+   "k": "status",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "Is the Yaba scheme in trouble?",
+   "o": "assess",
+   "sub": "office_development"
+  },
+  {
+   "id": "IQ7BC-019",
+   "split": "closure",
+   "k": "status",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "What should I do about the boiler?",
+   "o": "advise"
+  },
+  {
+   "id": "IQ7BC-020",
+   "split": "closure",
+   "k": "status",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Which scheme needs me most?",
+   "o": "prioritize"
+  },
+  {
+   "id": "IQ7BC-021",
+   "split": "closure",
+   "k": "hold",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Keep the proposal exactly as it is.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-022",
+   "split": "closure",
+   "k": "hold",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Don't alter the schedule.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-023",
+   "split": "closure",
+   "k": "hold",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Leave the heating on its current setting.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-024",
+   "split": "closure",
+   "k": "hold",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Leave the hall light as it stands.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-025",
+   "split": "closure",
+   "k": "hold",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Hold the current rota; no changes.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-026",
+   "split": "closure",
+   "k": "hold",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "Let the existing arrangement stand.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-027",
+   "split": "closure",
+   "k": "hold",
+   "s": "consumer",
+   "st": "colloquial",
+   "c": "c_none",
+   "u": "Make you leave the gate as e dey.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-028",
+   "split": "closure",
+   "k": "hold",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_none",
+   "u": "Don't touch the draft; I'll edit it myself.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-029",
+   "split": "closure",
+   "k": "hold",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Keep the alarm settings unchanged.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-030",
+   "split": "closure",
+   "k": "hold",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Freeze the budget where it is.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-031",
+   "split": "closure",
+   "k": "hold",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "Cancel the transfer you proposed.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-032",
+   "split": "closure",
+   "k": "hold",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Stop; leave the lock alone.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-033",
+   "split": "closure",
+   "k": "hold",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Should I leave the offer as it is?",
+   "o": "advise",
+   "act": "no_mutation"
+  },
+  {
+   "id": "IQ7BC-034",
+   "split": "closure",
+   "k": "hold",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_none",
+   "u": "Would it be wise to keep the heating where it is?",
+   "o": "advise",
+   "act": "no_mutation"
+  },
+  {
+   "id": "IQ7BC-035",
+   "split": "closure",
+   "k": "hold",
+   "s": "facility",
+   "st": "distant",
+   "c": "f_none",
+   "u": "Is it better to hold the current rota or change it?",
+   "o": "compare",
+   "act": "no_mutation"
+  },
+  {
+   "id": "IQ7BC-036",
+   "split": "closure",
+   "k": "hold",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "The schedule has not been changed.",
+   "o": null,
+   "f": "non_material_detail",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-037",
+   "split": "closure",
+   "k": "hold",
+   "s": "consumer",
+   "st": "adversarial",
+   "c": "c_none",
+   "u": "I'm not asking you to change anything.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7BC-038",
+   "split": "closure",
+   "k": "hold",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Switch off the corridor lights.",
+   "o": null,
+   "act": "mutation"
+  },
+  {
+   "id": "IQ7BC-039",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_none",
+   "u": "Please ring me tomorrow morning.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-040",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_obj",
+   "u": "I'd like someone from your side to phone me.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ],
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-041",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "distant",
+   "c": "p_none",
+   "u": "Could a member of the team get in touch by phone?",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-042",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_obj",
+   "u": "Call me on this number when you can.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ],
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-043",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "colloquial",
+   "c": "p_none",
+   "u": "Abeg make person call me.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-044",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "distant",
+   "c": "p_obj",
+   "u": "I would prefer to talk to a person directly.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ],
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-045",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_none",
+   "u": "Have someone contact me by email instead.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-046",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "adversarial",
+   "c": "p_obj",
+   "u": "Can a representative reach me this afternoon?",
+   "o": null,
+   "nr": [
+    "assessment"
+   ],
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-047",
+   "split": "closure",
+   "k": "callback",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Ask the manager to call me back.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-048",
+   "split": "closure",
+   "k": "callback",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Get Tunde to ring me before noon.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-049",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "distant",
+   "c": "p_obj",
+   "u": "Should I ask them to call me, or wait?",
+   "o": "advise",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-050",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_obj",
+   "u": "Is it worth requesting a call at this stage?",
+   "o": "advise",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-051",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "distant",
+   "c": "p_obj",
+   "u": "Did someone phone me yesterday?",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-052",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_none",
+   "u": "Who will be calling me?",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-053",
+   "split": "closure",
+   "k": "callback",
+   "s": "public_corporate",
+   "st": "adversarial",
+   "c": "p_obj",
+   "u": "I don't want a call, just send details.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-054",
+   "split": "closure",
+   "k": "callback",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Remind me to call the surveyor.",
+   "o": null,
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-055",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "And after that?",
+   "o": "advise",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-056",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Then what do we do?",
+   "o": "advise",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-057",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Okay, and the step after?",
+   "o": "advise",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-058",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_dev",
+   "u": "What about the funding side?",
+   "o": "inherit",
+   "sub": "office_financial",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-059",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_crm",
+   "u": "And the other investor?",
+   "o": "inherit",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-060",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "facility",
+   "st": "elliptical",
+   "c": "f_assess",
+   "u": "What about the lift?",
+   "o": "inherit",
+   "sub": "maintenance",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-061",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "consumer",
+   "st": "elliptical",
+   "c": "c_assess",
+   "u": "And the kitchen lights?",
+   "o": "inherit",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-062",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "facility",
+   "st": "elliptical",
+   "c": "f_assess",
+   "u": "Any change on that?",
+   "o": "reassess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-063",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Still the same order?",
+   "o": "reassess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-064",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "consumer",
+   "st": "elliptical",
+   "c": "c_assess",
+   "u": "Still a concern?",
+   "o": "assess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-065",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Versus the second one?",
+   "o": "compare",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-066",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "facility",
+   "st": "elliptical",
+   "c": "f_assess",
+   "u": "Which is worse of those two?",
+   "o": "compare",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-067",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Why that order?",
+   "o": "explain",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-068",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "consumer",
+   "st": "elliptical",
+   "c": "c_assess",
+   "u": "How come?",
+   "o": "explain",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-069",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Thanks.",
+   "o": null,
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-070",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "consumer",
+   "st": "elliptical",
+   "c": "c_assess",
+   "u": "Okay.",
+   "o": null,
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-071",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Hmm, interesting.",
+   "o": null,
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-072",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "facility",
+   "st": "elliptical",
+   "c": "f_assess",
+   "u": "Right, got it.",
+   "o": null,
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-073",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_none",
+   "u": "And then?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-074",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "consumer",
+   "st": "elliptical",
+   "c": "c_none",
+   "u": "Why?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-075",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Wait, one more thing.",
+   "o": null,
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-076",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "public_corporate",
+   "st": "elliptical",
+   "c": "p_obj",
+   "u": "And the road access?",
+   "o": "inherit",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-077",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "public_corporate",
+   "st": "elliptical",
+   "c": "p_obj",
+   "u": "Anything else you need?",
+   "o": "assess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-078",
+   "split": "closure",
+   "k": "elliptical",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_dev",
+   "u": "Next steps?",
+   "o": "advise",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-079",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "I'll be in the office until five.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-080",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "The meeting finished early.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-081",
+   "split": "closure",
+   "k": "fp",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "The weather is lovely this morning.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-082",
+   "split": "closure",
+   "k": "fp",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "My brother is visiting next week.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-083",
+   "split": "closure",
+   "k": "fp",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "The new guard starts on Monday.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-084",
+   "split": "closure",
+   "k": "fp",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_none",
+   "u": "My name is Ngozi.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-085",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "We spoke to the architect yesterday.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-086",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Thank you for the help so far.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-087",
+   "split": "closure",
+   "k": "fp",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Good evening.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-088",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "What time is it?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-089",
+   "split": "closure",
+   "k": "fp",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Where is the nearest pharmacy?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-090",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "Who was the first president of Nigeria?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-091",
+   "split": "closure",
+   "k": "fp",
+   "s": "facility",
+   "st": "adversarial",
+   "c": "f_none",
+   "u": "What happens when it rains?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-092",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_none",
+   "u": "What is the next public holiday?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-093",
+   "split": "closure",
+   "k": "fp",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_none",
+   "u": "How is your day going?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-094",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "What does ROI stand for?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-095",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_none",
+   "u": "I wonder what the weather will do tomorrow.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-096",
+   "split": "closure",
+   "k": "fp",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_none",
+   "u": "Where is your head office?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-097",
+   "split": "closure",
+   "k": "fp",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_none",
+   "u": "Can you hear me?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-098",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Next Tuesday works for me.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-099",
+   "split": "closure",
+   "k": "fp",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "The generator is loud.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-100",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "What does the acronym JV mean?",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-101",
+   "split": "closure",
+   "k": "fp",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_none",
+   "u": "Tell me a joke.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-102",
+   "split": "closure",
+   "k": "fp",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_none",
+   "u": "Lunch will be here at one.",
+   "o": null
+  },
+  {
+   "id": "IQ7BC-103",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Is the Ajah lead worth a second meeting?",
+   "o": "assess"
+  },
+  {
+   "id": "IQ7BC-104",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Which of these approvals should I handle first?",
+   "o": "prioritize"
+  },
+  {
+   "id": "IQ7BC-105",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "What would you do about the delayed payments?",
+   "o": "advise"
+  },
+  {
+   "id": "IQ7BC-106",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_rank",
+   "u": "If the bank pulls out, does the ranking hold?",
+   "o": "reassess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-107",
+   "split": "closure",
+   "k": "tp",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Is it safe to leave the back gate open overnight?",
+   "o": "assess"
+  },
+  {
+   "id": "IQ7BC-108",
+   "split": "closure",
+   "k": "tp",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Which fault should we tackle before the weekend?",
+   "o": "prioritize"
+  },
+  {
+   "id": "IQ7BC-109",
+   "split": "closure",
+   "k": "tp",
+   "s": "facility",
+   "st": "distant",
+   "c": "f_none",
+   "u": "Should we replace the pump or repair it?",
+   "o": "advise"
+  },
+  {
+   "id": "IQ7BC-110",
+   "split": "closure",
+   "k": "tp",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_assess",
+   "u": "What difference would it make if I closed the shutters?",
+   "o": "reassess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-111",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Set the Yaba scheme against the Ajah scheme.",
+   "o": "compare"
+  },
+  {
+   "id": "IQ7BC-112",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Give me a rundown of this week's pipeline.",
+   "o": "summarize"
+  },
+  {
+   "id": "IQ7BC-113",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Why did the permit slip?",
+   "o": "explain"
+  },
+  {
+   "id": "IQ7BC-114",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Show me every lead that has gone quiet.",
+   "o": "retrieve",
+   "sub": "crm"
+  },
+  {
+   "id": "IQ7BC-115",
+   "split": "closure",
+   "k": "tp",
+   "s": "public_corporate",
+   "st": "distant",
+   "c": "p_obj",
+   "u": "How realistic is my plan, in your view?",
+   "o": "assess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7BC-116",
+   "split": "closure",
+   "k": "tp",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "List the open repair tickets.",
+   "o": "retrieve",
+   "sub": "maintenance"
+  },
+  {
+   "id": "IQ7BC-117",
+   "split": "closure",
+   "k": "tp",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "How many visitors came today?",
+   "o": "retrieve",
+   "sub": "visitors"
+  },
+  {
+   "id": "IQ7BC-118",
+   "split": "closure",
+   "k": "tp",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_none",
+   "u": "Should I be worried about the smell near the kitchen?",
+   "o": "assess"
+  },
+  {
+   "id": "IQ7BC-119",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Compare the two lenders' terms.",
+   "o": "compare"
+  },
+  {
+   "id": "IQ7BC-120",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Boil the investor update down to a paragraph.",
+   "o": "summarize"
+  },
+  {
+   "id": "IQ7BC-121",
+   "split": "closure",
+   "k": "tp",
+   "s": "office_internal",
+   "st": "colloquial",
+   "c": "o_none",
+   "u": "Which one of these deals dey pay pass?",
+   "o": "prioritize",
+   "sub": "crm"
+  },
+  {
+   "id": "IQ7BC-122",
+   "split": "closure",
+   "k": "tp",
+   "s": "facility",
+   "st": "near",
+   "c": "f_assess",
+   "u": "Does the new reading change your view?",
+   "o": "reassess",
+   "fu": "continue"
+  }
+ ]
+}

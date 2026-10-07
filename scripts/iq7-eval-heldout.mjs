@@ -32,7 +32,7 @@ const rows = items.map(it => {
     if (it.nr?.includes('capability_discovery')) checks.not_capability = !cap;
     if (it.nr?.includes('assessment')) checks.not_assessment = frame.cognitiveObjective === null;
   }
-  return {id: it.id, split: it.split, s: it.s, st: it.st, c: it.c, u: it.u, expected: {o: it.o, sub: it.sub, f: it.f, fu: it.fu, act: it.act}, got, checks, pass: Object.values(checks).every(Boolean)};
+  return {id: it.id, k: it.k || null, split: it.split, s: it.s, st: it.st, c: it.c, u: it.u, expected: {o: it.o, sub: it.sub, f: it.f, fu: it.fu, act: it.act}, got, checks, pass: Object.values(checks).every(Boolean)};
 });
 const rate = (rs, k) => {const x = rs.filter(r => k in r.checks); return {n: x.length, correct: x.filter(r => r.checks[k]).length, rate: x.length ? +(x.filter(r => r.checks[k]).length / x.length).toFixed(3) : null};};
 const dims = ['objective', 'subject', 'fact', 'followup', 'action', 'safety', 'not_capability', 'not_assessment'];
@@ -41,7 +41,8 @@ const byStratum = Object.fromEntries(['near', 'distant', 'colloquial', 'elliptic
 const bySurface = Object.fromEntries(['office_internal', 'public_corporate', 'facility', 'consumer'].map(s => [s, Object.fromEntries(['objective', 'subject', 'fact', 'followup', 'action'].map(k => [k, rate(rows.filter(r => r.s === s), k)]))]));
 const falsePositiveObjective = (() => {const x = rows.filter(r => r.expected.o === null && 'objective' in r.checks); return {n: x.length, false_positive: x.filter(r => r.got.objective !== null).length};})();
 const mutationFalsePositive = (() => {const x = rows.filter(r => r.expected.act && ['cancel', 'no_mutation', 'none', 'capability'].includes(r.expected.act)); return {n: x.length, false_positive: x.filter(r => r.got.action?.mutation).length};})();
-const out = {split: cfg.split, items: rows.length, summary, by_stratum: byStratum, by_surface: bySurface, false_positive_objective: falsePositiveObjective, action_intent_false_positive: mutationFalsePositive, capability_false_routing: {n: rows.filter(r => 'not_capability' in r.checks).length, failures: rows.filter(r => r.checks.not_capability === false).map(r => r.id)},
+const byClass = Object.fromEntries([...new Set(rows.map(r => r.k).filter(Boolean))].map(c => {const rs = rows.filter(r => r.k === c); return [c, {n: rs.length, pass: rs.filter(r => r.pass).length, rate: +(rs.filter(r => r.pass).length / rs.length).toFixed(3)}];}));
+const out = {split: cfg.split, items: rows.length, summary, by_class: byClass, by_stratum: byStratum, by_surface: bySurface, false_positive_objective: falsePositiveObjective, action_intent_false_positive: mutationFalsePositive, capability_false_routing: {n: rows.filter(r => 'not_capability' in r.checks).length, failures: rows.filter(r => r.checks.not_capability === false).map(r => r.id)},
   safety_failures: rows.filter(r => r.checks.safety === false).map(r => ({id: r.id, u: r.u})), failures: rows.filter(r => !r.pass).map(r => ({id: r.id, st: r.st, u: r.u, expected: r.expected, got: r.got, failed: Object.entries(r.checks).filter(([, v]) => !v).map(([k]) => k)}))};
 fs.writeFileSync(cfg.out, JSON.stringify(out, null, 1));
 console.log(JSON.stringify({split: cfg.split, items: rows.length, summary: Object.fromEntries(Object.entries(summary).map(([k, v]) => [k, `${v.correct}/${v.n}=${v.rate}`])), fp_obj: falsePositiveObjective, fp_mut: mutationFalsePositive, cap_false: out.capability_false_routing.failures.length, safety_fail: out.safety_failures.length}));

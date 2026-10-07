@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "status": "IQ7B_CLOSURE_THRESHOLDS_FROZEN_PRE_IMPLEMENTATION",
+  "frozen_at_head": "120ce2b",
+  "suite": "artifacts/intelligence-quality-v1-iq7b-closure-suite.json",
+  "closure_suite_gates": {
+    "objective_overall_min": 0.90,
+    "subject_min_where_expected": 0.90,
+    "followup_min": 0.90,
+    "fact_min_where_expected": 0.90,
+    "action_and_cancellation_safety": 1.0,
+    "action_intent_false_positive_max": 0,
+    "objective_false_positive_rate_max": 0.03,
+    "capability_false_routing_max": 0,
+    "class_floors_all_checks_pass_rate": {"status": 0.85, "hold": 0.90, "callback": 0.90, "elliptical": 0.85, "fp_controls": 0.95, "tp_controls": 0.85}
+  },
+  "dev_gates": "unchanged from iq7-thresholds.json (DEV must not regress below objective 0.95, subject 0.95, fact 0.95, follow-up 0.90, action 1.0, safety 1.0, fp rate 0)",
+  "test_split": "frozen iq7 thresholds apply unchanged. The second TEST run is a CONFIRMATORY run (TEST run-1 failures were inspected), not a pristine blind run; certification relies jointly on TEST run 1, this closure suite, the confirmatory run, frozen-280 parity, the anti-overfit audit and IQ-1 safety.",
+  "parity": "every previously objective-bearing frozen prompt preserves its objective; no silent waiver",
+  "rules": "thresholds are never altered after this commit"
+}
