@@ -1,0 +1,266 @@
+{
+ "version": 1,
+ "status": "POST_IQ6_ANALYSIS_ONLY",
+ "note": "Maturity labels, not a single score. Counts are PRIMARY failing turns of 206 (each turn counted once); a dimension's label also weighs worker coverage and what the 69 passes and the certified slice tests demonstrate.",
+ "dimensions": {
+  "Understanding": {
+   "primary_failures": 25,
+   "maturity": "PARTIAL",
+   "evidence": "Strong inside the frozen vocabulary (IQ-2 objective smoke 100%, objective on 140+ failing turns is correct), but the held-out paraphrase probe agrees on 7/31 (23%), and 25 turns never reach a governed path (22 of them Osa). Generalisation is UNPROVEN and probably WEAK."
+  },
+  "Context & Memory": {
+   "primary_failures": 34,
+   "maturity": "FUNCTIONAL",
+   "evidence": "Derived ranking/comparison/set artifacts, references, domain return, facts, corrections, staleness and one-level history all work and are tested (IQ-5/6). Gaps: facts that arrive with no artifact, the public objective captured only on land-signal turns, and raw retrieval that returns counts or unresolvable clarifications."
+  },
+  "Evidence": {
+   "primary_failures": 14,
+   "maturity": "FUNCTIONAL",
+   "evidence": "The evidence contract, planner, reuse (measured 50%+ read savings), partiality, no false zero and honest missing-capability statements are STRONG. Product coverage is PARTIAL: electricity, consumer camera, device observed values, estate device history, building scope, historical baseline, ownership/assignment data and Office financials are absent."
+  },
+  "Reasoning & Judgment": {
+   "primary_failures": 55,
+   "maturity": "PARTIAL",
+   "evidence": "Typed judgment, comparison, ranking, tie handling, validation and reassessment are STRONG and tested. Business-record judgment is UNPROVEN (no live provider; scripted proves mechanics only). The largest Core defect is that the deterministic composer answers the state of the assessment instead of the question asked."
+  },
+  "Initiative": {
+   "primary_failures": 41,
+   "maturity": "WEAK",
+   "evidence": "No layer produces a next move, delegation, narrowing or escalation. The system explains state and stops, which is the correct safe default but is the single largest user-visible gap."
+  },
+  "Communication": {
+   "primary_failures": 9,
+   "maturity": "PARTIAL",
+   "evidence": "Honest, calibrated and jargon-light in the governed paths (uncertainty phrasing is strong). Weak in repetition (the same readiness paragraph answers many different questions), the capability menu (with implementation jargon) on unrouted turns, count-only retrievals, and no escalation language."
+  },
+  "Action Judgment": {
+   "primary_failures": 13,
+   "maturity": "PARTIAL",
+   "evidence": "Action SAFETY is STRONG (0 executions across every run; IQ-1). Choice of next mode is weak: it reports where it should refuse, state \"nothing was done\", escalate or ask for authority."
+  }
+ },
+ "distribution_by_dimension": {
+  "Understanding": 25,
+  "Reasoning & Judgment": 55,
+  "Initiative": 41,
+  "Context & Memory": 34,
+  "Communication (drafting)": 3,
+  "Evidence": 14,
+  "Action Judgment": 13,
+  "Evaluation": 15,
+  "Communication": 6
+ },
+ "distribution_by_nature": {
+  "CORE_STRUCTURAL": 98,
+  "PROVIDER": 17,
+  "INITIATIVE": 41,
+  "WORKFLOW": 3,
+  "PRODUCT_DEBT": 13,
+  "ACTION_JUDGMENT": 13,
+  "EVALUATOR": 15,
+  "COMMUNICATION": 6
+ },
+ "by_worker": {
+  "OMA": {
+   "surface": "office_internal",
+   "turns": 70,
+   "current": {
+    "FAIL": 61,
+    "PASS": 7,
+    "BLOCKED": 2
+   },
+   "original": {
+    "FAIL": 62,
+    "PASS": 6,
+    "BLOCKED": 2
+   },
+   "failing_by_boundary": {
+    "UND": 3,
+    "PRV": 17,
+    "INI": 16,
+    "ANS": 10,
+    "CTX": 3,
+    "DRF": 3,
+    "MCP": 3,
+    "ACT": 5,
+    "RAW": 1
+   },
+   "failing_by_nature": {
+    "CORE_STRUCTURAL": 17,
+    "PROVIDER": 17,
+    "INITIATIVE": 16,
+    "WORKFLOW": 3,
+    "PRODUCT_DEBT": 3,
+    "ACTION_JUDGMENT": 5
+   },
+   "failing_by_dimension": {
+    "Understanding": 3,
+    "Reasoning & Judgment": 27,
+    "Initiative": 16,
+    "Context & Memory": 4,
+    "Communication (drafting)": 3,
+    "Evidence": 3,
+    "Action Judgment": 5
+   },
+   "provider_required": 17,
+   "missing_capability": 3,
+   "initiative": 16,
+   "communication": 0,
+   "action_judgment": 5,
+   "core_structural": 17,
+   "evaluator_mismatch": 0,
+   "drafting": 3
+  },
+  "OSA": {
+   "surface": "public_corporate",
+   "turns": 70,
+   "current": {
+    "FAIL": 56,
+    "PASS": 14
+   },
+   "original": {
+    "FAIL": 62,
+    "PASS": 8
+   },
+   "failing_by_boundary": {
+    "EVL": 11,
+    "UND": 22,
+    "ANS": 6,
+    "INI": 6,
+    "COM": 1,
+    "CTX": 10
+   },
+   "failing_by_nature": {
+    "EVALUATOR": 11,
+    "CORE_STRUCTURAL": 38,
+    "INITIATIVE": 6,
+    "COMMUNICATION": 1
+   },
+   "failing_by_dimension": {
+    "Evaluation": 11,
+    "Understanding": 22,
+    "Reasoning & Judgment": 6,
+    "Initiative": 6,
+    "Communication": 1,
+    "Context & Memory": 10
+   },
+   "provider_required": 0,
+   "missing_capability": 0,
+   "initiative": 6,
+   "communication": 1,
+   "action_judgment": 0,
+   "core_structural": 38,
+   "evaluator_mismatch": 11,
+   "drafting": 0
+  },
+  "FAC": {
+   "surface": "facility",
+   "turns": 70,
+   "current": {
+    "PASS": 21,
+    "FAIL": 47,
+    "BLOCKED": 2
+   },
+   "original": {
+    "PASS": 16,
+    "FAIL": 52,
+    "BLOCKED": 2
+   },
+   "failing_by_boundary": {
+    "ANS": 14,
+    "INI": 11,
+    "COM": 4,
+    "EVL": 2,
+    "MCP": 6,
+    "RAW": 4,
+    "CTX": 3,
+    "EVP": 1,
+    "ACT": 2
+   },
+   "failing_by_nature": {
+    "CORE_STRUCTURAL": 22,
+    "INITIATIVE": 11,
+    "COMMUNICATION": 4,
+    "EVALUATOR": 2,
+    "PRODUCT_DEBT": 6,
+    "ACTION_JUDGMENT": 2
+   },
+   "failing_by_dimension": {
+    "Reasoning & Judgment": 14,
+    "Initiative": 11,
+    "Communication": 4,
+    "Evaluation": 2,
+    "Evidence": 7,
+    "Context & Memory": 7,
+    "Action Judgment": 2
+   },
+   "provider_required": 0,
+   "missing_capability": 6,
+   "initiative": 11,
+   "communication": 4,
+   "action_judgment": 2,
+   "core_structural": 22,
+   "evaluator_mismatch": 2,
+   "drafting": 0
+  },
+  "CON": {
+   "surface": "consumer",
+   "turns": 70,
+   "current": {
+    "PASS": 27,
+    "FAIL": 42,
+    "BLOCKED": 1
+   },
+   "original": {
+    "FAIL": 59,
+    "PASS": 10,
+    "BLOCKED": 1
+   },
+   "failing_by_boundary": {
+    "MCP": 4,
+    "RAW": 6,
+    "INI": 8,
+    "ANS": 8,
+    "CTX": 7,
+    "ACT": 6,
+    "COM": 1,
+    "EVL": 2
+   },
+   "failing_by_nature": {
+    "PRODUCT_DEBT": 4,
+    "CORE_STRUCTURAL": 21,
+    "INITIATIVE": 8,
+    "ACTION_JUDGMENT": 6,
+    "COMMUNICATION": 1,
+    "EVALUATOR": 2
+   },
+   "failing_by_dimension": {
+    "Evidence": 4,
+    "Context & Memory": 13,
+    "Initiative": 8,
+    "Reasoning & Judgment": 8,
+    "Action Judgment": 6,
+    "Communication": 1,
+    "Evaluation": 2
+   },
+   "provider_required": 0,
+   "missing_capability": 4,
+   "initiative": 8,
+   "communication": 1,
+   "action_judgment": 6,
+   "core_structural": 21,
+   "evaluator_mismatch": 2,
+   "drafting": 0
+  }
+ },
+ "promotion_review_counts": {
+  "WEAK": 1,
+  "ROBUST": 15,
+  "DEFENSIBLE_BUT_BORDERLINE": 13
+ },
+ "held_out_objective_probe": {
+  "pairs": 31,
+  "agree": 7,
+  "rate": 0.23
+ }
+}

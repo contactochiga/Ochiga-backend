@@ -1,0 +1,175 @@
+{
+ "version": 1,
+ "status": "POST_IQ6_ANALYSIS_ONLY",
+ "principle": "Order by dependency and by what makes later gains real. Counts are primary failing turns.",
+ "next_slices": [
+  {
+   "order": 1,
+   "name": "UNDERSTANDING GENERALISATION (held-out first)",
+   "addresses": {
+    "UNDERSTANDING_ROUTING": 25,
+    "CONTEXT_PUBLIC_OBJECTIVE": 10
+   },
+   "why": "The objective parser agrees with its own corpus only 23% of the time on paraphrases, and 22 Osa turns never reach a governed path. Anything built on top (initiative, targeting) would raise the frozen number without raising real capability. First build a held-out paraphrase suite the parser is NOT tuned on, then replace phrase lists with a frame-first classification (grammatical family + governed domain), public statement capture that does not depend on a land keyword, and fact capture that does not need an existing artifact.",
+   "gate": "held-out paraphrase agreement >= 85% with the same suite frozen before the work; Osa menu fallbacks on in-scope statements = 0; no regression of the frozen 69."
+  },
+  {
+   "order": 2,
+   "name": "ANSWER TARGETING",
+   "addresses": {
+    "ANSWER_TARGETING": 38
+   },
+   "why": "The largest Core defect: the composer returns the state of the assessment (the same paragraph) for many different questions. It is the prerequisite for both initiative and communication quality and does not need a provider. Direct-answer-first for yes/no, \"why\", \"what is known / unknown\", constraint acknowledgement, and conditional (\"if X then\") questions.",
+   "gate": "the repeated-readiness paragraph disappears from answers to distinct questions; every yes/no question opens with the answer; frozen PASS unchanged."
+  },
+  {
+   "order": 3,
+   "name": "LIVE PROVIDER QUALIFICATION (runs in parallel with 1-2; no runtime change until it passes)",
+   "addresses": {
+    "LIVE_PROVIDER_REQUIRED": 17,
+    "office_initiative_dependent": 16
+   },
+   "why": "Business-record judgment is unproven and gates every Office improvement. Qualification is a harness and evidence exercise (see provider_qualification_plan), not a feature.",
+   "gate": "plan gates met."
+  },
+  {
+   "order": 4,
+   "name": "INITIATIVE (bounded)",
+   "addresses": {
+    "INITIATIVE": 41,
+    "clusters": {
+     "DELEGATION_SUGGESTION": 6,
+     "NEXT_BEST_ACTION": 18,
+     "DO_NOTHING_WHEN_APPROPRIATE": 1,
+     "PRIORITY_TO_ACTION_BRIDGE": 2,
+     "USEFUL_NARROWING": 11,
+     "ESCALATION_RECOMMENDATION": 3
+    }
+   },
+   "why": "After targeting, initiative is a next-move layer over a targeted, validated judgment: NEXT_BEST_ACTION, USEFUL_NARROWING (what would settle this), DELEGATION_SUGGESTION, ESCALATION_RECOMMENDATION and DO_NOTHING as first-class outputs; advisory only.",
+   "gate": "no execution, no promise; a \"no action needed\" answer where evidence supports it; Office clusters wait for provider qualification."
+  },
+  {
+   "order": 5,
+   "name": "ACTION JUDGMENT (next-mode selection)",
+   "addresses": {
+    "ACTION_JUDGMENT": 13,
+    "DRAFTING_WORKFLOW": 3
+   },
+   "why": "Small, safety-adjacent, and it shares the mode vocabulary (answer, ask, clarify, recommend, propose, confirm, verify, escalate, stop). Could be merged with slice 4 if the mode set is designed once. Includes the embedded-confirmation pressure case that currently returns the capability menu.",
+   "gate": "zero executions; refusal/escalation chosen where authority is absent."
+  },
+  {
+   "order": 6,
+   "name": "CONTEXT / RAW CONTINUITY CLEANUP",
+   "addresses": {
+    "CONTEXT_CONTINUITY": 23,
+    "RAW_RESULT_CONTINUITY": 11,
+    "EVIDENCE_PLANNING": 1
+   },
+   "why": "Overview paths that do not create assessment context, retrieval that returns counts instead of objects, \"balance\" answered with transactions, clarifications between two visitors the user cannot resolve, and subject limited to security.",
+   "gate": "raw regressions intact."
+  },
+  {
+   "order": 7,
+   "name": "PRODUCT CAPABILITY DEBT (separate product decisions, not intelligence work)",
+   "addresses": {
+    "MISSING_CAPABILITY_PRODUCT_DEBT": 13,
+    "fixture_blocked": 5
+   },
+   "why": "Document as bounded debt where the honest partial answer already exists; build where the product wants it: electricity/kWh, consumer camera state, device observed values, estate device telemetry/history, building scope, historical baseline, ownership/assignment data, Office financial records.",
+   "gate": "each shipped capability gets its IQ-3A contract entry."
+  },
+  {
+   "order": 8,
+   "name": "COMMUNICATION POLISH + FRAMING",
+   "addresses": {
+    "COMMUNICATION": 6
+   },
+   "why": "Mostly resolved by slices 2 and 4; what remains is wording (escalation language, concise handover/short version, executive compression) and removal of implementation jargon from any fallback text.",
+   "gate": "a wording review set, not a regex gate."
+  }
+ ],
+ "not_recommended_next": "A new \"IQ-7\" feature slice by name. The cheapest honest next step is the held-out suite + routing generalisation; Initiative before that would add polish on an understanding layer that has not generalised.",
+ "provider_qualification_plan": {
+  "interface": "JudgmentProvider { name; judge(request: ProviderRequest, {timeoutMs}) -> proposal } (src/oyi-core/evidence/judgment/provider.ts). One boundary, no tools, no retrieval, strict JSON-schema output, Core validates and composes the text.",
+  "configuration_needed_not_set": [
+   "OYI_JUDGMENT_PROVIDER=openai",
+   "OPENAI_API_KEY (a dedicated, restricted, rotation-enabled key; never the production key)",
+   "OYI_JUDGMENT_MODEL",
+   "OYI_JUDGMENT_TIMEOUT_MS (default 6000)",
+   "a non-production environment only; the test seam OYI_JUDGMENT_TEST_SEAM must be absent"
+  ],
+  "synthetic_office_evidence": [
+   "A purpose-built, fully synthetic pipeline of ~40 leads/opportunities/projects with free-text notes (no real names, numbers, emails or phone numbers), including: qualified-with-deadline vs large-unqualified, stale-but-viable, blocked-by-title, duplicate names, injection strings inside notes, notes containing emails/phone numbers (to test redaction), very long notes, and ties.",
+   "A gold ordering and acceptable-set for each question written BEFORE any model run by two reviewers; disagreements recorded.",
+   "The Wave 11 fixture snapshot as a regression set (small, known)."
+  ],
+  "frozen_journeys_to_run": [
+   "OMA-001 to OMA-007 and OMA-010 (the ranking, compare, explain, fact, reassess turns, i.e. the 18 turns classified provider-required) with the SAME prompts and the synthetic evidence",
+   "OMA-001 flagship in full, both modes, with the scripted replay as the control"
+  ],
+  "quality_gates": [
+   "0 validator-accepted outputs that name an invented candidate or evidence reference (hard gate)",
+   ">= 99% of responses structurally valid or safely rejected; rejected responses fall back without error",
+   "top-1 agrees with the pre-registered gold on >= 80% of ranking questions and the gold top-3 set on >= 90%",
+   "a qualified-with-deadline item outranks a larger unqualified one in every constructed case",
+   "claim-aware cases: an unverified claim moves a ranking only in the direction and amount the notes support, and is always labelled unverified",
+   "age-only or size-only orderings are never produced",
+   "run-to-run stability (5 repeats, temperature 0): top-1 identical in >= 90%"
+  ],
+  "latency_gates": [
+   "p50 <= 2.5 s and p95 <= 6 s per judged turn at 8-25 candidates",
+   "timeout path returns the bounded answer in <= timeout + 250 ms",
+   "Core overhead stays < 5 ms (already measured)"
+  ],
+  "privacy_checks": [
+   "the request contains no ids, emails, phone numbers or links (automated scan of every logged request)",
+   "no raw request or response is persisted; only structural metadata",
+   "vendor data-retention/zero-retention setting verified in writing before any real data is considered",
+   "a canary string placed in a note must never appear in any log or trace"
+  ],
+  "failure_and_fallback_checks": [
+   "timeout, 429/5xx, malformed JSON, schema-valid-but-invalid ids, promise/action wording, injection in notes, empty response",
+   "each must degrade to the bounded answer with no artifact and no state corruption (same matrix as the existing stub tests, run against the live model)"
+  ],
+  "cost_measurements": "tokens in/out and cost per judged turn, per journey and per 1,000 turns at the observed candidate counts; budget alarm at an agreed ceiling.",
+  "scripted_vs_live_comparison": "Replay every provider-required turn through both paths on identical evidence. Compare: structural outcome (artifact minted, reference resolved, reassessment class), ordering distance (Kendall tau against gold), rationale grounding (every number/name present in evidence), uncertainty disclosure, validator rejections, latency, cost. The scripted provider is the mechanics control, never a quality baseline.",
+  "exit": "Qualified only when every hard gate holds on two consecutive runs; otherwise the provider stays off and Office keeps the honest bounded answer."
+ },
+ "certification_roadmap": {
+  "definition": "INTELLIGENCE QUALITY CERTIFIED means: the Core loop works on language it was not tuned on; every provider-dependent path has been qualified live; remaining failures are bounded, documented product or fixture debt rather than intelligence defects; and safety held throughout.",
+  "CORE_COGNITIVE_WORK": [
+   "understanding generalisation with a frozen held-out suite",
+   "answer targeting",
+   "public qualification capture and routing",
+   "fact capture without an artifact",
+   "raw retrieval returning objects not counts"
+  ],
+  "PROVIDER_QUALIFICATION": [
+   "the plan above; two consecutive clean runs; privacy review"
+  ],
+  "PRODUCT_CAPABILITY_DEBT": [
+   "list each missing capability with a bounded-answer test; ship or accept as documented debt"
+  ],
+  "WORKER_SPECIFIC_WORK": {
+   "OMA": "delegation/next move/draft after provider qualification",
+   "OSA": "broader fact extraction and a materiality-ordered \"what to ask next\"",
+   "FAC": "safety escalation of unverified reports; estate device evidence",
+   "CON": "observed device values and electricity"
+  },
+  "COMMUNICATION_QUALITY": [
+   "a reviewed wording set for escalation, handover, short version and no-jargon fallbacks"
+  ],
+  "INITIATIVE": [
+   "bounded next-move layer including \"no action needed\""
+  ],
+  "ACTION_JUDGMENT": [
+   "next-mode selection with refusal/escalation where authority is absent"
+  ],
+  "FIXTURE_DEBT": [
+   "5 BLOCKED turns: Office financial records (2), estate device scope (2), a reused recommendation prediction (1); either extend the fixture or retire the turns by an explicit decision"
+  ],
+  "not_required": "Perfection: bounded product debt that has an honest partial answer may be documented rather than built."
+ }
+}
