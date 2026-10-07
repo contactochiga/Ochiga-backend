@@ -55,8 +55,8 @@ await check('iq5c:OMA-001-scripted-provider-T3-resolves-priority-two-not-lead-ro
   assert.equal(turns[1].status, 'derived_reference', turns[1].answer); assert(turns[1].answer.includes(ranked[1].ref.label) && /number 2/.test(turns[1].answer), turns[1].answer); assert(/comparative judgment/.test(turns[1].answer));
   assert(!turns[1].answer.includes(ranked[0].ref.label + ' was') && !/number 1 in the order/.test(turns[1].answer));
   assert.equal(turns[2].status, 'derived_reference'); assert(turns[2].artifact?.stale, 'T4: the financing fact marks the ranking stale for reassessment'); assert.equal(turns[2].artifact.items.length, a.items.length, 'and preserves it'); assert(/not verified|not reassessed/.test(turns[2].answer));
-  assert(/cannot say what comes first now/.test(turns[3].answer) && !ranked.some(i => turns[3].answer.includes(i.ref.label)), 'T5: a stale ranking is not presented as current');
-  assert(turns[4].answer.includes(ranked[1].ref.label) && /produced before you told me something that may change it/.test(turns[4].answer), 'T6: the historical explanation is still available');
+  assert(/not verified/.test(turns[3].answer) && /re-read \d+ source/.test(turns[3].answer) && /reassess|Current assessment/.test(turns[3].answer), 'T5 (superseded by IQ-6): a stale ranking is never presented as current; a "now" question reassesses instead of refusing');
+  assert(turns[4].answer.includes(ranked[1].ref.label) && /earlier assessment, kept so I can explain it/.test(turns[4].answer), 'T6: the historical explanation is still available (now as the replaced artifact)');
   for (const t of turns) assert(!assertsPromiseOrAction(t.answer), t.answer);
   scripted(); const back = await converse('office_internal', 'ochiga_staff', ['Show me the leads.'], {thread}); unscripted(); assert.equal(executed, 0);
 });

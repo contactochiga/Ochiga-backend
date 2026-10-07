@@ -133,7 +133,7 @@
         "assessment_status": "derived_reference",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it does not change the assessment. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1"
+        "answer": "Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/"
       }
     ],
     "facility_record_changed": [
@@ -179,7 +179,7 @@
         "assessment_status": "derived_reference",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Using your statement “The water leak is repaired now” (your own statement, which I have not verified), it does not change the assessment. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). No security incidents ar"
+        "answer": "Using your statement “The water leak is repaired now” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active,"
       },
       {
         "prompt": "Actually the water leak is not repaired, the plumber has not come.",
@@ -193,7 +193,7 @@
         "assessment_status": "derived_reference",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Using your statement “Actually the water leak is not repaired, the plumber has not come” (your own statement, which I have not verified), it does not change the assessment. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded prio"
+        "answer": "Using your statement “Actually the water leak is not repaired, the plumber has not come” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 u"
       }
     ],
     "osa": [

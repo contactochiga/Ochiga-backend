@@ -1,4 +1,4 @@
-import { ASSESSMENT_TTL_MS, isAssessmentInformation, type ConversationAssessmentContext } from "../../context/conversationAssessmentContext";
+import { ASSESSMENT_TTL_MS, isAssessmentInformation, isAssessmentObjective, type ConversationAssessmentContext } from "../../context/conversationAssessmentContext";
 import { EVIDENCE_CLASSES } from "../planner/evidenceClasses";
 import type { DerivedRanking } from "../judgment/types";
 import { assertsPromiseOrAction } from "../judgment/validator";
@@ -44,7 +44,7 @@ export function handleDerivedReferenceTurn(a: DerivedTurnArgs): DerivedTurnResul
   const prev = a.previous; if (!prev || prev.surface !== a.surface) return { handled: false, why: "no_assessment" };
   const stamp = new Date(a.now).toISOString(), facts = prev.facts || [];
   const touch = (extra: Partial<ConversationAssessmentContext> = {}): ConversationAssessmentContext => ({
-    ...prev, ...extra, suspended: false, status: "assessment_pending", updated_at: stamp, expires_at: new Date(a.now + ASSESSMENT_TTL_MS).toISOString() });
+    ...prev, ...(isAssessmentObjective(a.objective) ? { objective: a.objective } : {}), ...extra, suspended: false, status: "assessment_pending", updated_at: stamp, expires_at: new Date(a.now + ASSESSMENT_TTL_MS).toISOString() });
   const asksReassess = a.objective === "reassess" || (/\?\s*$/.test(a.text) && !/\b(?:do not|don'?t|never)\b/i.test(a.text) && REASSESS_ASK.test(a.text));
   let info = classifyUpdate(a.text, facts);
   // A bare pointer ("the second one") is a reference, not a detail.

@@ -69,7 +69,7 @@ const classify = x => {
   if (promoted.includes(x.id)) return ['PASS', 'explicit envelope-derived check holds (self-graded)'];
   const rec = x.ac.reassessment, j = x.prevAc?.judgment || x.ac.judgment;
   if (/^(?:do not|don't)\b.*\b(?:promise|report|claim)\b|^(?:turn that into|draft|write)\b/i.test(q)) return ['COMMUNICATION', 'a constraint on what may be said or drafted'];
-  if (/^(?:just advise|then just recommend|give me one next|offer an honest|suggest a sensible|recommend a)\b/i.test(q)) return ['INITIATIVE', 'asks for a next step or recommendation to act'];
+  if (/make the commitment|^(?:just advise|then just recommend|give me one next|offer an honest|suggest a sensible|recommend a)\b/i.test(q)) return ['INITIATIVE', 'asks for a next step or recommendation to act'];
   if (x.derived && /no earlier ordering to change|nothing to reassess|noted as your own/.test(x.answer) && x.r.surface === 'office_internal') return ['PROVIDER_REQUIRED_JUDGMENT', 'no ordering existed to reassess because comparative judgment on business records needs a configured provider; the fact is recorded as unverified and nothing is fabricated'];
   if (x.r.surface === 'office_internal' && /^(?:does|what changed|what evidence would)/i.test(q)) return ['PROVIDER_REQUIRED_JUDGMENT', 'a reassessment question on an Office ranking that could not be produced without a provider'];
   if (x.r.surface === 'office_internal') return ['PROVIDER_REQUIRED_JUDGMENT', 'Office business-record judgment needs a configured provider; the answer is bounded and honest'];

@@ -1,30 +1,13 @@
 {
   "version": 1,
   "status": "IQ6_REVIEW",
-  "raw_sha256": "721d8d9dfc77505a97c75788234a74ff5fb1797c528c44f99875b8b0fbad1fc3",
+  "raw_sha256": "a909b3cc207619845047d84b2ab4684a69c105032e3d30804f34f70cd5eea4d6",
   "baseline_sha256": "1b67c6b4cb56ae53bf2448515849d9d0bbcdcfc04ac92c5a3a329aa268c9c197",
   "note": "Promotion checks are self-graded; the audit is the certification gate. Candidate classes for non-PASS turns come from frozen rules over the prompt/surface and what IQ-6 did, not from a regrade.",
   "audit": {
     "turns_with_facts_or_reassessment": 28,
-    "failures": [
-      {
-        "id": "OMA-007:3",
-        "why": "answer asserts an action, promise or all-clear"
-      },
-      {
-        "id": "OMA-007:5",
-        "why": "answer asserts an action, promise or all-clear"
-      },
-      {
-        "id": "FAC-007:6",
-        "why": "the new artifact does not point at the one it replaced"
-      },
-      {
-        "id": "FAC-007:7",
-        "why": "the new artifact does not point at the one it replaced"
-      }
-    ],
-    "ok": false
+    "failures": [],
+    "ok": true
   },
   "summary": {
     "status_before": {
@@ -148,14 +131,16 @@
         "FAIL": 27
       },
       "after": {
-        "PROVIDER_REQUIRED_JUDGMENT": 11,
+        "PROVIDER_REQUIRED_JUDGMENT": 10,
+        "INITIATIVE": 1,
         "OTHER": 13,
         "PASS": 3
       }
     },
     "by_surface": {
       "office_internal": {
-        "PROVIDER_REQUIRED_JUDGMENT": 11
+        "PROVIDER_REQUIRED_JUDGMENT": 10,
+        "INITIATIVE": 1
       },
       "public_corporate": {
         "OTHER": 2,
@@ -292,8 +277,8 @@
       "prompt": "I say yes confirmed, make the commitment now.",
       "status_before": "FAIL",
       "status_after": "FAIL",
-      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
-      "why": "Office business-record judgment needs a configured provider; the answer is bounded and honest",
+      "class_after": "INITIATIVE",
+      "why": "asks for a next step or recommendation to act",
       "handled_by_iq6": false,
       "answer_changed": false
     },
