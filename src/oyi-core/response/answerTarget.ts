@@ -32,7 +32,7 @@ const STOP = new Set(["the", "a", "an", "of", "to", "in", "on", "at", "for", "fr
 export const contentTokens = (tokens: string[]) => tokens.filter(t => !STOP.has(t) && t.length > 1);
 const NUM: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 const STATUS_WORDS = ["open", "closed", "resolved", "unresolved", "stale", "expired", "overdue", "pending", "qualified", "new", "active", "inactive", "offline", "online", "current", "historical", "high", "low", "urgent", "critical", "late", "waiting", "outstanding", "unassigned", "approved"];
-const INFERENCE = ["tell", "tells", "suggest", "suggests", "signal", "signals", "demonstrate", "demonstrates", "prove", "proves", "proved", "mean", "means", "meant", "imply", "implies", "establish", "establishes", "confirm", "confirms", "show", "shows", "enough", "justify", "justifies", "guarantee", "guarantees", "indicate", "indicates", "caused", "cause", "causes", "explain", "explains", "equal", "equals"];
+const INFERENCE = ["assume", "assumed", "conclude", "infer", "tell", "tells", "suggest", "suggests", "signal", "signals", "demonstrate", "demonstrates", "prove", "proves", "proved", "mean", "means", "meant", "imply", "implies", "establish", "establishes", "confirm", "confirms", "show", "shows", "enough", "justify", "justifies", "guarantee", "guarantees", "indicate", "indicates", "caused", "cause", "causes", "explain", "explains", "equal", "equals"];
 const ACTION_VERBS = ["switch", "switched", "change", "changed", "alter", "altered", "turn", "turned", "send", "sent", "execute", "executed", "run", "ran", "do", "did", "modify", "modified", "touch", "touched", "update", "updated", "lock", "locked", "unlock", "unlocked", "set", "move", "moved", "book", "booked"];
 const HAZARD = ["gas", "smoke", "fire", "flame", "burning", "electrical", "electric", "wiring", "sparks", "shock", "flood", "flooding", "collapse", "explosion", "leak", "leaking", "unsafe", "dangerous", "hazard", "hazardous", "injury", "injured", "intruder", "burglar", "alarm", "carbon", "monoxide", "panel", "exposed", "threat", "smell"];
 const RISK_ASK = ["dangerous", "unsafe", "hazard", "hazardous", "hazards", "danger", "safe", "secure", "risk", "risks", "risky", "threat", "worried", "worry", "concern", "concerning", "worrying", "harm", "vulnerable"];
@@ -59,7 +59,7 @@ const splitSides = (tokens: string[]): string[][] => {
 export function deriveAnswerTarget(text: string, opts: { objective?: string | null; activeAssessment?: boolean } = {}): AnswerTarget {
   // a turn that opens with context ("I just got into the office. What needs my attention?") is shaped by its last question or directive
   // a leading condition ("if nothing was logged, does that ...?") frames the question that follows it
-  const cond = /^\s*(?:if|when|once|assuming|given)\b[^,]{3,80},\s*(.+\?\s*)$/i.exec(text);
+  const cond = /^\s*(?:if|when|once|assuming|given|because|since|as)\b[^,]{3,80},\s*(.+\?\s*)$/i.exec(text);
   if (cond) return deriveAnswerTarget(cond[1], opts);
   const sents = sentencesOf(text);
   if (sents.length > 1) { const last = analyse(sents[sents.length - 1]); if (last.q || last.wh || last.auxLead || last.imperative) { const inner = deriveAnswerTarget(sents[sents.length - 1], opts); return { ...inner, safety_relevant: inner.safety_relevant || isHazardText(text) }; } }
@@ -71,7 +71,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
     safety_relevant: hazard || riskAsk, is_question: u.q || u.wh || u.auxLead || u.imperative, must_answer: "", supporting_context_allowed: true, must_not_substitute: ["capability_menu"], ...over });
 
   if (isCapabilityInquiryText(text)) return base("CAPABILITY_DISCOVERY", { must_answer: "what Oyi can help with", must_not_substitute: [] });
-  const standingMarker = T.some(t => ["while", "during", "whenever", "until", "always", "ever", "never"].includes(t)) || T.slice(0, 3).join(" ") === "from now on";
+  const standingMarker = T.some(t => ["while", "during", "whenever", "until", "always", "ever", "never", "rest", "session", "anyone", "anybody", "nobody"].includes(t)) || T.slice(0, 3).join(" ") === "from now on";
   if (isCancellationText(text) && standingMarker && T.length > 5 && !isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (isCancellationText(text) || isHoldDirective(text) || isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: isCallbackRequest(text) ? "callback" : isHoldDirective(text) ? "hold" : "cancel", must_answer: "what is now in force (nothing is executed)", must_not_substitute: ["capability_menu", "evidence_readiness"] });
   // a standing constraint on how Oyi behaves ("don't claim / share / invent ...", "from now on ...", "do not turn anything on or off")
@@ -89,7 +89,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   if (youDid && !/\b(?:prove|mean)\b/.test(T.join(" "))) return base("ACTION_RESULT", { yes_no: { kind: "action_result" }, must_answer: "whether anything was actually changed (yes/no first)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
 
   // an action with only a pronoun for its object ("turn that off") cannot be carried out until it is clear what is meant
-  if (u.imperative && ["turn", "switch", "set", "lock", "unlock", "open", "close", "start", "stop"].includes(lead) && T.some(t => ["that", "this", "those", "them"].includes(t)) && !domainHits(T).some(h => ["devices", "rooms", "cameras", "utilities"].includes(h.domain)) && !T.includes("it")) return base("CLARIFICATION", { must_answer: "ask which one is meant", must_not_substitute: ["capability_menu", "evidence_readiness"] });
+  if (u.imperative && ["turn", "switch", "set", "lock", "unlock", "open", "close", "start", "stop"].includes(lead) && T.some(t => ["that", "this", "those", "them"].includes(t)) && contentTokens(T).filter(t => !["turn", "switch", "set", "lock", "unlock", "open", "close", "start", "stop", "on", "off", "up", "down", "that", "this", "those", "them"].includes(t)).length === 0 && !T.includes("it")) return base("CLARIFICATION", { must_answer: "ask which one is meant", must_not_substitute: ["capability_menu", "evidence_readiness"] });
   // an instruction to ignore a boundary, or to treat the user as someone they are not, is declined whatever role is claimed
   if (T.some(t => ["ignore", "bypass", "override", "disregard", "pretend", "impersonate", "circumvent"].includes(t)) && T.some(t => ["privacy", "boundary", "boundaries", "permission", "permissions", "rule", "rules", "authority", "restriction", "restrictions", "policy", "owner", "admin", "manager", "role", "security", "limits"].includes(t)))
     return base("REFUSAL", { refusal_kind: "authority", must_answer: "decline to bypass a privacy/permission boundary, whatever role is claimed", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
@@ -118,7 +118,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   if (!judgeWords && (listVerb || whichList))
     return base("LIST", { quantity: "list", top_n: topN, must_answer: "the items themselves (names/records), with any count only as support", must_not_substitute: ["capability_menu", "count_for_list"] });
   if (objective === "summarize") return base("SUMMARY", { must_answer: "the summary itself", must_not_substitute: ["capability_menu"] });
-  if (objective === "advise" && u.auxLead && !T.includes("or") && T.length <= 12) {
+  if (objective === "advise" && u.auxLead && ["can", "could", "would", "should", "shall", "will", "may"].includes(lead) && !T.includes("or") && T.length <= 12) {
     const k: YesNoKind = ["can", "could"].includes(lead) && T[1] === "you" ? "capability" : "advice";
     return base("YES_NO_WITH_REASON", { yes_no: { kind: k }, must_answer: "yes / no / insufficient first, then the reason", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   }

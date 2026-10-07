@@ -3591,9 +3591,10 @@ export class ConversationOrchestrator {
       tracer.finish({ thread_id: bareInstructionResponse.thread_id || null, response_state: bareInstructionResponse.persistence_saved === false ? "unsaved" : "returned" });
       return bareInstructionResponse;
     }
-    // IQ-8 answer targeting: two turn shapes have a direct, evidence-free answer that must not fall to a menu or an assessment paragraph.
-    // A standing constraint ("don't share ...", "from now on ...") is acknowledged as in force; a question about whether anything was changed
-    // is answered from this thread's own action records. Neither executes anything or creates durable state.
+    // IQ-8 answer targeting: turn shapes with a direct, evidence-free answer (a standing constraint, a question about whether anything was changed, an
+    // unverified safety report) must not fall to a menu or an assessment paragraph. Never executes anything, creates no durable state. Office and
+    // public turns are checked only AFTER pending governed proposals and communications have had their chance, so a veto is never mistaken for a constraint.
+    const tryAnswerTargeted = async (): Promise<ConversationRunResult | null> => {
     if (!activeWorkflow && !resolvedTurn.semantic_frame.mutationIntent) {
       const sf = resolvedTurn.semantic_frame, earlyTarget = deriveAnswerTarget(sf.rawText, { objective: sf.cognitiveObjective, activeAssessment: Boolean(earlyAssessment) });
       let direct: string | null = null, key = "";
@@ -3607,6 +3608,9 @@ export class ConversationOrchestrator {
         return directResponse;
       }
     }
+    return null;
+    };
+    if (["consumer", "facility"].includes(context.input.surface)) { const targeted = await tryAnswerTargeted(); if (targeted) return targeted; }
     // Wave 11 Consumer burn-down -- same principle as the bare
     // instruction check above, for an explicit confirm/cancel with no
     // active device workflow anywhere (the block above already handles
@@ -3681,6 +3685,7 @@ export class ConversationOrchestrator {
       tracer.finish({ thread_id: communicationResponse.thread_id || null, response_state: communicationResponse.persistence_saved === false ? "unsaved" : "returned" });
       return communicationResponse;
     }
+    if (!["consumer", "facility"].includes(context.input.surface)) { const targeted = await tryAnswerTargeted(); if (targeted) return targeted; }
     // Wave 11 Oma burn-down -- same precedence tier; an honest "not
     // supported yet" for record-creation requests, which have no
     // governed-mutation path (see handleTaskCreationRequestTurn's header

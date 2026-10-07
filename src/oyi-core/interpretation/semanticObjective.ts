@@ -153,7 +153,7 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (has(u, "or") && has(u, "which", "better", "smarter", "safer", "best", "prefer", "worse") ) s.compare += 3;
   // ---- prioritisation
   if (has(u, "priorit*", "rank*", "triage")) s.prioritize += 3;
-  if (has(u, "most") && has(u, "least") && has(u, "from", "to") && (u.imperative || ask)) s.prioritize += 4; // "from most to least X" is an ordering request
+  if (((has(u, "most") && has(u, "least")) || (has(u, "best") && has(u, "worst"))) && has(u, "from", "to") && (u.imperative || ask)) s.prioritize += 4; // "from most to least X" is an ordering request
   if (has(u, "sort", "order") && (has(u, "by", "importance", "urgency", "risk", "priority", "them", "these", "those", "sensible", "running", "short", "out") || lead === "order")) s.prioritize += 3;
   if (u.wh && has(u, ...SUPERLATIVE.filter(x => x !== "first" && x !== "most"), "useful", "helpful", "valuable", "important")) s.prioritize += 2;
   if (u.wh && has(u, "block*", "blocker*", "blocking")) s.prioritize += 3;

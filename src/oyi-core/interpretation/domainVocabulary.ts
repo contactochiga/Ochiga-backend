@@ -10,7 +10,7 @@ const VOCAB: Array<[string, string[]]> = [
   ["security", ["detector*", "smoke", "security", "incident*", "alarm*", "intruder*", "theft", "burglar*", "guard*", "gate", "gates", "patrol*"]],
   ["cameras", ["camera*", "cctv", "footage"]],
   ["visitors", ["pass", "passes", "visitor*", "guest*", "arriv*", "expected", "deliver*", "courier", "come", "coming", "visiting", "visited"]],
-  ["devices", ["device*", "light", "lights", "lamp*", "switch*", "plug*", "socket*", "tv", "lock", "locks", "locked", "door", "doors", "window*", "sensor*", "thermostat", "fan", "heater", "ac", "aircon", "air", "conditioner", "appliance*"]],
+  ["devices", ["device*", "light", "lights", "lighting", "lamp*", "switch*", "plug*", "socket*", "tv", "lock", "locks", "locked", "door", "doors", "window*", "sensor*", "thermostat", "fan", "heater", "ac", "aircon", "air", "conditioner", "appliance*"]],
   ["utilities", ["electricity", "power", "energy", "bill", "bills", "meter*", "tariff*", "gas", "internet", "solar", "kwh", "consumption", "usage"]],
   ["wallet", ["wallet", "balance", "spend*", "spent", "spending", "transaction*"]],
   ["rooms", ["bedroom*", "kitchen", "bathroom", "lounge", "study", "room", "rooms", "garage", "porch", "hall", "hallway", "balcony", "attic", "basement"]],

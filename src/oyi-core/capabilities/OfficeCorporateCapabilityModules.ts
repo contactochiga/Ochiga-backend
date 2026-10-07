@@ -299,7 +299,7 @@ function crmLeadsReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["crm.read"],
     evidenceRequirements: [{ domain: "crm", evidence_type: "crm_lead_needs_attention", freshness: ["fresh", "stale", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\bleads?\b/i.test(frame.normalizedText),
+    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\b(?:leads?|prospects?)\b/i.test(frame.normalizedText),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const leads = snapshot?.leads;

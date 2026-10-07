@@ -32,10 +32,13 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     }
     if (result.status !== "answered" && result.status !== "empty") return result;
     const tgt0 = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
+    // "how much did I use" asks for consumption; a spending record is money, not usage
+    if (capabilityKey === "utilities.spending.read" && /\b(?:use|used|burn|burnt|consum\w*|usage|kwh|units)\b/i.test(frame.rawText) && !/\b(?:spend|spent|cost|paid|pay|bill|bills|price)\b/i.test(frame.rawText))
+      return { ...result, answer: `I can't tell you how much you used: I can see what you spent, but consumption (usage) readings are not available yet.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "LIMITATION", limitation_targeted: true } };
     if (tgt0.response_intent === "REFUSAL") return { ...result, answer: limitationAnswer(tgt0, frame.rawText), metadata: { ...(result.metadata || {}), answer_target: "REFUSAL", limitation_targeted: true } };
     if (tgt0.response_intent === "YES_NO_WITH_REASON" && tgt0.yes_no?.kind === "state") {
       const T0 = frame.rawText.toLowerCase();
-      if (capabilityKey === "facility.cameras.read" && /unknown current video state/.test(result.answer) && /\b(?:recording|working|online|live|on|up|running)\b/.test(T0)) return { ...result, answer: `I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
+      if (capabilityKey === "facility.cameras.read" && /unknown current video state/.test(result.answer)) return { ...result, answer: `I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
       if (capabilityKey === "visitors.pending.read" && /\b(?:arriv\w*|turned up|shown up|here|inside|already in|left|departed|gone|came|come)\b/.test(T0)) return { ...result, answer: `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
     }
     const overview = result.metadata?.overview_view as OverviewView | undefined;
@@ -46,7 +49,8 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     }
     let rows = (result.metadata?.answer_rows as AnswerRows | undefined) ?? null;
     if (!rows) {
-      const n = ROW_NOUNS[capabilityKey]; if (!n) return result;
+      const blockTitle = String((result.blocks || []).find((b) => b.type === "record_list" || b.type === "table")?.title ?? "").toLowerCase();
+      const n = ROW_NOUNS[capabilityKey] ?? (blockTitle ? { noun: blockTitle, singular: blockTitle.replace(/ies$/, "y").replace(/s$/, "") } : null); if (!n) return result;
       const fromBlocks = rowsFromBlocks(result.blocks, n.noun, n.singular);
       const block = (result.blocks || []).find((b) => b.type === "record_list" || b.type === "table") as Record<string, unknown> | undefined;
       rows = fromBlocks ? { ...fromBlocks, population: n.population ?? fromBlocks.population ?? null, total: typeof block?.total_count === "number" ? (block.total_count as number) : null, truncated: Boolean(block?.truncated) } : null;

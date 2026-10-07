@@ -43,7 +43,7 @@ const facts = (c: Candidate) => describe(c).filter(x => !/^(open\/active|resolve
 const withFacts = (c: Candidate) => `${c.ref.label || "that item"} is recorded as ${stateWord(c)}${facts(c) ? ` (${facts(c)})` : ""}`;
 
 // Which evidence source a counting/listing question is about, from its content words (domain nouns, not phrases).
-const SOURCE_BY_NOUN: Array<[RegExp, string]> = [[/^leads?$/, "crm.leads"], [/^opportunit/, "crm.opportunities"], [/^(?:projects?|developments?)$/, "development."], [/^reports?$/, "reports."], [/^tasks?$/, "office_tasks"], [/^devices?$/, "devices."], [/^visitors?$/, "visitors."], [/^cameras?$/, "cameras"], [/^incidents?$/, "security."], [/^(?:requests?|tickets?|maintenance)$/, "maintenance."]];
+const SOURCE_BY_NOUN: Array<[RegExp, string]> = [[/^(?:leads?|prospects?)$/, "crm.leads"], [/^opportunit/, "crm.opportunities"], [/^(?:projects?|developments?)$/, "development."], [/^reports?$/, "reports."], [/^tasks?$/, "office_tasks"], [/^devices?$/, "devices."], [/^visitors?$/, "visitors."], [/^cameras?$/, "cameras"], [/^incidents?$/, "security."], [/^(?:requests?|tickets?|maintenance)$/, "maintenance."]];
 function sourceFor(state: CompactEvidencePlanState, T: string[]) {
   for (const t of T) for (const [re, key] of SOURCE_BY_NOUN) if (re.test(t)) { const c = state.contributions.find(k => k.availability === "available" && k.source_key.includes(key)); if (c) return c; }
   return null;
@@ -63,6 +63,15 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
   const quote = (u: string) => lower(u.replace(/^Not available in Oyi yet:\s*/i, "").replace(/\.$/, ""));
 
   switch (target.response_intent) {
+    case "STATUS": {
+      const classes = topicClasses(T);
+      const deviceU = unc.find(u => /readings for/.test(u) && /stale/.test(u)), cameraU = unc.find(u => /^Camera state is unobservable/.test(u));
+      if (classes.includes("devices") && deviceU) return { lead: sentence(`I can't give their current state: ${lower(deviceU.replace(/\.$/, ""))}`), support: [] };
+      if (classes.includes("cameras") && cameraU) return { lead: sentence(`I can't give the current state: ${lower(cameraU.replace(/\.$/, ""))}`), support: [] };
+      if (named.length === 1 && !named[0].needs_comparative_judgment) return { lead: sentence(withFacts(named[0])), support: [] };
+      if (named.length === 1) { const c = named[0]; return { lead: sentence(`${c.ref.label} is recorded as ${c.factors.map(f => f.level).filter(Boolean).join(", ") || "in the records I read"}${c.signals[0] ? ` (${c.signals[0].text})` : ""}`), support: [] }; }
+      return null;
+    }
     case "COUNT": {
       const k = sourceFor(state, T); if (!k) return null;
       const staleAsked = T.includes("stale") && k.freshness === "stale";
@@ -109,6 +118,13 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
         return { lead: sentence(`I can't tell from the evidence I have — nothing I can read links them${u ? `; ${lower(u.replace(/\.$/, ""))}` : ""}`), support: [] };
       }
       // state questions
+      if (["do", "does", "is", "are", "have", "has"].includes(T[0]) && !named.length) {
+        const ex = sourceFor(state, T);
+        if (ex && (T.includes("any") || T.includes("have") || T.includes("there") || T.some(t => OPENISH.has(t) || ["overdue", "late", "pending"].includes(t)) || T[0] === "do" || T[0] === "does")) {
+          const names = ex.material.map(itemName).filter(Boolean), noun = SOURCE_NOUN[ex.source_key] || ex.source_key;
+          return ex.record_count > 0 ? { lead: sentence(`Yes — ${ex.record_count} ${noun}${names.length ? `: ${names.slice(0, 4).join(", ")}` : ""}`), support: [] } : { lead: sentence(`No — I found no ${noun} in what I read`), support: [] };
+        }
+      }
       if (noJudgment && business.length && !named.length) return { lead: sentence(`I can't judge that: ${lower(limitNote)}`), support: [businessSummary(index)] };
       if (T.some(t => ["first", "top", "priority", "ahead", "before"].includes(t)) && T.includes("still") && named.length === 1) {
         if (r.ranking?.length) { const yes = r.ranking[0].cid === named[0].cid; return { lead: sentence(`${yes ? "Yes" : "No"} — ${yes ? `${named[0].ref.label} is first on what is recorded` : `${r.ranking[0].ref.label} comes ahead of ${named[0].ref.label} on what is recorded`}`), support: [] }; }

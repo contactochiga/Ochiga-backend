@@ -4,7 +4,7 @@ import { contentTokens, type AnswerTarget } from "./answerTarget";
 // IQ-8: the LEAD of a public (Osa) qualification answer, shaped by what the visitor asked. Everything comes from the caller's own supplied
 // details and the existing completeness logic: no commitment, no guarantee, no internal criteria, and nothing is promised or booked.
 export type PublicView = { known: Record<string, string>; missing: string[] | null; constraints: string[] }; // missing === null: no completeness model for this kind of inquiry
-const COMMIT = new Set(["promise", "promises", "guarantee", "guarantees", "assure", "ensure", "commit", "commits", "sign", "approve", "accept", "enter", "pursue", "decide", "decision", "agree", "offer", "price", "return", "returns", "profit", "outcome"]);
+const COMMIT = new Set(["assurance", "assured", "firm", "deal", "buyer", "promise", "promises", "guarantee", "guarantees", "assure", "ensure", "commit", "commits", "sign", "approve", "accept", "enter", "pursue", "decide", "decision", "agree", "offer", "price", "return", "returns", "profit", "outcome"]);
 const nice = (k: string) => k.replace(/_/g, " ");
 const list = (xs: string[]) => xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 const knownText = (k: Record<string, string>) => Object.entries(k).map(([a, b]) => `${nice(a)}: ${b}`).join("; ");
@@ -14,7 +14,7 @@ export function publicLead(target: AnswerTarget, question: string, view: PublicV
   const v = { ...view, missing: view.missing ?? [] }, modelled = view.missing !== null;
   const T = analyse(question).tokens;
   const commit = T.some(t => COMMIT.has(t));
-  const asksSoFar = T.some(t => ["told", "have", "got", "know", "hold", "captured", "recorded", "noted", "shared", "given"].includes(t)) && T.some(t => ["far", "now", "already", "so", "back", "me", "noted", "shared"].includes(t)) && ["LIST", "DIRECT_ANSWER", "ASSESSMENT", "SUMMARY", "EXPLANATION"].includes(target.response_intent);
+  const asksSoFar = T.some(t => ["told", "got", "hold", "captured", "recorded", "noted", "shared", "given", "supplied", "provided", "mentioned", "stated", "said", "gave", "held"].includes(t)) && ["LIST", "DIRECT_ANSWER", "ASSESSMENT", "SUMMARY", "EXPLANATION", "STATUS"].includes(target.response_intent);
   switch (target.response_intent) {
     case "YES_NO_WITH_REASON": {
       if (commit) return "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.";
@@ -23,7 +23,7 @@ export function publicLead(target: AnswerTarget, question: string, view: PublicV
     }
     case "LIST": case "STATUS": case "ASSESSMENT": case "DIRECT_ANSWER": case "SUMMARY": case "EXPLANATION": {
       if (asksSoFar) return Object.keys(v.known).length ? `So far you have told me: ${knownText(v.known)}.` : "You haven't given me any opportunity details yet.";
-      if ((T.includes("need") || T.includes("missing") || T.includes("still") || T.includes("require")) && modelled) return v.missing.length ? `What I still need from you: ${list(v.missing.map(nice))}.` : "I don't need anything further for a first look.";
+      if ((T.includes("need") || T.includes("missing") || T.includes("still") || T.includes("require") || T.includes("lack") || T.includes("lacking") || T.includes("else") || T.includes("further")) && modelled) return v.missing.length ? `What I still need from you: ${list(v.missing.map(nice))}.` : "I don't need anything further for a first look.";
       return null;
     }
     case "RANKING": return modelled && v.missing.length ? `The most important thing I still need is ${nice(v.missing[0])}.` : null;
