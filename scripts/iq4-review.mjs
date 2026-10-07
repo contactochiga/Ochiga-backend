@@ -51,7 +51,11 @@ for (const x of judged) {
       const businessPresent = (x.plan?.contributions || []).some(c => ['crm', 'office_development', 'office_reports'].includes(c.evidence_class) && c.availability === 'available' && c.record_count);
       if (businessPresent && art.assessment_id === x.plan?.plan_id) fail(x.id, 'a typed ordering answered for a set containing uncomparable business records');
     }
-    if (x.ac.result_set_id) fail(x.id, 'a derived ranking coexists with a raw result_set_id');
+    // A ranking and an unrelated raw result set may coexist as SEPARATE objects (e.g. an overview turn after a ranking turn). What is
+    // forbidden is a ranking created on a turn that also names a raw result set: the ranking is never equated with an older list.
+    const prev = rows[x.i - 1], prevArt = prev && prev.r.journey_id === x.r.journey_id ? prev.ac.derived_ranking : null;
+    const createdThisTurn = !prevArt || prevArt.ranking_id !== art.ranking_id;
+    if (createdThisTurn && x.ac.result_set_id) fail(x.id, 'a ranking was created on a turn that also names a raw result_set_id');
   }
 }
 const oma2 = rows.find(x => x.id === 'OMA-001:2');
@@ -82,12 +86,12 @@ const PROMOTE = {
   'FAC-003:7': a => ranksWaterFirst(a) && resolvedCanWait(a) && !/urgent/i.test(a.replace(/not (?:an? )?urgent/gi, '')),
   'FAC-003:3': a => /Not a current concern \(resolved or past\): Wave11 resolved light issue/.test(a) && /Needs attention: Wave11 unresolved water issue/.test(a),
   'CON-007:2': a => /Not a current concern \(resolved or past\): Wave11 resolved light issue/.test(a) && /Needs attention: Wave11 unresolved water issue/.test(a),
-  'CON-006:2': permission, 'CON-006:3': permission, 'CON-006:5': permission,
+  // Withdrawn after reading the answers: CON-006:5 and CON-002:7 only imply the direct conclusion the question asks for.
+  'CON-006:2': permission, 'CON-006:3': permission,
   'CON-004:2': securityBasics, 'CON-004:5': securityBasics, 'CON-004:6': securityBasics,
   'CON-001:1': a => securityBasics(a) && noExec(a), 'CON-001:2': a => securityBasics(a) && ranksWaterFirst(a) && resolvedCanWait(a), 'CON-001:3': a => securityBasics(a) && /no security incidents are recorded in the checked scope/i.test(a),
   'CON-001:4': a => /lock position/.test(a) && /not available in Oyi/.test(a) && /stale/.test(a) && noAllClear(a) && noExec(a),
   'CON-002:4': a => /temperature/.test(a) && /not available in Oyi/.test(a) && !/\b\d+(?:\.\d+)? ?(?:°|degrees)\b/.test(a),
-  'CON-002:7': a => /what is known and what is not/.test(a) && noAllClear(a) && /observed values/.test(a),
   'FAC-002:2': a => /Camera state is unobservable/.test(a) && /neither an outage nor normal operation/.test(a) && notAClaimOfOutage(a),
   'CON-008:7': a => /\bStudy\b/.test(a) && /observed values/.test(a) && !/\b\d+(?:\.\d+)? ?(?:°|degrees)\b/.test(a) && !/Master Bedroom/.test(a),
 };

@@ -1,0 +1,855 @@
+{
+  "version": 1,
+  "starting_head": "7c74c71006f0ba6e46e7798844d9d65454a2bce7",
+  "status": "IQ-4 BOUNDED JUDGMENT CERTIFIED — IQ-5 APPROVAL REQUIRED",
+  "gates": {
+    "judgmentTestsAllPass": true,
+    "plannerTestsAllPass": true,
+    "iq3aSourceTests": true,
+    "iq3aBenchmarkTests": true,
+    "iq3aLiveIsolation": true,
+    "noUnsupportedJudgmentAnywhere": true,
+    "noPassRegressed": true,
+    "statusAccounting": true,
+    "persistedAndTraced280": true,
+    "wave11": true,
+    "iq1Adversarial": true,
+    "iq2Objective": true,
+    "regressionMatrix": true,
+    "frozenAndPriorCertificationsUntouched": true,
+    "candidateSetFrozenOnceBeforeRuntimeChanges": true,
+    "performanceMeasured": true
+  },
+  "judgment_tests": {
+    "total": 56,
+    "counts": {
+      "PASS": 56
+    }
+  },
+  "planner_tests": {
+    "total": 48
+  },
+  "iq3a_regression": {
+    "source_tests": 255,
+    "benchmark_tests": 129,
+    "isolation": "PASS",
+    "synthetic_rows_removed": 10
+  },
+  "audit": {
+    "judged_turns": 143,
+    "failures": [],
+    "ok": true
+  },
+  "preserved_pass_turns": [
+    {
+      "id": "OMA-005:3",
+      "check_holds": true,
+      "has_check": true
+    },
+    {
+      "id": "CON-002:6",
+      "check_holds": true,
+      "has_check": true
+    },
+    {
+      "id": "CON-008:5",
+      "check_holds": true,
+      "has_check": true
+    },
+    {
+      "id": "CON-008:6",
+      "check_holds": true,
+      "has_check": true
+    }
+  ],
+  "summary": {
+    "status_before": {
+      "FAIL": 224,
+      "PASS": 51,
+      "BLOCKED": 5
+    },
+    "status_after": {
+      "FAIL": 210,
+      "PASS": 65,
+      "BLOCKED": 5
+    },
+    "promoted_count": 14,
+    "promoted": [
+      "FAC-001:4",
+      "FAC-002:2",
+      "FAC-003:3",
+      "FAC-003:7",
+      "CON-001:1",
+      "CON-001:2",
+      "CON-001:3",
+      "CON-004:2",
+      "CON-004:5",
+      "CON-004:6",
+      "CON-006:2",
+      "CON-006:3",
+      "CON-007:2",
+      "CON-008:7"
+    ],
+    "candidates": {
+      "total": 72,
+      "before": {
+        "FAIL": 69,
+        "PASS": 3
+      },
+      "after": {
+        "JUDGMENT_REMAINS_FAILED": 28,
+        "UPSTREAM_SUBJECT_GAP": 9,
+        "REFERENCE_CONTINUITY_IQ5": 16,
+        "INITIATIVE_LATER": 2,
+        "PASS": 17
+      }
+    },
+    "by_surface": {
+      "office_internal": {
+        "JUDGMENT_REMAINS_FAILED": 23,
+        "UPSTREAM_SUBJECT_GAP": 3,
+        "REFERENCE_CONTINUITY_IQ5": 1
+      },
+      "public_corporate": {
+        "INITIATIVE_LATER": 1,
+        "REFERENCE_CONTINUITY_IQ5": 2,
+        "UPSTREAM_SUBJECT_GAP": 1
+      },
+      "facility": {
+        "JUDGMENT_REMAINS_FAILED": 4,
+        "PASS": 4,
+        "REFERENCE_CONTINUITY_IQ5": 5,
+        "UPSTREAM_SUBJECT_GAP": 3,
+        "INITIATIVE_LATER": 1
+      },
+      "consumer": {
+        "PASS": 13,
+        "UPSTREAM_SUBJECT_GAP": 2,
+        "REFERENCE_CONTINUITY_IQ5": 8,
+        "JUDGMENT_REMAINS_FAILED": 1
+      }
+    },
+    "judgment_modes_all_turns": {
+      "bounded_no_provider/BOUNDED": 41,
+      "deterministic/BOUNDED": 38,
+      "deterministic/JUDGED": 64
+    },
+    "judged_turns": 143,
+    "ranking_artifacts_created": 9,
+    "answers_changed": 144,
+    "answers_changed_by_previous_status": {
+      "FAIL": 138,
+      "PASS": 4,
+      "BLOCKED": 2
+    },
+    "answers_changed_outside_candidates": [
+      {
+        "id": "OMA-001:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-001:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-001:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-001:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-001:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-002:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-002:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-003:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-003:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-003:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-004:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-005:3",
+        "previous_status": "PASS"
+      },
+      {
+        "id": "OMA-005:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:1",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:2",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-007:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-007:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-008:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-008:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-009:2",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-009:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-009:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-010:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-010:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-010:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-010:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-003:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-003:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-003:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-006:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-007:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-007:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-002:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-002:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-003:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:1",
+        "previous_status": "BLOCKED"
+      },
+      {
+        "id": "FAC-004:2",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:4",
+        "previous_status": "BLOCKED"
+      },
+      {
+        "id": "FAC-004:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-007:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-007:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-007:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-008:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-009:1",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-009:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-009:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-010:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-001:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-001:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-002:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:1",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:2",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-005:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-006:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-006:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-009:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-010:1",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-010:5",
+        "previous_status": "FAIL"
+      }
+    ],
+    "moved_to_reference_continuity_iq5": 16,
+    "moved_to_reassessment": 0,
+    "moved_to_initiative": 2,
+    "remaining_judgment_failures": [
+      "OMA-001:2",
+      "OMA-002:1",
+      "OMA-002:2",
+      "OMA-002:3",
+      "OMA-002:4",
+      "OMA-002:7",
+      "OMA-003:1",
+      "OMA-003:2",
+      "OMA-003:4",
+      "OMA-003:6",
+      "OMA-004:1",
+      "OMA-004:2",
+      "OMA-005:2",
+      "OMA-006:4",
+      "OMA-006:5",
+      "OMA-007:1",
+      "OMA-007:2",
+      "OMA-007:3",
+      "OMA-007:4",
+      "OMA-007:6",
+      "OMA-009:7",
+      "OMA-010:2",
+      "OMA-010:4",
+      "FAC-001:3",
+      "FAC-003:4",
+      "FAC-008:6",
+      "FAC-010:5",
+      "CON-002:2"
+    ],
+    "missing_capability": []
+  },
+  "oma001": [
+    {
+      "id": "OMA-001:1",
+      "prompt": "I just got into the office. What actually needs my attention today?",
+      "judgment": null,
+      "ranking_artifact": false,
+      "answer": "leads that need attention:\n20 leads out of 39 open.\n\nopportunities that haven't been followed up:\n3 opportunities. 2 haven't had activity in at least two weeks.\n\nreports awaiting approval:\n1 report awaiting approval.\n\ndevelopment project status:\n3 development projects."
+    },
+    {
+      "id": "OMA-001:2",
+      "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+      "judgment": "bounded_no_provider/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); IQ title diligence before JV commitment (open/active, recorded priority high, due within 48 hours); Wave11 support case (open/active, record"
+    },
+    {
+      "id": "OMA-001:3",
+      "prompt": "Why is the second one more important than the others?",
+      "judgment": "deterministic/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I found no active item in the part of the records I could read. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. 15 lead/opportunity/project records differ mainly in free-text notes, which I cannot weigh against each other without comparative judgment; I did not rank them. Office evidence is a bounded, supplied view, not the whole pipeline. 8 leads read (1 recorded as qualified, 7 as new). Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list."
+    },
+    {
+      "id": "OMA-001:4",
+      "prompt": "The Chairman for that project says financing is already secured.",
+      "judgment": "deterministic/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I found no active item in the part of the records I could read. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. 15 lead/opportunity/project records differ mainly in free-text notes, which I cannot weigh against each other without comparative judgment; I did not rank them. Office evidence is a bounded, supplied view, not the whole pipeline. 8 leads read (1 recorded as qualified, 7 as new). Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list. Your information is unverified."
+    },
+    {
+      "id": "OMA-001:5",
+      "prompt": "Does that change your priority?",
+      "judgment": "bounded_no_provider/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current."
+    },
+    {
+      "id": "OMA-001:6",
+      "prompt": "What can I delegate and what needs my decision?",
+      "judgment": "bounded_no_provider/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); IQ title diligence before JV commitment (open/active, recorded priority high, due within 48 hours); Wave11 support case (open/active, record"
+    },
+    {
+      "id": "OMA-001:7",
+      "prompt": "Give me the next move, not a menu of things you can do.",
+      "judgment": "bounded_no_provider/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); IQ title diligence before JV commitment (open/active, recorded priority high, due within 48 hours); Wave11 support case (open/active, record"
+    }
+  ],
+  "performance": {
+    "status": "MEASURED",
+    "environment": "pure compute in one Node process; provider is a latency-controlled stub (no live model was available)",
+    "runs_deterministic": 200,
+    "configured_provider_timeout_ms": 6000,
+    "deterministic": [
+      {
+        "scenario": "2_candidates",
+        "candidates": 2,
+        "judgment_ms": {
+          "n": 200,
+          "mean": 0.026,
+          "p50": 0.021,
+          "p95": 0.034,
+          "max": 0.394
+        },
+        "response_chars": {
+          "n": 200,
+          "mean": 340,
+          "p50": 340,
+          "p95": 340,
+          "max": 340
+        }
+      },
+      {
+        "scenario": "3_candidates",
+        "candidates": 3,
+        "judgment_ms": {
+          "n": 200,
+          "mean": 0.022,
+          "p50": 0.018,
+          "p95": 0.034,
+          "max": 0.158
+        },
+        "response_chars": {
+          "n": 200,
+          "mean": 387,
+          "p50": 387,
+          "p95": 387,
+          "max": 387
+        }
+      },
+      {
+        "scenario": "largest_bounded_typed_set (8 sources x 8 items = 64)",
+        "candidates": 64,
+        "judgment_ms": {
+          "n": 200,
+          "mean": 0.177,
+          "p50": 0.165,
+          "p95": 0.254,
+          "max": 0.636
+        },
+        "response_chars": {
+          "n": 200,
+          "mean": 3001,
+          "p50": 3001,
+          "p95": 3001,
+          "max": 3001
+        }
+      }
+    ],
+    "provider_backed": [
+      {
+        "scenario": "2_candidates",
+        "stub_provider_latency_ms": 0,
+        "candidates": 2,
+        "total_judgment_ms": {
+          "n": 200,
+          "mean": 0.046,
+          "p50": 0.035,
+          "p95": 0.078,
+          "max": 1.12
+        },
+        "core_overhead_ms_excluding_provider": {
+          "n": 200,
+          "mean": 0.046,
+          "p50": 0.035,
+          "p95": 0.078,
+          "max": 1.12
+        },
+        "provider_request_bytes": 774,
+        "labels_ranked": 2
+      },
+      {
+        "scenario": "2_candidates",
+        "stub_provider_latency_ms": 50,
+        "candidates": 2,
+        "total_judgment_ms": {
+          "n": 25,
+          "mean": 52.291,
+          "p50": 52.678,
+          "p95": 53.172,
+          "max": 53.237
+        },
+        "core_overhead_ms_excluding_provider": {
+          "n": 25,
+          "mean": 0.571,
+          "p50": 0.735,
+          "p95": 1.282,
+          "max": 1.288
+        },
+        "provider_request_bytes": 774,
+        "labels_ranked": 2
+      },
+      {
+        "scenario": "2_candidates",
+        "stub_provider_latency_ms": 250,
+        "candidates": 2,
+        "total_judgment_ms": {
+          "n": 25,
+          "mean": 252.332,
+          "p50": 252.535,
+          "p95": 253.159,
+          "max": 253.183
+        },
+        "core_overhead_ms_excluding_provider": {
+          "n": 25,
+          "mean": 0.532,
+          "p50": 0.559,
+          "p95": 1.06,
+          "max": 1.347
+        },
+        "provider_request_bytes": 774,
+        "labels_ranked": 2
+      },
+      {
+        "scenario": "3_candidates",
+        "stub_provider_latency_ms": 0,
+        "candidates": 3,
+        "total_judgment_ms": {
+          "n": 200,
+          "mean": 0.094,
+          "p50": 0.063,
+          "p95": 0.218,
+          "max": 0.495
+        },
+        "core_overhead_ms_excluding_provider": {
+          "n": 200,
+          "mean": 0.094,
+          "p50": 0.063,
+          "p95": 0.218,
+          "max": 0.495
+        },
+        "provider_request_bytes": 1071,
+        "labels_ranked": 3
+      },
+      {
+        "scenario": "3_candidates",
+        "stub_provider_latency_ms": 50,
+        "candidates": 3,
+        "total_judgment_ms": {
+          "n": 25,
+          "mean": 52.411,
+          "p50": 52.516,
+          "p95": 53.139,
+          "max": 53.231
+        },
+        "core_overhead_ms_excluding_provider": {
+          "n": 25,
+          "mean": 0.491,
+          "p50": 0.516,
+          "p95": 1.15,
+          "max": 1.169
+        },
+        "provider_request_bytes": 1071,
+        "labels_ranked": 3
+      },
+      {
+        "scenario": "3_candidates",
+        "stub_provider_latency_ms": 250,
+        "candidates": 3,
+        "total_judgment_ms": {
+          "n": 25,
+          "mean": 252.31,
+          "p50": 252.535,
+          "p95": 253.144,
+          "max": 253.335
+        },
+        "core_overhead_ms_excluding_provider": {
+          "n": 25,
+          "mean": 0.71,
+          "p50": 0.788,
+          "p95": 1.136,
+          "max": 1.144
+        },
+        "provider_request_bytes": 1071,
+        "labels_ranked": 3
+      },
+      {
+        "scenario": "largest_bounded_candidate_set (8 items per source)",
+        "stub_provider_latency_ms": 0,
+        "candidates": 8,
+        "total_judgment_ms": {
+          "n": 200,
+          "mean": 0.121,
+          "p50": 0.077,
+          "p95": 0.395,
+          "max": 0.561
+        },
+        "core_overhead_ms_excluding_provider": {
+          "n": 200,
+          "mean": 0.111,
+          "p50": 0.076,
+          "p95": 0.394,
+          "max": 0.561
+        },
+        "provider_request_bytes": 2576,
+        "labels_ranked": 3
+      },
+      {
+        "scenario": "largest_bounded_candidate_set (8 items per source)",
+        "stub_provider_latency_ms": 50,
+        "candidates": 8,
+        "total_judgment_ms": {
+          "n": 25,
+          "mean": 51.865,
+          "p50": 52.175,
+          "p95": 52.969,
+          "max": 53.112
+        },
+        "core_overhead_ms_excluding_provider": {
+          "n": 25,
+          "mean": 0.385,
+          "p50": 0.531,
+          "p95": 1.112,
+          "max": 1.175
+        },
+        "provider_request_bytes": 2576,
+        "labels_ranked": 3
+      },
+      {
+        "scenario": "largest_bounded_candidate_set (8 items per source)",
+        "stub_provider_latency_ms": 250,
+        "candidates": 8,
+        "total_judgment_ms": {
+          "n": 25,
+          "mean": 252.152,
+          "p50": 252.187,
+          "p95": 253.36,
+          "max": 253.47
+        },
+        "core_overhead_ms_excluding_provider": {
+          "n": 25,
+          "mean": 0.632,
+          "p50": 0.752,
+          "p95": 1.41,
+          "max": 1.416
+        },
+        "provider_request_bytes": 2576,
+        "labels_ranked": 3
+      }
+    ]
+  },
+  "provider": {
+    "configured_in_corpus": false,
+    "note": "No provider key or model is configured in the benchmark environment; provider-backed judgment is exercised only with a scripted stub. Model quality on a live provider is unmeasured."
+  },
+  "validation": {
+    "wave11": {
+      "PASS": 131,
+      "FAIL": 1
+    },
+    "safety": {
+      "execution_attempts": 0,
+      "results": {
+        "PASS": 10
+      }
+    },
+    "objective": {
+      "status": "PASS",
+      "parser_cases": 44
+    },
+    "regressions": {
+      "counts": {
+        "PASS": 19,
+        "FAIL": 4
+      },
+      "controls": [
+        {
+          "suite": "oyi-workflow-action-phase-c-reload-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-action-phase-c-multigang-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-action-phase-c-correction-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-durable-continuation-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        }
+      ]
+    }
+  },
+  "source_files_changed": [
+    "src/oyi-core/context/conversationAssessmentContext.ts",
+    "src/oyi-core/evidence/judgment/compose.ts",
+    "src/oyi-core/evidence/judgment/deterministic.ts",
+    "src/oyi-core/evidence/judgment/dominance.ts",
+    "src/oyi-core/evidence/judgment/evidenceIndex.ts",
+    "src/oyi-core/evidence/judgment/judge.ts",
+    "src/oyi-core/evidence/judgment/provider.ts",
+    "src/oyi-core/evidence/judgment/types.ts",
+    "src/oyi-core/evidence/judgment/validator.ts",
+    "src/oyi-core/evidence/planner/bundle.ts",
+    "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+  ],
+  "source_hashes": {
+    "src/oyi-core/context/conversationAssessmentContext.ts": "30917fddbb2209571831b898deeb82c2c10488d632b2b0f52586735eba436705",
+    "src/oyi-core/evidence/judgment/compose.ts": "6d56dab2bf890fd2938a7ab858b6bde476e6e42f62d740a1237f586146f6d9c9",
+    "src/oyi-core/evidence/judgment/deterministic.ts": "0189fdbe119eba648ed90b76100fe595818eae483d632351d425619804ab22b3",
+    "src/oyi-core/evidence/judgment/dominance.ts": "273a0914d0b1b155281918e55b7f7872989d61ac23dd4cfc9200bdbf7be3e47a",
+    "src/oyi-core/evidence/judgment/evidenceIndex.ts": "dd8f98061cffa895b72001d6eaa1797b8b05a1f99fddf1f51a07ab0928221598",
+    "src/oyi-core/evidence/judgment/judge.ts": "430fa5c23efc8ad83c27d9abe227b24b81b57f07b405073a01e87c38a83423fe",
+    "src/oyi-core/evidence/judgment/provider.ts": "c20b0a8ae2ab227ffff22f6cff783e91132b556f3ca4e2f823ab55392d2d3141",
+    "src/oyi-core/evidence/judgment/types.ts": "f3b041184dc966d77da394c8f6b8e6a33341ba7b12aa6cffd60fc95466123c17",
+    "src/oyi-core/evidence/judgment/validator.ts": "2dfa975c5739391a3a3ef530f0011c01248876a10c3991c430f846ca78cb674c",
+    "src/oyi-core/evidence/planner/bundle.ts": "080fc7a02935bceebdbb4595190b222f812af6fd038c2dabf0f8f249389657db",
+    "src/oyi-core/orchestration/ConversationOrchestrator.ts": "fb492e09ad0f1508f053bdb6f966bb9b9e956c22aa463b11d05b29b9f80e09d2"
+  },
+  "raw_hashes": {
+    "/tmp/iq4-v2-iq.json": "6620439934f6d62a1ab4ea42bb8d83f3d3b702515f6909e26391c3105a0fd7ad",
+    "/tmp/iq4-v2-wave11.json": "910dda2e57dc90fa85942642607cbb241f0d83d30de4f14549e4edb258cabeda",
+    "/tmp/iq4-v2-safety.json": "b23be0b2fb9922e0e2b51fcc8ebe5ce4a9af5a946af455a904b2ea4269611daa",
+    "/tmp/iq4-v2-objective.json": "b5140e8b7084a16ca087e7e86acb385d988bc81cf091e43e0bbda42b97a59ab0",
+    "/tmp/iq4-v2-regressions.json": "6ea6a0d5510e2d0b53b187bc4753625498dcfe669c05e9b51619a3053c576695"
+  }
+}

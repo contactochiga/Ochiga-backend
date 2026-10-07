@@ -17,6 +17,9 @@ export function requestedTopN(question: string): number | null {
 }
 
 export const JUDGMENT_PROVIDER_TIMEOUT_MS = Number(process.env.OYI_JUDGMENT_TIMEOUT_MS) > 0 ? Number(process.env.OYI_JUDGMENT_TIMEOUT_MS) : 6000;
+// A derived ranking artifact is minted only for a genuine ranking request. A comparison answers, but never creates an artifact:
+// its pair is "the two items I took from the records", which is not necessarily the pair the user meant, and a later ordinal
+// ("the second one") must not resolve against it.
 const RANKING_OBJECTIVES = new Set(["prioritize", "compare"]);
 
 export type JudgeArgs = {
@@ -112,7 +115,8 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
     provider.failure_class = provider.failure_class ?? "validator_failure";
   } else if (!ok) { ok = false; }
   if (result.mode === "fallback_after_rejection" && provider.failure_class === null) provider.failure_class = "validator_failure";
-  const artifact = ok && wantsRanking && rankingAllowed && result.status === "JUDGED" ? artifactFor(result, a, basis, now) : null;
+  const mintsArtifact = a.objective === "prioritize" || topN !== null;
+  const artifact = ok && wantsRanking && mintsArtifact && rankingAllowed && result.status === "JUDGED" ? artifactFor(result, a, basis, now) : null;
   if (!artifact) { if (result.ranking && !(ok && wantsRanking && rankingAllowed)) result = { ...result, ranking: null, tied_groups: [] }; }
   const text = composeJudgmentText(result, a.state);
   return { result, text, ranking_artifact: artifact, validation: { ok, failures: failures.slice(0, 12) }, provider, candidate_count: index.candidates.length,

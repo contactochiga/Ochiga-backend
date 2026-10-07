@@ -1,0 +1,253 @@
+{
+  "status": "MEASURED",
+  "environment": "pure compute in one Node process; provider is a latency-controlled stub (no live model was available)",
+  "runs_deterministic": 200,
+  "configured_provider_timeout_ms": 6000,
+  "deterministic": [
+    {
+      "scenario": "2_candidates",
+      "candidates": 2,
+      "judgment_ms": {
+        "n": 200,
+        "mean": 0.026,
+        "p50": 0.021,
+        "p95": 0.034,
+        "max": 0.394
+      },
+      "response_chars": {
+        "n": 200,
+        "mean": 340,
+        "p50": 340,
+        "p95": 340,
+        "max": 340
+      }
+    },
+    {
+      "scenario": "3_candidates",
+      "candidates": 3,
+      "judgment_ms": {
+        "n": 200,
+        "mean": 0.022,
+        "p50": 0.018,
+        "p95": 0.034,
+        "max": 0.158
+      },
+      "response_chars": {
+        "n": 200,
+        "mean": 387,
+        "p50": 387,
+        "p95": 387,
+        "max": 387
+      }
+    },
+    {
+      "scenario": "largest_bounded_typed_set (8 sources x 8 items = 64)",
+      "candidates": 64,
+      "judgment_ms": {
+        "n": 200,
+        "mean": 0.177,
+        "p50": 0.165,
+        "p95": 0.254,
+        "max": 0.636
+      },
+      "response_chars": {
+        "n": 200,
+        "mean": 3001,
+        "p50": 3001,
+        "p95": 3001,
+        "max": 3001
+      }
+    }
+  ],
+  "provider_backed": [
+    {
+      "scenario": "2_candidates",
+      "stub_provider_latency_ms": 0,
+      "candidates": 2,
+      "total_judgment_ms": {
+        "n": 200,
+        "mean": 0.046,
+        "p50": 0.035,
+        "p95": 0.078,
+        "max": 1.12
+      },
+      "core_overhead_ms_excluding_provider": {
+        "n": 200,
+        "mean": 0.046,
+        "p50": 0.035,
+        "p95": 0.078,
+        "max": 1.12
+      },
+      "provider_request_bytes": 774,
+      "labels_ranked": 2
+    },
+    {
+      "scenario": "2_candidates",
+      "stub_provider_latency_ms": 50,
+      "candidates": 2,
+      "total_judgment_ms": {
+        "n": 25,
+        "mean": 52.291,
+        "p50": 52.678,
+        "p95": 53.172,
+        "max": 53.237
+      },
+      "core_overhead_ms_excluding_provider": {
+        "n": 25,
+        "mean": 0.571,
+        "p50": 0.735,
+        "p95": 1.282,
+        "max": 1.288
+      },
+      "provider_request_bytes": 774,
+      "labels_ranked": 2
+    },
+    {
+      "scenario": "2_candidates",
+      "stub_provider_latency_ms": 250,
+      "candidates": 2,
+      "total_judgment_ms": {
+        "n": 25,
+        "mean": 252.332,
+        "p50": 252.535,
+        "p95": 253.159,
+        "max": 253.183
+      },
+      "core_overhead_ms_excluding_provider": {
+        "n": 25,
+        "mean": 0.532,
+        "p50": 0.559,
+        "p95": 1.06,
+        "max": 1.347
+      },
+      "provider_request_bytes": 774,
+      "labels_ranked": 2
+    },
+    {
+      "scenario": "3_candidates",
+      "stub_provider_latency_ms": 0,
+      "candidates": 3,
+      "total_judgment_ms": {
+        "n": 200,
+        "mean": 0.094,
+        "p50": 0.063,
+        "p95": 0.218,
+        "max": 0.495
+      },
+      "core_overhead_ms_excluding_provider": {
+        "n": 200,
+        "mean": 0.094,
+        "p50": 0.063,
+        "p95": 0.218,
+        "max": 0.495
+      },
+      "provider_request_bytes": 1071,
+      "labels_ranked": 3
+    },
+    {
+      "scenario": "3_candidates",
+      "stub_provider_latency_ms": 50,
+      "candidates": 3,
+      "total_judgment_ms": {
+        "n": 25,
+        "mean": 52.411,
+        "p50": 52.516,
+        "p95": 53.139,
+        "max": 53.231
+      },
+      "core_overhead_ms_excluding_provider": {
+        "n": 25,
+        "mean": 0.491,
+        "p50": 0.516,
+        "p95": 1.15,
+        "max": 1.169
+      },
+      "provider_request_bytes": 1071,
+      "labels_ranked": 3
+    },
+    {
+      "scenario": "3_candidates",
+      "stub_provider_latency_ms": 250,
+      "candidates": 3,
+      "total_judgment_ms": {
+        "n": 25,
+        "mean": 252.31,
+        "p50": 252.535,
+        "p95": 253.144,
+        "max": 253.335
+      },
+      "core_overhead_ms_excluding_provider": {
+        "n": 25,
+        "mean": 0.71,
+        "p50": 0.788,
+        "p95": 1.136,
+        "max": 1.144
+      },
+      "provider_request_bytes": 1071,
+      "labels_ranked": 3
+    },
+    {
+      "scenario": "largest_bounded_candidate_set (8 items per source)",
+      "stub_provider_latency_ms": 0,
+      "candidates": 8,
+      "total_judgment_ms": {
+        "n": 200,
+        "mean": 0.121,
+        "p50": 0.077,
+        "p95": 0.395,
+        "max": 0.561
+      },
+      "core_overhead_ms_excluding_provider": {
+        "n": 200,
+        "mean": 0.111,
+        "p50": 0.076,
+        "p95": 0.394,
+        "max": 0.561
+      },
+      "provider_request_bytes": 2576,
+      "labels_ranked": 3
+    },
+    {
+      "scenario": "largest_bounded_candidate_set (8 items per source)",
+      "stub_provider_latency_ms": 50,
+      "candidates": 8,
+      "total_judgment_ms": {
+        "n": 25,
+        "mean": 51.865,
+        "p50": 52.175,
+        "p95": 52.969,
+        "max": 53.112
+      },
+      "core_overhead_ms_excluding_provider": {
+        "n": 25,
+        "mean": 0.385,
+        "p50": 0.531,
+        "p95": 1.112,
+        "max": 1.175
+      },
+      "provider_request_bytes": 2576,
+      "labels_ranked": 3
+    },
+    {
+      "scenario": "largest_bounded_candidate_set (8 items per source)",
+      "stub_provider_latency_ms": 250,
+      "candidates": 8,
+      "total_judgment_ms": {
+        "n": 25,
+        "mean": 252.152,
+        "p50": 252.187,
+        "p95": 253.36,
+        "max": 253.47
+      },
+      "core_overhead_ms_excluding_provider": {
+        "n": 25,
+        "mean": 0.632,
+        "p50": 0.752,
+        "p95": 1.41,
+        "max": 1.416
+      },
+      "provider_request_bytes": 2576,
+      "labels_ranked": 3
+    }
+  ]
+}

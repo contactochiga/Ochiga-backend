@@ -1,0 +1,1643 @@
+{
+  "version": 1,
+  "status": "IQ4_REVIEW",
+  "raw_sha256": "6620439934f6d62a1ab4ea42bb8d83f3d3b702515f6909e26391c3105a0fd7ad",
+  "note": "See header: promotion checks are self-graded; the audit is the certification gate and does not depend on them.",
+  "audit": {
+    "judged_turns": 143,
+    "failures": [],
+    "ok": true
+  },
+  "preserved_pass_turns": [
+    {
+      "id": "OMA-005:3",
+      "check_holds": true,
+      "has_check": true
+    },
+    {
+      "id": "CON-002:6",
+      "check_holds": true,
+      "has_check": true
+    },
+    {
+      "id": "CON-008:5",
+      "check_holds": true,
+      "has_check": true
+    },
+    {
+      "id": "CON-008:6",
+      "check_holds": true,
+      "has_check": true
+    }
+  ],
+  "summary": {
+    "status_before": {
+      "FAIL": 224,
+      "PASS": 51,
+      "BLOCKED": 5
+    },
+    "status_after": {
+      "FAIL": 210,
+      "PASS": 65,
+      "BLOCKED": 5
+    },
+    "promoted_count": 14,
+    "promoted": [
+      "FAC-001:4",
+      "FAC-002:2",
+      "FAC-003:3",
+      "FAC-003:7",
+      "CON-001:1",
+      "CON-001:2",
+      "CON-001:3",
+      "CON-004:2",
+      "CON-004:5",
+      "CON-004:6",
+      "CON-006:2",
+      "CON-006:3",
+      "CON-007:2",
+      "CON-008:7"
+    ],
+    "candidates": {
+      "total": 72,
+      "before": {
+        "FAIL": 69,
+        "PASS": 3
+      },
+      "after": {
+        "JUDGMENT_REMAINS_FAILED": 28,
+        "UPSTREAM_SUBJECT_GAP": 9,
+        "REFERENCE_CONTINUITY_IQ5": 16,
+        "INITIATIVE_LATER": 2,
+        "PASS": 17
+      }
+    },
+    "by_surface": {
+      "office_internal": {
+        "JUDGMENT_REMAINS_FAILED": 23,
+        "UPSTREAM_SUBJECT_GAP": 3,
+        "REFERENCE_CONTINUITY_IQ5": 1
+      },
+      "public_corporate": {
+        "INITIATIVE_LATER": 1,
+        "REFERENCE_CONTINUITY_IQ5": 2,
+        "UPSTREAM_SUBJECT_GAP": 1
+      },
+      "facility": {
+        "JUDGMENT_REMAINS_FAILED": 4,
+        "PASS": 4,
+        "REFERENCE_CONTINUITY_IQ5": 5,
+        "UPSTREAM_SUBJECT_GAP": 3,
+        "INITIATIVE_LATER": 1
+      },
+      "consumer": {
+        "PASS": 13,
+        "UPSTREAM_SUBJECT_GAP": 2,
+        "REFERENCE_CONTINUITY_IQ5": 8,
+        "JUDGMENT_REMAINS_FAILED": 1
+      }
+    },
+    "judgment_modes_all_turns": {
+      "bounded_no_provider/BOUNDED": 41,
+      "deterministic/BOUNDED": 38,
+      "deterministic/JUDGED": 64
+    },
+    "judged_turns": 143,
+    "ranking_artifacts_created": 9,
+    "answers_changed": 144,
+    "answers_changed_by_previous_status": {
+      "FAIL": 138,
+      "PASS": 4,
+      "BLOCKED": 2
+    },
+    "answers_changed_outside_candidates": [
+      {
+        "id": "OMA-001:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-001:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-001:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-001:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-001:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-002:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-002:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-003:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-003:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-003:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-004:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-005:3",
+        "previous_status": "PASS"
+      },
+      {
+        "id": "OMA-005:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:1",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:2",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-006:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-007:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-007:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-008:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-008:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-009:2",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-009:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-009:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-010:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-010:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-010:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-010:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-003:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-003:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-003:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-006:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-007:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-007:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-002:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-002:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-003:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:1",
+        "previous_status": "BLOCKED"
+      },
+      {
+        "id": "FAC-004:2",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:4",
+        "previous_status": "BLOCKED"
+      },
+      {
+        "id": "FAC-004:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-004:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-007:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-007:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-007:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-008:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-009:1",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-009:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-009:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-010:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-001:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-001:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-002:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:1",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:2",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-003:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-005:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-006:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-006:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-009:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-010:1",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-010:5",
+        "previous_status": "FAIL"
+      }
+    ],
+    "moved_to_reference_continuity_iq5": 16,
+    "moved_to_reassessment": 0,
+    "moved_to_initiative": 2,
+    "remaining_judgment_failures": [
+      "OMA-001:2",
+      "OMA-002:1",
+      "OMA-002:2",
+      "OMA-002:3",
+      "OMA-002:4",
+      "OMA-002:7",
+      "OMA-003:1",
+      "OMA-003:2",
+      "OMA-003:4",
+      "OMA-003:6",
+      "OMA-004:1",
+      "OMA-004:2",
+      "OMA-005:2",
+      "OMA-006:4",
+      "OMA-006:5",
+      "OMA-007:1",
+      "OMA-007:2",
+      "OMA-007:3",
+      "OMA-007:4",
+      "OMA-007:6",
+      "OMA-009:7",
+      "OMA-010:2",
+      "OMA-010:4",
+      "FAC-001:3",
+      "FAC-003:4",
+      "FAC-008:6",
+      "FAC-010:5",
+      "CON-002:2"
+    ],
+    "missing_capability": []
+  },
+  "oma001": [
+    {
+      "id": "OMA-001:1",
+      "prompt": "I just got into the office. What actually needs my attention today?",
+      "judgment": null,
+      "ranking_artifact": false,
+      "answer": "leads that need attention:\n20 leads out of 39 open.\n\nopportunities that haven't been followed up:\n3 opportunities. 2 haven't had activity in at least two weeks.\n\nreports awaiting approval:\n1 report awaiting approval.\n\ndevelopment project status:\n3 development projects."
+    },
+    {
+      "id": "OMA-001:2",
+      "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+      "judgment": "bounded_no_provider/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); IQ title diligence before JV commitment (open/active, recorded priority high, due within 48 hours); Wave11 support case (open/active, record"
+    },
+    {
+      "id": "OMA-001:3",
+      "prompt": "Why is the second one more important than the others?",
+      "judgment": "deterministic/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I found no active item in the part of the records I could read. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. 15 lead/opportunity/project records differ mainly in free-text notes, which I cannot weigh against each other without comparative judgment; I did not rank them. Office evidence is a bounded, supplied view, not the whole pipeline. 8 leads read (1 recorded as qualified, 7 as new). Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list."
+    },
+    {
+      "id": "OMA-001:4",
+      "prompt": "The Chairman for that project says financing is already secured.",
+      "judgment": "deterministic/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I found no active item in the part of the records I could read. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. 15 lead/opportunity/project records differ mainly in free-text notes, which I cannot weigh against each other without comparative judgment; I did not rank them. Office evidence is a bounded, supplied view, not the whole pipeline. 8 leads read (1 recorded as qualified, 7 as new). Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list. Your information is unverified."
+    },
+    {
+      "id": "OMA-001:5",
+      "prompt": "Does that change your priority?",
+      "judgment": "bounded_no_provider/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current."
+    },
+    {
+      "id": "OMA-001:6",
+      "prompt": "What can I delegate and what needs my decision?",
+      "judgment": "bounded_no_provider/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); IQ title diligence before JV commitment (open/active, recorded priority high, due within 48 hours); Wave11 support case (open/active, record"
+    },
+    {
+      "id": "OMA-001:7",
+      "prompt": "Give me the next move, not a menu of things you can do.",
+      "judgment": "bounded_no_provider/BOUNDED",
+      "ranking_artifact": false,
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); IQ title diligence before JV commitment (open/active, recorded priority high, due within 48 hours); Wave11 support case (open/active, record"
+    }
+  ],
+  "candidates": [
+    {
+      "id": "OMA-001:2",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "OMA-002:1",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "OMA-002:2",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "OMA-002:3",
+      "surface": "office_internal",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-002:4",
+      "surface": "office_internal",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-002:7",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "OMA-003:1",
+      "surface": "office_internal",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-003:2",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "OMA-003:4",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "OMA-003:6",
+      "surface": "office_internal",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-004:1",
+      "surface": "office_internal",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-004:2",
+      "surface": "office_internal",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-004:5",
+      "surface": "office_internal",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "UPSTREAM_SUBJECT_GAP",
+      "why": "benchmark lists classes the IQ-2 subject never requested: office_development",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-004:7",
+      "surface": "office_internal",
+      "objective": "explain",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "UPSTREAM_SUBJECT_GAP",
+      "why": "benchmark lists classes the IQ-2 subject never requested: office_development",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-005:2",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "OMA-005:6",
+      "surface": "office_internal",
+      "objective": "explain",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "UPSTREAM_SUBJECT_GAP",
+      "why": "benchmark lists classes the IQ-2 subject never requested: office_financial",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-006:4",
+      "surface": "office_internal",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-006:5",
+      "surface": "office_internal",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-007:1",
+      "surface": "office_internal",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-007:2",
+      "surface": "office_internal",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-007:3",
+      "surface": "office_internal",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-007:4",
+      "surface": "office_internal",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-007:6",
+      "surface": "office_internal",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "OMA-008:4",
+      "surface": "office_internal",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-009:7",
+      "surface": "office_internal",
+      "objective": "explain",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "a valid, evidence-linked statement was produced but it does not meet this frozen envelope (the answer is not specific to the question asked)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-010:2",
+      "surface": "office_internal",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
+      "judgment": {
+        "mode": "bounded_no_provider",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OMA-010:4",
+      "surface": "office_internal",
+      "objective": "explain",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "a valid, evidence-linked statement was produced but it does not meet this frozen envelope (the answer is not specific to the question asked)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OSA-006:5",
+      "surface": "public_corporate",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "INITIATIVE_LATER",
+      "why": "recorded next boundary INITIATIVE",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OSA-006:6",
+      "surface": "public_corporate",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OSA-007:3",
+      "surface": "public_corporate",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "OSA-007:7",
+      "surface": "public_corporate",
+      "objective": "explain",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "UPSTREAM_SUBJECT_GAP",
+      "why": "benchmark lists classes the IQ-2 subject never requested: corporate_development",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-001:3",
+      "surface": "facility",
+      "objective": "explain",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "a valid, evidence-linked statement was produced but it does not meet this frozen envelope (the answer is not specific to the question asked)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-001:4",
+      "surface": "facility",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": true,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "FAC-002:2",
+      "surface": "facility",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-002:5",
+      "surface": "facility",
+      "objective": "explain",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-002:7",
+      "surface": "facility",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-003:3",
+      "surface": "facility",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-003:4",
+      "surface": "facility",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "a valid, evidence-linked statement was produced but it does not meet this frozen envelope (the answer is not specific to the question asked)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": true,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-003:7",
+      "surface": "facility",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": true,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "FAC-005:5",
+      "surface": "facility",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "UPSTREAM_SUBJECT_GAP",
+      "why": "benchmark lists classes the IQ-2 subject never requested: security",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": true,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-005:6",
+      "surface": "facility",
+      "objective": "compare",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "INITIATIVE_LATER",
+      "why": "recorded next boundary INITIATIVE",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": true,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-005:7",
+      "surface": "facility",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "UPSTREAM_SUBJECT_GAP",
+      "why": "benchmark lists classes the IQ-2 subject never requested: maintenance",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": true,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "FAC-007:2",
+      "surface": "facility",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-008:2",
+      "surface": "facility",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-008:6",
+      "surface": "facility",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "a valid, evidence-linked statement was produced but it does not meet this frozen envelope (the answer is not specific to the question asked)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-009:2",
+      "surface": "facility",
+      "objective": "explain",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "UPSTREAM_SUBJECT_GAP",
+      "why": "benchmark lists classes the IQ-2 subject never requested: device_availability",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-010:3",
+      "surface": "facility",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "FAC-010:5",
+      "surface": "facility",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "a valid, evidence-linked statement was produced but it does not meet this frozen envelope (the answer is not specific to the question asked)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-001:1",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-001:2",
+      "surface": "consumer",
+      "objective": "prioritize",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": true,
+      "exact_ranking_required": true
+    },
+    {
+      "id": "CON-001:3",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": true,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-001:4",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "UPSTREAM_SUBJECT_GAP",
+      "why": "benchmark lists classes the IQ-2 subject never requested: security, visitors",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-002:1",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-002:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "a valid, evidence-linked statement was produced but it does not meet this frozen envelope (the answer is not specific to the question asked)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-002:3",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-002:4",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-002:6",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "PASS",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "retained PASS (preservation check holds)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-002:7",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-004:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-004:5",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-004:6",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-006:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-006:3",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-006:5",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "UPSTREAM_SUBJECT_GAP",
+      "why": "benchmark lists classes the IQ-2 subject never requested: security",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-007:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-007:3",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-008:1",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "BOUNDED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-008:2",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-008:3",
+      "surface": "consumer",
+      "objective": "explain",
+      "retained_status": "FAIL",
+      "after_status": "FAIL",
+      "iq4_class": "REFERENCE_CONTINUITY_IQ5",
+      "why": "recorded next boundary INTERPRETATION_OR_CONTINUITY",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-008:5",
+      "surface": "consumer",
+      "objective": "explain",
+      "retained_status": "PASS",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "retained PASS (preservation check holds)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-008:6",
+      "surface": "consumer",
+      "objective": "explain",
+      "retained_status": "PASS",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "retained PASS (preservation check holds)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    },
+    {
+      "id": "CON-008:7",
+      "surface": "consumer",
+      "objective": "assess",
+      "retained_status": "FAIL",
+      "after_status": "PASS",
+      "iq4_class": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "judgment": {
+        "mode": "deterministic",
+        "status": "JUDGED",
+        "validated": true
+      },
+      "ranking_artifact": false,
+      "exact_ranking_required": false
+    }
+  ]
+}
