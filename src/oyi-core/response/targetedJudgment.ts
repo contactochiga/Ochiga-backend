@@ -66,8 +66,13 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
     case "COUNT": {
       const k = sourceFor(state, T); if (!k) return null;
       const staleAsked = T.includes("stale") && k.freshness === "stale";
-      const n = k.record_count, noun = SOURCE_NOUN[k.source_key] || k.source_key;
-      const lead = `There ${n === 1 ? "is" : "are"} ${k.truncated ? "at least " : ""}${n} ${noun}${staleAsked ? " with stale readings" : ""}.`;
+      const openAsked = T.some(t => OPENISH.has(t)) && !T.some(t => CLOSEDISH.has(t));
+      const overdueAsked = T.some(t => ["overdue", "late"].includes(t));
+      let n = k.record_count; const noun = SOURCE_NOUN[k.source_key] || k.source_key;
+      const fromSource = index.candidates.filter(c => c.source_key === k.source_key);
+      if (fromSource.length && openAsked) n = fromSource.filter(c => levelOf(c, "lifecycle") === "active").length;
+      if (fromSource.length && overdueAsked) n = fromSource.filter(c => levelOf(c, "time_pressure") === "overdue").length;
+      const lead = `There ${n === 1 ? "is" : "are"} ${k.truncated ? "at least " : ""}${n} ${openAsked && fromSource.length ? "open " : overdueAsked && fromSource.length ? "overdue " : ""}${noun}${staleAsked ? " with stale readings" : ""}.`;
       return { lead, support: [] };
     }
     case "YES_NO_WITH_REASON": {

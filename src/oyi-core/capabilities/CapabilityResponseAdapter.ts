@@ -36,7 +36,7 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     if (tgt0.response_intent === "YES_NO_WITH_REASON" && tgt0.yes_no?.kind === "state") {
       const T0 = frame.rawText.toLowerCase();
       if (capabilityKey === "facility.cameras.read" && /unknown current video state/.test(result.answer) && /\b(?:recording|working|online|live|on|up|running)\b/.test(T0)) return { ...result, answer: `I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
-      if (capabilityKey === "visitors.pending.read" && /\b(?:arriv\w*|turned up|shown up|here|left|departed|gone|came|come)\b/.test(T0)) return { ...result, answer: `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
+      if (capabilityKey === "visitors.pending.read" && /\b(?:arriv\w*|turned up|shown up|here|inside|already in|left|departed|gone|came|come)\b/.test(T0)) return { ...result, answer: `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
     }
     const overview = result.metadata?.overview_view as OverviewView | undefined;
     if (overview) {

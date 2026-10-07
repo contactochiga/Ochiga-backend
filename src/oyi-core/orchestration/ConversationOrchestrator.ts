@@ -3591,6 +3591,22 @@ export class ConversationOrchestrator {
       tracer.finish({ thread_id: bareInstructionResponse.thread_id || null, response_state: bareInstructionResponse.persistence_saved === false ? "unsaved" : "returned" });
       return bareInstructionResponse;
     }
+    // IQ-8 answer targeting: two turn shapes have a direct, evidence-free answer that must not fall to a menu or an assessment paragraph.
+    // A standing constraint ("don't share ...", "from now on ...") is acknowledged as in force; a question about whether anything was changed
+    // is answered from this thread's own action records. Neither executes anything or creates durable state.
+    if (!activeWorkflow && !resolvedTurn.semantic_frame.mutationIntent) {
+      const sf = resolvedTurn.semantic_frame, earlyTarget = deriveAnswerTarget(sf.rawText, { objective: sf.cognitiveObjective, activeAssessment: Boolean(earlyAssessment) });
+      let direct: string | null = null, key = "";
+      if (earlyTarget.confirmation_kind === "constraint" && sf.operation !== "cancel") { direct = `Understood — noted for this conversation: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. Nothing I do here sends, shares or changes anything unless you ask and confirm it.`; key = "answer_target.constraint_acknowledged"; }
+      else if (!earlyAssessment && isHazardReport(sf.rawText) && ["facility", "consumer"].includes(context.input.surface)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action.`; key = "answer_target.safety_report"; }
+      else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = actionTruthLead(await threadActionTruth(context.input.thread_id)); key = "answer_target.action_result"; }
+      if (direct) {
+        const capability = syntheticOfficeActionCapability(key, "global");
+        const directResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, { status: "answered", answer: direct, presentation_policy: resultPresentation("text"), metadata: { answer_target: earlyTarget.response_intent } });
+        tracer.finish({ thread_id: directResponse.thread_id || null, response_state: directResponse.persistence_saved === false ? "unsaved" : "returned" });
+        return directResponse;
+      }
+    }
     // Wave 11 Consumer burn-down -- same principle as the bare
     // instruction check above, for an explicit confirm/cancel with no
     // active device workflow anywhere (the block above already handles
@@ -3610,22 +3626,6 @@ export class ConversationOrchestrator {
       const nothingPendingResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, result);
       tracer.finish({ thread_id: nothingPendingResponse.thread_id || null, response_state: nothingPendingResponse.persistence_saved === false ? "unsaved" : "returned" });
       return nothingPendingResponse;
-    }
-    // IQ-8 answer targeting: two turn shapes have a direct, evidence-free answer that must not fall to a menu or an assessment paragraph.
-    // A standing constraint ("don't share ...", "from now on ...") is acknowledged as in force; a question about whether anything was changed
-    // is answered from this thread's own action records. Neither executes anything or creates durable state.
-    if (!activeWorkflow && !resolvedTurn.semantic_frame.mutationIntent) {
-      const sf = resolvedTurn.semantic_frame, earlyTarget = deriveAnswerTarget(sf.rawText, { objective: sf.cognitiveObjective, activeAssessment: Boolean(earlyAssessment) });
-      let direct: string | null = null, key = "";
-      if (earlyTarget.confirmation_kind === "constraint" && sf.operation !== "cancel") { direct = `Understood — noted for this conversation: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. Nothing I do here sends, shares or changes anything unless you ask and confirm it.`; key = "answer_target.constraint_acknowledged"; }
-      else if (!earlyAssessment && isHazardReport(sf.rawText) && ["facility", "consumer"].includes(context.input.surface)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action.`; key = "answer_target.safety_report"; }
-      else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = actionTruthLead(await threadActionTruth(context.input.thread_id)); key = "answer_target.action_result"; }
-      if (direct) {
-        const capability = syntheticOfficeActionCapability(key, "global");
-        const directResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, { status: "answered", answer: direct, presentation_policy: resultPresentation("text"), metadata: { answer_target: earlyTarget.response_intent } });
-        tracer.finish({ thread_id: directResponse.thread_id || null, response_state: directResponse.persistence_saved === false ? "unsaved" : "returned" });
-        return directResponse;
-      }
     }
     // Wave 11 Consumer burn-down -- "No, Monday." after a scheduling
     // request that was itself denied outright (e.g. automations are not

@@ -153,6 +153,7 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (has(u, "or") && has(u, "which", "better", "smarter", "safer", "best", "prefer", "worse") ) s.compare += 3;
   // ---- prioritisation
   if (has(u, "priorit*", "rank*", "triage")) s.prioritize += 3;
+  if (has(u, "most") && has(u, "least") && has(u, "from", "to") && (u.imperative || ask)) s.prioritize += 4; // "from most to least X" is an ordering request
   if (has(u, "sort", "order") && (has(u, "by", "importance", "urgency", "risk", "priority", "them", "these", "those", "sensible", "running", "short", "out") || lead === "order")) s.prioritize += 3;
   if (u.wh && has(u, ...SUPERLATIVE.filter(x => x !== "first" && x !== "most"), "useful", "helpful", "valuable", "important")) s.prioritize += 2;
   if (u.wh && has(u, "block*", "blocker*", "blocking")) s.prioritize += 3;
@@ -194,7 +195,7 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (has(u, "recommend*", "suggest*", "advis*", "advice", "delegat*")) s.advise += 4;
   if (has(u, "hand", "pass") && has(u, "off", "over", "on", "to", "someone", "somebody")) s.advise += 3;
   if (has(u, "next") && has(u, "step", "steps", "move", "moves", "action", "thing")) s.advise += 4;
-  if (has(u, "proceed", "commit*", "pursue", "sign") && (u.q || u.wh || u.auxLead || has(u, "should", "shall", "ought"))) s.advise += 3; // a bare directive ("make the commitment") is an instruction, not a request for a view
+  if (has(u, "proceed", "commit*", "pursue", "sign") && !(T[T.indexOf("sign") + 1] === "off") && (u.q || u.wh || u.auxLead || has(u, "should", "shall", "ought"))) s.advise += 3; // a bare directive ("make the commitment") is an instruction, not a request for a view
   if (u.wh && has(u, "need*") && has(u, "do") && has(u, "we", "i", "us", "me")) s.advise += 4;
   if (u.wh && should && has(u, "verify", "check", "confirm", "test", "inspect", "establish", "rule")) s.advise += 3;
   if (u.wh && has(u, "convince*", "persuade*", "satisfy", "reassure*")) s.advise += 4;

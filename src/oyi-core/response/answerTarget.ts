@@ -32,7 +32,7 @@ const STOP = new Set(["the", "a", "an", "of", "to", "in", "on", "at", "for", "fr
 export const contentTokens = (tokens: string[]) => tokens.filter(t => !STOP.has(t) && t.length > 1);
 const NUM: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 const STATUS_WORDS = ["open", "closed", "resolved", "unresolved", "stale", "expired", "overdue", "pending", "qualified", "new", "active", "inactive", "offline", "online", "current", "historical", "high", "low", "urgent", "critical", "late", "waiting", "outstanding", "unassigned", "approved"];
-const INFERENCE = ["prove", "proves", "proved", "mean", "means", "meant", "imply", "implies", "establish", "establishes", "confirm", "confirms", "show", "shows", "enough", "justify", "justifies", "guarantee", "guarantees", "indicate", "indicates", "caused", "cause", "causes", "explain", "explains", "equal", "equals"];
+const INFERENCE = ["tell", "tells", "suggest", "suggests", "signal", "signals", "demonstrate", "demonstrates", "prove", "proves", "proved", "mean", "means", "meant", "imply", "implies", "establish", "establishes", "confirm", "confirms", "show", "shows", "enough", "justify", "justifies", "guarantee", "guarantees", "indicate", "indicates", "caused", "cause", "causes", "explain", "explains", "equal", "equals"];
 const ACTION_VERBS = ["switch", "switched", "change", "changed", "alter", "altered", "turn", "turned", "send", "sent", "execute", "executed", "run", "ran", "do", "did", "modify", "modified", "touch", "touched", "update", "updated", "lock", "locked", "unlock", "unlocked", "set", "move", "moved", "book", "booked"];
 const HAZARD = ["gas", "smoke", "fire", "flame", "burning", "electrical", "electric", "wiring", "sparks", "shock", "flood", "flooding", "collapse", "explosion", "leak", "leaking", "unsafe", "dangerous", "hazard", "hazardous", "injury", "injured", "intruder", "burglar", "alarm", "carbon", "monoxide", "panel", "exposed", "threat", "smell"];
 const RISK_ASK = ["dangerous", "unsafe", "hazard", "hazardous", "hazards", "danger", "safe", "secure", "risk", "risks", "risky", "threat", "worried", "worry", "concern", "concerning", "worrying", "harm", "vulnerable"];
@@ -58,6 +58,9 @@ const splitSides = (tokens: string[]): string[][] => {
 
 export function deriveAnswerTarget(text: string, opts: { objective?: string | null; activeAssessment?: boolean } = {}): AnswerTarget {
   // a turn that opens with context ("I just got into the office. What needs my attention?") is shaped by its last question or directive
+  // a leading condition ("if nothing was logged, does that ...?") frames the question that follows it
+  const cond = /^\s*(?:if|when|once|assuming|given)\b[^,]{3,80},\s*(.+\?\s*)$/i.exec(text);
+  if (cond) return deriveAnswerTarget(cond[1], opts);
   const sents = sentencesOf(text);
   if (sents.length > 1) { const last = analyse(sents[sents.length - 1]); if (last.q || last.wh || last.auxLead || last.imperative) { const inner = deriveAnswerTarget(sents[sents.length - 1], opts); return { ...inner, safety_relevant: inner.safety_relevant || isHazardText(text) }; } }
   const u: Utterance = analyse(text), T = u.tokens, lead = T[0] ?? "";
@@ -68,26 +71,31 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
     safety_relevant: hazard || riskAsk, is_question: u.q || u.wh || u.auxLead || u.imperative, must_answer: "", supporting_context_allowed: true, must_not_substitute: ["capability_menu"], ...over });
 
   if (isCapabilityInquiryText(text)) return base("CAPABILITY_DISCOVERY", { must_answer: "what Oyi can help with", must_not_substitute: [] });
+  const standingMarker = T.some(t => ["while", "during", "whenever", "until", "always", "ever", "never"].includes(t)) || T.slice(0, 3).join(" ") === "from now on";
+  if (isCancellationText(text) && standingMarker && T.length > 5 && !isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (isCancellationText(text) || isHoldDirective(text) || isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: isCallbackRequest(text) ? "callback" : isHoldDirective(text) ? "hold" : "cancel", must_answer: "what is now in force (nothing is executed)", must_not_substitute: ["capability_menu", "evidence_readiness"] });
   // a standing constraint on how Oyi behaves ("don't claim / share / invent ...", "from now on ...", "do not turn anything on or off")
   const neg = u.negImperative || (T[0] === "no" && /ing$/.test(T[1] ?? "")) || (/^(?:from now on|going forward|please do not|please don t)/.test(T.join(" ")) && T.includes("not"));
   const fromNow = T.slice(0, 3).join(" ") === "from now on";
-  if ((neg || fromNow) && !u.q && !u.wh && !/\b(?:just|only|instead)\b/i.test(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  const confidentiality = T[0] === "keep" && T.some(t => ["between", "private", "confidential", "secret", "yourself"].includes(t));
+  if ((neg || fromNow || confidentiality) && !u.q && !u.wh && !/\b(?:just|only|instead)\b/i.test(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
 
   // how many / how much / the number of / count of
   const countAsk = (lead === "how" && ["many", "much"].includes(T[1] ?? "")) || (T.includes("number") && T.includes("of") && (u.wh || u.q || u.imperative)) || (T.includes("count") && T.includes("of")) || (u.wh && T.includes("total"));
   if (countAsk) return base("COUNT", { quantity: "count", must_answer: "the number first", must_not_substitute: ["capability_menu", "list_for_count", "evidence_readiness"] });
 
   // did/have you <done something>? -> truth about actions taken in this conversation
-  const youDid = (T[0] === "did" || T[0] === "have" || T[0] === "has") && (T[1] === "you" || T.includes("anything") || T.includes("oyi")) && T.some(x => ACTION_VERBS.includes(x));
+  const youDid = ["did", "have", "has", "was", "were"].includes(T[0]) && (T[1] === "you" || T.includes("anything") || T.includes("oyi")) && T.some(x => ACTION_VERBS.includes(x));
   if (youDid && !/\b(?:prove|mean)\b/.test(T.join(" "))) return base("ACTION_RESULT", { yes_no: { kind: "action_result" }, must_answer: "whether anything was actually changed (yes/no first)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
 
+  // an action with only a pronoun for its object ("turn that off") cannot be carried out until it is clear what is meant
+  if (u.imperative && ["turn", "switch", "set", "lock", "unlock", "open", "close", "start", "stop"].includes(lead) && T.some(t => ["that", "this", "those", "them"].includes(t)) && !domainHits(T).some(h => ["devices", "rooms", "cameras", "utilities"].includes(h.domain)) && !T.includes("it")) return base("CLARIFICATION", { must_answer: "ask which one is meant", must_not_substitute: ["capability_menu", "evidence_readiness"] });
   // an instruction to ignore a boundary, or to treat the user as someone they are not, is declined whatever role is claimed
   if (T.some(t => ["ignore", "bypass", "override", "disregard", "pretend", "impersonate", "circumvent"].includes(t)) && T.some(t => ["privacy", "boundary", "boundaries", "permission", "permissions", "rule", "rules", "authority", "restriction", "restrictions", "policy", "owner", "admin", "manager", "role", "security", "limits"].includes(t)))
     return base("REFUSAL", { refusal_kind: "authority", must_answer: "decline to bypass a privacy/permission boundary, whatever role is claimed", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // attributing a problem to a named kind of person is not something the evidence supports (and is private by default)
   const person = T.some(t => ["resident", "tenant", "neighbour", "neighbor", "person", "someone", "who", "staff", "guard", "visitor"].includes(t));
-  if (person && u.wh && T.some(t => ["causing", "caused", "responsible", "reported", "blame", "complained", "reporting", "behind"].includes(t))) return base("REFUSAL", { must_answer: "decline to identify or blame an individual, then say what can be said", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  if (person && u.wh && T.some(t => ["causing", "caused", "responsible", "reported", "blame", "complained", "reporting", "behind", "complaint", "complaints", "made", "raised", "filed", "logged"].includes(t))) return base("REFUSAL", { must_answer: "decline to identify or blame an individual, then say what can be said", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // recall of the conversation itself
   if (u.wh && (T.includes("did") || T.includes("have")) && T.includes("i") && T.some(t => ["say", "said", "correct", "corrected", "mention", "mentioned", "ask", "asked", "tell", "told", "mean", "meant", "give", "gave", "given", "provided", "shared"].includes(t))) return base("DIRECT_ANSWER", { must_answer: "what the user said/corrected earlier", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // recall of what the conversation is about ("which room are we discussing?")

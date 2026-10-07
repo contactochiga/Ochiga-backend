@@ -9,13 +9,14 @@ const VOCAB: Array<[string, string[]]> = [
   ["maintenance", ["leak*", "pipe*", "repair*", "plumb*", "maintenance", "fault*", "lift", "elevator", "generator", "pump", "drain*", "flood*", "water", "broken", "damp", "crack*", "problem*", "issue*", "ticket*"]],
   ["security", ["detector*", "smoke", "security", "incident*", "alarm*", "intruder*", "theft", "burglar*", "guard*", "gate", "gates", "patrol*"]],
   ["cameras", ["camera*", "cctv", "footage"]],
-  ["visitors", ["visitor*", "guest*", "arriv*", "expected", "deliver*", "courier", "come", "coming", "visiting", "visited"]],
+  ["visitors", ["pass", "passes", "visitor*", "guest*", "arriv*", "expected", "deliver*", "courier", "come", "coming", "visiting", "visited"]],
   ["devices", ["device*", "light", "lights", "lamp*", "switch*", "plug*", "socket*", "tv", "lock", "locks", "locked", "door", "doors", "window*", "sensor*", "thermostat", "fan", "heater", "ac", "aircon", "air", "conditioner", "appliance*"]],
   ["utilities", ["electricity", "power", "energy", "bill", "bills", "meter*", "tariff*", "gas", "internet", "solar", "kwh", "consumption", "usage"]],
   ["wallet", ["wallet", "balance", "spend*", "spent", "spending", "transaction*"]],
   ["rooms", ["bedroom*", "kitchen", "bathroom", "lounge", "study", "room", "rooms", "garage", "porch", "hall", "hallway", "balcony", "attic", "basement"]],
   // property / opportunity vocabulary (public qualification and Office development)
   ["corporate_opportunity", ["land", "plot", "plots", "property", "building", "buildings", "house", "estate", "owner*", "owns", "own", "family", "heir*", "relative*", "inherit*", "title", "survey*", "zoning", "planning", "permit*", "storey*", "acre*", "hectare*", "sqm", "metres", "metre", "jv", "joint", "venture", "lease*", "sale", "sell*", "tenant*", "agree*", "consent*", "sign*", "residential", "commercial", "access", "road"]],
+  ["office_tasks", ["task*", "todo", "chore*"]],
   ["environment", ["hot", "cold", "warm", "stuffy", "stifling", "humid", "freezing", "boiling", "noisy", "loud", "smell*"]],
 ];
 const match = (t: string, stem: string) => (stem.endsWith("*") ? t.startsWith(stem.slice(0, -1)) : t === stem);

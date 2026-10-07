@@ -65,7 +65,11 @@ export function targetedRetrieval(original: string, ar: AnswerRows, target: Answ
   const namedRows = ar.rows.filter(r => nameTokens(r.label).some(t => named.has(t) && !GENERIC.has(t)));
   let rows = namedRows.length && namedRows.length < ar.rows.length ? namedRows : ar.rows;
   const popQuals = quals.filter(x => ar.population && norm(ar.population).includes(stem(x)));
-  const applicable = quals.filter(x => rows.some(r => matchesQual(r, x)) && !popQuals.includes(x));
+  // "not closed" / "never resolved": a negated qualifier asks for the opposite state
+  const OPPOSITE: Record<string, string> = { closed: "open", resolved: "unresolved", fixed: "unresolved", completed: "open", done: "open", open: "closed", unresolved: "resolved", active: "inactive", current: "expired" };
+  const negated = new Set(quals.filter(x => { const i = T.indexOf(x); return i > 0 && ["not", "never", "isn", "hasn", "haven"].includes(T[i - 1]); }));
+  const quals2 = quals.map(x => negated.has(x) ? (OPPOSITE[x] ?? x) : x);
+  const applicable = quals2.filter(x => rows.some(r => matchesQual(r, x)) && !popQuals.includes(x));
   if (applicable.length) rows = rows.filter(r => applicable.every(x => matchesQual(r, x)));
   const noun = ar.noun, one = ar.singular, support = clean(original);
   if (!rows.length && !ar.rows.length && intent === "STATUS") return `There are no ${noun} on record in what I read — that is what the records show, not proof that nothing is wrong.`;

@@ -14,14 +14,14 @@ export function publicLead(target: AnswerTarget, question: string, view: PublicV
   const v = { ...view, missing: view.missing ?? [] }, modelled = view.missing !== null;
   const T = analyse(question).tokens;
   const commit = T.some(t => COMMIT.has(t));
-  const asksSoFar = T.some(t => ["told", "have", "got", "know", "hold", "captured", "recorded"].includes(t)) && T.some(t => ["far", "now", "already", "so"].includes(t)) && (target.response_intent === "LIST" || target.response_intent === "DIRECT_ANSWER" || target.response_intent === "ASSESSMENT");
+  const asksSoFar = T.some(t => ["told", "have", "got", "know", "hold", "captured", "recorded", "noted", "shared", "given"].includes(t)) && T.some(t => ["far", "now", "already", "so", "back", "me", "noted", "shared"].includes(t)) && ["LIST", "DIRECT_ANSWER", "ASSESSMENT", "SUMMARY", "EXPLANATION"].includes(target.response_intent);
   switch (target.response_intent) {
     case "YES_NO_WITH_REASON": {
       if (commit) return "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.";
-      if (T.some(t => ["enough", "sufficient", "ready"].includes(t)) && modelled) return v.missing.length ? `Not yet — for a first look I would still need: ${list(v.missing.map(nice))}.` : "Yes — that is everything we typically need to take a first look.";
+      if (T.some(t => ["enough", "sufficient", "ready", "adequate", "adequately", "complete", "okay", "ok"].includes(t)) && modelled) return v.missing.length ? `Not yet — for a first look I would still need: ${list(v.missing.map(nice))}.` : "Yes — that is everything we typically need to take a first look.";
       return null;
     }
-    case "LIST": case "STATUS": case "ASSESSMENT": case "DIRECT_ANSWER": {
+    case "LIST": case "STATUS": case "ASSESSMENT": case "DIRECT_ANSWER": case "SUMMARY": case "EXPLANATION": {
       if (asksSoFar) return Object.keys(v.known).length ? `So far you have told me: ${knownText(v.known)}.` : "You haven't given me any opportunity details yet.";
       if ((T.includes("need") || T.includes("missing") || T.includes("still") || T.includes("require")) && modelled) return v.missing.length ? `What I still need from you: ${list(v.missing.map(nice))}.` : "I don't need anything further for a first look.";
       return null;

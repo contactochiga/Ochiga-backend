@@ -15,12 +15,13 @@ export function topicPhrase(question: string): string {
 }
 
 export function isGenericUnsupportedAnswer(answer: string): boolean {
-  return /^I understand the request, but Oyi does not have an enabled governed capability/.test(answer)
+  return /^I can (?:help with|tell you about) /.test(answer) || /^I understand the request, but Oyi does not have an enabled governed capability/.test(answer)
     || /^I understand this as an? [a-z_ ]+ request, but (?:that capability is not available in this release yet|I can’t confirm it from an enabled capability yet)/.test(answer)
     || /^That [a-z_ ]+ capability is not available from this surface right now/.test(answer);
 }
 
 export function limitationAnswer(target: AnswerTarget, question: string): string {
+  if (target.response_intent === "CLARIFICATION") return "Which one do you mean? I can't tell what that refers to, so I have not done anything.";
   if (target.response_intent === "REFUSAL" && target.refusal_kind === "authority") return "I can't do that: I won't ignore or bypass privacy, permission or authority boundaries, whatever role is claimed.";
   if (target.response_intent === "REFUSAL") return "I can't say who is responsible: attributing a problem to a person is not something the evidence supports, and I won't guess or name anyone.";
   const asked = question.replace(/\s+/g, " ").trim().slice(0, 120);
