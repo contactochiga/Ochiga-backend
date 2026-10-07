@@ -480,9 +480,12 @@
     }
   },
   "files_changed": [
+    "artifacts/intelligence-quality-v1-iq3b-certification.json",
+    "artifacts/intelligence-quality-v1-iq3b-performance.json",
     "artifacts/intelligence-quality-v1-iq3b-planner-tests.json",
     "artifacts/intelligence-quality-v1-iq3b-results.json",
     "docs/INTELLIGENCE_QUALITY_V1_IQ3A.md",
+    "docs/INTELLIGENCE_QUALITY_V1_IQ3B.md",
     "scripts/iq3a-benchmark-source-tests.mjs",
     "scripts/iq3b-certify.mjs",
     "scripts/iq3b-performance.mjs",
