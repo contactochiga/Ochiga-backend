@@ -13,7 +13,7 @@ const DOMAIN_NOUNS: Record<string, string[]> = {
 };
 export const rawSetFacts = (set: { created_at: string; domain: string } | null | undefined): RawSetFacts => set ? { created_at: set.created_at, domain: set.domain, object_nouns: DOMAIN_NOUNS[set.domain] || [] } : null;
 
-const STOP = new Set(["with", "from", "that", "this", "issue", "item", "lead", "wave11", "the", "and", "for", "have", "has", "been", "there", "their", "they", "says", "said", "now", "just", "very", "more", "much", "than", "then"]);
+const STOP = new Set(["resolved", "unresolved", "open", "closed", "fixed", "repaired", "secured", "worse", "still", "already", "again", "yet", "back", "online", "offline", "with", "from", "that", "this", "issue", "item", "lead", "wave11", "the", "and", "for", "have", "has", "been", "there", "their", "they", "says", "said", "now", "just", "very", "more", "much", "than", "then"]);
 const tokens = (t: string) => new Set(t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => w.length >= 4 && !STOP.has(w)));
 // New information concerns the artifact only if it points at it (a reference cue or an item's name) or shares a content word with one of its items.
 export function informationConcernsArtifact(text: string, art: DerivedRanking): boolean {

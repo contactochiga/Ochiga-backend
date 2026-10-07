@@ -1,0 +1,183 @@
+{
+  "status": "MEASURED",
+  "environment": "real orchestrator, planner, judgment and persistence on the loopback fixture (no network, no live model; the provider is a scripted stub with no latency)",
+  "office_multi_source_refresh": {
+    "surface": "office_internal",
+    "runs": 8,
+    "initial_assessment_ms": {
+      "n": 8,
+      "mean": 63.8,
+      "p50": 43.71812499999987,
+      "p95": 196.31758399999995,
+      "max": 196.31758399999995
+    },
+    "fact_attachment_turn_ms": {
+      "n": 8,
+      "mean": 79.6,
+      "p50": 76.99649999999997,
+      "p95": 109.57616699999994,
+      "max": 109.57616699999994
+    },
+    "reassessment_turn_ms": {
+      "n": 8,
+      "mean": 81.2,
+      "p50": 79.79208399999993,
+      "p95": 103.35145899999998,
+      "max": 103.35145899999998
+    },
+    "sources_refreshed": {
+      "n": 8,
+      "mean": 4,
+      "p50": 4,
+      "p95": 4,
+      "max": 4
+    },
+    "sources_reused": {
+      "n": 8,
+      "mean": 4,
+      "p50": 4,
+      "p95": 4,
+      "max": 4
+    },
+    "change_classes": {
+      "CHANGED_ORDER": 8
+    },
+    "reassessment_overhead_vs_initial_p50_ms": 36.1
+  },
+  "office_all_evidence_reused": {
+    "surface": "office_internal",
+    "runs": 8,
+    "initial_assessment_ms": {
+      "n": 8,
+      "mean": 36.2,
+      "p50": 35.727874999999585,
+      "p95": 41.411583000000064,
+      "max": 41.411583000000064
+    },
+    "fact_attachment_turn_ms": {
+      "n": 8,
+      "mean": 62.6,
+      "p50": 62.53850000000011,
+      "p95": 70.98329200000035,
+      "max": 70.98329200000035
+    },
+    "reassessment_turn_ms": {
+      "n": 8,
+      "mean": 67.8,
+      "p50": 62.94183299999986,
+      "p95": 89.2549170000002,
+      "max": 89.2549170000002
+    },
+    "sources_refreshed": {
+      "n": 8,
+      "mean": 2,
+      "p50": 2,
+      "p95": 2,
+      "max": 2
+    },
+    "sources_reused": {
+      "n": 8,
+      "mean": 6,
+      "p50": 6,
+      "p95": 6,
+      "max": 6
+    },
+    "change_classes": {
+      "CHANGED_ORDER": 8
+    },
+    "reassessment_overhead_vs_initial_p50_ms": 27.2
+  },
+  "facility_one_source_refresh": {
+    "surface": "facility",
+    "runs": 8,
+    "initial_assessment_ms": {
+      "n": 8,
+      "mean": 38.5,
+      "p50": 36.57979099999966,
+      "p95": 54.560999999999694,
+      "max": 54.560999999999694
+    },
+    "fact_attachment_turn_ms": {
+      "n": 8,
+      "mean": 45.8,
+      "p50": 44.79449999999997,
+      "p95": 60.83229200000005,
+      "max": 60.83229200000005
+    },
+    "reassessment_turn_ms": {
+      "n": 8,
+      "mean": 50.8,
+      "p50": 47.84991700000046,
+      "p95": 66.25045799999998,
+      "max": 66.25045799999998
+    },
+    "sources_refreshed": {
+      "n": 8,
+      "mean": 1,
+      "p50": 1,
+      "p95": 1,
+      "max": 1
+    },
+    "sources_reused": {
+      "n": 8,
+      "mean": 0,
+      "p50": 0,
+      "p95": 0,
+      "max": 0
+    },
+    "change_classes": {
+      "UNCHANGED": 8
+    },
+    "reassessment_overhead_vs_initial_p50_ms": 11.3
+  },
+  "consumer_one_source_refresh": {
+    "surface": "consumer",
+    "runs": 8,
+    "initial_assessment_ms": {
+      "n": 8,
+      "mean": 44.2,
+      "p50": 42.91041700000005,
+      "p95": 55.834249999999884,
+      "max": 55.834249999999884
+    },
+    "fact_attachment_turn_ms": {
+      "n": 8,
+      "mean": 45.6,
+      "p50": 45.830832999999984,
+      "p95": 49.624416999999994,
+      "max": 49.624416999999994
+    },
+    "reassessment_turn_ms": {
+      "n": 8,
+      "mean": 56.7,
+      "p50": 54.28345899999931,
+      "p95": 72.80845800000043,
+      "max": 72.80845800000043
+    },
+    "sources_refreshed": {
+      "n": 8,
+      "mean": 1,
+      "p50": 1,
+      "p95": 1,
+      "max": 1
+    },
+    "sources_reused": {
+      "n": 8,
+      "mean": 4,
+      "p50": 4,
+      "p95": 4,
+      "max": 4
+    },
+    "change_classes": {
+      "UNCHANGED": 8
+    },
+    "reassessment_overhead_vs_initial_p50_ms": 11.4
+  },
+  "pure_fact_attachment_ms": {
+    "n": 3000,
+    "mean": 0,
+    "p50": 0.0073,
+    "p95": 0.0235,
+    "max": 3.6271
+  }
+}

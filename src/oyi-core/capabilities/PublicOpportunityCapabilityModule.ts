@@ -24,7 +24,7 @@ import type { OyiEvidence } from "../contracts/evidence";
 import { publicOpportunityOutcome } from "../evidence/sources/publicReads";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { isAssessmentObjective } from "../context/conversationAssessmentContext";
-import { correctedPublicFacts } from "../context/publicOpportunityObjective";
+import { correctedPublicFacts, extractTitleStatus } from "../context/publicOpportunityObjective";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
 import { canonicalCorporateAnswer } from "./corporateKnowledgeAnswer";
@@ -109,6 +109,7 @@ function hasLandSignal(message: string, prior: PublicOpportunityObjective | null
       extractPropertyKind(message) ||
       extractArea(message) ||
       extractStructurePreference(message) ||
+      (prior && extractTitleStatus(message)) ||
       assertsNoSale(message) ||
       (prior && prior.objective_type === "development_partnership")
   );
@@ -140,6 +141,7 @@ function mergeObjective(prior: PublicOpportunityObjective | null, message: strin
   if (propertyKind) knownFacts.opportunity_type = propertyKind;
   else if (assertsOwnership(message) && !knownFacts.opportunity_type) knownFacts.opportunity_type = "land";
 
+  const titleStatus = extractTitleStatus(message); if (titleStatus) knownFacts.title_document_status = titleStatus;
   if (assertsNoSale(message) && !constraints.includes("no_sale")) constraints.push("no_sale");
 
   return {
@@ -149,9 +151,30 @@ function mergeObjective(prior: PublicOpportunityObjective | null, message: strin
     current_subject: location || prior?.current_subject || null,
     next_move: prior?.next_move || null,
     turns: (prior?.turns || 0) + 1,
+    last_changes: prior ? changesBetween(prior, knownFacts) : [],
     created_at: prior?.created_at || now,
     updated_at: now,
   };
+}
+
+type FactChange = { field: string; from: string | null; to: string };
+const changesBetween = (prior: PublicOpportunityObjective | null, next: Record<string, string>): FactChange[] =>
+  Object.keys(next).filter(k => (prior?.known_facts || {})[k] !== next[k]).map(k => ({ field: k, from: prior?.known_facts?.[k] ?? null, to: next[k] }));
+const openItems = (facts: Record<string, string>) => assessJvOpportunity(jvEvidenceFromKnownFacts(facts)).missing_information.filter(f => !NOT_YET_USEFUL_TO_ASK.has(f));
+// What changed, in the caller's own terms, and what it does to the first-look picture. Everything stays caller-supplied; nothing is a decision.
+function describeChanges(changes: FactChange[], before: Record<string, string>, after: Record<string, string>): string {
+  const parts = changes.map(c => c.from ? `${c.field.replace(/_/g, " ")} from ${c.from} to ${c.to}` : `${c.field.replace(/_/g, " ")}: ${c.to}`);
+  const supersededNote = changes.some(c => c.from) ? ", and I no longer treat the earlier value as current" : "";
+  const effects: string[] = [];
+  if (changes.some(c => c.field === "ownership_status")) effects.push("Who can authorise a JV on the family's behalf is not established by that.");
+  const title = changes.find(c => c.field === "title_document_status");
+  if (title && /not perfected|disputed/.test(title.to)) effects.push("A title that is not yet perfected leaves ownership and the right to enter a JV open; that is a gap to resolve, and nothing here is a decision or a commitment by Ochiga.");
+  else if (title) effects.push("That removes one open question about title, but it is still your statement and I cannot verify it.");
+  const b = openItems(before).length, a = openItems(after).length;
+  if (a < b) effects.push(`That leaves ${a} detail${a === 1 ? "" : "s"} still to confirm instead of ${b}.`);
+  else if (a > b) effects.push(`That leaves ${a} details still to confirm instead of ${b}.`);
+  const verb = changes.some(c => c.from) ? "changed" : "added";
+  return `I have ${verb} ${parts.join("; ")}${supersededNote}. These are details you have supplied, not independently verified. ${effects.join(" ")}`.trim();
 }
 
 function composeAcknowledgement(prior: PublicOpportunityObjective | null, updated: PublicOpportunityObjective): string {
@@ -285,8 +308,9 @@ export function publicOpportunityReadModule(): CapabilityModule {
       const message = text(context.input.message);
       const corrected = correctedPublicFacts(prior, message);
       if (prior && corrected) {
-        const updated = { ...prior, known_facts: corrected, current_subject: corrected.location || prior.current_subject, updated_at: new Date().toISOString(), turns: prior.turns + 1 };
-        return { status: "answered", answer: `I have replaced the earlier detail with your correction. These remain details supplied by you, not independently verified. ${composeJvRequirementsAnswer(updated)}`,
+        const changes = changesBetween(prior, corrected);
+        const updated = { ...prior, known_facts: corrected, current_subject: corrected.location || prior.current_subject, updated_at: new Date().toISOString(), turns: prior.turns + 1, last_changes: changes };
+        return { status: "answered", answer: `${changes.length ? describeChanges(changes, prior.known_facts, corrected) : "I have replaced the earlier detail with your correction. These remain details supplied by you, not independently verified."} ${composeJvRequirementsAnswer(updated)}`,
           presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: updated } };
       }
 
@@ -309,6 +333,13 @@ export function publicOpportunityReadModule(): CapabilityModule {
       // Existing bounded qualification assessment; no company commitment,
       // new evidence source, provider call or autonomous goal. Caller facts
       // remain caller-supplied, not verified title/financing evidence.
+      if (prior && context.resolvedTurn.semantic_frame.cognitiveObjective === "reassess") {
+        const last = prior.last_changes || [];
+        const lead = last.length ? `Yes, what you last told me changed the picture: ${describeChanges(last, Object.fromEntries(Object.entries(prior.known_facts).map(([k, v]) => [k, last.find(c => c.field === k)?.from ?? v]).filter(([k]) => !last.some(c => c.field === k && c.from === null))), prior.known_facts)}`
+          : "No: nothing you have told me has changed since I last summarised it, so the first-look picture stands.";
+        const requirements = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
+        return { status: "answered", answer: `${lead} Based on what you've told me, not independent verification: ${requirements} This is preliminary qualification, not a commitment by Ochiga to proceed.`, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
+      }
       if (prior && (isAssessmentObjective(context.resolvedTurn.semantic_frame.cognitiveObjective) || context.resolvedTurn.semantic_frame.cognitiveObjective === "summarize")) {
         const requirements = prior.objective_type === "development_partnership"
           ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);

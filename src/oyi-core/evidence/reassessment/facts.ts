@@ -26,7 +26,7 @@ const CLASS_KEYWORDS: Array<[string[], RegExp]> = [
 ];
 export const affectedClasses = (text: string): string[] => [...new Set(CLASS_KEYWORDS.filter(([, re]) => re.test(text)).flatMap(([c]) => c))];
 
-const STOP = new Set(["project", "projects", "opportunity", "opportunities", "lead", "leads", "request", "task", "report", "priority", "with", "from", "that", "this", "issue", "item", "lead", "wave11", "the", "and", "for", "have", "has", "been", "there", "their", "they", "says", "said", "now", "just", "very", "more", "much", "than", "then", "actually", "it's", "its", "not", "also", "into", "about", "because", "which", "while", "when", "what", "were", "was", "are", "you", "your", "our", "can", "will"]);
+const STOP = new Set(["resolved", "unresolved", "open", "closed", "fixed", "repaired", "secured", "worse", "still", "already", "again", "yet", "back", "online", "offline", "none", "project", "projects", "opportunity", "opportunities", "lead", "leads", "request", "task", "report", "priority", "with", "from", "that", "this", "issue", "item", "lead", "wave11", "the", "and", "for", "have", "has", "been", "there", "their", "they", "says", "said", "now", "just", "very", "more", "much", "than", "then", "actually", "it's", "its", "not", "also", "into", "about", "because", "which", "while", "when", "what", "were", "was", "are", "you", "your", "our", "can", "will"]);
 const tokens = (t: string) => new Set(t.toLowerCase().replace(/(\d),(\d)/g, "$1$2").replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => (w.length >= 3 || /\d/.test(w)) && !STOP.has(w)));
 const overlap = (a: Set<string>, b: Set<string>) => [...a].filter(w => b.has(w)).length;
 

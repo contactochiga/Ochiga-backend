@@ -40,24 +40,35 @@ export type PublicOpportunityObjective = {
   current_subject: string | null;
   next_move: string | null;
   turns: number;
+  // IQ-6: what the caller's LAST update changed (field, previous value or null, new value). Caller-supplied, unverified; no raw message text.
+  last_changes?: Array<{ field: string; from: string | null; to: string }>;
   created_at: string;
   updated_at: string;
 };
 
 export const PUBLIC_OPPORTUNITY_OBJECTIVE_TTL_MS = 30 * 60 * 1000;
 // Caller-supplied correction, never verified ownership/title evidence.
+// Title status as the caller states it (never verified title evidence).
+export function extractTitleStatus(message: string): string | null {
+  if (!/\btitle\b/i.test(message)) return null;
+  if (/\bnot\s+(?:yet\s+)?(?:perfected|registered)|\bunperfected\b|\bisn'?t\s+(?:yet\s+)?(?:perfected|registered)/i.test(message)) return "not perfected";
+  if (/\b(?:in\s+dispute|disputed)\b/i.test(message)) return "disputed";
+  if (/\b(?:is|was|now)\s+(?:fully\s+)?(?:perfected|registered)|\bregistered\s+title\b|\bperfected\s+title\b/i.test(message)) return "perfected";
+  return null;
+}
 export function correctedPublicFacts(prior: PublicOpportunityObjective | null, message: string): Record<string,string> | null {
   if (!prior) return null;
   const facts = { ...prior.known_facts }; let changed = false;
   const location = message.match(/^(?:sorry|actually)[, ]+(?:(?:it['’]s|it is)\s+)?([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,2}),?\s+not\s+(.+?)[.!]?$/i);
   if (location && facts.location && location[2].toLowerCase().replace(/[.!]$/,'') === facts.location.toLowerCase()) { facts.location=location[1]; changed=true; }
-  if (/\b(?:actually|closer to|correction|i meant|not)\b/i.test(message)) {
+  if (/\b(?:actually|closer to|correction|i meant|not|was wrong|sorry)\b/i.test(message)) {
     const areas=[...message.matchAll(/(\d[\d,]*\s*(?:sqm|square\s*meters?|hectares?|acres?))/gi)];
     if(areas.length){ facts.land_size=areas[areas.length-1][1]; changed=true; }
     const correctedAmount=message.match(/\b(?:closer to|i meant)\s+(\d[\d,]*)[.!]?$/i);
     const unit=(facts.land_size || '').match(/(?:sqm|square\s*meters?|hectares?|acres?)$/i)?.[0];
     if(correctedAmount&&unit){facts.land_size=`${correctedAmount[1]} ${unit}`;changed=true;}
   }
+  const title = extractTitleStatus(message); if (title && facts.title_document_status !== title) { facts.title_document_status = title; changed = true; }
   if (/\bfamily property\b/i.test(message) && /\bnot (?:mine|my|owned by me)\b/i.test(message)) {facts.ownership_status='family property; personal ownership not asserted';changed=true;}
   return changed ? facts : null;
 }

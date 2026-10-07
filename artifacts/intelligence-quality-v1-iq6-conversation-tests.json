@@ -1,0 +1,256 @@
+{
+  "status": "PASS",
+  "test_mode": "Real orchestrator, planner, judgment and persistence on the loopback fixture; a scripted claim-aware provider seam for the Office ranking (mechanics and discipline, not model quality); fixture maintenance row changed and restored",
+  "results": [
+    {
+      "id": "iq6c:OMA-001-provider-off-claim-recorded-no-ordering-to-change-nothing-fabricated",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6c:OMA-001-scripted-provider-claim-attaches-marks-stale-then-reassesses-only-affected-evidence",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6c:facility-claim-alone-changes-nothing-but-a-changed-record-changes-the-judgment",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6c:consumer-state-change-and-correction-never-declare-safety",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6c:osa-corrections-update-the-public-assessment-without-internal-evidence-or-promises",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6c:no-reassessment-turn-executes-anything-or-leaks-fact-text-into-traces",
+      "status": "PASS"
+    }
+  ],
+  "counts": {
+    "PASS": 6
+  },
+  "executed": 0,
+  "transcripts": {
+    "OMA-001_provider_off": [
+      {
+        "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); Wave11 support case (open/active, recorded priority medium); Wave11 JV review (open/active, no priority or severity recorded) (listed, not ra"
+      },
+      {
+        "prompt": "Why is the second one more important than the others?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assess"
+      },
+      {
+        "prompt": "The Chairman for that project says financing is already secured.",
+        "assessment_status": "derived_reference",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have noted that as your own statement “The Chairman for that project says financing is already secured”; I have not verified it and it is not confirmed evidence. There is no ordering for it to attach to or change: I have not ranked anything, so I am not recalculating anything."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "There was no earlier ordering to change: without a configured comparative judgment I could only count what is recorded, not rank it, so I have not recalculated anything. your statement “The Chairman for that project says financing is already secured” is noted as your own unverified statement."
+      }
+    ],
+    "OMA-001_scripted_provider": [
+      {
+        "prompt": "Which three things can actually move Ochiga forward?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Based on the evidence available, the order reflects recorded qualification and any unverified claim In order: 1. Wave11 Lead Beta: it is recorded as qualified with supplied owner consent 2. Wave11 Abuja JV: it is supported by its recorded stage and notes 3. Wave11 Lead Alpha: it is supported by its recorded stage and notes This is not an all-clear: it covers only what I could read. What I cannot confirm: claims supplied by you are not verified These are bounded, supplied views, not the whole pipeline; an assessment from them is a recommendation, not an action. Evidence basis: 8 sources read, 8 of them partial or not current."
+      },
+      {
+        "prompt": "Why is the second one more important than the others?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: claims supplied by you are not verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      },
+      {
+        "prompt": "The Chairman says financing for Wave11 Abuja JV is secured.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": true,
+        "answer": "I have noted that as your own statement “The Chairman says financing for Wave11 Abuja JV is secured”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 Abuja JV. It does not change any record by itself: Wave11 Abuja JV keeps the status it is recorded with until the record itself is updated. The ordering I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier ordering as current. Asking whether it changes the ordering reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Using your statement “The Chairman says financing for Wave11 Abuja JV is secured” (your own statement, which I have not verified), it changes the order. The assessment of Wave11 Abuja JV now reads: it carries a claim of secured financing which is not verified. What changed: Wave11 Abuja JV: the recorded reason changed; Wave11 Lead Beta: the recorded reason changed. Before: 1. Wave11 Lead Beta; 2. Wave11 Abuja JV; 3. Wave11 Lead Alpha. I re-read 4 sources and reused 4 unchanged ones. Current assessment: Based on the evidence available, the order reflects recorded qualification and any unverified claim In order: 1. Wave11 Abuja JV: it carries a claim of secured financing which is not verified "
+      },
+      {
+        "prompt": "What is number one now?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 1 in the order I gave: it carries a claim of secured financing which is not verified. It was placed above Wave11 Lead Beta (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: claims supplied by you are not verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      },
+      {
+        "prompt": "Why was Wave11 Abuja JV second before?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: claims supplied by you are not verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again. This is the earlier assessment, kept so I can ex"
+      },
+      {
+        "prompt": "Why is Wave11 Abuja JV first now?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 1 in the order I gave: it carries a claim of secured financing which is not verified. It was placed above Wave11 Lead Beta (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: claims supplied by you are not verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      }
+    ],
+    "facility_claim_only": [
+      {
+        "prompt": "Does the water problem still come first?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
+      },
+      {
+        "prompt": "The water issue has been resolved now.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": true,
+        "answer": "I have noted that as your own statement “The water issue has been resolved now”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 unresolved water issue. It does not change any record by itself: Wave11 unresolved water issue keeps the status it is recorded with until the record itself is updated. The assessment I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier assessment as current. Asking whether it changes the assessment reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it does not change the assessment. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1"
+      }
+    ],
+    "facility_record_changed": [
+      {
+        "prompt": "Does the water problem still come first?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
+      },
+      {
+        "prompt": "The water issue has been resolved now.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": true,
+        "answer": "I have noted that as your own statement “The water issue has been resolved now”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 unresolved water issue. It does not change any record by itself: Wave11 unresolved water issue keeps the status it is recorded with until the record itself is updated. The assessment I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier assessment as current. Asking whether it changes the assessment reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it changes the conclusion. The records I can read for Wave11 unresolved water issue show: resolved or past, recorded priority high. What changed: Wave11 unresolved water issue is no longer among the items considered. Before: 1. Wave11 unresolved water issue. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, nothing active was found among the items I could read; what is resolved is not a current concern. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Not a current conc"
+      }
+    ],
+    "consumer": [
+      {
+        "prompt": "I am leaving home. Anything I should deal with?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). No security incidents are recorded in the checked scope. Visitor access: 0 currently active, 2 expired or inactive. What I cannot confirm: The latest readings for 4 devices are stale, so they show no current condition and no failure. A visitor access record is permission, not evidence that anyone has arrived or left. Not availab"
+      },
+      {
+        "prompt": "The water leak is repaired now.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": true,
+        "answer": "I have noted that as your own statement “The water leak is repaired now”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 unresolved water issue. It does not change any record by itself: Wave11 unresolved water issue keeps the status it is recorded with until the record itself is updated. The assessment I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier assessment as current. Asking whether it changes the assessment reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Using your statement “The water leak is repaired now” (your own statement, which I have not verified), it does not change the assessment. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). No security incidents ar"
+      },
+      {
+        "prompt": "Actually the water leak is not repaired, the plumber has not come.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": true,
+        "answer": "I have replaced your earlier statement “The water leak is repaired now” with this one, and I no longer treat the earlier one as current. I am treating it as being about Wave11 unresolved water issue. It does not change any record by itself: Wave11 unresolved water issue keeps the status it is recorded with until the record itself is updated. The assessment I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier assessment as current. Asking whether it changes the assessment reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change anything?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Using your statement “Actually the water leak is not repaired, the plumber has not come” (your own statement, which I have not verified), it does not change the assessment. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded prio"
+      }
+    ],
+    "osa": [
+      {
+        "prompt": "I own land in Lagos.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Thanks for sharing that in Lagos. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you."
+      },
+      {
+        "prompt": "It is family property in VI, about 1,200 sqm.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Thanks, noted. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?"
+      },
+      {
+        "prompt": "I am thinking JV. I do not want to sell.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Understood -- noted that a sale isn't of interest; a JV or lease can still work. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?"
+      },
+      {
+        "prompt": "Actually the title is not perfected yet.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have added title document status: not perfected. These are details you have supplied, not independently verified. A title that is not yet perfected leaves ownership and the right to enter a JV open; that is a gap to resolve, and nothing here is a decision or a commitment by Ochiga. Here's what I have so far -- opportunity type: existing_building; location: VI; land size: 1,200 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms."
+      },
+      {
+        "prompt": "Does that change anything?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Yes, what you last told me changed the picture: I have added title document status: not perfected. These are details you have supplied, not independently verified. A title that is not yet perfected leaves ownership and the right to enter a JV open; that is a gap to resolve, and nothing here is a decision or a commitment by Ochiga. Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: existing_building; location: VI; land size: 1,200 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualif"
+      },
+      {
+        "prompt": "Sorry, Epe, not VI.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have changed location from VI to Epe, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Here's what I have so far -- opportunity type: existing_building; location: Epe; land size: 1,200 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms."
+      },
+      {
+        "prompt": "The survey says 920 sqm, I was wrong.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have changed land size from 1,200 sqm to 920 sqm, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Here's what I have so far -- opportunity type: existing_building; location: Epe; land size: 920 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms."
+      },
+      {
+        "prompt": "Does that change anything?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Yes, what you last told me changed the picture: I have changed land size from 1,200 sqm to 920 sqm, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: existing_building; location: Epe; land size: 920 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed."
+      },
+      {
+        "prompt": "It is family property, not mine personally.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have added ownership status: family property; personal ownership not asserted. These are details you have supplied, not independently verified. Who can authorise a JV on the family's behalf is not established by that. Here's what I have so far -- opportunity type: existing_building; location: Epe; land size: 920 sqm; structure offered: JV; title document status: not perfected. Your stated ownership status: family property; personal ownership not asserted. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms."
+      }
+    ]
+  }
+}

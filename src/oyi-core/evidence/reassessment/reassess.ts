@@ -57,7 +57,7 @@ export function composeReassessment(a: { old: DerivedRanking; next: DerivedRanki
 
 export function composeNotReassessed(reason: "evidence" | "judgment" | "capability" | "authority" | "no_prior" | "ambiguous", old: DerivedRanking | null, facts: ConversationFact[], detail?: string): string {
   const k = old ? kind(old) : "ordering";
-  const f = facts.slice(0, 1).map(x => ` your statement ${claim(x)} is noted as your own unverified statement.`).join("");
+  const f = facts.slice(0, 1).map(x => ` Your statement ${claim(x)} is noted as your own unverified statement.`).join("");
   if (reason === "no_prior") return `There was no earlier ordering to change: without a configured comparative judgment I could only count what is recorded, not rank it, so I have not recalculated anything.${f}`.replace(/\.\./g, ".");
   const why = reason === "evidence" ? "the current evidence it depends on could not be read" : reason === "judgment" ? "a comparative judgment could not be produced safely" : reason === "capability" ? `there is no source for ${detail || "that evidence"} in Oyi yet` : reason === "authority" ? "the access that evidence depends on has changed" : "I could not tell which item it concerns";
   return `That could affect the ${k}, but I can't safely recalculate it: ${why}. The earlier ${k} is still marked as not current and I have not changed it.${f}`;
