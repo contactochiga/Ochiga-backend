@@ -113,7 +113,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   if (objective === "prioritize") return base("RANKING", { top_n: topN, must_answer: "the ordering (or why none can be given) first", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (objective === "explain" || lead === "why") return base("EXPLANATION", { must_answer: "the supported reason first", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // asking where something stands is a status read; explicit list asks are lists whatever the judgment cue words
-  const standing = u.wh && T.some(t => ["stand", "stands"].includes(t)) && T.some(t => ["where", "how"].includes(t)) && contentTokens(T).filter(t => !["stand", "stands", "things"].includes(t)).length > 0 && !T.includes("things");
+  const standing = u.wh && T.some(t => ["stand", "stands"].includes(t)) && T.some(t => ["where", "how"].includes(t)) && contentTokens(T).filter(t => !["stand", "stands", "things", "overall", "everything"].includes(t)).length > 0;
   if (standing) return base("STATUS", { must_answer: "the current state of the thing asked about", must_not_substitute: ["capability_menu", "count_for_list"] });
   const judgeWords = T.some(t => ["worry", "worried", "should", "why", "compare", "rank", "matter", "matters", "priority", "important", "urgent", "better", "worse", "safe", "risk", "concern"].includes(t));
   const listVerb = ["show", "list", "display", "name", "bring", "pull"].includes(lead) || (["give", "tell"].includes(lead) && T[1] === "me" && T.some(t => ["names", "name", "list", "which", "all", "every"].includes(t)));
