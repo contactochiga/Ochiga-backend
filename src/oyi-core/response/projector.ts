@@ -198,7 +198,10 @@ function projectHeld(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string })
   if (t.response_intent === "COMPARISON") {
     if (t.subject_tokens.includes("versus") || (t.subject_tokens.includes("know") && t.subject_tokens.some(w => ["check", "need", "missing", "unknown"].includes(w)))) return done("LIST", `What I know: ${knownText || "very little so far"}. What still needs checking: ${modelled && missing.length ? joinList(missing.map(nice)) : "nothing further for a first look"}.`);
     const sides = t.compare_terms.map(g => g.join(" ")).filter(Boolean);
-    if (sides.length < 2) return done("LIMITATION", `I can't say yet whether the approach would differ: that depends on what you want from it${modelled && missing.length ? ` and on ${joinList(missing.slice(0, 2).map(nice))}, which I don't have` : ""}.`);
+    if (sides.length < 2) {
+      const differs = t.subject_tokens.some(x => /^differ/.test(x) || x === "approach" || x === "different");
+      return done("LIMITATION", `I can't ${differs ? "say yet whether the approach would differ" : "weigh that yet"}: that depends on what you want from it${modelled && missing.length ? ` and on ${joinList(missing.slice(0, 2).map(nice))}, which I don't have` : ""}.`);
+    }
     return done("LIMITATION", `I can't say which of ${sides.length === 2 ? `${sides[0]} or ${sides[1]}` : "those"} suits you better yet: that depends on what you want from the property${modelled && missing.length ? ` and on ${joinList(missing.slice(0, 2).map(nice))}, which I don't have` : ""}.`);
   }
   if ((t.response_intent === "ADVICE" || t.response_intent === "NEXT_STEP") && modelled && missing.length) return done("ADVICE", `The first thing that would help is ${joinList(missing.slice(0, 2).map(nice))}.`);

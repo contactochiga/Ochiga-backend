@@ -193,7 +193,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
@@ -259,7 +259,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
@@ -271,7 +271,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -370,7 +370,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -382,7 +382,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -446,7 +446,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -454,7 +454,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [],
@@ -514,7 +514,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -526,7 +526,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -595,7 +595,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -671,7 +671,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -745,7 +745,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
@@ -811,7 +811,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
@@ -877,7 +877,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           }
         ],
         "query_indicators": [],
@@ -932,7 +932,7 @@
           },
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/domains/wallet/walletEvidence.ts",
@@ -948,7 +948,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -1033,7 +1033,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/domains/wallet/walletEvidence.ts",
@@ -1045,7 +1045,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -1127,7 +1127,7 @@
           },
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
@@ -1135,7 +1135,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -1197,7 +1197,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -1262,11 +1262,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [],
@@ -1312,7 +1312,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           }
         ],
         "query_indicators": [],
@@ -1359,7 +1359,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           }
         ],
         "query_indicators": [],
@@ -1411,7 +1411,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -1467,11 +1467,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [],
@@ -1526,7 +1526,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/domains/maintenance/maintenanceEvidence.ts",
@@ -1538,7 +1538,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -1608,7 +1608,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/domains/visitors/visitorEvidence.ts",
@@ -1624,7 +1624,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -1694,7 +1694,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/domains/security/securityEvidence.ts",
@@ -1706,7 +1706,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -1772,7 +1772,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           }
         ],
         "query_indicators": [],
@@ -1824,7 +1824,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/domains/community/communityEvidence.ts",
@@ -1888,7 +1888,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           }
         ],
         "query_indicators": [],
@@ -1941,7 +1941,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/domains/automations/sceneAutomationEvidence.ts",
@@ -2030,7 +2030,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/domains/automations/sceneAutomationEvidence.ts",
@@ -2123,7 +2123,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           },
           {
             "path": "src/oyi-core/domains/automations/sceneAutomationEvidence.ts",
@@ -2198,7 +2198,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+            "sha256": "d3d8a085556486967f56b8ccc1178f5d29bc90717834c132d97ceced86e65a52"
           }
         ],
         "query_indicators": [],
@@ -3023,7 +3023,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -3097,7 +3097,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -3171,7 +3171,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -3245,7 +3245,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -3319,7 +3319,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [
@@ -3449,7 +3449,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [],
@@ -3685,7 +3685,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [],
@@ -3805,7 +3805,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [],
@@ -3925,7 +3925,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [],
@@ -4161,7 +4161,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [],
@@ -4704,7 +4704,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts",
-            "sha256": "b8aec6823c18a2540db4919e278ba041e8ceb0302da998baf8134db5faeceba9"
+            "sha256": "c14956d51d3140b1800eb7acfddfe2a2f21266a8f328630320f7f6fd8cb7c24f"
           },
           {
             "path": "src/oyi-core/evidence/judgment/evidenceIndex.ts",
@@ -4732,7 +4732,7 @@
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
-            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
+            "sha256": "ce1e629e5003d7a96c9300f8e559e1e58b5c137bce162cbf5d21fc2b8b79afe1"
           }
         ],
         "query_indicators": [

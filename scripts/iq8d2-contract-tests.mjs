@@ -86,6 +86,7 @@ ok('outcome-vs-commitment-vs-choice', () => {
   const c = projectResponse(T("Is it a lease, a sale or a JV that I've asked for?"), held, {asked: ''}); assert.doesNotMatch(c.primary, /^(Yes|No)\b/);
 });
 ok('intrusion-report', () => {assert.equal(T('Someone told me there was a break-in at the east wing last night.').response_intent, 'SAFETY_RISK'); assert.equal(T('A burglar was seen near the gate.').response_intent, 'SAFETY_RISK'); });
+ok('held-comparison-wording', () => {assert.match(P('Would your approach be different?', held).primary, /whether the approach would differ/); assert.doesNotMatch(P('What trade-offs should we consider?', held).primary, /approach would differ/);});
 // every frozen class is covered
 ok('matrix-coverage', () => {const missing = Object.keys(matrix.classes).filter(c => !covered.has(c)); assert.deepEqual(missing, []);});
 console.log(JSON.stringify({status: 'PASS', tests: n}));
