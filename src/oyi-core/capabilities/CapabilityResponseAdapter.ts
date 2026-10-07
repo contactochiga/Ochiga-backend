@@ -6,7 +6,7 @@ import type { OyiEvidence } from "../contracts/evidence";
 import { mapResultEnvelope } from "../response/envelopeMappers";
 import { responseContract } from "../response/resultEnvelope";
 import { projectResponse, projectionRequired } from "../response/projector";
-import { isGenericUnsupportedAnswer, limitationAnswer } from "../response/limitationTarget";
+import { denialAnswer, isGenericUnsupportedAnswer, limitationAnswer } from "../response/limitationTarget";
 
 // IQ-8D: read capabilities return structured truth; the ONE AnswerTarget carried on the semantic frame decides the shape. Core maps the result into
 // a ResultEnvelope (mapResultEnvelope) and projects it (projectResponse). The capability's own prose stays as supporting detail and as the fallback.
@@ -19,7 +19,7 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     const genericLimit = (result.status === "unsupported" || result.status === "unavailable") && isGenericUnsupportedAnswer(String(result.answer || ""));
     if (genericLimit || genericDenied) {
       if (t.response_intent === "CAPABILITY_DISCOVERY") return result;
-      const answer = genericDenied ? `I can't do that for you here: you are not authorised to use it from this surface or scope (“${frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120)}”).` : limitationAnswer(t, frame.rawText);
+      const answer = genericDenied && (t.response_intent === "REFUSAL" || t.response_intent === "CLARIFICATION") ? limitationAnswer(t, frame.rawText) : genericDenied ? denialAnswer(String((result.metadata as Record<string, unknown> | undefined)?.reason ?? ""), frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120), Boolean(frame.mutationIntent)) : limitationAnswer(t, frame.rawText);
       return { ...result, answer, metadata: { ...(result.metadata || {}), answer_target: t.response_intent, limitation_targeted: true } };
     }
     if (result.status !== "answered" && result.status !== "empty") return result;

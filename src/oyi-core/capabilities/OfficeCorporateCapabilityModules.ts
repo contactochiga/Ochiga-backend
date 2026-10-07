@@ -558,7 +558,8 @@ function developmentStatusReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["development.manage"],
     evidenceRequirements: [{ domain: "office_development", evidence_type: "development_project_status", freshness: ["fresh", "stale", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_development",
+    // the lexical classifier labels "development project" as corporate_development; surface eligibility (Office vs public) decides which reader serves it
+    supports: (frame: SemanticFrame) => frame.domain === "office_development" || frame.domain === "corporate_development",
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const development = snapshot?.development;
@@ -638,7 +639,8 @@ function financialSummaryReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["financial.read"],
     evidenceRequirements: [{ domain: "office_financial", evidence_type: "financial_estate_summary", freshness: ["fresh", "stale", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "office_financial",
+    // a money-total ask (balance / transactions of the portfolio) is the financial summary's, whichever legacy label the lexical classifier gave it
+    supports: (frame: SemanticFrame) => frame.domain === "office_financial" || (frame.concepts?.object === "wallet" && ["wallet", "office_portfolio", null].includes(frame.domain as string | null)),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const financial = snapshot?.financial;
@@ -676,6 +678,7 @@ function financialSummaryReadModule(): CapabilityModule {
         { key: "revenue_period", label: "period revenue", amount: Number(portfolio.revenue_period_total || 0), currency: portfolio.currency },
         { key: "utility_sales_period", label: "utility sales", amount: Number(portfolio.utility_sales_period_total || 0), currency: portfolio.currency },
         { key: "service_charge_period", label: "service charges", amount: Number(portfolio.service_charge_period_total || 0), currency: portfolio.currency },
+        { key: "transaction_count", label: "transactions", amount: Number(portfolio.transaction_count_total || 0), currency: portfolio.currency, unit: "count" },
       ];
       if (!financial.estates.length) {
         return { status: "answered", answer: `Portfolio totals: current balance ${fmt(portfolio.current_balance_total)}, period revenue ${fmt(portfolio.revenue_period_total)} (utility sales ${fmt(portfolio.utility_sales_period_total)}, service charges ${fmt(portfolio.service_charge_period_total)}). No per-estate breakdown is available right now.`, presentation_policy: resultPresentation("text"), metadata: { portfolio, period_start: financial.period_start, period_end: financial.period_end, result_facts: { measures } } };
@@ -1874,7 +1877,7 @@ function officePortfolioReadModule(): CapabilityModule {
     permissions: ["portfolio.read"],
     evidenceRequirements: [{ domain: "office_portfolio", evidence_type: "office_portfolio_entry_selected", freshness: ["fresh", "unknown"], required: false }],
     supports: (frame: SemanticFrame) =>
-      frame.domain === "office_portfolio" &&
+      frame.domain === "office_portfolio" && frame.concepts?.object !== "wallet" &&
       !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
       !parsePortfolioMutationIntent(frame.normalizedText) &&
       !isPortfolioListIntent(frame.normalizedText),
@@ -2015,7 +2018,7 @@ function officePortfolioQueryReadModule(): CapabilityModule {
     permissions: ["portfolio.read"],
     evidenceRequirements: [{ domain: "office_portfolio", evidence_type: "office_portfolio_open", freshness: ["fresh", "unknown"], required: false }],
     supports: (frame: SemanticFrame) =>
-      frame.domain === "office_portfolio" &&
+      frame.domain === "office_portfolio" && frame.concepts?.object !== "wallet" &&
       !isAutomationScheduleReferenceMessage(frame.normalizedText) &&
       !parsePortfolioMutationIntent(frame.normalizedText) &&
       isPortfolioListIntent(frame.normalizedText),
@@ -2986,6 +2989,8 @@ function corporateDevelopmentIdentityReadModule(): CapabilityModule {
   });
 }
 
+const withSelection = (m: CapabilityModule, present: (context: CapabilityContext) => boolean, sibling: string): CapabilityModule => ({ ...m, selection: { present, query_sibling: sibling } });
+const hasSlot = (slot: { title?: string | null; name?: string | null; safe_summary?: string | null } | null) => Boolean(slot && (slot.safe_summary || slot.title || slot.name));
 export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
   return [
     crmLeadsReadModule(),
@@ -2993,15 +2998,15 @@ export function buildOfficeInternalReadCapabilities(): CapabilityModule[] {
     reportsApprovalsReadModule(),
     developmentStatusReadModule(),
     financialSummaryReadModule(),
-    officeTasksReadModule(),
+    withSelection(officeTasksReadModule(), (c) => hasSlot(taskContextSlot(c) as never), "office_tasks.query.read"),
     officeTasksQueryReadModule(),
     officeAutomationsReadModule(),
     officeAutomationsQueryReadModule(),
-    officeMeetingsReadModule(),
+    withSelection(officeMeetingsReadModule(), (c) => hasSlot(meetingContextSlot(c) as never), "office_meetings.query.read"),
     officeMeetingsQueryReadModule(),
     officeSupportReadModule(),
     officeSupportQueryReadModule(),
-    officePortfolioReadModule(),
+    withSelection(officePortfolioReadModule(), (c) => hasSlot(portfolioContextSlot(c) as never), "office_portfolio.query.read"),
     officePortfolioQueryReadModule(),
     officePartnershipsReadModule(),
     officePartnershipsQueryReadModule(),

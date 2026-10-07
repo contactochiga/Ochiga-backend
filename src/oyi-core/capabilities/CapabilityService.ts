@@ -191,10 +191,16 @@ export class CapabilityService {
     // then fall back to score — this only narrows/reorders candidates
     // that already scored > 0, so it cannot make an otherwise-denied
     // capability newly authorized.
-    const candidate = capabilityRegistry.all()
+    let candidate = capabilityRegistry.all()
       .map((module) => ({ module, score: capabilityMatchScore(module, frame), surfaceMatch: surfaceAllowed(module, surface) }))
       .filter((item) => item.score > 0)
       .sort((a, b) => (Number(b.surfaceMatch) - Number(a.surfaceMatch)) || (b.score - a.score))[0]?.module || null;
+    // IQ-8E: a selected-record reader with nothing selected hands the turn to its query sibling (same domain, same authority model); it never
+    // widens authority: the sibling is checked by the same canUse() below.
+    if (candidate?.selection && !candidate.selection.present(context as CapabilityContext)) {
+      const sibling = capabilityRegistry.get(candidate.selection.query_sibling);
+      if (sibling && capabilityEnabled(sibling) && sibling.domain === candidate.domain) candidate = sibling;
+    }
     if (!candidate) {
       operationalMetrics.increment("oyi_capability_resolution_total", { outcome: "unsupported", reason: "capability_not_registered" });
       return { capability: null, matched_capability: null, rollout_status: "not_registered", authority: null, resolution_outcome: "no_match", legacy_fallback_reason: "capability_not_registered" };

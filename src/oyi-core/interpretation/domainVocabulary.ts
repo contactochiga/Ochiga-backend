@@ -12,7 +12,7 @@ const VOCAB: Array<[string, string[]]> = [
   ["visitors", ["pass", "passes", "visitor*", "guest*", "arriv*", "expected", "deliver*", "courier", "come", "coming", "visiting", "visited"]],
   ["devices", ["gadget*", "device*", "light", "lights", "lighting", "lamp*", "switch*", "plug*", "socket*", "tv", "lock", "locks", "locked", "door", "doors", "window*", "sensor*", "thermostat", "fan", "heater", "ac", "aircon", "air", "conditioner", "appliance*"]],
   ["utilities", ["electricity", "power", "energy", "bill", "bills", "meter*", "tariff*", "gas", "internet", "solar", "kwh", "consumption", "usage"]],
-  ["wallet", ["wallet", "balance", "spend*", "spent", "spending", "transaction*"]],
+  ["wallet", ["wallet", "balance", "bal", "spend*", "spent", "spending", "transaction*", "topup", "topped", "deposit*"]],
   ["rooms", ["bedroom*", "kitchen", "bathroom", "lounge", "study", "room", "rooms", "garage", "porch", "hall", "hallway", "balcony", "attic", "basement"]],
   // property / opportunity vocabulary (public qualification and Office development)
   ["corporate_opportunity", ["land", "plot", "plots", "property", "building", "buildings", "house", "estate", "owner*", "owns", "own", "family", "heir*", "relative*", "inherit*", "title", "survey*", "zoning", "planning", "permit*", "storey*", "acre*", "hectare*", "sqm", "metres", "metre", "jv", "joint", "venture", "lease*", "sale", "sell*", "tenant*", "agree*", "consent*", "sign*", "residential", "commercial", "access", "road"]],

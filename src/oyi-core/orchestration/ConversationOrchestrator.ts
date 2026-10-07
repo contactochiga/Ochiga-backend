@@ -8,7 +8,8 @@ import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegrat
 import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
 import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
 import { isHazardReport } from "../response/answerTarget";
-import { clarificationQuestion } from "../response/limitationTarget";
+import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
+import { capabilityEnabled } from "../capabilities/CapabilityRollout";
 import { actionTruthLead, threadActionTruth } from "../response/actionTruth";
 import { acknowledgeConstraint } from "../response/constraintAck";
 import { parseDerivedReference, scopeBinding } from "../evidence/reference/derivedReference";
@@ -3320,7 +3321,8 @@ async function buildBusinessSurfaceFallbackResponse(
     .filter((item) => item.key !== "global.capabilities.read");
   // IQ-8D2: a path that already knows the reference is unresolved asks the specific question (never an overview or a capability menu)
   const clarifying = frame.answerTarget?.response_intent === "CLARIFICATION";
-  const isOverviewQuery = !clarifying && surface === "office_internal" && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
+  const refusing = frame.answerTarget?.response_intent === "REFUSAL";
+  const isOverviewQuery = !clarifying && !refusing && surface === "office_internal" && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
 
   let sections: Array<{ key: string; result: DomainResult; evidence: OyiEvidence[] }> = [];
   if (isOverviewQuery) {
@@ -3330,7 +3332,9 @@ async function buildBusinessSurfaceFallbackResponse(
 
   let answer: string;
   let blocks: Array<Record<string, unknown>> = [];
-  if (clarifying) {
+  if (refusing) {
+    answer = limitationAnswer(frame.answerTarget!, frame.rawText);
+  } else if (clarifying) {
     answer = clarificationQuestion(frame.answerTarget!);
   } else if (sections.length) {
     answer = sections.map((section) => `${BUSINESS_CAPABILITY_LABELS[section.key] || section.key}:\n${section.result.answer}`).join("\n\n");
@@ -3345,7 +3349,7 @@ async function buildBusinessSurfaceFallbackResponse(
   }
 
   const syntheticCapability: CapabilityModule = {
-    key: "business_surface.fallback",
+    key: refusing ? "business_surface.refusal" : clarifying ? "business_surface.clarification" : "business_surface.fallback",
     domain: "global",
     rolloutStatus: "enabled",
     supported_surfaces: [surface],
@@ -3354,7 +3358,7 @@ async function buildBusinessSurfaceFallbackResponse(
     collectEvidence: async () => [],
   };
   const result: DomainResult = {
-    status: clarifying || sections.length || listing.length ? "answered" : "unsupported",
+    status: refusing || clarifying || sections.length || listing.length ? "answered" : "unsupported",
     answer,
     blocks,
     presentation_policy: resultPresentation(sections.length ? "list" : "text"),
@@ -3418,7 +3422,7 @@ export class ConversationOrchestrator {
     ensureRegistered();
     // IQ-7: the active assessment is part of the meaning of a turn (a statement continues it; an unprompted complaint opens one)
     const earlyAssessment = await loadConversationAssessment(context.input, context.actor?.id || null).catch(() => null);
-    const parsedFrame = parseSemanticFrame(context.input.message, { activeAssessment: Boolean(earlyAssessment) });
+    const parsedFrame = parseSemanticFrame(context.input.message, { activeAssessment: Boolean(earlyAssessment), surface: context.input.surface });
     const publicCorrection = context.input.surface === "public_corporate"
       && correctedPublicFacts(await loadPublicOpportunityObjective(context.input.thread_id), context.input.message);
     const publicObjective = context.input.surface === "public_corporate" ? await loadPublicOpportunityObjective(context.input.thread_id) : null;
@@ -3601,10 +3605,14 @@ export class ConversationOrchestrator {
     // unverified safety report) must not fall to a menu or an assessment paragraph. Never executes anything, creates no durable state. Office and
     // public turns are checked only AFTER pending governed proposals and communications have had their chance, so a veto is never mistaken for a constraint.
     const tryAnswerTargeted = async (): Promise<ConversationRunResult | null> => {
-    if (!activeWorkflow && !resolvedTurn.semantic_frame.mutationIntent) {
+    // IQ-8E: an imperative ACTION request that no governed action capability claims is never answered by a read; it is stated plainly as not done.
+    const actionUnclaimed = Boolean(resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "action")
+      && !capabilityRegistry.all().some((m) => m.risk_class && m.risk_class !== "read" && capabilityEnabled(m) && m.supports(resolvedTurn.semantic_frame));
+    if (!activeWorkflow && (!resolvedTurn.semantic_frame.mutationIntent || actionUnclaimed)) {
       const sf = resolvedTurn.semantic_frame, earlyTarget = sf.answerTarget!;
       let direct: string | null = null, key = "";
-      if (earlyTarget.confirmation_kind === "constraint") { direct = acknowledgeConstraint(sf.rawText); key = "answer_target.constraint_acknowledged"; }
+      if (actionUnclaimed) { direct = `I haven't done that: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 160)}” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.`; key = "answer_target.action_not_executed"; }
+      else if (earlyTarget.confirmation_kind === "constraint") { direct = acknowledgeConstraint(sf.rawText); key = "answer_target.constraint_acknowledged"; }
       else if (!earlyAssessment && isHazardReport(sf.rawText) && ["facility", "consumer"].includes(context.input.surface)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action.`; key = "answer_target.safety_report"; }
       else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = actionTruthLead(await threadActionTruth(context.input.thread_id)); key = "answer_target.action_result"; }
       if (direct) {
@@ -3857,7 +3865,11 @@ export class ConversationOrchestrator {
         && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
       const existingDomainReturn = /^(?:go back|return)\b/i.test(frame.rawText) && !frame.cognitiveObjective
         && !assessment.subject_label && declaredRead?.risk_class === "read" && selection.authority?.allowed;
-      if (!publicAssessment && !existingDomainReturn && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis && !existingRelativePrioritization) {
+      // IQ-8E: a yes/no about the state of a wallet or utility record is answered from the governed record read; the assessment planner has no class
+      // for these sources, so planning it would only report them as "not available" although an eligible read exists.
+      const directStateRead = !previousAssessment && frame.answerTarget?.yes_no?.kind === "state" && !frame.answerTarget.safety_relevant
+        && ["wallet", "utility"].includes(frame.concepts?.object || "") && declaredRead?.risk_class === "read" && Boolean(selection.authority?.allowed);
+      if (!publicAssessment && !directStateRead && !existingDomainReturn && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis && !existingRelativePrioritization) {
         // Acknowledging an objective grants no evidence access. Do not turn a
         // lexical match to an unrelated restricted capability into a claim
         // that the user's assessment question itself is forbidden.

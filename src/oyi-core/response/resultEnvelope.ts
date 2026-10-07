@@ -28,7 +28,7 @@ export type ResultEnvelope = {
   limitations?: Limitation[];
   provenance?: { sources: string[] };
   // named amounts the capability itself computed (an aggregate over its records, a portfolio total). Independent of `records`: an empty record list never erases a total.
-  measures?: Array<{ key: string; label: string; amount: number; currency: string; direction?: "out" | "in" | null; n?: number; partial?: boolean }>;
+  measures?: Array<{ key: string; label: string; amount: number; currency: string; direction?: "out" | "in" | null; n?: number; partial?: boolean; unit?: "currency" | "count" }>;
   held_facts?: { known: Record<string, string>; missing: string[] | null; constraints: string[]; objective_type?: string };
   actions?: { workflow_id?: string | null; action_id?: string | null; submission?: "submitted" | "not_submitted" | "unknown" };
   hints?: { permission_only?: boolean; requires_judgment?: boolean; is_selection_only?: boolean; aggregate_only?: boolean; ambiguity?: string };

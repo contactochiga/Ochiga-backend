@@ -120,7 +120,9 @@ export function assessmentSubjectDomains(frame: SemanticFrame, surface: string):
     return frame.domain && !["global", "reports", "home"].includes(frame.domain) ? [frame.domain] : [];
   }
   if (surface === "office_internal") {
-    const d = first(["crm", "office_development", "office_financial", "office_reports"]) ?? (hits.some(h => h.domain === "corporate_opportunity") ? "office_development" : undefined);
+    // in a noun compound the last noun is the head ("VI Development opportunity" is an opportunity)
+    const headed = hits.filter((h, i) => !(hits[i + 1] && hits[i + 1].at === h.at + 1));
+    const d = headed.find(h => ["crm", "office_development", "office_financial", "office_reports"].includes(h.domain))?.domain ?? first(["crm", "office_development", "office_financial", "office_reports"]) ?? (hits.some(h => h.domain === "corporate_opportunity") ? "office_development" : undefined);
     if (d) return [d];
   } else {
     // In a compound noun phrase the HEAD (the last noun: "light problem", "water leak") names the subject; its modifier only qualifies it.

@@ -106,6 +106,9 @@ export interface CapabilityModule {
   workflow_definition?: WorkflowDefinition;
   presentation_policy?: CapabilityPresentationPolicy;
   supports(frame: SemanticFrame): boolean;
+  // A reader of the record the user has SELECTED in the app. When nothing is selected in this request's context, resolution hands the turn to the
+  // sibling query reader (which can narrow by a named record) instead of answering "select one first".
+  selection?: { present(context: CapabilityContext): boolean; query_sibling: string };
   resolve(context: CapabilityContext): Promise<CapabilityResolution>;
   collectEvidence(context: CapabilityContext): Promise<OyiEvidence[]>;
   // Opt-in audited single-source boundary; absence means not planner eligible.

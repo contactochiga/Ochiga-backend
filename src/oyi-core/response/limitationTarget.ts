@@ -22,17 +22,32 @@ export function isGenericUnsupportedAnswer(answer: string): boolean {
 
 export function limitationAnswer(target: AnswerTarget, question: string): string {
   if (target.response_intent === "CLARIFICATION") return clarificationQuestion(target);
+  if (target.response_intent === "REFUSAL" && target.refusal_kind === "internal") return "I can't share how Ochiga assesses opportunities internally: scoring rules and criteria aren't something I disclose, whatever role is claimed.";
+  if (target.response_intent === "REFUSAL" && target.refusal_kind === "commitment") return "I can't give you a figure or a price: any valuation or offer is made by Ochiga's team after a proper review, and I can't commit Ochiga to one.";
   if (target.response_intent === "REFUSAL" && target.refusal_kind === "authority") return "I can't do that: I won't ignore or bypass privacy, permission or authority boundaries, whatever role is claimed.";
   if (target.response_intent === "REFUSAL") return "I can't say who is responsible: attributing a problem to a person is not something the evidence supports, and I won't guess or name anyone.";
   const asked = question.replace(/\s+/g, " ").trim().slice(0, 120);
+  if (target.facet === "usage") return "I can't tell you how much was used: consumption (usage) readings are not available yet.";
   const measure = target.response_intent === "LIMITATION" ? analyse(question).tokens.find(t => ["temperature", "humidity", "noise", "decibels", "airflow", "pollution"].includes(t)) : undefined;
   if (measure) return `I don't have ${measure} data: no ${measure} sensor reading is available to me here, so I can't tell you what it is.`;
   const lead = target.response_intent === "YES_NO_WITH_REASON" || target.response_intent === "ACTION_RESULT" ? "I can't tell" : "I can't answer that";
   return `${lead}: there is no enabled evidence source on this surface that could answer “${asked}” yet, so I would only be guessing.`;
 }
 
+/** An authority denial states WHY (scope, surface or permission) without widening anything; unknown reasons keep the generic refusal. */
+export function denialAnswer(reason: string | null | undefined, asked: string, act = false): string {
+  const q = asked ? ` (“${asked}”)` : "";
+  if (act && (reason === "home_scope_required" || reason === "room_scope_required" || reason === "estate_scope_required")) return `I can't do that from here${q}: it needs a specific home or room in scope, and this view has no estate-wide control. Nothing was changed.`;
+  if (reason === "home_scope_required" || reason === "room_scope_required") return `I can't read that from here${q}: it needs a specific home or room in scope, and this view has no estate-wide read for it.`;
+  if (reason === "estate_scope_required") return `I can't read that from here${q}: it needs an estate in scope.`;
+  if (reason === "surface_not_supported" || reason === "public_corporate_surface_cannot_use_operational_capability") return `That isn't available from this surface${q}.`;
+  if (reason === "missing_permission") return `I can't do that for you here${q}: your role doesn't have the permission it needs.`;
+  return `I can't do that for you here: you are not authorised to use it from this surface or scope${q}.`;
+}
+
 /** The specific question that resolves an ambiguity the path already knows about. Never a menu, never "nothing pending". */
 export function clarificationQuestion(target: AnswerTarget): string {
+  if (target.clarify_reason === "missing_object") return `Which kind of record do you mean? Tell me what to look at and I can check the ${target.state_concept ? target.state_concept + " " : ""}ones.`;
   if (target.clarify_reason === "missing_selection") return "Which of them do you want me to use? Tell me the one you mean and I'll go from there.";
   if (target.clarify_reason === "ambiguous_target") return "Which one do you mean? More than one thing fits, so I haven't picked one for you.";
   return "Which one do you mean? I can't tell what that refers to, so I haven't done anything.";

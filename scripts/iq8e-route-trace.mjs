@@ -10,7 +10,7 @@ const {capabilityRegistry} = await import('../dist/oyi-core/capabilities/Capabil
 const cases = JSON.parse(process.argv[2]);
 const score = (m, f) => !m.supports(f) ? 0 : (m.operations || []).includes(f.operation) ? 100 : m.domain === f.domain ? 25 : 10;
 for (const [surface, prompt] of cases) {
-  const f = parseSemanticFrame(prompt);
+  const f = parseSemanticFrame(prompt, {surface});
   const c = capabilityRegistry.all().map(m => ({k: m.key, s: score(m, f), ok: !m.supported_surfaces?.length || m.supported_surfaces.includes(surface), st: m.rolloutStatus})).filter(x => x.s > 0).sort((a, b) => (Number(b.ok) - Number(a.ok)) || (b.s - a.s)).slice(0, 4);
   console.log(JSON.stringify({surface, prompt, dom: f.domain, op: f.operation, mut: f.mutationIntent, obj: f.concepts?.object, facet: f.concepts?.facet, head: f.concepts?.head_domain, intent: f.answerTarget.response_intent, cands: c.map(x => `${x.k}:${x.s}${x.ok ? '' : '!surf'}${x.st !== 'enabled' ? '!' + x.st : ''}`)}));
 }

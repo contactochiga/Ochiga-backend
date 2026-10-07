@@ -77,6 +77,7 @@ function measureText(e: ResultEnvelope, ms: NonNullable<ResultEnvelope["measures
   return ms.map(m => {
     const partial = m.partial ? " (the read hit its limit, so this may not cover everything)" : "";
     if (m.direction && m.n !== undefined) return m.n === 0 && !m.amount ? `Nothing ${m.direction === "out" ? "went out" : "came in"} in what I read.` : `${money(m.currency, m.amount)} ${m.direction === "out" ? "went out" : "came in"} across ${m.n} ${m.n === 1 ? e.subject.singular : e.subject.noun}${partial}.`;
+    if (m.unit === "count") return `${cap(m.label)}: ${Number(m.amount).toLocaleString("en-NG")}${partial}.`;
     return `${cap(m.label)}: ${money(m.currency, m.amount)}${partial}.`;
   }).join(" ");
 }
@@ -88,6 +89,7 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
   const intent = t.response_intent;
   if (t.confirmation_kind === "constraint") return done("CONSTRAINT", acknowledgeConstraint(ctx.raw ?? ctx.asked));
   if (intent === "CLARIFICATION") return done("CLARIFICATION", clarificationQuestion(t));
+  if (intent === "LIMITATION") return done("LIMITATION", limitationAnswer(t, ctx.asked));
   if (intent === "CAPABILITY_DISCOVERY" || intent === "CONFIRMATION_STATE" || intent === "ACTION_RESULT") return null; // specialized owners
   if (intent === "REFUSAL") return done("REFUSAL", limitationAnswer(t, ctx.asked));
   // 1. availability / limitation first: a capability that did not answer is projected as the specific limitation, never as an answer
@@ -119,7 +121,7 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
   const askedN = (c: number) => `${c} ${c === 1 ? one : noun}`;
   const trunc = e.truncated || (e.total_count != null && !e.total_qualifier && e.total_count > (e.count ?? 0));
   const support = sup(legacy);
-  const eff = intent === "DIRECT_ANSWER" || intent === "SUMMARY" ? (n.named.length === 1 ? "STATUS" : "LIST") : intent;
+  const eff = intent === "DIRECT_ANSWER" || intent === "SUMMARY" || (intent === "LIST" && !t.top_n) ? (n.named.length === 1 ? "STATUS" : intent === "LIST" ? "LIST" : "LIST") : intent;
   switch (eff) {
     case "COUNT": {
       const useTotal = e.total_count != null && e.total_qualifier === "open" && n.asked.includes("open") && !n.applicable.includes("open");

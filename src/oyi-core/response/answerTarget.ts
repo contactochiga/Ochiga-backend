@@ -25,8 +25,8 @@ export type AnswerTarget = {
   is_question: boolean;                // the turn asks or directs (as opposed to stating a fact)
   must_answer: string;                 // human-readable description of what the first sentence must deliver
   supporting_context_allowed: boolean; // supporting evidence may follow, never lead
-  confirmation_kind?: "cancel" | "hold" | "callback" | "constraint";
-  refusal_kind?: "authority" | "attribution";
+  confirmation_kind?: "cancel" | "hold" | "callback" | "constraint" | "action";
+  refusal_kind?: "authority" | "attribution" | "internal" | "commitment";
   must_not_substitute: string[];       // what the lead must NOT be: "capability_menu", "count_for_list", "list_for_count", "evidence_readiness", "state_for_answer"
   // IQ-8D: the asked-about aspect, taken once from the IQ-7 concept view so downstream layers never re-read the wording
   object: ObjectClass | null;          // what kind of record is asked about
@@ -34,7 +34,7 @@ export type AnswerTarget = {
   state_concept: StateConcept | null;  // open / resolved / stale / overdue / arrived / departed
   negated_qualifiers: string[];        // qualifiers asked for in the negative ("not closed"): the projector inverts them
   flow: "out" | "in" | null;           // direction of money a sum asks about (went out / came in); null = unspecified
-  clarify_reason?: "unresolved_reference" | "ambiguous_target" | "missing_selection" | null;
+  clarify_reason?: "unresolved_reference" | "ambiguous_target" | "missing_selection" | "missing_object" | null;
   constraint_kind?: "disclosure" | "channel" | "commitment" | "other";
   ask_facet: "recall" | "missing" | "sufficiency" | "commitment" | "outcome" | "submission" | null; // what a question about HELD (public) facts wants: what was shared / what is missing / enough? / any promise?
   fact_keys: string[];                 // held-fact keys the question names (structure, size, location, terms, title, owner, type)
@@ -77,7 +77,7 @@ const splitSides = (tokens: string[]): string[][] => {
   return a.length && b.length ? [a, b] : [];
 };
 
-export function deriveAnswerTarget(text: string, opts: { objective?: string | null; activeAssessment?: boolean; ambiguity?: { required: boolean; reason: string | null }; pronounRef?: boolean } = {}): AnswerTarget {
+export function deriveAnswerTarget(text: string, opts: { objective?: string | null; activeAssessment?: boolean; ambiguity?: { required: boolean; reason: string | null }; pronounRef?: boolean; surface?: string } = {}): AnswerTarget {
   // a turn that opens with context ("I just got into the office. What needs my attention?") is shaped by its last question or directive
   // a leading condition ("if nothing was logged, does that ...?") frames the question that follows it
   const cond = /^\s*(?:if|when|once|assuming|given|because|since|as)\b[^,]{3,80},\s*(.+\?\s*)$/i.exec(text);
@@ -104,7 +104,8 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const negQual = qualifiersAll.filter(q => { const i = T.indexOf(q); return i > 0 && ["not", "never", "isn", "hasn", "haven", "no"].includes(T[i - 1]); });
   const MONEY = ["money", "amount", "total", "spent", "spend", "spending", "paid", "pay", "cost", "costs", "funds", "cash", "naira", "income", "revenue", "balance", "worth"];
   const OUT = ["spent", "spend", "spending", "paid", "pay", "debit", "debited", "withdrew", "withdrawn", "outflow", "out", "cost", "costs", "gone"], IN = ["received", "receive", "funded", "funding", "deposit", "deposited", "credited", "credit", "income", "earned", "came", "inflow"];
-  const flow: AnswerTarget["flow"] = T.some(t => OUT.includes(t)) ? "out" : T.some(t => IN.includes(t)) ? "in" : null;
+  const topUp = T.some((t, i) => (t === "top" && T[i + 1] === "up") || t === "topup" || t === "topped");
+  const flow: AnswerTarget["flow"] = T.some(t => OUT.includes(t)) ? "out" : topUp || T.some(t => IN.includes(t)) ? "in" : null;
   const moneyish = T.some(t => MONEY.includes(t)) || ["transactions", "spending", "balance"].includes(cpt.facet as string);
   const submitAsk = (u.auxLead || u.wh || u.q) && T.some(t => ["submitted", "submit", "forwarded", "forward", "escalated", "handed", "passed", "sent"].includes(t)) && (T.includes("you") || T.some(t => ["team", "ochiga", "office", "staff"].includes(t))) && T.some(t => ["details", "information", "info", "enquiry", "inquiry", "application", "request", "proposal", "opportunity", "it", "them"].includes(t));
   const base = (intent: ResponseIntent, over: Partial<AnswerTarget> = {}): AnswerTarget => ({ object: cpt.object, facet: cpt.facet, state_concept: cpt.state, response_intent: intent, subject_tokens: content.filter(t => !stateTok(t)), negated_qualifiers: negQual, ask_facet: submitAsk ? "submission" : ask_facet, flow, fact_keys, past_reference, top_n: null, quantity: cpt.facet === "balance" ? "value" : null, yes_no: null, compare_terms: [], qualifier_tokens: qualifiersAll,
@@ -135,6 +136,8 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   // a bare directive whose only object is a pronoun ("do it again", "update it"): nothing says what it refers to, so the ask is a clarification
   const FILLER = new Set(["do", "does", "did", "it", "that", "this", "them", "again", "update", "redo", "repeat", "undo", "please", "now", "turn", "switch", "set", "on", "off", "change", "same", "one", "more", "once", "back", "go", "ahead", "just", "then", "like", "before", "as", "earlier", "previous", "last", "time", "so", "ok", "okay"]);
   if (opts.pronounRef && !u.q && !u.wh && T.length <= 6 && contentTokens(T).filter(t => !FILLER.has(t)).length === 0) return base("CLARIFICATION", { clarify_reason: "unresolved_reference", is_question: true, must_answer: "ask which one is meant", must_not_substitute: ["capability_menu", "evidence_readiness", "nothing_pending"] });
+  // how long since something last happened is a status/detail fact (activity age), not a count of records
+  if (cpt.facet === "age") return base("STATUS", { must_answer: "the recorded activity age of the named record", must_not_substitute: ["capability_menu", "count_for_age"] });
   const muchAsk = T.some((t, i) => t === "how" && T[i + 1] === "much");
   if ((muchAsk || (u.wh && T.includes("total"))) && moneyish && cpt.facet !== "usage") {
     if (cpt.facet === "balance") return base("STATUS", { quantity: "value", must_answer: "the current value", must_not_substitute: ["capability_menu", "list_for_count", "count_for_value"] });
@@ -154,7 +157,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
     return base("REFUSAL", { refusal_kind: "authority", must_answer: "decline to bypass a privacy/permission boundary, whatever role is claimed", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // attributing a problem to a named kind of person is not something the evidence supports (and is private by default)
   const person = T.some(t => ["resident", "tenant", "neighbour", "neighbor", "person", "someone", "who", "staff", "guard", "visitor"].includes(t));
-  if (person && u.wh && T.some(t => ["causing", "caused", "responsible", "reported", "blame", "complained", "reporting", "behind", "complaint", "complaints", "made", "raised", "filed", "logged"].includes(t))) return base("REFUSAL", { must_answer: "decline to identify or blame an individual, then say what can be said", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  if (person && u.wh && T.some(t => ["causing", "caused", "responsible", "reported", "blame", "complained", "reporting", "behind", "complaint", "complaints", "made", "raised", "filed", "logged", "lodged", "submitted", "opened"].includes(t))) return base("REFUSAL", { must_answer: "decline to identify or blame an individual, then say what can be said", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // recall of the conversation itself
   if (u.wh && (T.includes("did") || T.includes("have")) && T.includes("i") && T.some(t => ["say", "said", "correct", "corrected", "mention", "mentioned", "ask", "asked", "tell", "told", "mean", "meant", "give", "gave", "given", "provided", "shared"].includes(t))) return base("DIRECT_ANSWER", { must_answer: "what the user said/corrected earlier", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // recall of what the conversation is about ("which room are we discussing?")
@@ -164,6 +167,17 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   if (u.wh && T.includes("reasoning") && T.some(t => ["changed", "change"].includes(t))) return base("EXPLANATION", { must_answer: "whether the reasoning changed and why", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   const topN = (() => { const i = T.findIndex(t => ["top", "first", "best"].includes(t)); if (i >= 0 && T[i + 1] && NUM[T[i + 1]]) return NUM[T[i + 1]]; const m = T.find(t => /^\d+$/.test(t)); return m && (T.includes("top") || T.includes("first")) ? Number(m) : null; })();
 
+  // IQ-8E: governed refusals and action requests, from speech-act structure
+  const publicSurface = opts.surface === "public_corporate";
+  const internalAsk = T.includes("internal") || (T.some(t => ["criteria", "scoring", "score", "scores", "thresholds", "algorithm", "formula", "weights"].includes(t)) && T.some(t => ["your", "you"].includes(t)));
+  if (publicSurface && internalAsk) return base("REFUSAL", { refusal_kind: "internal", must_answer: "decline to disclose internal assessment criteria, whatever role is claimed", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  const valuationAsk = T.some(t => ["pay", "paying", "offer", "offering", "buy", "buying", "purchase"].includes(t)) && T.some(t => ["you", "your", "d"].includes(t)) && T.some(t => ["figure", "price", "number", "amount", "much", "valuation", "quote"].includes(t));
+  if (publicSurface && valuationAsk) return base("REFUSAL", { refusal_kind: "commitment", must_answer: "decline to name a price or commit to an offer", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  const ACTION_REQUEST = ["email", "send", "forward", "close", "fund", "pay", "buy", "approve", "reject", "assign", "schedule", "book", "delete", "submit", "transfer", "withdraw", "notify", "reopen"];
+  const actionVerb = ["please", "kindly", "just"].includes(T[0]) ? T[1] : T[0];
+  if (!u.q && !u.wh && !u.auxLead && ACTION_REQUEST.includes(actionVerb ?? "") && !["me", "us"].includes(T[T.indexOf(actionVerb!) + 1] ?? "")) return base("CONFIRMATION_STATE", { confirmation_kind: "action", is_question: false, must_answer: "that nothing was done, and what an action needs", must_not_substitute: ["capability_menu", "read_for_action"] });
+  // a state word with no object ("anything already resolved?") cannot be routed to one record type: ask which
+  if (cpt.state && !cpt.object && cpt.domains.length === 0 && T.length <= 6 && lead === "anything") return base("CLARIFICATION", { clarify_reason: "missing_object", is_question: true, must_answer: "ask which kind of record is meant", must_not_substitute: ["capability_menu", "evidence_readiness", "nothing_pending"] });
   // semantic request families that must be recognised from speech-act structure BEFORE the objective-driven shapes
   const rankMark = T.some(t => ["first", "rank", "ranked", "best", "top", "should", "next", "order"].includes(t));
   // a state ellipsis ("light issue fixed?") asks whether that state holds
@@ -180,7 +194,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   if (T.indexOf("what") >= 0 && T.indexOf("what") <= 3 && !u.auxLead && T.some(t => ["concern", "worry", "problem", "issue", "trouble"].includes(t)) && T.some(t => ["there", "here", "with", "about"].includes(t)))
     return base("EXPLANATION", { must_answer: "the recorded reason it is flagged", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // a measurement nobody records here ("what is the temperature in X")
-  if (u.wh && lead === "what" && T.some(t => ["temperature", "humidity", "noise", "decibels", "airflow", "pollution"].includes(t))) return base("LIMITATION", { must_answer: "that this measurement is not available, specifically", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  if (((u.wh && lead === "what") || (u.auxLead && T.some(t => ["ok", "okay", "fine", "normal", "high", "low", "too", "comfortable", "right", "acceptable"].includes(t)))) && T.some(t => ["temperature", "humidity", "noise", "decibels", "airflow", "pollution"].includes(t))) return base("LIMITATION", { must_answer: "that this measurement is not available, specifically", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (lead === "why" && T.includes("rather") && T.includes("than")) return base("COMPARISON", { compare_terms: splitSides(T.slice(1)), must_answer: "why one rather than the other (the contrast itself)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (objective === "compare") return base("COMPARISON", { compare_terms: splitSides(T.filter(t => !["compare", "comparing", "difference", "differ", "differs", "versus"].includes(t) || t === "versus")), top_n: topN, must_answer: "the comparison itself (which, how they differ), not two independent summaries", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (objective === "prioritize") return base("RANKING", { top_n: topN, must_answer: "the ordering (or why none can be given) first", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });

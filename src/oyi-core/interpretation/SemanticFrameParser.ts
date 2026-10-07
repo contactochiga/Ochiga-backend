@@ -30,6 +30,8 @@ export function isCancellationUtterance(message: unknown): boolean {
 function deviceOperation(text: string): SemanticOperation | null {
   if (/\bturn\s+on|switch\s+on\b/i.test(text)) return "device.power.on";
   if (/\bturn\s+off|switch\s+off\b/i.test(text)) return "device.power.off";
+  // a leading kill / shut off / cut imperative aimed at a device is a power-off request
+  if (/^\s*(?:please\s+)?(?:kill|cut|shut(?:\s+(?:off|down))?)\b[^.!?]{0,60}\b(?:devices?|lights?|lamps?|switch(?:es)?|sockets?|plugs?|tv|ac|air conditioner|fans?|heater)\b/i.test(text)) return "device.power.off";
   // Natural target-first imperatives ("turn the second device off") are
   // still mutations, not device availability reads or ordinal drill-downs.
   if (/\b(?:turn|switch)\b[^.!?]{0,80}\b(?:device|light|switch|socket|plug|tv|ac|air conditioner|it|one)\b[^.!?]{0,80}\boff\b/i.test(text)) return "device.power.off";
@@ -113,7 +115,7 @@ function constraintsFor(text: string, domain: OyiDomain | null): SemanticConstra
   return constraints;
 }
 
-export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: boolean } = {}): SemanticFrame {
+export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: boolean; surface?: string } = {}): SemanticFrame {
   const normalized = normalizeLanguage(rawText);
   // Explicit self-correction names the intended scope; rejected vocabulary
   // earlier in the same turn must not win lexical domain precedence.
@@ -139,6 +141,8 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
     : domainFor(intended.normalized_text, intended.domain, operation)
     || (correctedScope && /\bdevelopments?\b/i.test(correctedScope) ? "corporate_development" : null);
   const concepts = resolveConcepts(normalized.normalized_text);
+  // the concept view (consumption vs spending) decides a utilities operation the lexical regexes could not tell apart
+  const operationFinal: SemanticOperation = operation.startsWith("utilities.") && concepts.facet === "usage" ? "utilities.usage" : operation;
   const domain = reconcileDomain(domainCandidate, concepts, normalized.normalized_text);
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);
@@ -147,12 +151,12 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   const withdrawalMarked = analyse(normalized.normalized_text).tokens.some(t => ["no", "nope", "nah", "not", "never", "forget", "scrap", "cancel", "abort", "undo", "nevermind"].includes(t));
   // IQ-8D3: the ONE answer target is derived here, before the frame is assembled, so the frame's own mutation intent can honour it: a past-tense
   // question about what was done ("did you switch it off?") asks for the truth of an action, it is never a command to perform it.
-  const answerTarget = deriveAnswerTarget(normalized.raw_text, { objective: cognitiveObjective, activeAssessment: opts.activeAssessment, ambiguity: { required: false, reason: null }, pronounRef: resolveReferences(normalized.normalized_text).some((r) => r.kind === "pronoun") });
+  const answerTarget = deriveAnswerTarget(normalized.raw_text, { objective: cognitiveObjective, activeAssessment: opts.activeAssessment, surface: opts.surface, ambiguity: { required: false, reason: null }, pronounRef: resolveReferences(normalized.normalized_text).some((r) => r.kind === "pronoun") });
   return {
     rawText: normalized.raw_text,
     concepts,
     normalizedText: normalized.normalized_text,
-    operation,
+    operation: operationFinal,
     domain,
     primaryEntity,
     constraints,
