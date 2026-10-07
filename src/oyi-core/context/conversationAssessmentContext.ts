@@ -5,6 +5,8 @@ import type { CapabilityModule } from "../contracts/capability";
 import type { CompactEvidencePlanState } from "../evidence/planner/types";
 import type { DerivedRanking } from "../evidence/judgment/types";
 import type { ConversationFact } from "../evidence/reassessment/facts";
+import { analyse } from "../interpretation/semanticObjective";
+import { domainHits } from "../interpretation/domainVocabulary";
 import type { ReassessmentRecord } from "../evidence/reassessment/reassess";
 import { DERIVED_REFERENCE_CUE } from "../evidence/reference/derivedReference";
 
@@ -73,35 +75,60 @@ export async function loadConversationAssessment(request: CanonicalConversationR
   return validAssessment(data.metadata?.conversation_assessment, request.surface);
 }
 
+// IQ-7: is this turn a continuation of the active assessment? Decided STRUCTURALLY from the turn's relation to the conversation: anaphora,
+// ellipsis (a short fragment led by a conjunction/wh/stance word), a return or re-targeting cue, a corrective or hedging marker, an epistemic
+// request, or information about the subject. Explicit topic-switch markers end it. (Callers apply it only while an assessment is active.)
+const ANAPHORA = new Set(["it", "that", "this", "those", "these", "they", "them", "he", "she", "his", "her", "their", "one", "ones", "other", "others", "same", "former", "latter", "such"]);
+const ELLIPSIS_LEAD = new Set(["why", "how", "which", "what", "whose", "still", "even", "same", "then", "so", "and", "but", "or", "meaning", "otherwise", "though"]);
+const TOPIC_SWITCH = /\b(?:different (?:question|topic)|new (?:question|topic)|unrelated|changing the subject|switching (?:topics?|to)|by the way|on another note|separate question|another question)\b/i;
+const tokensOf = (t: string) => analyse(t).tokens;
+const requirementTokens = (text: string, words: string[]) => analyse(text).tokens.some(t => words.includes(t));
 export function assessmentContinuation(text: string): boolean {
-  return DERIVED_REFERENCE_CUE.test(text) || /\b(?:go back|return|i mean|i meant)\b|\b(?:second|first|third|that one|the others|those|that project|that opportunity)\b|^\s*(?:why|what about|no[, ]+that|actually[, ]+forget)\b/i.test(text)
-    || /^\s*(?:is|does|would|could|can|will|has|are|do)\s+(?:that|this|it|those|these|they)\b/i.test(text)
-    || /^\s*(?:and now|so|then what|still|which one|the (?:first|second|third) one)[?.! ]*$/i.test(text)
-    || /\b(?:that|this|it|those|these|they|them|earlier|still|given that)\b/i.test(text)
-    || /\bthe (?:problem|issue|work|opportunity|project|room)\b/i.test(text)
-    || (/\b(?:evidence|verification|uncertainty|missing|authority|authorization|measurement)\b/i.test(text)
-      && !/\b(?:about|across|instead|i mean)\b/i.test(text))
-    || isAssessmentInformation(text);
+  if (TOPIC_SWITCH.test(text)) return false;
+  if (DERIVED_REFERENCE_CUE.test(text)) return true;
+  const raw = String(text ?? "").trim(), u = analyse(raw), T = u.tokens, n = T.length;
+  if (!n) return false;
+  const lead = /^\s*(?:(?:okay|ok|so|well|and|but|then|now)[,\s]+)*([a-z']+)/i.exec(raw)?.[1]?.toLowerCase() ?? T[0];
+  if (/^\s*(?:and|so|but|then)\b/i.test(raw) && n <= 8) return true;
+  if (n <= 3 && !u.imperative) return true;
+  if (n <= 8 && (ANAPHORA.has(lead) || T.slice(0, 4).some(t => ANAPHORA.has(t)) || ELLIPSIS_LEAD.has(lead)) && !u.imperative) return true;
+  if (/\b(?:go back|back to|return to|returning to|as for|what about|how about)\b/i.test(raw)) return true;
+  if (/\b(?:i mean|i meant|instead|rather)\b/i.test(raw) || /^\s*(?:no|nope|actually|sorry)[,\s]/i.test(raw)) return true;
+  if (n <= 12 && T.some(t => ["it", "that", "this", "those", "these", "they", "them", "earlier", "still"].includes(t))) return true;
+  if (/\b(?:evidence|verification|uncertainty|missing|authority|authorization|measurement|confirm\w*)\b/i.test(raw) && !/\b(?:about|across|instead|i mean)\b/i.test(raw)) return true;
+  // information about the subject (a plain statement) continues the assessment it informs
+  return u.declarative && n >= 3 && domainHits(T).length > 0;
 }
 
 // Subject vocabulary, not a capability registry or an execution plan. These
 // existing domain names describe what the question is ABOUT. Permission is
 // evaluated separately against the real registry before listing requirements.
 export function assessmentSubjectDomains(frame: SemanticFrame, surface: string): string[] {
+  // IQ-7: the subject is the first governed domain NOUN named in the (corrected) turn; an explicit scope word wins, otherwise nothing is
+  // named and the active subject is inherited. Vocabulary: interpretation/domainVocabulary.ts (domain nouns only).
   const t = frame.rawText.split(/\b(?:i mean|i meant|instead of|rather than)\b/i).slice(-1)[0];
-  if (/\b(?:across|estate-wide|estate overview|estate operations)\b|\b(?:everything|anything)\b.*\b(?:estate|home)\b/i.test(t)) return defaultSubject(surface);
-  if (surface === "public_corporate" && /\b(?:land|opportunity|jv|title|ownership|planning|partnership|documents?)\b/i.test(t)) return ["corporate_opportunity"];
-  if (/\b(?:water|light|repair|resolved|open)\b.*\b(?:issue|problem|leak)|\b(?:maintenance|leak)\b/i.test(t)) return ["maintenance"];
-  if (/\b(?:opportunit(?:y|ies)|leads?|prospects?)\b/i.test(t)) return [surface === "public_corporate" ? "corporate_opportunity" : "crm"];
-  if (/\b(?:developments?|projects?)\b/i.test(t)) return [surface === "office_internal" ? "office_development" : "corporate_development"];
-  if (/\b(?:electricity|consumption|usage|meter)\b/i.test(t)) return ["utilities"];
-  if (/\b(?:cameras?|cctv)\b/i.test(t)) return ["cameras"];
-  if (/\b(?:visitors?|who.*(?:expected|coming)|arrival|arrived|expired access)\b/i.test(t)) return ["visitors"];
-  if (/\b(?:bedroom|study|kitchen|living room|temperature|sensor)\b/i.test(t)) return ["rooms", "devices"];
-  if (/\b(?:sensor|temperature|telemetry|hardware|devices?|ac|light|lock)\b/i.test(t)) return ["devices"];
-  if (/\b(?:wallet|spent|spending|transactions?)\b/i.test(t)) return ["wallet"];
-  if (/\b(?:secure|security|danger)\b/i.test(t)) return ["security"];
-  if (/\b(?:financ|funding|funded)\w*\b/i.test(t)) return [surface === "office_internal" ? "office_financial" : "corporate_opportunity"];
+  const tokens = analyse(t).tokens;
+  if (tokens.some(x => ["estate", "everything", "overall", "whole", "across", "everywhere"].includes(x)) && tokens.some(x => ["estate", "home", "estatewide", "everything", "everywhere", "across"].includes(x)) && (tokens.includes("across") || tokens.includes("estatewide") || tokens.includes("everything") || tokens.includes("whole"))) return defaultSubject(surface);
+  const hits = domainHits(tokens).filter(h => h.domain !== "environment");
+  const first = (allowed: string[]) => hits.find(h => allowed.includes(h.domain))?.domain;
+  if (surface === "public_corporate") {
+    const opp = first(["corporate_opportunity", "crm", "office_development", "office_financial"]);
+    if (opp) return [(opp === "office_development" && !hits.some(h => h.domain === "corporate_opportunity")) ? "corporate_development" : "corporate_opportunity"];
+    return frame.domain && !["global", "reports", "home"].includes(frame.domain) ? [frame.domain] : [];
+  }
+  if (surface === "office_internal") {
+    const d = first(["crm", "office_development", "office_financial", "office_reports"]) ?? (hits.some(h => h.domain === "corporate_opportunity") ? "office_development" : undefined);
+    if (d) return [d];
+  } else {
+    let d = hits.find(h => ["maintenance", "security", "cameras", "visitors", "devices", "utilities", "wallet", "rooms"].includes(h.domain))?.domain;
+    // "who ..." asks about people (visitors); a consumption/billing word makes "water"/"power" a utility question
+    if (tokens.includes("who") && (d === undefined || ["devices", "security", "rooms", "visitors"].includes(d)) && (hits.some(h => h.domain === "visitors") || d !== undefined || tokens.some(x => ["coming", "come", "visiting", "arriving"].includes(x)))) d = "visitors";
+    if (hits.some(h => h.domain === "utilities") && tokens.some(x => ["bill", "bills", "usage", "consumption", "meter", "tariff", "kwh", "used", "use"].includes(x))) d = "utilities";
+    if (d === "rooms") return ["rooms", "devices"];
+    if (d === "utilities" && tokens.some(x => ["leak", "leaks", "leaking", "pipe", "repair"].includes(x) || x.startsWith("plumb"))) return ["maintenance"];
+    if (d) return [d];
+  }
+  if (tokens.some(x => ["danger", "dangerous", "secure", "security", "safe"].includes(x))) return surface === "office_internal" ? [] : ["security"];
   if (frame.domain && !["global", "reports", "home"].includes(frame.domain)) return [frame.domain];
   return [];
 }
@@ -133,7 +160,7 @@ export function assessmentSubjectLabel(state: ConversationAssessmentContext): st
 export function assessmentCaveats(state: ConversationAssessmentContext, frame: SemanticFrame, options: { judged?: boolean } = {}): string {
   const references = /\b(?:second|third|other one|that project)\b/i.test(frame.rawText) && !state.target_ref
     ? " Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list." : "";
-  const roomReference = /\bwhich room\b.*\bdiscuss/i.test(frame.rawText) && !state.subject_label
+  const roomReference = (() => { const t = analyse(frame.rawText).tokens; return t.includes("room") && t.some(x => ["which", "what"].includes(x)) && t.some(x => x.startsWith("discuss") || x.startsWith("talk") || x === "mean"); })() && !state.subject_label
     ? " Which room do you mean? I don't have a confirmed active room reference, so I won't pick one from a room list." : "";
   const claim = isAssessmentInformation(frame.rawText) ? state.target_ref
     ? ` I am treating your information about ${state.target_ref.label} as an unverified user assertion, not confirmed operational evidence.`
@@ -141,7 +168,7 @@ export function assessmentCaveats(state: ConversationAssessmentContext, frame: S
   const historical = /\b(?:yesterday|baseline|changed|earlier)\b/i.test(frame.rawText) ? " A comparison also requires a comparable earlier observation; current records alone do not prove a change." : "";
   const scope = /\b(?:tower|building|scope)\b/i.test(frame.rawText) ? " A building label is not a verified building scope; estate-wide records cannot establish that narrower view." : "";
   const policy = /\b(?:authority|authorization|confirmation)\b/i.test(frame.rawText) ? " Any proposed action must still pass its own permission, scope and confirmation checks; this assessment grants none." : "";
-  const attribution = /\b(?:who|which resident)\b.*\bcaus/i.test(frame.rawText) ? " Identifying a cause or a person responsible requires corroborating evidence; an open issue alone does not establish blame." : "";
+  const attribution = (() => { const t = analyse(frame.rawText).tokens; return t.some(x => ["who", "which"].includes(x)) && t.some(x => x.startsWith("caus")); })() ? " Identifying a cause or a person responsible requires corroborating evidence; an open issue alone does not establish blame." : "";
   const purpose = state.requirement_purpose;
   const specific = purpose === "privacy" ? " The missing requirement is authorized scope and consent/ownership status for the information, not its private contents. Do not send third-party documents, credentials or unnecessary personal details; use the authorized reporting channel."
     : purpose === "ownership" ? " The missing requirement is an authoritative assignment or ownership/representation status for this work. I cannot infer a responsible person from an opportunity list or invent a staff member."
@@ -191,8 +218,8 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
   const retain = old && (!switched || answeringPending) && (!old.suspended || assessmentContinuation(frame.rawText)
     || subjects.some(d => old.subject_domains?.includes(d)));
   const anaphoric = assessmentContinuation(frame.rawText) && !correction;
-  const explicitSubjectQuestion = /^(?:(?:what|how) about|go back|return)\b/i.test(frame.rawText) && subjects.length > 0
-    && !/^(?:what|how) about (?:this|that|it|them|the (?:first|second|third) one)\b/i.test(frame.rawText);
+  const explicitSubjectQuestion = /^\s*(?:(?:and|now|okay|ok|so)[,\s]+)*(?:(?:what|how) about|go back|return to|back to|as for|and)\b/i.test(frame.rawText) && subjects.length > 0 && tokensOf(frame.rawText).length <= 7
+    && !/\b(?:this|that|it|them|one|ones|other)\b/i.test(frame.rawText);
   const subjectDomains = correction || explicitSubjectQuestion ? subjects : retain && anaphoric ? old.subject_domains
     : subjects.length ? subjects : retain ? old.subject_domains : undefined;
   const nextSubjects = subjectDomains?.length ? subjectDomains : defaultSubject(surface);
@@ -212,9 +239,9 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
     subject_domains: nextSubjects,
     subject_label: broadScope ? null : label || (retain && !correction ? old.subject_label : null),
     suspended: false,
-    requirement_purpose: /\b(?:privacy|private documents?|third.party)\b/i.test(frame.rawText) ? "privacy"
-      : /\b(?:own the work|staff member|ownership|representation|assigned|responsible person)\b/i.test(frame.rawText) ? "ownership"
-      : /\b(?:not be attempted|unsafe|safety procedure|dangerous intervention)\b/i.test(frame.rawText) ? "safety"
+    requirement_purpose: requirementTokens(frame.rawText, ["privacy", "private", "confidential"]) || /\bthird[\s-]party\b/i.test(frame.rawText) ? "privacy"
+      : requirementTokens(frame.rawText, ["ownership", "owner", "assigned", "assignee", "responsible", "representation"]) ? "ownership"
+      : requirementTokens(frame.rawText, ["unsafe", "hazard", "hazardous", "dangerous", "safety"]) ? "safety"
       : /\b(?:raise|report)\b.*\b(?:concern|issue)\b/i.test(frame.rawText) ? "handoff"
       : /\b(?:what|which) evidence\b.*\b(?:would|could)\b.*\bchange\b/i.test(frame.rawText) ? "counterfactual"
       : retain && anaphoric ? old.requirement_purpose : null,

@@ -17,10 +17,10 @@ export type Utterance = {
   declarative: boolean;
 };
 
-const FILLER_LEAD = new Set(["okay", "ok", "so", "well", "right", "hey", "hi", "hello", "um", "uh", "abeg", "biko", "please", "pls", "kindly", "and", "but", "alright", "anyway", "honestly", "look", "listen", "also", "wait", "oh", "hmm"]);
+const FILLER_LEAD = new Set(["okay", "ok", "so", "well", "right", "hey", "hi", "hello", "um", "uh", "abeg", "biko", "please", "pls", "kindly", "and", "but", "alright", "anyway", "honestly", "look", "listen", "also", "wait", "oh", "hmm", "actually", "then", "just", "now", "yet"]);
 const WH = new Set(["what", "which", "who", "whom", "whose", "why", "how", "when", "where"]);
 const AUX = new Set(["is", "are", "am", "was", "were", "do", "does", "did", "can", "could", "will", "would", "shall", "should", "may", "might", "has", "have", "had"]);
-const DIRECTIVE = new Set(["show", "list", "display", "pull", "fetch", "find", "get", "open", "read", "view", "see", "bring", "give", "tell", "check", "look", "rank", "sort", "order", "compare", "explain", "summarize", "summarise", "recap", "brief", "draft", "write", "compose", "walk", "fill", "catch", "run", "send", "make", "turn", "switch", "set", "put", "leave", "drop", "forget", "scrap", "skip", "cancel", "stop", "ignore", "hold", "remember", "note", "consider", "assume", "suppose", "imagine", "pretend", "go", "take", "start", "begin", "do", "let", "say", "update", "prepare", "add", "create", "delete", "remove", "pay", "buy", "book", "call", "contact", "email", "message", "ring", "approve", "confirm", "proceed", "submit", "reject", "deny", "undo", "repeat", "reply", "respond", "answer", "help", "separate", "keep", "review", "audit", "evaluate", "assess", "analyse", "analyze", "estimate", "recommend", "suggest", "advise", "offer", "verify", "validate", "highlight", "flag", "name", "identify", "weigh", "judge", "decide", "choose", "pick", "select", "turn", "never", "don", "dont", "disregard", "abandon", "discard", "just", "use", "try", "focus", "stay", "wake", "share", "forward", "save", "schedule", "remind", "track", "monitor", "watch", "lock", "unlock", "arm", "disarm", "dim", "increase", "decrease", "raise", "lower", "extend", "pause", "resume", "revoke", "fund"]);
+const DIRECTIVE = new Set(["show", "list", "display", "pull", "fetch", "find", "get", "open", "read", "view", "see", "bring", "give", "tell", "check", "look", "rank", "sort", "order", "compare", "explain", "summarize", "summarise", "recap", "brief", "draft", "write", "compose", "walk", "fill", "catch", "run", "send", "make", "turn", "switch", "set", "put", "leave", "drop", "forget", "scrap", "skip", "cancel", "stop", "ignore", "hold", "remember", "note", "consider", "assume", "suppose", "imagine", "pretend", "go", "take", "start", "begin", "do", "let", "say", "update", "prepare", "add", "create", "delete", "remove", "pay", "buy", "book", "call", "contact", "email", "message", "ring", "approve", "confirm", "proceed", "submit", "reject", "deny", "undo", "repeat", "reply", "respond", "answer", "help", "separate", "keep", "review", "audit", "evaluate", "assess", "analyse", "analyze", "estimate", "recommend", "suggest", "advise", "offer", "verify", "validate", "highlight", "flag", "name", "identify", "weigh", "judge", "decide", "choose", "pick", "select", "turn", "never", "don", "dont", "disregard", "abandon", "discard", "just", "use", "try", "focus", "stay", "wake", "share", "ask", "warn", "notify", "inform", "forward", "save", "schedule", "remind", "track", "monitor", "watch", "lock", "unlock", "arm", "disarm", "dim", "increase", "decrease", "raise", "lower", "extend", "pause", "resume", "revoke", "fund"]);
 const COGNITIVE_ACT = new Set(["rank", "sort", "order", "prioritise", "prioritize", "summarise", "summarize", "explain", "compare", "assess", "analyse", "analyze", "judge", "evaluate", "recommend", "suggest", "advise", "weigh", "list", "show", "tell", "give", "invent", "claim", "promise", "report", "pretend", "guarantee", "assume", "state", "imply", "say", "present", "treat", "mark", "call", "describe"]);
 const ASSERTIVE = new Set(["invent", "claim", "promise", "report", "pretend", "guarantee", "assume", "state", "imply", "say", "present", "treat", "mark", "call", "describe", "confirm", "assert", "separate"]);
 
@@ -44,15 +44,19 @@ export function analyse(raw: string): Utterance {
   let request = false;
   // "can/could/would/will you (please) <directive>" and "i would like/want/need (you to) <x>" are requests: analyse the requested act itself
   if (/^(?:can|could|would|will)$/.test(tokens[0]) && tokens[1] === "you") {
+    const polite = tokens[2] === "please";
     const rest = tokens.slice(2).filter((t, i) => !(i === 0 && t === "please"));
-    if (rest.length && DIRECTIVE.has(rest[0])) {tokens = rest; request = true;}
+    // "would you <act>?" asks for a view unless made a polite request with "please"; can/could/will you <directive> is a request
+    if (rest.length && DIRECTIVE.has(rest[0]) && (tokens[0] !== "would" || polite)) {tokens = rest; request = true;}
   } else if (tokens[0] === "i" && /^(?:would|will)$/.test(tokens[1] ?? "") && /^(?:like|love|appreciate)$/.test(tokens[2] ?? "")) {tokens = tokens.slice(3).filter((t, i) => !(i < 2 && /^(?:you|to)$/.test(t))); request = true;}
   else if (tokens[0] === "i" && /^(?:want|need)$/.test(tokens[1] ?? "") && /^(?:you|to|a|an|the|some)$/.test(tokens[2] ?? "")) {tokens = tokens.slice(2).filter((t, i) => !(i < 2 && /^(?:you|to)$/.test(t))); request = true;}
   const first = tokens[0] ?? "";
   const wh = WH.has(first);
+  // a bare request noun phrase ("quick summary of X", "recap of Y") is a directive with the verb elided
+  const fragmentRequest = !wh && !AUX.has(first) && !DIRECTIVE.has(first) && tokens.slice(0, 2).some(t => /^(?:summar|recap|rundown|overview|headline|gist|update|status|handover|snapshot|briefing)/.test(t)) && !(first === "i" || first === "we");
   const negImperative = (/^(?:do|dont|never)$/.test(first) && (tokens[1] === "not" || first !== "do")) || (first === "stop" && !wh) || (first === "no" && tokens[1] === "need");
   const auxLead = AUX.has(first) && tokens.length > 1 && !(first === "do" && tokens[1] === "not");
-  const imperative = !wh && !auxLead && (DIRECTIVE.has(first) || negImperative || request);
+  const imperative = !wh && !auxLead && (DIRECTIVE.has(first) || negImperative || request || fragmentRequest);
   return {raw, tokens, q, wh, auxLead, imperative, request, negImperative, declarative: !q && !wh && !auxLead && !imperative};
 }
 
@@ -66,11 +70,11 @@ type Score = Record<CognitiveObjective, number>;
 const ORDER: CognitiveObjective[] = ["reassess", "explain", "compare", "prioritize", "summarize", "assess", "advise", "retrieve"];
 const COMPARATIVE = ["better", "worse", "safer", "riskier", "stronger", "weaker", "cheaper", "smarter", "wiser", "faster", "slower", "bigger", "larger", "smaller", "warmer", "colder", "hotter", "cooler", "higher", "lower", "greater", "easier", "harder", "closer", "likelier", "more", "less"];
 const SUPERLATIVE = ["most", "best", "biggest", "worst", "top", "highest", "greatest", "key", "main", "major", "pressing", "urgent*", "critical", "crucial", "hardest", "largest", "first"];
-const EVALUATIVE = ["okay", "ok", "fine", "alright", "healthy", "solid", "serious", "dodgy", "wrong", "problem*", "trouble*", "exposed", "vulnerab*", "stable", "sound", "genuine", "legit", "viable", "attractive", "credible", "realistic", "reliable", "secure*", "safe*", "dangerous", "risky", "unsafe", "worrying", "concerning", "suspicious", "off", "odd", "unusual", "strange", "broken"];
-const STATE_PRED = ["locked", "unlocked", "open", "closed", "on", "off", "online", "offline", "arrived", "left", "home", "back", "set", "armed", "disarmed", "done", "finished", "ready", "running", "working", "still", "present"];
+const EVALUATIVE = ["okay", "ok", "fine", "alright", "healthy", "solid", "serious", "dodgy", "wrong", "problem*", "trouble*", "exposed", "vulnerab*", "stable", "sound", "genuine", "legit", "viable", "attractive", "credible", "realistic", "reliable", "secure*", "safe*", "dangerous", "risky", "unsafe", "worrying", "concerning", "suspicious", "odd", "unusual", "strange", "broken"];
+const STATE_PRED = ["locked", "unlocked", "open", "closed", "online", "offline", "arrived", "left", "set", "armed", "disarmed", "done", "finished", "ready", "running", "working", "present", "home", "back"];
 const EPISTEMIC = ["know", "known", "unknown", "verify", "verified", "confirm*", "observe*", "observed", "evidence", "conclude", "baseline", "certain", "prove", "proof", "unresolved", "missing", "stale", "unverified", "uncertain*", "sure"];
 const SUMMARY = ["summar*", "recap", "rundown", "overview", "headline", "gist", "tldr", "briefing", "snapshot", "handover", "debrief"];
-const ASK_DATA = ["expected", "coming", "due", "visiting", "visited", "arrive*", "unassigned", "spent", "used", "came", "pending", "overdue", "outstanding", "registered"];
+const ASK_DATA = ["expected", "coming", "come", "comes", "due", "visiting", "visited", "arrive*", "unassigned", "spent", "used", "came", "pending", "overdue", "outstanding", "registered"];
 const RETRIEVE_VERB = ["show", "list", "display", "pull", "fetch", "find", "get", "open", "read", "view", "bring", "see", "lookup"];
 
 export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} = {}): Score {
@@ -87,6 +91,9 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   // ---- explanation
   const whyAt = idx(u, "why");
   if (whyAt >= 0 && (whyAt <= 3 || whyAt >= n - 2)) s.explain += 4;
+  if (lead === "why") s.explain += 4;
+  if (lead === "explain") s.explain += 3;
+  if (u.wh && has(u, "we", "i", "you") && has(u, "discuss*", "talk*", "refer*", "meant", "mean", "said", "say", "asked", "ask", "mentioned", "correct*", "told", "decid*", "agree*", "chose", "choose")) s.explain += 4;
   if (lead === "how" && T[1] === "come") s.explain += 4;
   if (has(u, "explain*", "justif*", "rationale", "reasoning", "logic")) s.explain += 3;
   if (u.wh && has(u, "driving", "behind", "makes", "made") && !has(u, "sense")) s.explain += 3;
@@ -94,11 +101,15 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (lead === "how" && T[1] === "so") s.explain += 3;
   if (has(u, "walk") && has(u, "through") && has(u, "reasoning", "thinking", "logic", "decision", "ranking", "order", "recommendation")) s.explain += 3;
   // ---- reassessment
-  const changeV = has(u, "change", "changes", "changed", "changing", "alter*", "affect*", "shift*");
+  const changeAt = T.findIndex((t, i) => ["change", "changes", "changed", "changing"].includes(t) || t.startsWith("alter") || t.startsWith("affect") || t.startsWith("shift"));
+  const negatedChange = changeAt > 0 && (T[changeAt - 1] === "not" || T[changeAt - 1] === "you" || (lead === "did" && has(u, "you")));
+  const changeV = changeAt >= 0 && !negatedChange;
+  const evidenceChange = changeV && u.wh && has(u, "evidence", "information", "data", "fact", "facts", "news") && has(u, "would", "could", "will");
+  if (evidenceChange) s.assess += 5;
   const retro = changeV && (u.wh || lead === "has" || lead === "have") && has(u, "since", "yesterday", "overnight", "today", "last", "week", "while", "recently", "ago");
   const judgNoun = has(u, "priority", "priorities", "recommendation", "view", "plan", "order", "answer", "assessment", "picture", "conclusion", "things", "anything", "explanation", "reasoning", "decision", "ranking", "mind", "stance", "what");
   if (changeV && retro && !has(u, "reasoning", "view", "recommendation", "priority", "assessment", "plan", "explanation")) s.compare += 4;
-  else if (changeV) s.reassess += 3 + (judgNoun ? 1 : 0);
+  else if (changeV && !evidenceChange) s.reassess += 3 + (judgNoun ? 1 : 0);
   if (has(u, "still") && (has(u, "priority", "first", "top", "pick", "rank*", "same", "stand", "recommend*", "view", "answer", "plan", "valid", "hold", "best", "favourite", "favorite") || n <= 2)) s.reassess += 4;
   else if (has(u, "still") && has(u, ...EVALUATIVE, "open", "true")) s.assess += 3;
   if (has(u, "same") && has(u, "answer", "order", "plan", "conclusion", "result", "recommendation", "priority", "view", "thing")) s.reassess += 4;
@@ -106,11 +117,11 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (has(u, "reconsider", "rethink", "revisit", "reassess", "reevaluate")) s.reassess += 4;
   if (u.q && (has(u, "given", "knowing", "considering") || before(u, ["light"], ["of"], 1) || before(u, ["now"], ["that"], 1))) s.reassess += 2;
   const supposeLead = ["if", "suppose", "supposing", "imagine", "assume", "assuming", "hypothetically"].includes(lead) || has(u, "hypothetically");
-  if (supposeLead) { if (T.includes("i") || T.includes("we") ? has(u, "left", "leave", "keep", "kept", "turn", "turned", "switch", "switched", "set", "stop", "stopped", "ran", "running", "do", "did", "sold", "sign", "signed", "signing") : false) s.advise += 4; else if (u.q || has(u, "matter*", "change*", "alter*", "affect*", "happen*", "differ*")) s.reassess += 4; }
+  if (supposeLead) { if (T.slice(1, 4).includes("you") || T[1] === "na") s.advise += 4; else if (T.includes("i") || T.includes("we")) s.advise += 4; else if (u.q || has(u, "matter*", "change*", "alter*", "affect*", "happen*", "differ*")) s.reassess += 4; }
   // ---- comparison
   if (has(u, "compar*", "versus", "vs", "difference", "differ*", "separates", "weigh")) s.compare += 4;
   if (has(u, "stack*") && has(u, "up")) s.compare += 4;
-  if (has(u, "tradeoff*") || (has(u, "trade") && has(u, "offs", "off"))) s.compare += 3;
+  if (has(u, "tradeoff*") || (has(u, "trade") && has(u, "offs", "off"))) s.compare += 5;
   const comp = has(u, ...COMPARATIVE);
   if (comp && has(u, "than")) s.compare += 3;
   if (comp && (u.wh || u.auxLead) && !has(u, "more") && !has(u, "less")) s.compare += 3;
@@ -120,7 +131,9 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   // ---- prioritisation
   if (has(u, "priorit*", "rank*", "triage")) s.prioritize += 3;
   if (has(u, "sort", "order") && (has(u, "by", "importance", "urgency", "risk", "priority", "them", "these", "those", "sensible", "running", "short", "out") || lead === "order")) s.prioritize += 3;
-  if (u.wh && has(u, ...SUPERLATIVE.filter(x => x !== "first" && x !== "most"))) s.prioritize += 2;
+  if (u.wh && has(u, ...SUPERLATIVE.filter(x => x !== "first" && x !== "most"), "useful", "helpful", "valuable", "important")) s.prioritize += 2;
+  if (u.wh && has(u, "block*", "blocker*", "blocking")) s.prioritize += 3;
+  if (ask && has(u, "chase", "tackle", "face", "handle", "attack", "target", "look", "start", "begin", "address") && has(u, "which", "what") && has(u, "first", "hardest", "most", "next", "top", "best")) s.prioritize += 5;
   if (has(u, "most") && u.wh) s.prioritize += 2;
   if (has(u, "matter", "matters") && has(u, "most")) s.prioritize += 4;
   else if (has(u, "matter", "matters") && u.wh) s.assess += 3;
@@ -146,6 +159,7 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   // ---- advice
   const should = has(u, "should", "shall", "ought");
   if (should) s.advise += 2;
+  if (lead === "should" || lead === "shall") s.advise += 1;
   if (has(u, "recommend*", "suggest*", "advis*", "advice", "delegat*")) s.advise += 4;
   if (has(u, "hand", "pass") && has(u, "off", "over", "on", "to", "someone", "somebody")) s.advise += 3;
   if (has(u, "next") && has(u, "step", "steps", "move", "moves", "action", "thing")) s.advise += 4;
@@ -159,13 +173,21 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (has(u, "or") && has(u, "hold", "wait", "investigate", "proceed", "stop", "continue") && (has(u, "we", "i", "should", "do"))) s.advise += 3;
   if ((lead === "do" || lead === "should" || lead === "shall") && has(u, "we", "i") && has(u, "go", "need", "move", "hold", "proceed", "clear", "evacuate", "call", "hire", "send", "tell", "wait", "act")) s.advise += 3;
   if ((lead === "can" || lead === "could" || lead === "may") && has(u, "i", "we") && !has(u, "see", "ask", "have", "get", "know", "trust")) s.advise += 2;
-  if (has(u, "draft", "compose", "write", "prepare") && ask && !has(u, ...SUMMARY, "brief", "summary")) s.advise += 3;
+  if (has(u, "draft", "compose", "write", "prepare") && ask && !has(u, ...SUMMARY, "brief", "summary")) s.advise += (lead === "draft" || lead === "compose" || lead === "write") ? 4 : 3;
   if (has(u, "promise", "guarantee") && (has(u, "can", "could", "will", "would") || u.imperative)) s.advise += 3;
-  if (u.wh && has(u, "should", "would") && has(u, "i", "we", "you", "team", "manager", "staff", "us") && !has(u, "worry", "worried", "concerned", "first")) s.advise += 2;
+  if (u.wh && has(u, "should", "would") && has(u, "i", "we", "you", "team", "manager", "staff", "us") && !has(u, "worry", "worried", "concerned")) s.advise += 2;
+  if (u.wh && has(u, "would", "will", "should") && has(u, "evidence", "measurement*", "document*", "step*", "check*", "verification", "information", "proof") && has(u, "show", "close", "help", "settle", "prove", "confirm", "fix", "solve", "resolve")) s.advise += 4;
+  if (u.wh && has(u, "can", "could") && has(u, "you") && has(u, "do") && has(u, "about", "for", "with")) s.advise += 4;
+  if (u.wh && has(u, "should", "would", "will") && has(u, "do", "happen", "discuss", "verify", "check", "ask", "prepare", "attempt*", "try", "help", "show", "close", "settle", "solve", "fix", "prove")) s.advise += 3;
+  if (u.wh && has(u, "would", "will", "should") && has(u, "need*", "require*")) s.advise += 4;
+  if ((lead === "would" || lead === "should" || lead === "could") && T[1] && T[1].endsWith("ing") && !["something", "anything", "nothing", "everything"].includes(T[1])) s.advise += 4;
+  if (u.imperative && has(u, "offer", "give") && has(u, "way", "step", "reason", "option", "options", "suggestion")) s.advise += 4;
+  if (u.imperative && has(u, "ask", "check", "confirm", "tell", "warn", "notify") && has(u, "me") && has(u, "before", "first")) s.assess += 3;
+  if ((lead === "would" || lead === "will" || lead === "could") && T[1] && !["you", "i", "we", "it", "that", "this", "the", "a"].includes(T[1]) && has(u, "pursue", "consider", "accept", "approve", "agree", "back", "fund")) s.assess += 4;
   if (has(u, "need") && has(u, "from", "to") && has(u, "me", "you") && u.wh) s.advise += 2;
   if (lead === "then" && n === 1) s.advise += 3;
   // ---- assessment
-  if (has(u, "worr*", "concern*", "risk*", "danger*", "nervous", "anxious", "afraid")) s.assess += 3;
+  if (has(u, "worr*", "concern*", "risk*", "danger*", "nervous", "anxious", "afraid") && (!u.imperative || u.negImperative === false && has(u, "should", "about"))) s.assess += 3;
   if (has(u, ...EVALUATIVE) && (u.q || u.wh || u.auxLead)) s.assess += 3;
   if (has(u, "anything", "something") && has(u, "wrong", "off", "odd", "unusual", "strange", "dodgy", "worrying", "concerning", "dangerous", "risky", "spoiling", "kicking", "slipping", "hiding", "worry", "problem", "issue", "need", "should", "ought", "must", "sort", "check", "dodgy")) s.assess += 4;
   if (lead === "how" && has(u, "healthy", "bad", "serious", "solid", "safe", "good", "strong", "risky", "exposed", "well", "secure", "stable")) s.assess += 4;
@@ -173,7 +195,9 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (has(u, "neglect*", "slipping", "drifting", "behind") && (has(u, "we", "are", "anything") || u.wh)) s.assess += 3;
   if (has(u, ...EPISTEMIC) && ask) s.assess += 3;
   if (has(u, "enough") && has(u, "to", "for", "information", "details") && ask) s.assess += 3;
-  if (u.auxLead && has(u, ...STATE_PRED) && !has(u, "show", "list")) s.assess += 3;
+  if (has(u, "have", "has") && has(u, "reading*", "data", "record*", "source*", "measurement*", "sensor*", "scope", "proof", "report", "baseline", "evidence") && u.auxLead) s.assess += 3;
+  if (u.wh && has(u, "can", "could") && has(u, "you") && has(u, "tell", "say", "know", "confirm", "verify", "conclude", "see")) s.assess += 4;
+  {const k = T.findIndex(t => STATE_PRED.includes(t)); if (u.auxLead && k >= 0 && T.slice(k + 1).every(t => ["now", "yet", "already", "right", "today", "again", "really", "or", "not"].includes(t)) && !has(u, "show", "list")) s.assess += 3;}
   if (has(u, "trust*", "reliab*", "credib*") && ask) s.assess += 3;
   if (has(u, "looking", "look", "looks") && has(u, "ok", "okay", "fine", "good", "alright", "right", "off", "dodgy")) s.assess += 3;
   if (has(u, "on") && has(u, "track")) s.assess += 3;
@@ -181,17 +205,17 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (has(u, "check") && has(u, "whether", "if", "healthy", "ok", "okay", "fine", "working")) s.assess += 3;
   if (has(u, "possible", "feasible", "allowed", "permitted") && (u.q || u.auxLead)) s.assess += 3;
   if (has(u, "matter", "matters") && (lead === "does" || lead === "do" || lead === "would") && !supposeLead) s.assess += 3;
-  if (has(u, "missing") && u.wh) s.assess += 3;
-  if (has(u, "make") && has(u, "non", "nonstarter")) s.assess += 3;
+    if (has(u, "make") && has(u, "non", "nonstarter")) s.assess += 3;
   if (has(u, "told", "given", "shared") && has(u, "enough", "me", "you")) s.assess += 1;
   // ---- retrieval
   if (RETRIEVE_VERB.includes(lead) && u.imperative) s.retrieve += 4;
+  if (lead === "read" && has(u, "back")) s.summarize += 5;
   if (has(u, "pull") && has(u, "up")) s.retrieve += 4;
   if (lead === "give" && has(u, "me") && !has(u, ...SUMMARY, "short", "quick", "advice", "recommendation", "reason", "update", "next", "answer", "headline", "view", "gist", "rundown", "overview")) s.retrieve += 3;
   if ((has(u, "who") || has(u, "which") || has(u, "how") && has(u, "many", "much")) && has(u, ...ASK_DATA)) s.retrieve += 3;
   if (has(u, "how") && has(u, "many", "much") && has(u, "spent", "used", "power", "electricity", "water", "cost", "paid", "energy", "leads", "unassigned", "open")) s.retrieve += 3;
   if (u.wh && has(u, "like") && has(u, "temperature", "weather", "state", "level", "reading")) s.retrieve += 3;
-  if (has(u, "who") && (has(u, "at", "coming", "visiting", "expected"))) s.retrieve += 3;
+  if (has(u, "who") && (has(u, "coming", "visiting", "expected", "come") || before(u, ["at"], ["door", "gate", "entrance", "reception", "front", "home", "house", "here"], 2))) s.retrieve += 3;
   if (has(u, "has", "have", "did", "is") && has(u, "anyone", "anybody", "somebody")) s.retrieve += 3;
   if (lead === "which" && n >= 3 && has(u, "arrived", "came", "arrive*", "opportunit*", "leads", "visitors", "lights", "devices") && !has(u, ...SUPERLATIVE)) s.retrieve += 3;
   if (lead === "what" && has(u, "is", "are") && has(u, "the", "my", "our") && n <= 6 && Math.max(...Object.values(s)) === 0) s.retrieve += 1;
@@ -233,24 +257,32 @@ export function objectiveOf(raw: string, opts: {activeAssessment?: boolean} = {}
 // ------------------------------------------------------------------ capability discovery
 // An enquiry about the assistant's own abilities: second-person subject + ability frame + no concrete topic complement. "What can you do
 // about the financing?" is a request for judgment; "What can you do?" / "What can you do for me?" is capability discovery.
-const GENERIC_COMPLEMENT = new Set(["me", "us", "here", "today", "now", "you", "with", "for", "at", "to", "the", "a", "an", "all", "everything", "anything", "else", "also", "actually", "really", "just", "exactly", "specifically", "in", "this", "that", "thing", "things", "stuff", "tasks", "look", "do", "help", "assist", "access", "handle", "offer", "support", "cover", "provide", "share", "ask", "use", "work", "on", "of", "i", "can", "could", "are", "is", "able", "capable", "good", "what", "which", "who", "how", "tell", "list", "show", "give", "say", "no", "not", "only", "my", "own", "it", "so", "and", "or", "please", "own", "been", "built", "designed", "meant", "made", "far", "my", "about"]);
+const GENERIC = new Set(["me", "us", "here", "today", "now", "you", "with", "for", "at", "to", "the", "a", "an", "all", "everything", "anything", "else", "also", "actually", "really", "just", "exactly", "specifically", "in", "this", "that", "thing", "things", "stuff", "tasks", "look", "do", "help", "assist", "access", "handle", "offer", "support", "cover", "provide", "share", "use", "work", "on", "of", "i", "can", "could", "are", "is", "able", "capable", "so", "and", "or", "please", "own", "far", "my", "your", "our", "it", "oma", "oyi", "osa", "be", "out", "up", "good", "about", "information", "data", "details"]);
+const ABILITY_VERB = ["do", "help", "assist", "handle", "offer", "access", "support", "cover", "manage", "share", "provide", "reach"];
+// Capability discovery = a question about the assistant's own abilities: an interrogative frame whose subject is the assistant (you / its name)
+// with an ability verb or an "able/capable" predicate. A concrete topic complement ("about the financing", "for my plot") turns it into a
+// request for judgment, not a menu request. "What would you do?" / "things you can do" inside another request are not discovery.
 export function isCapabilityInquiryUtterance(u: Utterance): boolean {
-  const T = u.tokens, j = T.indexOf("you");
-  if (j < 0 && !T.some(t => ["oyi", "oma", "osa"].includes(t))) return false;
-  const ability = T.some((t, i) => (t === "can" || t === "could") && T[i + 1] !== "not" && T.slice(i + 1, i + 4).some(x => ["do", "help", "assist", "handle", "offer", "access", "support", "cover", "manage"].includes(x)))
-    || T.some((t, i) => (t === "able" || t === "capable") && T[i + 1] === "to")
-    || (T.includes("capable") && T.includes("of")) || (T.includes("able") && T.includes("to"))
-    || (T.includes("what") && T.includes("you") && T.includes("do") && !T.includes("about"))
-    || (T.includes("how") && T.includes("can") && T.includes("you") && T.includes("help"));
-  if (!ability) return false;
-  // a concrete topic complement ("about the financing", "for my plot", "with the leads") makes it a request for judgment instead
-  const pivot = Math.max(T.indexOf("do"), T.indexOf("help"), T.indexOf("with"), T.indexOf("about"), T.indexOf("for"), T.indexOf("on"));
-  const after = pivot >= 0 ? T.slice(pivot + 1) : [];
-  const intro = T.findIndex((t, i) => ["about", "regarding", "concerning"].includes(t));
-  if (intro >= 0 && T.slice(intro + 1).some(t => !GENERIC_COMPLEMENT.has(t))) return false;
-  const topical = after.filter(t => !GENERIC_COMPLEMENT.has(t) && !["my", "our", "your"].includes(t));
-  if (T.some((t, i) => ["my", "our", "the", "this", "that", "these", "those"].includes(t) && i > pivot && pivot >= 0 && ["about", "for", "with", "on"].includes(T[pivot]) && topical.length)) return false;
-  return topical.length === 0 || (T[pivot] === "do" && after.every(t => GENERIC_COMPLEMENT.has(t) || t === "actually" || t === "really"));
+  const T = u.tokens;
+  const j = T.findIndex(t => t === "you" || t === "oma" || t === "oyi" || t === "osa");
+  if (j < 0) return false;
+  const whAt = T.findIndex(t => WH.has(t));
+  if (whAt < 0 || whAt > j) return false;
+  const modalBefore = T.slice(whAt, j + 1).some(t => ["can", "could", "are", "do", "does"].includes(t));
+  const modalAfter = ["can", "could"].includes(T[j + 1] ?? "");
+  const ableAfter = T.slice(j + 1, j + 4).some(t => t === "able" || t === "capable");
+  if (!(modalBefore || modalAfter || ableAfter)) return false;
+  if (T.slice(whAt, j + 1).includes("would") || T.slice(whAt, j + 1).includes("should")) return false;
+  const verbAt = T.findIndex((t, i) => i > whAt && ABILITY_VERB.includes(t) && i !== j);
+  if (verbAt < 0 && !ableAfter) return false;
+  if (ableAfter && verbAt < 0) return true;
+  const verb = T[verbAt];
+  const after = T.slice(verbAt + 1);
+  const topical = after.filter(t => !GENERIC.has(t));
+  const prepAt = after.findIndex(t => ["about", "for", "with", "on", "regarding"].includes(t));
+  if ((verb === "do" || verb === "help" || verb === "assist") && prepAt >= 0 && after.slice(prepAt + 1).some(t => !GENERIC.has(t))) return false;
+  if (verb === "do" && topical.length) return false;
+  return true;
 }
 export const isCapabilityInquiryText = (raw: string) => isCapabilityInquiryUtterance(analyse(raw));
 

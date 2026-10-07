@@ -6,6 +6,7 @@ import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/S
 import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective, isAssessmentInformation, assessmentContinuation, assessmentSubjectDomains, assessmentEvidenceRequirements, assessmentEvidenceAnswer, assessmentCaveats, ASSESSMENT_TTL_MS } from "../context/conversationAssessmentContext";
 import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
 import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
+import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
 import { parseDerivedReference, scopeBinding } from "../evidence/reference/derivedReference";
 import { runReassessment } from "../evidence/reassessment/integration";
 import { providerFromEnv as reassessProvider } from "../evidence/judgment/provider";
@@ -3407,13 +3408,19 @@ export class ConversationOrchestrator {
   private async runTurn(context: CanonicalConversationRequestContext, traceHolder: { tracer: ConversationTracer | null }): Promise<ConversationRunResult> {
     context = await assembleGovernedContext(context);
     ensureRegistered();
-    const parsedFrame = parseSemanticFrame(context.input.message);
+    // IQ-7: the active assessment is part of the meaning of a turn (a statement continues it; an unprompted complaint opens one)
+    const earlyAssessment = await loadConversationAssessment(context.input, context.actor?.id || null).catch(() => null);
+    const parsedFrame = parseSemanticFrame(context.input.message, { activeAssessment: Boolean(earlyAssessment) });
     const publicCorrection = context.input.surface === "public_corporate"
       && correctedPublicFacts(await loadPublicOpportunityObjective(context.input.thread_id), context.input.message);
+    const publicObjective = context.input.surface === "public_corporate" ? await loadPublicOpportunityObjective(context.input.thread_id) : null;
+    // IQ-7: inside an established public qualification, a statement or question that is not a private probe, a company-knowledge question or a
+    // capability inquiry is about the visitor's own opportunity, whatever its wording.
+    const publicContinuation = Boolean(publicObjective) && !parsedFrame.mutationIntent && parsedFrame.operation !== "cancel" && isOpportunityContinuation(parsedFrame.rawText, parsedFrame, true);
     const publicAssessment = context.input.surface === "public_corporate"
-      && (publicCorrection || ((isAssessmentObjective(parsedFrame.cognitiveObjective) || parsedFrame.cognitiveObjective === "summarize") && !parsedFrame.mutationIntent))
-      && !/\b(?:leads?|investors?|internal|private|staff)\b/i.test(parsedFrame.rawText)
-      && await loadPublicOpportunityObjective(context.input.thread_id);
+      && (publicCorrection || publicContinuation || ((isAssessmentObjective(parsedFrame.cognitiveObjective) || parsedFrame.cognitiveObjective === "summarize") && !parsedFrame.mutationIntent))
+      && !isPrivateProbe(parsedFrame.rawText)
+      && publicObjective;
     const planReview = context.input.surface === "office_internal" && normalizePlanReviewContext((context.input.context as any)?.plan_review_context);
     const automationSuggestion = Boolean((context.input.context as any)?.automation_suggestion_context);
     // Explicit read-only host request; still passes the normal capability
@@ -3724,7 +3731,7 @@ export class ConversationOrchestrator {
     // Cognitive follow-ups precede raw-list ordinals, but never confirmations,
     // cancellations or pending governed workflows handled above. No new
     // retrieval, capability key or authority is introduced here.
-    const previousAssessment = await loadConversationAssessment(context.input, context.actor?.id || null).catch(() => null);
+    const previousAssessment = earlyAssessment;
     let assessment = nextConversationAssessment(previousAssessment, frame, context.input.surface);
     // IQ-5: a reference to the derived assessment artifact (ranking, compared pair or listed set) resolves deterministically against
     // that artifact: no retrieval, no model, no new authority. Scope and authority are re-checked on every dereference. A reference

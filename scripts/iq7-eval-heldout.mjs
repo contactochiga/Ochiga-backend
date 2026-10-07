@@ -12,7 +12,7 @@ const prior = c => c ? ({objective: c.objective, surface: c.surface, domain: c.d
 const subjectClass = (domains, surface, hasPrev) => domains.length === 0 ? (hasPrev ? 'inherit' : 'default') : domains.length > 1 && JSON.stringify([...domains].sort()) === JSON.stringify([...ctxmod.defaultAssessmentSubject(surface)].sort()) ? 'default' : domains;
 const items = suite.items.filter(i => cfg.split === 'all' || i.split === cfg.split);
 const rows = items.map(it => {
-  const ctx = suite.contexts[it.c] || null, prev = prior(ctx), frame = parseSemanticFrame(it.u), got = {};
+  const ctx = suite.contexts[it.c] || null, prev = prior(ctx), frame = parseSemanticFrame(it.u, {activeAssessment: Boolean(prev)}), got = {};
   const next = ctxmod.nextConversationAssessment(prev, frame, it.s, NOW);
   const retained = Boolean(prev && next && next.created_at === prev.created_at && !next.suspended);
   got.objective = frame.cognitiveObjective;

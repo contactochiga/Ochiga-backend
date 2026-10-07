@@ -1,3 +1,4 @@
+import { analyse, responseMove } from "../interpretation/semanticObjective";
 export type OyiOperation =
   | "inform"
   | "summarize"
@@ -171,12 +172,15 @@ function applyLexicalCorrections(raw: string) {
 }
 
 function classifyOperation(text: string): OyiOperation {
-  if (/\b(cancel|never mind|stop|start over)\b/i.test(text)) return "cancel";
-  if (/\b(yes|confirm|approve|go ahead|submit|send it|create it|do it)\b/i.test(text)) return "approve";
-  if (/\b(no|reject|don't|do not)\b/i.test(text)) return "reject";
-  if (/\b(open|go to|take me to|view workspace)\b/i.test(text)) return "navigate";
-  if (/\b(create|draft|prepare|compose|add|generate|make)\b/i.test(text)) return "compose";
-  if (/\b(turn|switch|set|run|unlock|lock|fund|pay|buy|send|post|revoke|extend|pause|resume)\b/i.test(text)) return "propose_mutation";
+  // IQ-7: approve / reject / cancel are LEADING moves of a short reply (structure), never a keyword found anywhere in the text; mutation
+  // verbs only count when the utterance is itself a directive or request (a question or statement that mentions one is not a command).
+  const move = responseMove(text);
+  if (move) return move;
+  const u = analyse(text);
+  const directive = u.imperative || u.request;
+  if (/\b(open|go to|take me to|view workspace)\b/i.test(text) && (directive || /\bwhich|what\b/i.test(text))) return "navigate";
+  if (directive && /\b(create|draft|prepare|compose|add|generate|make)\b/i.test(text)) return "compose";
+  if (directive && /\b(turn|switch|set|run|unlock|lock|fund|pay|buy|send|post|revoke|extend|pause|resume)\b/i.test(text)) return "propose_mutation";
   if (/\b(show|list|which|what are|history|transactions|visitors|requests|scenes|automations)\b/i.test(text)) return "list";
   if (/\b(what(?:'s| is) happening|summary|needs attention|check first|spent|spend|how much|changed today)\b/i.test(text)) return "summarize";
   if (/\b(is|are|status|working|healthy|diagnose|why|explain|detail|details)\b/i.test(text)) return "inspect";
@@ -284,7 +288,9 @@ function classifyDomain(text: string): OyiDomain | null {
   // mutually-exclusive supports() in OfficeCorporateCapabilityModules.ts).
   if (/\bochiga\s+development\b/i.test(text)) return "corporate_development";
   if (/\byour\s+developments?\b|\btell\s+me\s+about\s+(?:your\s+|the\s+)?developments?\b|\bdevelopment\s+projects?\b/i.test(text)) return "corporate_development";
-  if (/\bwhat\s+does\s+ochiga\s+do\b|\bwhat\s+is\s+ochiga\b|\babout\s+ochiga\b|\bwho\s+is\s+ochiga\b|\bwhat\s+does\s+the\s+company\s+do\b|\btell\s+me\s+about\s+ochiga\b/i.test(text)) return "corporate_company";
+  if (/\b(?:what|who|where|why|how)\b[\s\S]{0,30}\bochiga\b|\babout\s+ochiga\b|\bwhat\s+does\s+the\s+company\s+do\b|\btell\s+me\s+about\s+(?:the\s+)?(?:company|firm|business|organi[sz]ation|people)\b|\b(?:company|firm|organi[sz]ation|people|team)\b[\s\S]{0,15}\bbehind\b/i.test(text)) return "corporate_company";
+  // How a joint venture with the company works (governed JV process content).
+  if (/\b(?:jv|joint\s*venture)\b[\s\S]{0,60}\b(?:work|works|process|involve|involves|require|requires|typically|usually|steps|stages)\b|\b(?:how|what)\b[\s\S]{0,30}\b(?:jv|joint\s*venture)\b/i.test(text)) return "corporate_opportunity";
   // Public/Osa progressive opportunity qualification -- generic shapes,
   // not any one location/area/structure-type/sentence. See
   // publicOpportunityObjective.ts (ephemeral per-thread state) and
@@ -292,7 +298,13 @@ function classifyDomain(text: string): OyiDomain | null {
   // Ownership/asset statement: "I own land in VI.", "I own 1,200 sqm in
   // Abuja.", "I own a building in Lekki." -- the word after "own" plus a
   // property/area noun within a short window, not a specific value.
-  if (/\bi\s+own\b[\s\S]{0,40}\b(?:land|plot|plots|property|building|site|facility|house|estate|sqm|square\s*meters?|hectares?|acres?|units?)\b/i.test(text)) return "corporate_opportunity";
+  if (/\b(?:i|we|my\s+(?:family|parents|father|mother)|our\s+family)\b[\s\S]{0,30}\b(?:own|owns|have|has|got|inherited|hold|holds|bought|acquired)\b[\s\S]{0,40}\b(?:land|plots?|propert(?:y|ies)|buildings?|sites?|houses?|estates?|compounds?|acres?|sqm|square\s*meters?|hectares?|units?)\b/i.test(text)) return "corporate_opportunity";
+  // A property asset together with an intent to develop/build/partner/lease/sell it ("a plot I'd like to develop with someone").
+  if (/\b(?:land|plots?|propert(?:y|ies)|buildings?|sites?)\b[\s\S]{0,60}\b(?:develop|build|jv|joint\s*venture|partner|lease|leasing|sell|redevelop)/i.test(text)) return "corporate_opportunity";
+  // Wanting to team up / partner / do a project with the company itself.
+  if (/\b(?:team\s+up|partner|work\s+together|collaborate|do\s+a\s+project)\b[\s\S]{0,20}\b(?:with|on)\s+(?:you|ochiga|us)\b|\bcan\s+(?:i|we)\s+(?:team\s+up|collaborate)\b/i.test(text)) return "corporate_opportunity";
+  // Questions about where/how the company itself works ("do you only work in one city?").
+  if (/\b(?:do|does|are|where)\b[\s\S]{0,20}\byou\b[\s\S]{0,25}\b(?:work|operate|develop|build|serve|cover|focus|based|active)\b/i.test(text)) return "corporate_company";
   // Bare area/size mention as a continuation turn: "It's about 1,200
   // sqm.", "About 3 hectares.", "It's a 40-unit building." -- matches the
   // unit, not the number.
@@ -316,7 +328,7 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\b(?:interested\s+in|looking\s+at|considering)\s+oyi\s+for\b/i.test(text)) return "corporate_opportunity";
   // Callback/handoff request -- generic, not JV-specific; also covers a
   // technology/facility inquiry progressing toward staff handoff.
-  if (/\bcan\s+(?:somebody|someone|anybody|anyone)\s+call\s+me\b|\bcould\s+(?:somebody|someone)\s+(?:call|reach\s+out\s+to)\s+me\b|\brequest\s+a\s+call(?:back)?\b|\bhave\s+someone\s+(?:call|contact)\s+me\b/i.test(text)) return "corporate_opportunity";
+  if (/\b(?:can|could|would|will)\s+(?:somebody|someone|anybody|anyone|a\s+(?:person|human)|the\s+team|you)\s+(?:call|ring|phone|reach\s+out|contact|get\s+back)\b|\brequest\s+a\s+call(?:back)?\b|\bhave\s+someone\s+(?:call|contact)\s+me\b|\b(?:call|ring)\s+me\s+back\b/i.test(text)) return "corporate_opportunity";
   if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair|broken|not working)\b/i.test(text)) return "maintenance";
   if (/\b(report|analytics?|trend|comparison|compare)\b/i.test(text)) return "reports";
   if (/\bhome|house|everything|what should i check|needs attention|changed today\b/i.test(text)) return "home";

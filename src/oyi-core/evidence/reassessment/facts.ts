@@ -1,4 +1,5 @@
-import { isAssessmentInformation } from "../../context/conversationAssessmentContext";
+import { analyse, isCancellationText, isCapabilityInquiryText, sentencesOf } from "../../interpretation/semanticObjective";
+import { domainHits } from "../../interpretation/domainVocabulary";
 import type { ArtifactItem, DerivedRanking } from "../judgment/types";
 import { itemsOfNoun, namedItems, parseDerivedReference, primaryGroup } from "../reference/derivedReference";
 
@@ -13,45 +14,54 @@ export type ConversationFact = {
 };
 export const MAX_FACTS = 6;
 
-const CLASS_KEYWORDS: Array<[string[], RegExp]> = [
-  [["office_financial", "office_development"], /financ|fund|capital|payment|cash|budget/i],
-  [["office_development", "office_reports"], /\b(?:title|survey|approval|permit|blocker|blocked|dispute|disputed|planning|consent)\b/i],
-  [["crm"], /\b(?:lead|prospect|opportunit|deal|feasibility|owner mandate|return|jv|buyer)\w*/i],
-  [["maintenance"], /\b(?:leak|water|repair|repaired|plumb|maintenance|fixed|resolved|panel|pipe)\w*/i],
-  [["security"], /\b(?:incident|break-?in|alarm|intruder|theft)\w*/i],
-  [["cameras"], /\b(?:camera|cctv)\w*/i],
-  [["visitors"], /\b(?:visitor|arriv|guest|expected|cleared)\w*/i],
-  [["device_observed_value", "device_availability"], /\b(?:ac|lock|door|device|sensor|temperature|hot|cold|light|window)\b/i],
-  [["corporate_opportunity"], /\b(?:sqm|land|family|sell|sale|lease|jv|lagos|abuja|lekki|epe|vi)\b|title/i],
-];
-export const affectedClasses = (text: string): string[] => [...new Set(CLASS_KEYWORDS.filter(([, re]) => re.test(text)).flatMap(([c]) => c))];
+// Evidence classes a fact can affect, by domain (planner class names). Domain vocabulary only; see interpretation/domainVocabulary.ts.
+const DOMAIN_CLASSES: Record<string, string[]> = {
+  office_financial: ["office_financial", "office_development"], office_development: ["office_development", "office_reports"], crm: ["crm"], office_reports: ["office_reports"],
+  maintenance: ["maintenance"], security: ["security"], cameras: ["cameras"], visitors: ["visitors"], devices: ["device_observed_value", "device_availability"],
+  utilities: ["utilities_usage"], wallet: ["wallet"], rooms: ["device_observed_value", "device_availability"], environment: ["device_observed_value", "device_availability"],
+  corporate_opportunity: ["corporate_opportunity", "office_development", "crm"],
+};
+export const affectedClasses = (text: string): string[] => [...new Set(domainHits(analyse(text).tokens).flatMap(h => DOMAIN_CLASSES[h.domain] ?? []))];
 
-const STOP = new Set(["resolved", "unresolved", "open", "closed", "fixed", "repaired", "secured", "worse", "still", "already", "again", "yet", "back", "online", "offline", "none", "project", "projects", "opportunity", "opportunities", "lead", "leads", "request", "task", "report", "priority", "with", "from", "that", "this", "issue", "item", "lead", "wave11", "the", "and", "for", "have", "has", "been", "there", "their", "they", "says", "said", "now", "just", "very", "more", "much", "than", "then", "actually", "it's", "its", "not", "also", "into", "about", "because", "which", "while", "when", "what", "were", "was", "are", "you", "your", "our", "can", "will"]);
+const STOP = new Set(["resolved", "unresolved", "open", "closed", "fixed", "repaired", "secured", "worse", "still", "already", "again", "yet", "back", "online", "offline", "none", "project", "projects", "opportunity", "opportunities", "lead", "leads", "request", "task", "report", "priority", "with", "from", "that", "this", "issue", "item", "lead", "the", "and", "for", "have", "has", "been", "there", "their", "they", "says", "said", "now", "just", "very", "more", "much", "than", "then", "actually", "it's", "its", "not", "also", "into", "about", "because", "which", "while", "when", "what", "were", "was", "are", "you", "your", "our", "can", "will"]);
 const tokens = (t: string) => new Set(t.toLowerCase().replace(/(\d),(\d)/g, "$1$2").replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => (w.length >= 3 || /\d/.test(w)) && !STOP.has(w)));
 const overlap = (a: Set<string>, b: Set<string>) => [...a].filter(w => b.has(w)).length;
 
-const HYPO = /\b(?:if|suppose|supposing|assume|assuming|what if|imagine|pretend|say that|hypothetically)\b/i;
-const OPINION = /\b(?:i think|i feel|i believe|i prefer|i would rather|i'd rather|in my opinion|i like|i don't like|i hope|i wish|my preference)\b/i;
-const CORRECTION = /\b(?:actually|i meant|i mean|sorry|i was wrong|correction|rather than|instead|that'?s not (?:right|correct)|not\s+[\w,]+(?:\s+\w+)?\s*[,;]\s*(?:it'?s|it is|but))\b/i;
-const CONFIRMATION = /^\s*(?:yes|yeah|yep|correct|right|confirmed|exactly)(?:[,\s]+(?:confirmed|correct|right|exactly|that'?s (?:right|correct)))?[\s.!]*$|^\s*that'?s (?:right|correct)[\s.!]*$/i;
-const ATTRIBUTED = /\b(?:says?|said|told me|claims?|promises?|according to|reports?|insists?)\b|\b(?:the )?(?:chairman|analyst|plumber|owner|partner|agent|neighbour|neighbor|uncle|manager|landlord)\b.*\b(?:is|are|was|has|have|will|can)\b/i;
+const FIRST_PERSON = new Set(["i", "we"]);
+const CONFIRM_VOCAB = new Set(["yes", "yeah", "yep", "yup", "sure", "correct", "right", "exactly", "confirmed", "indeed", "fair", "enough", "makes", "sense", "that", "is", "true", "got", "it", "ok", "okay", "agreed", "absolutely", "definitely", "thanks", "thank", "you", "good", "noted", "understood", "perfect", "great"]);
+const SAY_VERBS = ["say", "says", "said", "tell", "tells", "told", "reckon", "reckons", "reckoned", "claim", "claims", "claimed", "insist", "insists", "swear", "swears", "promise", "promises", "promised", "mention", "mentions", "mentioned", "report", "reports", "reported", "heard", "hear", "hears", "informed", "assure", "assures", "assured", "believes", "thinks"];
+const EMOTION = ["nervous", "worried", "unsure", "happy", "annoyed", "afraid", "anxious", "confused", "stressed", "uneasy", "unhappy", "uncertain", "doubtful", "sceptical", "skeptical", "excited", "relieved"];
+const OPINION_VERBS = ["think", "feel", "reckon", "guess", "believe", "prefer", "like", "dislike", "hate", "love", "doubt", "hope", "wish", "fear", "suspect"];
+const hypothetical = (u: ReturnType<typeof analyse>, raw: string) => {const T = u.tokens, first = T[0]; return ["if", "suppose", "supposing", "imagine", "assume", "assuming", "hypothetically", "pretend"].includes(first) || /\bwhat if\b/.test(raw.toLowerCase()) || (T.includes("hypothetically")) || (T.includes("if") && T.slice(0, 3).includes("if") ) ;};
+const attributed = (u: ReturnType<typeof analyse>) => {const T = u.tokens; if (T.some(t => ["apparently", "reportedly", "supposedly", "allegedly", "rumour", "rumoured", "hearsay"].includes(t))) return true; if (T.slice(0, 2).join(" ") === "according to") return true;
+  return T.some((t, i) => SAY_VERBS.includes(t) && i > 0 && ((!FIRST_PERSON.has(T[i - 1]) && T[i - 1] !== "you" && !(t === "say" && FIRST_PERSON.has(T[i - 1]))) || ((t === "told" || t === "informed" || t === "heard") && T.slice(Math.max(0, i - 3), i).some(x => FIRST_PERSON.has(x)))));};
 
-// The IQ-2 predicate is deliberately narrow (it needs a determiner-led subject). A bare-subject statement of fact ("Financing for Project B
-// is secured.") is still information; imperatives and questions never are.
-const notInformation = (t: string) => /\?/.test(t) || /^\s*(?:please|show|list|open|compare|draft|tell|go|give|make|ask|do not|don't|never|explain|summari[sz]e|recommend|suggest|offer|ignore|pretend|check|separate|just|stop|turn|switch|set|send|call|book|cancel|confirm|approve|now|then|what|which|who|how|why|when|where|can|could|would|should|does|do|is|are)\b/i.test(t) || t.trim().split(/\s+/).length < 2;
 export function classifyUpdate(text: string, facts: ConversationFact[] = []): { type: FactType; attributed: boolean } {
-  const attributed = ATTRIBUTED.test(text);
-  if (!isAssessmentInformation(text) && notInformation(text) && !CONFIRMATION.test(text)) return { type: "question", attributed: false };
-  if (HYPO.test(text)) return { type: "hypothetical", attributed };
-  if (OPINION.test(text)) return { type: "opinion", attributed };
-  if (CONFIRMATION.test(text)) return { type: "confirmation", attributed };
-  if (CORRECTION.test(text)) return { type: "correction", attributed };
-  const t = tokens(text);
-  if (facts.some(f => !f.superseded_by && t.size > 0 && overlap(t, tokens(f.text)) / t.size >= 0.8)) return { type: "confirmation", attributed };
-  // A statement with no domain content counts as a (non-material) detail only when it is plainly information (the IQ-2 predicate);
-  // anything else is left to the normal flow.
-  if (!affectedClasses(text).length) return isAssessmentInformation(text) ? { type: "non_material_detail", attributed } : { type: "question", attributed: false };
-  return { type: attributed ? "unverified_claim" : "material_new_fact", attributed };
+  const raw = String(text ?? "").trim(), u = analyse(raw), T = u.tokens, att = attributed(u);
+  if (!T.length) return { type: "question", attributed: false };
+  // a supposition is never a fact, even when worded as a question about it
+  if (hypothetical(u, raw)) return { type: "hypothetical", attributed: att };
+  if (isCancellationText(raw) || isCapabilityInquiryText(raw)) return { type: "question", attributed: false };
+  if (/\b(?:i meant|i mean|talking about|asking about|referring to)\b/.test(raw.toLowerCase()) && !raw.includes("?")) return { type: "correction", attributed: att };
+  const sents = sentencesOf(raw).map(analyse);
+  if (sents.length > 1 && sents.some(x => !x.declarative)) return { type: "question", attributed: false };
+  if (!u.declarative) return { type: "question", attributed: false };
+  const lower = raw.toLowerCase();
+  if (T.length <= 6 && T.every(t => CONFIRM_VOCAB.has(t))) return { type: "confirmation", attributed: false };
+  // first-person feelings and attitudes are not facts about the world
+  const fp = T.findIndex(t => FIRST_PERSON.has(t));
+  if (fp >= 0 && fp <= 1 && T.slice(fp + 1, fp + 3).some(t => ["stopped", "stop", "quit"].includes(t)) && T.some(t => /^(?:worr|bother|car|mind)/.test(t))) return { type: "non_material_detail", attributed: false };
+  if (fp >= 0 && fp <= 1 && (T.slice(fp + 1, fp + 3).some(t => OPINION_VERBS.includes(t)) || (T.slice(fp + 1, fp + 3).some(t => ["am", "feel"].includes(t)) && T.some(t => EMOTION.includes(t))))) return { type: "opinion", attributed: false };
+  if (/\b(?:in my opinion|personally|to me|if you ask me)\b/.test(lower)) return { type: "opinion", attributed: false };
+  // correction: an explicit retraction, a replaced value, or a stated re-targeting
+  if (/^(?:actually|sorry|correction|scratch that|no wait|wait no)\b/.test(lower) || T.some(t => ["wrong", "mistake", "misspoke", "misread", "mixed"].includes(t)) && T.some(t => FIRST_PERSON.has(t) || t === "figure" || t === "number" || t === "area" || t === "size")
+    || /\b(?:i meant|i mean|than i (?:said|thought|told)|talking about|asking about)\b/.test(lower) || /\bnot\b[^.,;]{1,40}[,;]\s*(?:it['’]?s|it is|but)\b/.test(lower) || /\b(?:figure|number|area|size|date|name|amount)\b[^.]{0,30}\b(?:was|were)\b[^.]{0,12}\bwrong\b/.test(lower)) return { type: "correction", attributed: att };
+  const t = tokens(raw);
+  if (facts.some(f => !f.superseded_by && t.size > 0 && overlap(t, tokens(f.text)) / t.size >= 0.8)) return { type: "confirmation", attributed: att };
+  if (att) return { type: "unverified_claim", attributed: true };
+  const discovery = T.slice(0, 2).join(" ") === "turns out" || /\b(?:turns out|it seems|looks like|just found|found out|discovered)\b/.test(lower);
+  if (domainHits(T).length || discovery) return { type: "material_new_fact", attributed: false };
+  return { type: "non_material_detail", attributed: false };
 }
 
 export type Binding = { status: "bound" | "ambiguous" | "none"; items: ArtifactItem[]; how: string };
