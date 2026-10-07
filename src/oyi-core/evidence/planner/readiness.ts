@@ -1,4 +1,5 @@
 import { SOURCE_NOUN, entryFor } from "./evidenceClasses";
+import { missingDetail } from "./bundle";
 import type { CompactEvidencePlanState, Contribution } from "./types";
 
 // Deterministic, honest statement of what was checked and what was not. This is NOT a judgment: it states
@@ -34,7 +35,7 @@ export function composeEvidenceReadiness(state: CompactEvidencePlanState): strin
     : state.stats.sources_reused ? "I checked the evidence I am permitted to read, reusing what was already current." : usable.length || failed.length ? "I checked the evidence I am permitted to read for this." : "I could not read any evidence for this.");
   if (usable.length) parts.push(`What I found: ${usable.map(c => `${noun(c.source_key)}${c.scope_label ? ` in the ${c.scope_label}` : ""}: ${phrase(c)}`).join("; ")}.`);
   if (failed.length) parts.push(`Could not be read just now: ${failed.map(c => `${noun(c.source_key)}${c.availability === "denied" ? " (not available to you on this surface)" : c.availability === "unsupported_scope" ? " (not available for this scope)" : ""}`).join(", ")}.`);
-  if (missing.length) parts.push(`Not available in Oyi yet: ${missing.map(c => `${entryFor(c.class)?.label || c.class}${entryFor(c.class)?.product_debt ? ` (${entryFor(c.class)!.product_debt})` : ""}`).join("; ")}. I have not checked these and cannot claim anything about them.`);
+  if (missing.length) parts.push(`Not available in Oyi yet: ${missing.map(c => `${entryFor(c.class)?.label || c.class}${missingDetail(c) ? ` (${missingDetail(c)})` : ""}`).join("; ")}. I have not checked these and cannot claim anything about them.`);
   if (unreadable.length) parts.push(`Not read: ${unreadable.map(c => `${entryFor(c.class)?.label || c.class} (${c.reason})`).join("; ")}.`);
   const reportedFailed = new Set(failed.map(c => c.evidence_class));
   const debtOptional = state.classes.filter(c => c.status === "OPTIONAL_UNAVAILABLE" && (c.reason || "").startsWith("known_product_debt"));

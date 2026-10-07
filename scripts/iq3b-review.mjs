@@ -44,6 +44,10 @@ const evidenceIds = new Set(pre.records.filter(r => r.classification === 'EVIDEN
 assert.equal(evidenceIds.size, 133);
 const planned = rows.filter(x => x.plan);
 assert(planned.every(x => x.plan.v === 1));
+// A planner answer never claims it still needs to check, nor the old "not loaded" line, after the planner has checked.
+const STILL_CHECKING = /\b(?:i (?:need|have|am going|will|'ll) (?:to )?(?:check|load|look up|gather|fetch)|let me (?:check|look)|not loaded additional sources|i have not loaded)\b/i;
+const stillChecking = planned.filter(x => STILL_CHECKING.test(x.r.response.answer));
+assert.equal(stillChecking.length, 0, `planner answers that claim to still need to check: ${stillChecking.map(x => x.id).join(',')}`);
 
 // ---- benchmark-required classes per turn --------------------------------------------------
 const MCD_CLASS = {crm: 'crm', office_development: 'office_development', office_financial: 'office_financial', office_reports: 'office_reports', office_documents: 'office_documents', corporate_opportunity: 'corporate_opportunity', corporate_partnerships: 'corporate_partnerships', corporate_development: 'corporate_development', maintenance: 'maintenance', security: 'security', visitors: 'visitors', cameras: 'cameras', devices: 'device_availability', scenes: 'scenes', utilities: 'utilities_usage'};

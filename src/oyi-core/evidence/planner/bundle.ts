@@ -122,12 +122,18 @@ export function planStatus(classes: ClassOutcome[]): PlanStatus {
 }
 
 // What the gathered evidence cannot support. Deterministic from the contributions; never invented confidence.
+// The true reason a class is missing: the surface-specific detail recorded at planning, else the class-level debt.
+export function missingDetail(c: ClassOutcome): string | null {
+  const m = /^known_product_debt: (.+)$/.exec(c.reason || "");
+  return m ? m[1] : entryFor(c.class)?.product_debt || null;
+}
+
 export function cannotConclude(plan: EvidencePlan, classes: ClassOutcome[], contributions: Contribution[]): string[] {
   const out = new Set<string>();
   const partialSnapshots: string[] = [];
   for (const c of classes) {
     const entry = entryFor(c.class);
-    if (c.status === "MANDATORY_MISSING_CAPABILITY" && entry?.product_debt) out.add(`Anything about ${entry.label}: ${entry.product_debt}.`);
+    if (c.status === "MANDATORY_MISSING_CAPABILITY" && missingDetail(c)) out.add(`Anything about ${entry?.label || c.class}: ${missingDetail(c)}.`);
     else if (c.status === "MANDATORY_MISSING_CAPABILITY") out.add(`Anything about ${entry?.label || c.class}: no certified evidence source is available to me for it.`);
     if (c.status === "MANDATORY_UNAVAILABLE") out.add(`${entry?.label || c.class} could not be read, so it was not checked.`);
   }

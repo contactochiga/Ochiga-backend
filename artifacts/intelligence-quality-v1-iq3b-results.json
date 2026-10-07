@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "IQ3B_REVIEW",
-  "raw_sha256": "1dfe0fc14a9f0d5868037bf00d7b5005e1075c7e86a9a3e74688f1cc594fcec2",
+  "raw_sha256": "8e96469d401d8af683213cb405e22231a5d1dc0a3f52d396f057ba94aab73e25",
   "note": "PASS/FAIL/BLOCKED retained from the accepted IQ-2C run; no turn promoted. The planner states evidence readiness and does not judge.",
   "preserved_pass_turns": [
     {
@@ -97,154 +97,42 @@
     ],
     "evidence_planning_133": {
       "evidence_outcome": {
-        "PLANNER_PARTIAL_SUCCESS": 69,
-        "EVIDENCE_GAP": 44,
-        "PLANNER_SUCCESS": 4,
+        "PLANNER_PARTIAL_SUCCESS": 101,
+        "PLANNER_SUCCESS": 6,
+        "EVIDENCE_GAP": 10,
         "MISSING_CAPABILITY_PRODUCT_DEBT": 11,
         "NO_EVIDENCE_REQUIRED_BY_TURN": 4,
         "NO_PLAN": 1
       },
       "final_class": {
-        "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 20,
-        "REFERENCE_CONTINUITY": 28,
-        "REASSESSMENT": 3,
-        "INITIATIVE": 26,
-        "OTHER": 45,
+        "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 32,
+        "REFERENCE_CONTINUITY": 39,
+        "REASSESSMENT": 5,
+        "INITIATIVE": 35,
+        "OTHER": 11,
         "MISSING_CAPABILITY_PRODUCT_DEBT": 11
       },
-      "moved_out_of_evidence_planning": 88,
-      "moved_to_judgment_iq4": 20,
+      "moved_out_of_evidence_planning": 122,
+      "moved_to_judgment_iq4": 32,
+      "strict_measure": {
+        "turns_with_every_benchmark_must_consider_class_gathered_or_disclosed": 72,
+        "turns_with_benchmark_must_consider_classes_not_gathered": 61,
+        "by_class": {
+          "office_documents": 17,
+          "office_development": 6,
+          "office_financial": 3,
+          "corporate_partnerships": 7,
+          "crm": 7,
+          "corporate_development": 4,
+          "maintenance": 4,
+          "cameras": 3,
+          "security": 7,
+          "device_availability": 10,
+          "visitors": 2,
+          "scenes": 4
+        }
+      },
       "remaining_evidence_planning_failures": [
-        {
-          "id": "OMA-003:1",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_documents:not_requested"
-        },
-        {
-          "id": "OMA-003:2",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_documents:not_requested"
-        },
-        {
-          "id": "OMA-003:3",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_documents:not_requested"
-        },
-        {
-          "id": "OMA-003:4",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_documents:not_requested"
-        },
-        {
-          "id": "OMA-003:5",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_documents:not_requested"
-        },
-        {
-          "id": "OMA-003:6",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_documents:not_requested"
-        },
-        {
-          "id": "OMA-003:7",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_documents:not_requested"
-        },
-        {
-          "id": "OMA-004:5",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_development:not_requested"
-        },
-        {
-          "id": "OMA-004:6",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_development:not_requested"
-        },
-        {
-          "id": "OMA-004:7",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_development:not_requested"
-        },
-        {
-          "id": "OMA-005:2",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_financial:not_requested"
-        },
-        {
-          "id": "OMA-005:6",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "office_financial:not_requested"
-        },
-        {
-          "id": "OMA-007:1",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
-        },
-        {
-          "id": "OMA-007:2",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
-        },
-        {
-          "id": "OMA-007:3",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
-        },
-        {
-          "id": "OMA-007:4",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
-        },
-        {
-          "id": "OMA-007:5",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
-        },
-        {
-          "id": "OMA-007:6",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
-        },
-        {
-          "id": "OMA-007:7",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "corporate_partnerships:not_requested, office_documents:not_requested"
-        },
-        {
-          "id": "OMA-008:4",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "crm:not_requested, office_documents:not_requested"
-        },
-        {
-          "id": "OMA-009:2",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "crm:not_requested"
-        },
-        {
-          "id": "OMA-009:4",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "crm:not_requested"
-        },
-        {
-          "id": "OMA-009:5",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "crm:not_requested"
-        },
-        {
-          "id": "OMA-010:5",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "crm:not_requested, office_development:not_requested"
-        },
-        {
-          "id": "OMA-010:6",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "crm:not_requested, office_development:not_requested"
-        },
-        {
-          "id": "OMA-010:7",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "crm:not_requested, office_development:not_requested"
-        },
         {
           "id": "OSA-007:3",
           "evidence_outcome": "EVIDENCE_GAP",
@@ -291,49 +179,9 @@
           "gap": "maintenance:not_requested"
         },
         {
-          "id": "FAC-005:5",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "security:not_requested"
-        },
-        {
-          "id": "FAC-005:6",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "visitors:not_requested, maintenance:not_requested"
-        },
-        {
-          "id": "FAC-005:7",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "visitors:not_requested, maintenance:not_requested"
-        },
-        {
           "id": "FAC-009:7",
           "evidence_outcome": "EVIDENCE_GAP",
           "gap": "proven product debt not surfaced by the plan: device_history (the IQ-2 subject did not request it)"
-        },
-        {
-          "id": "CON-001:3",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "device_availability:not_requested, visitors:not_requested"
-        },
-        {
-          "id": "CON-006:2",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "security:not_requested"
-        },
-        {
-          "id": "CON-006:3",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "security:not_requested"
-        },
-        {
-          "id": "CON-006:5",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "security:not_requested"
-        },
-        {
-          "id": "CON-006:6",
-          "evidence_outcome": "EVIDENCE_GAP",
-          "gap": "security:not_requested"
         },
         {
           "id": "CON-006:7",
@@ -343,11 +191,10 @@
       ],
       "by_surface": {
         "office_internal": {
-          "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 10,
-          "REFERENCE_CONTINUITY": 9,
-          "REASSESSMENT": 2,
-          "INITIATIVE": 8,
-          "OTHER": 26
+          "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 18,
+          "REFERENCE_CONTINUITY": 18,
+          "REASSESSMENT": 4,
+          "INITIATIVE": 15
         },
         "public_corporate": {
           "INITIATIVE": 5,
@@ -355,18 +202,18 @@
           "OTHER": 4
         },
         "facility": {
-          "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 7,
-          "OTHER": 9,
+          "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 9,
+          "OTHER": 6,
           "REFERENCE_CONTINUITY": 6,
-          "INITIATIVE": 5,
+          "INITIATIVE": 6,
           "REASSESSMENT": 1
         },
         "consumer": {
-          "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 3,
-          "OTHER": 6,
+          "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 5,
+          "REFERENCE_CONTINUITY": 14,
           "MISSING_CAPABILITY_PRODUCT_DEBT": 11,
-          "INITIATIVE": 8,
-          "REFERENCE_CONTINUITY": 12
+          "INITIATIVE": 9,
+          "OTHER": 1
         }
       }
     },
@@ -381,97 +228,97 @@
         "turns": 4,
         "planner_latency_ms": {
           "n": 4,
-          "mean": 1.3,
+          "mean": 1,
           "max": 2,
           "p95": 2
         },
         "turn_latency_ms": {
           "n": 4,
-          "mean": 79.3,
-          "max": 97,
-          "p95": 97
+          "mean": 82,
+          "max": 115,
+          "p95": 115
         }
       },
       "reused_only": {
         "turns": 66,
         "planner_latency_ms": {
           "n": 66,
-          "mean": 0.2,
+          "mean": 0.1,
           "max": 1,
           "p95": 1
         },
         "turn_latency_ms": {
           "n": 66,
-          "mean": 76.9,
-          "max": 142,
-          "p95": 101
+          "mean": 73.2,
+          "max": 116,
+          "p95": 97
         }
       },
       "4_5_sources": {
         "turns": 15,
         "planner_latency_ms": {
           "n": 15,
-          "mean": 8,
-          "max": 17,
-          "p95": 17
+          "mean": 7.7,
+          "max": 16,
+          "p95": 16
         },
         "turn_latency_ms": {
           "n": 15,
-          "mean": 74.9,
-          "max": 109,
-          "p95": 109
+          "mean": 72.8,
+          "max": 87,
+          "p95": 87
         }
       },
       "3_sources": {
-        "turns": 3,
+        "turns": 5,
         "planner_latency_ms": {
-          "n": 3,
-          "mean": 2,
-          "max": 5,
-          "p95": 5
+          "n": 5,
+          "mean": 5.4,
+          "max": 9,
+          "p95": 9
         },
         "turn_latency_ms": {
-          "n": 3,
-          "mean": 82.3,
-          "max": 88,
-          "p95": 88
+          "n": 5,
+          "mean": 87.2,
+          "max": 102,
+          "p95": 102
         }
       },
       "2_sources": {
         "turns": 15,
         "planner_latency_ms": {
           "n": 15,
-          "mean": 1.5,
+          "mean": 1.4,
           "max": 5,
           "p95": 5
         },
         "turn_latency_ms": {
           "n": 15,
-          "mean": 80.4,
-          "max": 129,
-          "p95": 129
+          "mean": 76.7,
+          "max": 102,
+          "p95": 102
         }
       },
       "1_source": {
-        "turns": 29,
+        "turns": 27,
         "planner_latency_ms": {
-          "n": 29,
-          "mean": 4.6,
-          "max": 14,
-          "p95": 9
+          "n": 27,
+          "mean": 4.2,
+          "max": 8,
+          "p95": 8
         },
         "turn_latency_ms": {
-          "n": 29,
-          "mean": 73.9,
-          "max": 134,
-          "p95": 100
+          "n": 27,
+          "mean": 70.9,
+          "max": 90,
+          "p95": 87
         }
       }
     },
     "reuse": {
-      "sources_attempted": 170,
-      "sources_reused": 181,
-      "reads_avoided_pct": 51.6
+      "sources_attempted": 174,
+      "sources_reused": 183,
+      "reads_avoided_pct": 51.3
     }
   },
   "oma001": [
@@ -550,9 +397,21 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         },
@@ -571,7 +430,7 @@
       "sources_attempted": 8,
       "sources_reused": 0,
       "planner_latency_ms": 2,
-      "turn_latency_ms": 97,
+      "turn_latency_ms": 115,
       "baseline_turn_latency_ms": 111,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -584,9 +443,21 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         },
@@ -605,7 +476,7 @@
       "sources_attempted": 0,
       "sources_reused": 5,
       "planner_latency_ms": 1,
-      "turn_latency_ms": 86,
+      "turn_latency_ms": 78,
       "baseline_turn_latency_ms": 84,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -618,9 +489,21 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         },
@@ -639,7 +522,7 @@
       "sources_attempted": 5,
       "sources_reused": 0,
       "planner_latency_ms": 1,
-      "turn_latency_ms": 109,
+      "turn_latency_ms": 87,
       "baseline_turn_latency_ms": 82,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -652,9 +535,21 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REASSESSMENT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         },
@@ -673,7 +568,7 @@
       "sources_attempted": 0,
       "sources_reused": 5,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 86,
+      "turn_latency_ms": 73,
       "baseline_turn_latency_ms": 96,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -686,9 +581,21 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         },
@@ -707,7 +614,7 @@
       "sources_attempted": 3,
       "sources_reused": 5,
       "planner_latency_ms": 1,
-      "turn_latency_ms": 85,
+      "turn_latency_ms": 78,
       "baseline_turn_latency_ms": 138,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -720,9 +627,21 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         },
@@ -741,7 +660,7 @@
       "sources_attempted": 0,
       "sources_reused": 8,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 95,
+      "turn_latency_ms": 80,
       "baseline_turn_latency_ms": 115,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -754,6 +673,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -764,8 +687,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 2,
-      "turn_latency_ms": 74,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 61,
       "baseline_turn_latency_ms": 68,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -778,6 +701,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -789,7 +716,7 @@
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 99,
+      "turn_latency_ms": 87,
       "baseline_turn_latency_ms": 98,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -802,6 +729,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -812,8 +743,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 2,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 101,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 88,
       "baseline_turn_latency_ms": 101,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -826,6 +757,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -837,7 +772,7 @@
       "sources_attempted": 2,
       "sources_reused": 0,
       "planner_latency_ms": 1,
-      "turn_latency_ms": 94,
+      "turn_latency_ms": 102,
       "baseline_turn_latency_ms": 106,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -850,6 +785,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REASSESSMENT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -860,8 +799,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 2,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 96,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 85,
       "baseline_turn_latency_ms": 80,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -874,6 +813,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -885,7 +828,7 @@
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 93,
+      "turn_latency_ms": 84,
       "baseline_turn_latency_ms": 96,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -898,6 +841,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -909,7 +856,7 @@
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 99,
+      "turn_latency_ms": 94,
       "baseline_turn_latency_ms": 115,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -919,26 +866,27 @@
       "surface": "office_internal",
       "objective": "assess",
       "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "office_development"
+      ],
       "required_classes": [
         {
           "class": "office_development",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 0,
-      "turn_latency_ms": 61,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 53,
       "baseline_turn_latency_ms": 144,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -948,26 +896,27 @@
       "surface": "office_internal",
       "objective": "prioritize",
       "previous_boundary": "JUDGMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "office_development"
+      ],
       "required_classes": [
         {
           "class": "office_development",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
-      "planner_latency_ms": 0,
-      "turn_latency_ms": 124,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 83,
       "baseline_turn_latency_ms": 109,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -977,26 +926,27 @@
       "surface": "office_internal",
       "objective": "prioritize",
       "previous_boundary": "DERIVED_RESULT_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "office_development"
+      ],
       "required_classes": [
         {
           "class": "office_development",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 94,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 78,
       "baseline_turn_latency_ms": 93,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1006,26 +956,27 @@
       "surface": "office_internal",
       "objective": "prioritize",
       "previous_boundary": "DERIVED_RESULT_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "office_development"
+      ],
       "required_classes": [
         {
           "class": "office_development",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 92,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 82,
       "baseline_turn_latency_ms": 104,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1035,26 +986,27 @@
       "surface": "office_internal",
       "objective": "advise",
       "previous_boundary": "INITIATIVE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "office_development"
+      ],
       "required_classes": [
         {
           "class": "office_development",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 98,
+      "turn_latency_ms": 82,
       "baseline_turn_latency_ms": 91,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1064,26 +1016,27 @@
       "surface": "office_internal",
       "objective": "assess",
       "previous_boundary": "INITIATIVE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "office_development"
+      ],
       "required_classes": [
         {
           "class": "office_development",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 78,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 94,
       "baseline_turn_latency_ms": 90,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1093,26 +1046,27 @@
       "surface": "office_internal",
       "objective": "summarize",
       "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "office_development"
+      ],
       "required_classes": [
         {
           "class": "office_development",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 99,
+      "turn_latency_ms": 116,
       "baseline_turn_latency_ms": 121,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1125,7 +1079,24 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
         {
           "class": "office_development",
           "state": "gathered",
@@ -1154,7 +1125,24 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
+        {
+          "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
         {
           "class": "office_development",
           "state": "gathered",
@@ -1169,8 +1157,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 3,
       "sources_reused": 5,
-      "planner_latency_ms": 0,
-      "turn_latency_ms": 88,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 95,
       "baseline_turn_latency_ms": 84,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1180,15 +1168,16 @@
       "surface": "office_internal",
       "objective": "assess",
       "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_development:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_development"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
-        {
-          "class": "office_development",
-          "state": "not_requested",
-          "planner_status": null
-        },
         {
           "class": "office_financial",
           "state": "gathered",
@@ -1199,7 +1188,7 @@
       "sources_attempted": 1,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 82,
+      "turn_latency_ms": 76,
       "baseline_turn_latency_ms": 90,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1209,15 +1198,16 @@
       "surface": "office_internal",
       "objective": "advise",
       "previous_boundary": "INITIATIVE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_development:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_development"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
-        {
-          "class": "office_development",
-          "state": "not_requested",
-          "planner_status": null
-        },
         {
           "class": "office_financial",
           "state": "gathered",
@@ -1228,7 +1218,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 96,
+      "turn_latency_ms": 74,
       "baseline_turn_latency_ms": 79,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1238,15 +1228,16 @@
       "surface": "office_internal",
       "objective": "explain",
       "previous_boundary": "JUDGMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_development:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_development"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
-        {
-          "class": "office_development",
-          "state": "not_requested",
-          "planner_status": null
-        },
         {
           "class": "office_financial",
           "state": "gathered",
@@ -1256,8 +1247,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
-      "planner_latency_ms": 0,
-      "turn_latency_ms": 76,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 72,
       "baseline_turn_latency_ms": 78,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1267,26 +1258,27 @@
       "surface": "office_internal",
       "objective": "prioritize",
       "previous_boundary": "JUDGMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_financial:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_financial"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "office_financial",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 86,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 84,
       "baseline_turn_latency_ms": 90,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1296,26 +1288,27 @@
       "surface": "office_internal",
       "objective": "explain",
       "previous_boundary": "JUDGMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "office_financial:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_financial"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "office_financial",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 83,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 80,
       "baseline_turn_latency_ms": 91,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1328,6 +1321,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_financial"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -1338,8 +1337,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 0,
-      "turn_latency_ms": 92,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 87,
       "baseline_turn_latency_ms": 105,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1352,9 +1351,31 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1363,7 +1384,7 @@
       "sources_attempted": 8,
       "sources_reused": 0,
       "planner_latency_ms": 1,
-      "turn_latency_ms": 64,
+      "turn_latency_ms": 52,
       "baseline_turn_latency_ms": 52,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1376,9 +1397,31 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1386,8 +1429,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 8,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 83,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 85,
       "baseline_turn_latency_ms": 88,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1400,9 +1443,31 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1410,8 +1475,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 8,
       "sources_reused": 0,
-      "planner_latency_ms": 2,
-      "turn_latency_ms": 85,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 89,
       "baseline_turn_latency_ms": 77,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1424,9 +1489,31 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1435,7 +1522,7 @@
       "sources_attempted": 0,
       "sources_reused": 8,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 97,
+      "turn_latency_ms": 93,
       "baseline_turn_latency_ms": 79,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1448,9 +1535,31 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1458,7 +1567,7 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 8,
-      "planner_latency_ms": 0,
+      "planner_latency_ms": 1,
       "turn_latency_ms": 81,
       "baseline_turn_latency_ms": 93,
       "status_retained": "FAIL",
@@ -1472,9 +1581,31 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1496,9 +1627,31 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1517,31 +1670,28 @@
       "surface": "office_internal",
       "objective": "compare",
       "previous_boundary": "JUDGMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "corporate_partnerships",
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "corporate_partnerships",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 0,
-      "turn_latency_ms": 82,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 52,
       "baseline_turn_latency_ms": 53,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1551,31 +1701,28 @@
       "surface": "office_internal",
       "objective": "compare",
       "previous_boundary": "JUDGMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "corporate_partnerships",
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "corporate_partnerships",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 86,
+      "turn_latency_ms": 76,
       "baseline_turn_latency_ms": 82,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1585,31 +1732,28 @@
       "surface": "office_internal",
       "objective": "compare",
       "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "corporate_partnerships",
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "corporate_partnerships",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 80,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 76,
       "baseline_turn_latency_ms": 88,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1619,31 +1763,28 @@
       "surface": "office_internal",
       "objective": "compare",
       "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "corporate_partnerships",
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "corporate_partnerships",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 83,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 77,
       "baseline_turn_latency_ms": 132,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1653,31 +1794,28 @@
       "surface": "office_internal",
       "objective": "reassess",
       "previous_boundary": "FACT_UPDATE_REASSESSMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REASSESSMENT",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "corporate_partnerships",
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "corporate_partnerships",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 88,
+      "turn_latency_ms": 76,
       "baseline_turn_latency_ms": 144,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1687,31 +1825,28 @@
       "surface": "office_internal",
       "objective": "prioritize",
       "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "corporate_partnerships",
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "corporate_partnerships",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 72,
+      "turn_latency_ms": 105,
       "baseline_turn_latency_ms": 144,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1721,31 +1856,28 @@
       "surface": "office_internal",
       "objective": "advise",
       "previous_boundary": "INITIATIVE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "corporate_partnerships:not_requested, office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "corporate_partnerships",
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "corporate_partnerships",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 75,
+      "turn_latency_ms": 102,
       "baseline_turn_latency_ms": 81,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1755,26 +1887,28 @@
       "surface": "office_internal",
       "objective": "assess",
       "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "crm:not_requested, office_documents:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "crm",
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
         {
-          "class": "crm",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_documents",
-          "state": "not_requested",
-          "planner_status": null
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 100,
+      "turn_latency_ms": 74,
       "baseline_turn_latency_ms": 85,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1787,6 +1921,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -1797,8 +1937,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 0,
-      "turn_latency_ms": 80,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 77,
       "baseline_turn_latency_ms": 82,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1811,6 +1951,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "office_documents"
+      ],
+      "iq2_required_classes": [
+        "crm"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -1822,7 +1968,7 @@
       "sources_attempted": 2,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 81,
+      "turn_latency_ms": 83,
       "baseline_turn_latency_ms": 103,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1832,19 +1978,20 @@
       "surface": "office_internal",
       "objective": "advise",
       "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "crm:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "crm"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "crm",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
@@ -1861,26 +2008,27 @@
       "surface": "office_internal",
       "objective": "advise",
       "previous_boundary": "INITIATIVE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "crm:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "crm"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "crm",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 77,
+      "turn_latency_ms": 75,
       "baseline_turn_latency_ms": 76,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1890,26 +2038,27 @@
       "surface": "office_internal",
       "objective": "advise",
       "previous_boundary": "INITIATIVE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "crm:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "crm"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "crm",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 71,
+      "turn_latency_ms": 72,
       "baseline_turn_latency_ms": 77,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1922,14 +2071,31 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
-          "class": "office_financial",
+          "class": "crm",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         },
         {
-          "class": "crm",
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1937,8 +2103,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 5,
       "sources_reused": 0,
-      "planner_latency_ms": 0,
-      "turn_latency_ms": 76,
+      "planner_latency_ms": 1,
+      "turn_latency_ms": 77,
       "baseline_turn_latency_ms": 91,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1951,6 +2117,13 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -1958,7 +2131,17 @@
           "planner_status": "MANDATORY_PARTIAL"
         },
         {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
           "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1967,7 +2150,7 @@
       "sources_attempted": 8,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 71,
+      "turn_latency_ms": 72,
       "baseline_turn_latency_ms": 75,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -1980,6 +2163,13 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -1987,7 +2177,17 @@
           "planner_status": "MANDATORY_PARTIAL"
         },
         {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
           "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -1995,7 +2195,7 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 8,
-      "planner_latency_ms": 1,
+      "planner_latency_ms": 0,
       "turn_latency_ms": 77,
       "baseline_turn_latency_ms": 82,
       "status_retained": "FAIL",
@@ -2009,6 +2209,13 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "crm",
+        "office_reports",
+        "office_development",
+        "office_financial"
+      ],
       "required_classes": [
         {
           "class": "crm",
@@ -2016,7 +2223,17 @@
           "planner_status": "MANDATORY_PARTIAL"
         },
         {
+          "class": "office_reports",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
           "class": "office_development",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
+        },
+        {
+          "class": "office_financial",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         }
@@ -2025,7 +2242,7 @@
       "sources_attempted": 0,
       "sources_reused": 5,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 81,
+      "turn_latency_ms": 78,
       "baseline_turn_latency_ms": 80,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2035,26 +2252,28 @@
       "surface": "office_internal",
       "objective": "advise",
       "previous_boundary": "INITIATIVE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "crm:not_requested, office_development:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "crm",
+        "office_development"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
         {
-          "class": "crm",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_development",
-          "state": "not_requested",
-          "planner_status": null
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 79,
+      "turn_latency_ms": 75,
       "baseline_turn_latency_ms": 77,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2064,26 +2283,28 @@
       "surface": "office_internal",
       "objective": "reassess",
       "previous_boundary": "FACT_UPDATE_REASSESSMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "crm:not_requested, office_development:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REASSESSMENT",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "crm",
+        "office_development"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
         {
-          "class": "crm",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_development",
-          "state": "not_requested",
-          "planner_status": null
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 70,
+      "turn_latency_ms": 78,
       "baseline_turn_latency_ms": 79,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2093,26 +2314,28 @@
       "surface": "office_internal",
       "objective": "advise",
       "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "crm:not_requested, office_development:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "crm",
+        "office_development"
+      ],
+      "iq2_required_classes": [
+        "office_financial"
+      ],
       "required_classes": [
         {
-          "class": "crm",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "office_development",
-          "state": "not_requested",
-          "planner_status": null
+          "class": "office_financial",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 106,
+      "turn_latency_ms": 70,
       "baseline_turn_latency_ms": 82,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2125,6 +2348,10 @@
       "evidence_outcome": "PLANNER_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_opportunity",
@@ -2135,8 +2362,8 @@
       "plan_status": "MANDATORY_COMPLETE_ENOUGH",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 4,
-      "turn_latency_ms": 129,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 61,
       "baseline_turn_latency_ms": 74,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2149,6 +2376,10 @@
       "evidence_outcome": "PLANNER_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_opportunity",
@@ -2160,7 +2391,7 @@
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 58,
+      "turn_latency_ms": 60,
       "baseline_turn_latency_ms": 70,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2173,6 +2404,10 @@
       "evidence_outcome": "PLANNER_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_opportunity",
@@ -2184,7 +2419,7 @@
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 59,
+      "turn_latency_ms": 65,
       "baseline_turn_latency_ms": 65,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2197,6 +2432,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "corporate_partnerships",
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_partnerships",
@@ -2212,8 +2452,8 @@
       "plan_status": "MANDATORY_COMPLETE_ENOUGH",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 2,
-      "turn_latency_ms": 58,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 61,
       "baseline_turn_latency_ms": 63,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2226,6 +2466,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "corporate_partnerships",
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_partnerships",
@@ -2242,7 +2487,7 @@
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 60,
+      "turn_latency_ms": 56,
       "baseline_turn_latency_ms": 61,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2255,6 +2500,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "corporate_partnerships",
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_partnerships",
@@ -2271,7 +2521,7 @@
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 62,
+      "turn_latency_ms": 57,
       "baseline_turn_latency_ms": 64,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2284,6 +2534,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "corporate_development:not_requested",
+      "benchmark_must_consider_not_gathered": [
+        "corporate_development"
+      ],
+      "iq2_required_classes": [
+        "corporate_development",
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_development",
@@ -2299,8 +2556,8 @@
       "plan_status": "MANDATORY_COMPLETE_ENOUGH",
       "sources_attempted": 2,
       "sources_reused": 0,
-      "planner_latency_ms": 2,
-      "turn_latency_ms": 61,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 90,
       "baseline_turn_latency_ms": 68,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2313,6 +2570,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "corporate_development:not_requested",
+      "benchmark_must_consider_not_gathered": [
+        "corporate_development"
+      ],
+      "iq2_required_classes": [
+        "corporate_development",
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_development",
@@ -2329,7 +2593,7 @@
       "sources_attempted": 2,
       "sources_reused": 0,
       "planner_latency_ms": 2,
-      "turn_latency_ms": 61,
+      "turn_latency_ms": 63,
       "baseline_turn_latency_ms": 69,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2342,6 +2606,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "corporate_development:not_requested",
+      "benchmark_must_consider_not_gathered": [
+        "corporate_development"
+      ],
+      "iq2_required_classes": [
+        "corporate_development",
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_development",
@@ -2358,7 +2629,7 @@
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 68,
+      "turn_latency_ms": 58,
       "baseline_turn_latency_ms": 66,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2371,6 +2642,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "corporate_development:not_requested",
+      "benchmark_must_consider_not_gathered": [
+        "corporate_development"
+      ],
+      "iq2_required_classes": [
+        "corporate_development",
+        "corporate_opportunity"
+      ],
       "required_classes": [
         {
           "class": "corporate_development",
@@ -2387,7 +2665,7 @@
       "sources_attempted": 0,
       "sources_reused": 2,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 68,
+      "turn_latency_ms": 57,
       "baseline_turn_latency_ms": 70,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2400,6 +2678,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance",
+        "security",
+        "cameras"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2421,7 +2705,7 @@
       "sources_attempted": 4,
       "sources_reused": 0,
       "planner_latency_ms": 11,
-      "turn_latency_ms": 66,
+      "turn_latency_ms": 70,
       "baseline_turn_latency_ms": 59,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2434,6 +2718,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance",
+        "security",
+        "cameras"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2455,7 +2745,7 @@
       "sources_attempted": 0,
       "sources_reused": 4,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 63,
+      "turn_latency_ms": 67,
       "baseline_turn_latency_ms": 58,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2468,6 +2758,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "maintenance:not_requested",
+      "benchmark_must_consider_not_gathered": [
+        "maintenance"
+      ],
+      "iq2_required_classes": [
+        "cameras",
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "cameras",
@@ -2483,7 +2780,7 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 7,
+      "planner_latency_ms": 6,
       "turn_latency_ms": 61,
       "baseline_turn_latency_ms": 60,
       "status_retained": "FAIL",
@@ -2497,6 +2794,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "cameras:not_requested",
+      "benchmark_must_consider_not_gathered": [
+        "cameras"
+      ],
+      "iq2_required_classes": [
+        "cameras",
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "cameras",
@@ -2512,8 +2816,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 6,
-      "turn_latency_ms": 134,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 59,
       "baseline_turn_latency_ms": 57,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2526,6 +2830,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "cameras:not_requested",
+      "benchmark_must_consider_not_gathered": [
+        "cameras"
+      ],
+      "iq2_required_classes": [
+        "cameras",
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "cameras",
@@ -2542,7 +2853,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 142,
+      "turn_latency_ms": 59,
       "baseline_turn_latency_ms": 70,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2555,6 +2866,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "cameras:not_requested",
+      "benchmark_must_consider_not_gathered": [
+        "cameras"
+      ],
+      "iq2_required_classes": [
+        "cameras",
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "cameras",
@@ -2571,7 +2889,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 68,
+      "turn_latency_ms": 59,
       "baseline_turn_latency_ms": 66,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2584,6 +2902,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "maintenance:not_requested",
+      "benchmark_must_consider_not_gathered": [
+        "maintenance"
+      ],
+      "iq2_required_classes": [
+        "cameras",
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "cameras",
@@ -2599,8 +2924,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 5,
-      "turn_latency_ms": 68,
+      "planner_latency_ms": 6,
+      "turn_latency_ms": 66,
       "baseline_turn_latency_ms": 64,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2613,6 +2938,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2623,8 +2952,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 4,
-      "turn_latency_ms": 66,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 59,
       "baseline_turn_latency_ms": 57,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2637,6 +2966,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2648,7 +2981,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 65,
+      "turn_latency_ms": 55,
       "baseline_turn_latency_ms": 65,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2661,6 +2994,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2671,8 +3008,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 65,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 56,
       "baseline_turn_latency_ms": 72,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2685,6 +3022,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2696,7 +3037,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 59,
+      "turn_latency_ms": 56,
       "baseline_turn_latency_ms": 61,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2706,31 +3047,33 @@
       "surface": "facility",
       "objective": "compare",
       "previous_boundary": "JUDGMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "security:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "security"
+      ],
+      "iq2_required_classes": [
+        "maintenance",
+        "visitors"
+      ],
       "required_classes": [
-        {
-          "class": "visitors",
-          "state": "gathered",
-          "planner_status": "MANDATORY_PARTIAL"
-        },
         {
           "class": "maintenance",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
         },
         {
-          "class": "security",
-          "state": "not_requested",
-          "planner_status": null
+          "class": "visitors",
+          "state": "gathered",
+          "planner_status": "MANDATORY_PARTIAL"
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 2,
       "sources_reused": 0,
       "planner_latency_ms": 5,
-      "turn_latency_ms": 62,
+      "turn_latency_ms": 96,
       "baseline_turn_latency_ms": 63,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2740,20 +3083,16 @@
       "surface": "facility",
       "objective": "compare",
       "previous_boundary": "INITIATIVE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "visitors:not_requested, maintenance:not_requested",
+      "evidence_outcome": "PLANNER_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "maintenance"
+      ],
+      "iq2_required_classes": [
+        "security"
+      ],
       "required_classes": [
-        {
-          "class": "visitors",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "maintenance",
-          "state": "not_requested",
-          "planner_status": null
-        },
         {
           "class": "security",
           "state": "gathered",
@@ -2761,10 +3100,10 @@
         }
       ],
       "plan_status": "MANDATORY_COMPLETE_ENOUGH",
-      "sources_attempted": 1,
+      "sources_attempted": 3,
       "sources_reused": 0,
-      "planner_latency_ms": 4,
-      "turn_latency_ms": 64,
+      "planner_latency_ms": 9,
+      "turn_latency_ms": 66,
       "baseline_turn_latency_ms": 62,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2774,20 +3113,16 @@
       "surface": "facility",
       "objective": "prioritize",
       "previous_boundary": "JUDGMENT",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "visitors:not_requested, maintenance:not_requested",
+      "evidence_outcome": "PLANNER_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "maintenance"
+      ],
+      "iq2_required_classes": [
+        "security"
+      ],
       "required_classes": [
-        {
-          "class": "visitors",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "maintenance",
-          "state": "not_requested",
-          "planner_status": null
-        },
         {
           "class": "security",
           "state": "gathered",
@@ -2796,9 +3131,9 @@
       ],
       "plan_status": "MANDATORY_COMPLETE_ENOUGH",
       "sources_attempted": 0,
-      "sources_reused": 1,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 57,
+      "sources_reused": 3,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 67,
       "baseline_turn_latency_ms": 63,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2811,6 +3146,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance",
+        "security"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2826,8 +3166,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 4,
       "sources_reused": 0,
-      "planner_latency_ms": 9,
-      "turn_latency_ms": 66,
+      "planner_latency_ms": 8,
+      "turn_latency_ms": 67,
       "baseline_turn_latency_ms": 60,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2840,6 +3180,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REASSESSMENT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance",
+        "security"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2855,8 +3200,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 4,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 59,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 62,
       "baseline_turn_latency_ms": 62,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2869,6 +3214,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance",
+        "security"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2885,7 +3235,7 @@
       "sources_attempted": 0,
       "sources_reused": 4,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 59,
+      "turn_latency_ms": 66,
       "baseline_turn_latency_ms": 75,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2898,6 +3248,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance",
+        "security"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2914,7 +3269,7 @@
       "sources_attempted": 0,
       "sources_reused": 4,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 97,
+      "turn_latency_ms": 57,
       "baseline_turn_latency_ms": 68,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2927,6 +3282,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2938,7 +3297,7 @@
       "sources_attempted": 1,
       "sources_reused": 0,
       "planner_latency_ms": 3,
-      "turn_latency_ms": 58,
+      "turn_latency_ms": 57,
       "baseline_turn_latency_ms": 64,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2951,6 +3310,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2961,8 +3324,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 4,
       "sources_reused": 0,
-      "planner_latency_ms": 8,
-      "turn_latency_ms": 63,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 65,
       "baseline_turn_latency_ms": 63,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2975,6 +3338,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -2985,8 +3352,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 4,
-      "planner_latency_ms": 1,
-      "turn_latency_ms": 57,
+      "planner_latency_ms": 0,
+      "turn_latency_ms": 59,
       "baseline_turn_latency_ms": 59,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -2999,6 +3366,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -3009,8 +3382,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 3,
-      "turn_latency_ms": 47,
+      "planner_latency_ms": 4,
+      "turn_latency_ms": 49,
       "baseline_turn_latency_ms": 49,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3023,6 +3396,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -3034,7 +3413,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 56,
+      "turn_latency_ms": 54,
       "baseline_turn_latency_ms": 80,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3047,6 +3426,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -3058,7 +3443,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 56,
+      "turn_latency_ms": 63,
       "baseline_turn_latency_ms": 65,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3071,6 +3456,13 @@
       "evidence_outcome": "EVIDENCE_GAP",
       "final_class": "OTHER",
       "gap": "proven product debt not surfaced by the plan: device_history (the IQ-2 subject did not request it)",
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [
+        "maintenance",
+        "device_history"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -3087,7 +3479,7 @@
       "sources_attempted": 1,
       "sources_reused": 0,
       "planner_latency_ms": 3,
-      "turn_latency_ms": 58,
+      "turn_latency_ms": 57,
       "baseline_turn_latency_ms": 65,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3100,6 +3492,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance",
+        "security"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -3116,7 +3513,7 @@
       "sources_attempted": 4,
       "sources_reused": 0,
       "planner_latency_ms": 7,
-      "turn_latency_ms": 63,
+      "turn_latency_ms": 62,
       "baseline_turn_latency_ms": 66,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3129,6 +3526,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance",
+        "security"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -3144,8 +3546,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 4,
       "sources_reused": 0,
-      "planner_latency_ms": 9,
-      "turn_latency_ms": 74,
+      "planner_latency_ms": 8,
+      "turn_latency_ms": 77,
       "baseline_turn_latency_ms": 63,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3158,6 +3560,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance",
+        "security"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -3187,6 +3594,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability",
+        "security",
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3207,8 +3620,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 5,
       "sources_reused": 0,
-      "planner_latency_ms": 17,
-      "turn_latency_ms": 89,
+      "planner_latency_ms": 16,
+      "turn_latency_ms": 76,
       "baseline_turn_latency_ms": 53,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3221,6 +3634,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability",
+        "security",
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3252,14 +3671,20 @@
       "surface": "consumer",
       "objective": "assess",
       "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "device_availability:not_requested, visitors:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability",
+        "security",
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
-          "state": "not_requested",
-          "planner_status": null
+          "state": "gathered",
+          "planner_status": "OPTIONAL_GATHERED"
         },
         {
           "class": "security",
@@ -3268,15 +3693,15 @@
         },
         {
           "class": "visitors",
-          "state": "not_requested",
-          "planner_status": null
+          "state": "gathered",
+          "planner_status": "OPTIONAL_GATHERED"
         }
       ],
       "plan_status": "MANDATORY_COMPLETE_ENOUGH",
-      "sources_attempted": 1,
+      "sources_attempted": 3,
       "sources_reused": 0,
-      "planner_latency_ms": 4,
-      "turn_latency_ms": 63,
+      "planner_latency_ms": 9,
+      "turn_latency_ms": 95,
       "baseline_turn_latency_ms": 92,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3289,6 +3714,14 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "security",
+        "visitors"
+      ],
+      "iq2_required_classes": [
+        "device_availability",
+        "device_observed_value"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3304,8 +3737,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 9,
-      "turn_latency_ms": 74,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 69,
       "baseline_turn_latency_ms": 68,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3318,6 +3751,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability",
+        "security",
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3338,8 +3777,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 5,
       "sources_reused": 0,
-      "planner_latency_ms": 10,
-      "turn_latency_ms": 71,
+      "planner_latency_ms": 9,
+      "turn_latency_ms": 72,
       "baseline_turn_latency_ms": 67,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3352,6 +3791,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability",
+        "security",
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3373,7 +3818,7 @@
       "sources_attempted": 0,
       "sources_reused": 5,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 60,
+      "turn_latency_ms": 65,
       "baseline_turn_latency_ms": 65,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3386,6 +3831,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability",
+        "scenes"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3402,7 +3852,7 @@
       "sources_attempted": 5,
       "sources_reused": 0,
       "planner_latency_ms": 9,
-      "turn_latency_ms": 57,
+      "turn_latency_ms": 63,
       "baseline_turn_latency_ms": 53,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3415,6 +3865,11 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability",
+        "scenes"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3431,7 +3886,7 @@
       "sources_attempted": 0,
       "sources_reused": 5,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 65,
+      "turn_latency_ms": 68,
       "baseline_turn_latency_ms": 75,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3444,6 +3899,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3455,7 +3914,7 @@
       "sources_attempted": 5,
       "sources_reused": 0,
       "planner_latency_ms": 10,
-      "turn_latency_ms": 86,
+      "turn_latency_ms": 83,
       "baseline_turn_latency_ms": 71,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3468,6 +3927,13 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "scenes"
+      ],
+      "iq2_required_classes": [
+        "device_availability",
+        "device_observed_value"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3483,8 +3949,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 14,
-      "turn_latency_ms": 79,
+      "planner_latency_ms": 8,
+      "turn_latency_ms": 90,
       "baseline_turn_latency_ms": 63,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3497,6 +3963,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "scenes"
+      ],
+      "iq2_required_classes": [
+        "device_availability"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3507,8 +3979,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 6,
-      "turn_latency_ms": 70,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 76,
       "baseline_turn_latency_ms": 64,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3521,6 +3993,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "scenes"
+      ],
+      "iq2_required_classes": [
+        "device_availability"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3531,8 +4009,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 7,
-      "turn_latency_ms": 72,
+      "planner_latency_ms": 8,
+      "turn_latency_ms": 87,
       "baseline_turn_latency_ms": 78,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3545,6 +4023,12 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [
+        "utilities_usage"
+      ],
       "required_classes": [
         {
           "class": "utilities_usage",
@@ -3556,7 +4040,7 @@
       "sources_attempted": 0,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 53,
+      "turn_latency_ms": 56,
       "baseline_turn_latency_ms": 57,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3569,6 +4053,12 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [
+        "utilities_usage"
+      ],
       "required_classes": [
         {
           "class": "utilities_usage",
@@ -3580,7 +4070,7 @@
       "sources_attempted": 0,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 67,
+      "turn_latency_ms": 75,
       "baseline_turn_latency_ms": 70,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3593,6 +4083,13 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [
+        "utilities_usage",
+        "device_history"
+      ],
       "required_classes": [
         {
           "class": "utilities_usage",
@@ -3609,7 +4106,7 @@
       "sources_attempted": 0,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 66,
+      "turn_latency_ms": 70,
       "baseline_turn_latency_ms": 70,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3622,6 +4119,13 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [
+        "utilities_usage",
+        "device_history"
+      ],
       "required_classes": [
         {
           "class": "utilities_usage",
@@ -3638,7 +4142,7 @@
       "sources_attempted": 0,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 66,
+      "turn_latency_ms": 67,
       "baseline_turn_latency_ms": 72,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3651,6 +4155,13 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [
+        "utilities_usage",
+        "device_history"
+      ],
       "required_classes": [
         {
           "class": "utilities_usage",
@@ -3667,7 +4178,7 @@
       "sources_attempted": 0,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 69,
+      "turn_latency_ms": 97,
       "baseline_turn_latency_ms": 73,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3680,12 +4191,16 @@
       "evidence_outcome": "NO_EVIDENCE_REQUIRED_BY_TURN",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "device_availability"
+      ],
+      "iq2_required_classes": [],
       "required_classes": [],
       "plan_status": "MANDATORY_MISSING_CAPABILITY",
       "sources_attempted": 0,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 68,
+      "turn_latency_ms": 69,
       "baseline_turn_latency_ms": 69,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3698,35 +4213,11 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
-      "required_classes": [
-        {
-          "class": "cameras",
-          "state": "debt_disclosed",
-          "planner_status": "OPTIONAL_UNAVAILABLE"
-        },
-        {
-          "class": "security",
-          "state": "gathered",
-          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
-        }
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "cameras",
+        "security"
       ],
-      "plan_status": "MANDATORY_PARTIAL",
-      "sources_attempted": 5,
-      "sources_reused": 0,
-      "planner_latency_ms": 10,
-      "turn_latency_ms": 86,
-      "baseline_turn_latency_ms": 77,
-      "status_retained": "FAIL",
-      "answer_changed": true
-    },
-    {
-      "id": "CON-004:5",
-      "surface": "consumer",
-      "objective": "assess",
-      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
-      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
-      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
-      "gap": null,
       "required_classes": [
         {
           "class": "cameras",
@@ -3743,7 +4234,41 @@
       "sources_attempted": 5,
       "sources_reused": 0,
       "planner_latency_ms": 9,
-      "turn_latency_ms": 83,
+      "turn_latency_ms": 80,
+      "baseline_turn_latency_ms": 77,
+      "status_retained": "FAIL",
+      "answer_changed": true
+    },
+    {
+      "id": "CON-004:5",
+      "surface": "consumer",
+      "objective": "assess",
+      "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
+      "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "cameras",
+        "security"
+      ],
+      "required_classes": [
+        {
+          "class": "cameras",
+          "state": "debt_disclosed",
+          "planner_status": "OPTIONAL_UNAVAILABLE"
+        },
+        {
+          "class": "security",
+          "state": "gathered",
+          "planner_status": "MANDATORY_COMPLETE_ENOUGH"
+        }
+      ],
+      "plan_status": "MANDATORY_PARTIAL",
+      "sources_attempted": 5,
+      "sources_reused": 0,
+      "planner_latency_ms": 10,
+      "turn_latency_ms": 82,
       "baseline_turn_latency_ms": 85,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3756,6 +4281,11 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "cameras",
+        "security"
+      ],
       "required_classes": [
         {
           "class": "cameras",
@@ -3772,7 +4302,7 @@
       "sources_attempted": 0,
       "sources_reused": 5,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 70,
+      "turn_latency_ms": 82,
       "baseline_turn_latency_ms": 70,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3785,6 +4315,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -3795,8 +4329,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 6,
-      "turn_latency_ms": 72,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 84,
       "baseline_turn_latency_ms": 73,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3806,26 +4340,27 @@
       "surface": "consumer",
       "objective": "assess",
       "previous_boundary": "INTERPRETATION_OR_CONTINUITY",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "security:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "REFERENCE_CONTINUITY",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "security"
+      ],
+      "iq2_required_classes": [
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "visitors",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "security",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 6,
-      "turn_latency_ms": 93,
+      "planner_latency_ms": 3,
+      "turn_latency_ms": 72,
       "baseline_turn_latency_ms": 65,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3835,26 +4370,27 @@
       "surface": "consumer",
       "objective": "assess",
       "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "security:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "security"
+      ],
+      "iq2_required_classes": [
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "visitors",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "security",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 77,
+      "turn_latency_ms": 67,
       "baseline_turn_latency_ms": 69,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3864,26 +4400,27 @@
       "surface": "consumer",
       "objective": "assess",
       "previous_boundary": "EVIDENCE_SELECTION_OR_COVERAGE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "security:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "security"
+      ],
+      "iq2_required_classes": [
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "visitors",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "security",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
       "planner_latency_ms": 4,
-      "turn_latency_ms": 69,
+      "turn_latency_ms": 70,
       "baseline_turn_latency_ms": 67,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3893,26 +4430,27 @@
       "surface": "consumer",
       "objective": "advise",
       "previous_boundary": "INITIATIVE",
-      "evidence_outcome": "EVIDENCE_GAP",
-      "final_class": "OTHER",
-      "gap": "security:not_requested",
+      "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
+      "final_class": "INITIATIVE",
+      "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "security"
+      ],
+      "iq2_required_classes": [
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "visitors",
           "state": "gathered",
           "planner_status": "MANDATORY_PARTIAL"
-        },
-        {
-          "class": "security",
-          "state": "not_requested",
-          "planner_status": null
         }
       ],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 73,
+      "turn_latency_ms": 68,
       "baseline_turn_latency_ms": 63,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3925,14 +4463,16 @@
       "evidence_outcome": "NO_PLAN",
       "final_class": "OTHER",
       "gap": "no evidence plan was produced for this turn (an existing certified path answered it)",
+      "benchmark_must_consider_not_gathered": [
+        "visitors",
+        "security"
+      ],
+      "iq2_required_classes": [
+        "visitors"
+      ],
       "required_classes": [
         {
           "class": "visitors",
-          "state": "not_requested",
-          "planner_status": null
-        },
-        {
-          "class": "security",
           "state": "not_requested",
           "planner_status": null
         }
@@ -3941,7 +4481,7 @@
       "sources_attempted": 0,
       "sources_reused": 0,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 68,
+      "turn_latency_ms": 102,
       "baseline_turn_latency_ms": 68,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3954,6 +4494,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -3965,7 +4509,7 @@
       "sources_attempted": 1,
       "sources_reused": 0,
       "planner_latency_ms": 4,
-      "turn_latency_ms": 76,
+      "turn_latency_ms": 72,
       "baseline_turn_latency_ms": 78,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -3978,6 +4522,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -3988,8 +4536,8 @@
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 3,
-      "turn_latency_ms": 70,
+      "planner_latency_ms": 4,
+      "turn_latency_ms": 79,
       "baseline_turn_latency_ms": 72,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4002,6 +4550,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -4013,7 +4565,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 65,
+      "turn_latency_ms": 69,
       "baseline_turn_latency_ms": 71,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4026,6 +4578,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -4037,7 +4593,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 66,
+      "turn_latency_ms": 69,
       "baseline_turn_latency_ms": 66,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4050,6 +4606,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -4061,7 +4621,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 68,
+      "turn_latency_ms": 74,
       "baseline_turn_latency_ms": 62,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4074,6 +4634,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "maintenance"
+      ],
       "required_classes": [
         {
           "class": "maintenance",
@@ -4085,7 +4649,7 @@
       "sources_attempted": 0,
       "sources_reused": 1,
       "planner_latency_ms": 0,
-      "turn_latency_ms": 76,
+      "turn_latency_ms": 67,
       "baseline_turn_latency_ms": 67,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4098,6 +4662,10 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -4109,7 +4677,7 @@
       "sources_attempted": 1,
       "sources_reused": 0,
       "planner_latency_ms": 8,
-      "turn_latency_ms": 67,
+      "turn_latency_ms": 68,
       "baseline_turn_latency_ms": 54,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4122,6 +4690,10 @@
       "evidence_outcome": "PLANNER_SUCCESS",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -4133,7 +4705,7 @@
       "sources_attempted": 1,
       "sources_reused": 0,
       "planner_latency_ms": 7,
-      "turn_latency_ms": 77,
+      "turn_latency_ms": 78,
       "baseline_turn_latency_ms": 64,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4146,12 +4718,14 @@
       "evidence_outcome": "NO_EVIDENCE_REQUIRED_BY_TURN",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [],
       "required_classes": [],
       "plan_status": "MANDATORY_COMPLETE_ENOUGH",
       "sources_attempted": 1,
       "sources_reused": 1,
-      "planner_latency_ms": 6,
-      "turn_latency_ms": 81,
+      "planner_latency_ms": 5,
+      "turn_latency_ms": 80,
       "baseline_turn_latency_ms": 73,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4164,6 +4738,11 @@
       "evidence_outcome": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "final_class": "MISSING_CAPABILITY_PRODUCT_DEBT",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [
+        "device_availability",
+        "device_observed_value"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -4179,8 +4758,8 @@
       "plan_status": "MANDATORY_COMPLETE_ENOUGH",
       "sources_attempted": 1,
       "sources_reused": 0,
-      "planner_latency_ms": 7,
-      "turn_latency_ms": 77,
+      "planner_latency_ms": 6,
+      "turn_latency_ms": 86,
       "baseline_turn_latency_ms": 67,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4193,12 +4772,14 @@
       "evidence_outcome": "NO_EVIDENCE_REQUIRED_BY_TURN",
       "final_class": "REFERENCE_CONTINUITY",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [],
       "required_classes": [],
       "plan_status": "MANDATORY_UNAVAILABLE",
       "sources_attempted": 3,
       "sources_reused": 0,
-      "planner_latency_ms": 5,
-      "turn_latency_ms": 74,
+      "planner_latency_ms": 7,
+      "turn_latency_ms": 102,
       "baseline_turn_latency_ms": 59,
       "status_retained": "FAIL",
       "answer_changed": true
@@ -4211,6 +4792,12 @@
       "evidence_outcome": "PLANNER_PARTIAL_SUCCESS",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [
+        "scenes"
+      ],
+      "iq2_required_classes": [
+        "device_availability"
+      ],
       "required_classes": [
         {
           "class": "device_availability",
@@ -4235,12 +4822,14 @@
       "evidence_outcome": "NO_EVIDENCE_REQUIRED_BY_TURN",
       "final_class": "INITIATIVE",
       "gap": null,
+      "benchmark_must_consider_not_gathered": [],
+      "iq2_required_classes": [],
       "required_classes": [],
       "plan_status": "MANDATORY_PARTIAL",
       "sources_attempted": 5,
       "sources_reused": 0,
-      "planner_latency_ms": 10,
-      "turn_latency_ms": 79,
+      "planner_latency_ms": 9,
+      "turn_latency_ms": 76,
       "baseline_turn_latency_ms": 63,
       "status_retained": "FAIL",
       "answer_changed": true
