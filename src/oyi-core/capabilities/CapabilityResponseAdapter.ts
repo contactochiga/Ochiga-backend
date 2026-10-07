@@ -43,8 +43,13 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     }
     if (tgt0.response_intent === "YES_NO_WITH_REASON" && tgt0.yes_no?.kind === "inference" && (result.status === "answered" || result.status === "empty"))
       return { ...result, answer: `No — that does not establish it: what I can read only covers what is recorded, and a record showing nothing is not an all-clear.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
-    if ((tgt0.response_intent === "RANKING" || tgt0.response_intent === "COMPARISON") && ROW_NOUNS[capabilityKey] && (result.status === "answered" || result.status === "empty"))
-      return { ...result, answer: `I can't put these in order or pick one: that takes comparative judgment on their recorded notes, which is not available right now.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: tgt0.response_intent, limitation_targeted: true } };
+    if ((tgt0.response_intent === "RANKING" || tgt0.response_intent === "COMPARISON") && ROW_NOUNS[capabilityKey] && (result.status === "answered" || result.status === "empty")) {
+      // the capability already lists what needs attention: say so first, then be plain that it cannot order or choose between them
+      const nz = ROW_NOUNS[capabilityKey], blk = (result.blocks || []).find((b) => b.type === "record_list" || b.type === "table");
+      const fb = rowsFromBlocks(result.blocks, nz.noun, nz.singular);
+      const listing = fb ? targetedRetrieval(result.answer, { ...fb, population: nz.population ?? fb.population ?? null, total: typeof blk?.total_count === "number" ? (blk.total_count as number) : null }, { ...tgt0, response_intent: "LIST" }, frame.rawText) : null;
+      return { ...result, answer: `${listing ? `${listing.split("\n\nSupporting detail:")[0]}\n\n` : ""}I can't put them in order or pick one: that takes comparative judgment on their recorded notes, which I don't have here.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: tgt0.response_intent, limitation_targeted: true } };
+    }
     const overview = result.metadata?.overview_view as OverviewView | undefined;
     if (overview) {
       const ot = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });

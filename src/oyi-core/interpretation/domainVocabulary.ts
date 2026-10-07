@@ -22,7 +22,8 @@ const VOCAB: Array<[string, string[]]> = [
 const match = (t: string, stem: string) => (stem.endsWith("*") ? t.startsWith(stem.slice(0, -1)) : t === stem);
 export function domainHits(tokens: string[]): DomainHit[] {
   const hits: DomainHit[] = [];
-  tokens.forEach((t, at) => { for (const [domain, stems] of VOCAB) if (stems.some(s => match(t, s))) hits.push({ domain, at }); });
+  const VERB_DEAL = (t: string, at: number) => t === "deal" && (tokens[at + 1] === "with" || ["to", "should", "can", "could", "will", "must", "would", "i", "we", "you", "they", "may", "might"].includes(tokens[at - 1] ?? ""));
+  tokens.forEach((t, at) => { if (VERB_DEAL(t, at)) return; for (const [domain, stems] of VOCAB) if (stems.some(s => match(t, s))) hits.push({ domain, at }); });
   return hits.sort((a, b) => a.at - b.at);
 }
 export const hasDomainVocabulary = (tokens: string[]) => domainHits(tokens).length > 0;

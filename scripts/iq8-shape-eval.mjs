@@ -81,10 +81,11 @@ const out = [];
 for (const it of suite.items) {
   const {turns} = await converse(it.s, ROLE[it.s], [...(it.seeds || []), it.u]); const t = turns[turns.length - 1];
   const a = t.answer, cap = String(t.capability || ''), checks = shapeCheck(it, a, cap, t.status);
-  out.push({id: it.id, s: it.s, shape: it.shape, kind: it.kind, u: it.u, capability: cap, status: t.status, lead: a.replace(/\s+/g, ' ').slice(0, 200), checks, pass: Object.values(checks).every(Boolean)});
+  out.push({id: it.id, s: it.s, worker: it.worker || null, shape: it.shape, kind: it.kind, u: it.u, capability: cap, status: t.status, lead: a.replace(/\s+/g, ' ').slice(0, 200), checks, pass: Object.values(checks).every(Boolean)});
 }
 const rate = rs => ({n: rs.length, pass: rs.filter(r => r.pass).length, rate: rs.length ? +(rs.filter(r => r.pass).length / rs.length).toFixed(3) : null});
 const byShape = Object.fromEntries([...new Set(out.map(o => o.shape))].map(s => [s, rate(out.filter(o => o.shape === s))]));
+const byWorker = Object.fromEntries([...new Set(out.map(o => o.worker).filter(Boolean))].map(w => [w, rate(out.filter(o => o.worker === w))]));
 const bySurface = Object.fromEntries([...new Set(out.map(o => o.s))].map(s => [s, rate(out.filter(o => o.s === s))]));
-const summary = {overall: rate(out), by_shape: byShape, by_surface: bySurface, boilerplate_lead: {n: out.filter(o => !o.checks.not_boilerplate).length, rate: +(out.filter(o => !o.checks.not_boilerplate).length / out.length).toFixed(3)}, menu_fallback: out.filter(o => o.checks.not_menu === false).length, executed};
+const summary = {overall: rate(out), by_shape: byShape, by_surface: bySurface, by_worker: byWorker, boilerplate_lead: {n: out.filter(o => !o.checks.not_boilerplate).length, rate: +(out.filter(o => !o.checks.not_boilerplate).length / out.length).toFixed(3)}, menu_fallback: out.filter(o => o.checks.not_menu === false).length, executed};
 fs.writeFileSync(cfg.out, JSON.stringify({summary, items: out}, null, 1)); console.log(JSON.stringify(summary)); process.exit(0);
