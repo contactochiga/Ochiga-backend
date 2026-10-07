@@ -13,6 +13,7 @@ export function composeJudgmentText(r: JudgmentResult, state: CompactEvidencePla
   // IQ-8: when the question's answer shape produced a lead, it leads; the standard structure follows as separated supporting evidence.
   if (targeted) {
     const sup: string[] = [...targeted.support];
+    if (/recorded but not put it in order/.test(r.conclusion)) sup.push(r.conclusion);
     if (r.ranking?.length) { sup.push(`In order: ${r.ranking.map(i => `${i.rank}. ${i.rationale}`).join(" ")}`); if (r.tied_groups.length) sup.push("Items in the same tier are equal on what is recorded; the evidence gives no basis to order them further."); }
     sup.push(...r.rationale);
     if (r.clarification) sup.push(r.clarification);

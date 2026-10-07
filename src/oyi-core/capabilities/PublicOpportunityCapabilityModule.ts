@@ -269,8 +269,9 @@ async function composeCallbackAnswer(context: CapabilityContext, objective: Publ
 // IQ-8: the lead of an assessment-style answer comes from what was asked; the existing qualification text follows as supporting detail.
 function targetedPublicLead(objective: PublicOpportunityObjective, message: string, cognitive: string | null | undefined): string | null {
   try {
+    const jv = objective.objective_type === "development_partnership";
     const assessment = assessJvOpportunity(jvEvidenceFromKnownFacts(objective.known_facts));
-    const missing = assessment.missing_information.filter((field) => !NOT_YET_USEFUL_TO_ASK.has(field));
+    const missing = jv ? assessment.missing_information.filter((field) => !NOT_YET_USEFUL_TO_ASK.has(field)) : null;
     return publicLead(deriveAnswerTarget(message, { objective: cognitive }), message, { known: objective.known_facts, missing, constraints: objective.constraints });
   } catch { return null; }
 }

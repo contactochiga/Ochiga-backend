@@ -72,6 +72,12 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
     }
     case "YES_NO_WITH_REASON": {
       const kind = target.yes_no?.kind ?? "state";
+      if (T.some(t => ["first", "top", "priority", "ahead"].includes(t)) && T.includes("still") && named.length === 1) {
+        if (r.ranking?.length) { const yes = r.ranking[0].cid === named[0].cid; return { lead: sentence(`${yes ? "Yes" : "No"} — ${yes ? `${named[0].ref.label} is first on what is recorded` : `${r.ranking[0].ref.label} comes ahead of ${named[0].ref.label} on what is recorded`}`), support: [] }; }
+        const act = typed.filter(c => levelOf(c, "lifecycle") === "active");
+        if (act.length === 1) { const yes = act[0].cid === named[0].cid; return { lead: sentence(`${yes ? "Yes" : "No"} — ${yes ? `${named[0].ref.label} is the only open item, so it is first` : `${act[0].ref.label} is the open item; ${named[0].ref.label} is not`}`), support: [] }; }
+        return { lead: "I can't say whether it still comes first: I have not established an ordering.", support: [] };
+      }
       if (kind === "inference") {
         const reported = T.some(t => ["statement", "says", "say", "said", "told", "claims", "claim", "report", "reported", "word", "his", "her", "their"].includes(t));
         if (reported && userReports.length) return { lead: sentence(`No — that is a reported statement (“${userReports[userReports.length - 1].replace(/[.!\s]+$/, "").slice(0, 160)}”), which I have not verified, so it does not establish it on its own`), support: [] };
@@ -134,7 +140,9 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       }
       const pick = named.length ? named : index.candidates.filter(c => levelOf(c, "lifecycle") === "active").slice(0, 1);
       if (pick.length === 1 && !pick[0].needs_comparative_judgment) { const c = pick[0]; return { lead: sentence(`${c.ref.label || "That item"} matters because ${withFacts(c).replace(/^.*? is recorded as /, "it is recorded as ")}`), support: [] }; }
-      if (noJudgment || !hadPrevious) return { lead: "I haven't ranked or recommended anything yet, so there is no ordering or reasoning of mine to explain.", support: [] };
+      const bare = T.filter(t => !["why", "not", "so", "then"].includes(t)).length === 0 || T.some(t => ["ranked", "ordered", "order", "ranking", "ordering", "priority", "reasoning", "recommend", "recommendation", "said"].includes(t));
+      if (notAvail && !bare) return { lead: sentence(`I can't explain that: ${lower(quote(notAvail))} is not available as an evidence source yet`), support: [] };
+      if (bare && (noJudgment || !hadPrevious)) return { lead: "I haven't ranked or recommended anything yet, so there is no ordering or reasoning of mine to explain.", support: [] };
       return null;
     }
     case "REFUSAL": return { lead: limitationAnswer(target, question), support: [] };
