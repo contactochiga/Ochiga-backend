@@ -1,0 +1,233 @@
+{
+  "status": "PASS",
+  "test_mode": "Scripted provider stub (validation/fallback/artifact discipline, not model quality); hand-built and planner-produced evidence states; fault-injected loopback fixture client; no production target; no network",
+  "counts": {
+    "PASS": 56
+  },
+  "results": [
+    {
+      "id": "judgment:single-candidate-assessment",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:two-candidate-comparison-active-outranks-resolved",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:resolved-never-outranks-active-and-cosmetic-low-priority-ranks-below-urgent",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:top-3-ranking-respects-n-and-builds-artifact",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:equal-evidence-stays-tied-never-forced",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:partial-evidence-is-disclosed-and-never-an-all-clear",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:insufficient-evidence-refuses-to-rank",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:unobservable-camera-is-uncertainty-not-outage",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:stale-device-readings-show-no-failure",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:zero-devices-says-so-plainly",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:visitor-access-is-permission-not-arrival",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:security-zero-incidents-states-scope-not-safety",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:deterministic-is-repeatable",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:dominance-is-qualitative-not-a-score",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:no-provider-business-set-is-bounded-and-never-ranked",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:mixed-set-typed-items-never-answer-for-uncomparable-business-items",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:strategic-over-urgent-with-validated-provider-ranking",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-malformed-not-an-object-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-extra-unknown-field-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-invented-candidate-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-invented-evidence-reference-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-duplicate-ranking-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-wrong-top-n-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-non-contiguous-ranks-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-invented-number-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-invented-name-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-promise-of-commitment-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-action-attempt-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-coverage-claim-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-pii-injection-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-wrong-field-types-is-rejected-and-degrades-safely",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-timeout-is-bounded-and-never-ranks",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-error-and-late-result-cannot-corrupt-state",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-insufficient-or-clarify-is-honoured-not-overridden",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-not-consulted-when-ranking-is-unsafe",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-request-is-id-free-redacted-and-bounded",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:prompt-injection-in-candidate-text-cannot-cause-an-action",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-cannot-cite-unavailable-or-missing-sources",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:ranking-eligibility-resolved-never-above-active",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:derived-ranking-is-its-own-artifact-not-a-raw-result-set",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:explanation-reuses-the-stored-rationale-without-reranking",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:stale-or-mismatched-artifact-is-not-reused",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:no-ranking-artifact-for-a-non-ranking-question",
+      "status": "PASS"
+    },
+    {
+      "id": "oma:real-office-bundle-judgment-bounded-without-provider-and-ranked-with-validated-provider",
+      "status": "PASS"
+    },
+    {
+      "id": "osa:judgment-uses-public-evidence-only-and-never-reveals-internal-criteria",
+      "status": "PASS"
+    },
+    {
+      "id": "osa:no-details-yet-is-stated-and-lists-what-would-help",
+      "status": "PASS"
+    },
+    {
+      "id": "facility:judgment-reasons-across-sources-without-fabricating-building-scope",
+      "status": "PASS"
+    },
+    {
+      "id": "consumer:judgment-never-declares-safety-from-missing-evidence",
+      "status": "PASS"
+    },
+    {
+      "id": "consumer:judgment-has-no-view-of-another-residents-data",
+      "status": "PASS"
+    },
+    {
+      "id": "oma:office-role-restriction-keeps-restricted-evidence-out-of-judgment",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:module-has-no-database-no-writer-and-no-network-imports",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:never-reads-the-database-even-when-it-is-broken",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:no-output-ever-asserts-an-action-or-guarantee",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:grounding-check-allows-evidence-terms-and-rejects-new-facts",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:provider-is-disabled-unless-explicitly-enabled-keyed-and-modelled",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:validator-failure-on-a-deterministic-result-degrades-never-repairs",
+      "status": "PASS"
+    }
+  ]
+}

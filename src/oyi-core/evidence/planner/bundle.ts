@@ -34,7 +34,7 @@ export function materialFor(record: OyiEvidence, sourceKey: string): Record<stri
   if (sourceKey === "corporate.opportunity.read") {
     const objective = recordOf(recordOf(record.payload).objective);
     out.objective_type = scalar(objective.objective_type) ?? null; out.known_facts_count = Object.keys(recordOf(objective.known_facts)).length;
-    for (const [k, v] of Object.entries(recordOf(objective.known_facts)).slice(0, 6)) { const s = scalar(v); if (s !== undefined) out[`fact_${k}`.slice(0, 32)] = s; }
+    for (const [k, v] of Object.entries(recordOf(objective.known_facts)).slice(0, 10)) { const s = scalar(v); if (s !== undefined) out[`fact_${k}`.slice(0, 32)] = s; }
     out.caller_supplied_unverified = true;
   }
   if (record.truth_class === "user_assertion") out.caller_supplied_unverified = true;

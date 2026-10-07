@@ -7,6 +7,10 @@ import { loadConversationAssessment, nextConversationAssessment, isAssessmentObj
 import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
 import { composeEvidenceReadiness } from "../evidence/planner/readiness";
 import type { PlannerResult } from "../evidence/planner/planner";
+import { operationalMetrics } from "../../observability/metrics";
+import { judgeAssessment } from "../evidence/judgment/judge";
+import { providerFromEnv } from "../evidence/judgment/provider";
+import type { JudgmentOutcome } from "../evidence/judgment/types";
 import { loadPublicOpportunityObjective, correctedPublicFacts } from "../context/publicOpportunityObjective";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
@@ -3794,7 +3798,27 @@ export class ConversationOrchestrator {
         }
         const gathered = Boolean(planned?.applicable);
         if (gathered) assessment = { ...assessment, evidence_plan: planned!.state };
-        const answer = gathered ? `${composeEvidenceReadiness(planned!.state)}${assessmentCaveats(assessment, frame)}` : assessmentEvidenceAnswer(assessment, frame);
+        // IQ-4: bounded, evidence-linked judgment over the gathered bundle. Advisory only: it retrieves nothing, executes nothing
+        // and any failure degrades to an honest bounded statement without touching canonical assessment state.
+        let judged: JudgmentOutcome | null = null;
+        if (gathered && boolFlag("OYI_JUDGMENT_ENABLED", true)) {
+          judged = await judgeAssessment({ state: planned!.state, objective: assessment.objective, question: frame.rawText, surface: context.input.surface, previous: assessment.derived_ranking ?? null, provider: providerFromEnv() }).catch((error) => {
+            logger.warn("oyi_assessment_judgment_failed", { request_id: tracer.requestId, error: error instanceof Error ? error.message : String(error) });
+            return null;
+          });
+          if (judged) {
+            assessment = { ...assessment, judgment: { assessment_id: judged.result.assessment_id, mode: judged.result.mode, status: judged.result.status, validated: judged.validation.ok, judged_at: new Date().toISOString() },
+              // A ranking is its own cognitive artifact: it never claims to be, or reuses the id of, an older raw result set.
+              ...(judged.ranking_artifact ? { derived_ranking: judged.ranking_artifact, result_set_id: null, target_ref: null } : {}) };
+            tracer.stage("response_composed", { surface: context.input.surface, status: judged.result.status.toLowerCase(), outcome: `judgment_${judged.result.mode}`, evidence_count: judged.candidate_count });
+            logger.info("oyi_assessment_judgment", { request_id: tracer.requestId, surface: context.input.surface, objective: assessment.objective, attempted: true, mode: judged.result.mode, status: judged.result.status,
+              candidates: judged.candidate_count, evidence_sources: judged.evidence_source_count, validation_ok: judged.validation.ok, validation_failures: judged.validation.failures.length, provider_attempted: judged.provider.attempted,
+              provider_failure: judged.provider.failure_class, ranking_produced: Boolean(judged.ranking_artifact), latency_ms: judged.latency_ms, provider_latency_ms: judged.provider.latency_ms });
+            operationalMetrics.increment("oyi_assessment_judgments_total", { surface: context.input.surface, mode: judged.result.mode, status: judged.result.status, ranking: Boolean(judged.ranking_artifact) });
+            operationalMetrics.observe("oyi_assessment_judgment_latency_ms", judged.latency_ms, { surface: context.input.surface });
+          }
+        }
+        const answer = gathered ? `${judged ? judged.text : composeEvidenceReadiness(planned!.state)}${assessmentCaveats(assessment, frame, { judged: Boolean(judged && judged.result.status === "JUDGED") })}` : assessmentEvidenceAnswer(assessment, frame);
         const anyUsable = Boolean(planned?.state.contributions.some(c => c.availability === "available"));
         let response = gathered
           ? await assessmentEvidenceResponse({ ...context, resolvedTurn }, answer, anyUsable ? "answered" : "unavailable", planned!.state.status)

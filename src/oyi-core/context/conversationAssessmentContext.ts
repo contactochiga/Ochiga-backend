@@ -3,6 +3,7 @@ import type { CanonicalConversationRequest } from "../contracts/canonicalConvers
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CapabilityModule } from "../contracts/capability";
 import type { CompactEvidencePlanState } from "../evidence/planner/types";
+import type { DerivedRanking } from "../evidence/judgment/types";
 
 // Ephemeral conversational state, persisted ONLY by canonical conversation
 // persistence. It contains neither evidence nor an execution directive.
@@ -31,6 +32,10 @@ export type ConversationAssessmentContext = {
   // IQ-3B: the compact governed evidence-plan state for THIS assessment (counts, safe refs, a small
   // allowlisted projection). Never raw evidence. Carried across follow-ups and invalidated by the planner.
   evidence_plan?: CompactEvidencePlanState | null;
+  // IQ-4: the canonical DERIVED ranking (a distinct cognitive artifact, never the raw result set it came from) and a compact
+  // record of the last judgment. Concise evidence-linked rationale only; no reasoning chain is ever stored.
+  derived_ranking?: DerivedRanking | null;
+  judgment?: { assessment_id: string; mode: string; status: string; validated: boolean; judged_at: string } | null;
   created_at: string;
   updated_at: string;
   expires_at: string;
@@ -117,7 +122,7 @@ export function assessmentSubjectLabel(state: ConversationAssessmentContext): st
   return state.subject_label ? `${domains} (${state.subject_label}, as described by you)` : domains;
 }
 
-export function assessmentCaveats(state: ConversationAssessmentContext, frame: SemanticFrame): string {
+export function assessmentCaveats(state: ConversationAssessmentContext, frame: SemanticFrame, options: { judged?: boolean } = {}): string {
   const references = /\b(?:second|third|other one|that project)\b/i.test(frame.rawText) && !state.target_ref
     ? " Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list." : "";
   const roomReference = /\bwhich room\b.*\bdiscuss/i.test(frame.rawText) && !state.subject_label
@@ -136,7 +141,7 @@ export function assessmentCaveats(state: ConversationAssessmentContext, frame: S
     : purpose === "handoff" ? " The requirement is an authorized maintenance/support reporting route and its permitted scope. Describe the concern without another resident's private records; submission or follow-up is not confirmed here."
     : purpose === "counterfactual" ? " This asks which evidence could change the assessment, not whether a change has already occurred. It requires evidence that resolves the current blocker or uncertainty; no changed recommendation is asserted."
     : "";
-  const comparison = frame.cognitiveObjective === "compare" && /\b(?:compare|stronger|other one)\b/i.test(frame.rawText) && !state.target_ref ? " The subject categories are retained, but no compared candidate set is established. Which items should be compared?" : "";
+  const comparison = !options.judged && frame.cognitiveObjective === "compare" && /\b(?:compare|stronger|other one)\b/i.test(frame.rawText) && !state.target_ref ? " The subject categories are retained, but no compared candidate set is established. Which items should be compared?" : "";
   return `${specific}${comparison}${references}${roomReference}${claim}${historical}${scope}${policy}${attribution}`;
 }
 
@@ -206,6 +211,8 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
       : retain && !correction && (!subjectChanged || answeringPending) ? old.pending_information || null : null,
     material_information: retain && !correction && !subjectChanged ? old.material_information : null,
     evidence_plan: retain && !correction ? old.evidence_plan ?? null : null,
+    derived_ranking: retain && !correction ? old.derived_ranking ?? null : null,
+    judgment: retain && !correction ? old.judgment ?? null : null,
     created_at: retain ? old.created_at : stamp,
     updated_at: stamp,
     expires_at: new Date(now + ASSESSMENT_TTL_MS).toISOString(),
