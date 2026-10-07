@@ -19,6 +19,8 @@ const {assertsPromiseOrAction} = await import('../dist/oyi-core/evidence/judgmen
 const source = fs.readFileSync('scripts/wave11-behavioural-torture-harness.mjs', 'utf8');
 const {actorFor, oisContext, officeSnapshot} = new Function(`${source.slice(source.indexOf('const ids = '), source.indexOf('function expected(prompt)'))};return {actorFor,oisContext,officeSnapshot};`)();
 const results = [];
+const transcripts = {};
+const keep = (name, turns) => {transcripts[name] = turns.map(t => ({prompt: t.prompt, assessment_status: t.status, artifact_type: t.artifact?.artifact_type ?? null, stale: Boolean(t.artifact?.stale), answer: t.answer.slice(0, 700)}));};
 const check = async (id, fn) => {try {await fn(); results.push({id, status: 'PASS'});} catch (error) {error.message = `${id}: ${error.message}`; throw error;}};
 
 const converse = async (surface, role, prompts, {thread = null, actorOverride = null} = {}) => {
@@ -39,7 +41,7 @@ const OMA1 = ['Forget the small stuff. Which three things can actually move Ochi
 
 // ---- OMA-001, provider off (the real environment) --------------------------------------------
 await check('iq5c:OMA-001-provider-off-no-ranking-so-no-ordering-is-claimed-or-explained', async () => {
-  unscripted(); const {turns} = await converse('office_internal', 'ochiga_staff', OMA1);
+  unscripted(); const {turns} = await converse('office_internal', 'ochiga_staff', OMA1); keep('OMA-001_provider_off', turns);
   assert(!/In order:/.test(turns[0].answer) && !turns[0].artifact, 'T2: nothing ranked, no artifact');
   assert(/no earlier ordering to explain|not ranking|not put it in order/.test(turns[1].answer), 'T3 says no ordering exists'); assert.notEqual(turns[1].status, 'derived_reference'); assert(!/number 2 in the order/.test(turns[1].answer));
   for (const t of turns) assert(!t.artifact || (t.artifact.artifact_type ?? 'ranking') !== 'ranking', 'no ranking artifact is ever created without a validated ranking');
@@ -48,7 +50,7 @@ await check('iq5c:OMA-001-provider-off-no-ranking-so-no-ordering-is-claimed-or-e
 // ---- OMA-001, scripted provider ----------------------------------------------------------------
 await check('iq5c:OMA-001-scripted-provider-T3-resolves-priority-two-not-lead-row-two', async () => {
   scripted(); const lists = await converse('office_internal', 'ochiga_staff', ['Show me the leads.']); const rawSecond = lists.turns[0].assessment?.target_ref?.label;
-  const {turns, thread} = await converse('office_internal', 'ochiga_staff', OMA1); unscripted();
+  const {turns, thread} = await converse('office_internal', 'ochiga_staff', OMA1); unscripted(); keep('OMA-001_scripted_provider', turns);
   const a = turns[0].artifact; assert(a && a.artifact_type === 'ranking' && a.ordered === true, `T2 minted a ranking artifact: ${turns[0].answer}`); const ranked = a.items.filter(i => i.group === 'ranked'); assert.equal(ranked.length, 3); assert.equal(a.result_set_id, undefined); assert.equal(turns[0].assessment.result_set_id, null);
   assert.equal(turns[1].status, 'derived_reference', turns[1].answer); assert(turns[1].answer.includes(ranked[1].ref.label) && /number 2/.test(turns[1].answer), turns[1].answer); assert(/comparative judgment/.test(turns[1].answer));
   assert(!turns[1].answer.includes(ranked[0].ref.label + ' was') && !/number 1 in the order/.test(turns[1].answer));
@@ -84,17 +86,17 @@ await check('iq5c:artifact-is-not-readable-from-another-actor-or-surface-on-the-
 // ---- surfaces ----------------------------------------------------------------------------------------
 await check('iq5c:facility-references-resolve-against-what-was-named-and-no-scope-is-invented', async () => {
   unscripted(); const {turns} = await converse('facility', 'facility_manager', ['Does the water problem still come first?', 'Why the first one?', 'Can the other one wait?', 'Why the fifth one?', 'Is there a Tower B scope for that?']);
-  const first = turns[0].artifact; assert(first, `an assessment set was recorded: ${turns[0].answer}`); const r = turns[1];
+  keep('facility', turns); const first = turns[0].artifact; assert(first, `an assessment set was recorded: ${turns[0].answer}`); const r = turns[1];
   assert.equal(r.status, 'derived_reference', r.answer); assert(!/tower b/i.test(turns.slice(0, 4).map(t => t.answer).join(' ')), 'no building scope is invented'); assert(/only has \d+ item/.test(turns[3].answer), turns[3].answer);
   for (const t of turns) assert(!assertsPromiseOrAction(t.answer), t.answer);
 });
 await check('iq5c:consumer-references-never-turn-unknown-into-safe', async () => {
-  unscripted(); const {turns} = await converse('consumer', 'resident', ['Is everything okay at home?', 'What about the second one?', 'Is that dangerous?', 'Can the last one wait?']);
+  unscripted(); const {turns} = await converse('consumer', 'resident', ['Is everything okay at home?', 'What about the second one?', 'Is that dangerous?', 'Can the last one wait?']); keep('consumer', turns);
   for (const t of turns) assert(!/\b(?:is|are|it is|that is|everything is) (?:safe|fine|ok|okay)\b/i.test(t.answer.replace(/not an all-clear/gi, '')), t.answer); for (const t of turns) assert(!assertsPromiseOrAction(t.answer), t.answer);
   if (turns[2].status === 'derived_reference') assert(/does not establish whether this is dangerous or safe/.test(turns[2].answer));
 });
 await check('iq5c:osa-references-stay-inside-public-evidence', async () => {
-  unscripted(); const {turns} = await converse('public_corporate', 'public', ['I own land in Lekki and want to explore a joint venture.', 'Is this a strong opportunity?', 'Why is that a problem?', 'Which concern matters more?', 'What about the ownership issue?']);
+  unscripted(); const {turns} = await converse('public_corporate', 'public', ['I own land in Lekki and want to explore a joint venture.', 'Is this a strong opportunity?', 'Why is that a problem?', 'Which concern matters more?', 'What about the ownership issue?']); keep('osa', turns);
   for (const t of turns) {assert(!/strategic|alignment|internal|pipeline|Ochiga will pursue|we will pursue/i.test(t.answer.replace(/(?:does not|do not|cannot|not) (?:commit )?Ochiga to pursue anything/gi, '').replace(/nothing here commits Ochiga to pursue anything/gi, '')), t.answer); assert(!assertsPromiseOrAction(t.answer), t.answer);}
 });
 await check('iq5c:no-reference-turn-calls-the-provider', async () => {
@@ -103,6 +105,6 @@ await check('iq5c:no-reference-turn-calls-the-provider', async () => {
   assert.equal(calls, 1, 'only the ranking itself used the provider'); assert(turns.slice(1).every(t => t.status === 'derived_reference'), turns.map(t => t.status).join());
 });
 const counts = results.reduce((a, r) => (a[r.status] = (a[r.status] || 0) + 1, a), {});
-fs.writeFileSync('artifacts/intelligence-quality-v1-iq5-conversation-tests.json', JSON.stringify({status: 'PASS', test_mode: 'Real orchestrator on the loopback fixture; scripted provider test seam for the ranking (reference/discipline, not model quality)', results, counts, executed}, null, 2) + '\n');
+fs.writeFileSync('artifacts/intelligence-quality-v1-iq5-conversation-tests.json', JSON.stringify({status: 'PASS', test_mode: 'Real orchestrator on the loopback fixture; scripted provider test seam for the ranking (reference/discipline, not model quality)', results, counts, executed, transcripts}, null, 2) + '\n');
 console.log(JSON.stringify({status: 'PASS', tests: results.length, counts, executed}));
 process.exit(0);

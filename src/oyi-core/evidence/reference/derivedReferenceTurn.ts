@@ -42,8 +42,12 @@ export function handleDerivedReferenceTurn(a: DerivedTurnArgs): DerivedTurnResul
   if (isAssessmentInformation(a.text) && !art.parked && scopeOk && authorityOk && !isExpired(art, a.now) && informationConcernsArtifact(a.text, art)) {
     const stale: DerivedRanking = art.stale ? art : { ...art, stale: { reason: "material_fact", at: new Date(a.now).toISOString() } };
     const kind = (art.artifact_type ?? "ranking") === "ranking" ? "ordering" : "assessment";
+    const t = tokens(a.text);
+    const matched = [...namedItems(a.text, art), ...art.items.filter(i => [...tokens(i.ref.label || "")].some(w => t.has(w)))].filter((i, n, all) => all.findIndex(x => x.ref.id === i.ref.id && x.ref.label === i.ref.label) === n).slice(0, 2);
+    const about = matched.length ? ` I am treating it as being about ${matched.map(i => i.ref.label || "that item").join(" and ")}.` : "";
+    const recorded = matched.length ? `${matched.length === 1 ? "That item keeps" : "Those items keep"} the status it is recorded with until the record itself is updated` : "What is recorded keeps its recorded status until the records themselves are updated";
     return { handled: true, outcome: "material_fact_marked_stale", assessment: touch(stale, { pending_information: a.text.slice(0, 1000) }),
-      answer: `I have noted that as your own statement; I have not verified it and it is not confirmed evidence. The ${kind} I gave earlier was made before it, and it may change that ${kind}. I have not reassessed it, so I will not treat the earlier ${kind} as current. I can still tell you why the items were set out as they were at the time.` };
+      answer: `I have noted that as your own statement; I have not verified it and it is not confirmed evidence.${about} It does not change any record by itself: ${recorded[0].toLowerCase()}${recorded.slice(1)}. The ${kind} I gave earlier was made before it, and it may change that ${kind}. I have not reassessed it, so I will not treat the earlier ${kind} as current. I can still tell you why the items were set out as they were at the time.` };
   }
   const res = resolveDerivedReference(a.text, { artifact: art, now: a.now, raw: a.raw, scopeOk, authorityOk });
   if (res.status === "none" || res.status === "defer_raw") return { handled: false, why: res.status === "none" ? "no_reference" : res.reason };

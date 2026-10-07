@@ -272,6 +272,11 @@ export function composeReferenceAnswer(a: DerivedRanking, res: Extract<Resolutio
     for (const i of items) lines.push(explainOne(a, i, intent));
   }
   if (intent === "severity") lines.push("That is what the records show. It does not establish whether this is dangerous or safe: anything that was not recorded or observed is not evidence either way.");
+  // For a listing, what else was set out (e.g. a resolved item) stays visible, so an explanation never reads as if the rest was dropped.
+  if (!isOrdered(a) && (intent === "why" || intent === "detail") && items.length === 1) {
+    const others = a.items.filter(i => i.ref.id !== items[0].ref.id || i.ref.label !== items[0].ref.label);
+    if (others.length) lines.push(`For context, I also set out: ${others.slice(0, 4).map(i => `${label(i)} (${reason(i)}${i.state === "not_a_current_concern" ? ", not treated as a current concern" : ""})`).join("; ")}.`);
+  }
   const unc = (a.uncertainties || []).slice(0, 2); if (unc.length) lines.push(`What I could not confirm then: ${unc.map(u => u.replace(/[.\s]*$/, "")).join("; ")}.`);
   lines.push(basisLine(a) + stalePrefix(a));
   return lines.join(" ");

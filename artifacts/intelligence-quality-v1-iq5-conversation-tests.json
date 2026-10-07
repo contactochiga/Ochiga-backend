@@ -46,5 +46,179 @@
   "counts": {
     "PASS": 10
   },
-  "executed": 0
+  "executed": 0,
+  "transcripts": {
+    "OMA-001_provider_off": [
+      {
+        "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); Wave11 support case (open/active, recorded priority medium); Wave11 JV review (open/active, no priority or severity recorded) (listed, not ra"
+      },
+      {
+        "prompt": "Why is the second one more important than the others?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assess"
+      },
+      {
+        "prompt": "The Chairman for that project says financing is already secured.",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assess"
+      },
+      {
+        "prompt": "What's number one now?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current."
+      },
+      {
+        "prompt": "Why was number two there?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current."
+      }
+    ],
+    "OMA-001_scripted_provider": [
+      {
+        "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Based on the evidence available, the order reflects recorded qualification and stage In order: 1. Wave11 Lead Beta: it is recorded as qualified with supplied owner consent 2. Wave11 Abuja JV: it is supported by its recorded stage and notes 3. Wave11 Lead Alpha: it is supported by its recorded stage and notes This is not an all-clear: it covers only what I could read. What I cannot confirm: feasibility is not independently verified These are bounded, supplied views, not the whole pipeline; an assessment from them is a recommendation, not an action. Evidence basis: 8 sources read, 8 of them partial or not current."
+      },
+      {
+        "prompt": "Why is the second one more important than the others?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: feasibility is not independently verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      },
+      {
+        "prompt": "The Chairman for that project says financing is already secured.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": true,
+        "answer": "I have noted that as your own statement; I have not verified it and it is not confirmed evidence. It does not change any record by itself: what is recorded keeps its recorded status until the records themselves are updated. The ordering I gave earlier was made before it, and it may change that ordering. I have not reassessed it, so I will not treat the earlier ordering as current. I can still tell you why the items were set out as they were at the time."
+      },
+      {
+        "prompt": "What's number one now?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": true,
+        "answer": "I cannot say what comes first now. The ordering I gave was made before you told me something that may change it, and I have not reassessed it. I can still explain why items were ordered as they were at the time."
+      },
+      {
+        "prompt": "Why was number two there?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": true,
+        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: feasibility is not independently verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again. This was produced before you told me something"
+      }
+    ],
+    "facility": [
+      {
+        "prompt": "Does the water problem still come first?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
+      },
+      {
+        "prompt": "Why the first one?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Wave11 unresolved water issue was item 1 of those I listed (a listing, not a priority order): open/active, recorded priority high. For context, I also set out: Wave11 resolved light issue (resolved or past, recorded priority low, not treated as a current concern). This rests only on the evidence recorded when I produced it; I have not looked at the records again."
+      },
+      {
+        "prompt": "Can the other one wait?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Wave11 resolved light issue was recorded as resolved or lower priority (resolved or past, recorded priority low), so on the records it was not treated as needing attention. Whether it can wait beyond what is recorded I cannot tell. This rests only on the evidence recorded when I produced it; I have not looked at the records again."
+      },
+      {
+        "prompt": "Why the fifth one?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "That list only has 1 item, so there is no number 5. I am not going to substitute an item from somewhere else."
+      },
+      {
+        "prompt": "Is there a Tower B scope for that?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current. A building label is not a verified building scope; estate-wide records cannot establish that narrower view."
+      }
+    ],
+    "consumer": [
+      {
+        "prompt": "Is everything okay at home?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Your home has some issues that need attention. Wave11 unresolved water issue: open (high priority). Wave11 Bedroom Light: expired."
+      },
+      {
+        "prompt": "What about the second one?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). No security incidents are recorded in the checked scope. Visitor access: 0 currently active, 2 expired or inactive. What I cannot confirm: The latest readings for 4 devices are stale, so they show no current condition and no failure. A visitor access record is permission, not evidence that anyone has arrived or left. Not availab"
+      },
+      {
+        "prompt": "Is that dangerous?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Wave11 unresolved water issue was item 1 of those I listed (a listing, not a priority order): open/active, recorded priority high. That is what the records show. It does not establish whether this is dangerous or safe: anything that was not recorded or observed is not evidence either way. What I could not confirm then: The latest readings for 4 devices are stale, so they show no current condition and no failure; A visitor access record is permission, not evidence that anyone has arrived or left. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      },
+      {
+        "prompt": "Can the last one wait?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Nothing I recorded shows that Wave11 unresolved water issue can wait: it is recorded as open/active, recorded priority high. That is all the records say, and what is not recorded is not evidence that it can wait. What I could not confirm then: The latest readings for 4 devices are stale, so they show no current condition and no failure; A visitor access record is permission, not evidence that anyone has arrived or left. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      }
+    ],
+    "osa": [
+      {
+        "prompt": "I own land in Lekki and want to explore a joint venture.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Thanks for sharing that in Lekki. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you."
+      },
+      {
+        "prompt": "Is this a strong opportunity?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Lekki; structure offered: JV. To move this forward, it would help to know: land size, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed."
+      },
+      {
+        "prompt": "Why is that a problem?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Lekki; structure offered: JV. To move this forward, it would help to know: land size, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed."
+      },
+      {
+        "prompt": "Which concern matters more?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I can tell you about what Ochiga does, Ochiga's current developments, what Ochiga Development does, what Oyi is, Ochiga Private, partnering with Ochiga, a land, development or partnership opportunity you'd like to discuss. Ask me about any of these."
+      },
+      {
+        "prompt": "What about the ownership issue?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "This surface doesn't manage maintenance requests — that's tracked under Facility/Consumer, not here."
+      }
+    ]
+  }
 }
