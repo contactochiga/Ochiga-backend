@@ -14,7 +14,7 @@ ok('compound-withdrawal-splits', () => {
 });
 ok('compound-withdrawal-positive-controls-not-split', () => {
   // corrections, single intents, constraints and questions about cancelling are NOT compound withdrawals
-  for (const t of ['Actually, forget the leads. I mean the developments.', 'Cancel the pending device command', "Don't share the financial figures outside this chat.", 'Do not send me marketing emails', 'Can you cancel it and tell me why?', 'Turn off the kitchen light', 'What is my wallet balance, and the open requests?']) assert.equal(splitCompoundWithdrawal(t), null, t);
+  for (const t of ['Actually, forget the leads. I mean the developments.', 'Cancel the pending device command', "Don't share the financial figures outside this chat.", 'Do not send me marketing emails', 'Can you cancel it and tell me why?', 'Turn off the kitchen light', 'Forget the small stuff. Which three things can actually move Ochiga forward?', 'Never mind the background, what is open now?', 'What is my wallet balance, and the open requests?']) assert.equal(splitCompoundWithdrawal(t), null, t);
 });
 ok('withdrawal-verbs', () => {
   for (const t of ["scrap the email", "don't mark anything", 'do not touch it', 'Scratch that']) assert(hasWithdrawalVerb(t), t);

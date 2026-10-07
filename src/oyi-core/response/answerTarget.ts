@@ -91,6 +91,8 @@ export function splitCompoundWithdrawal(text: string): { withdrawal: string; rem
     if (l.length < 3 || l.length > 80 || r.length < 3) continue;
     if (!hasWithdrawalVerb(l) || analyse(l).tokens.length > 9 || /\?\s*$/.test(l) || /^(?:please\s+)?(?:can|could|would|will|do|does)\b/i.test(l)) continue;
     if (!analyse(r).tokens.length) continue;
+    // "Forget the small stuff. Which three…?" dismisses a framing; it does not withdraw an action
+    if (/\?\s*$/.test(r) && /\b(?:forget|disregard|never\s*mind|nevermind)\b/i.test(l) && !/\b(?:send|email|alert|message|pay|payment|book|task|command|request|order|update|mark|it|that)\b/i.test(l)) continue;
     const pieces = l.split(/,\s*/).filter(Boolean), core = pieces.filter(hasWithdrawalVerb).pop() ?? l;
     lead = core.replace(/^(?:actually|well|ok(?:ay)?|no wait|wait)\s+/i, ""); rem = r; break;
   }
