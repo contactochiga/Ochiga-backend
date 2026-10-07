@@ -4,7 +4,7 @@ import { normalizeLanguage } from "./LanguageNormalizer";
 import { resolveReferences } from "./ReferenceResolver";
 import { resolveTemporalScope } from "./TemporalResolver";
 import { resolveConcepts, reconcileDomain } from "./conceptBridge";
-import { deriveAnswerTarget } from "../response/answerTarget";
+import { deriveAnswerTarget, hasWithdrawalVerb } from "../response/answerTarget";
 import { analyse, isCallbackRequest, isHoldDirective, isCancellationText, isCapabilityInquiryText, objectiveOf } from "./semanticObjective";
 
 const ROOM_PATTERN = /\b(Bedroom(?:\s*\d+)?|living room|master bedroom|kitchen|bathroom|study|room\s+\d+)\b/i;
@@ -24,7 +24,11 @@ export function cognitiveObjectiveFor(text: string, opts: { activeAssessment?: b
 // Shared by interpretation and device workflow continuation: a negated or withdrawn instruction must never become a positive command while
 // cancellation fails to recognize it. This is an intent veto, not an execution permission.
 export function isCancellationUtterance(message: unknown): boolean {
-  return isCancellationText(String(message ?? "").trim());
+  const text = String(message ?? "").trim();
+  if (isCancellationText(text)) return true;
+  // IQ-9A: an explicit withdrawal ("scratch that, leave the light as it is") is a cancellation even when the sentence carries domain words; a negated
+  // preference or a correction that introduces a new proposition ("forget the JV, I'm thinking sale") is not (see deriveAnswerTarget).
+  return hasWithdrawalVerb(text) && deriveAnswerTarget(text).confirmation_kind === "cancel";
 }
 
 function deviceOperation(text: string): SemanticOperation | null {
