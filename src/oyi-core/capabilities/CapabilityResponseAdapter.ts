@@ -4,7 +4,7 @@ import type { CapabilityContext, CapabilityModule } from "../contracts/capabilit
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
 import { deriveAnswerTarget } from "../response/answerTarget";
-import { rowsFromBlocks, targetedRetrieval, type AnswerRows } from "../response/targetedRetrieval";
+import { rowsFromBlocks, targetedOverview, targetedRetrieval, type AnswerRows, type OverviewView } from "../response/targetedRetrieval";
 import { isGenericUnsupportedAnswer, limitationAnswer } from "../response/limitationTarget";
 
 // IQ-8: plain read capabilities describe what they read as compact rows; Core shapes the lead (list / count / status / yes-no) around the question.
@@ -26,7 +26,17 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
       if (t.response_intent === "CAPABILITY_DISCOVERY") return result;
       return { ...result, answer: limitationAnswer(t, frame.rawText), metadata: { ...(result.metadata || {}), answer_target: t.response_intent, limitation_targeted: true } };
     }
+    if (result.status === "permission_restricted" && /^You are not authorised to use that Oyi capability from this surface or scope\.$/.test(String(result.answer || "").trim())) {
+      const t = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
+      return { ...result, answer: `I can't do that for you here: you are not authorised to use it from this surface or scope (“${frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120)}”).`, metadata: { ...(result.metadata || {}), answer_target: t.response_intent, limitation_targeted: true } };
+    }
     if (result.status !== "answered" && result.status !== "empty") return result;
+    const overview = result.metadata?.overview_view as OverviewView | undefined;
+    if (overview) {
+      const ot = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
+      const shapedOverview = targetedOverview(result.answer, overview, ot, frame.rawText);
+      return shapedOverview ? { ...result, answer: shapedOverview, metadata: { ...(result.metadata || {}), answer_target: ot.response_intent } } : result;
+    }
     let rows = (result.metadata?.answer_rows as AnswerRows | undefined) ?? null;
     if (!rows) {
       const n = ROW_NOUNS[capabilityKey]; if (!n) return result;

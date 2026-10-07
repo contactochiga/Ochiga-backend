@@ -20,9 +20,11 @@ export type AnswerTarget = {
   compare_terms: string[][];           // the named sides of a comparison, as content-token groups
   qualifier_tokens: string[];          // status/filter words ("open", "stale", "qualified", "overdue" ...)
   safety_relevant: boolean;
+  is_question: boolean;                // the turn asks or directs (as opposed to stating a fact)
   must_answer: string;                 // human-readable description of what the first sentence must deliver
   supporting_context_allowed: boolean; // supporting evidence may follow, never lead
   confirmation_kind?: "cancel" | "hold" | "callback" | "constraint";
+  refusal_kind?: "authority" | "attribution";
   must_not_substitute: string[];       // what the lead must NOT be: "capability_menu", "count_for_list", "list_for_count", "evidence_readiness", "state_for_answer"
 };
 
@@ -35,6 +37,13 @@ const ACTION_VERBS = ["switch", "switched", "change", "changed", "alter", "alter
 const HAZARD = ["gas", "smoke", "fire", "flame", "burning", "electrical", "electric", "wiring", "sparks", "shock", "flood", "flooding", "collapse", "explosion", "leak", "leaking", "unsafe", "dangerous", "hazard", "hazardous", "injury", "injured", "intruder", "burglar", "alarm", "carbon", "monoxide", "panel", "exposed", "threat", "smell"];
 const RISK_ASK = ["dangerous", "unsafe", "hazard", "hazardous", "hazards", "danger", "safe", "secure", "risk", "risks", "risky", "threat", "worried", "worry", "concern", "concerning", "worrying", "harm", "vulnerable"];
 
+const NEGATION = new Set(["no", "not", "never", "nothing", "without", "none", "isn", "aren", "hasn", "haven", "cannot", "neither"]);
+/** A declarative report of a hazard (not a question, a negation or a supposition): safety-relevant, unverified. */
+export function isHazardReport(text: string): boolean {
+  const u = analyse(text), T = u.tokens;
+  if (!u.declarative || u.q || !T.some(t => HAZARD.includes(t)) || T.some(t => NEGATION.has(t))) return false;
+  return !["if", "suppose", "imagine", "assume", "what", "when", "hypothetically"].includes(T[0]);
+}
 export const isHazardText = (text: string) => { const t = analyse(text).tokens; return t.some(x => HAZARD.includes(x)); };
 
 const splitSides = (tokens: string[]): string[][] => {
@@ -54,7 +63,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const content = contentTokens(T), qualifiers = T.filter(t => STATUS_WORDS.includes(t));
   const hazard = T.some(t => HAZARD.includes(t)), riskAsk = T.some(t => RISK_ASK.includes(t));
   const base = (intent: ResponseIntent, over: Partial<AnswerTarget> = {}): AnswerTarget => ({ response_intent: intent, subject_tokens: content.filter(t => !STATUS_WORDS.includes(t)), top_n: null, quantity: null, yes_no: null, compare_terms: [], qualifier_tokens: qualifiers,
-    safety_relevant: hazard || riskAsk, must_answer: "", supporting_context_allowed: true, must_not_substitute: ["capability_menu"], ...over });
+    safety_relevant: hazard || riskAsk, is_question: u.q || u.wh || u.auxLead || u.imperative, must_answer: "", supporting_context_allowed: true, must_not_substitute: ["capability_menu"], ...over });
 
   if (isCapabilityInquiryText(text)) return base("CAPABILITY_DISCOVERY", { must_answer: "what Oyi can help with", must_not_substitute: [] });
   if (isCancellationText(text) || isHoldDirective(text) || isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: isCallbackRequest(text) ? "callback" : isHoldDirective(text) ? "hold" : "cancel", must_answer: "what is now in force (nothing is executed)", must_not_substitute: ["capability_menu", "evidence_readiness"] });
@@ -71,11 +80,16 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const youDid = (T[0] === "did" || T[0] === "have" || T[0] === "has") && (T[1] === "you" || T.includes("anything") || T.includes("oyi")) && T.some(x => ACTION_VERBS.includes(x));
   if (youDid && !/\b(?:prove|mean)\b/.test(T.join(" "))) return base("ACTION_RESULT", { yes_no: { kind: "action_result" }, must_answer: "whether anything was actually changed (yes/no first)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
 
+  // an instruction to ignore a boundary, or to treat the user as someone they are not, is declined whatever role is claimed
+  if (T.some(t => ["ignore", "bypass", "override", "disregard", "pretend", "impersonate", "circumvent"].includes(t)) && T.some(t => ["privacy", "boundary", "boundaries", "permission", "permissions", "rule", "rules", "authority", "restriction", "restrictions", "policy", "owner", "admin", "manager", "role", "security", "limits"].includes(t)))
+    return base("REFUSAL", { refusal_kind: "authority", must_answer: "decline to bypass a privacy/permission boundary, whatever role is claimed", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // attributing a problem to a named kind of person is not something the evidence supports (and is private by default)
   const person = T.some(t => ["resident", "tenant", "neighbour", "neighbor", "person", "someone", "who", "staff", "guard", "visitor"].includes(t));
   if (person && u.wh && T.some(t => ["causing", "caused", "responsible", "reported", "blame", "complained", "reporting", "behind"].includes(t))) return base("REFUSAL", { must_answer: "decline to identify or blame an individual, then say what can be said", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // recall of the conversation itself
   if (u.wh && (T.includes("did") || T.includes("have")) && T.includes("i") && T.some(t => ["say", "said", "correct", "corrected", "mention", "mentioned", "ask", "asked", "tell", "told", "mean", "meant", "give", "gave", "given", "provided", "shared"].includes(t))) return base("DIRECT_ANSWER", { must_answer: "what the user said/corrected earlier", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  // recall of what the conversation is about ("which room are we discussing?")
+  if (u.wh && T.some(t => /^(?:discuss|talk|referr|speak)/.test(t)) && T.some(t => ["we", "i", "you"].includes(t))) return base("DIRECT_ANSWER", { must_answer: "what the conversation is currently about", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // "what changed since yesterday": a change over time needs an earlier snapshot to compare with
   if (u.wh && T.some(t => ["changed", "change", "different", "new"].includes(t)) && T.some(t => ["since", "yesterday", "ago", "earlier", "last", "before"].includes(t))) return base("DIRECT_ANSWER", { must_answer: "what changed since the earlier point, or that no earlier snapshot exists to compare with", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (u.wh && T.includes("reasoning") && T.some(t => ["changed", "change"].includes(t))) return base("EXPLANATION", { must_answer: "whether the reasoning changed and why", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });

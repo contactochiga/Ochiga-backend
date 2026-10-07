@@ -373,6 +373,14 @@ export function publicOpportunityReadModule(): CapabilityModule {
         return { status: "answered", answer, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
       }
 
+      // IQ-8: a QUESTION about what is held / needed / possible is answered as such, never acknowledged as if it were a new fact.
+      if (prior) {
+        const asked = targetedPublicLead(prior, message, context.resolvedTurn.semantic_frame.cognitiveObjective);
+        if (asked) {
+          const supporting = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
+          return { status: "answered", answer: `${asked}\n\nSupporting detail: ${supporting}`, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
+        }
+      }
       // Otherwise: this turn supplies or updates a fact. Merge and
       // acknowledge without re-asking for anything already known.
       const updated = mergeObjective(prior, message, new Date().toISOString());

@@ -1,6 +1,7 @@
 import type { ArtifactItem, DerivedRanking } from "../judgment/types";
 import { isOrdered, primaryGroup } from "../reference/derivedReference";
 import { assertsPromiseOrAction } from "../judgment/validator";
+import { isHazardReport } from "../../response/answerTarget";
 import { activeFacts, type ConversationFact } from "./facts";
 
 // IQ-6 reassessment contract: a compact, structural record of "did the new information change what Oyi concluded". It stores no raw
@@ -54,7 +55,10 @@ export function composeReassessment(a: { old: DerivedRanking; next: DerivedRanki
   const before = a.cls.change_class === "UNCHANGED" ? "" : ` Before: ${list(a.old)}.`;
   const evidence = ` I re-read ${a.refreshed} source${a.refreshed === 1 ? "" : "s"} and reused ${a.reused} unchanged one${a.reused === 1 ? "" : "s"}.`;
   const ifTrue = f.length && a.cls.change_class === "UNCHANGED" ? ` If that statement is correct it could bear on ${bound.length ? bound.map(lab).join(" and ") : "the items below"}; I cannot confirm it from what I can read, so I have not changed the ${k} on it.` : "";
-  return `${using}, ${verdict}.${ifTrue}${records}${changed}${before}${evidence} Current assessment: ${a.currentText}`;
+  // IQ-8: lead with the yes / no the question asked, and surface an unverified safety-relevant report before anything else.
+  const yesNo = a.cls.change_class === "UNCHANGED" ? `No — it does not change the ${k} on the evidence I can read.` : a.cls.change_class === "CHANGED_ORDER" ? `Yes — it changes the order.` : `Yes — it changes the conclusion.`;
+  const risk = f.some(x => isHazardReport(x.text)) ? `This is an unverified report that could be safety-relevant; I cannot confirm it from current evidence. ` : "";
+  return `${yesNo} ${risk}${using}, ${verdict}.${ifTrue}${records}${changed}${before}${evidence} Current assessment: ${a.currentText}`;
 }
 
 export function composeNotReassessed(reason: "evidence" | "judgment" | "capability" | "authority" | "no_prior" | "ambiguous", old: DerivedRanking | null, facts: ConversationFact[], detail?: string): string {

@@ -334,6 +334,8 @@ function classifyDomain(text: string): OyiDomain | null {
   // technology/facility inquiry progressing toward staff handoff.
   if (/\b(?:can|could|would|will)\s+(?:somebody|someone|anybody|anyone|a\s+(?:person|human)|the\s+team|you)\s+(?:call|ring|phone|reach\s+out|contact|get\s+back)\b|\brequest\s+a\s+call(?:back)?\b|\bhave\s+someone\s+(?:call|contact)\s+me\b|\b(?:call|ring)\s+me\s+back\b/i.test(text)) return "corporate_opportunity";
   if (/\breport\b[\s\S]{0,24}\b(problem|issue|fault|repair|broken|not working)\b/i.test(text)) return "maintenance";
+  // A device noun that is the MODIFIER of a fault noun ("the light issue", "pump fault") names a maintenance record, whose head is the fault.
+  if (/\b(?:light|lights|lamp|door|lock|camera|sensor|ac|heater|fan|generator|lift|pump|gate)\s+(?:issues?|problems?|faults?|tickets?|complaints?)\b/i.test(text)) return "maintenance";
   if (/\b(report|analytics?|trend|comparison|compare)\b/i.test(text)) return "reports";
   if (/\bhome|house|everything|what should i check|needs attention|changed today\b/i.test(text)) return "home";
   if (/\b(rooms?|bedroom|living room|kitchen|bathroom|space)\b/i.test(text)) return "rooms";

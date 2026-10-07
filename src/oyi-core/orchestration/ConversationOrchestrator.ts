@@ -7,7 +7,7 @@ import { loadConversationAssessment, nextConversationAssessment, isAssessmentObj
 import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
 import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
 import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
-import { deriveAnswerTarget } from "../response/answerTarget";
+import { deriveAnswerTarget, isHazardReport } from "../response/answerTarget";
 import { actionTruthLead, threadActionTruth } from "../response/actionTruth";
 import { parseDerivedReference, scopeBinding } from "../evidence/reference/derivedReference";
 import { runReassessment } from "../evidence/reassessment/integration";
@@ -3618,6 +3618,7 @@ export class ConversationOrchestrator {
       const sf = resolvedTurn.semantic_frame, earlyTarget = deriveAnswerTarget(sf.rawText, { objective: sf.cognitiveObjective, activeAssessment: Boolean(earlyAssessment) });
       let direct: string | null = null, key = "";
       if (earlyTarget.confirmation_kind === "constraint" && sf.operation !== "cancel") { direct = `Understood — noted for this conversation: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. Nothing I do here sends, shares or changes anything unless you ask and confirm it.`; key = "answer_target.constraint_acknowledged"; }
+      else if (!earlyAssessment && isHazardReport(sf.rawText) && ["facility", "consumer"].includes(context.input.surface)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action.`; key = "answer_target.safety_report"; }
       else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = actionTruthLead(await threadActionTruth(context.input.thread_id)); key = "answer_target.action_result"; }
       if (direct) {
         const capability = syntheticOfficeActionCapability(key, "global");
@@ -3871,7 +3872,7 @@ export class ConversationOrchestrator {
         // and any failure degrades to an honest bounded statement without touching canonical assessment state.
         let judged: JudgmentOutcome | null = null;
         if (gathered && boolFlag("OYI_JUDGMENT_ENABLED", true)) {
-          judged = await judgeAssessment({ state: planned!.state, objective: assessment.objective, question: frame.rawText, surface: context.input.surface, previous: assessment.derived_ranking ?? null, provider: providerFromEnv() }).catch((error) => {
+          judged = await judgeAssessment({ state: planned!.state, objective: assessment.objective, question: frame.rawText, surface: context.input.surface, previous: assessment.derived_ranking ?? null, provider: providerFromEnv(), userReports: (assessment.facts || []).filter((f) => !f.superseded_by).map((f) => f.text) }).catch((error) => {
             logger.warn("oyi_assessment_judgment_failed", { request_id: tracer.requestId, error: error instanceof Error ? error.message : String(error) });
             return null;
           });

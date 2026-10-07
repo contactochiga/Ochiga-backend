@@ -260,7 +260,8 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         const incidents = open.filter((fact) => fact.domain === "security");
         const detail = open.slice(0, 3).map((fact) => fact.statement).join(" ");
         const answer = `From the available maintenance and security records: ${maintenance.length} open maintenance request${maintenance.length === 1 ? "" : "s"} and ${incidents.length} open security incident${incidents.length === 1 ? "" : "s"}.${detail ? ` Priority items: ${detail}` : ""}${unavailable.length ? ` ${Array.from(new Set(unavailable)).join(" and ")} evidence is unavailable; this is not a complete estate-health verdict.` : " This covers those two sources only, not every estate system."}`;
-        return { status: unavailable.length ? "unavailable" : open.length ? "answered" : "empty", answer, presentation_policy: resultPresentation("list") };
+        const view = { maintenance: maintenance.map((f) => ({ label: String(recordOf(f.value).title || f.object?.label || "Maintenance request"), status: text(recordOf(f.value).status) || "open", priority: text(recordOf(f.value).priority) })), incidents: incidents.map((f) => ({ label: String(recordOf(f.value).title || f.object?.label || "Security incident"), status: text(recordOf(f.value).status) || "open" })), unavailable };
+        return { status: unavailable.length ? "unavailable" : open.length ? "answered" : "empty", answer, presentation_policy: resultPresentation("list"), metadata: { overview_view: view } };
       },
       primary: "list",
     }),
@@ -438,7 +439,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       permissions: ["wallet.read"],
       scopeRequirements: homeScope,
       evidenceRequirements: walletEvidence,
-      supports: (frame) => frame.domain === "wallet" && (frame.operation === "wallet.history" || /\btransactions?|history|wallet\b/i.test(frame.normalizedText)),
+      supports: (frame) => frame.domain === "wallet" && (frame.operation === "wallet.history" || /\btransactions?|history|wallet\b/i.test(frame.normalizedText)) && (!/\bbalance\b/i.test(frame.normalizedText) || /\btransactions?|history|spent|spending\b/i.test(frame.normalizedText)),
       collect: async (context) => {
         const facts = await loadWalletTransactionFacts(context.input, context.oisContext, requestContract(context));
         return facts.map(evidenceFromFact);

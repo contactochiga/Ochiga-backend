@@ -46,7 +46,7 @@ const BOILER = /^(?:Based on the evidence available, (?:I can tell you what is r
 const lc = s => s.toLowerCase();
 const within = (a, n) => lc(a.slice(0, n));
 const hasAny = (a, kws, n) => kws.some(k => within(a, n).includes(lc(k)));
-const NEG = /(?:can(?:'|no)t|cannot|do not have|don't have|not available|isn't|is not|no [a-z ]{0,24}(?:evidence|source|baseline|record|snapshot|data|scope|capability|reading)|unable|not able|won't|will not|haven't|have not|could not|couldn't|not (?:yet )?(?:ranked|connected|implemented))/i;
+const NEG = /(?:not authori[sz]ed|can(?:'|no)t|cannot|do not have|don't have|not available|isn't|is not|no [a-z ]{0,24}(?:evidence|source|baseline|record|snapshot|data|scope|capability|reading)|unable|not able|won't|will not|haven't|have not|could not|couldn't|not (?:yet )?(?:ranked|connected|implemented))/i;
 const POL = {
   yes: a => /^(?:yes|yep|correct|that is right|it is)\b/i.test(a.trim()),
   no: a => /^(?:no\b|not\b|nothing\b|none\b|there (?:is|are) no\b|i (?:have|see) no\b|i do not see\b|no,)/i.test(a.trim()),

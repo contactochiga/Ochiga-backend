@@ -16,7 +16,8 @@ const norm = (s: string) => s.toLowerCase();
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const nameTokens = (s: string) => contentTokens(analyse(s).tokens).filter(t => !/^wave\d*$/.test(t));
 const stem = (w: string) => w.replace(/(?:ing|ed|es|s)$/, "");
-const matchesQual = (r: AnswerRow, q: string) => { const hay = norm(`${r.status ?? ""} ${r.detail ?? ""}`); return hay.includes(stem(q)) || (q === "overdue" && /overdue|late/.test(hay)) || (q === "open" && /^(?:open|new|pending|in_progress|active|qualified|review|planning)\b/.test(norm(r.status ?? ""))); };
+const OPEN_Q = new Set(["open", "unresolved", "outstanding", "active", "current", "pending", "ongoing"]), DONE_Q = new Set(["resolved", "closed", "fixed", "done", "completed", "solved"]);
+const matchesQual = (r: AnswerRow, q: string) => { const st = norm(r.status ?? ""); if (OPEN_Q.has(q) && st) return !/\b(?:resolved|closed|completed|cancelled|canceled|expired|done)\b/.test(st); if (DONE_Q.has(q) && st) return /\b(?:resolved|closed|completed|done)\b/.test(st); const hay = norm(`${r.status ?? ""} ${r.detail ?? ""}`); return hay.includes(stem(q)) || (q === "overdue" && /overdue|late/.test(hay)) || (q === "open" && /^(?:open|new|pending|in_progress|active|qualified|review|planning)\b/.test(norm(r.status ?? ""))); };
 const labelList = (rows: AnswerRow[], max = 8) => { const shown = rows.slice(0, max).map(r => `${r.label}${r.status ? ` (${r.status}${r.detail ? `; ${r.detail}` : ""})` : r.detail ? ` (${r.detail})` : ""}`); return shown.join(", ") + (rows.length > max ? `, and ${rows.length - max} more` : ""); };
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 
@@ -26,9 +27,31 @@ export function rowsFromBlocks(blocks: Array<Record<string, unknown>> | undefine
   const cols = ((b.columns as Array<{ key: string; label: string }>) || []).map(c => c.key);
   const labelKey = ["name", "title", "visitor", "description", "device", "lead", "label"].find(k => cols.includes(k)) || cols[0];
   const statusKey = ["status", "state", "stage"].find(k => cols.includes(k)), detailKey = ["amount", "reason", "priority", "purpose", "stage"].find(k => cols.includes(k));
-  const rows = (b.rows as Array<Record<string, unknown>>).map(r => ({ label: clean(String(r[labelKey] ?? "item")), ...(statusKey && r[statusKey] ? { status: clean(String(r[statusKey])) } : {}), ...(detailKey && r[detailKey] ? { detail: clean(String(r[detailKey])).slice(0, 60) } : {}) }));
+  const rows = (b.rows as Array<Record<string, unknown>>).map(r => ({ label: clean(String(r[labelKey] ?? "item")), ...(statusKey && r[statusKey] ? { status: clean(String(r[statusKey])) } : {}), ...(detailKey && r[detailKey] && clean(String(r[detailKey])).length <= 40 ? { detail: clean(String(r[detailKey])) } : {}) }));
   const tm = /^(overdue|stale|open|pending|expired)\b/i.exec(String(b.title ?? ""));
   return { noun, singular, rows, total: null, population: tm ? `that are ${tm[1].toLowerCase()}` : null };
+}
+
+export type OverviewView = { maintenance: Array<{ label: string; status: string; priority?: string }>; incidents: Array<{ label: string; status: string }>; unavailable: string[] };
+/** Facility overview: risk, list, count and yes/no asks are answered from the open maintenance and security records it read. */
+export function targetedOverview(original: string, v: OverviewView, target: AnswerTarget, question: string): string | null {
+  const T = analyse(question).tokens, intent = target.response_intent;
+  const items = [...v.maintenance.map(m => ({ label: m.label, status: m.status, detail: m.priority ? `${m.priority} priority` : undefined, kind: "maintenance" })), ...v.incidents.map(i => ({ label: i.label, status: i.status, detail: undefined, kind: "security incident" }))];
+  const scope = v.unavailable.length ? `${[...new Set(v.unavailable)].join(" and ")} evidence is unavailable, so this is not a complete verdict.` : "This covers maintenance and security records only, so I cannot rule out anything else.";
+  const list = (xs: typeof items) => xs.slice(0, 5).map(x => `${x.label} (${x.status}${x.detail ? `; ${x.detail}` : ""})`).join(", ");
+  const sup = (lead: string) => `${lead}\n\nSupporting detail: ${clean(original)}`;
+  if (intent === "SAFETY_RISK") {
+    const inc = v.incidents.length ? `${v.incidents.length} open security incident${v.incidents.length === 1 ? "" : "s"}: ${v.incidents.slice(0, 3).map(i => i.label).join(", ")}.` : "No security incident is open in the records I read.";
+    const m = v.maintenance.length ? ` The open maintenance item${v.maintenance.length === 1 ? "" : "s"} that could matter for safety: ${list(items.filter(x => x.kind === "maintenance"))}.` : " No open maintenance request is recorded.";
+    return sup(`${inc}${m} ${scope}`);
+  }
+  if (intent === "LIST" || (intent === "YES_NO_WITH_REASON" && target.yes_no?.kind === "state")) {
+    if (!T.some(t => ["open", "unresolved", "pending", "outstanding", "active", "need", "needs", "attention", "any", "anything"].includes(t)) && intent === "LIST") return null;
+    if (intent === "YES_NO_WITH_REASON") return sup(items.length ? `Yes — ${items.length} open: ${list(items)}.` : "No — nothing is open in the maintenance and security records I read.");
+    return sup(items.length ? `Still open: ${list(items)}.` : "Nothing is open in the maintenance and security records I read.");
+  }
+  if (intent === "COUNT") return sup(`There ${items.length === 1 ? "is" : "are"} ${items.length} open item${items.length === 1 ? "" : "s"} (${v.maintenance.length} maintenance, ${v.incidents.length} security).`);
+  return null;
 }
 
 export function targetedRetrieval(original: string, ar: AnswerRows, target: AnswerTarget, question: string): string | null {

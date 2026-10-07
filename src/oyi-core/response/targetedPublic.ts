@@ -10,6 +10,7 @@ const list = (xs: string[]) => xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1)
 const knownText = (k: Record<string, string>) => Object.entries(k).map(([a, b]) => `${nice(a)}: ${b}`).join("; ");
 
 export function publicLead(target: AnswerTarget, question: string, v: PublicView): string | null {
+  if (!target.is_question) return null;
   const T = analyse(question).tokens;
   const commit = T.some(t => COMMIT.has(t));
   const asksSoFar = T.some(t => ["told", "have", "got", "know", "hold", "captured", "recorded"].includes(t)) && T.some(t => ["far", "now", "already", "so"].includes(t)) && (target.response_intent === "LIST" || target.response_intent === "DIRECT_ANSWER" || target.response_intent === "ASSESSMENT");
@@ -30,8 +31,11 @@ export function publicLead(target: AnswerTarget, question: string, v: PublicView
       return v.missing.length ? `The first thing that would help is ${list(v.missing.slice(0, 2).map(nice))}.` : null;
     }
     case "COMPARISON": {
-      const sides = contentTokens(T).filter(t => !["suit", "better", "best", "prefer", "would", "should"].includes(t));
-      return `I can't say which of those suits you better yet: that depends on what you want from the property${v.missing.length ? ` and on ${list(v.missing.slice(0, 2).map(nice))}, which I don't have` : ""}.${sides.length ? "" : ""}`;
+      if (T.includes("versus") || (T.includes("know") && T.some(t => ["check", "need", "missing", "unknown"].includes(t)))) return `What I know: ${Object.keys(v.known).length ? knownText(v.known) : "very little so far"}. What still needs checking: ${v.missing.length ? list(v.missing.map(nice)) : "nothing further for a first look"}.`;
+      const sides = target.compare_terms.map(g => g.join(" ")).filter(Boolean);
+      const named = sides.length === 2 ? `${sides[0]} or ${sides[1]}` : "those";
+      if (T.includes("approach") || T.includes("different")) return `I can't say yet whether the approach would differ: that depends on what you want from the property${v.missing.length ? ` and on ${list(v.missing.slice(0, 2).map(nice))}, which I don't have` : ""}.`;
+      return `I can't say which of ${named} suits you better yet: that depends on what you want from the property${v.missing.length ? ` and on ${list(v.missing.slice(0, 2).map(nice))}, which I don't have` : ""}.`;
     }
     case "LIMITATION": return null;
     default: return null;
