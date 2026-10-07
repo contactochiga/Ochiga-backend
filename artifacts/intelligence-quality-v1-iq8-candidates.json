@@ -1,0 +1,2006 @@
+{
+ "version": 1,
+ "status": "IQ8_CANDIDATES_FROZEN_PRE_IMPLEMENTATION",
+ "source_run_sha256": "23a61c5a763a6eb18e1e127d08b22f8b2b213740e8e4a522171c3c9168cf1fcd",
+ "head": "6f793fd",
+ "method": "every FAIL turn of the post-IQ7 frozen-280 run was read against its question; a candidate has right understanding, sufficient state (or a specific limitation to state) and a wrong lead. Statuses are the accepted post-IQ6/IQ7 statuses; none are regraded.",
+ "count": 84,
+ "by_worker": {
+  "Oma": 16,
+  "Osa": 13,
+  "Facility": 32,
+  "Consumer": 23
+ },
+ "by_intent": {
+  "LIST": 17,
+  "YES_NO_WITH_REASON": 25,
+  "COMPARISON": 9,
+  "LIMITATION": 7,
+  "EXPLANATION": 5,
+  "CONFIRMATION_STATE": 4,
+  "RANKING": 2,
+  "SAFETY_RISK": 2,
+  "DIRECT_ANSWER": 4,
+  "SUMMARY": 1,
+  "REFUSAL": 1,
+  "ACTION_RESULT": 2,
+  "STATUS": 5
+ },
+ "by_subtype": {
+  "COUNT_FOR_LIST": 5,
+  "PROVIDER_OFF_LIMITATION": 1,
+  "NAMED_PAIR_LIMITATION": 2,
+  "MISSING_BASELINE": 2,
+  "INFERENCE_PROBE": 6,
+  "NOTHING_TO_EXPLAIN": 2,
+  "MISSING_OWNERSHIP_DATA": 1,
+  "CONSTRAINT_ACKNOWLEDGEMENT": 4,
+  "IMPLICIT_PAIR_LIMITATION": 1,
+  "UNRESOLVED_ITEMS": 1,
+  "AUTHORITY_YES_NO": 1,
+  "NOTHING_CHANGED": 1,
+  "MOST_IMPORTANT": 1,
+  "COMMITMENT_LIMIT": 2,
+  "ENOUGH_INFORMATION": 1,
+  "ADVICE_LIMIT": 1,
+  "APPROACH_DIFFERENCE": 1,
+  "KNOWN_VS_TO_CHECK": 1,
+  "DETAILS_LIST": 1,
+  "LEASE_VS_JV": 1,
+  "GUARANTEE": 1,
+  "PROMISE": 1,
+  "PASSED_ON_VS_UNVERIFIED": 1,
+  "WHY_RATHER_THAN": 1,
+  "RISK_TARGETING": 2,
+  "FACTS_VS_UNCERTAINTY": 1,
+  "CONDITIONAL_CHANGE": 1,
+  "STILL_FIRST": 1,
+  "WHY_FIRST": 1,
+  "WHICH_OPEN": 1,
+  "COMPARE_NOT_RELIST": 2,
+  "WHICH_STALE": 1,
+  "CAUSE_POSSIBLE": 1,
+  "STATE_QUESTION": 2,
+  "HISTORICAL_LIST": 2,
+  "CHANGE_QUESTION": 2,
+  "CONFIRMATION_STATE_QUESTION": 1,
+  "UNCERTAINTY_SUMMARY": 1,
+  "ATTRIBUTION_DECLINE": 1,
+  "WHAT_CAN_YOU_TELL": 1,
+  "WHAT_IS_MISSING": 1,
+  "CAUSAL_PROBE": 1,
+  "WHY_NOT": 1,
+  "ACTION_TRUTH": 2,
+  "BUILDING_STATUS": 1,
+  "MISSING_SCOPE": 1,
+  "ESTATE_WIDE": 1,
+  "WHAT_IS_UNKNOWN": 1,
+  "CANNOT_VERIFY": 1,
+  "CHECK_FIRST": 1,
+  "MISSING_TEMPERATURE": 1,
+  "SAFE_CONCLUSION": 1,
+  "MISSING_CONSUMPTION": 1,
+  "EVIDENCE_HELD": 1,
+  "WRONG_NOUN_CAPABILITY": 3,
+  "ACTION_BENEFIT": 2,
+  "RECALL_CORRECTION": 1,
+  "STATE_FIRST": 1,
+  "WHAT_NEEDS_CONFIRMATION": 1
+ },
+ "not_candidates_note": "INITIATIVE, LIVE_PROVIDER, DRAFTING, CONTEXT (state lost), UNDERSTANDING (statement acknowledgements) and evaluator-envelope turns are excluded and re-classified after IQ-8.",
+ "candidates": [
+  {
+   "journey": "OMA-001",
+   "turn": 1,
+   "id": "OMA-001:1",
+   "worker": "Oma",
+   "ask": "I just got into the office. What actually needs my attention today?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "crm",
+    "office_development",
+    "office_reports",
+    "office_financial"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "business_surface.fallback",
+    "judgment_mode": null
+   },
+   "actual_lead": "leads that need attention: 20 leads out of 39 open. opportunities that haven't been followed up: 3 opportunities. 2 haven't had activity in at least two weeks. ",
+   "expected_answer_target": "lead with the items that need attention (the leads/opportunities/reports named), counts as support",
+   "failure_subtype": "COUNT_FOR_LIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-002",
+   "turn": 2,
+   "id": "OMA-002:2",
+   "worker": "Oma",
+   "ask": "Is that just the biggest deal?",
+   "cognitive_objective": null,
+   "subject": [
+    "crm"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read",
+   "expected_answer_target": "say plainly it cannot judge whether it is merely the biggest deal without comparative judgment, then the recorded facts",
+   "failure_subtype": "PROVIDER_OFF_LIMITATION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-002",
+   "turn": 3,
+   "id": "OMA-002:3",
+   "worker": "Oma",
+   "ask": "Compare it with the oldest unanswered lead.",
+   "cognitive_objective": "compare",
+   "subject": [
+    "crm"
+   ],
+   "requested_answer_shape": "COMPARISON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read",
+   "expected_answer_target": "state that the two items cannot be compared on judgment grounds without comparative judgment, naming the pair and the recorded facts of each",
+   "failure_subtype": "NAMED_PAIR_LIMITATION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-004",
+   "turn": 1,
+   "id": "OMA-004:1",
+   "worker": "Oma",
+   "ask": "What changed since yesterday?",
+   "cognitive_objective": "compare",
+   "subject": [
+    "crm",
+    "office_development",
+    "office_reports",
+    "office_financial"
+   ],
+   "requested_answer_shape": "LIMITATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read",
+   "expected_answer_target": "say directly that no earlier snapshot exists to compare against",
+   "failure_subtype": "MISSING_BASELINE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-004",
+   "turn": 2,
+   "id": "OMA-004:2",
+   "worker": "Oma",
+   "ask": "Do you have a yesterday baseline?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "crm",
+    "office_development",
+    "office_reports",
+    "office_financial"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read",
+   "expected_answer_target": "No: there is no yesterday baseline, then why",
+   "failure_subtype": "MISSING_BASELINE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-004",
+   "turn": 5,
+   "id": "OMA-004:5",
+   "worker": "Oma",
+   "ask": "Is his statement enough to call it funded?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "office_development"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 3 development projects read. Ranking these takes comparative judgment ",
+   "expected_answer_target": "No (not on its own): a reported statement is not verification; say what would verify",
+   "failure_subtype": "INFERENCE_PROBE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-004",
+   "turn": 7,
+   "id": "OMA-004:7",
+   "worker": "Oma",
+   "ask": "Explain the conditional recommendation briefly.",
+   "cognitive_objective": "explain",
+   "subject": [
+    "office_development"
+   ],
+   "requested_answer_shape": "EXPLANATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 3 development projects read. I have not ordered these yet, so there is",
+   "expected_answer_target": "say first that no conditional recommendation was made, so there is nothing to explain",
+   "failure_subtype": "NOTHING_TO_EXPLAIN",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-006",
+   "turn": 4,
+   "id": "OMA-006:4",
+   "worker": "Oma",
+   "ask": "Who else is actually known to own the work?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "office_development"
+   ],
+   "requested_answer_shape": "LIMITATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 3 development projects read. Ranking these takes comparative judgment ",
+   "expected_answer_target": "say that ownership of the work is not recorded in available evidence",
+   "failure_subtype": "MISSING_OWNERSHIP_DATA",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-006",
+   "turn": 5,
+   "id": "OMA-006:5",
+   "worker": "Oma",
+   "ask": "Do not invent a staff member.",
+   "cognitive_objective": "assess",
+   "subject": [
+    "office_development"
+   ],
+   "requested_answer_shape": "CONFIRMATION_STATE",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 3 development projects read. Ranking these takes comparative judgment ",
+   "expected_answer_target": "acknowledge the constraint (will not invent a staff member) in one sentence",
+   "failure_subtype": "CONSTRAINT_ACKNOWLEDGEMENT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-007",
+   "turn": 1,
+   "id": "OMA-007:1",
+   "worker": "Oma",
+   "ask": "Compare the Abuja JV and the speculative large lead.",
+   "cognitive_objective": "compare",
+   "subject": [
+    "crm"
+   ],
+   "requested_answer_shape": "COMPARISON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read",
+   "expected_answer_target": "name the pair and state the comparison limit and recorded facts of each",
+   "failure_subtype": "NAMED_PAIR_LIMITATION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-007",
+   "turn": 2,
+   "id": "OMA-007:2",
+   "worker": "Oma",
+   "ask": "Which has better evidence of viability?",
+   "cognitive_objective": "compare",
+   "subject": [
+    "crm"
+   ],
+   "requested_answer_shape": "COMPARISON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read",
+   "expected_answer_target": "state that evidence of viability cannot be compared on judgment grounds without comparative judgment; give recorded viability facts",
+   "failure_subtype": "IMPLICIT_PAIR_LIMITATION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-008",
+   "turn": 1,
+   "id": "OMA-008:1",
+   "worker": "Oma",
+   "ask": "Show the qualified JV lead.",
+   "cognitive_objective": "retrieve",
+   "subject": "crm",
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "crm.leads.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "20 leads out of 39 open.",
+   "expected_answer_target": "list the qualified JV lead(s) by name and status",
+   "failure_subtype": "COUNT_FOR_LIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-008",
+   "turn": 7,
+   "id": "OMA-008:7",
+   "worker": "Oma",
+   "ask": "What remains unresolved before we reply?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "crm"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read",
+   "expected_answer_target": "lead with what remains unresolved/missing",
+   "failure_subtype": "UNRESOLVED_ITEMS",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-009",
+   "turn": 2,
+   "id": "OMA-009:2",
+   "worker": "Oma",
+   "ask": "Can we promise funding to the JV owner?",
+   "cognitive_objective": "advise",
+   "subject": [
+    "office_financial"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "No: nothing here authorises promising funding; then why",
+   "failure_subtype": "AUTHORITY_YES_NO",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-010",
+   "turn": 4,
+   "id": "OMA-010:4",
+   "worker": "Oma",
+   "ask": "Why?",
+   "cognitive_objective": "explain",
+   "subject": [
+    "crm",
+    "office_development",
+    "office_reports",
+    "office_financial"
+   ],
+   "requested_answer_shape": "EXPLANATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "bounded_no_provider"
+   },
+   "actual_lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read",
+   "expected_answer_target": "say first that no ordering was made, so there is no reasoning to explain",
+   "failure_subtype": "NOTHING_TO_EXPLAIN",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OMA-010",
+   "turn": 6,
+   "id": "OMA-010:6",
+   "worker": "Oma",
+   "ask": "What changed in your reasoning?",
+   "cognitive_objective": "reassess",
+   "subject": [
+    "office_financial"
+   ],
+   "requested_answer_shape": "EXPLANATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "say first that nothing was ranked, so no reasoning has changed",
+   "failure_subtype": "NOTHING_CHANGED",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-001",
+   "turn": 5,
+   "id": "OSA-001:5",
+   "worker": "Osa",
+   "ask": "What do you think matters most?",
+   "cognitive_objective": "prioritize",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "RANKING",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: existing_building; location: VI; land size: 1,200 sqm",
+   "expected_answer_target": "lead with the single most important point (what matters most) from what is known/missing",
+   "failure_subtype": "MOST_IMPORTANT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-001",
+   "turn": 6,
+   "id": "OSA-001:6",
+   "worker": "Osa",
+   "ask": "Would Ochiga pursue this?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: existing_building; location: VI; land size: 1,200 sqm",
+   "expected_answer_target": "say it cannot commit Ochiga; the team reviews opportunities; then what is known",
+   "failure_subtype": "COMMITMENT_LIMIT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-002",
+   "turn": 5,
+   "id": "OSA-002:5",
+   "worker": "Osa",
+   "ask": "Have I given enough for an initial discussion?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- location: Lekki; land size: 2,400 sqm; structure offered: JV; title doc",
+   "expected_answer_target": "answer yes/not yet to 'enough for an initial discussion' first, then what is still missing",
+   "failure_subtype": "ENOUGH_INFORMATION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-002",
+   "turn": 7,
+   "id": "OSA-002:7",
+   "worker": "Osa",
+   "ask": "Do not claim a call is booked unless it really is.",
+   "cognitive_objective": "assess",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "CONFIRMATION_STATE",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- location: Lekki; land size: 2,400 sqm; structure offered: JV; title doc",
+   "expected_answer_target": "state that no call is booked",
+   "failure_subtype": "CONSTRAINT_ACKNOWLEDGEMENT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-003",
+   "turn": 4,
+   "id": "OSA-003:4",
+   "worker": "Osa",
+   "ask": "Can I sign a JV anyway?",
+   "cognitive_objective": "advise",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: lo",
+   "expected_answer_target": "say it cannot advise signing from what is known; explain what is open",
+   "failure_subtype": "ADVICE_LIMIT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-004",
+   "turn": 4,
+   "id": "OSA-004:4",
+   "worker": "Osa",
+   "ask": "Would your approach be different?",
+   "cognitive_objective": "compare",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "COMPARISON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 1,800 sqm. To move ",
+   "expected_answer_target": "answer whether the approach differs, first",
+   "failure_subtype": "APPROACH_DIFFERENCE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-004",
+   "turn": 6,
+   "id": "OSA-004:6",
+   "worker": "Osa",
+   "ask": "What do you know versus need to check?",
+   "cognitive_objective": "compare",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "COMPARISON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 1,800 sqm. To move ",
+   "expected_answer_target": "two clearly separated parts: what is known, what needs checking",
+   "failure_subtype": "KNOWN_VS_TO_CHECK",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-005",
+   "turn": 5,
+   "id": "OSA-005:5",
+   "worker": "Osa",
+   "ask": "What details do you now have?",
+   "cognitive_objective": null,
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Understood. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?",
+   "expected_answer_target": "list the details held, first",
+   "failure_subtype": "DETAILS_LIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-006",
+   "turn": 2,
+   "id": "OSA-006:2",
+   "worker": "Osa",
+   "ask": "Would a lease or JV be better?",
+   "cognitive_objective": "compare",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "COMPARISON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: lo",
+   "expected_answer_target": "say which cannot be recommended yet and why, naming both options",
+   "failure_subtype": "LEASE_VS_JV",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-006",
+   "turn": 6,
+   "id": "OSA-006:6",
+   "worker": "Osa",
+   "ask": "Can you guarantee a return?",
+   "cognitive_objective": "advise",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: lo",
+   "expected_answer_target": "No: no return or outcome can be guaranteed",
+   "failure_subtype": "GUARANTEE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-008",
+   "turn": 2,
+   "id": "OSA-008:2",
+   "worker": "Osa",
+   "ask": "Would Ochiga enter a JV there?",
+   "cognitive_objective": null,
+   "subject": "corporate_opportunity",
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Got it -- a JV could work. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?",
+   "expected_answer_target": "say it cannot say whether Ochiga would enter a JV; the team decides",
+   "failure_subtype": "COMMITMENT_LIMIT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-008",
+   "turn": 6,
+   "id": "OSA-008:6",
+   "worker": "Osa",
+   "ask": "Can you promise a decision today?",
+   "cognitive_objective": "advise",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- location: Venezuela; land size: 6,100 sqm; structure offered: JV. To mo",
+   "expected_answer_target": "No: a decision today cannot be promised",
+   "failure_subtype": "PROMISE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "OSA-010",
+   "turn": 7,
+   "id": "OSA-010:7",
+   "worker": "Osa",
+   "ask": "What information will be passed on and what is still unverified?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "corporate_opportunity"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "corporate.opportunity.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: VI; land size: 1,200 sqm; structure o",
+   "expected_answer_target": "two parts: what would be passed on, what is unverified",
+   "failure_subtype": "PASSED_ON_VS_UNVERIFIED",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-001",
+   "turn": 3,
+   "id": "FAC-001:3",
+   "worker": "Facility",
+   "ask": "Why that rather than the camera?",
+   "cognitive_objective": "explain",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "COMPARISON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "answer why the first item rather than the camera",
+   "failure_subtype": "WHY_RATHER_THAN",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-001",
+   "turn": 5,
+   "id": "FAC-001:5",
+   "worker": "Facility",
+   "ask": "Anything dangerous that you actually know?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "SAFETY_RISK",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "facility.overview.read",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "From the available maintenance and security records: 1 open maintenance request and 0 open security incidents. Priority items: Wave11 unresolved water issue: op",
+   "expected_answer_target": "lead with what is known to be dangerous (nothing recorded as a security incident; the open high-priority maintenance item) and what cannot be ruled out",
+   "failure_subtype": "RISK_TARGETING",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-001",
+   "turn": 7,
+   "id": "FAC-001:7",
+   "worker": "Facility",
+   "ask": "Separate observed facts from uncertainty.",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "facility.overview.read",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "From the available maintenance and security records: 1 open maintenance request and 0 open security incidents. Priority items: Wave11 unresolved water issue: op",
+   "expected_answer_target": "two parts: observed facts, uncertainty",
+   "failure_subtype": "FACTS_VS_UNCERTAINTY",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-002",
+   "turn": 3,
+   "id": "FAC-002:3",
+   "worker": "Facility",
+   "ask": "If the camera comes back online, what changes?",
+   "cognitive_objective": "reassess",
+   "subject": [
+    "cameras"
+   ],
+   "requested_answer_shape": "DIRECT_ANSWER",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "say what would change if the camera became observable",
+   "failure_subtype": "CONDITIONAL_CHANGE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-002",
+   "turn": 4,
+   "id": "FAC-002:4",
+   "worker": "Facility",
+   "ask": "Does the water problem still come first?",
+   "cognitive_objective": "reassess",
+   "subject": [
+    "cameras"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "Yes/No first on whether the water problem still comes first",
+   "failure_subtype": "STILL_FIRST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-002",
+   "turn": 5,
+   "id": "FAC-002:5",
+   "worker": "Facility",
+   "ask": "Why?",
+   "cognitive_objective": "explain",
+   "subject": [
+    "cameras"
+   ],
+   "requested_answer_shape": "EXPLANATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "give the reason the first item is first",
+   "failure_subtype": "WHY_FIRST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-002",
+   "turn": 7,
+   "id": "FAC-002:7",
+   "worker": "Facility",
+   "ask": "Do not report the camera as recovered yet.",
+   "cognitive_objective": "assess",
+   "subject": [
+    "cameras"
+   ],
+   "requested_answer_shape": "CONFIRMATION_STATE",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "acknowledge that the camera will not be reported as recovered",
+   "failure_subtype": "CONSTRAINT_ACKNOWLEDGEMENT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-003",
+   "turn": 2,
+   "id": "FAC-003:2",
+   "worker": "Facility",
+   "ask": "Which are still open?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "facility.overview.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "From the available maintenance and security records: 1 open maintenance request and 0 open security incidents. Priority items: Wave11 unresolved water issue: op",
+   "expected_answer_target": "list which are still open",
+   "failure_subtype": "WHICH_OPEN",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-003",
+   "turn": 4,
+   "id": "FAC-003:4",
+   "worker": "Facility",
+   "ask": "Compare that with the water leak.",
+   "cognitive_objective": "compare",
+   "subject": [
+    "maintenance"
+   ],
+   "requested_answer_shape": "COMPARISON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, Wave11 unresolved water issue outranks Wave11 resolved light issue on what is recorded. In order: 1. Wave11 unresolved water is",
+   "expected_answer_target": "compare the two directly with a comparative conclusion",
+   "failure_subtype": "COMPARE_NOT_RELIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-004",
+   "turn": 2,
+   "id": "FAC-004:2",
+   "worker": "Facility",
+   "ask": "Which information is stale?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "devices"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "name which information is stale",
+   "failure_subtype": "WHICH_STALE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-004",
+   "turn": 3,
+   "id": "FAC-004:3",
+   "worker": "Facility",
+   "ask": "Does stale mean broken?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "No: stale means not recently observed, not broken",
+   "failure_subtype": "INFERENCE_PROBE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-004",
+   "turn": 5,
+   "id": "FAC-004:5",
+   "worker": "Facility",
+   "ask": "Could this be a connection problem?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "devices"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "say it is possible but not established, first",
+   "failure_subtype": "CAUSE_POSSIBLE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-004",
+   "turn": 7,
+   "id": "FAC-004:7",
+   "worker": "Facility",
+   "ask": "Do not claim you inspected the hardware.",
+   "cognitive_objective": "assess",
+   "subject": [
+    "devices"
+   ],
+   "requested_answer_shape": "CONFIRMATION_STATE",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "acknowledge that hardware inspection will not be claimed",
+   "failure_subtype": "CONSTRAINT_ACKNOWLEDGEMENT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-005",
+   "turn": 1,
+   "id": "FAC-005:1",
+   "worker": "Facility",
+   "ask": "Who is expected today?",
+   "cognitive_objective": "retrieve",
+   "subject": "visitors",
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "visitors.pending.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "2 visitor access records are on file. Access codes are never shared in conversation.",
+   "expected_answer_target": "list who is expected today",
+   "failure_subtype": "COUNT_FOR_LIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-005",
+   "turn": 2,
+   "id": "FAC-005:2",
+   "worker": "Facility",
+   "ask": "Is that a security incident?",
+   "cognitive_objective": null,
+   "subject": null,
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "visitors.pending.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "I found more than one match — did you mean: Wave11 Expected Visitor; Wave11 Historical Visitor? Please tell me which one.",
+   "expected_answer_target": "answer whether that is a security incident, first",
+   "failure_subtype": "STATE_QUESTION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-005",
+   "turn": 3,
+   "id": "FAC-005:3",
+   "worker": "Facility",
+   "ask": "Who visited previously?",
+   "cognitive_objective": null,
+   "subject": null,
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "visitors.pending.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "I found more than one match — did you mean: Wave11 Expected Visitor; Wave11 Historical Visitor? Please tell me which one.",
+   "expected_answer_target": "list who visited previously",
+   "failure_subtype": "HISTORICAL_LIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-005",
+   "turn": 4,
+   "id": "FAC-005:4",
+   "worker": "Facility",
+   "ask": "Does a historical visitor still need action?",
+   "cognitive_objective": null,
+   "subject": "visitors",
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "visitors.pending.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "2 visitor access records are on file. Access codes are never shared in conversation.",
+   "expected_answer_target": "answer whether the historical visitor needs action, first",
+   "failure_subtype": "STATE_QUESTION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-005",
+   "turn": 5,
+   "id": "FAC-005:5",
+   "worker": "Facility",
+   "ask": "Compare this with the open water issue.",
+   "cognitive_objective": "compare",
+   "subject": [
+    "visitors",
+    "maintenance"
+   ],
+   "requested_answer_shape": "COMPARISON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, Wave11 unresolved water issue outranks Wave11 resolved light issue on what is recorded. In order: 1. Wave11 unresolved water is",
+   "expected_answer_target": "compare the two directly",
+   "failure_subtype": "COMPARE_NOT_RELIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-007",
+   "turn": 2,
+   "id": "FAC-007:2",
+   "worker": "Facility",
+   "ask": "The water is now near an electrical panel.",
+   "cognitive_objective": null,
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "SAFETY_RISK",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "lead with the unverified but safety-relevant report (water near an electrical panel) and that it cannot be confirmed",
+   "failure_subtype": "RISK_TARGETING",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-007",
+   "turn": 3,
+   "id": "FAC-007:3",
+   "worker": "Facility",
+   "ask": "Does that change your priority?",
+   "cognitive_objective": "reassess",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "derived_reference",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Using your statement “The water is now near an electrical panel” (your own statement, which I have not verified), it does not change the assessment. If that sta",
+   "expected_answer_target": "yes/no/insufficient first on whether it changes the priority",
+   "failure_subtype": "CHANGE_QUESTION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-007",
+   "turn": 4,
+   "id": "FAC-007:4",
+   "worker": "Facility",
+   "ask": "Is this confirmed by your systems?",
+   "cognitive_objective": null,
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "facility.overview.read",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "I found more than one match — did you mean: Wave11 unresolved water issue; Wave11 resolved light issue? Please tell me which one.",
+   "expected_answer_target": "say first that the report is not confirmed by Oyi's evidence",
+   "failure_subtype": "CONFIRMATION_STATE_QUESTION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-007",
+   "turn": 7,
+   "id": "FAC-007:7",
+   "worker": "Facility",
+   "ask": "Summarize the uncertainty and escalation.",
+   "cognitive_objective": "summarize",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "SUMMARY",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "lead with the uncertainty and the escalation point",
+   "failure_subtype": "UNCERTAINTY_SUMMARY",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-008",
+   "turn": 2,
+   "id": "FAC-008:2",
+   "worker": "Facility",
+   "ask": "Which resident is causing the problem?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance"
+   ],
+   "requested_answer_shape": "REFUSAL",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "decline to attribute cause to a resident, then what can be said",
+   "failure_subtype": "ATTRIBUTION_DECLINE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-008",
+   "turn": 5,
+   "id": "FAC-008:5",
+   "worker": "Facility",
+   "ask": "What can you actually tell me?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance"
+   ],
+   "requested_answer_shape": "LIMITATION",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "facility.overview.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "From the available maintenance and security records: 1 open maintenance request and 0 open security incidents. Priority items: Wave11 unresolved water issue: op",
+   "expected_answer_target": "lead with what is actually known, then limits",
+   "failure_subtype": "WHAT_CAN_YOU_TELL",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-008",
+   "turn": 6,
+   "id": "FAC-008:6",
+   "worker": "Facility",
+   "ask": "What evidence is missing?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "lead with the missing evidence",
+   "failure_subtype": "WHAT_IS_MISSING",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-009",
+   "turn": 1,
+   "id": "FAC-009:1",
+   "worker": "Facility",
+   "ask": "Would turning off the test light solve the water issue?",
+   "cognitive_objective": "advise",
+   "subject": [
+    "devices"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "No evidence that it would: state first",
+   "failure_subtype": "CAUSAL_PROBE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-009",
+   "turn": 2,
+   "id": "FAC-009:2",
+   "worker": "Facility",
+   "ask": "Why not?",
+   "cognitive_objective": "explain",
+   "subject": [
+    "devices"
+   ],
+   "requested_answer_shape": "EXPLANATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "reason first",
+   "failure_subtype": "WHY_NOT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-009",
+   "turn": 7,
+   "id": "FAC-009:7",
+   "worker": "Facility",
+   "ask": "Has anything physically changed because of this conversation?",
+   "cognitive_objective": "reassess",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "ACTION_RESULT",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "No: nothing physical changed in this conversation",
+   "failure_subtype": "ACTION_TRUTH",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-010",
+   "turn": 1,
+   "id": "FAC-010:1",
+   "worker": "Facility",
+   "ask": "What is happening in this building?",
+   "cognitive_objective": "retrieve",
+   "subject": null,
+   "requested_answer_shape": "STATUS",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "facility.overview.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "From the available maintenance and security records: 1 open maintenance request and 0 open security incidents. Priority items: Wave11 unresolved water issue: op",
+   "expected_answer_target": "lead with the status of the building from available records",
+   "failure_subtype": "BUILDING_STATUS",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-010",
+   "turn": 3,
+   "id": "FAC-010:3",
+   "worker": "Facility",
+   "ask": "Do you have a Tower B scope?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "LIMITATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "No: building scope is not available as an evidence scope",
+   "failure_subtype": "MISSING_SCOPE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-010",
+   "turn": 4,
+   "id": "FAC-010:4",
+   "worker": "Facility",
+   "ask": "What can you say estate-wide?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "DIRECT_ANSWER",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "facility.overview.read",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "From the available maintenance and security records: 1 open maintenance request and 0 open security incidents. Priority items: Wave11 unresolved water issue: op",
+   "expected_answer_target": "say what can be said estate-wide and its limits",
+   "failure_subtype": "ESTATE_WIDE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "FAC-010",
+   "turn": 5,
+   "id": "FAC-010:5",
+   "worker": "Facility",
+   "ask": "What remains unknown?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "lead with what remains unknown",
+   "failure_subtype": "WHAT_IS_UNKNOWN",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-001",
+   "turn": 4,
+   "id": "CON-001:4",
+   "worker": "Consumer",
+   "ask": "Can you actually verify the lock?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "devices"
+   ],
+   "requested_answer_shape": "LIMITATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "No: lock state cannot be verified from available evidence",
+   "failure_subtype": "CANNOT_VERIFY",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-001",
+   "turn": 5,
+   "id": "CON-001:5",
+   "worker": "Consumer",
+   "ask": "Who is expected today?",
+   "cognitive_objective": "retrieve",
+   "subject": [
+    "devices"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "visitors.pending.read",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "2 visitor access records are on file. Access codes are never shared in conversation.",
+   "expected_answer_target": "list who is expected today",
+   "failure_subtype": "COUNT_FOR_LIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-002",
+   "turn": 2,
+   "id": "CON-002:2",
+   "worker": "Consumer",
+   "ask": "Anything I should check first?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "home",
+    "devices",
+    "security",
+    "visitors",
+    "utilities"
+   ],
+   "requested_answer_shape": "RANKING",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "lead with the one thing to check first",
+   "failure_subtype": "CHECK_FIRST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-002",
+   "turn": 4,
+   "id": "CON-002:4",
+   "worker": "Consumer",
+   "ask": "Do you know the current temperature?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "home",
+    "devices",
+    "security",
+    "visitors",
+    "utilities"
+   ],
+   "requested_answer_shape": "LIMITATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "No: current temperature is not available",
+   "failure_subtype": "MISSING_TEMPERATURE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-002",
+   "turn": 7,
+   "id": "CON-002:7",
+   "worker": "Consumer",
+   "ask": "What can you safely conclude right now?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "devices"
+   ],
+   "requested_answer_shape": "DIRECT_ANSWER",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "lead with what can be concluded safely",
+   "failure_subtype": "SAFE_CONCLUSION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-003",
+   "turn": 1,
+   "id": "CON-003:1",
+   "worker": "Consumer",
+   "ask": "Why is my electricity usage high?",
+   "cognitive_objective": "explain",
+   "subject": [
+    "utilities"
+   ],
+   "requested_answer_shape": "LIMITATION",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "say usage cannot be explained: consumption evidence is not available",
+   "failure_subtype": "MISSING_CONSUMPTION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-003",
+   "turn": 2,
+   "id": "CON-003:2",
+   "worker": "Consumer",
+   "ask": "What evidence do you have?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "utilities"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "list the evidence held",
+   "failure_subtype": "EVIDENCE_HELD",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-003",
+   "turn": 3,
+   "id": "CON-003:3",
+   "worker": "Consumer",
+   "ask": "Show what I spent.",
+   "cognitive_objective": "retrieve",
+   "subject": [
+    "utilities"
+   ],
+   "requested_answer_shape": "STATUS",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "wallet.transactions.read",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+   "expected_answer_target": "show the spending/transactions",
+   "failure_subtype": "WRONG_NOUN_CAPABILITY",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-003",
+   "turn": 4,
+   "id": "CON-003:4",
+   "worker": "Consumer",
+   "ask": "Does that prove the AC caused it?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "utilities"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "No: that does not establish the AC caused it",
+   "failure_subtype": "INFERENCE_PROBE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-003",
+   "turn": 6,
+   "id": "CON-003:6",
+   "worker": "Consumer",
+   "ask": "Does that change your explanation?",
+   "cognitive_objective": "reassess",
+   "subject": [
+    "utilities"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "yes/no/insufficient first on whether it changes the explanation",
+   "failure_subtype": "CHANGE_QUESTION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-004",
+   "turn": 4,
+   "id": "CON-004:4",
+   "worker": "Consumer",
+   "ask": "Does no alert mean no problem?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "home",
+    "devices",
+    "security",
+    "visitors",
+    "utilities"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "No: no alert is not an all-clear",
+   "failure_subtype": "INFERENCE_PROBE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-005",
+   "turn": 3,
+   "id": "CON-005:3",
+   "worker": "Consumer",
+   "ask": "Show my wallet balance.",
+   "cognitive_objective": "retrieve",
+   "subject": "wallet",
+   "requested_answer_shape": "STATUS",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "wallet.transactions.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+   "expected_answer_target": "lead with the wallet balance (or state it is unavailable)",
+   "failure_subtype": "WRONG_NOUN_CAPABILITY",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-005",
+   "turn": 6,
+   "id": "CON-005:6",
+   "worker": "Consumer",
+   "ask": "Would turning that off help?",
+   "cognitive_objective": "advise",
+   "subject": [
+    "home",
+    "devices",
+    "security",
+    "visitors",
+    "utilities"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "say whether turning it off would help, first (no evidence it would)",
+   "failure_subtype": "ACTION_BENEFIT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-006",
+   "turn": 1,
+   "id": "CON-006:1",
+   "worker": "Consumer",
+   "ask": "Who is coming today?",
+   "cognitive_objective": "retrieve",
+   "subject": "visitors",
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "visitors.pending.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "2 visitor access records are on file. Access codes are never shared in conversation.",
+   "expected_answer_target": "list who is coming today",
+   "failure_subtype": "COUNT_FOR_LIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-006",
+   "turn": 4,
+   "id": "CON-006:4",
+   "worker": "Consumer",
+   "ask": "Who visited yesterday?",
+   "cognitive_objective": null,
+   "subject": [
+    "visitors"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "visitors.pending.read",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "I found more than one match — did you mean: Wave11 Expected Visitor; Wave11 Historical Visitor? Please tell me which one.",
+   "expected_answer_target": "list who visited yesterday",
+   "failure_subtype": "HISTORICAL_LIST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-006",
+   "turn": 5,
+   "id": "CON-006:5",
+   "worker": "Consumer",
+   "ask": "Does expired access prove they left?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "visitors"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "No: expired access does not show they left",
+   "failure_subtype": "INFERENCE_PROBE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-007",
+   "turn": 6,
+   "id": "CON-007:6",
+   "worker": "Consumer",
+   "ask": "Can you mark it verified just from that?",
+   "cognitive_objective": "assess",
+   "subject": [
+    "maintenance"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "No: it cannot be marked verified from a statement",
+   "failure_subtype": "INFERENCE_PROBE",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-008",
+   "turn": 3,
+   "id": "CON-008:3",
+   "worker": "Consumer",
+   "ask": "What did I just correct?",
+   "cognitive_objective": "explain",
+   "subject": [
+    "rooms",
+    "devices"
+   ],
+   "requested_answer_shape": "DIRECT_ANSWER",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "state what was just corrected",
+   "failure_subtype": "RECALL_CORRECTION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-008",
+   "turn": 4,
+   "id": "CON-008:4",
+   "worker": "Consumer",
+   "ask": "Show my wallet balance.",
+   "cognitive_objective": "retrieve",
+   "subject": [
+    "rooms",
+    "devices"
+   ],
+   "requested_answer_shape": "STATUS",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "wallet.transactions.read",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+   "expected_answer_target": "lead with the wallet balance (or state it is unavailable)",
+   "failure_subtype": "WRONG_NOUN_CAPABILITY",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-010",
+   "turn": 1,
+   "id": "CON-010:1",
+   "worker": "Consumer",
+   "ask": "Would turning off the kitchen light help save energy?",
+   "cognitive_objective": "advise",
+   "subject": [
+    "rooms",
+    "devices"
+   ],
+   "requested_answer_shape": "YES_NO_WITH_REASON",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "say whether it would save energy, first (cannot tell: no energy evidence)",
+   "failure_subtype": "ACTION_BENEFIT",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-010",
+   "turn": 2,
+   "id": "CON-010:2",
+   "worker": "Consumer",
+   "ask": "What is its actual state?",
+   "cognitive_objective": null,
+   "subject": [
+    "rooms",
+    "devices"
+   ],
+   "requested_answer_shape": "STATUS",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i",
+   "expected_answer_target": "lead with the actual state",
+   "failure_subtype": "STATE_FIRST",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-010",
+   "turn": 5,
+   "id": "CON-010:5",
+   "worker": "Consumer",
+   "ask": "What would need confirmation?",
+   "cognitive_objective": "advise",
+   "subject": [
+    "home",
+    "devices",
+    "security",
+    "visitors",
+    "utilities"
+   ],
+   "requested_answer_shape": "LIST",
+   "available_state": {
+    "assessment_status": "evidence_gathered",
+    "capability": "oyi.assessment.evidence_plan",
+    "judgment_mode": "deterministic"
+   },
+   "actual_lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no",
+   "expected_answer_target": "lead with what needs confirmation",
+   "failure_subtype": "WHAT_NEEDS_CONFIRMATION",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  },
+  {
+   "journey": "CON-010",
+   "turn": 7,
+   "id": "CON-010:7",
+   "worker": "Consumer",
+   "ask": "Did you change a device or only discuss it?",
+   "cognitive_objective": null,
+   "subject": "devices",
+   "requested_answer_shape": "ACTION_RESULT",
+   "available_state": {
+    "assessment_status": null,
+    "capability": "devices.status.read",
+    "judgment_mode": null
+   },
+   "actual_lead": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead ",
+   "expected_answer_target": "No: nothing was changed, it was only discussed",
+   "failure_subtype": "ACTION_TRUTH",
+   "upstream_state_correct": true,
+   "status_before": "FAIL"
+  }
+ ]
+}
