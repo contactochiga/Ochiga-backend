@@ -1,0 +1,1019 @@
+{
+ "version": 1,
+ "status": "IQ8_HELDOUT_FROZEN_PRE_IMPLEMENTATION",
+ "note": "Frozen before any IQ-8 behavioural change. Runtime must never read this file (static guard).",
+ "items": [
+  {
+   "id": "IQ8H-001",
+   "s": "facility",
+   "u": "How many maintenance tickets does the estate have on record?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-002",
+   "s": "facility",
+   "u": "What is the number of security incidents logged?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 0
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-003",
+   "s": "consumer",
+   "u": "How many visitors are on file for me?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-004",
+   "s": "consumer",
+   "u": "How many of my devices have stale readings?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 4
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-005",
+   "s": "office_internal",
+   "u": "How many leads are open at the moment?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-006",
+   "s": "office_internal",
+   "u": "How many opportunities have gone stale?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-007",
+   "s": "consumer",
+   "u": "How many wallet transactions have I made?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-008",
+   "s": "office_internal",
+   "u": "Which leads need attention?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Lead Alpha",
+     "Lead Beta"
+    ],
+    "min": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-009",
+   "s": "office_internal",
+   "u": "Give me the names of the stale opportunities.",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "VI Development",
+     "Abuja JV"
+    ],
+    "min": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-010",
+   "s": "facility",
+   "u": "Which maintenance requests are open?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "water issue"
+    ],
+    "min": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-011",
+   "s": "consumer",
+   "u": "Which of my devices have stale readings?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Living Light",
+     "AC",
+     "Kitchen Light",
+     "Bedroom Light"
+    ],
+    "min": 3
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-012",
+   "s": "consumer",
+   "u": "Name the visitors on my access list.",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Expected Visitor",
+     "Historical Visitor"
+    ],
+    "min": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-013",
+   "s": "office_internal",
+   "u": "Tell me which reports I have to approve.",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Portfolio Report"
+    ],
+    "min": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-014",
+   "s": "office_internal",
+   "u": "What tasks are overdue?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "overdue follow-up"
+    ],
+    "min": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-015",
+   "s": "office_internal",
+   "u": "Display the development projects.",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "VI Development"
+    ],
+    "min": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-016",
+   "s": "facility",
+   "u": "What's the current state of maintenance?",
+   "shape": "STATUS",
+   "kind": "status",
+   "p": {
+    "kw": [
+     "water"
+    ],
+    "also": [
+     "open",
+     "unresolved"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-017",
+   "s": "consumer",
+   "u": "How are my devices doing?",
+   "shape": "STATUS",
+   "kind": "status",
+   "p": {
+    "kw": [
+     "stale",
+     "not current",
+     "readings"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-018",
+   "s": "facility",
+   "u": "Where do security incidents stand?",
+   "shape": "STATUS",
+   "kind": "status",
+   "p": {
+    "kw": [
+     "no security incident",
+     "none",
+     "0 ",
+     "no open"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-019",
+   "s": "office_internal",
+   "u": "Where does the Abuja JV opportunity stand?",
+   "shape": "STATUS",
+   "kind": "status",
+   "p": {
+    "kw": [
+     "qualification",
+     "8 days",
+     "Abuja JV"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-020",
+   "s": "consumer",
+   "u": "What is the status of my visitor access?",
+   "shape": "STATUS",
+   "kind": "status",
+   "p": {
+    "kw": [
+     "2 ",
+     "two",
+     "expired",
+     "inactive",
+     "visitor"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-021",
+   "s": "facility",
+   "u": "Should I be worried about maintenance?",
+   "shape": "ASSESSMENT",
+   "kind": "judgment",
+   "p": {
+    "kw": [
+     "water"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-022",
+   "s": "facility",
+   "u": "Is the water issue still open?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "yes",
+    "kw": [
+     "water"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-023",
+   "s": "facility",
+   "u": "Has the light issue been resolved?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "yes",
+    "kw": [
+     "light"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-024",
+   "s": "facility",
+   "u": "Is the water issue resolved?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "water"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-025",
+   "s": "facility",
+   "u": "Is the east camera online?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "unknown",
+    "kw": [
+     "camera"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-026",
+   "s": "consumer",
+   "u": "Are my device readings up to date?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "stale",
+     "not current",
+     "readings"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-027",
+   "s": "facility",
+   "u": "Are there any open security incidents?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "incident"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-028",
+   "s": "consumer",
+   "u": "Did somebody just arrive at the gate?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "unknown",
+    "kw": [
+     "arriv",
+     "access",
+     "record"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-029",
+   "s": "office_internal",
+   "u": "Is any report waiting for my approval?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "yes",
+    "kw": [
+     "report"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-030",
+   "s": "office_internal",
+   "u": "Do I have any overdue tasks?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "yes",
+    "kw": [
+     "overdue",
+     "task"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-031",
+   "s": "facility",
+   "u": "Does having no security incidents mean the estate is safe?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "incident",
+     "safe",
+     "all-clear"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-032",
+   "s": "consumer",
+   "u": "Does an expired access code prove the guest has left?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "expired",
+     "access",
+     "left"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-033",
+   "s": "facility",
+   "u": "Is it safe to ignore the water issue?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "water"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-034",
+   "s": "facility",
+   "u": "Why is that one first?",
+   "shape": "EXPLANATION",
+   "kind": "why",
+   "p": {
+    "kw": [
+     "open",
+     "high",
+     "priority",
+     "recorded"
+    ]
+   },
+   "seeds": [
+    "Which maintenance issue should come first?"
+   ]
+  },
+  {
+   "id": "IQ8H-035",
+   "s": "office_internal",
+   "u": "What makes you say that?",
+   "shape": "EXPLANATION",
+   "kind": "why",
+   "p": {
+    "kw": [
+     "not ranked",
+     "haven't ranked",
+     "have not ranked",
+     "no ordering",
+     "nothing was ranked",
+     "not put",
+     "did not rank",
+     "not ordered"
+    ]
+   },
+   "seeds": [
+    "Which opportunity needs me most?"
+   ]
+  },
+  {
+   "id": "IQ8H-036",
+   "s": "consumer",
+   "u": "Why can't you tell me whether the lights are on?",
+   "shape": "EXPLANATION",
+   "kind": "why",
+   "p": {
+    "kw": [
+     "stale",
+     "readings",
+     "not current"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-037",
+   "s": "facility",
+   "u": "Why is the water issue a concern?",
+   "shape": "EXPLANATION",
+   "kind": "why",
+   "p": {
+    "kw": [
+     "open",
+     "high",
+     "unresolved"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-038",
+   "s": "facility",
+   "u": "Which is more urgent, the water issue or the light issue?",
+   "shape": "COMPARISON",
+   "kind": "compare",
+   "p": {
+    "names": [
+     "water",
+     "light"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-039",
+   "s": "office_internal",
+   "u": "Compare the Abuja JV with the VI Development.",
+   "shape": "COMPARISON",
+   "kind": "compare",
+   "p": {
+    "names": [
+     "Abuja JV",
+     "VI Development"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-040",
+   "s": "facility",
+   "u": "How does the light issue differ from the water issue?",
+   "shape": "COMPARISON",
+   "kind": "compare",
+   "p": {
+    "names": [
+     "water",
+     "light"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-041",
+   "s": "office_internal",
+   "u": "Is Lead Alpha a stronger prospect than Lead Beta?",
+   "shape": "COMPARISON",
+   "kind": "compare",
+   "p": {
+    "names": [
+     "Alpha",
+     "Beta"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-042",
+   "s": "facility",
+   "u": "Is there anything hazardous I should know about?",
+   "shape": "SAFETY_RISK",
+   "kind": "risk",
+   "p": {
+    "kw": [
+     "water"
+    ],
+    "hedge": true
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-043",
+   "s": "facility",
+   "u": "There is a strong smell of gas near the boiler.",
+   "shape": "SAFETY_RISK",
+   "kind": "risk",
+   "p": {
+    "kw": [
+     "gas"
+    ],
+    "unverified": true
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-044",
+   "s": "consumer",
+   "u": "My kitchen is full of smoke.",
+   "shape": "SAFETY_RISK",
+   "kind": "risk",
+   "p": {
+    "kw": [
+     "smoke"
+    ],
+    "unverified": true
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-045",
+   "s": "consumer",
+   "u": "Is the house secure tonight?",
+   "shape": "SAFETY_RISK",
+   "kind": "risk",
+   "p": {
+    "kw": [
+     "camera",
+     "stale",
+     "readings",
+     "cannot confirm",
+     "can't confirm"
+    ],
+    "hedge": true
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-046",
+   "s": "consumer",
+   "u": "What's my electricity consumption this week?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "consumption",
+     "electricity",
+     "usage"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-047",
+   "s": "facility",
+   "u": "What is the exact temperature in the boiler room?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "temperature"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-048",
+   "s": "office_internal",
+   "u": "What has changed in the pipeline since last month?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "baseline",
+     "earlier",
+     "snapshot",
+     "history",
+     "previous",
+     "since"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-049",
+   "s": "consumer",
+   "u": "Can you show me the live camera feed?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "camera",
+     "feed",
+     "live"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-050",
+   "s": "facility",
+   "u": "Do you have any data for Tower C?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "tower",
+     "scope",
+     "building"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-051",
+   "s": "consumer",
+   "u": "What was my energy use last month?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "energy",
+     "usage",
+     "consumption",
+     "electricity"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-052",
+   "s": "facility",
+   "u": "Which resident reported the leak?",
+   "shape": "REFUSAL",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "resident",
+     "report",
+     "who",
+     "attribut",
+     "identify"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-053",
+   "s": "consumer",
+   "u": "Did you switch anything off just now?",
+   "shape": "ACTION_RESULT",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "chang",
+     "switch",
+     "anything",
+     "device"
+    ]
+   },
+   "seeds": [
+    "Which of my devices have stale readings?"
+   ]
+  },
+  {
+   "id": "IQ8H-054",
+   "s": "facility",
+   "u": "Have you altered any setting during this chat?",
+   "shape": "ACTION_RESULT",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "chang",
+     "alter",
+     "setting",
+     "anything"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-055",
+   "s": "office_internal",
+   "u": "Please don't share the figures I gave you with anyone.",
+   "shape": "CONFIRMATION_STATE",
+   "kind": "ack",
+   "p": {
+    "kw": [
+     "figures",
+     "share",
+     "not"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-056",
+   "s": "facility",
+   "u": "From now on, don't claim a camera is working unless you can see it.",
+   "shape": "CONFIRMATION_STATE",
+   "kind": "ack",
+   "p": {
+    "kw": [
+     "camera",
+     "not",
+     "won't"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-057",
+   "s": "consumer",
+   "u": "Do not turn anything on or off while we talk.",
+   "shape": "CONFIRMATION_STATE",
+   "kind": "ack",
+   "p": {
+    "kw": [
+     "not",
+     "won't",
+     "anything",
+     "turn"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-058",
+   "s": "public_corporate",
+   "u": "Can you promise I'll get a good price?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "promise",
+     "guarantee",
+     "price"
+    ]
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8H-059",
+   "s": "public_corporate",
+   "u": "What do you still need from me?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "structure",
+     "owner",
+     "title",
+     "expect"
+    ],
+    "min": 1
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8H-060",
+   "s": "public_corporate",
+   "u": "Have I told you enough for a first conversation?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "yes_or_partial",
+    "kw": [
+     "enough",
+     "first",
+     "conversation",
+     "still"
+    ]
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8H-061",
+   "s": "public_corporate",
+   "u": "Would a partnership or an outright sale suit me better?",
+   "shape": "COMPARISON",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "sale",
+     "partnership",
+     "depends",
+     "yet"
+    ]
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8H-062",
+   "s": "public_corporate",
+   "u": "What have I told you so far?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Lekki",
+     "1,200"
+    ],
+    "min": 2
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8H-063",
+   "s": "consumer",
+   "u": "Turn it off.",
+   "shape": "CLARIFICATION",
+   "kind": "clarify",
+   "p": {},
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-064",
+   "s": "consumer",
+   "u": "What can you do?",
+   "shape": "CAPABILITY_DISCOVERY",
+   "kind": "discovery",
+   "p": {},
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-065",
+   "s": "public_corporate",
+   "u": "What kinds of things can I ask you?",
+   "shape": "CAPABILITY_DISCOVERY",
+   "kind": "discovery",
+   "p": {},
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-066",
+   "s": "office_internal",
+   "u": "Rank my leads by importance.",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "rank",
+     "comparative",
+     "order"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-067",
+   "s": "office_internal",
+   "u": "Which lead should I call first?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "rank",
+     "comparative",
+     "order",
+     "first"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8H-068",
+   "s": "facility",
+   "u": "Give me a full risk picture of every estate system.",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "maintenance",
+     "security",
+     "only",
+     "cover"
+    ]
+   },
+   "seeds": []
+  }
+ ]
+}
