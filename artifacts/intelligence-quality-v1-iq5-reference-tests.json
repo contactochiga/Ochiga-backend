@@ -1,0 +1,157 @@
+{
+  "status": "PASS",
+  "test_mode": "Pure reference resolution over hand-built and judge-produced derived artifacts; scripted provider stub for the business ranking (validation/reference discipline, not model quality); no database, no network",
+  "results": [
+    {
+      "id": "iq5:ranking-artifact-is-typed-ordered-and-has-no-raw-result-set",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:artifact-holds-only-safe-references-rationale-and-factors-never-raw-evidence",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:comparison-artifact-is-a-distinct-unordered-pair-not-a-ranking",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:assessment-set-artifact-records-what-was-named-in-order-named",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:ordinals-first-second-third-resolve-to-that-priority",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:ordinals-do-not-assume-a-three-item-world",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:last-and-bottom-resolve-from-the-end",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:numeric-forms-resolve-the-same-way",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:out-of-range-ordinal-says-so-and-does-not-fall-through",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:top-n-resolves-a-comparison-of-the-top-items",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:why-not-the-third-explains-its-position-against-the-one-above",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:bare-why-explains-the-whole-ordering-from-stored-rationale",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:which-can-wait-uses-what-the-answer-recorded-as-able-to-wait",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:explicit-candidate-name-resolves",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:second-priority-is-the-ranking-but-second-lead-is-the-lead-list",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:type-noun-with-no-matching-item-defers-to-raw-sets",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:a-newer-raw-result-set-keeps-a-bare-ordinal-but-the-artifact-wins-with-an-explicit-cue",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:ranking-then-older-raw-set-the-ranking-owns-the-bare-ordinal",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:newer-raw-set-owns-a-bare-ordinal",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:comparison-pair-other-one-and-first-second",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:comparison-never-claims-an-order-for-top-or-bottom",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:other-one-with-more-than-two-and-no-focus-asks",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:listed-set-allows-positions-but-never-top-or-priority-wording",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:parked-artifact-clarifies-a-bare-pointer-and-restores-on-return",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:return-by-type-noun-picks-the-single-matching-item",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:expired-artifact-is-never-silently-used-and-is-dropped",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:scope-changed-artifact-is-not-reused-across-scope",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:authority-revoked-artifact-does-not-expose-its-items",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:cross-surface-artifact-is-not-used",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:material-fact-marks-stale-keeps-history-and-refuses-current",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:material-fact-with-no-artifact-or-parked-is-left-to-the-existing-path",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:provider-ranking-second-is-priority-two-not-lead-row-two",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:reference-resolution-imports-no-provider-database-or-network",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:composed-answers-never-assert-a-promise-or-action-or-coverage",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:severity-question-does-not-declare-safe-or-dangerous-from-records",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:unrelated-text-and-bare-questions-are-not-treated-as-references",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:artifact-survives-a-carry-through-the-assessment-context-and-parks-on-switch",
+      "status": "PASS"
+    }
+  ],
+  "counts": {
+    "PASS": 37
+  }
+}

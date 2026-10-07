@@ -51,7 +51,12 @@ export const PROPOSAL_JSON_SCHEMA = {
 } as const;
 
 /** Configured provider, or null. Disabled unless explicitly enabled AND keyed AND a model is named: nothing is assumed. */
+// Test-only seam: a scripted provider can be installed ONLY when OYI_JUDGMENT_TEST_SEAM=1 is set explicitly. It never exists in a
+// deployed environment (nothing sets that variable) and it cannot widen what a provider may do: the same request, validator and
+// fallback apply to it as to the real one.
+export const judgmentProviderTestSeam: { provider: JudgmentProvider | null } = { provider: null };
 export function providerFromEnv(env: NodeJS.ProcessEnv = process.env): JudgmentProvider | null {
+  if (env.OYI_JUDGMENT_TEST_SEAM === "1" && judgmentProviderTestSeam.provider) return judgmentProviderTestSeam.provider;
   if (env.OYI_JUDGMENT_PROVIDER !== "openai" || !env.OPENAI_API_KEY || !env.OYI_JUDGMENT_MODEL) return null;
   const model = env.OYI_JUDGMENT_MODEL, apiKey = env.OPENAI_API_KEY;
   return {

@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CapabilityModule } from "../contracts/capability";
 import type { CompactEvidencePlanState } from "../evidence/planner/types";
 import type { DerivedRanking } from "../evidence/judgment/types";
+import { DERIVED_REFERENCE_CUE } from "../evidence/reference/derivedReference";
 
 // Ephemeral conversational state, persisted ONLY by canonical conversation
 // persistence. It contains neither evidence nor an execution directive.
@@ -66,7 +67,7 @@ export async function loadConversationAssessment(request: CanonicalConversationR
 }
 
 export function assessmentContinuation(text: string): boolean {
-  return /\b(?:go back|return|i mean|i meant)\b|\b(?:second|first|third|that one|the others|those|that project|that opportunity)\b|^\s*(?:why|what about|no[, ]+that|actually[, ]+forget)\b/i.test(text)
+  return DERIVED_REFERENCE_CUE.test(text) || /\b(?:go back|return|i mean|i meant)\b|\b(?:second|first|third|that one|the others|those|that project|that opportunity)\b|^\s*(?:why|what about|no[, ]+that|actually[, ]+forget)\b/i.test(text)
     || /^\s*(?:is|does|would|could|can|will|has|are|do)\s+(?:that|this|it|those|these|they)\b/i.test(text)
     || /^\s*(?:and now|so|then what|still|which one|the (?:first|second|third) one)[?.! ]*$/i.test(text)
     || /\b(?:that|this|it|those|these|they|them|earlier|still|given that)\b/i.test(text)
@@ -168,7 +169,14 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
   const answeringPending = Boolean(old?.pending_information && !frame.cognitiveObjective
     && !/^(?:what|why|who|when|where|how|show|list|open|now)\b/i.test(frame.rawText));
   const followUp = old && (answeringPending || assessmentContinuation(frame.rawText) || isAssessmentObjective(frame.cognitiveObjective) || frame.cognitiveObjective === "summarize");
-  if (!isAssessmentObjective(frame.cognitiveObjective) && !followUp) return null;
+  // IQ-5: an unrelated turn ends the assessment, but a live derived artifact is kept PARKED so "go back to those priorities" can
+  // restore it. Nothing else of the assessment survives.
+  if (!isAssessmentObjective(frame.cognitiveObjective) && !followUp) {
+    const art = old?.derived_ranking;
+    return old && art && Date.parse(art.expires_at) > now
+      ? { ...old, suspended: true, target_ref: null, result_set_id: null, material_information: null, pending_information: null, evidence_plan: null, judgment: null, derived_ranking: { ...art, parked: true }, updated_at: new Date(now).toISOString() }
+      : null;
+  }
   const correction = /\b(?:i mean|i meant|instead|forget|actually.*\bnot\b)\b/i.test(frame.rawText);
   const subjects = assessmentSubjectDomains(frame, surface);
   const explicitDomain = subjects.length === 1 ? subjects[0] : null;
@@ -188,6 +196,7 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
   const subjectChanged = Boolean(old && JSON.stringify(nextSubjects) !== JSON.stringify(old.subject_domains));
   const replaceCandidates = correction || subjectChanged || !retain || (!anaphoric && ["prioritize", "compare"].includes(frame.cognitiveObjective || ""));
   const stamp = new Date(now).toISOString();
+  const carriedArtifact = old?.derived_ranking && Date.parse(old.derived_ranking.expires_at) > now ? old.derived_ranking : null;
   return {
     objective: frame.cognitiveObjective && isAssessmentObjective(frame.cognitiveObjective) ? frame.cognitiveObjective : old!.objective,
     surface,
@@ -211,7 +220,9 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
       : retain && !correction && (!subjectChanged || answeringPending) ? old.pending_information || null : null,
     material_information: retain && !correction && !subjectChanged ? old.material_information : null,
     evidence_plan: retain && !correction ? old.evidence_plan ?? null : null,
-    derived_ranking: retain && !correction ? old.derived_ranking ?? null : null,
+    // IQ-5: the derived artifact outlives a topic switch (so "go back to those priorities" can restore it) but is PARKED: a bare
+    // pointer after a switch is clarified, never silently bound to it. It carries its own expiry, never the assessment's.
+    derived_ranking: carriedArtifact ? { ...carriedArtifact, parked: Boolean(carriedArtifact.parked || !retain || correction || subjectChanged) } : null,
     judgment: retain && !correction ? old.judgment ?? null : null,
     created_at: retain ? old.created_at : stamp,
     updated_at: stamp,

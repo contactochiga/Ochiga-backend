@@ -5,6 +5,8 @@ import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/SemanticFrameParser";
 import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective, isAssessmentInformation, assessmentContinuation, assessmentSubjectDomains, assessmentEvidenceRequirements, assessmentEvidenceAnswer, assessmentCaveats, ASSESSMENT_TTL_MS } from "../context/conversationAssessmentContext";
 import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
+import { handleDerivedReferenceTurn, rawSetFacts } from "../evidence/reference/derivedReferenceTurn";
+import { parseDerivedReference, scopeBinding } from "../evidence/reference/derivedReference";
 import { composeEvidenceReadiness } from "../evidence/planner/readiness";
 import type { PlannerResult } from "../evidence/planner/planner";
 import { operationalMetrics } from "../../observability/metrics";
@@ -3722,6 +3724,31 @@ export class ConversationOrchestrator {
     // retrieval, capability key or authority is introduced here.
     const previousAssessment = await loadConversationAssessment(context.input, context.actor?.id || null).catch(() => null);
     let assessment = nextConversationAssessment(previousAssessment, frame, context.input.surface);
+    // IQ-5: a reference to the derived assessment artifact (ranking, compared pair or listed set) resolves deterministically against
+    // that artifact: no retrieval, no model, no new authority. Scope and authority are re-checked on every dereference. A reference
+    // that belongs to a raw result set (a newer list, or an explicit type noun) falls through to the existing result-set paths.
+    const requestScope = { estate_id: context.input.estate_id || context.oisContext?.estate_id || context.actor?.estate_id || null, home_id: context.input.home_id || context.oisContext?.home_id || context.actor?.home_id || null };
+    if (previousAssessment?.derived_ranking && boolFlag("OYI_DERIVED_REFERENCE_ENABLED", true) && !frame.mutationIntent && frame.operation !== "cancel"
+      && (frame.cognitiveObjective !== "retrieve" || !/\b(?:open|show|list|display|pull|fetch|get)\b/i.test(frame.rawText) || parseDerivedReference(frame.rawText).explicitArtifact)) {
+      const derivedTurn = handleDerivedReferenceTurn({
+        text: frame.rawText, previous: previousAssessment, surface: context.input.surface, now: Date.now(),
+        raw: rawSetFacts(await loadThreadResultSetContext(context.input.thread_id).catch(() => null)), scopeBinding: scopeBinding(context.input.surface, requestScope),
+        authorised: keys => keys.every(key => capabilityService.canUse(key, { actor: context.actor, oisContext: context.oisContext, surface: context.input.surface as any,
+          scope: { estate_id: requestScope.estate_id, building_id: null, home_id: requestScope.home_id, room_id: null } }).allowed),
+      });
+      if (derivedTurn.handled) {
+        let response = await assessmentEvidenceResponse({ ...context, resolvedTurn }, derivedTurn.answer, "answered", previousAssessment.evidence_plan?.status || "MANDATORY_PARTIAL");
+        response.execution = { ...response.execution, cognitive_objective: frame.cognitiveObjective || previousAssessment.objective, assessment_status: "derived_reference", current_turn_execution: false,
+          assessment_context: derivedTurn.assessment,
+          orchestrator_v2: { semantic_frame: frame, resolved_turn: resolvedTurn, resolution_outcome: "derived_assessment_reference", capability_key: null } };
+        tracer.stage("canonical_terminal_response", { cognitive_objective: previousAssessment.objective, domain: previousAssessment.domain, evidence_count: 0, outcome: "assessment_pending", reason: derivedTurn.outcome });
+        logger.info("oyi_derived_reference", { request_id: tracer.requestId, surface: context.input.surface, outcome: derivedTurn.outcome, artifact_type: previousAssessment.derived_ranking.artifact_type ?? "ranking", items: previousAssessment.derived_ranking.items.length });
+        operationalMetrics.increment("oyi_derived_references_total", { surface: context.input.surface, outcome: derivedTurn.outcome });
+        response = await persistTerminalConversationResponse(context, response, response.truth, resolvedTurn, "assessment_evidence_needed");
+        tracer.finish({ thread_id: response.thread_id, response_state: response.persistence_saved ? "returned" : "unsaved" });
+        return response;
+      }
+    }
     if (assessment && !assessment.suspended && !frame.mutationIntent && frame.operation !== "cancel") {
       const selection = capabilityService.resolve({ ...context, resolvedTurn });
       const eligibleReads = capabilityRegistry.enabled().filter(m => m.risk_class === "read"
@@ -3798,6 +3825,13 @@ export class ConversationOrchestrator {
         }
         const gathered = Boolean(planned?.applicable);
         if (gathered) assessment = { ...assessment, evidence_plan: planned!.state };
+        // IQ-5: an artifact whose evidence the planner has just invalidated is not carried as if current. Scope or authority changes
+        // drop it; a changed material fact marks it stale (reassessment is a later slice).
+        if (gathered && assessment.derived_ranking) {
+          const inv = planned!.state.invalidation;
+          if (inv.some(x => x === "scope_change" || x.startsWith("authority_changed"))) assessment = { ...assessment, derived_ranking: null };
+          else if (inv.includes("material_fact_changed")) assessment = { ...assessment, derived_ranking: { ...assessment.derived_ranking, stale: { reason: "material_fact", at: new Date().toISOString() } } };
+        }
         // IQ-4: bounded, evidence-linked judgment over the gathered bundle. Advisory only: it retrieves nothing, executes nothing
         // and any failure degrades to an honest bounded statement without touching canonical assessment state.
         let judged: JudgmentOutcome | null = null;
@@ -3809,7 +3843,7 @@ export class ConversationOrchestrator {
           if (judged) {
             assessment = { ...assessment, judgment: { assessment_id: judged.result.assessment_id, mode: judged.result.mode, status: judged.result.status, validated: judged.validation.ok, judged_at: new Date().toISOString() },
               // A ranking is its own cognitive artifact: it never claims to be, or reuses the id of, an older raw result set.
-              ...(judged.ranking_artifact ? { derived_ranking: judged.ranking_artifact, result_set_id: null, target_ref: null } : {}) };
+              ...(judged.ranking_artifact ? { derived_ranking: { ...judged.ranking_artifact, scope_binding: scopeBinding(context.input.surface, requestScope) }, result_set_id: null, target_ref: null } : {}) };
             tracer.stage("response_composed", { surface: context.input.surface, status: judged.result.status.toLowerCase(), outcome: `judgment_${judged.result.mode}`, evidence_count: judged.candidate_count });
             logger.info("oyi_assessment_judgment", { request_id: tracer.requestId, surface: context.input.surface, objective: assessment.objective, attempted: true, mode: judged.result.mode, status: judged.result.status,
               candidates: judged.candidate_count, evidence_sources: judged.evidence_source_count, validation_ok: judged.validation.ok, validation_failures: judged.validation.failures.length, provider_attempted: judged.provider.attempted,

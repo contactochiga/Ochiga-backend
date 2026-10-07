@@ -38,11 +38,27 @@ function businessFacts(index: EvidenceIndex): string[] {
   return out;
 }
 
-function artifactFor(r: JudgmentResult, a: JudgeArgs, basis: DerivedRanking["basis"], now: number): DerivedRanking | null {
-  if (!r.ranking?.length) return null;
-  return { v: 1, ranking_id: `rk-${randomUUID()}`, assessment_id: r.assessment_id, objective: r.objective, basis, scope_key: a.state.scope_key, subject_key: a.state.subject_key,
-    created_at: new Date(now).toISOString(), expires_at: new Date(now + ASSESSMENT_TTL_MS).toISOString(),
-    items: r.ranking.map(i => ({ rank: i.rank, tier: i.tier, ref: i.ref, rationale: i.rationale, factors: i.factors })), tied_groups: r.tied_groups.length, limitations: r.limitations.slice(0, 4) };
+// The derived artifact records what the answer PRESENTED, in the order presented: that is the human referent of "the second one".
+// Only candidates the text actually names are included, with safe references, the recorded rationale and compact typed factors.
+function artifactFor(r: JudgmentResult, a: JudgeArgs, basis: DerivedRanking["basis"], now: number, index: EvidenceIndex): DerivedRanking | null {
+  const byId = new Map(index.candidates.map(c => [c.cid, c]));
+  const shown = (r.presented || []).filter(p => byId.has(p.cid));
+  if (!shown.length) return null;
+  const perGroup = new Map<string, number>();
+  const rankedById = new Map((r.ranking || []).map(i => [i.cid, i]));
+  const items: DerivedRanking["items"] = shown.map(p => {
+    const c = byId.get(p.cid)!, ranked = rankedById.get(p.cid);
+    const n = (perGroup.get(p.group) || 0) + 1; perGroup.set(p.group, n);
+    const state = r.candidates.find(x => x.cid === p.cid)?.state;
+    const factors = ranked ? ranked.factors : c.factors.filter(f => ["lifecycle", "importance", "time_pressure"].includes(f.dimension)).map(f => ({ dimension: f.dimension, level: f.level }));
+    return { rank: n, tier: ranked ? ranked.tier : 0, ref: c.ref, rationale: ranked ? ranked.rationale : `${c.ref.label || "Item"}: ${describe(c).join(", ")}`, factors,
+      group: p.group, ...(state ? { state } : {}), kind: c.kind, source_key: c.source_key, evidence: c.evidence.slice(0, 4) };
+  });
+  const type = items.some(i => i.group === "ranked") ? "ranking" : items.some(i => i.group === "compared") ? "comparison" : "assessment_set";
+  return { v: 1, ranking_id: `rk-${randomUUID()}`, artifact_type: type, ordered: type === "ranking", assessment_id: r.assessment_id, objective: r.objective, basis,
+    scope_key: a.state.scope_key, subject_key: a.state.subject_key, surface: a.surface, source_keys: [...new Set(items.map(i => i.source_key!).filter(Boolean))],
+    created_at: new Date(now).toISOString(), updated_at: new Date(now).toISOString(), expires_at: new Date(now + ASSESSMENT_TTL_MS).toISOString(),
+    items, tied_groups: r.tied_groups.length, limitations: r.limitations.slice(0, 4), uncertainties: r.uncertainties.slice(0, 4), focus: null, parked: false, stale: null };
 }
 
 function explainFrom(prev: DerivedRanking, index: EvidenceIndex): JudgmentResult {
@@ -66,7 +82,7 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
   let result: JudgmentResult; let basis: DerivedRanking["basis"] = "deterministic"; let failures: string[] = []; // diagnostics, including a rejected provider proposal
   let finalFailures: string[] = []; // validity of the result actually shown
 
-  const reusable = a.previous && a.previous.subject_key === a.state.subject_key && a.previous.scope_key === a.state.scope_key && Date.parse(a.previous.expires_at) > now ? a.previous : null;
+  const reusable = a.previous && (a.previous.artifact_type ?? "ranking") === "ranking" && !a.previous.stale && !a.previous.parked && a.previous.subject_key === a.state.subject_key && a.previous.scope_key === a.state.scope_key && Date.parse(a.previous.expires_at) > now ? a.previous : null;
   if (a.objective === "explain" && reusable) {
     result = explainFrom(reusable, index);
     finalFailures = validateResult(result, vctx(typed, [reusable.assessment_id])); failures = finalFailures;
@@ -92,7 +108,7 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
           const items: RankedItem[] = adopted.ranking.map((r: ProviderRanked, i) => { const c = byId.get(r.cid)!; return { cid: r.cid, rank: r.rank, tier: i, ref: c.ref, rationale: `${c.ref.label || "Item"}: ${r.rationale}`, factors: c.factors.map(f => ({ dimension: f.dimension, level: f.level })), supporting: r.supporting.length ? r.supporting : c.evidence, counter: r.counter, uncertainties: r.uncertainties }; });
           result = { v: 1, assessment_id: index.assessment_id, objective: a.objective, mode: "provider", status: "JUDGED", candidates: [], ranking: items, tied_groups: [], conclusion: adopted.proposal.conclusion.startsWith("Based on") ? adopted.proposal.conclusion : `Based on the evidence available, ${adopted.proposal.conclusion.charAt(0).toLowerCase()}${adopted.proposal.conclusion.slice(1)}`,
             rationale: partial ? ["This is not an all-clear: it covers only what I could read."] : [], uncertainties: [...new Set([...adopted.proposal.uncertainties, ...ctx.uncertainties])], limitations: ["These are bounded, supplied views, not the whole pipeline; an assessment from them is a recommendation, not an action."], clarification: adopted.proposal.clarification, evidence_refs: [...new Set(items.flatMap(i => i.supporting))] };
-          basis = "provider";
+          basis = "provider"; result.presented = items.map(i => ({ cid: i.cid, group: "ranked" as const }));
         }
       }
     } else result = bounded(a, index, ctx, business, "bounded_no_provider");
@@ -115,9 +131,10 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
     provider.failure_class = provider.failure_class ?? "validator_failure";
   } else if (!ok) { ok = false; }
   if (result.mode === "fallback_after_rejection" && provider.failure_class === null) provider.failure_class = "validator_failure";
-  const mintsArtifact = a.objective === "prioritize" || topN !== null;
-  const artifact = ok && wantsRanking && mintsArtifact && rankingAllowed && result.status === "JUDGED" ? artifactFor(result, a, basis, now) : null;
-  if (!artifact) { if (result.ranking && !(ok && wantsRanking && rankingAllowed)) result = { ...result, ranking: null, tied_groups: [] }; }
+  if (result.ranking && !(ok && wantsRanking && rankingAllowed)) result = { ...result, ranking: null, tied_groups: [], presented: (result.presented || []).filter(p => p.group !== "ranked" && p.group !== "compared") };
+  // IQ-5: whatever the validated answer names is the conversational referent (a ranking, a compared pair, or the items needing
+  // attention), kept as ONE derived artifact. It never claims an order the judgment did not establish (`ordered` is false for the latter two).
+  const artifact = ok && result.status === "JUDGED" ? artifactFor(result, a, basis, now, index) : null;
   const text = composeJudgmentText(result, a.state);
   return { result, text, ranking_artifact: artifact, validation: { ok, failures: failures.slice(0, 12) }, provider, candidate_count: index.candidates.length,
     evidence_source_count: index.sources.length, latency_ms: Math.max(0, (a.now || Date.now)() - t0) };

@@ -95,6 +95,7 @@ export function judgeDeterministic(i: JudgeInput): JudgmentResult {
       : checkedIssueSources && !business.length ? "Based on the evidence available, I found no active item in the part of the records I could read."
       : "Based on the evidence available, this is what is known and what is not.";
   }
+  const presented: NonNullable<JudgmentResult["presented"]> = ranking.map(r => ({ cid: r.cid, group: (i.objective === "compare" ? "compared" : "ranked") as "compared" | "ranked" }));
   const operational = state.surface !== "public_corporate";
   // A comparison never claims to know which two things the user meant: it names the pair it took from the records. Resolving a
   // pronoun or ordinal ("this", "that one") to a specific earlier item is reference continuity, a later slice.
@@ -102,8 +103,11 @@ export function judgeDeterministic(i: JudgeInput): JudgmentResult {
   const partialEvidence = state.contributions.some(c => c.availability === "available" && (c.completeness === "partial" || c.truncated || c.unobserved > 0 || c.freshness === "stale"));
   if (operational && (partialEvidence || !tiered.length || ctx.uncertainties.length || limitations.length)) rationale.push("This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current.");
   // Name what needs attention when the question was not itself a ranking request.
+  if (!ranking.length && live.length) for (const c of live.slice(0, 5)) presented.push({ cid: c.cid, group: "attention" });
   if (!ranking.length && live.length) rationale.push(`Needs attention: ${live.slice(0, 5).map(c => `${c.ref.label || "item"} (${describe(c).join(", ")})`).join("; ")}.`);
+  if (!i.wantsRanking && past.length) for (const c of past.slice(0, 4)) presented.push({ cid: c.cid, group: "past" });
   if (!i.wantsRanking && past.length) rationale.push(`Not a current concern (resolved or past): ${past.slice(0, 4).map(c => `${c.ref.label || "item"} (${describe(c).join(", ")})`).join("; ")}.`);
+  if (wait.length && (i.objective === "prioritize" || i.objective === "compare")) for (const c of wait) presented.push({ cid: c.cid, group: "wait" });
   if (wait.length && (i.objective === "prioritize" || i.objective === "compare")) rationale.push(`Can wait or needs no action: ${wait.map(c => `${c.ref.label || "item"} (${describe(c).join(", ")})`).join("; ")}.`);
   rationale.push(...ctx.facts.map(f => f.charAt(0).toUpperCase() + f.slice(1) + "."));
   const osa = osaAssessment(index);
@@ -116,6 +120,6 @@ export function judgeDeterministic(i: JudgeInput): JudgmentResult {
   return {
     v: 1, assessment_id: index.assessment_id, objective: i.objective, mode: "deterministic", status: ranking.length || candidates.length || ctx.facts.length || osa ? "JUDGED" : "BOUNDED",
     candidates, ranking: ranking.length ? ranking : null, tied_groups: tied, conclusion, rationale, uncertainties: ctx.uncertainties, limitations, clarification: null,
-    evidence_refs: [...new Set([...typed.flatMap(c => c.evidence)])],
+    evidence_refs: [...new Set([...typed.flatMap(c => c.evidence)])], presented,
   };
 }

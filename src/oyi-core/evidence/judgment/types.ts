@@ -57,23 +57,46 @@ export type JudgmentResult = {
   limitations: string[];
   clarification: string | null;
   evidence_refs: string[];
+  // IQ-5: the candidates the composed answer actually NAMES, in the order named (what a later reference points at).
+  presented?: Array<{ cid: string; group: ArtifactGroup }>;
 };
 
-// The canonical derived artifact IQ-5 will reference. It is a distinct cognitive object: it is never the raw
-// result set it was derived from, so "the second one" can mean "the second priority" unambiguously.
+// The canonical DERIVED assessment artifact (IQ-4 minted rankings; IQ-5 generalises it, it is still the ONE derived state). It
+// is a distinct cognitive object: never the raw result set it was derived from, so "the second one" can mean "the second
+// priority" unambiguously. It holds only safe references, short evidence-linked rationale and compact typed factors; never raw
+// evidence and never a reasoning chain.
+export type ArtifactGroup = "ranked" | "compared" | "attention" | "past" | "wait";
+export type ArtifactItem = {
+  rank: number; tier: number; ref: Candidate["ref"]; rationale: string; factors: Array<{ dimension: Dimension; level: Level }>;
+  // IQ-5: where the item sat in what was PRESENTED, so a later reference resolves against the human referent (the answer as given).
+  group?: ArtifactGroup; state?: "needs_attention" | "not_a_current_concern" | "cannot_confirm"; kind?: Candidate["kind"]; source_key?: string; evidence?: string[];
+};
 export type DerivedRanking = {
   v: 1;
   ranking_id: string;
-  assessment_id: string;       // evidence bundle version (plan id) the ranking was derived from
+  // ranking: ordered by judgment; comparison: the named pair (no order is claimed); assessment_set: the items named, in the order named.
+  artifact_type?: "ranking" | "comparison" | "assessment_set";
+  ordered?: boolean;
+  assessment_id: string;       // evidence bundle version (plan id) the artifact was derived from
   objective: string;
   basis: "deterministic" | "provider";
   scope_key: string;
   subject_key: string;
+  surface?: string;
+  scope_binding?: string;      // hash of surface + estate + home: checked on every dereference
+  source_keys?: string[];      // sources the items came from: authority is re-checked against these on every dereference
   created_at: string;
+  updated_at?: string;
   expires_at: string;
-  items: Array<{ rank: number; tier: number; ref: Candidate["ref"]; rationale: string; factors: Array<{ dimension: Dimension; level: Level }> }>;
+  items: ArtifactItem[];
   tied_groups: number;
   limitations: string[];
+  uncertainties?: string[];
+  // Reference state (IQ-5). `focus` is the rank last referred to; `parked` means a different subject is now active; `stale`
+  // means the judgment was made before something that may change it (a material fact) and has NOT been reassessed.
+  focus?: number | null;
+  parked?: boolean;
+  stale?: { reason: "material_fact" | "evidence_changed"; at: string } | null;
 };
 
 export type JudgmentOutcome = {
