@@ -2,11 +2,11 @@
  "version": 1,
  "oracle": "artifacts/intelligence-quality-v1-iq7-frozen-parse-before.json",
  "prompts": 280,
- "changed": 45,
- "unchanged": 235,
+ "changed": 47,
+ "unchanged": 233,
  "execution_intent_widened": 0,
  "classification_counts": {
-  "operation_reclassified_no_execution_effect": 14,
+  "operation_reclassified_no_execution_effect": 16,
   "objective_newly_recognised": 21,
   "cancellation_recognised_execution_intent_removed": 3,
   "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)": 7
@@ -521,6 +521,22 @@
    "execution_intent_widened": false
   },
   {
+   "id": "FAC-003:2",
+   "prompt": "Which are still open?",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "navigate"
+   },
+   "after": {
+    "operation": "list"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
    "id": "FAC-004:5",
    "prompt": "Could this be a connection problem?",
    "changed": [
@@ -565,6 +581,22 @@
     "objective": "retrieve"
    },
    "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-005:5",
+   "prompt": "Compare this with the open water issue.",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "navigate"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
    "intentional": true,
    "execution_intent_widened": false
   },

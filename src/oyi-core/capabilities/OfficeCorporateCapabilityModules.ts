@@ -412,7 +412,7 @@ function crmOpportunitiesReadModule(): CapabilityModule {
     supportedSurfaces: ["office_internal"],
     permissions: ["crm.read"],
     evidenceRequirements: [{ domain: "crm", evidence_type: "crm_opportunity_stale", freshness: ["fresh", "stale", "unknown"], required: false }],
-    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\b(?:opportunit\w*|deals?)\b/i.test(frame.normalizedText),
+    supports: (frame: SemanticFrame) => frame.domain === "crm" && /\b(?:opportunit\w*|deals)\b/i.test(frame.normalizedText),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const opportunities = snapshot?.opportunities;

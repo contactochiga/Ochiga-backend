@@ -74,6 +74,8 @@ export function targetedRetrieval(original: string, ar: AnswerRows, target: Answ
   const quals2 = quals.map(x => negated.has(x) ? (OPPOSITE[x] ?? x) : x);
   const applicable = quals2.filter(x => rows.some(r => matchesQual(r, x)) && !popQuals.includes(x));
   if (applicable.length) rows = rows.filter(r => applicable.every(x => matchesQual(r, x)));
+  // a qualifier the capability's own sentence already addresses ("devices that are offline") is answered by that sentence, not by a filtered list
+  if (quals2.some(x => !applicable.includes(x) && !popQuals.includes(x) && norm(original).includes(stem(x)))) return null;
   const noun = ar.noun, one = ar.singular, support = clean(original);
   if (!rows.length && !ar.rows.length && intent === "STATUS") return `There are no ${noun} on record in what I read — that is what the records show, not proof that nothing is wrong.`;
   const withSupport = (lead: string) => (support && !norm(lead).includes(norm(support).slice(0, 40)) ? `${lead}\n\nSupporting detail: ${support}` : lead);

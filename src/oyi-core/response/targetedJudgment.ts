@@ -44,7 +44,7 @@ const facts = (c: Candidate) => describe(c).filter(x => !/^(open\/active|resolve
 const withFacts = (c: Candidate) => `${c.ref.label || "that item"} is recorded as ${stateWord(c)}${facts(c) ? ` (${facts(c)})` : ""}`;
 
 // Which evidence source a counting/listing question is about, from its content words (domain nouns, not phrases).
-const SOURCE_BY_NOUN: Array<[RegExp, string]> = [[/^(?:leads?|prospects?)$/, "crm.leads"], [/^(?:opportunit\w*|deals?)$/, "crm.opportunities"], [/^(?:projects?|developments?)$/, "development."], [/^reports?$/, "reports."], [/^tasks?$/, "office_tasks"], [/^(?:devices?|gadgets?|appliances?|sensors?)$/, "devices."], [/^(?:visitors?|guests?|passes|pass|invitations?)$/, "visitors."], [/^cameras?$/, "cameras"], [/^incidents?$/, "security."], [/^(?:requests?|tickets?|maintenance)$/, "maintenance."]];
+const SOURCE_BY_NOUN: Array<[RegExp, string]> = [[/^(?:leads?|prospects?)$/, "crm.leads"], [/^(?:opportunit\w*|deals)$/, "crm.opportunities"], [/^(?:projects?|developments?)$/, "development."], [/^reports?$/, "reports."], [/^tasks?$/, "office_tasks"], [/^(?:devices?|gadgets?|appliances?|sensors?)$/, "devices."], [/^(?:visitors?|guests?|passes|pass|invitations?)$/, "visitors."], [/^cameras?$/, "cameras"], [/^incidents?$/, "security."], [/^(?:requests?|tickets?|maintenance)$/, "maintenance."]];
 function sourceFor(state: CompactEvidencePlanState, T: string[]) {
   for (const t of T) for (const [re, key] of SOURCE_BY_NOUN) if (re.test(t)) { const c = state.contributions.find(k => k.availability === "available" && k.source_key.includes(key)); if (c) return c; }
   return null;
