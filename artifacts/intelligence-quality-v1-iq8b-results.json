@@ -1,0 +1,206 @@
+{
+ "version": 1,
+ "status": "IQ8B_NOT_YET_CERTIFIED",
+ "head": "39a47e8",
+ "verified_start_head": "b9a5ae106e20cb9a699d96fe3aae6caf87c00fd3",
+ "first_contact_diagnosis_C_to_F": {
+  "counts": {
+   "TARGET_CORRECT_COMPOSITION_WRONG": 6,
+   "SEMANTICS_CORRECT_ROUTING_WRONG": 31,
+   "SEMANTICS_WRONG": 13,
+   "ROUTING_CORRECT_TARGET_WRONG": 32
+  },
+  "routing_related_share": 0.537,
+  "target_or_composition_share": 0.463,
+  "verdict": "the routing hypothesis is only PARTLY right: capability/domain routing or domain classification accounts for about half of the misses; the other half are answer-target/composition misses on the correct route (existence/yes-no kinds, qualifier/synonym handling, ranking limits, public recall)."
+ },
+ "fresh_independent_suite": {
+  "items": 126,
+  "author": "independent subagent, no repository source access",
+  "first_contact": {
+   "overall": {
+    "n": 126,
+    "pass": 61,
+    "rate": 0.484
+   },
+   "by_worker": {
+    "Oma": {
+     "n": 32,
+     "pass": 14,
+     "rate": 0.438
+    },
+    "Osa": {
+     "n": 27,
+     "pass": 10,
+     "rate": 0.37
+    },
+    "Facility": {
+     "n": 35,
+     "pass": 22,
+     "rate": 0.629
+    },
+    "Consumer": {
+     "n": 32,
+     "pass": 15,
+     "rate": 0.469
+    }
+   },
+   "by_shape": {
+    "COUNT": {
+     "n": 10,
+     "pass": 5,
+     "rate": 0.5
+    },
+    "LIST": {
+     "n": 14,
+     "pass": 8,
+     "rate": 0.571
+    },
+    "YES_NO_WITH_REASON": {
+     "n": 23,
+     "pass": 14,
+     "rate": 0.609
+    },
+    "DETAIL": {
+     "n": 2,
+     "pass": 1,
+     "rate": 0.5
+    },
+    "STATUS": {
+     "n": 12,
+     "pass": 3,
+     "rate": 0.25
+    },
+    "BALANCE_STATE": {
+     "n": 3,
+     "pass": 0,
+     "rate": 0
+    },
+    "LIMITATION": {
+     "n": 10,
+     "pass": 5,
+     "rate": 0.5
+    },
+    "COMPARISON": {
+     "n": 3,
+     "pass": 2,
+     "rate": 0.667
+    },
+    "HISTORY": {
+     "n": 4,
+     "pass": 3,
+     "rate": 0.75
+    },
+    "EXPLANATION": {
+     "n": 7,
+     "pass": 3,
+     "rate": 0.429
+    },
+    "ACTION_RESULT": {
+     "n": 4,
+     "pass": 2,
+     "rate": 0.5
+    },
+    "CONFIRMATION_STATE": {
+     "n": 5,
+     "pass": 0,
+     "rate": 0
+    },
+    "REFUSAL": {
+     "n": 16,
+     "pass": 8,
+     "rate": 0.5
+    },
+    "CAPABILITY_DISCOVERY": {
+     "n": 4,
+     "pass": 3,
+     "rate": 0.75
+    },
+    "CLARIFICATION": {
+     "n": 3,
+     "pass": 0,
+     "rate": 0
+    },
+    "SAFETY_RISK": {
+     "n": 6,
+     "pass": 4,
+     "rate": 0.667
+    }
+   },
+   "boilerplate_lead": {
+    "n": 23,
+    "rate": 0.183
+   },
+   "menu_fallback": 6,
+   "executed": 0
+  },
+  "gate_overall": 0.85,
+  "gate_met": false,
+  "per_worker_gate": 0.8,
+  "worker_floors_met": false,
+  "miss_classification": {
+   "ROUTING_CORRECT_TARGET_WRONG": 35,
+   "SEMANTICS_CORRECT_ROUTING_WRONG": 30
+  }
+ },
+ "independent_review_of_64_self_graded_leads": {
+  "MEETS_TARGET": 42,
+  "PARTIAL": 18,
+  "DOES_NOT_MEET_TARGET": 4,
+  "WRONG_UPSTREAM_ROUTE": 0,
+  "EVALUATOR_MISMATCH": 0,
+  "note": "reviewed on the pre-IQ8B outputs; the self-grade (64/83) overstated: independent 42/64 meets"
+ },
+ "candidate_set_current_self_grade": {
+  "target_met": 63,
+  "graded": 83,
+  "rate": 0.759
+ },
+ "frozen_280": {
+  "before": {
+   "PASS": 69,
+   "FAIL": 206,
+   "BLOCKED": 5
+  },
+  "pass_preserved": "69 of 69",
+  "answers_changed": 111,
+  "by_status": {
+   "FAIL": 90,
+   "PASS": 21,
+   "BLOCKED": 0
+  },
+  "pass_changed_note": "same 21 turns as IQ-8 (20 content-preserving, 1 menu replaced by an explicit refusal); promotions claimed: 0"
+ },
+ "wave11": {
+  "harness_result": "132 PASS / 0 FAIL",
+  "true_state": "131 PASS + 1 known honest-limitation (utilities usage), unchanged capability debt",
+  "investigation": "consumer-wallet turn 2 \"How much electricity have I used?\" routed to the declared utilities.usage.read both before and after; the answer is an honest unavailability in both cases. The harness fails any answer containing the substring \"is not available\"/\"can't confirm\"/\"does not have an enabled\"; the IQ-8 targeted limitation wording (\"I can't answer that: there is no enabled evidence source ...\") avoids those substrings, so the evaluator passes it. This is an evaluator-wording artefact, a FALSE PROMOTION of the capability, not a routing improvement. Behaviour and the missing capability are unchanged; the harness was not edited."
+ },
+ "iq7": {
+  "dev": "objective 0.983 safety 1.0 fp 0",
+  "closure": "objective 1.0 fp 0 safety 1.0",
+  "objective_parity_changed": 0,
+  "execution_intent_widened": 0,
+  "e2e": "45/45",
+  "guard": 0
+ },
+ "regression": "all IQ-1..IQ-7 suites pass; 4 oyi-workflow-* suites fail identically at the IQ-6 baseline",
+ "tests_added": [
+  "iq8b-bridge-tests.mjs",
+  "iq8b-metamorphic-tests.mjs (34 preserve, 9 change: 100%/100%)"
+ ],
+ "performance_us": {
+  "concept_bridge_p50": 20.8,
+  "concept_bridge_p95": 39.7,
+  "derive_plus_targeted_lead_p95": 71.2,
+  "extra_provider_calls": 0
+ },
+ "contaminated_suites_after_iteration": {
+  "A": 0.941,
+  "B": 0.933,
+  "C": 0.885,
+  "D": 0.836,
+  "E": 0.885,
+  "F": 0.852
+ }
+}

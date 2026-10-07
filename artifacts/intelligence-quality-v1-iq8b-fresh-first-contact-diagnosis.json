@@ -1,0 +1,158 @@
+{
+ "version": 1,
+ "suite": "iq8b-fresh (independent)",
+ "first_contact": {
+  "overall": {
+   "n": 126,
+   "pass": 61,
+   "rate": 0.484
+  },
+  "by_worker": {
+   "Oma": {
+    "n": 32,
+    "pass": 14,
+    "rate": 0.438
+   },
+   "Osa": {
+    "n": 27,
+    "pass": 10,
+    "rate": 0.37
+   },
+   "Facility": {
+    "n": 35,
+    "pass": 22,
+    "rate": 0.629
+   },
+   "Consumer": {
+    "n": 32,
+    "pass": 15,
+    "rate": 0.469
+   }
+  },
+  "by_shape": {
+   "COUNT": {
+    "n": 10,
+    "pass": 5,
+    "rate": 0.5
+   },
+   "LIST": {
+    "n": 14,
+    "pass": 8,
+    "rate": 0.571
+   },
+   "YES_NO_WITH_REASON": {
+    "n": 23,
+    "pass": 14,
+    "rate": 0.609
+   },
+   "DETAIL": {
+    "n": 2,
+    "pass": 1,
+    "rate": 0.5
+   },
+   "STATUS": {
+    "n": 12,
+    "pass": 3,
+    "rate": 0.25
+   },
+   "BALANCE_STATE": {
+    "n": 3,
+    "pass": 0,
+    "rate": 0
+   },
+   "LIMITATION": {
+    "n": 10,
+    "pass": 5,
+    "rate": 0.5
+   },
+   "COMPARISON": {
+    "n": 3,
+    "pass": 2,
+    "rate": 0.667
+   },
+   "HISTORY": {
+    "n": 4,
+    "pass": 3,
+    "rate": 0.75
+   },
+   "EXPLANATION": {
+    "n": 7,
+    "pass": 3,
+    "rate": 0.429
+   },
+   "ACTION_RESULT": {
+    "n": 4,
+    "pass": 2,
+    "rate": 0.5
+   },
+   "CONFIRMATION_STATE": {
+    "n": 5,
+    "pass": 0,
+    "rate": 0
+   },
+   "REFUSAL": {
+    "n": 16,
+    "pass": 8,
+    "rate": 0.5
+   },
+   "CAPABILITY_DISCOVERY": {
+    "n": 4,
+    "pass": 3,
+    "rate": 0.75
+   },
+   "CLARIFICATION": {
+    "n": 3,
+    "pass": 0,
+    "rate": 0
+   },
+   "SAFETY_RISK": {
+    "n": 6,
+    "pass": 4,
+    "rate": 0.667
+   }
+  },
+  "boilerplate_lead": {
+   "n": 23,
+   "rate": 0.183
+  },
+  "menu_fallback": 6,
+  "executed": 0
+ },
+ "miss_classification": {
+  "method": "automatic from the capability that answered and the lead text (no manual per-item reading, nothing tuned): routing/fallback leads and action-like asks answered as reads = routing; on-topic capability or assessment path with the wrong lead = target/composition",
+  "counts": {
+   "ROUTING_CORRECT_TARGET_WRONG": 35,
+   "SEMANTICS_CORRECT_ROUTING_WRONG": 30
+  },
+  "by_worker": {
+   "Oma": {
+    "ROUTING_CORRECT_TARGET_WRONG": 7,
+    "SEMANTICS_CORRECT_ROUTING_WRONG": 11
+   },
+   "Osa": {
+    "SEMANTICS_CORRECT_ROUTING_WRONG": 3,
+    "ROUTING_CORRECT_TARGET_WRONG": 14
+   },
+   "Facility": {
+    "ROUTING_CORRECT_TARGET_WRONG": 6,
+    "SEMANTICS_CORRECT_ROUTING_WRONG": 7
+   },
+   "Consumer": {
+    "ROUTING_CORRECT_TARGET_WRONG": 8,
+    "SEMANTICS_CORRECT_ROUTING_WRONG": 9
+   }
+  }
+ },
+ "gate": {
+  "overall_min": 0.85,
+  "result": 0.484,
+  "met": false,
+  "per_worker_min": 0.8,
+  "per_worker": {
+   "Oma": 0.438,
+   "Osa": 0.37,
+   "Facility": 0.629,
+   "Consumer": 0.469
+  }
+ }
+}
