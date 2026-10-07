@@ -126,7 +126,6 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
       return done("COUNT", `There ${c === 1 ? "is" : "are"} ${trunc ? "at least " : ""}${c} ${qual ? qual + " " : ""}${c === 1 ? one : noun}${e.subject.population && !n.applicable.length && !n.inPopulation.length ? ` ${e.subject.population}` : ""}.`, ...support);
     }
     case "LIST": {
-      if (!e.records.length) return null; // an empty read keeps the capability's own (possibly unavailable-inventory) wording
       if (!e.records.length) return done("LIST", `${cap(noRecords(e, ""))}`, ...support);
       if (!rows.length) return done("LIST", `None of the ${noun} I read match that.`, ...support);
       const head = cap(e.subject.population ? `${noun} ${e.subject.population}` : noun);
