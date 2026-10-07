@@ -377,7 +377,9 @@ export function publicOpportunityReadModule(): CapabilityModule {
       }
 
       // IQ-8: a QUESTION about what is held / needed / possible is answered as such, never acknowledged as if it were a new fact.
-      if (prior) {
+      // a turn that SUPPLIES a new fact and does not ask anything ("I want a JV.") is a fact update, never a question about what is held
+      const suppliesFact = Boolean(prior) && (() => { const next = mergeObjective(prior, message, new Date().toISOString()).known_facts; return Object.keys(next).some((k) => next[k] !== prior!.known_facts[k]); })() && !/\?/.test(message) && !/^\s*(?:what|which|who|how|do|does|did|can|could|is|are|have|has|tell|show|list)\b/i.test(message);
+      if (prior && !suppliesFact) {
         const asked = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget, message);
         if (asked) {
           const supporting = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);

@@ -184,11 +184,12 @@ function projectHeld(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string })
     return done("SUBMISSION_STATE", st === "submitted" ? "Yes — what you told me has been handed to the team." : st === "not_submitted" ? "No — nothing has been submitted to the team yet." : "I can't confirm that: I have no handoff receipt for this conversation, so I can't say your details have reached the team. I'm only holding what you've told me here.");
   }
   const knownText = Object.entries(h.known).map(([a, b]) => `${nice(a)}: ${b}`).join("; ");
+  if (t.ask_facet === "outcome") return done("YES_NO", "I can't say how that will turn out, and I can't promise or guarantee it or commit Ochiga to anything; the team reviews each opportunity and decides.");
   if (t.ask_facet === "commitment") return done("YES_NO", t.response_intent === "ADVICE" || t.response_intent === "NEXT_STEP" ? "I can't commit Ochiga or advise you to sign anything; that is for you and the team after a proper review." : "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.");
   if (t.ask_facet === "sufficiency" && modelled) return done("YES_NO", missing.length ? `Not yet — for a first look I would still need: ${joinList(missing.map(nice))}.` : "Yes — that is everything we typically need to take a first look.");
   if (t.fact_keys.length && (t.response_intent === "YES_NO_WITH_REASON" || t.response_intent === "STATUS" || t.response_intent === "DIRECT_ANSWER" || t.response_intent === "LIST" || t.response_intent === "EXPLANATION")) {
     const have = t.fact_keys.filter(k => h.known[k]), lack = t.fact_keys.filter(k => !h.known[k]);
-    if (t.response_intent === "YES_NO_WITH_REASON" || t.yes_no?.kind === "fact") return done("YES_NO", have.length ? `Yes — you have told me ${have.map(k => `${nice(k)}: ${h.known[k]}`).join("; ")}.` : `No — you haven't told me ${joinList(lack.map(nice))} yet.`);
+    if (t.response_intent === "YES_NO_WITH_REASON" || t.yes_no?.kind === "fact") return done("YES_NO", have.length ? `Yes — you have told me ${have.map(k => `${nice(k)}: ${h.known[k]}`).join("; ")}.` : t.compare_terms.length === 2 ? `You haven't told me ${joinList(lack.map(nice))} yet, so I can't say which of those you meant.` : `No — you haven't told me ${joinList(lack.map(nice))} yet.`);
     return done("RECALL", have.length ? `${have.map(k => `${cap(nice(k))}: ${h.known[k]}`).join("; ")}.` : `You haven't told me ${joinList(lack.map(nice))} yet.`);
   }
   if (t.ask_facet === "missing" && modelled) return done("LIST", missing.length ? `What I still need from you: ${joinList(missing.map(nice))}.` : "I don't need anything further for a first look.");

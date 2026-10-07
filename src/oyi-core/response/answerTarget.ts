@@ -36,7 +36,7 @@ export type AnswerTarget = {
   flow: "out" | "in" | null;           // direction of money a sum asks about (went out / came in); null = unspecified
   clarify_reason?: "unresolved_reference" | "ambiguous_target" | "missing_selection" | null;
   constraint_kind?: "disclosure" | "channel" | "commitment" | "other";
-  ask_facet: "recall" | "missing" | "sufficiency" | "commitment" | "submission" | null; // what a question about HELD (public) facts wants: what was shared / what is missing / enough? / any promise?
+  ask_facet: "recall" | "missing" | "sufficiency" | "commitment" | "outcome" | "submission" | null; // what a question about HELD (public) facts wants: what was shared / what is missing / enough? / any promise?
   fact_keys: string[];                 // held-fact keys the question names (structure, size, location, terms, title, owner, type)
   past_reference: boolean;             // the question is about an earlier point in time ("last week", "yesterday")
   refinements?: string[];              // typed refinements applied after derivation (never silent)
@@ -94,7 +94,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const fact_keys = FACT_KEY.filter(([, ws]) => ws.some(w => tk.includes(w))).map(([k]) => k);
   const COMMIT_ASK = ["promise", "promises", "guarantee", "guarantees", "assure", "assurance", "assured", "ensure", "commit", "committing", "committed", "definitely", "firm", "certain", "confirm", "sign", "signing", "accept", "enter", "bind"];
   const futureOutcome = T.some(t => ["going", "gonna", "will", "would"].includes(t)) && T.some(t => ["approved", "approve", "buy", "accept", "accepted", "take", "purchase", "sign", "reject", "rejected"].includes(t));
-  const ask_facet: AnswerTarget["ask_facet"] = futureOutcome ? "commitment" : T.some(t => COMMIT_ASK.includes(t)) && T.some(t => ["approve", "approved", "sale", "buy", "buyer", "price", "decision", "deal", "outcome", "return", "project", "week", "today", "back", "commit", "committing", "committed", "promise", "guarantee", "fetch", "worth", "value", "offer"].includes(t) || COMMIT_ASK.includes(t)) ? "commitment"
+  const ask_facet: AnswerTarget["ask_facet"] = futureOutcome ? "outcome" : T.some(t => COMMIT_ASK.includes(t)) && T.some(t => ["approve", "approved", "sale", "buy", "buyer", "price", "decision", "deal", "outcome", "return", "project", "week", "today", "back", "commit", "committing", "committed", "promise", "guarantee", "fetch", "worth", "value", "offer"].includes(t) || COMMIT_ASK.includes(t)) ? "commitment"
     : T.some(t => ["enough", "sufficient", "adequate", "ready", "complete"].includes(t)) ? "sufficiency"
     : T.some(t => ["lack", "lacking", "missing", "need", "still", "else", "further"].includes(t)) || (T.includes("more") && T.some(t => ["know", "need", "want", "tell"].includes(t))) ? "missing"
     : T.some(t => ["told", "shared", "given", "noted", "recorded", "captured", "supplied", "provided", "mentioned", "stated", "said", "gave", "held", "reflect", "recap", "remind", "summarise", "summarize"].includes(t)) ? "recall" : null;
@@ -221,7 +221,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
       : (["can", "could"].includes(lead) && T[1] === "you") || (lead === "do" && T[1] === "you" && T.some(t => ["know", "have", "see", "verify", "access"].includes(t))) || (lead === "are" && T[1] === "you") ? "capability"
       : T.includes("change") || T.includes("changes") || T.includes("changed") || (T.includes("still") && objective === "reassess") ? "change"
       : ["should", "would", "shall"].includes(lead) ? "advice" : "state";
-    return base("YES_NO_WITH_REASON", { yes_no: { kind }, must_answer: "yes / no / insufficient first, then the reason", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+    return base("YES_NO_WITH_REASON", { yes_no: { kind }, compare_terms: kind === "fact" && T.includes("or") ? splitSides(T.slice(1)) : [], must_answer: "yes / no / insufficient first, then the reason", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   }
   if (objective === "retrieve" || (objective === null && (u.imperative || u.wh))) {
     const status = T.some(t => ["state", "status", "condition", "standing", "stand", "stands", "balance", "happening"].includes(t)) || (T.includes("going") && T.includes("on")) || (lead === "how" && T.some(t => ["doing", "going", "looking", "dey"].includes(t)));

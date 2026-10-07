@@ -67,6 +67,25 @@ ok('specialised-exempt', () => {for (const q of ['What can you do?', 'Did you sw
 // regression guards found by the wave 11 diff: a cancellation of a pending thing is not a constraint; judgment-required rankings without records stay limitations
 ok('cancel-not-constraint', () => {assert.equal(T("Actually, don't send it.").confirmation_kind, 'cancel'); assert.equal(T('Actually do not send it.').confirmation_kind, 'cancel'); assert.equal(T('Actually do not send anything.').confirmation_kind, 'cancel'); assert.equal(T("Please don't share my wallet balance with any visitor.").confirmation_kind, 'constraint');});
 ok('ranking-needs-judgment-no-records', () => {const e = env({capability_key: 'crm.leads.read', hints: {requires_judgment: true}, legacy_prose: 'start with A'}); const p = P('Which ones need attention first?', e); assert.equal(p.shape, 'LIMITATION'); assert.match(p.primary, /can't put them in order/);});
+// IQ-8D3 semantic request families (families, not sentences): each is asserted on several different phrasings
+ok('families-existence-ellipsis-compare-measure', () => {
+  for (const q of ['Is there a high priority item among my tasks?', 'Are there any overdue invoices on record?']) assert.equal(T(q).response_intent, 'YES_NO_WITH_REASON', q);
+  for (const q of ['light issue fixed?', 'water leak resolved?']) assert.equal(T(q).yes_no?.kind, 'state', q);
+  for (const q of ['Any stale deals in the pipeline? Names pls', 'Any open leads? list them']) assert.equal(T(q).response_intent, 'LIST', q);
+  for (const q of ['Between the Lekki scheme and the Abuja scheme, which is better?', 'Between A and B which one wins?']) assert.equal(T(q).response_intent, 'COMPARISON', q);
+  for (const q of ['What is the temperature in Block B?', "What's the humidity in my bedroom?"]) assert.equal(T(q).response_intent, 'LIMITATION', q);
+  for (const q of ['Which leads are ones I should be worried about?', 'Which of my smart devices have no up to date reading?']) assert.equal(T(q).response_intent, 'LIST', q);
+  for (const q of ["Lead Beta - what's the concern there?", 'what is the worry with the water issue']) assert.equal(T(q).response_intent, 'EXPLANATION', q);
+  assert.equal(T('Which resident caused the water problem? Give me a name.').response_intent, 'REFUSAL');
+});
+ok('action-result-question-is-not-a-command', () => {assert.equal(parseSemanticFrame('Did you switch the AC off for me earlier?').mutationIntent, false); assert.equal(parseSemanticFrame('Switch the AC off').mutationIntent, true);});
+ok('capability-inquiry-with-role-phrase', () => {assert.equal(T('What can you do for me as a resident?').response_intent, 'CAPABILITY_DISCOVERY'); assert.equal(T('What can you help me with as an owner?').response_intent, 'CAPABILITY_DISCOVERY');});
+ok('outcome-vs-commitment-vs-choice', () => {
+  const o = projectResponse(T('So is my plot going to be approved or not?'), held, {asked: ''}); assert.doesNotMatch(o.primary, /^(Yes|No)\b/); assert.match(o.primary, /can't say how that will turn out/);
+  assert.match(projectResponse(T('Can I sign a deal with you today?'), held, {asked: ''}).primary, /^No —/);
+  const c = projectResponse(T("Is it a lease, a sale or a JV that I've asked for?"), held, {asked: ''}); assert.doesNotMatch(c.primary, /^(Yes|No)\b/);
+});
+ok('intrusion-report', () => {assert.equal(T('Someone told me there was a break-in at the east wing last night.').response_intent, 'SAFETY_RISK'); assert.equal(T('A burglar was seen near the gate.').response_intent, 'SAFETY_RISK'); });
 // every frozen class is covered
 ok('matrix-coverage', () => {const missing = Object.keys(matrix.classes).filter(c => !covered.has(c)); assert.deepEqual(missing, []);});
 console.log(JSON.stringify({status: 'PASS', tests: n}));
