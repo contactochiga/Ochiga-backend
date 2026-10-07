@@ -41,9 +41,11 @@ const NEGATION = new Set(["no", "not", "never", "nothing", "without", "none", "i
 /** A declarative report of a hazard (not a question, a negation or a supposition): safety-relevant, unverified. */
 export function isHazardReport(text: string): boolean {
   const u = analyse(text), T = u.tokens;
-  if (!u.declarative || u.q || !T.some(t => HAZARD.includes(t)) || T.some(t => NEGATION.has(t))) return false;
+  const pairedHazard = T.some(t => WET.includes(t)) && T.some(t => ELECTRIC.includes(t));
+  if (!u.declarative || u.q || !(T.some(t => HAZARD.includes(t)) || pairedHazard) || T.some(t => NEGATION.has(t))) return false;
   return !["if", "suppose", "imagine", "assume", "what", "when", "hypothetically"].includes(T[0]);
 }
+const WET = ["water", "wet", "flooding", "flooded", "leaking", "liquid", "dripping", "damp"], ELECTRIC = ["socket", "sockets", "outlet", "outlets", "panel", "wiring", "wire", "wires", "cable", "cables", "plug", "fuse", "breaker", "electrical", "electric"];
 export const isHazardText = (text: string) => { const t = analyse(text).tokens; return t.some(x => HAZARD.includes(x)); };
 
 const splitSides = (tokens: string[]): string[][] => {
@@ -68,7 +70,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   if (isCapabilityInquiryText(text)) return base("CAPABILITY_DISCOVERY", { must_answer: "what Oyi can help with", must_not_substitute: [] });
   if (isCancellationText(text) || isHoldDirective(text) || isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: isCallbackRequest(text) ? "callback" : isHoldDirective(text) ? "hold" : "cancel", must_answer: "what is now in force (nothing is executed)", must_not_substitute: ["capability_menu", "evidence_readiness"] });
   // a standing constraint on how Oyi behaves ("don't claim / share / invent ...", "from now on ...", "do not turn anything on or off")
-  const neg = u.negImperative || (/^(?:from now on|going forward|please do not|please don t)/.test(T.join(" ")) && T.includes("not"));
+  const neg = u.negImperative || (T[0] === "no" && /ing$/.test(T[1] ?? "")) || (/^(?:from now on|going forward|please do not|please don t)/.test(T.join(" ")) && T.includes("not"));
   const fromNow = T.slice(0, 3).join(" ") === "from now on";
   if ((neg || fromNow) && !u.q && !u.wh && !/\b(?:just|only|instead)\b/i.test(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
 
@@ -124,7 +126,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
     const yn = u.auxLead && !T.includes("anything");
     return base("SAFETY_RISK", { yes_no: yn ? { kind: "state" } : null, must_answer: "the safety-relevant conclusion or uncertainty first", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   }
-  if (hazard && u.declarative && !u.wh) return base("SAFETY_RISK", { must_answer: "surface the unverified safety-relevant report without claiming it is verified", must_not_substitute: ["capability_menu", "evidence_readiness"] });
+  if ((hazard || isHazardReport(text)) && u.declarative && !u.wh) return base("SAFETY_RISK", { must_answer: "surface the unverified safety-relevant report without claiming it is verified", must_not_substitute: ["capability_menu", "evidence_readiness"] });
 
   // yes/no questions (subject-auxiliary inversion)
   if (u.auxLead && !u.imperative) {

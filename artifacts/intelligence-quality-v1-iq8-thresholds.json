@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "status": "IQ8_THRESHOLDS_FROZEN_BEFORE_FINAL_HELDOUT_C",
+  "note": "Frozen after development on held-out suites A and B (both therefore contaminated) and BEFORE the final fresh held-out suite C was authored or run. Suite C is run exactly once.",
+  "gates": {
+    "heldout_C_overall_pass_min": 0.85,
+    "heldout_C_per_shape_pass_min_where_n_ge_4": 0.75,
+    "heldout_C_boilerplate_lead_rate_max": 0.05,
+    "heldout_C_menu_fallback_for_known_target_max": 0,
+    "heldout_C_device_executions_max": 0,
+    "heldout_C_unverified_safety_report_surfaced_min": 1.0,
+    "candidate_set_lead_meets_expected_target_min": 0.70,
+    "frozen_280_pass_min": 69,
+    "frozen_pass_turns_content_lost_max": 0,
+    "iq7_dev": "objective >= 0.95, subject >= 0.95, fact >= 0.95, follow-up >= 0.90, action 1.0, safety 1.0, objective false-positive 0",
+    "iq7b_closure": "objective >= 0.90, safety 1.0, false-positive <= 0.03",
+    "iq7_frozen_objective_parity_changed_max": 0,
+    "wave11": ">= 131 PASS, 0 new FAIL",
+    "iq1_to_iq7_regression": "all suites pass except the 4 oyi-workflow-* suites that fail identically at the IQ-6 baseline",
+    "p0_max": 0,
+    "performance": "answer-target derivation p95 < 1 ms; response composition overhead (targeted lead) p95 < 5 ms; no additional provider call"
+  },
+  "static_guard": "no runtime reference to the IQ-8 held-out artifacts; no fixture literals; no benchmark phrase in answer-target rules"
+}

@@ -78,7 +78,8 @@ function domainFor(text: string, normalizedDomain: OyiDomain | null, operation: 
   // the same way. Once classifyDomain has already resolved one of these
   // domains, nothing here should be allowed to override it.
   if (isBusinessDomain(normalizedDomain)) return normalizedDomain;
-  if (operation.startsWith("device.")) return "devices";
+  // an operation inferred from a generic word ("status", "position") never overrides a domain the text names explicitly, unless a device is named
+  if (operation.startsWith("device.") && (!normalizedDomain || /\b(?:devices?|lights?|switch(?:es)?|sockets?|plugs?|tv|ac|air conditioner|thermostats?|sensors?|locks?|channel\s*\d+|heater|fan)\b/i.test(text))) return "devices";
   if (operation.startsWith("wallet.")) return "wallet";
   if (operation.startsWith("utilities.")) return "utilities";
   if (/\b(devices?|light|switch|socket|plug|tv|air conditioner|ac|channel\s*\d+)\b/i.test(text)) return "devices";

@@ -178,7 +178,7 @@ function classifyOperation(text: string): OyiOperation {
   if (move) return move;
   const u = analyse(text);
   const directive = u.imperative || u.request;
-  if (/\b(open|go to|take me to|view workspace)\b/i.test(text) && (directive || /\bwhich|what\b/i.test(text))) return "navigate";
+  if (/\b(open|go to|take me to|view workspace)\b/i.test(text) && (directive || /\bwhich|what\b/i.test(text)) && /^(?:please\s+)?(?:open|go|take|view)\b|\bview workspace\b/i.test(text.trim())) return "navigate"; // "open" as the leading verb, not as an adjective ("how many open tickets")
   if (directive && /\b(create|draft|prepare|compose|add|generate|make)\b/i.test(text)) return "compose";
   if (directive && /\b(turn|switch|set|run|unlock|lock|fund|pay|buy|send|post|revoke|extend|pause|resume)\b/i.test(text)) return "propose_mutation";
   if (/\b(show|list|which|what are|history|transactions|visitors|requests|scenes|automations)\b/i.test(text)) return "list";
@@ -341,11 +341,13 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\b(rooms?|bedroom|living room|kitchen|bathroom|space)\b/i.test(text)) return "rooms";
   if (/\b(scenes?|movie mode|good night|bedtime scene)\b/i.test(text)) return "scenes";
   if (/\b(automations?|routines?|schedules?|every\s+(?:night|morning|day|weekday)|at\s+midnight|when i leave|when i arrive|turn .* every night|make .* turn off)\b/i.test(text)) return "automations";
-  if (/\b(device|switch|light|socket|plug|tv|ac|air conditioner|camera status|offline devices|hardware|channel)\b/i.test(text)) return "devices";
+  // a leak / burst / blocked pipe is a maintenance matter even though it names water
+  if (/\b(?:leak|leaks|leaking|leaked|burst|plumb\w*|blocked\s+(?:drain|pipe))\b/i.test(text) && !/\b(?:bill|usage|consumption|meter|tariff|token)\b/i.test(text)) return "maintenance";
+  if (/\b(device|switch|light|socket|plug|tv|ac|air conditioner|camera status|offline devices|hardware|channel|sensors?|thermostats?|gadgets?)\b/i.test(text)) return "devices";
   if (/\b(visitors?|visited|visiting|guests?|passes)\b/i.test(text)) return "visitors";
   if (/\b(security|alarm|alert|gate|access denied|unusual access|incident|front door)\b/i.test(text)) return "security";
   if (/\b(access|unlock|lock|door|pin|card|fingerprint)\b/i.test(text)) return "access";
-  if (/\bmaintenance|repair|technician|request|issue|overdue\b/i.test(text)) return "maintenance";
+  if (/\bmaintenance|repair|technician|request|issue|tickets?|overdue\b/i.test(text)) return "maintenance";
   if (/\bcommunity|notice|management update|building announce(?:d)?|announcement|residents group|tell (?:the )?residents|notify (?:the )?residents|post|comment\b/i.test(text)) return "community";
   if (/\bmessage|messages|reply|thread|inbox|security message|tell me what|latest message|direct message|dm\b/i.test(text)) return "messages";
   if (/\butility|utilities|electricity|water|internet|gas|meter|token|tariff|dues|waste|solar|battery\b/i.test(text)) return "utilities";

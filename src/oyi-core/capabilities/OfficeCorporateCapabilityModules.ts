@@ -745,7 +745,7 @@ function financialSummaryReadModule(): CapabilityModule {
 // that capability. Mutual exclusion by construction, same pattern as the
 // read/write split -- no score tie-break to reason about.
 function isTaskListIntent(message: string): boolean {
-  return /\btasks\b/i.test(message);
+  return /\btasks\b|\btask\s+list\b/i.test(message);
 }
 
 // Production bug found in live Milestone 1 verification, generalized in
