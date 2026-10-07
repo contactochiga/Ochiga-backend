@@ -147,7 +147,7 @@ rationale; T4 marks the ranking stale and preserved; T5 "what is number one now?
 there?" still explains the historical ranking with the stale note. **This proves reference handling and discipline, not
 live-model quality.**
 ### Performance
-Pure reference resolution p95: 0.016 ms (3 items), 0.016 ms (10), 0.059 ms (64); parsing 0.004 ms. Corpus turn latency is
+Pure reference resolution p95: 0.018 ms (3 items), 0.016 ms (10), 0.059 ms (64); parsing 0.004 ms. Corpus turn latency is
 dominated by the shared turn pipeline: derived-reference turns p50 77 ms (n=2) vs 76 ms for turns that re-plan (n=141), so IQ-5 saves
 evidence reads (zero) but not wall-clock time. A reference turn does one extra thread read (the newest raw result set) to apply precedence.
 ### Observability
