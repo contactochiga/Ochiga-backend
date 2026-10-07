@@ -28,12 +28,15 @@ const tokens = (t: string) => new Set(t.toLowerCase().replace(/(\d),(\d)/g, "$1$
 const overlap = (a: Set<string>, b: Set<string>) => [...a].filter(w => b.has(w)).length;
 
 const FIRST_PERSON = new Set(["i", "we"]);
-const CONFIRM_VOCAB = new Set(["yes", "yeah", "yep", "yup", "sure", "correct", "right", "exactly", "confirmed", "indeed", "fair", "enough", "makes", "sense", "that", "is", "true", "got", "it", "ok", "okay", "agreed", "absolutely", "definitely", "thanks", "thank", "you", "good", "noted", "understood", "perfect", "great"]);
+const CONFIRM_VOCAB = new Set(["fine", "yes", "yeah", "yep", "yup", "sure", "correct", "right", "exactly", "confirmed", "indeed", "fair", "enough", "makes", "sense", "that", "is", "true", "got", "it", "ok", "okay", "agreed", "absolutely", "definitely", "thanks", "thank", "you", "good", "noted", "understood", "perfect", "great"]);
 const SAY_VERBS = ["say", "says", "said", "tell", "tells", "told", "reckon", "reckons", "reckoned", "claim", "claims", "claimed", "insist", "insists", "swear", "swears", "promise", "promises", "promised", "mention", "mentions", "mentioned", "report", "reports", "reported", "heard", "hear", "hears", "informed", "assure", "assures", "assured", "believes", "thinks"];
 const EMOTION = ["nervous", "worried", "unsure", "happy", "annoyed", "afraid", "anxious", "confused", "stressed", "uneasy", "unhappy", "uncertain", "doubtful", "sceptical", "skeptical", "excited", "relieved"];
+const SENTIMENT = ["clunky", "slow", "confusing", "annoying", "ugly", "great", "awful", "terrible", "nice", "lovely", "horrible", "clumsy", "messy", "boring", "brilliant", "fantastic", "disappointing", "frustrating", "pointless", "useless", "impressive", "overrated", "overpriced", "pretty"];
+// verb stems of consequential events or persistent faults: a statement that something happened or keeps happening is new information
+const EVENT = ["resign", "quit", "withdr", "cancel", "delay", "fail", "collaps", "approv", "reject", "declin", "pull", "die", "died", "burst", "broke", "stopp", "keeps", "refus", "terminat", "lost", "won", "defaulted", "expire", "evict", "arrest", "strike", "striking", "walked", "shut", "asked", "got", "received", "signed", "found", "ran", "went", "gone"];
 const OPINION_VERBS = ["think", "feel", "reckon", "guess", "believe", "prefer", "like", "dislike", "hate", "love", "doubt", "hope", "wish", "fear", "suspect"];
-const hypothetical = (u: ReturnType<typeof analyse>, raw: string) => {const T = u.tokens, first = T[0]; return ["if", "suppose", "supposing", "imagine", "assume", "assuming", "hypothetically", "pretend"].includes(first) || /\bwhat if\b/.test(raw.toLowerCase()) || (T.includes("hypothetically")) || (T.includes("if") && T.slice(0, 3).includes("if") ) ;};
-const attributed = (u: ReturnType<typeof analyse>) => {const T = u.tokens; if (T.some(t => ["apparently", "reportedly", "supposedly", "allegedly", "rumour", "rumoured", "hearsay"].includes(t))) return true; if (T.slice(0, 2).join(" ") === "according to") return true;
+const hypothetical = (u: ReturnType<typeof analyse>, raw: string) => {const T = u.tokens, first = T[0]; return ["if", "suppose", "supposing", "imagine", "assume", "assuming", "hypothetically", "pretend", "say"].includes(first) || T.slice(0, 3).join(" ") === "let us say" || /\bwhat if\b/.test(raw.toLowerCase()) || (T.includes("hypothetically")) || (T.includes("if") && T.slice(0, 3).includes("if") ) ;};
+const attributed = (u: ReturnType<typeof analyse>) => {const T = u.tokens; if (T.some(t => ["apparently", "reportedly", "supposedly", "allegedly", "rumour", "rumoured", "hearsay"].includes(t))) return true; if (["according to", "word is", "word has", "rumour has", "rumor has", "people say", "they say"].includes(T.slice(0, 2).join(" "))) return true;
   return T.some((t, i) => SAY_VERBS.includes(t) && i > 0 && ((!FIRST_PERSON.has(T[i - 1]) && T[i - 1] !== "you" && !(t === "say" && FIRST_PERSON.has(T[i - 1]))) || ((t === "told" || t === "informed" || t === "heard") && T.slice(Math.max(0, i - 3), i).some(x => FIRST_PERSON.has(x)))));};
 
 export function classifyUpdate(text: string, facts: ConversationFact[] = []): { type: FactType; attributed: boolean } {
@@ -54,14 +57,16 @@ export function classifyUpdate(text: string, facts: ConversationFact[] = []): { 
   if (fp >= 0 && fp <= 1 && T.slice(fp + 1, fp + 3).some(t => ["stopped", "stop", "quit"].includes(t)) && T.some(t => /^(?:worr|bother|car|mind)/.test(t))) return { type: "non_material_detail", attributed: false };
   if (fp >= 0 && fp <= 1 && (T.slice(fp + 1, fp + 3).some(t => OPINION_VERBS.includes(t)) || (T.slice(fp + 1, fp + 3).some(t => ["am", "feel"].includes(t)) && T.some(t => EMOTION.includes(t))))) return { type: "opinion", attributed: false };
   if (/\b(?:in my opinion|personally|to me|if you ask me)\b/.test(lower)) return { type: "opinion", attributed: false };
+  // a sentiment adjective predicated of something that is no governed domain noun is an opinion about it ("the app feels clunky")
+  if (!domainHits(T).length && T.some(t => ["feels", "seems", "looks", "feel", "seem", "look"].includes(t)) && T.some(t => SENTIMENT.includes(t))) return { type: "opinion", attributed: false };
   // correction: an explicit retraction, a replaced value, or a stated re-targeting
-  if (/^(?:actually|sorry|correction|scratch that|no wait|wait no)\b/.test(lower) || T.some(t => ["wrong", "mistake", "misspoke", "misread", "mixed"].includes(t)) && T.some(t => FIRST_PERSON.has(t) || t === "figure" || t === "number" || t === "area" || t === "size")
+  if (/^(?:actually|sorry|correction|scratch that|no wait|wait no|no|nope)\b[,\s]/.test(lower) || T.some(t => ["wrong", "mistake", "misspoke", "misread", "mixed"].includes(t)) && T.some(t => FIRST_PERSON.has(t) || t === "figure" || t === "number" || t === "area" || t === "size")
     || /\b(?:i meant|i mean|than i (?:said|thought|told)|talking about|asking about)\b/.test(lower) || /\bnot\b[^.,;]{1,40}[,;]\s*(?:it['’]?s|it is|but)\b/.test(lower) || /\b(?:figure|number|area|size|date|name|amount)\b[^.]{0,30}\b(?:was|were)\b[^.]{0,12}\bwrong\b/.test(lower)) return { type: "correction", attributed: att };
   const t = tokens(raw);
   if (facts.some(f => !f.superseded_by && t.size > 0 && overlap(t, tokens(f.text)) / t.size >= 0.8)) return { type: "confirmation", attributed: att };
   if (att) return { type: "unverified_claim", attributed: true };
   const discovery = T.slice(0, 2).join(" ") === "turns out" || /\b(?:turns out|it seems|looks like|just found|found out|discovered)\b/.test(lower);
-  if (domainHits(T).length || discovery) return { type: "material_new_fact", attributed: false };
+  if (domainHits(T).length || discovery || T.some(t => EVENT.some(e => t.startsWith(e)))) return { type: "material_new_fact", attributed: false };
   return { type: "non_material_detail", attributed: false };
 }
 

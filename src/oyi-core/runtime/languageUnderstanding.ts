@@ -299,6 +299,8 @@ function classifyDomain(text: string): OyiDomain | null {
   // Abuja.", "I own a building in Lekki." -- the word after "own" plus a
   // property/area noun within a short window, not a specific value.
   if (/\b(?:i|we|my\s+(?:family|parents|father|mother)|our\s+family)\b[\s\S]{0,30}\b(?:own|owns|have|has|got|inherited|hold|holds|bought|acquired)\b[\s\S]{0,40}\b(?:land|plots?|propert(?:y|ies)|buildings?|sites?|houses?|estates?|compounds?|acres?|sqm|square\s*meters?|hectares?|units?)\b/i.test(text)) return "corporate_opportunity";
+  // Relative-clause possession, either order: "a building I inherited", "the plot we own".
+  if (/\b(?:land|plots?|propert(?:y|ies)|buildings?|sites?|houses?|estates?|compounds?)\b[\s\S]{0,25}\b(?:i|we)\s+(?:own|owns|have|inherited|hold|bought|acquired|got)\b/i.test(text)) return "corporate_opportunity";
   // A property asset together with an intent to develop/build/partner/lease/sell it ("a plot I'd like to develop with someone").
   if (/\b(?:land|plots?|propert(?:y|ies)|buildings?|sites?)\b[\s\S]{0,60}\b(?:develop|build|jv|joint\s*venture|partner|lease|leasing|sell|redevelop)/i.test(text)) return "corporate_opportunity";
   // Wanting to team up / partner / do a project with the company itself.

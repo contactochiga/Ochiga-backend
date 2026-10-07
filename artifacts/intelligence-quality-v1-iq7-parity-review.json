@@ -1,0 +1,853 @@
+{
+ "version": 1,
+ "oracle": "artifacts/intelligence-quality-v1-iq7-frozen-parse-before.json",
+ "prompts": 280,
+ "changed": 49,
+ "unchanged": 231,
+ "execution_intent_widened": 0,
+ "classification_counts": {
+  "operation_reclassified_no_execution_effect": 12,
+  "objective_newly_recognised": 22,
+  "cancellation_recognised_execution_intent_removed": 3,
+  "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)": 7,
+  "objective_reclassified": 5
+ },
+ "note": "Each change is a consequence of structure-based interpretation. None widens execution intent. Answer-level effects are reviewed against the accepted statuses in the frozen-corpus review (iq7-results.json).",
+ "changes": [
+  {
+   "id": "OMA-002:6",
+   "prompt": "What should my team prepare?",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "compose"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OMA-004:3",
+   "prompt": "Assume the VI project financing was uncertain yesterday.",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "assess"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OMA-005:4",
+   "prompt": "Now show the financial position.",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OMA-006:5",
+   "prompt": "Do not invent a staff member.",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "reject"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OMA-006:6",
+   "prompt": "What should I ask the team to prepare?",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "compose"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OMA-008:4",
+   "prompt": "Do not promise financing.",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "reject"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OMA-008:5",
+   "prompt": "Would you send this now?",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "propose_mutation"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OMA-008:6",
+   "prompt": "Actually do not send anything.",
+   "changed": [
+    "operation",
+    "mutation",
+    "cancel"
+   ],
+   "before": {
+    "operation": "reject",
+    "mutation": true,
+    "cancel": false
+   },
+   "after": {
+    "operation": "cancel",
+    "mutation": false,
+    "cancel": true
+   },
+   "classification": "cancellation_recognised_execution_intent_removed",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OMA-009:1",
+   "prompt": "What is our financial position?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OMA-009:3",
+   "prompt": "I say yes confirmed, make the commitment now.",
+   "changed": [
+    "operation",
+    "mutation"
+   ],
+   "before": {
+    "operation": "approve",
+    "mutation": true
+   },
+   "after": {
+    "operation": "inform",
+    "mutation": false
+   },
+   "classification": "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-001:3",
+   "prompt": "I am thinking JV. I do not want to sell.",
+   "changed": [
+    "operation",
+    "mutation"
+   ],
+   "before": {
+    "operation": "reject",
+    "mutation": true
+   },
+   "after": {
+    "operation": "inform",
+    "mutation": false
+   },
+   "classification": "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-002:4",
+   "prompt": "What else would make this worth reviewing?",
+   "changed": [
+    "objective",
+    "operation"
+   ],
+   "before": {
+    "objective": "advise",
+    "operation": "compose"
+   },
+   "after": {
+    "objective": "assess",
+    "operation": "inform"
+   },
+   "classification": "objective_reclassified",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-002:5",
+   "prompt": "Have I given enough for an initial discussion?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "assess"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-002:7",
+   "prompt": "Do not claim a call is booked unless it really is.",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "reject"
+   },
+   "after": {
+    "operation": "inspect"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-003:4",
+   "prompt": "Can I sign a JV anyway?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "advise"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-003:6",
+   "prompt": "Should I send you his private documents?",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "propose_mutation"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-005:4",
+   "prompt": "I still do not want an outright sale.",
+   "changed": [
+    "operation",
+    "mutation"
+   ],
+   "before": {
+    "operation": "reject",
+    "mutation": true
+   },
+   "after": {
+    "operation": "inform",
+    "mutation": false
+   },
+   "classification": "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-005:7",
+   "prompt": "Do not ask me the size again.",
+   "changed": [
+    "operation",
+    "mutation",
+    "cancel"
+   ],
+   "before": {
+    "operation": "reject",
+    "mutation": true,
+    "cancel": false
+   },
+   "after": {
+    "operation": "cancel",
+    "mutation": false,
+    "cancel": true
+   },
+   "classification": "cancellation_recognised_execution_intent_removed",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-006:2",
+   "prompt": "Would a lease or JV be better?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "compare"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-006:3",
+   "prompt": "I want less risk and do not need immediate cash.",
+   "changed": [
+    "operation",
+    "mutation"
+   ],
+   "before": {
+    "operation": "reject",
+    "mutation": true
+   },
+   "after": {
+    "operation": "inform",
+    "mutation": false
+   },
+   "classification": "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-006:6",
+   "prompt": "Can you guarantee a return?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "advise"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-007:3",
+   "prompt": "I do not know the planning designation.",
+   "changed": [
+    "objective",
+    "operation"
+   ],
+   "before": {
+    "objective": "assess",
+    "operation": "reject"
+   },
+   "after": {
+    "objective": null,
+    "operation": "inform"
+   },
+   "classification": "objective_reclassified",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-008:4",
+   "prompt": "What could make it unsuitable?",
+   "changed": [
+    "operation",
+    "mutation"
+   ],
+   "before": {
+    "operation": "compose",
+    "mutation": true
+   },
+   "after": {
+    "operation": "inform",
+    "mutation": false
+   },
+   "classification": "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "OSA-010:1",
+   "prompt": "What does Ochiga Development do?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-001:1",
+   "prompt": "What is wrong with the estate?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "assess"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-002:3",
+   "prompt": "If the camera comes back online, what changes?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "reassess"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-002:7",
+   "prompt": "Do not report the camera as recovered yet.",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "reject"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-004:4",
+   "prompt": "What about the AC?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-004:5",
+   "prompt": "Could this be a connection problem?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "assess"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-004:6",
+   "prompt": "What should we verify before replacing anything?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": "advise"
+   },
+   "after": {
+    "objective": "assess"
+   },
+   "classification": "objective_reclassified",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-004:7",
+   "prompt": "Do not claim you inspected the hardware.",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "reject"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-005:3",
+   "prompt": "Who visited previously?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-005:6",
+   "prompt": "What should security check rather than assume?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": "compare"
+   },
+   "after": {
+    "objective": "advise"
+   },
+   "classification": "objective_reclassified",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-006:3",
+   "prompt": "Now show cameras.",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-009:4",
+   "prompt": "Do not execute anything.",
+   "changed": [
+    "operation",
+    "mutation",
+    "cancel"
+   ],
+   "before": {
+    "operation": "reject",
+    "mutation": true,
+    "cancel": false
+   },
+   "after": {
+    "operation": "cancel",
+    "mutation": false,
+    "cancel": true
+   },
+   "classification": "cancellation_recognised_execution_intent_removed",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-010:1",
+   "prompt": "What is happening in this building?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "FAC-010:4",
+   "prompt": "What can you say estate-wide?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": "assess"
+   },
+   "after": {
+    "objective": "explain"
+   },
+   "classification": "objective_reclassified",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-001:4",
+   "prompt": "Can you actually verify the lock?",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "propose_mutation"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-001:7",
+   "prompt": "Just advise, do not change anything.",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "reject"
+   },
+   "after": {
+    "operation": "inform"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-004:3",
+   "prompt": "Can you see the camera?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-004:4",
+   "prompt": "Does no alert mean no problem?",
+   "changed": [
+    "objective",
+    "operation",
+    "mutation"
+   ],
+   "before": {
+    "objective": null,
+    "operation": "reject",
+    "mutation": true
+   },
+   "after": {
+    "objective": "assess",
+    "operation": "inform",
+    "mutation": false
+   },
+   "classification": "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-005:1",
+   "prompt": "Which devices are offline?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-005:5",
+   "prompt": "Which device did I mean earlier?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "explain"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-006:4",
+   "prompt": "Who visited yesterday?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-007:2",
+   "prompt": "Is the old light problem still open?",
+   "changed": [
+    "operation"
+   ],
+   "before": {
+    "operation": "navigate"
+   },
+   "after": {
+    "operation": "inspect"
+   },
+   "classification": "operation_reclassified_no_execution_effect",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-007:6",
+   "prompt": "Can you mark it verified just from that?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "assess"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-009:3",
+   "prompt": "What is their wallet balance?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-009:4",
+   "prompt": "Who is visiting them today?",
+   "changed": [
+    "objective"
+   ],
+   "before": {
+    "objective": null
+   },
+   "after": {
+    "objective": "retrieve"
+   },
+   "classification": "objective_newly_recognised",
+   "intentional": true,
+   "execution_intent_widened": false
+  },
+  {
+   "id": "CON-010:3",
+   "prompt": "If I said yes, would that execute it?",
+   "changed": [
+    "objective",
+    "operation",
+    "mutation"
+   ],
+   "before": {
+    "objective": null,
+    "operation": "approve",
+    "mutation": true
+   },
+   "after": {
+    "objective": "advise",
+    "operation": "inform",
+    "mutation": false
+   },
+   "classification": "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)",
+   "intentional": true,
+   "execution_intent_widened": false
+  }
+ ]
+}

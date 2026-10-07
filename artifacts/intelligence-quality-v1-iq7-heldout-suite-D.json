@@ -1,0 +1,610 @@
+{
+ "version": 1,
+ "batch": "D",
+ "status": "IQ7_BLIND_D_FROZEN_POST_IMPLEMENTATION",
+ "note": "Authored after the IQ-7 implementation was final and never run before this file was written. Run once; failures are reported, never tuned against.",
+ "contexts": {
+  "o_none": null,
+  "o_rank": {
+   "surface": "office_internal",
+   "objective": "prioritize",
+   "domains": [
+    "crm",
+    "office_development",
+    "office_reports",
+    "office_financial"
+   ],
+   "seed": [
+    "Forget the small stuff. Which three things can actually move Ochiga forward?"
+   ]
+  },
+  "o_dev": {
+   "surface": "office_internal",
+   "objective": "assess",
+   "domains": [
+    "office_development"
+   ],
+   "seed": [
+    "What are we neglecting in development?"
+   ]
+  },
+  "o_crm": {
+   "surface": "office_internal",
+   "objective": "assess",
+   "domains": [
+    "crm"
+   ],
+   "seed": [
+    "Which opportunity deserves my time this morning?"
+   ]
+  },
+  "p_none": null,
+  "p_obj": {
+   "surface": "public_corporate",
+   "objective": "assess",
+   "domains": [
+    "corporate_opportunity"
+   ],
+   "seed": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  "f_none": null,
+  "f_assess": {
+   "surface": "facility",
+   "objective": "assess",
+   "domains": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "seed": [
+    "Does the water problem still come first?"
+   ]
+  },
+  "c_none": null,
+  "c_assess": {
+   "surface": "consumer",
+   "objective": "assess",
+   "domains": [
+    "home",
+    "devices",
+    "security",
+    "visitors",
+    "utilities"
+   ],
+   "seed": [
+    "I am leaving home. Anything I should deal with?"
+   ]
+  },
+  "c_room": {
+   "surface": "consumer",
+   "objective": "assess",
+   "domains": [
+    "rooms",
+    "devices"
+   ],
+   "label": "bedroom",
+   "seed": [
+    "The bedroom feels too hot."
+   ]
+  }
+ },
+ "items": [
+  {
+   "id": "IQ7D-001",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Which reports still need my signature?",
+   "o": "retrieve",
+   "sub": "office_reports"
+  },
+  {
+   "id": "IQ7D-002",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Pull together a short note on where the financing stands.",
+   "o": "summarize",
+   "sub": "office_financial"
+  },
+  {
+   "id": "IQ7D-003",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "Would it be reasonable to expect the Lagos site to break even by next year?",
+   "o": "assess"
+  },
+  {
+   "id": "IQ7D-004",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Line up the two investors against each other.",
+   "o": "compare"
+  },
+  {
+   "id": "IQ7D-005",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "colloquial",
+   "c": "o_none",
+   "u": "Make you tell me which of these leads dey hot pass.",
+   "o": "prioritize",
+   "sub": "crm"
+  },
+  {
+   "id": "IQ7D-006",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Because?",
+   "o": "explain",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-007",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "Give me the headline version of that.",
+   "o": "summarize",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-008",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_rank",
+   "u": "Does the picture shift if the contractor walks away?",
+   "o": "reassess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-009",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_none",
+   "u": "I don't want advice, I want the list of open items.",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7D-010",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_dev",
+   "u": "Are we on solid ground with the approvals?",
+   "o": "assess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-011",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_dev",
+   "u": "What ought we to do about the cost overrun?",
+   "o": "advise",
+   "sub": "inherit",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-012",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Tell me why the second lead ranked above the first.",
+   "o": "explain"
+  },
+  {
+   "id": "IQ7D-013",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Which opportunities came in this week?",
+   "o": "retrieve",
+   "sub": "crm"
+  },
+  {
+   "id": "IQ7D-014",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "What is the single biggest threat to the programme right now?",
+   "o": "prioritize"
+  },
+  {
+   "id": "IQ7D-015",
+   "split": "blind",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_none",
+   "u": "How does your company decide who to work with?",
+   "o": null,
+   "nr": [
+    "capability_discovery"
+   ]
+  },
+  {
+   "id": "IQ7D-016",
+   "split": "blind",
+   "s": "public_corporate",
+   "st": "distant",
+   "c": "p_obj",
+   "u": "How strong is my position, honestly?",
+   "o": "assess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-017",
+   "split": "blind",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_obj",
+   "u": "We got a valuation last month.",
+   "o": null,
+   "f": "material_new_fact",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-018",
+   "split": "blind",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Let me see the repairs that are overdue.",
+   "o": "retrieve",
+   "sub": "maintenance"
+  },
+  {
+   "id": "IQ7D-019",
+   "split": "blind",
+   "s": "facility",
+   "st": "distant",
+   "c": "f_assess",
+   "u": "If the pump dies tonight, what is the knock-on effect?",
+   "o": "reassess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-020",
+   "split": "blind",
+   "s": "facility",
+   "st": "colloquial",
+   "c": "f_assess",
+   "u": "Which wahala we fit leave till Monday?",
+   "o": "prioritize",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-021",
+   "split": "blind",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Compare last month's incidents to this month's.",
+   "o": "compare"
+  },
+  {
+   "id": "IQ7D-022",
+   "split": "blind",
+   "s": "facility",
+   "st": "elliptical",
+   "c": "f_assess",
+   "u": "Meaning what exactly?",
+   "o": "explain",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-023",
+   "split": "blind",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "How many visitors have signed in today?",
+   "o": "retrieve",
+   "sub": "visitors"
+  },
+  {
+   "id": "IQ7D-024",
+   "split": "blind",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Recap the night shift.",
+   "o": "summarize"
+  },
+  {
+   "id": "IQ7D-025",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "What is the temperature in the lounge?",
+   "o": "retrieve"
+  },
+  {
+   "id": "IQ7D-026",
+   "split": "blind",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_none",
+   "u": "Should I be bothered that the gate was open for an hour?",
+   "o": "assess"
+  },
+  {
+   "id": "IQ7D-027",
+   "split": "blind",
+   "s": "consumer",
+   "st": "colloquial",
+   "c": "c_none",
+   "u": "Wetin happen for house today?",
+   "o": "summarize"
+  },
+  {
+   "id": "IQ7D-028",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Is it worth upgrading the camera?",
+   "o": "advise"
+  },
+  {
+   "id": "IQ7D-029",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_assess",
+   "u": "Which matters more, the lock or the lights?",
+   "o": "compare",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-030",
+   "split": "blind",
+   "s": "consumer",
+   "st": "elliptical",
+   "c": "c_assess",
+   "u": "So what now?",
+   "o": "advise",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-031",
+   "split": "blind",
+   "s": "consumer",
+   "st": "adversarial",
+   "c": "c_none",
+   "u": "Tell me what features you offer.",
+   "o": null,
+   "act": "capability",
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7D-032",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "The lender has asked for more documents.",
+   "o": null,
+   "f": "material_new_fact",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-033",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_rank",
+   "u": "It is rumoured that the planning office will reject the application.",
+   "o": null,
+   "f": "unverified_claim",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-034",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "No, the second figure should be ninety.",
+   "o": null,
+   "f": "correction",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-035",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "The plan seems a bit thin to me.",
+   "o": null,
+   "f": "opinion"
+  },
+  {
+   "id": "IQ7D-036",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_rank",
+   "u": "Let's say the loan falls through.",
+   "o": "reassess",
+   "f": "hypothetical",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-037",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "When is the next review?",
+   "o": null,
+   "f": "question"
+  },
+  {
+   "id": "IQ7D-038",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Fine, understood.",
+   "o": null,
+   "f": "confirmation"
+  },
+  {
+   "id": "IQ7D-039",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "Lunch is at one.",
+   "o": null,
+   "f": "non_material_detail"
+  },
+  {
+   "id": "IQ7D-040",
+   "split": "blind",
+   "s": "facility",
+   "st": "near",
+   "c": "f_assess",
+   "u": "The east boiler has shut down.",
+   "o": null,
+   "f": "material_new_fact",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-041",
+   "split": "blind",
+   "s": "facility",
+   "st": "distant",
+   "c": "f_assess",
+   "u": "The security guard apparently saw someone at the fence.",
+   "o": null,
+   "f": "unverified_claim",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-042",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_assess",
+   "u": "The garage door is stuck halfway.",
+   "o": null,
+   "f": "material_new_fact",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7D-043",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_assess",
+   "u": "Personally I find the app a bit annoying.",
+   "o": null,
+   "f": "opinion"
+  },
+  {
+   "id": "IQ7D-044",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Wait, stop. Don't send it.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7D-045",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "Actually let's leave that for now.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7D-046",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "colloquial",
+   "c": "o_none",
+   "u": "Biko no do am.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7D-047",
+   "split": "blind",
+   "s": "consumer",
+   "st": "adversarial",
+   "c": "c_none",
+   "u": "I did not ask you to lock anything.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7D-048",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Switch on the hallway light please.",
+   "o": null,
+   "act": "mutation"
+  },
+  {
+   "id": "IQ7D-049",
+   "split": "blind",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_none",
+   "u": "Which services can you help me with?",
+   "o": null,
+   "act": "capability",
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7D-050",
+   "split": "blind",
+   "s": "facility",
+   "st": "adversarial",
+   "c": "f_none",
+   "u": "What can you tell me about the generator fault?",
+   "o": null,
+   "nr": [
+    "capability_discovery"
+   ]
+  }
+ ]
+}

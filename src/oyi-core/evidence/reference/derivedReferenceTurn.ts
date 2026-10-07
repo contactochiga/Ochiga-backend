@@ -60,7 +60,9 @@ export function handleDerivedReferenceTurn(a: DerivedTurnArgs): DerivedTurnResul
     if (asksReassess && !isAssessmentInformation(a.text)) return { handled: true, outcome: "reassess_no_prior_ordering", answer: composeNotReassessed("no_prior", null, activeFacts(facts)), assessment: touch() };
     if (["material_new_fact", "unverified_claim"].includes(info.type) && !/\b(?:actually|i meant|i mean)\b/i.test(a.text)) {
       const fact = makeFact(a.text, info, { status: "none", items: [], how: "no_artifact" }, facts, a.now);
-      return { handled: true, outcome: "fact_recorded_no_ordering", assessment: touch({ facts: addFact(facts, fact), pending_information: a.text.slice(0, 1000) }),
+      return { handled: true, outcome: "fact_recorded_no_ordering", assessment: touch({ facts: addFact(facts, fact), pending_information: a.text.slice(0, 1000),
+        // The claim stays bound to the selected target pointer (IQ-2): a statement about the subject is never detached from it.
+        ...(prev.target_ref && isAssessmentInformation(a.text) ? { material_information: { text: a.text.slice(0, 1000), target_id: prev.target_ref.canonical_id, source: "user_assertion" as const } } : {}) }),
         answer: `I have noted that as your own statement ${claim(a.text)}; I have not verified it and it is not confirmed evidence. There is no ordering for it to attach to or change: I have not ranked anything, so I am not recalculating anything.` };
     }
     return { handled: false, why: "no_artifact" };

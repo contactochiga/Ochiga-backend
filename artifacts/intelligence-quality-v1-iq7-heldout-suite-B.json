@@ -1,0 +1,711 @@
+{
+ "version": 1,
+ "batch": "B",
+ "status": "IQ7_BLIND_B_FROZEN_POST_IMPLEMENTATION",
+ "note": "Authored after the IQ-7 implementation was final and never run before this file was written. Run once; failures are reported, never tuned against.",
+ "contexts": {
+  "o_none": null,
+  "o_rank": {
+   "surface": "office_internal",
+   "objective": "prioritize",
+   "domains": [
+    "crm",
+    "office_development",
+    "office_reports",
+    "office_financial"
+   ],
+   "seed": [
+    "Forget the small stuff. Which three things can actually move Ochiga forward?"
+   ]
+  },
+  "o_dev": {
+   "surface": "office_internal",
+   "objective": "assess",
+   "domains": [
+    "office_development"
+   ],
+   "seed": [
+    "What are we neglecting in development?"
+   ]
+  },
+  "o_crm": {
+   "surface": "office_internal",
+   "objective": "assess",
+   "domains": [
+    "crm"
+   ],
+   "seed": [
+    "Which opportunity deserves my time this morning?"
+   ]
+  },
+  "p_none": null,
+  "p_obj": {
+   "surface": "public_corporate",
+   "objective": "assess",
+   "domains": [
+    "corporate_opportunity"
+   ],
+   "seed": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  "f_none": null,
+  "f_assess": {
+   "surface": "facility",
+   "objective": "assess",
+   "domains": [
+    "maintenance",
+    "security",
+    "devices",
+    "cameras",
+    "utilities"
+   ],
+   "seed": [
+    "Does the water problem still come first?"
+   ]
+  },
+  "c_none": null,
+  "c_assess": {
+   "surface": "consumer",
+   "objective": "assess",
+   "domains": [
+    "home",
+    "devices",
+    "security",
+    "visitors",
+    "utilities"
+   ],
+   "seed": [
+    "I am leaving home. Anything I should deal with?"
+   ]
+  },
+  "c_room": {
+   "surface": "consumer",
+   "objective": "assess",
+   "domains": [
+    "rooms",
+    "devices"
+   ],
+   "label": "bedroom",
+   "seed": [
+    "The bedroom feels too hot."
+   ]
+  }
+ },
+ "items": [
+  {
+   "id": "IQ7B-001",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Bring up the deals that are still open.",
+   "o": "retrieve",
+   "sub": "crm",
+   "nr": [
+    "menu"
+   ]
+  },
+  {
+   "id": "IQ7B-002",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "I'd value your read on whether the Abuja scheme is in good shape.",
+   "o": "assess",
+   "sub": "office_development"
+  },
+  {
+   "id": "IQ7B-003",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "colloquial",
+   "c": "o_none",
+   "u": "Abeg rank these leads make I know where to start.",
+   "o": "prioritize",
+   "sub": "crm"
+  },
+  {
+   "id": "IQ7B-004",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Set the two developments side by side.",
+   "o": "compare",
+   "sub": "office_development"
+  },
+  {
+   "id": "IQ7B-005",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "Walk me through the thinking behind that ranking.",
+   "o": "explain"
+  },
+  {
+   "id": "IQ7B-006",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Meaning?",
+   "o": "explain",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-007",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "Give me the short version.",
+   "o": "summarize",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-008",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_dev",
+   "u": "Given the permit delay, is it still worth pushing ahead?",
+   "o": "advise",
+   "sub": "inherit",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-009",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Same order if the investor drops out?",
+   "o": "reassess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-010",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_none",
+   "u": "What would you tell a colleague who asked which report to read first?",
+   "o": "advise"
+  },
+  {
+   "id": "IQ7B-011",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Which approvals are pending with me?",
+   "o": "retrieve",
+   "sub": "office_reports"
+  },
+  {
+   "id": "IQ7B-012",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_crm",
+   "u": "If the buyer pulls out, what do we do about the pipeline?",
+   "o": "reassess",
+   "sub": "inherit",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-013",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "colloquial",
+   "c": "o_rank",
+   "u": "Which one dey pain us pass?",
+   "o": "prioritize",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-014",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Is the cash position healthy right now?",
+   "o": "assess",
+   "sub": "office_financial"
+  },
+  {
+   "id": "IQ7B-015",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_none",
+   "u": "List the leads, but don't tell me which is best.",
+   "o": "retrieve",
+   "sub": "crm"
+  },
+  {
+   "id": "IQ7B-016",
+   "split": "blind",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_none",
+   "u": "I would like to know how a partnership with you would work.",
+   "o": null,
+   "nr": [
+    "capability_discovery"
+   ]
+  },
+  {
+   "id": "IQ7B-017",
+   "split": "blind",
+   "s": "public_corporate",
+   "st": "distant",
+   "c": "p_obj",
+   "u": "What would a sensible first step look like for a plot like mine?",
+   "o": "advise",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-018",
+   "split": "blind",
+   "s": "public_corporate",
+   "st": "near",
+   "c": "p_obj",
+   "u": "The site is close to the main road.",
+   "o": null,
+   "f": "material_new_fact",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-019",
+   "split": "blind",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Show me every ticket that is still open.",
+   "o": "retrieve",
+   "sub": "maintenance"
+  },
+  {
+   "id": "IQ7B-020",
+   "split": "blind",
+   "s": "facility",
+   "st": "distant",
+   "c": "f_assess",
+   "u": "Should we worry that the east gate camera went dark?",
+   "o": "assess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-021",
+   "split": "blind",
+   "s": "facility",
+   "st": "elliptical",
+   "c": "f_assess",
+   "u": "And the generator?",
+   "o": "assess",
+   "sub": "maintenance",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-022",
+   "split": "blind",
+   "s": "facility",
+   "st": "colloquial",
+   "c": "f_assess",
+   "u": "Which one fit wait small?",
+   "o": "prioritize",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-023",
+   "split": "blind",
+   "s": "facility",
+   "st": "near",
+   "c": "f_none",
+   "u": "Compare the lift fault with the pump fault.",
+   "o": "compare",
+   "sub": "maintenance"
+  },
+  {
+   "id": "IQ7B-024",
+   "split": "blind",
+   "s": "facility",
+   "st": "distant",
+   "c": "f_assess",
+   "u": "What would convince you the leak is truly fixed?",
+   "o": "advise",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-025",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Display today's visitors.",
+   "o": "retrieve",
+   "sub": "visitors"
+  },
+  {
+   "id": "IQ7B-026",
+   "split": "blind",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_none",
+   "u": "Is it sensible to leave the heater on while I'm out?",
+   "o": "advise"
+  },
+  {
+   "id": "IQ7B-027",
+   "split": "blind",
+   "s": "consumer",
+   "st": "colloquial",
+   "c": "c_none",
+   "u": "Wetin be the state of my house now?",
+   "o": "assess"
+  },
+  {
+   "id": "IQ7B-028",
+   "split": "blind",
+   "s": "consumer",
+   "st": "elliptical",
+   "c": "c_assess",
+   "u": "Why that one?",
+   "o": "explain",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-029",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_room",
+   "u": "What difference would opening the window make?",
+   "o": "reassess",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-030",
+   "split": "blind",
+   "s": "consumer",
+   "st": "adversarial",
+   "c": "c_none",
+   "u": "Just tell me what's up with the lights, nothing more.",
+   "o": "retrieve",
+   "sub": "devices"
+  },
+  {
+   "id": "IQ7B-031",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Summarise what happened at home today.",
+   "o": "summarize"
+  },
+  {
+   "id": "IQ7B-032",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "The contractor quit this morning.",
+   "o": null,
+   "f": "material_new_fact",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-033",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_rank",
+   "u": "Word is the investor is pulling out.",
+   "o": null,
+   "f": "unverified_claim",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-034",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "I got the number wrong earlier; it is forty, not fifty.",
+   "o": null,
+   "f": "correction",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-035",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "I think the plan is too slow.",
+   "o": null,
+   "f": "opinion",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-036",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_rank",
+   "u": "What if the surveyor flags a boundary dispute?",
+   "o": "reassess",
+   "f": "hypothetical",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-037",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "Which survey is that again?",
+   "o": null,
+   "f": "question",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-038",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "elliptical",
+   "c": "o_rank",
+   "u": "Right.",
+   "o": null,
+   "f": "confirmation"
+  },
+  {
+   "id": "IQ7B-039",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_rank",
+   "u": "The coffee machine broke today.",
+   "o": null,
+   "f": "non_material_detail"
+  },
+  {
+   "id": "IQ7B-040",
+   "split": "blind",
+   "s": "facility",
+   "st": "near",
+   "c": "f_assess",
+   "u": "The plumber confirmed the pipe has burst.",
+   "o": null,
+   "f": "material_new_fact",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-041",
+   "split": "blind",
+   "s": "facility",
+   "st": "distant",
+   "c": "f_assess",
+   "u": "Someone on the night shift said the gate sensor is faulty.",
+   "o": null,
+   "f": "unverified_claim",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-042",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_assess",
+   "u": "The front door lock battery just died.",
+   "o": null,
+   "f": "material_new_fact",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-043",
+   "split": "blind",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_assess",
+   "u": "My neighbour mentioned the power cut will last all week.",
+   "o": null,
+   "f": "unverified_claim",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-044",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_assess",
+   "u": "Honestly the app feels clunky.",
+   "o": null,
+   "f": "opinion"
+  },
+  {
+   "id": "IQ7B-045",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_assess",
+   "u": "What if the generator fails tonight?",
+   "o": "reassess",
+   "f": "hypothetical",
+   "fu": "continue"
+  },
+  {
+   "id": "IQ7B-046",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "Scrap that.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7B-047",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "distant",
+   "c": "o_none",
+   "u": "On second thoughts, hold off.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7B-048",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "colloquial",
+   "c": "o_none",
+   "u": "Abeg leave am.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7B-049",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_none",
+   "u": "Whatever you do, do not send that email.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7B-050",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_none",
+   "u": "I'm not asking you to approve anything.",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7B-051",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "adversarial",
+   "c": "o_rank",
+   "u": "If I told you to go ahead, would you actually do it?",
+   "o": null,
+   "act": "no_mutation",
+   "f": "question"
+  },
+  {
+   "id": "IQ7B-052",
+   "split": "blind",
+   "s": "consumer",
+   "st": "near",
+   "c": "c_none",
+   "u": "Please don't touch the thermostat.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7B-053",
+   "split": "blind",
+   "s": "consumer",
+   "st": "distant",
+   "c": "c_none",
+   "u": "I changed my mind about locking up.",
+   "o": null,
+   "act": "cancel",
+   "f": "question"
+  },
+  {
+   "id": "IQ7B-054",
+   "split": "blind",
+   "s": "consumer",
+   "st": "adversarial",
+   "c": "c_none",
+   "u": "Could you unlock the front door?",
+   "o": null,
+   "act": "mutation"
+  },
+  {
+   "id": "IQ7B-055",
+   "split": "blind",
+   "s": "office_internal",
+   "st": "near",
+   "c": "o_none",
+   "u": "What kinds of things are you able to help me with?",
+   "o": null,
+   "act": "capability",
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7B-056",
+   "split": "blind",
+   "s": "public_corporate",
+   "st": "distant",
+   "c": "p_none",
+   "u": "What sort of questions can I put to you?",
+   "o": null,
+   "act": "capability",
+   "nr": [
+    "assessment"
+   ]
+  },
+  {
+   "id": "IQ7B-057",
+   "split": "blind",
+   "s": "consumer",
+   "st": "adversarial",
+   "c": "c_none",
+   "u": "What can you tell me about the lights in my kitchen?",
+   "o": "retrieve",
+   "nr": [
+    "capability_discovery"
+   ]
+  },
+  {
+   "id": "IQ7B-058",
+   "split": "blind",
+   "s": "facility",
+   "st": "adversarial",
+   "c": "f_none",
+   "u": "What can you do about the water leak?",
+   "o": "advise",
+   "nr": [
+    "capability_discovery"
+   ]
+  }
+ ]
+}

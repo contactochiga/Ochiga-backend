@@ -1,0 +1,171 @@
+{
+ "version": 1,
+ "status": "IQ7_OVERFIT_AUDIT",
+ "base": "912fa850ede01e5c42f331bc7c096fa9610956ff",
+ "rule_literals": {
+  "before": 639,
+  "after": 654
+ },
+ "before": {
+  "GENERAL_SEMANTIC_TOKEN": 599,
+  "CORPUS_VERBATIM": 21,
+  "LEGITIMATE_DOMAIN_TERM": 17,
+  "FIXTURE_SPECIFIC": 2
+ },
+ "after": {
+  "GENERAL_SEMANTIC_TOKEN": 631,
+  "CORPUS_VERBATIM": 4,
+  "LEGITIMATE_DOMAIN_TERM": 19
+ },
+ "flagged_rules_removed_or_rewritten": 20,
+ "still_flagged": [
+  {
+   "file": "src/oyi-core/interpretation/semanticObjective.ts",
+   "line": 348,
+   "category": "CORPUS_VERBATIM",
+   "source": "^(?:i )?(?:have )?changed my mind\\b"
+  },
+  {
+   "file": "src/oyi-core/interpretation/conversationIntentRouting.ts",
+   "line": 245,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(security|alerts?|alarms?|gate|front door|access denied|unusual access|security issues?|incidents?|acknowledge|escalate)\\b"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 278,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(financial\\s+position|financially|recurring\\s+revenue|portfolio\\s+financial|financial\\s+performance|financial\\s+attention|cash\\s+position|"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 340,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(security|alarm|alert|gate|access denied|unusual access|incident|front door)\\b"
+  }
+ ],
+ "removed_sample": [
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 22,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:view|priority|prioritize|recommendation|assessment|reasoning|explanation|anything|decision|ranking|do that|what now|come first)\\b"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 24,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:compare|trade[- ]?offs?|more important|rather than|versus)\\b|\\bwhich\\b.*\\bbetter\\b|\\b(?:would|could|is|does)\\b.*\\b(?:different|differ)\\"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 26,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:which|what)\\b.*\\b(?:choose|come first|worth pursuing|most useful|most important|order of work)\\b|\\b(?:give|offer)\\b.*\\border of work\\b|"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 27,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:summari[sz]e|summary|handover|decision brief|short version)\\b"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 29,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:recommend|suggest|advise|delegate|delegated|next step|next move|next action)\\b|\\b(?:offer|give)\\b.*\\b(?:safe way|reason)\\b"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 31,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:do|does|can|could|have|has|is|are)\\b.*\\b(?:know|known|observe|verify|confirmed|baseline|scope|conclude|evidence|reading|arrived|physica"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 34,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\bask me before\\b|\\b(?:too hot|too cold|feels? (?:hot|cold|unsafe))\\b|\\bwhich\\b.*\\bcausing\\b"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 45,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:what|which)\\b.*\\bcan (?:safely )?wait\\b|\\bwhich\\b.*\\b(?:worth pursuing|blocks? progress|come first)\\b"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 47,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:does|is|can|do)\\b.*\\b(?:prove|mean broken|actually verify|actually know|need to worry|enough to)\\b|\\bwhat (?:is|remains) (?:known|unkno"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 50,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\bcompare\\b|\\btrade[- ]?offs?\\b|\\bwhich\\b.*\\b(?:better|versus|rather than)\\b"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 51,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:matter|matters) most\\b|\\b(?:attention|deal with|focus on) first\\b|\\b(?:what|which)\\b.*\\b(?:priorit|priority|priorities|most important|b"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 52,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\bwhat (?:would|should) (?:you|i|we|the facility manager) do\\b|\\bwhat should (?:i|we)\\b|\\bnext (?:move|step)\\b|\\bwhat can i delegate\\b|\\bwha"
+  },
+  {
+   "file": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+   "line": 54,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:summari[sz]e|summary|short version|overview)\\b"
+  },
+  {
+   "file": "src/oyi-core/context/conversationAssessmentContext.ts",
+   "line": 99,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:visitors?|who.*(?:expected|coming)|arrival|arrived|expired access)\\b"
+  },
+  {
+   "file": "src/oyi-core/context/conversationAssessmentContext.ts",
+   "line": 215,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:privacy|private documents?|third.party)\\b"
+  },
+  {
+   "file": "src/oyi-core/context/conversationAssessmentContext.ts",
+   "line": 216,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:own the work|staff member|ownership|representation|assigned|responsible person)\\b"
+  },
+  {
+   "file": "src/oyi-core/evidence/reassessment/facts.ts",
+   "line": 25,
+   "category": "FIXTURE_SPECIFIC",
+   "source": "\\b(?:sqm|land|family|sell|sale|lease|jv|lagos|abuja|lekki|epe|vi)\\b|title"
+  },
+  {
+   "file": "src/oyi-core/evidence/reassessment/facts.ts",
+   "line": 37,
+   "category": "FIXTURE_SPECIFIC",
+   "source": "\\b(?:says?|said|told me|claims?|promises?|according to|reports?|insists?)\\b|\\b(?:the )?(?:chairman|analyst|plumber|owner|partner|agent|neigh"
+  },
+  {
+   "file": "src/oyi-core/context/publicOpportunityObjective.ts",
+   "line": 56,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\b(?:is|was|now)\\s+(?:fully\\s+)?(?:perfected|registered)|\\bregistered\\s+title\\b|\\bperfected\\s+title\\b"
+  },
+  {
+   "file": "src/oyi-core/context/publicOpportunityObjective.ts",
+   "line": 72,
+   "category": "CORPUS_VERBATIM",
+   "source": "\\bfamily property\\b"
+  }
+ ],
+ "classification_note": "GENERAL_SEMANTIC_TOKEN covers single-word stems and structural patterns; LEGITIMATE_DOMAIN_TERM is the explicit allowlist in scripts/iq7-guard-static.mjs (product concepts, ordinal-reference grammar, generic overall-state questions). UNNECESSARY rules were removed rather than listed.",
+ "new_runtime_literals_added_for_heldout": "none by construction: the held-out artifact is not readable by runtime (guard rule 1) and the guard fails on any corpus- or held-out-verbatim multi-word literal outside the allowlist."
+}

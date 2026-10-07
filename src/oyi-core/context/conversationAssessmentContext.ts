@@ -90,14 +90,16 @@ export function assessmentContinuation(text: string): boolean {
   if (!n) return false;
   const lead = /^\s*(?:(?:okay|ok|so|well|and|but|then|now)[,\s]+)*([a-z']+)/i.exec(raw)?.[1]?.toLowerCase() ?? T[0];
   if (/^\s*(?:and|so|but|then)\b/i.test(raw) && n <= 8) return true;
-  if (n <= 3 && !u.imperative) return true;
+  if (n <= 3 && !u.imperative && !(/^\s*(?:now|next|also|show|list|open)\b/i.test(raw) && domainHits(T).length)) return true;
   if (n <= 8 && (ANAPHORA.has(lead) || T.slice(0, 4).some(t => ANAPHORA.has(t)) || ELLIPSIS_LEAD.has(lead)) && !u.imperative) return true;
   if (/\b(?:go back|back to|return to|returning to|as for|what about|how about)\b/i.test(raw)) return true;
   if (/\b(?:i mean|i meant|instead|rather)\b/i.test(raw) || /^\s*(?:no|nope|actually|sorry)[,\s]/i.test(raw)) return true;
   if (n <= 12 && T.some(t => ["it", "that", "this", "those", "these", "they", "them", "earlier", "still"].includes(t))) return true;
   if (/\b(?:evidence|verification|uncertainty|missing|authority|authorization|measurement|confirm\w*)\b/i.test(raw) && !/\b(?:about|across|instead|i mean)\b/i.test(raw)) return true;
   // information about the subject (a plain statement) continues the assessment it informs
-  return u.declarative && n >= 3 && domainHits(T).length > 0;
+  // a supposition or a reported statement made while an assessment is running is information for it
+  if (u.declarative && n >= 4 && (["imagine", "suppose", "supposing", "assume", "assuming", "pretend"].includes(lead) || T.some(t => ["says", "said", "heard", "told", "reported", "reports", "claims", "claimed", "mentioned"].includes(t)))) return true;
+  return u.declarative && n >= 3 && (domainHits(T).length > 0 || isAssessmentInformation(raw));
 }
 
 // Subject vocabulary, not a capability registry or an execution plan. These
@@ -120,7 +122,10 @@ export function assessmentSubjectDomains(frame: SemanticFrame, surface: string):
     const d = first(["crm", "office_development", "office_financial", "office_reports"]) ?? (hits.some(h => h.domain === "corporate_opportunity") ? "office_development" : undefined);
     if (d) return [d];
   } else {
-    let d = hits.find(h => ["maintenance", "security", "cameras", "visitors", "devices", "utilities", "wallet", "rooms"].includes(h.domain))?.domain;
+    // In a compound noun phrase the HEAD (the last noun: "light problem", "water leak") names the subject; its modifier only qualifies it.
+    const scoped = hits.filter(h => !(/^(?:problem|issue)/.test(tokens[h.at]) && !hits.some(x => x.at === h.at - 1))).filter(h => ["maintenance", "security", "cameras", "visitors", "devices", "utilities", "wallet", "rooms"].includes(h.domain));
+    const headed = scoped.filter((h, i) => !(scoped[i + 1] && scoped[i + 1].at === h.at + 1 && scoped[i + 1].domain === "maintenance" && h.domain !== "maintenance"));
+    let d = headed[0]?.domain;
     // "who ..." asks about people (visitors); a consumption/billing word makes "water"/"power" a utility question
     if (tokens.includes("who") && (d === undefined || ["devices", "security", "rooms", "visitors"].includes(d)) && (hits.some(h => h.domain === "visitors") || d !== undefined || tokens.some(x => ["coming", "come", "visiting", "arriving"].includes(x)))) d = "visitors";
     if (hits.some(h => h.domain === "utilities") && tokens.some(x => ["bill", "bills", "usage", "consumption", "meter", "tariff", "kwh", "used", "use"].includes(x))) d = "utilities";
@@ -212,7 +217,10 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
       : null;
   }
   const correction = /\b(?:i mean|i meant|instead|forget|actually.*\bnot\b)\b/i.test(frame.rawText);
-  const subjects = assessmentSubjectDomains(frame, surface);
+  // A subject that comes only from the turn's coarse domain label (no governed noun named) never narrows an established wider subject.
+  const nameTokens = tokensOf(frame.rawText);
+  const named = domainHits(nameTokens).some(h => h.domain !== "environment" && !/^(?:problem|issue)/.test(nameTokens[h.at]));
+  const subjects = old?.subject_domains && old.subject_domains.length > 1 && !named ? [] : assessmentSubjectDomains(frame, surface);
   const explicitDomain = subjects.length === 1 ? subjects[0] : null;
   const switched = explicitDomain && old?.domain && explicitDomain !== old.domain && !assessmentContinuation(frame.rawText);
   const retain = old && (!switched || answeringPending) && (!old.suspended || assessmentContinuation(frame.rawText)
