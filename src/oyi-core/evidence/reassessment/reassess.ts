@@ -1,5 +1,6 @@
 import type { ArtifactItem, DerivedRanking } from "../judgment/types";
 import { isOrdered, primaryGroup } from "../reference/derivedReference";
+import { assertsPromiseOrAction } from "../judgment/validator";
 import { activeFacts, type ConversationFact } from "./facts";
 
 // IQ-6 reassessment contract: a compact, structural record of "did the new information change what Oyi concluded". It stores no raw
@@ -40,7 +41,7 @@ export function classifyChange(oldA: DerivedRanking, newA: DerivedRanking): { ch
 
 const kind = (a: DerivedRanking) => ((a.artifact_type ?? "ranking") === "ranking" ? "ordering" : "assessment");
 const list = (a: DerivedRanking) => primaryGroup(a).map(i => `${i.rank}. ${lab(i)}`).join("; ");
-const claim = (f: ConversationFact) => `“${f.text.replace(/[.!\s]+$/, "")}”`;
+const claim = (f: ConversationFact) => assertsPromiseOrAction(f.text) ? "(wording not repeated)" : `“${f.text.replace(/[.!\s]+$/, "")}”`;
 
 export function composeReassessment(a: { old: DerivedRanking; next: DerivedRanking; cls: ReturnType<typeof classifyChange>; facts: ConversationFact[]; currentText: string; reused: number; refreshed: number }): string {
   const k = kind(a.old), f = a.facts.slice(0, 2);
@@ -52,7 +53,8 @@ export function composeReassessment(a: { old: DerivedRanking; next: DerivedRanki
   const changed = a.cls.changed_factors.length ? ` What changed: ${a.cls.changed_factors.slice(0, 4).join("; ")}.` : "";
   const before = a.cls.change_class === "UNCHANGED" ? "" : ` Before: ${list(a.old)}.`;
   const evidence = ` I re-read ${a.refreshed} source${a.refreshed === 1 ? "" : "s"} and reused ${a.reused} unchanged one${a.reused === 1 ? "" : "s"}.`;
-  return `${using}, ${verdict}.${records}${changed}${before}${evidence} Current assessment: ${a.currentText}`;
+  const ifTrue = f.length && a.cls.change_class === "UNCHANGED" ? ` If that statement is correct it could bear on ${bound.length ? bound.map(lab).join(" and ") : "the items below"}; I cannot confirm it from what I can read, so I have not changed the ${k} on it.` : "";
+  return `${using}, ${verdict}.${ifTrue}${records}${changed}${before}${evidence} Current assessment: ${a.currentText}`;
 }
 
 export function composeNotReassessed(reason: "evidence" | "judgment" | "capability" | "authority" | "no_prior" | "ambiguous", old: DerivedRanking | null, facts: ConversationFact[], detail?: string): string {

@@ -34,7 +34,8 @@ export type DerivedTurnResult =
   | { handled: true; outcome: string; answer: string; assessment: ConversationAssessmentContext };
 
 const kindOf = (a: DerivedRanking) => ((a.artifact_type ?? "ranking") === "ranking" ? "ordering" : "assessment");
-const claim = (t: string) => `“${t.replace(/[.!\s]+$/, "").slice(0, 160)}”`;
+// A user's claim is quoted back only when quoting it cannot read as Oyi making a promise or taking an action itself.
+const claim = (t: string) => assertsPromiseOrAction(t) ? "(wording not repeated)" : `“${t.replace(/[.!\s]+$/, "").slice(0, 160)}”`;
 
 // Material information that arrives while a derived artifact is active does not delete it. It is classified (IQ-2's "is this
 // information" predicate plus a type), bound to the candidate it is about, stored as a USER-SUPPLIED, UNVERIFIED fact, and only the

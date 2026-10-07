@@ -101,9 +101,17 @@
     {
       "id": "iq6:reassessment-modules-add-no-tool-or-write-path",
       "status": "PASS"
+    },
+    {
+      "id": "iq6:a-claim-whose-wording-reads-as-a-promise-is-not-echoed-back",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:unchanged-reassessment-reasons-conditionally-without-adopting-the-claim",
+      "status": "PASS"
     }
   ],
   "counts": {
-    "PASS": 25
+    "PASS": 27
   }
 }
