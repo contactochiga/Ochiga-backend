@@ -1,0 +1,146 @@
+{
+ "version": 1,
+ "head_start": "ee8e891",
+ "status": "IQ8D2_RESULTS (diagnostic only; IQ-8 NOT certified)",
+ "diagnostic_126": {
+  "iq8d": {
+   "pass": 74,
+   "rate": 0.587
+  },
+  "iq8d2": {
+   "pass": 79,
+   "rate": 0.627
+  },
+  "regressions_vs_iq8d": 0,
+  "note": "diagnostic only; not tuned after the final run; 0 of the 61 previously-correct items lost"
+ },
+ "buckets_pass_counts": {
+  "CORRECT": {
+   "n": 61,
+   "iq8d": 61,
+   "iq8d2": 61
+  },
+  "ANSWER_TARGET_DERIVATION_FAILURE": {
+   "n": 16,
+   "iq8d": 3,
+   "iq8d2": 4
+  },
+  "ROUTING_FAILURE": {
+   "n": 21,
+   "iq8d": 1,
+   "iq8d2": 1
+  },
+  "CAPABILITY_RESULT_TOO_WEAK": {
+   "n": 2,
+   "iq8d": 0,
+   "iq8d2": 2
+  },
+  "TARGET_NOT_APPLIED": {
+   "n": 4,
+   "iq8d": 1,
+   "iq8d2": 1
+  },
+  "AMBIGUOUS_SHOULD_CLARIFY": {
+   "n": 3,
+   "iq8d": 0,
+   "iq8d2": 1
+  },
+  "CAPABILITY_TEMPLATE_OVERRIDES_TARGET": {
+   "n": 10,
+   "iq8d": 5,
+   "iq8d2": 5
+  },
+  "MISSING_CAPABILITY": {
+   "n": 2,
+   "iq8d": 0,
+   "iq8d2": 0
+  },
+  "COMPOSITION_FAILURE": {
+   "n": 5,
+   "iq8d": 3,
+   "iq8d2": 4
+  },
+  "OTHER": {
+   "n": 2,
+   "iq8d": 0,
+   "iq8d2": 0
+  }
+ },
+ "frozen_280": {
+  "statuses": {
+   "PASS": 69,
+   "FAIL": 206,
+   "BLOCKED": 5
+  },
+  "audit_failures": 0,
+  "answers_changed": 122,
+  "changed_pass_turns": 25,
+  "note": "statuses not promoted; changed PASS-turn answers reviewed by the author only (not independent)"
+ },
+ "self_graded_candidates": {
+  "target_met": 62,
+  "graded": 83,
+  "rate": 0.747,
+  "note": "unchanged vs IQ-8D; heuristic, self-graded"
+ },
+ "independent_candidate_review": {
+  "reviewer": "independent subagent, packet only (no source access)",
+  "changed_items": 60,
+  "verdicts": {
+   "MEETS_TARGET": 38,
+   "PARTIAL": 17,
+   "DOES_NOT_MEET": 5
+  },
+  "vs_before": {
+   "BETTER": 48,
+   "SAME": 10,
+   "WORSE": 2
+  },
+  "transitions_vs_prior_independent_review": {
+   "MEETS->MEETS": 30,
+   "PARTIAL->MEETS": 7,
+   "DNM->MEETS": 1,
+   "PARTIAL->PARTIAL": 7,
+   "MEETS->PARTIAL": 10,
+   "PARTIAL->DNM": 3,
+   "MEETS->DNM": 1,
+   "DNM->DNM": 1
+  },
+  "worse": [
+   "OSA-004:4",
+   "CON-002:4"
+  ],
+  "does_not_meet": [
+   "OMA-007:2",
+   "OSA-004:4",
+   "OSA-010:7",
+   "CON-002:4",
+   "CON-010:5"
+  ],
+  "note": "the reviewer is stricter than the prior review on 14 items; the net result is NOT a clear improvement and is reported as pending adjudication"
+ },
+ "wave11": {
+  "harness": "132/132",
+  "structured": "utilities.usage.read: response_status=unavailable, evidence_count=0 -> HONEST_LIMITATION (not a capability success)"
+ },
+ "workflow_regression": {
+  "control": "3a9956d (unmodified Core)",
+  "control_failures": 4,
+  "finding": "IQ-8 (bb2d611 range) introduced an additional earlier failure for multi-gang device commands (domainFor device override); fixed in b742931; the four smokes now fail at the same assertion with the same output as the control",
+  "suites": [
+   "reload",
+   "multigang",
+   "correction",
+   "durable-continuation"
+  ]
+ },
+ "performance_ms": {
+  "derive": 0.09,
+  "map": 0.0053,
+  "project": 0.008,
+  "added_per_turn": 0.013,
+  "provider_calls": 0,
+  "db_queries": 0
+ },
+ "incident": "An accidental git checkout discarded uncommitted source edits mid-slice; they were re-applied from the recorded patches, rebuilt, and re-verified (126 diagnostic reproduced 79/126 before and after)."
+}
