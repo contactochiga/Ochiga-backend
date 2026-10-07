@@ -1,0 +1,141 @@
+{
+ "version": 1,
+ "head_start": "946758e",
+ "status": "IQ8E_RESULTS (diagnostic; IQ-8 NOT certified)",
+ "diagnostic_126": {
+  "iq8d3": {
+   "pass": 97,
+   "rate": 0.77
+  },
+  "iq8e": {
+   "pass": 117,
+   "rate": 0.929
+  },
+  "lost_previously_correct": 0,
+  "note": "diagnostic only; the suite has been run many times during development and is not a certification result"
+ },
+ "buckets_pass_counts_d3_vs_e": {
+  "CORRECT": {
+   "n": 61,
+   "d3": 61,
+   "e": 61
+  },
+  "ANSWER_TARGET_DERIVATION_FAILURE": {
+   "n": 16,
+   "d3": 15,
+   "e": 15
+  },
+  "ROUTING_FAILURE": {
+   "n": 21,
+   "d3": 1,
+   "e": 19
+  },
+  "CAPABILITY_RESULT_TOO_WEAK": {
+   "n": 2,
+   "d3": 2,
+   "e": 2
+  },
+  "TARGET_NOT_APPLIED": {
+   "n": 4,
+   "d3": 3,
+   "e": 4
+  },
+  "AMBIGUOUS_SHOULD_CLARIFY": {
+   "n": 3,
+   "d3": 1,
+   "e": 2
+  },
+  "CAPABILITY_TEMPLATE_OVERRIDES_TARGET": {
+   "n": 10,
+   "d3": 9,
+   "e": 9
+  },
+  "MISSING_CAPABILITY": {
+   "n": 2,
+   "d3": 0,
+   "e": 0
+  },
+  "COMPOSITION_FAILURE": {
+   "n": 5,
+   "d3": 5,
+   "e": 5
+  },
+  "OTHER": {
+   "n": 2,
+   "d3": 0,
+   "e": 0
+  }
+ },
+ "routing_cases": {
+  "corrected": [
+   "008",
+   "009",
+   "012",
+   "015",
+   "025",
+   "026",
+   "030",
+   "036",
+   "038",
+   "049",
+   "080",
+   "087",
+   "094",
+   "097",
+   "101",
+   "102",
+   "114",
+   "120",
+   "023",
+   "082(regression found and fixed)",
+   "007(routing; status data partly missing)"
+  ],
+  "still_failing": {
+   "105": "clarification now asked (which kind of record); the diagnostic expects a list",
+   "126": "utilities.purchases.read store is empty while the purchase is a wallet transaction: source mismatch, not routing",
+   "070": "legitimate Facility authority denial (home-scoped device read, no estate-wide device read); message now states the reason, authority not widened",
+   "071": "same",
+   "007": "routing fixed; the capability exposes no units-sold figure the diagnostic expects"
+  }
+ },
+ "non_routing_carried": {
+  "115": "device confirmation wording (\"turn off on <device>\") in the specialised workflow",
+  "123": "correct nothing-pending cancellation (IQ-1 guarantee)",
+  "029/036/038/049": "answers correct; scored on the capability key (now business_surface.refusal/clarification so the trace is accurate)",
+  "046": "premise-denial composition",
+  "051": "honest-unknown submission state (diagnostic expects an unverifiable No)",
+  "OSA-010:7": "handoff-detail / callback-proposal answer"
+ },
+ "frozen_280": {
+  "statuses": {
+   "PASS": 69,
+   "FAIL": 206,
+   "BLOCKED": 5
+  },
+  "audit_failures": 0,
+  "answers_changed_vs_iq7_baseline": 125,
+  "changed_pass_turns": 25,
+  "independent_preservation_review": "run on 26 (before one fix): 24 preserved, 2 flagged; OMA-009:6 was a real privacy regression (a resident private wallet answered from the financial summary) and is fixed; CON-004:2 flagged only because the review packet truncated the answer (the full answer keeps the camera/device gaps and was unchanged since IQ-8D3)",
+  "self_graded_candidates": {
+   "target_met": 63,
+   "graded": 83,
+   "rate": 0.759
+  }
+ },
+ "wave11": {
+  "harness": "132/132",
+  "structured": "utilities.usage.read: unavailable, evidence_count 0 -> HONEST_LIMITATION"
+ },
+ "workflow": {
+  "control": "3a9956d unmodified Core",
+  "result": "all four smokes fail on the control and fail identically (same assertion, same output) on this branch"
+ },
+ "performance_ms": {
+  "derive": 0.083,
+  "map": 0.0047,
+  "project": 0.0066,
+  "added_per_turn": 0.011,
+  "provider_calls": 0,
+  "db_queries": 0
+ }
+}
