@@ -1,7 +1,7 @@
 import { ASSESSMENT_TTL_MS, isAssessmentInformation, type ConversationAssessmentContext } from "../../context/conversationAssessmentContext";
 import type { DerivedRanking } from "../judgment/types";
 import { assertsPromiseOrAction } from "../judgment/validator";
-import { composeNonResolution, composeReferenceAnswer, isExpired, resolveDerivedReference, type RawSetFacts } from "./derivedReference";
+import { composeNonResolution, composeReferenceAnswer, isExpired, namedItems, parseDerivedReference, resolveDerivedReference, type RawSetFacts } from "./derivedReference";
 
 // The nouns a raw result set of a given domain answers to. Used only to decide whether "the second lead" names a raw list.
 const DOMAIN_NOUNS: Record<string, string[]> = {
@@ -9,6 +9,15 @@ const DOMAIN_NOUNS: Record<string, string[]> = {
   office_meetings: ["meeting"], office_support: ["issue", "ticket", "request"], maintenance: ["issue", "request", "ticket", "problem"], security: ["incident", "issue"],
 };
 export const rawSetFacts = (set: { created_at: string; domain: string } | null | undefined): RawSetFacts => set ? { created_at: set.created_at, domain: set.domain, object_nouns: DOMAIN_NOUNS[set.domain] || [] } : null;
+
+const STOP = new Set(["with", "from", "that", "this", "issue", "item", "lead", "wave11", "the", "and", "for", "have", "has", "been", "there", "their", "they", "says", "said", "now", "just", "very", "more", "much", "than", "then"]);
+const tokens = (t: string) => new Set(t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => w.length >= 4 && !STOP.has(w)));
+// New information concerns the artifact only if it points at it (a reference cue or an item's name) or shares a content word with one of its items.
+export function informationConcernsArtifact(text: string, art: DerivedRanking): boolean {
+  if (parseDerivedReference(text).any || namedItems(text, art).length) return true;
+  const t = tokens(text);
+  return art.items.some(i => [...tokens(i.ref.label || "")].some(w => t.has(w)));
+}
 
 export type DerivedTurnArgs = {
   text: string; previous: ConversationAssessmentContext | null; surface: string; now: number; raw: RawSetFacts;
@@ -30,7 +39,7 @@ export function handleDerivedReferenceTurn(a: DerivedTurnArgs): DerivedTurnResul
   const scopeOk = surfaceOk && (art.scope_binding === undefined || art.scope_binding === a.scopeBinding);
   const authorityOk = a.authorised(art.source_keys || []);
 
-  if (isAssessmentInformation(a.text) && !art.parked && scopeOk && authorityOk && !isExpired(art, a.now)) {
+  if (isAssessmentInformation(a.text) && !art.parked && scopeOk && authorityOk && !isExpired(art, a.now) && informationConcernsArtifact(a.text, art)) {
     const stale: DerivedRanking = art.stale ? art : { ...art, stale: { reason: "material_fact", at: new Date(a.now).toISOString() } };
     const kind = (art.artifact_type ?? "ranking") === "ranking" ? "ordering" : "assessment";
     return { handled: true, outcome: "material_fact_marked_stale", assessment: touch(stale, { pending_information: a.text.slice(0, 1000) }),

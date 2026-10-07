@@ -31,26 +31,29 @@ const CARD: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 
 const CARD_RE = Object.keys(CARD).join("|");
 const NUM_RE = new RegExp(`(?:^|[\\s(])(?:#\\s*(\\d{1,2})|(?:number|no\\.?|num)\\s*(\\d{1,2}))\\b|\\b(\\d{1,2})(?:st|nd|rd|th)\\b|\\b(?:number|no\\.?|#)\\s*(${CARD_RE})\\b`, "gi");
 
+const DET = "(?:the|that|this|which|your|my|our)";
 export const DERIVED_REFERENCE_CUE = new RegExp(
-  `\\b(?:the\\s+)?(?:${ORD}|last|top|bottom)\\s+(?:one|${NOUN})\\b|\\b(?:the\\s+)?(?:${ORD}|last)\\b|\\b(?:the\\s+)?(?:top|bottom)\\s+(?:two|three|four|five|\\d)\\b|(?:#\\s*\\d|\\bnumber\\s*(?:\\d|${CARD_RE})\\b|\\bno\\.?\\s*\\d|\\b\\d(?:st|nd|rd|th)\\b)|\\b(?:the\\s+)?other\\s+(?:one|two|ones)\\b|\\bthe\\s+others\\b|\\bwhich\\s+of\\s+(?:those|these|them)\\b|\\b(?:those|these)\\s+(?:${NOUN})\\b|\\bgo\\s+back\\s+to\\b`, "i");
+  `\\b${DET}\\s+(?:${ORD}|last)\\b|\\b(?:${ORD}|last)\\s+(?:one|${NOUN})\\b|\\b(?:top|bottom)\\s+(?:one|two|three|four|five|\\d|${NOUN})\\b|(?:#\\s*\\d|\\bnumber\\s*(?:\\d|${CARD_RE})\\b|\\bno\\.?\\s*\\d|\\b\\d(?:st|nd|rd|th)\\b)|\\b(?:the\\s+)?other\\s+(?:one|two|ones)\\b|\\bthe\\s+others\\b|\\bwhich\\s+of\\s+(?:those|these|them)\\b|\\b(?:those|these)\\s+(?:${NOUN})\\b|\\bgo\\s+back\\s+to\\b`, "i");
 
 export function parseDerivedReference(text: string): DerivedReference {
   const t = text.toLowerCase();
   const positions: number[] = [];
   const found: Array<{ i: number; n: number }> = [];
-  for (const m of t.matchAll(new RegExp(`\\b(${ORD})\\b`, "g"))) found.push({ i: m.index!, n: ORDINALS[m[1]] });
+  // An ordinal counts only in nominal position ("the second one", "second issue"), never as an adverb ("what should I do first?").
+  for (const m of t.matchAll(new RegExp(`\\b(?:${DET}\\s+)?(${ORD})\\b(?:\\s+(one|${NOUN}))?`, "g"))) if (/^(?:the|that|this|which|your|my|our)\s/.test(m[0]) || m[2]) found.push({ i: m.index!, n: ORDINALS[m[1]] });
   for (const m of t.matchAll(NUM_RE)) { const n = m[4] ? CARD[m[4].toLowerCase()] : Number(m[1] || m[2] || m[3]); if (n >= 1 && n <= 99) found.push({ i: m.index!, n }); }
   for (const f of found.sort((a, b) => a.i - b.i)) if (!positions.includes(f.n)) positions.push(f.n);
   const topM = /\b(?:top|best|first)\s+(two|three|four|five|\d)\b/.exec(t);
   const topN = topM ? (COUNTS[topM[1]] ?? Number(topM[1])) : null;
-  const fromEnd = /\b(?:last|bottom|final)\b/.test(t) && !/\blast\s+(?:week|month|year|night|time|update|turn)\b/.test(t);
+  const fromEnd = new RegExp(`\\b${DET}\\s+(?:last|bottom|final)\\b|\\b(?:last|bottom|final)\\s+(?:one|${NOUN})\\b`).test(t) && !/\blast\s+(?:week|month|year|night|time|update|turn)\b/.test(t);
   const other = /\b(?:the\s+)?other\s+(?:one|two|ones)\b|\bthe\s+others\b|\banother\s+one\b/.test(t);
   const ret = /\b(?:go\s+back|return|back)\s+to\b|^\s*go\s+back\b/.test(t);
   const plural = /\b(?:those|these|the\s+others|them|all\s+of\s+(?:them|those))\b/.test(t);
-  const demonstrative = /\b(?:that|this)\s+(?:one|thing|item|issue|problem|concern|project|opportunity|lead|task|ownership issue)\b|\bwhy\s+(?:that|this)\b|\b(?:is|was|does)\s+(?:that|this)\b|\bwhat about\s+(?:that|this|it)\b/.test(t) || /^\s*(?:and\s+)?(?:why|how)\s*(?:so)?\s*[?.!]*\s*$/.test(t);
+  const SEV = "(?:dangerous|safe|serious|urgent|a\\s+problem|risky|bad|important|worrying|critical|an?\\s+issue)";
+  const demonstrative = new RegExp(`\\b(?:that|this)\\s+(?:one|thing|item|issue|problem|concern|project|opportunity|lead|task|ownership issue)\\b|\\bwhy\\s+(?:that|this)\\b|\\b(?:is|was|are)\\s+(?:that|this|it)\\s+(?:${SEV}|more\\s+${SEV}|the\\s+(?:same|biggest))|\\bwhat\\s+about\\s+(?:that|this|it)\\b`).test(t) || /^\s*(?:and\s+)?(?:why|how)\s*(?:so)?\s*[?.!]*\s*$/.test(t);
   const nm = new RegExp(`\\b(?:${ORD}|last|top|bottom|that|this|those|these|other|another)\\s+(${NOUN})\\b`).exec(t) || new RegExp(`\\b(?:number|no\\.?|#)\\s*\\d+\\s+(${NOUN})\\b`).exec(t) || new RegExp(`\\b(priorit(?:y|ies)|ranking)\\b`).exec(t);
   const noun = nm ? singular(nm[1]) : null;
-  const explicitArtifact = /\bpriorit(?:y|ies)\b|\branking\b|\branked\b|\btop\s+(?:two|three|four|five|\d|one)\b|\bwhich\s+(?:first|matters?\s+most)\b|\bmost\s+important\b/.test(t) || noun === "priority" || noun === "ranking" || noun === "rank";
+  const explicitArtifact = /\bpriorit(?:y|ies)\b|\branking\b|\branked\b|\btop\s+(?:two|three|four|five|\d|one)\b/.test(t) || noun === "priority" || noun === "ranking" || noun === "rank";
   const intent: ReferenceIntent = /\bwhy\s+not\b/.test(t) ? "why_not" : /\bwhy\b|\bhow\s+come\b|\bwhat\s+makes\b/.test(t) ? "why"
     : /\bcompare\b|\bversus\b|\bvs\.?\b|\brather\s+than\b|\bor\s+the\b|\bcompared\b/.test(t) ? "compare"
     : /\b(?:can|could)\b.*\bwait\b|\bnot\s+urgent\b|\bless\s+(?:important|urgent)\b/.test(t) ? "wait"
@@ -128,7 +131,7 @@ export function resolveDerivedReference(text: string, env: ReferenceEnv): Resolu
   // Named items resolve directly.
   if (named.length && !ref.positions.length && !ref.other && ref.topN === null) return { status: "resolved", items: named.slice(0, 2), ref, how: "named" };
   // Ordered vocabulary on an unordered artifact: positions are positions in what I listed, never "priority"; top/bottom claim an order.
-  if ((ref.topN !== null || (ref.fromEnd && /bottom/i.test(text)) || ref.intent === "which_first" || /\btop\b|\bbottom\b/i.test(text)) && !isOrdered(a)) return { status: "unavailable", reason: "not_ordered" };
+  if ((ref.topN !== null || (ref.fromEnd && /bottom/i.test(text)) || /\btop\b|\bbottom\b/i.test(text)) && !isOrdered(a)) return { status: "unavailable", reason: "not_ordered" };
   if (ref.topN !== null) {
     const items = primary.filter(i => i.rank <= ref.topN!);
     return items.length ? { status: "resolved", items, ref, how: `top_${ref.topN}` } : { status: "unavailable", reason: "no_items" };
@@ -144,19 +147,22 @@ export function resolveDerivedReference(text: string, env: ReferenceEnv): Resolu
   }
   if (ref.fromEnd) { const last = primary[primary.length - 1]; return last ? { status: "resolved", items: [last], ref, how: "last" } : { status: "unavailable", reason: "no_items" }; }
   if (ref.other) {
-    if (primary.length === 2) {
-      const f = focus ?? 1; const o = primary.find(i => i.rank !== f);
-      return o ? { status: "resolved", items: [o], ref, how: "other_of_pair", focusDefaulted: focus === null } : { status: "unavailable", reason: "no_items" };
+    // "The other one" is the other thing I named: among the primary items if there are two or more, else among everything named
+    // (a single open item and a resolved one still make a pair).
+    const universe = primary.length >= 2 ? primary : all.map((i, n) => ({ ...i, rank: n + 1 }));
+    if (universe.length === 2) {
+      const f = focus !== null && universe.some(i => i.rank === focus) ? focus : 1; const o = universe.find(i => i.rank !== f);
+      return o ? { status: "resolved", items: [all.find(x => x.ref.id === o.ref.id && x.ref.label === o.ref.label) || o], ref, how: "other_of_pair", focusDefaulted: focus === null } : { status: "unavailable", reason: "no_items" };
     }
-    if (focus !== null) return { status: "resolved", items: primary.filter(i => i.rank !== focus), ref, how: "others_than_focus" };
-    return { status: "ambiguous", reason: "no_basis_for_other", options: primary.slice(0, 5) };
+    if (focus !== null && universe.length > 2) return { status: "resolved", items: universe.filter(i => i.rank !== focus), ref, how: "others_than_focus" };
+    return universe.length < 2 ? { status: "unavailable", reason: "no_items" } : { status: "ambiguous", reason: "no_basis_for_other", options: universe.slice(0, 5) };
   }
   if (ref.intent === "wait" || (ref.plural && /\bwait\b/i.test(text))) return { status: "resolved", items: primary, ref, how: "which_can_wait" };
   if (ref.ret) {
     if (specific) { const m = primary.filter(NOUN_MATCH[specific] || (() => false)); if (m.length === 1) return { status: "resolved", items: m, ref, how: "return_to_item" }; }
     return { status: "resolved", items: primary, ref, how: "return_to_artifact" };
   }
-  if (ref.intent === "which_first" || ref.explicitArtifact && ref.plural) return { status: "resolved", items: primary, ref, how: "artifact_set" };
+  if (ref.explicitArtifact && ref.plural) return { status: "resolved", items: primary, ref, how: "artifact_set" };
   if ((ref.intent === "why" || ref.intent === "detail") && focus === null && primary.length > 1 && /^\s*(?:and\s+)?(?:why|how)\s*(?:so)?\s*[?.!]*\s*$/i.test(text)) return { status: "resolved", items: primary, ref, how: "explain_set" };
   if (ref.demonstrative || ref.plural) {
     if (specific) {
@@ -225,12 +231,19 @@ function explainOne(a: DerivedRanking, i: ArtifactItem, intent: ReferenceIntent)
   return parts.join(" ");
 }
 
+function waitOne(a: DerivedRanking, i: ArtifactItem): string {
+  const resolved = i.state === "not_a_current_concern" || i.group === "past" || i.group === "wait";
+  return resolved
+    ? `${label(i)} was recorded as resolved or lower priority (${reason(i)}), so on the records it was not treated as needing attention. Whether it can wait beyond what is recorded I cannot tell.`
+    : `Nothing I recorded shows that ${label(i)} can wait: it is recorded as ${reason(i)}. That is all the records say, and what is not recorded is not evidence that it can wait.`;
+}
+
 export function composeReferenceAnswer(a: DerivedRanking, res: Extract<Resolution, { status: "resolved" }>, text: string): string {
   const intent = res.ref.intent;
   const lines: string[] = [];
   if (res.focusDefaulted) lines.push(`I took "the other one" to mean the one besides ${label(primaryGroup(a)[0])}, which I led with.`);
   const items = res.items;
-  if (res.how === "which_can_wait" || intent === "wait") {
+  if (res.how === "which_can_wait") {
     const wait = a.items.filter(i => i.group === "wait" || i.group === "past" || i.state === "not_a_current_concern");
     const lowest = isOrdered(a) ? primaryGroup(a).slice(-1)[0] : null;
     if (wait.length) lines.push(`Of what I set out, these were recorded as able to wait or not a current concern: ${wait.map(i => `${label(i)} (${i.rationale.replace(/^.*?:\s*/, "").replace(/\.$/, "")})`).join("; ")}.`);
@@ -244,6 +257,8 @@ export function composeReferenceAnswer(a: DerivedRanking, res: Extract<Resolutio
     if (a.basis === "provider" && isOrdered(a)) lines.push(`${label(x)} was placed above ${label(y)} by a comparative judgment on the recorded notes, not by a single recorded field.`);
     else lines.push(isOrdered(a) || a.artifact_type === "comparison" ? (d ? `They differ on ${d}.` : "They are equal on everything I recorded, so the evidence gives no basis to separate them.") : "I listed them without ranking them.");
     for (const extra of items.slice(2)) lines.push(`${label(extra)}: ${extra.rationale.replace(/\.$/, "")}.`);
+  } else if (intent === "wait" && items.length >= 1) {
+    for (const i of items) lines.push(waitOne(a, i));
   } else if (items.length === 1 || res.how === "others_than_focus") {
     for (const i of items) lines.push(explainOne(a, i, intent));
   } else if (res.how === "explain_set") {

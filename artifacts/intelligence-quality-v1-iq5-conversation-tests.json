@@ -1,0 +1,50 @@
+{
+  "status": "PASS",
+  "test_mode": "Real orchestrator on the loopback fixture; scripted provider test seam for the ranking (reference/discipline, not model quality)",
+  "results": [
+    {
+      "id": "iq5c:OMA-001-provider-off-no-ranking-so-no-ordering-is-claimed-or-explained",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5c:OMA-001-scripted-provider-T3-resolves-priority-two-not-lead-row-two",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5c:raw-result-set-ordinals-still-use-the-result-set",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5c:raw-list-presented-after-a-ranking-owns-a-bare-ordinal",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5c:explicit-priority-wording-wins-the-ranking-back-over-a-newer-raw-list",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5c:artifact-is-not-readable-from-another-actor-or-surface-on-the-same-thread",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5c:facility-references-resolve-against-what-was-named-and-no-scope-is-invented",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5c:consumer-references-never-turn-unknown-into-safe",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5c:osa-references-stay-inside-public-evidence",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5c:no-reference-turn-calls-the-provider",
+      "status": "PASS"
+    }
+  ],
+  "counts": {
+    "PASS": 10
+  },
+  "executed": 0
+}

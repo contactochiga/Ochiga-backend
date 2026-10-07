@@ -149,9 +149,29 @@
     {
       "id": "iq5:artifact-survives-a-carry-through-the-assessment-context-and-parks-on-switch",
       "status": "PASS"
+    },
+    {
+      "id": "iq5:adverbial-first-and-reassess-questions-are-not-references",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:parser-reads-nominal-ordinals-and-ignores-adverbs",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:information-unrelated-to-the-artifact-does-not-hijack-the-turn",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:can-the-last-one-wait-answers-about-that-item-and-never-asserts-it-can",
+      "status": "PASS"
+    },
+    {
+      "id": "iq5:the-other-one-is-the-other-thing-named-even-if-resolved",
+      "status": "PASS"
     }
   ],
   "counts": {
-    "PASS": 37
+    "PASS": 42
   }
 }

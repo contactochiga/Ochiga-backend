@@ -3827,6 +3827,9 @@ export class ConversationOrchestrator {
         if (gathered) assessment = { ...assessment, evidence_plan: planned!.state };
         // IQ-5: an artifact whose evidence the planner has just invalidated is not carried as if current. Scope or authority changes
         // drop it; a changed material fact marks it stale (reassessment is a later slice).
+        // New information on an active assessment never silently re-mints its ranking: the earlier one is marked stale (not reassessed).
+        if (assessment.derived_ranking && !assessment.derived_ranking.parked && !assessment.derived_ranking.stale && isAssessmentInformation(frame.rawText))
+          assessment = { ...assessment, derived_ranking: { ...assessment.derived_ranking, stale: { reason: "material_fact", at: new Date().toISOString() } } };
         if (gathered && assessment.derived_ranking) {
           const inv = planned!.state.invalidation;
           if (inv.some(x => x === "scope_change" || x.startsWith("authority_changed"))) assessment = { ...assessment, derived_ranking: null };
@@ -3843,7 +3846,7 @@ export class ConversationOrchestrator {
           if (judged) {
             assessment = { ...assessment, judgment: { assessment_id: judged.result.assessment_id, mode: judged.result.mode, status: judged.result.status, validated: judged.validation.ok, judged_at: new Date().toISOString() },
               // A ranking is its own cognitive artifact: it never claims to be, or reuses the id of, an older raw result set.
-              ...(judged.ranking_artifact ? { derived_ranking: { ...judged.ranking_artifact, scope_binding: scopeBinding(context.input.surface, requestScope) }, result_set_id: null, target_ref: null } : {}) };
+              ...(judged.ranking_artifact && !(previousAssessment?.derived_ranking && isAssessmentInformation(frame.rawText)) ? { derived_ranking: { ...judged.ranking_artifact, scope_binding: scopeBinding(context.input.surface, requestScope) }, result_set_id: null, target_ref: null } : {}) };
             tracer.stage("response_composed", { surface: context.input.surface, status: judged.result.status.toLowerCase(), outcome: `judgment_${judged.result.mode}`, evidence_count: judged.candidate_count });
             logger.info("oyi_assessment_judgment", { request_id: tracer.requestId, surface: context.input.surface, objective: assessment.objective, attempted: true, mode: judged.result.mode, status: judged.result.status,
               candidates: judged.candidate_count, evidence_sources: judged.evidence_source_count, validation_ok: judged.validation.ok, validation_failures: judged.validation.failures.length, provider_attempted: judged.provider.attempted,
