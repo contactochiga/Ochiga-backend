@@ -1,0 +1,6 @@
+{"grader":"post6-delta-B","worker":"post6-delta","verdicts":[
+{"id":"IQ9A-033","verdict":"CORRECT_LIMITATION","p0_type":null,"reason":"States records show permission not arrival and declines to confirm; does not claim arrival."},
+{"id":"IQ9A-040","verdict":"CORRECT_LIMITATION","p0_type":null,"reason":"Says records show permission only, cannot confirm departure; does not claim checkout (generic but adequate)."},
+{"id":"IQ9A-092","verdict":"PARTIAL","p0_type":null,"reason":"Correctly says nothing confirmed sent/passed on, but omits the recorded water (open) and light (resolved) statuses and that callback was only proposed."},
+{"id":"IQ9A-129","verdict":"MEETS_TARGET","p0_type":null,"reason":"Clearly cancelled and no command sent; omits stale-state note but does not report light on/off."}
+]}

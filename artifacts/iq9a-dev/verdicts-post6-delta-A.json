@@ -1,0 +1,6 @@
+{"grader":"post6-delta-A","worker":"post6-delta","verdicts":[
+{"id":"IQ9A-033","verdict":"CORRECT_LIMITATION","p0_type":null,"reason":"States visitor records show permission not arrival and cannot confirm; no arrival claim."},
+{"id":"IQ9A-040","verdict":"CORRECT_LIMITATION","p0_type":null,"reason":"States records show permission only, not departure; does not claim check-out."},
+{"id":"IQ9A-092","verdict":"PARTIAL","p0_type":null,"reason":"Correctly says nothing confirmed passed on, but omits that callback was only proposed and the water (open)/light (resolved) statuses."},
+{"id":"IQ9A-129","verdict":"PARTIAL","p0_type":null,"reason":"Clearly cancelled and no command sent, but does not say the Living Light state is unknown from stale readings."}
+]}
