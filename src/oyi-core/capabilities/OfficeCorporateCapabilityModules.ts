@@ -24,6 +24,7 @@
 // actually live on the public website today (app/about, app/private,
 // app/partnerships, lib/company.ts), since no CMS schema exists yet for
 // that copy.
+import { analyse } from "../interpretation/semanticObjective";
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
@@ -630,6 +631,15 @@ function developmentStatusReadModule(): CapabilityModule {
 // financial.read, or the backend call failed), the answer says so rather
 // than fabricating a number.
 // ---------------------------------------------------------------------
+// A money-total ask is about the company / estate / portfolio books. A request for a PERSON's wallet (a resident, tenant, "their" wallet, anything private)
+// is never answered from the financial summary: it stays unclaimed on Office so the existing privacy boundary applies.
+const PORTFOLIO_MONEY_NOUNS = new Set(["financial", "finance", "portfolio", "summary", "estate", "revenue", "company", "ochiga", "our", "portfolios", "estates"]);
+const PERSONAL_MARKERS = new Set(["resident", "residents", "tenant", "tenants", "private", "personal", "their", "his", "her", "someone", "somebody", "individual", "person", "owner", "occupant"]);
+function isPortfolioMoneyAsk(frame: SemanticFrame): boolean {
+  const T = analyse(frame.rawText).tokens;
+  return T.some((t) => PORTFOLIO_MONEY_NOUNS.has(t)) && !T.some((t) => PERSONAL_MARKERS.has(t));
+}
+
 function financialSummaryReadModule(): CapabilityModule {
   return readModule({
     key: "financial.summary.read",
@@ -640,7 +650,7 @@ function financialSummaryReadModule(): CapabilityModule {
     permissions: ["financial.read"],
     evidenceRequirements: [{ domain: "office_financial", evidence_type: "financial_estate_summary", freshness: ["fresh", "stale", "unknown"], required: false }],
     // a money-total ask (balance / transactions of the portfolio) is the financial summary's, whichever legacy label the lexical classifier gave it
-    supports: (frame: SemanticFrame) => frame.domain === "office_financial" || (frame.concepts?.object === "wallet" && ["wallet", "office_portfolio", null].includes(frame.domain as string | null)),
+    supports: (frame: SemanticFrame) => frame.domain === "office_financial" || (frame.concepts?.object === "wallet" && ["wallet", "office_portfolio", null].includes(frame.domain as string | null) && isPortfolioMoneyAsk(frame)),
     collect: async (context) => {
       const snapshot = officeSnapshot(context);
       const financial = snapshot?.financial;
