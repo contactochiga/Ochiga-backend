@@ -41,8 +41,10 @@ export function materialFor(record: OyiEvidence, sourceKey: string): Record<stri
   return out;
 }
 
-function refFor(record: OyiEvidence): CompactRef {
+// A visitor record's label is a third party's name: the reference keeps type and id only.
+function refFor(record: OyiEvidence, sourceKey: string): CompactRef {
   const p = primaryObject(record);
+  if (sourceKey === "visitors.pending.read") return { t: record.object_type || null, id: record.object_id || text(p.id) || null, l: null };
   return { t: record.object_type || null, id: record.object_id || text(p.id) || null, l: (text(record.object_ref?.label) || text(p.name) || text(p.title)).slice(0, MAX_STRING) || null };
 }
 
@@ -78,7 +80,7 @@ export function contribution(result: StepResult, limits: PlannerLimits, gathered
     lifecycle: outcome ? lifecycleSummary(outcome) : { active: 0, historical: 0, unknown: 0 },
     record_count: outcome?.record_count || 0, unobserved: records.filter(r => r.freshness === "unobservable").length, source_total: outcome?.source_total ?? null, truncated: Boolean(outcome?.truncated),
     degraded: (outcome?.degraded_sources || []).map(d => `${d.source}${d.mandatory ? "!" : ""}`),
-    refs: records.slice(0, MAX_REFS_PER_SOURCE).map(refFor),
+    refs: records.slice(0, MAX_REFS_PER_SOURCE).map(r => refFor(r, step.source_key)),
     material: records.slice(0, limits.max_material_items).map(r => materialFor(r, step.source_key)),
     provenance: records.flatMap(r => (r.payload && (r.payload as any).provenance ? [recordOf((r.payload as any).provenance)] : [])).slice(0, 2),
     gathered_at: new Date(gatheredAtMs).toISOString(), fresh_until: new Date(fresh).toISOString(), latency_ms: result.latency_ms,

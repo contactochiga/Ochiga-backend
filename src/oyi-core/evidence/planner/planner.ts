@@ -40,6 +40,7 @@ export async function planAndGatherEvidence(r: PlannerRequest): Promise<PlannerR
   const planning: PlanningInput = {
     actor: r.actor, oisContext: r.oisContext, surface: r.input.surface, objective: r.objective, subject_domains: r.subject_domains, subject_label: r.subject_label,
     target_id: r.target_id, broad: r.broad, room: r.room, building_label: r.building_label, thread_id: r.input.thread_id || null, limits,
+    request_scope: { estate_id: r.input.estate_id || r.oisContext?.estate_id || r.actor?.estate_id || null, home_id: r.input.home_id || r.oisContext?.home_id || r.actor?.home_id || null },
     registry: r.deps?.registry, canUse: r.deps?.canUse,
   };
   const plan = buildEvidencePlan(planning);
@@ -50,7 +51,7 @@ export async function planAndGatherEvidence(r: PlannerRequest): Promise<PlannerR
   const canUse = r.deps?.canUse || capabilityService.canUse.bind(capabilityService);
   const reuse = decideReuse({
     previous: r.previous, steps: plan.steps, scope_key: scopeKeyFor(planning), subject_key: subjectKeyFor(planning), input_fingerprint, material_hash,
-    refresh: REFRESH_REQUEST.test(r.raw_text), now, authorised: key => canUse(key, { actor: r.actor, oisContext: r.oisContext, surface: r.input.surface as any }).allowed,
+    refresh: REFRESH_REQUEST.test(r.raw_text), now, authorised: key => canUse(key, { actor: r.actor, oisContext: r.oisContext, surface: r.input.surface as any, scope: { estate_id: planning.request_scope.estate_id, building_id: null, home_id: planning.request_scope.home_id, room_id: null } }).allowed,
   });
   const toRun = plan.steps.filter(s => !reuse.reusable.has(s.source_key));
   const room_id = r.room.status === "resolved" ? r.room.room_id : null;

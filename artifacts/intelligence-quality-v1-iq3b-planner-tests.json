@@ -1,0 +1,201 @@
+{
+  "status": "PASS",
+  "test_mode": "Controlled-outcome planner tests plus real planner -> CapabilityService.readEvidence -> certified sources against a fault-injected loopback fixture client; no production target; no network",
+  "counts": {
+    "PASS": 48
+  },
+  "results": [
+    {
+      "id": "planner:single-source-plan",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:multi-source-plan-oma-broad-attention",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:mandatory-vs-optional-and-objective-gating",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:optional-unavailable-never-blocks-and-is-reported-distinctly",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:partial-only-plan-is-first-class",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:all-allowed-sources-succeed-complete-enough",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:missing-mandatory-capability-recorded-not-fabricated",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:uncertified-existing-capabilities-are-never-selected",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:catalogue-sources-are-exactly-the-iq3a-certified-or-explicit-debt",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:authority-denied-at-plan-time-is-recorded-not-planned",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:authority-changed-after-planning-denies-only-that-source",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:real-authority-recheck-at-execution-with-real-service",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:failure-modes-are-isolated-and-distinct",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:both-sources-of-a-class-failing-is-unavailable",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:all-sources-of-a-mandatory-class-failing-is-unavailable-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:stale-state-is-reported-stale-for-state-classes-only",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:unobserved-device-state-is-partial-not-complete",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:deterministic-ordering-regardless-of-completion-order",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:fan-out-bound-keeps-mandatory-drops-optional-first",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:never-queries-the-whole-registry-or-optional-by-capacity",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:overall-deadline-bounds-wall-time-and-discards-late-results",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:parallel-wall-time-is-the-slowest-source-not-the-sum",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:reuse-no-fan-out-on-why-and-what-would-you-do",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:reuse-gathers-only-newly-required-evidence",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:failed-reads-are-retried-not-reused",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:subject-invalidation",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:scope-invalidation-room-and-home",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:explicit-refresh-invalidates",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:material-fact-invalidates-cosmetic-wording-does-not",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:freshness-expiry-and-assessment-ttl",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:authority-rechecked-at-reuse-drops-only-that-source",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:reuse-layer-rechecks-authority-itself",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:supplied-snapshot-change-invalidates-office-reuse",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:no-action-capabilities-ever-planned-across-all-policies",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:no-composite-and-direct-double-count",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:pure-read-context-is-the-read-only-dependency",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:exact-target-and-client-scope-hints-are-stripped",
+      "status": "PASS"
+    },
+    {
+      "id": "planner:compact-state-bounds-and-no-raw-sensitive-fields",
+      "status": "PASS"
+    },
+    {
+      "id": "oma:real-office-broad-assessment-preserves-snapshot-partiality",
+      "status": "PASS"
+    },
+    {
+      "id": "oma:snapshot-section-absent-is-unavailable-not-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "oma:office-permission-restriction-is-enforced-per-source",
+      "status": "PASS"
+    },
+    {
+      "id": "osa:real-public-plan-never-touches-office-evidence",
+      "status": "PASS"
+    },
+    {
+      "id": "facility:building-scope-is-never-silently-widened",
+      "status": "PASS"
+    },
+    {
+      "id": "facility:camera-unobservable-stays-unobservable",
+      "status": "PASS"
+    },
+    {
+      "id": "consumer:cross-home-evidence-is-impossible-through-fan-out",
+      "status": "PASS"
+    },
+    {
+      "id": "consumer:room-scope-resolved-pushed-unresolved-never-widened",
+      "status": "PASS"
+    },
+    {
+      "id": "consumer:observed-values-and-camera-product-debt-disclosed-not-fabricated",
+      "status": "PASS"
+    },
+    {
+      "id": "integration:structural-observability-only-and-compact-persisted-state",
+      "status": "PASS"
+    }
+  ]
+}

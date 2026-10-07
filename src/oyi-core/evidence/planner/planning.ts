@@ -24,6 +24,8 @@ export type PlanningInput = {
   room: RoomScope;
   building_label: string | null;
   thread_id: string | null;
+  // The scope the reads will actually be issued for (request estate/home; client building/room hints are stripped).
+  request_scope: { estate_id: string | null; home_id: string | null };
   limits: PlannerLimits;
   // Test seam: the registry/authority used for admission. Defaults to the real ones.
   registry?: { get(key: string): CapabilityModule | undefined };
@@ -60,7 +62,7 @@ export function admitSource(key: string, roomCapable: boolean, i: PlanningInput)
   const compatible = declared.includes(scope) || (scope === "public_thread" && declared.includes("public_corporate"));
   if (!compatible) return { ok: false, reason: "scope_unsupported", detail: `${key} is not certified for ${scope}` };
   if (scope === "public_thread" && !i.thread_id) return { ok: false, reason: "scope_insufficient", detail: "a thread is required" };
-  const authority = (i.canUse || capabilityService.canUse.bind(capabilityService))(key, { actor: i.actor, oisContext: i.oisContext, surface: i.surface as any });
+  const authority = (i.canUse || capabilityService.canUse.bind(capabilityService))(key, { actor: i.actor, oisContext: i.oisContext, surface: i.surface as any, scope: { estate_id: i.request_scope.estate_id, building_id: null, home_id: i.request_scope.home_id, room_id: null } });
   if (!authority.allowed) return { ok: false, reason: "not_authorised", detail: `${key}: ${authority.reason}` };
   return { ok: true, scope_class: scope };
 }
