@@ -9,7 +9,8 @@ export type FollowUpIntent =
   | { type: "prioritize" }
   | { type: "temporal_followup" }
   | { type: "filter"; keyword: string }
-  | { type: "attribute"; attribute: "unresolved" | "failed" | "expensive" | "highest" | "open" }
+  | { type: "attribute"; attribute: "unresolved" | "failed" | "expensive" | "highest" | "open" | "active" | "inactive" | "resolved" }
+  | { type: "other" }
   | { type: "ordinal"; ordinal: "first" | "second" | "third" | "last" | "latest" | "oldest" }
   | { type: "why" }
   | { type: "status_check" }
@@ -136,6 +137,11 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
     if (keyword) return { type: "filter", keyword };
   }
 
+  // "the other one" / "which is the active one": a reference to a member of
+  // the carried result set, never to an unrelated stale result.
+  if (/\bother\s+one\b|^(?:and\s+|what about\s+)?the other\b/.test(m)) return { type: "other" };
+  const stateOne = !/\bwhich\b/.test(m) ? null : m.match(/\b(active|inactive|resolved|closed|completed|current)\s+one\b/);
+  if (stateOne) return { type: "attribute", attribute: stateOne[1] === "inactive" ? "inactive" : /resolved|closed|completed/.test(stateOne[1]) ? "resolved" : "active" };
   if (/\bunresolved\s+one\b|\bthe unresolved\b/.test(m)) return { type: "attribute", attribute: "unresolved" };
   if (/\bfailed\s+one\b|\bthe failed\b/.test(m)) return { type: "attribute", attribute: "failed" };
   if (/\bexpensive\s+one\b|\bmost expensive\b/.test(m)) return { type: "attribute", attribute: "expensive" };
@@ -224,6 +230,9 @@ function resolveAttribute(resultSet: ResultSetContext, attribute: string): Follo
     unresolved: ["open", "unresolved", "pending", "active", "in_progress"],
     failed: ["failed", "error"],
     open: ["open", "unresolved", "pending"],
+    active: ["active", "open", "in_progress", "pending", "unresolved", "checked_in", "arrived", "expected", "on"],
+    inactive: ["inactive", "off", "resolved", "closed", "completed", "cancelled", "expired"],
+    resolved: ["resolved", "closed", "completed", "done"],
   };
   const wanted = statusSynonyms[attribute] || [attribute];
   const matches = refs.filter((ref) => ref.status && wanted.includes(ref.status));
@@ -275,6 +284,19 @@ export function prioritizeResultSet(resultSet: ResultSetContext | null): ResultS
     .map((item) => item.ref);
 }
 
+// "The other one": only meaningful relative to a selected object (or a pair).
+// With more than two candidates and no selection it is genuinely ambiguous and
+// the caller asks, naming the candidates.
+function resolveOther(resultSet: ResultSetContext): FollowUpResolution {
+  const refs = resultSet.object_refs;
+  if (refs.length < 2) return { status: "unresolved" };
+  const selected = resultSet.selected_object_ref;
+  const rest = selected ? refs.filter((ref) => ref.canonical_id !== selected.canonical_id) : refs;
+  if (selected && rest.length === 1) return { status: "resolved", ref: rest[0] };
+  if (!selected && refs.length === 2) return { status: "ambiguous", candidates: refs };
+  return { status: "ambiguous", candidates: rest };
+}
+
 function resolvePronoun(resultSet: ResultSetContext): FollowUpResolution {
   if (resultSet.selected_object_ref) return { status: "resolved", ref: resultSet.selected_object_ref };
   if (resultSet.object_refs.length === 1) return { status: "resolved", ref: resultSet.object_refs[0] };
@@ -289,6 +311,7 @@ function resolvePronoun(resultSet: ResultSetContext): FollowUpResolution {
 export function resolveFollowUpReference(resultSet: ResultSetContext | null, intent: FollowUpIntent): FollowUpResolution {
   if (!resultSet) return { status: "unresolved" };
   if (intent.type === "ordinal") return resolveOrdinal(resultSet, intent.ordinal);
+  if (intent.type === "other") return resolveOther(resultSet);
   if (intent.type === "attribute") return resolveAttribute(resultSet, intent.attribute);
   if (intent.type === "pronoun" || intent.type === "detail" || intent.type === "why" || intent.type === "status_check" || intent.type === "field") {
     return resolvePronoun(resultSet);

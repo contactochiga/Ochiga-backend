@@ -7,7 +7,7 @@ import { loadConversationAssessment, nextConversationAssessment, isAssessmentObj
 import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
 import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
 import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
-import { hasWithdrawalVerb, hazardReportIn } from "../response/answerTarget";
+import { hasWithdrawalVerb, hazardReportIn, isHazardText, splitCompoundWithdrawal } from "../response/answerTarget";
 import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
 import { capabilityEnabled } from "../capabilities/CapabilityRollout";
 import { actionTruthLead, communicationTruthLead, threadActionTruth } from "../response/actionTruth";
@@ -2748,7 +2748,28 @@ function factFromHydration(hydration: Awaited<ReturnType<typeof hydrateCanonical
 // EXISTING generic per-object-type state-line presentation
 // (objectFallbackPresentation.ts's objectStateLine) rather than new
 // per-domain "tell me more" logic, per the programme's explicit instruction.
-function followUpDetailAnswer(hydration: Awaited<ReturnType<typeof hydrateCanonicalTarget>>, intent: FollowUpIntent, fact: IntelligenceFact): string {
+// A field named in the follow-up itself ("how urgent is it?", "was that money in or out?").
+function askedFieldIn(message: string): "priority" | "direction" | null {
+  if (/\b(?:how\s+urgent|urgency|priority|how\s+serious|how\s+important)\b/i.test(message)) return "priority";
+  if (/\bmoney\s+(?:in|out)\b|\bin\s+or\s+out\b/i.test(message)) return "direction";
+  return null;
+}
+
+// Answers a named field from the carried result-set reference itself (grounded in what was already presented), when the record supplies it.
+function refFieldAnswer(ref: import("../context/resultSetContext").ResultSetObjectRef, field: "priority" | "direction" | null): string | null {
+  if (field === "priority") {
+    const priority = String(ref.attributes?.priority || ref.attributes?.severity || "").trim();
+    return priority ? `${ref.label}: recorded priority is ${priority}${ref.status ? `, status ${ref.status}` : ""}.` : null;
+  }
+  if (field === "direction" && typeof ref.metric_value === "number" && ref.metric_value !== 0) {
+    return `${ref.label}: recorded as money ${ref.metric_value > 0 ? "in" : "out"}.`;
+  }
+  return null;
+}
+
+function followUpDetailAnswer(hydration: Awaited<ReturnType<typeof hydrateCanonicalTarget>>, intent: FollowUpIntent, fact: IntelligenceFact, message = ""): string {
+  const asked = askedFieldIn(message);
+  if (asked && intent.type !== "why" && intent.type !== "status_check" && intent.type !== "field") return buildFieldAnswer(fact, asked);
   if (intent.type === "why") return buildExplainAnswer(fact);
   if (intent.type === "status_check") return buildStatusCheckAnswer(fact);
   if (intent.type === "field") return buildFieldAnswer(fact, intent.field);
@@ -2928,6 +2949,7 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
     tracer.finish({ thread_id: officeResponse.thread_id || null, response_state: officeResponse.persistence_saved === false ? "unsaved" : "returned" });
     return officeResponse;
   }
+  const refAnswer = intent.type !== "why" && intent.type !== "status_check" && intent.type !== "field" ? refFieldAnswer(ref, askedFieldIn(context.input.message)) : null;
   const hydration = await hydrateCanonicalTarget({
     actor: context.actor,
     oisContext: context.oisContext,
@@ -2946,7 +2968,7 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
   const fact = factFromHydration(hydration);
   const result: DomainResult = {
     status: fact ? "answered" : "unavailable",
-    answer: fact ? followUpDetailAnswer(hydration, intent, fact) : "I could not confirm that item right now, so I am not answering as confirmed.",
+    answer: refAnswer || (fact ? followUpDetailAnswer(hydration, intent, fact, context.input.message) : ref.status ? `${ref.label} was recorded as ${ref.status} when I listed it; I could not re-check it just now, so treat that as the earlier reading.` : "I could not confirm that item right now, so I am not answering as confirmed."),
     presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
   };
   const evidence = fact ? [evidenceFromFollowUpFact(fact)] : [];
@@ -3408,6 +3430,30 @@ export class ConversationOrchestrator {
     };
     let response: ConversationRunResult;
     try {
+      // IQ-9A2: "Scrap the email, I'll phone them myself" / "forget the AC but do the kitchen one" are TWO intents. The withdrawal is
+      // processed first as its own governed turn (it terminally cancels any pending proposal); a remaining request is then a separate,
+      // fresh governed turn with its own target resolution, authorization and confirmation. Nothing is inherited from the cancelled action.
+      const compound = context.input?.message ? splitCompoundWithdrawal(context.input.message) : null;
+      if (compound) {
+        const first = await this.runTurn({ ...context, input: { ...context.input, message: compound.withdrawal } }, traceHolder);
+        finalize(first, null);
+        if (compound.remainder_kind === "statement") {
+          const text = `${first.answer} Nothing else has been started from the rest of your message; tell me when you want it handled.`;
+          (first as any).answer = (first as any).reply = (first as any).message = (first as any).summary = text;
+          return first;
+        }
+        traceHolder.tracer = null;
+        const second = await this.runTurn({ ...context, input: { ...context.input, message: compound.remainder, thread_id: (first as any).thread_id || context.input.thread_id } }, traceHolder);
+        // The new request is a separate governed intent: it is only presented when it produced its own proposal or a real answer;
+        // otherwise it is left to be asked for separately (nothing is inherited from the cancelled action).
+        const proposed = Boolean((second as any).requires_confirmation || (second as any).workflow_id || (second as any).execution?.requires_confirmation);
+        const combined = proposed || /\?\s*$/.test(compound.remainder)
+          ? `${first.answer}\n\nSeparately — ${second.answer}`
+          : `${first.answer}\n\nYour other request (“${compound.remainder.slice(0, 120)}”) is separate and not started. Tell me the exact device or item and the action, and I'll prepare it for your confirmation.`;
+        (second as any).answer = (second as any).reply = (second as any).message = (second as any).summary = combined;
+        finalize(second, null);
+        return second;
+      }
       response = await this.runTurn(context, traceHolder);
     } catch (error) {
       finalize(null, error);
@@ -4206,6 +4252,13 @@ export class ConversationOrchestrator {
       // Keep its authorised evidence without claiming it proves what changed.
       const boundedAnswer = `These are current observations, not a verified comparison with the earlier period. ${response.answer}`;
       response.answer = response.reply = response.message = response.summary = boundedAnswer;
+    }
+    // IQ-9A2: a hazard report combined with a device request keeps its safety meaning. The device proposal is still governed (target, authority,
+    // confirmation), but it is never presented as having made anything safe, and the report is stated as unverified.
+    if (capabilityOwnsResponse && String(capabilityOwnsResponse.key || "").startsWith("devices.") && (hazardReportIn(resolvedTurn.semantic_frame.rawText) || (isHazardText(resolvedTurn.semantic_frame.rawText) && !/\b(?:no|not|without|never|don'?t|do not)\b/i.test(resolvedTurn.semantic_frame.rawText)))) {
+      const precaution = "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.";
+      const prefixed = `${precaution}\n\n${response.answer}`;
+      response.answer = response.reply = response.message = response.summary = prefixed;
     }
     if (capabilityOwnsResponse) {
       response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityOwnsResponse);

@@ -1,0 +1,102 @@
+{
+ "items": [
+  {
+   "id": "E1-dir",
+   "surface": "consumer",
+   "seeds": [
+    "Turn on the AC"
+   ],
+   "utterance": "Kitchen light off too"
+  },
+  {
+   "id": "E1p-dir-on",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Turn on the Kitchen Light"
+  },
+  {
+   "id": "E2-hazard",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "AC is sparking, switch it off now"
+  },
+  {
+   "id": "E2p-plain",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Switch off the AC"
+  },
+  {
+   "id": "E3-compound-stmt",
+   "surface": "office_internal",
+   "seeds": [
+    "Email the VI Development owner about the overdue activity."
+   ],
+   "utterance": "Scrap the email, I'll phone them myself."
+  },
+  {
+   "id": "E3p-single-cancel",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the Living Light."
+   ],
+   "utterance": "Cancel that"
+  },
+  {
+   "id": "E4-scope",
+   "surface": "consumer",
+   "seeds": [
+    "What's my wallet balance?"
+   ],
+   "utterance": "same for the neighbour's place"
+  },
+  {
+   "id": "E4p-own",
+   "surface": "consumer",
+   "seeds": [
+    "What's my wallet balance?"
+   ],
+   "utterance": "and my transactions?"
+  },
+  {
+   "id": "E5-priority",
+   "surface": "facility",
+   "seeds": [
+    "What maintenance requests do I have?"
+   ],
+   "utterance": "And the first one, how urgent is it?"
+  },
+  {
+   "id": "E5p-status",
+   "surface": "facility",
+   "seeds": [
+    "What maintenance requests do I have?"
+   ],
+   "utterance": "And the first one, what is its status?"
+  },
+  {
+   "id": "E6-direction",
+   "surface": "consumer",
+   "seeds": [
+    "Show my wallet transactions."
+   ],
+   "utterance": "the second one - was that money in or out?"
+  },
+  {
+   "id": "E7-callback",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease, no title papers yet."
+   ],
+   "utterance": "Call me back."
+  },
+  {
+   "id": "E7p-info",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease, no title papers yet."
+   ],
+   "utterance": "What have you noted down from me so far?"
+  }
+ ]
+}

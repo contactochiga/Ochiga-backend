@@ -17,6 +17,16 @@ function desiredState(frame: SemanticFrame) {
   return null;
 }
 
+// A direction stated in the message itself ("Kitchen light off too") outranks
+// the direction a pending workflow proposed earlier.
+function statedPowerDirection(message: string): boolean | null {
+  const off = /\b(?:off|shut(?:\s+down)?|disable|deactivate)\b/i.test(message);
+  const on = /\b(?:on|enable|activate)\b/i.test(message);
+  if (off && !on) return false;
+  if (on && !off) return true;
+  return null;
+}
+
 function stateLabel(value: unknown) {
   return value === true ? "ON" : value === false ? "OFF" : "requested";
 }
@@ -329,7 +339,7 @@ export async function createOrContinueDeviceActionDraft(context: CapabilityConte
     workflow_id: workflow?.workflow_id || null,
     workflow_status: workflow?.status || null,
   });
-  const requested = options.requested ?? desiredState(context.resolvedTurn.semantic_frame) ?? workflow?.proposed_action?.requested_state ?? null;
+  const requested = options.requested ?? desiredState(context.resolvedTurn.semantic_frame) ?? statedPowerDirection(context.input.message || "") ?? workflow?.proposed_action?.requested_state ?? null;
   let resolved: Awaited<ReturnType<typeof resolveTargetForAction>>;
   try {
     resolved = await resolveTargetForAction(context, workflow);
@@ -673,7 +683,7 @@ export async function continueDeviceActionWorkflow(context: CapabilityContext, w
       metadata: { rejected_input: "channel_without_target" },
     });
   }
-  const result = await createOrContinueDeviceActionDraft(context, workflow, { requested: workflow.proposed_action?.requested_state });
+  const result = await createOrContinueDeviceActionDraft(context, workflow, { requested: statedPowerDirection(context.input.message || "") ?? workflow.proposed_action?.requested_state });
   logger.info("oyi_workflow_clarification_resolved", {
     thread_id: workflow.thread_id,
     workflow_id: workflow.workflow_id,

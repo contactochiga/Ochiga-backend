@@ -58,7 +58,7 @@ const NUM: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5
 const STATUS_WORDS = ["open", "closed", "resolved", "unresolved", "stale", "expired", "overdue", "pending", "qualified", "new", "active", "inactive", "offline", "online", "current", "historical", "high", "low", "urgent", "critical", "late", "waiting", "outstanding", "unassigned", "approved"];
 const INFERENCE = ["take", "assume", "assumed", "conclude", "infer", "tell", "tells", "suggest", "suggests", "signal", "signals", "demonstrate", "demonstrates", "prove", "proves", "proved", "mean", "means", "meant", "imply", "implies", "establish", "establishes", "confirm", "confirms", "show", "shows", "enough", "justify", "justifies", "guarantee", "guarantees", "indicate", "indicates", "caused", "cause", "causes", "explain", "explains", "equal", "equals"];
 const ACTION_VERBS = ["switch", "switched", "change", "changed", "alter", "altered", "turn", "turned", "send", "sent", "execute", "executed", "run", "ran", "do", "did", "modify", "modified", "touch", "touched", "update", "updated", "lock", "locked", "unlock", "unlocked", "set", "move", "moved", "book", "booked", "fixed", "sorted", "handled", "dealt", "arranged", "cancelled", "canceled", "scheduled", "repaired", "paid", "funded", "approved", "rejected", "logged", "filed", "raised"];
-const HAZARD = ["stranger", "strangers", "trespasser", "trespassers", "squatter", "squatters", "burst", "fumes", "fume", "gas", "smoke", "fire", "flame", "burning", "electrical", "electric", "wiring", "sparks", "shock", "flood", "flooding", "collapse", "explosion", "leak", "leaking", "unsafe", "dangerous", "hazard", "hazardous", "injury", "injured", "intruder", "burglar", "alarm", "carbon", "monoxide", "panel", "exposed", "threat", "smell"];
+const HAZARD = ["stranger", "strangers", "trespasser", "trespassers", "squatter", "squatters", "burst", "fumes", "fume", "gas", "smoke", "fire", "flame", "burning", "electrical", "electric", "wiring", "sparks", "sparking", "sparked", "spark", "overheating", "shock", "flood", "flooding", "collapse", "explosion", "leak", "leaking", "unsafe", "dangerous", "hazard", "hazardous", "injury", "injured", "intruder", "burglar", "alarm", "carbon", "monoxide", "panel", "exposed", "threat", "smell"];
 const RISK_ASK = ["hurt", "safety", "exposed", "dangerous", "unsafe", "hazard", "hazardous", "hazards", "danger", "safe", "secure", "risk", "risks", "risky", "threat", "worried", "worry", "concern", "concerning", "worrying", "harm", "vulnerable"];
 
 const NEGATION = new Set(["no", "not", "never", "nothing", "without", "none", "isn", "aren", "hasn", "haven", "cannot", "neither"]);
@@ -74,7 +74,32 @@ const WET = ["water", "wet", "flooding", "flooded", "leaking", "liquid", "drippi
 /** Any sentence of the turn is a declarative hazard report (a mixed turn such as "I smell gas. Is everything fine?" still carries the report). */
 export const hazardReportIn = (text: string) => sentencesOf(text).some(x => isHazardReport(x));
 /** An explicit withdrawal verb (cancel / scratch / forget / abort ...). A negated statement of preference ("I do not want to sell") is NOT a withdrawal of anything. */
-export const hasWithdrawalVerb = (text: string) => analyse(text).tokens.some((t, i, T) => ["cancel", "cancelled", "canceled", "scratch", "forget", "disregard", "nevermind", "abort", "undo", "revoke", "withdraw", "retract"].includes(t) || (t === "never" && T[i + 1] === "mind") || (t === "don" && T[i + 1] === "t" && ["touch", "send", "do", "proceed"].includes(T[i + 2] ?? "")));
+/**
+ * "Scrap the email, I'll phone them myself" / "Actually forget the AC but do the kitchen one":
+ * a leading, pure withdrawal followed by a separate remainder. The withdrawal is handled first as its own turn;
+ * the remainder (if it is an actionable request rather than a first-person statement or a correction) is a fresh governed turn.
+ * Returns null when the text is a single intent, a correction ("I mean…") or has no withdrawal lead.
+ */
+export function splitCompoundWithdrawal(text: string): { withdrawal: string; remainder: string; remainder_kind: "request" | "statement" } | null {
+  const raw = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!raw || raw.length > 240) return null;
+  if (/\b(?:i\s+mean|meant|instead|rather|thinking|prefer|correction|change\s+it\s+to)\b/i.test(raw)) return null;
+  const seps = [...raw.matchAll(/(?:[.;!]\s+|,\s*(?:but|and|then|so)\s+|\s+but\s+|,\s+)/gi)];
+  let lead = "", rem = "";
+  for (const sep of seps) {
+    const l = raw.slice(0, sep.index!).trim(), r = raw.slice(sep.index! + sep[0].length).trim();
+    if (l.length < 3 || l.length > 80 || r.length < 3) continue;
+    if (!hasWithdrawalVerb(l) || analyse(l).tokens.length > 9 || /\?\s*$/.test(l) || /^(?:please\s+)?(?:can|could|would|will|do|does)\b/i.test(l)) continue;
+    if (!analyse(r).tokens.length) continue;
+    const pieces = l.split(/,\s*/).filter(Boolean), core = pieces.filter(hasWithdrawalVerb).pop() ?? l;
+    lead = core.replace(/^(?:actually|well|ok(?:ay)?|no wait|wait)\s+/i, ""); rem = r; break;
+  }
+  if (!lead) return null;
+  const statement = /^(?:i(?:'ll|\s+will|\s+am|'m)|i\s+(?:can|shall|prefer)|we(?:'ll|\s+will)|let\s+me|ill)\b/i.test(rem) || /\b(?:later|tomorrow|tonight|next\s+\w+|myself)\b/i.test(rem) || isHoldDirective(rem);
+  return { withdrawal: lead.replace(/[,;]$/, ""), remainder: rem, remainder_kind: statement ? "statement" : "request" };
+}
+
+export const hasWithdrawalVerb = (text: string) => analyse(text).tokens.some((t, i, T) => ["cancel", "cancelled", "canceled", "scratch", "scrap", "forget", "disregard", "nevermind", "abort", "undo", "revoke", "withdraw", "retract"].includes(t) || (t === "never" && T[i + 1] === "mind") || (t === "do" && T[i + 1] === "not" && ["touch", "send", "do", "proceed", "mark", "change", "update", "close", "resolve", "delete", "pay", "book"].includes(T[i + 2] ?? "") && !["me", "us"].includes(T[i + 3] ?? "")));
 export const isHazardText = (text: string) => { const t = analyse(text).tokens; return t.some(x => HAZARD.includes(x)); };
 
 const constraintKind = (T: string[], channel: boolean): NonNullable<AnswerTarget["constraint_kind"]> => channel ? "channel" : T.some(t => ["promise", "promises", "guarantee", "commit", "assure", "pledge"].includes(t)) ? "commitment" : T.some(t => ["share", "pass", "tell", "send", "give", "disclose", "reveal", "forward", "show", "expose", "publish"].includes(t)) ? "disclosure" : "other";

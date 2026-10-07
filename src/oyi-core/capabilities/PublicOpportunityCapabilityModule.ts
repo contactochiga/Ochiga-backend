@@ -256,7 +256,7 @@ async function composeCallbackAnswer(context: CapabilityContext, objective: Publ
   // successful transport needs an acknowledged handoff receipt.
   const accepted = result.ok && Boolean(result.handoff_id) && !/failed|rejected|cancelled/i.test(`${result.status} ${result.routing_status}`);
   const answer = accepted
-    ? "The team has received your callback request. A call has not been booked or confirmed."
+    ? "The team has received your callback request. A call has not been booked or confirmed, and no one has contacted you yet." + (objective && Object.keys(objective.known_facts).length ? " What you've told me so far was included with the request." : "")
     : "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact."
       + (objective ? " Your opportunity details remain in this conversation; you don't need to start again." : "");
   return { status: accepted ? "answered" : "unavailable", answer, metadata: {
@@ -264,6 +264,9 @@ async function composeCallbackAnswer(context: CapabilityContext, objective: Publ
     office_handoff_status: accepted ? "accepted" : "unavailable",
     office_handoff_id: result.ok ? result.handoff_id || null : null,
     office_handoff_retryable: !accepted,
+    // requested by the visitor -> attempted -> accepted with a receipt; contact is never completed by this step
+    handoff_stage: accepted ? "accepted_receipt_recorded" : "attempted_not_accepted",
+    contact_completed: false,
   } };
 }
 
@@ -336,7 +339,8 @@ export function publicOpportunityReadModule(): CapabilityModule {
         return { status: "answered", answer, presentation_policy: resultPresentation("text") };
       }
 
-      if (isCallbackRequest(message)) {
+      // IQ-9A2: the canonical answer target recognises natural callback wording ("Call me back.") that this module's own regex does not.
+      if (isCallbackRequest(message) || context.resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "callback") {
         const { status, answer, metadata } = await composeCallbackAnswer(context, prior);
         // A callback request doesn't change the objective -- preserve it
         // verbatim rather than letting persistence's undefined-fallback

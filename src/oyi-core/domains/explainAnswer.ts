@@ -55,7 +55,7 @@ export function buildStatusCheckAnswer(fact: IntelligenceFact | null): string {
   return `${label}: recorded status is ${status}.`;
 }
 
-export function buildFieldAnswer(fact: IntelligenceFact | null, field: "who" | "when" | "where" | "amount"): string {
+export function buildFieldAnswer(fact: IntelligenceFact | null, field: "who" | "when" | "where" | "amount" | "priority" | "direction"): string {
   if (!fact) return "I could not confirm which item you mean.";
   const value = recordOf(fact.value);
   const label = fact.object?.label || "That";
@@ -65,6 +65,16 @@ export function buildFieldAnswer(fact: IntelligenceFact | null, field: "who" | "
     return amount !== undefined && amount !== null && Number.isFinite(Number(amount))
       ? `${label}: ${currency} ${Number(amount).toLocaleString()}.`
       : "I do not have a recorded amount for that.";
+  }
+  if (field === "priority") {
+    const priority = text(value.priority || value.urgency || value.severity);
+    return priority ? `${label}: recorded priority is ${priority}.` : "No priority is recorded for that, so I can't say how urgent it is. I can tell you its recorded status.";
+  }
+  if (field === "direction") {
+    const kind = text(value.direction || value.type || value.kind || value.transaction_type || value.entry_type).toLowerCase();
+    if (/credit|top.?up|deposit|income|inflow|\bin\b/.test(kind)) return `${label}: recorded as money in (${kind}).`;
+    if (/debit|payment|withdraw|charge|expense|outflow|\bout\b/.test(kind)) return `${label}: recorded as money out (${kind}).`;
+    return "The record doesn't say whether that was money in or out.";
   }
   if (field === "where") {
     const location = text(value.location || value.room || value.address);

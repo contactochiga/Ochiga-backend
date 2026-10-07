@@ -19,6 +19,10 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     const genericLimit = (result.status === "unsupported" || result.status === "unavailable") && isGenericUnsupportedAnswer(String(result.answer || ""));
     if (genericLimit || genericDenied) {
       if (t.response_intent === "CAPABILITY_DISCOVERY") return result;
+      // IQ-9A2: an elliptical follow-up ("same for the neighbour's place") that names another person's scope is a scope refusal, not a generic limit.
+      if (genericLimit && t.subject_scope && t.subject_scope !== "own" && context.input?.surface === "consumer") {
+        return { ...result, status: "permission_restricted", answer: denialAnswer("requested_scope_not_authorized", frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120), Boolean(frame.mutationIntent)), metadata: { ...(result.metadata || {}), answer_target: t.response_intent, limitation_targeted: true, reason: "requested_scope_not_authorized" } };
+      }
       const answer = genericDenied && (t.response_intent === "REFUSAL" || t.response_intent === "CLARIFICATION") ? limitationAnswer(t, frame.rawText) : genericDenied ? denialAnswer(String((result.metadata as Record<string, unknown> | undefined)?.reason ?? ""), frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120), Boolean(frame.mutationIntent)) : limitationAnswer(t, frame.rawText);
       return { ...result, answer, metadata: { ...(result.metadata || {}), answer_target: t.response_intent, limitation_targeted: true } };
     }
