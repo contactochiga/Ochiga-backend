@@ -96,6 +96,9 @@ export function judgeDeterministic(i: JudgeInput): JudgmentResult {
       : "Based on the evidence available, this is what is known and what is not.";
   }
   const operational = state.surface !== "public_corporate";
+  // A comparison never claims to know which two things the user meant: it names the pair it took from the records. Resolving a
+  // pronoun or ordinal ("this", "that one") to a specific earlier item is reference continuity, a later slice.
+  if (i.objective === "compare" && tiered.length >= 2) rationale.push(`I took these two from the records I read (${tiered[0].candidate.ref.label} and ${tiered[1].candidate.ref.label}); if you meant different items, tell me which.`);
   const partialEvidence = state.contributions.some(c => c.availability === "available" && (c.completeness === "partial" || c.truncated || c.unobserved > 0 || c.freshness === "stale"));
   if (operational && (partialEvidence || !tiered.length || ctx.uncertainties.length || limitations.length)) rationale.push("This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current.");
   // Name what needs attention when the question was not itself a ranking request.
