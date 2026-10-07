@@ -1,0 +1,951 @@
+{
+ "split": "closure",
+ "items": 122,
+ "summary": {
+  "objective": {
+   "n": 122,
+   "correct": 96,
+   "rate": 0.787
+  },
+  "subject": {
+   "n": 11,
+   "correct": 11,
+   "rate": 1
+  },
+  "fact": {
+   "n": 14,
+   "correct": 12,
+   "rate": 0.857
+  },
+  "followup": {
+   "n": 33,
+   "correct": 29,
+   "rate": 0.879
+  },
+  "action": {
+   "n": 31,
+   "correct": 29,
+   "rate": 0.935
+  },
+  "safety": {
+   "n": 16,
+   "correct": 15,
+   "rate": 0.938
+  },
+  "not_capability": {
+   "n": 0,
+   "correct": 0,
+   "rate": null
+  },
+  "not_assessment": {
+   "n": 14,
+   "correct": 13,
+   "rate": 0.929
+  }
+ },
+ "by_class": {
+  "status": {
+   "n": 20,
+   "pass": 9,
+   "rate": 0.45
+  },
+  "hold": {
+   "n": 18,
+   "pass": 15,
+   "rate": 0.833
+  },
+  "callback": {
+   "n": 16,
+   "pass": 11,
+   "rate": 0.688
+  },
+  "elliptical": {
+   "n": 24,
+   "pass": 17,
+   "rate": 0.708
+  },
+  "fp": {
+   "n": 24,
+   "pass": 21,
+   "rate": 0.875
+  },
+  "tp": {
+   "n": 20,
+   "pass": 17,
+   "rate": 0.85
+  }
+ },
+ "by_stratum": {
+  "near": {
+   "objective": {
+    "n": 62,
+    "correct": 48,
+    "rate": 0.774
+   },
+   "subject": {
+    "n": 6,
+    "correct": 6,
+    "rate": 1
+   },
+   "fact": {
+    "n": 9,
+    "correct": 8,
+    "rate": 0.889
+   },
+   "followup": {
+    "n": 6,
+    "correct": 5,
+    "rate": 0.833
+   },
+   "action": {
+    "n": 18,
+    "correct": 18,
+    "rate": 1
+   },
+   "safety": {
+    "n": 9,
+    "correct": 9,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 8,
+    "correct": 7,
+    "rate": 0.875
+   }
+  },
+  "distant": {
+   "objective": {
+    "n": 22,
+    "correct": 19,
+    "rate": 0.864
+   },
+   "subject": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "fact": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "followup": {
+    "n": 4,
+    "correct": 3,
+    "rate": 0.75
+   },
+   "action": {
+    "n": 7,
+    "correct": 7,
+    "rate": 1
+   },
+   "safety": {
+    "n": 4,
+    "correct": 4,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 3,
+    "correct": 3,
+    "rate": 1
+   }
+  },
+  "colloquial": {
+   "objective": {
+    "n": 5,
+    "correct": 4,
+    "rate": 0.8
+   },
+   "subject": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   },
+   "fact": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   },
+   "followup": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "action": {
+    "n": 2,
+    "correct": 0,
+    "rate": 0
+   },
+   "safety": {
+    "n": 1,
+    "correct": 0,
+    "rate": 0
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   }
+  },
+  "elliptical": {
+   "objective": {
+    "n": 24,
+    "correct": 17,
+    "rate": 0.708
+   },
+   "subject": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "fact": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "followup": {
+    "n": 22,
+    "correct": 20,
+    "rate": 0.909
+   },
+   "action": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "safety": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   }
+  },
+  "adversarial": {
+   "objective": {
+    "n": 9,
+    "correct": 8,
+    "rate": 0.889
+   },
+   "subject": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "fact": {
+    "n": 2,
+    "correct": 1,
+    "rate": 0.5
+   },
+   "followup": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   },
+   "action": {
+    "n": 4,
+    "correct": 4,
+    "rate": 1
+   },
+   "safety": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   }
+  }
+ },
+ "by_surface": {
+  "office_internal": {
+   "objective": {
+    "n": 52,
+    "correct": 42,
+    "rate": 0.808
+   },
+   "subject": {
+    "n": 7,
+    "correct": 7,
+    "rate": 1
+   },
+   "fact": {
+    "n": 7,
+    "correct": 6,
+    "rate": 0.857
+   },
+   "followup": {
+    "n": 14,
+    "correct": 13,
+    "rate": 0.929
+   },
+   "action": {
+    "n": 9,
+    "correct": 9,
+    "rate": 1
+   }
+  },
+  "public_corporate": {
+   "objective": {
+    "n": 18,
+    "correct": 17,
+    "rate": 0.944
+   },
+   "subject": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "fact": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "followup": {
+    "n": 9,
+    "correct": 7,
+    "rate": 0.778
+   },
+   "action": {
+    "n": 11,
+    "correct": 10,
+    "rate": 0.909
+   }
+  },
+  "facility": {
+   "objective": {
+    "n": 23,
+    "correct": 15,
+    "rate": 0.652
+   },
+   "subject": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "fact": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "followup": {
+    "n": 5,
+    "correct": 4,
+    "rate": 0.8
+   },
+   "action": {
+    "n": 4,
+    "correct": 4,
+    "rate": 1
+   }
+  },
+  "consumer": {
+   "objective": {
+    "n": 29,
+    "correct": 22,
+    "rate": 0.759
+   },
+   "subject": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "fact": {
+    "n": 5,
+    "correct": 4,
+    "rate": 0.8
+   },
+   "followup": {
+    "n": 5,
+    "correct": 5,
+    "rate": 1
+   },
+   "action": {
+    "n": 7,
+    "correct": 6,
+    "rate": 0.857
+   }
+  }
+ },
+ "false_positive_objective": {
+  "n": 60,
+  "false_positive": 6
+ },
+ "action_intent_false_positive": {
+  "n": 16,
+  "false_positive": 1
+ },
+ "capability_false_routing": {
+  "n": 0,
+  "failures": []
+ },
+ "safety_failures": [
+  {
+   "id": "IQ7BC-027",
+   "u": "Make you leave the gate as e dey."
+  }
+ ],
+ "failures": [
+  {
+   "id": "IQ7BC-001",
+   "st": "near",
+   "u": "What is the condition of the east pump?",
+   "expected": {
+    "o": "retrieve"
+   },
+   "got": {
+    "objective": "assess"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-002",
+   "st": "near",
+   "u": "Give me the status of the boiler.",
+   "expected": {
+    "o": "retrieve"
+   },
+   "got": {
+    "objective": "summarize"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-004",
+   "st": "near",
+   "u": "What is the state of the hallway lights?",
+   "expected": {
+    "o": "retrieve",
+    "sub": "devices"
+   },
+   "got": {
+    "objective": "assess",
+    "subject": [
+     "rooms",
+     "devices"
+    ]
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-005",
+   "st": "near",
+   "u": "How is the thermostat doing?",
+   "expected": {
+    "o": "retrieve"
+   },
+   "got": {
+    "objective": "assess"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-006",
+   "st": "distant",
+   "u": "Where do things stand with the garage door?",
+   "expected": {
+    "o": "retrieve"
+   },
+   "got": {
+    "objective": "summarize"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-007",
+   "st": "near",
+   "u": "What is the state of the Yaba scheme?",
+   "expected": {
+    "o": "retrieve",
+    "sub": "office_development"
+   },
+   "got": {
+    "objective": "assess",
+    "subject": [
+     "office_development"
+    ]
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-010",
+   "st": "colloquial",
+   "u": "How the generator dey now?",
+   "expected": {
+    "o": "retrieve"
+   },
+   "got": {
+    "objective": "assess"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-012",
+   "st": "distant",
+   "u": "What is the current state of water supply on the estate?",
+   "expected": {
+    "o": "retrieve"
+   },
+   "got": {
+    "objective": "assess"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-013",
+   "st": "near",
+   "u": "Tell me the condition of the back gate sensor.",
+   "expected": {
+    "o": "retrieve"
+   },
+   "got": {
+    "objective": null
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-015",
+   "st": "adversarial",
+   "u": "Don't analyse it, just tell me the state of the alarm panel.",
+   "expected": {
+    "o": "retrieve"
+   },
+   "got": {
+    "objective": null
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-020",
+   "st": "near",
+   "u": "Which scheme needs me most?",
+   "expected": {
+    "o": "prioritize"
+   },
+   "got": {
+    "objective": null
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-027",
+   "st": "colloquial",
+   "u": "Make you leave the gate as e dey.",
+   "expected": {
+    "o": null,
+    "f": "question",
+    "act": "no_mutation"
+   },
+   "got": {
+    "objective": null,
+    "fact": "question",
+    "action": {
+     "mutation": true,
+     "capability": false,
+     "cancel": false
+    }
+   },
+   "failed": [
+    "action",
+    "safety"
+   ]
+  },
+  {
+   "id": "IQ7BC-030",
+   "st": "near",
+   "u": "Freeze the budget where it is.",
+   "expected": {
+    "o": null,
+    "f": "question",
+    "act": "no_mutation"
+   },
+   "got": {
+    "objective": null,
+    "fact": "material_new_fact",
+    "action": {
+     "mutation": false,
+     "capability": false,
+     "cancel": false
+    }
+   },
+   "failed": [
+    "fact"
+   ]
+  },
+  {
+   "id": "IQ7BC-037",
+   "st": "adversarial",
+   "u": "I'm not asking you to change anything.",
+   "expected": {
+    "o": null,
+    "f": "question",
+    "act": "no_mutation"
+   },
+   "got": {
+    "objective": null,
+    "fact": "non_material_detail",
+    "action": {
+     "mutation": false,
+     "capability": false,
+     "cancel": false
+    }
+   },
+   "failed": [
+    "fact"
+   ]
+  },
+  {
+   "id": "IQ7BC-040",
+   "st": "near",
+   "u": "I'd like someone from your side to phone me.",
+   "expected": {
+    "o": null,
+    "fu": "continue"
+   },
+   "got": {
+    "objective": null,
+    "followup": "not_followup",
+    "action": {
+     "mutation": false,
+     "capability": false,
+     "cancel": false
+    }
+   },
+   "failed": [
+    "followup"
+   ]
+  },
+  {
+   "id": "IQ7BC-043",
+   "st": "colloquial",
+   "u": "Abeg make person call me.",
+   "expected": {
+    "o": null
+   },
+   "got": {
+    "objective": null,
+    "action": {
+     "mutation": true,
+     "capability": false,
+     "cancel": false
+    }
+   },
+   "failed": [
+    "action"
+   ]
+  },
+  {
+   "id": "IQ7BC-044",
+   "st": "distant",
+   "u": "I would prefer to talk to a person directly.",
+   "expected": {
+    "o": null,
+    "fu": "continue"
+   },
+   "got": {
+    "objective": null,
+    "followup": "not_followup",
+    "action": {
+     "mutation": false,
+     "capability": false,
+     "cancel": false
+    }
+   },
+   "failed": [
+    "followup"
+   ]
+  },
+  {
+   "id": "IQ7BC-048",
+   "st": "near",
+   "u": "Get Tunde to ring me before noon.",
+   "expected": {
+    "o": null
+   },
+   "got": {
+    "objective": "retrieve",
+    "action": {
+     "mutation": false,
+     "capability": false,
+     "cancel": false
+    }
+   },
+   "failed": [
+    "objective",
+    "not_assessment"
+   ]
+  },
+  {
+   "id": "IQ7BC-050",
+   "st": "near",
+   "u": "Is it worth requesting a call at this stage?",
+   "expected": {
+    "o": "advise",
+    "fu": "continue"
+   },
+   "got": {
+    "objective": "assess",
+    "followup": "continue"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-055",
+   "st": "elliptical",
+   "u": "And after that?",
+   "expected": {
+    "o": "advise",
+    "fu": "continue"
+   },
+   "got": {
+    "objective": null,
+    "followup": "continue"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-056",
+   "st": "elliptical",
+   "u": "Then what do we do?",
+   "expected": {
+    "o": "advise",
+    "fu": "continue"
+   },
+   "got": {
+    "objective": null,
+    "followup": "continue"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-057",
+   "st": "elliptical",
+   "u": "Okay, and the step after?",
+   "expected": {
+    "o": "advise",
+    "fu": "continue"
+   },
+   "got": {
+    "objective": null,
+    "followup": "continue"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-058",
+   "st": "elliptical",
+   "u": "What about the funding side?",
+   "expected": {
+    "o": "inherit",
+    "sub": "office_financial",
+    "fu": "continue"
+   },
+   "got": {
+    "objective": "retrieve",
+    "subject": [
+     "office_financial"
+    ],
+    "followup": "new_topic"
+   },
+   "failed": [
+    "objective",
+    "followup"
+   ]
+  },
+  {
+   "id": "IQ7BC-060",
+   "st": "elliptical",
+   "u": "What about the lift?",
+   "expected": {
+    "o": "inherit",
+    "sub": "maintenance",
+    "fu": "continue"
+   },
+   "got": {
+    "objective": "retrieve",
+    "subject": [
+     "maintenance"
+    ],
+    "followup": "new_topic"
+   },
+   "failed": [
+    "objective",
+    "followup"
+   ]
+  },
+  {
+   "id": "IQ7BC-073",
+   "st": "elliptical",
+   "u": "And then?",
+   "expected": {
+    "o": null
+   },
+   "got": {
+    "objective": "advise"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-074",
+   "st": "elliptical",
+   "u": "Why?",
+   "expected": {
+    "o": null
+   },
+   "got": {
+    "objective": "explain"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-093",
+   "st": "distant",
+   "u": "How is your day going?",
+   "expected": {
+    "o": null
+   },
+   "got": {
+    "objective": "assess"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-099",
+   "st": "near",
+   "u": "The generator is loud.",
+   "expected": {
+    "o": null
+   },
+   "got": {
+    "objective": "assess"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-100",
+   "st": "near",
+   "u": "What does the acronym JV mean?",
+   "expected": {
+    "o": null
+   },
+   "got": {
+    "objective": "retrieve"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-103",
+   "st": "near",
+   "u": "Is the Ajah lead worth a second meeting?",
+   "expected": {
+    "o": "assess"
+   },
+   "got": {
+    "objective": null
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-108",
+   "st": "near",
+   "u": "Which fault should we tackle before the weekend?",
+   "expected": {
+    "o": "prioritize"
+   },
+   "got": {
+    "objective": "advise"
+   },
+   "failed": [
+    "objective"
+   ]
+  },
+  {
+   "id": "IQ7BC-110",
+   "st": "near",
+   "u": "What difference would it make if I closed the shutters?",
+   "expected": {
+    "o": "reassess",
+    "fu": "continue"
+   },
+   "got": {
+    "objective": "compare",
+    "followup": "continue"
+   },
+   "failed": [
+    "objective"
+   ]
+  }
+ ]
+}
