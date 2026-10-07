@@ -3,6 +3,43 @@ import type { CanonicalConversationResponse, CanonicalTruth, IntelligenceFact } 
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
+import { deriveAnswerTarget } from "../response/answerTarget";
+import { rowsFromBlocks, targetedRetrieval, type AnswerRows } from "../response/targetedRetrieval";
+import { isGenericUnsupportedAnswer, limitationAnswer } from "../response/limitationTarget";
+
+// IQ-8: plain read capabilities describe what they read as compact rows; Core shapes the lead (list / count / status / yes-no) around the question.
+const ROW_NOUNS: Record<string, { noun: string; singular: string; population?: string }> = {
+  "crm.leads.read": { noun: "leads", singular: "lead", population: "needing attention" },
+  "crm.opportunities.read": { noun: "opportunities", singular: "opportunity", population: "that have gone stale" },
+  "reports.approvals.read": { noun: "reports awaiting approval", singular: "report awaiting approval" },
+  "development.status.read": { noun: "development projects", singular: "development project" },
+  "office_tasks.read": { noun: "tasks", singular: "task" },
+  "office_tasks.query.read": { noun: "tasks", singular: "task" },
+};
+function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capabilityKey: string): DomainResult {
+  try {
+    const frame = context.resolvedTurn?.semantic_frame;
+    if (!frame || !frame.rawText) return result;
+    // a generic "no capability" answer is replaced by the specific limitation for what was asked (never a menu, never a guessed state)
+    if ((result.status === "unsupported" || result.status === "unavailable") && isGenericUnsupportedAnswer(String(result.answer || ""))) {
+      const t = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
+      if (t.response_intent === "CAPABILITY_DISCOVERY") return result;
+      return { ...result, answer: limitationAnswer(t, frame.rawText), metadata: { ...(result.metadata || {}), answer_target: t.response_intent, limitation_targeted: true } };
+    }
+    if (result.status !== "answered" && result.status !== "empty") return result;
+    let rows = (result.metadata?.answer_rows as AnswerRows | undefined) ?? null;
+    if (!rows) {
+      const n = ROW_NOUNS[capabilityKey]; if (!n) return result;
+      const fromBlocks = rowsFromBlocks(result.blocks, n.noun, n.singular);
+      const block = (result.blocks || []).find((b) => b.type === "record_list" || b.type === "table") as Record<string, unknown> | undefined;
+      rows = fromBlocks ? { ...fromBlocks, population: n.population ?? fromBlocks.population ?? null, total: typeof block?.total_count === "number" ? (block.total_count as number) : null, truncated: Boolean(block?.truncated) } : null;
+    }
+    if (!rows) return result;
+    const target = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
+    const shaped = targetedRetrieval(result.answer, rows, target, frame.rawText);
+    return shaped ? { ...result, answer: shaped, metadata: { ...(result.metadata || {}), answer_target: target.response_intent } } : result;
+  } catch { return result; }
+}
 
 function factsFromEvidencePayload(evidence: OyiEvidence[]): IntelligenceFact[] {
   return evidence
@@ -85,6 +122,7 @@ export function capabilityDomainResultToConversationResponse(input: {
   result: DomainResult;
   evidence: OyiEvidence[];
 }): CanonicalConversationResponse {
+  input = { ...input, result: shapeReadAnswer(input.result, input.context, input.capability.key) };
   const answer = text(input.result.answer) || "Oyi could not produce an answer for this capability.";
   const now = new Date().toISOString();
   const sources = dedupeSources(input.evidence, input.capability);

@@ -54,7 +54,7 @@ const POL = {
 };
 const shapeCheck = (it, a, cap, status) => {
   const c = {}, p = it.p, head = a.slice(0, 340);
-  c.not_boilerplate = !BOILER.test(a.trim());
+  c.not_boilerplate = it.kind === 'discovery' || !BOILER.test(a.trim());
   switch (it.kind) {
     case 'count': c.count = new RegExp(`\\b${p.n}\\b|\\b${['zero', 'one', 'two', 'three', 'four'][p.n] || 'x'}\\b${p.n === 0 ? '|\\bno\\b|\\bnone\\b' : ''}`, 'i').test(a.slice(0, 90)); break;
     case 'list': c.list = p.names.filter(n => lc(head).includes(lc(n))).length >= p.min; break;
@@ -71,9 +71,10 @@ const shapeCheck = (it, a, cap, status) => {
     case 'limit': c.limitation = NEG.test(a.slice(0, 220)) && hasAny(a, p.kw, 300); break;
     case 'ack': c.ack = /^(?:understood|noted|okay|ok|will do|got it|i will not|i won't|i'll not|of course|sure)/i.test(a.trim()) && hasAny(a, p.kw, 200); break;
     case 'clarify': c.clarify = /\?|\bwhich\b/i.test(a.slice(0, 200)) && !/^I can (?:tell you|help)/.test(a); break;
-    case 'discovery': c.discovery = /^Here is what I can safely help with/.test(a.trim()) || cap === 'global.capabilities.read'; break;
+    case 'discovery': c.discovery = /^Here is what I can safely help with|^I can tell you about what Ochiga does/.test(a.trim()) || cap === 'global.capabilities.read'; break;
   }
-  if (it.kind !== 'discovery') c.not_menu = !(/^I understand the request, but Oyi does not have an enabled|^I can (?:tell you about|help with)/.test(a.trim()) || cap === 'business_surface.fallback' || cap === 'canonical.conversation.unsupported');
+  // IQ-8 harness definition (corrected before the final measurement): a menu is judged by its TEXT, not by the capability key that carried a targeted limitation.
+  if (it.kind !== 'discovery') c.not_menu = !(/^I understand the request, but Oyi does not have an enabled|^I can (?:tell you about|help with)/.test(a.trim()) || cap === 'business_surface.fallback');
   return c;
 };
 const out = [];

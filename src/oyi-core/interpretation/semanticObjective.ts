@@ -112,7 +112,7 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (u.wh && has(u, "we", "i", "you") && !has(u, "can", "could", "would", "should", "will", "shall") && !has(u, "recently", "yesterday", "last", "ago", "week", "weeks", "month", "months", "days", "previous*", "discussed", "talked", "spoke") && has(u, "discuss*", "talk*", "refer*", "meant", "mean", "said", "say", "asked", "ask", "mentioned", "correct*", "told", "decid*", "agree*", "chose", "choose")) s.explain += 4;
   if (lead === "how" && T[1] === "come") s.explain += 4;
   if (has(u, "explain*", "justif*", "rationale", "reasoning", "logic")) s.explain += 3;
-  if (u.wh && has(u, "driving", "behind", "makes", "made") && !has(u, "sense")) s.explain += 3;
+  if (u.wh && has(u, "driving", "behind", "makes", "made") && !has(u, "sense") && !(lead === "how" && has(u, "many", "much"))) s.explain += 3;
   if (lead === "how" && has(u, "did", "do", "does") && has(u, "land", "arrive", "decide", "conclude", "pick", "rank", "choose", "reach", "get") && has(u, "you", "that", "it", "this")) s.explain += 3;
   if (lead === "how" && T[1] === "so") s.explain += 3;
   if (has(u, "walk") && has(u, "through") && has(u, "reasoning", "thinking", "logic", "decision", "ranking", "order", "recommendation")) s.explain += 3;

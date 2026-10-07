@@ -274,6 +274,8 @@ function classifyDomain(text: string): OyiDomain | null {
   if (/\bpartner(?:ship)?s?\s+with\s+ochiga\b|\bhow\s+can\s+i\s+partner\b|\bbecome\s+a\s+partner\b|\bpartnership\b|\bpartnerships\b/i.test(text)) return "corporate_partnerships";
   if (/\b(leads?|prospects?|opportunit(?:y|ies)|pipeline|follow(?:ed)?[\s-]?up on|crm)\b/i.test(text)) return "crm";
   if (/\b(reports?\s+(?:are\s+)?(?:awaiting|pending|needing)\s+approval|approval\s+queue|pending\s+approvals?)\b/i.test(text)) return "office_reports";
+  // a report together with the act of approving it (any wording): the approvals queue
+  if (/\breports?\b[\s\S]{0,50}\b(?:approv\w*|sign[\s-]?off)\b|\b(?:approv\w*|sign[\s-]?off)\b[\s\S]{0,30}\breports?\b/i.test(text)) return "office_reports";
   if (/\b(our\s+developments?|development\s+(?:status|update)|construction\s+(?:status|progress)|site\s+progress|units?\s+sold|happening\s+across\s+(?:our\s+)?developments?)\b/i.test(text)) return "office_development";
   if (/\b(financial\s+position|financially|recurring\s+revenue|portfolio\s+financial|financial\s+performance|financial\s+attention|cash\s+position|collections?\s+(?:this|so\s+far|for)|behind\s+on\s+collections|utility\s+(?:sales|revenue)|estate\s+(?:wallet|revenue|collections))\b/i.test(text)) return "office_financial";
   if (/\bochiga\s+private\b/i.test(text)) return "corporate_private";

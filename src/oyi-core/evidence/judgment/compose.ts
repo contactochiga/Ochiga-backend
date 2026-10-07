@@ -9,7 +9,18 @@ export function evidenceBasis(state: CompactEvidencePlanState): string {
   return usable.length ? `Evidence basis: ${usable.length} source${usable.length === 1 ? "" : "s"} read${partial ? `, ${partial} of them partial or not current` : ""}.` : "Evidence basis: no source could be read.";
 }
 
-export function composeJudgmentText(r: JudgmentResult, state: CompactEvidencePlanState): string {
+export function composeJudgmentText(r: JudgmentResult, state: CompactEvidencePlanState, targeted: { lead: string; support: string[] } | null = null): string {
+  // IQ-8: when the question's answer shape produced a lead, it leads; the standard structure follows as separated supporting evidence.
+  if (targeted) {
+    const sup: string[] = [...targeted.support];
+    if (r.ranking?.length) { sup.push(`In order: ${r.ranking.map(i => `${i.rank}. ${i.rationale}`).join(" ")}`); if (r.tied_groups.length) sup.push("Items in the same tier are equal on what is recorded; the evidence gives no basis to order them further."); }
+    sup.push(...r.rationale);
+    if (r.clarification) sup.push(r.clarification);
+    if (r.uncertainties.length) sup.push(`What I cannot confirm: ${r.uncertainties.slice(0, 4).join(" ")}`);
+    if (r.limitations.length) sup.push(...r.limitations.slice(0, 3));
+    sup.push(evidenceBasis(state));
+    return `${targeted.lead}\n\nSupporting evidence: ${[...new Set(sup)].join(" ")}`;
+  }
   const out: string[] = [r.conclusion];
   if (r.ranking?.length) {
     const lines = r.ranking.map(i => `${i.rank}. ${i.rationale}`);

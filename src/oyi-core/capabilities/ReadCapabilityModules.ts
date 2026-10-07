@@ -16,7 +16,7 @@ import { loadUtilitySpendingFacts, loadServiceAccountFacts, loadUtilityTariffFac
 import { buildUtilitySpendingAnswer, buildUtilityActiveAnswer, buildUtilityTariffAnswer, buildUtilityPurchasesAnswer } from "../domains/utilities/utilityConversationAnswers";
 import { loadMaintenanceRequestFacts } from "../domains/maintenance/maintenanceEvidence";
 import { loadVisitorAccessFacts } from "../domains/visitors/visitorEvidence";
-import { buildMaintenanceRequestsAnswer, buildVisitorAccessAnswer, buildWalletBalanceAnswer } from "../presentation/conversationAnswerPresentation";
+import { buildMaintenanceRequestsAnswer, buildVisitorAccessAnswer, buildWalletBalanceAnswer, maintenanceAnswerRows, visitorAnswerRows, walletAnswerRows } from "../presentation/conversationAnswerPresentation";
 import { loadSecurityIncidentFacts } from "../domains/security/securityEvidence";
 import { buildSecurityIncidentsAnswer } from "../domains/security/securityConversationAnswers";
 import { loadServicesActiveFacts } from "../domains/services/serviceEvidence";
@@ -454,7 +454,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         }
         const contract = requestContract(context);
         const block = tableBlockForContract(contract, facts, presentationFactPredicates);
-        return { status: facts.length ? "answered" : "empty", answer: buildWalletHistoryAnswer(facts), blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table") };
+        return { status: facts.length ? "answered" : "empty", answer: buildWalletHistoryAnswer(facts), blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table"), metadata: { answer_rows: walletAnswerRows(facts) } };
       },
       primary: "table",
     }),
@@ -614,7 +614,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
             presentation_policy: resultPresentation("text"),
           };
         }
-        return { status: facts.length ? "answered" : "empty", answer: buildMaintenanceRequestsAnswer(facts), presentation_policy: resultPresentation("list") };
+        return { status: facts.length ? "answered" : "empty", answer: buildMaintenanceRequestsAnswer(facts), presentation_policy: resultPresentation("list"), metadata: { answer_rows: maintenanceAnswerRows(facts) } };
       },
       primary: "list",
     }),
@@ -641,7 +641,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
             presentation_policy: resultPresentation("text"),
           };
         }
-        return { status: facts.length ? "answered" : "empty", answer: buildVisitorAccessAnswer(facts), presentation_policy: resultPresentation("list") };
+        return { status: facts.length ? "answered" : "empty", answer: buildVisitorAccessAnswer(facts), presentation_policy: resultPresentation("list"), metadata: { answer_rows: visitorAnswerRows(facts) } };
       },
       primary: "list",
     }),
@@ -664,7 +664,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         if (facts.some((fact) => fact.truth_state === "unavailable")) {
           return { status: "unavailable", answer: "Security incident evidence is unavailable right now. I did not treat that as no incidents.", presentation_policy: resultPresentation("text") };
         }
-        return { status: facts.length ? "answered" : "empty", answer: buildSecurityIncidentsAnswer(facts), presentation_policy: resultPresentation("list") };
+        return { status: facts.length ? "answered" : "empty", answer: buildSecurityIncidentsAnswer(facts), presentation_policy: resultPresentation("list"), metadata: { answer_rows: { noun: "security incidents", singular: "security incident", rows: facts.filter((f) => f.fact_type === "security_incident").map((f) => ({ label: String((f.value as Record<string, unknown> | null)?.title || f.object?.label || "Security incident"), status: String((f.value as Record<string, unknown> | null)?.status || "recorded") })) } } };
       },
       primary: "list",
     }),

@@ -19,6 +19,8 @@
 // with a simpler generic requirements composer, proving the mechanism
 // itself generalizes, not just its JV vocabulary.
 import type { CapabilityModule, CapabilityContext } from "../contracts/capability";
+import { deriveAnswerTarget } from "../response/answerTarget";
+import { publicLead } from "../response/targetedPublic";
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
 import { publicOpportunityOutcome } from "../evidence/sources/publicReads";
@@ -264,6 +266,15 @@ async function composeCallbackAnswer(context: CapabilityContext, objective: Publ
   } };
 }
 
+// IQ-8: the lead of an assessment-style answer comes from what was asked; the existing qualification text follows as supporting detail.
+function targetedPublicLead(objective: PublicOpportunityObjective, message: string, cognitive: string | null | undefined): string | null {
+  try {
+    const assessment = assessJvOpportunity(jvEvidenceFromKnownFacts(objective.known_facts));
+    const missing = assessment.missing_information.filter((field) => !NOT_YET_USEFUL_TO_ASK.has(field));
+    return publicLead(deriveAnswerTarget(message, { objective: cognitive }), message, { known: objective.known_facts, missing, constraints: objective.constraints });
+  } catch { return null; }
+}
+
 const CORPORATE_JV_STRUCTURE_FALLBACK =
   "A typical Ochiga JV moves through Introduce, Review, Structure, Align, Execute. Early on we usually look at opportunity type, location, land size, and any documents already in hand (title, survey, or existing approvals if a building already exists); " +
   "a target equity split is discussed once those are clear, subject to negotiation. Start a conversation at ochiga.com.ng/partnerships or ochiga.com.ng/contact.";
@@ -343,7 +354,8 @@ export function publicOpportunityReadModule(): CapabilityModule {
       if (prior && (isAssessmentObjective(context.resolvedTurn.semantic_frame.cognitiveObjective) || context.resolvedTurn.semantic_frame.cognitiveObjective === "summarize")) {
         const requirements = prior.objective_type === "development_partnership"
           ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
-        return { status: "answered", answer: `Based on what you've told me, not independent verification: ${requirements} This is preliminary qualification, not a commitment by Ochiga to proceed.`,
+        const lead = targetedPublicLead(prior, message, context.resolvedTurn.semantic_frame.cognitiveObjective);
+        return { status: "answered", answer: `${lead ? `${lead}\n\nSupporting detail: ` : ""}Based on what you've told me, not independent verification: ${requirements} This is preliminary qualification, not a commitment by Ochiga to proceed.`,
           presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
       }
 
@@ -355,7 +367,9 @@ export function publicOpportunityReadModule(): CapabilityModule {
             presentation_policy: resultPresentation("text"),
           };
         }
-        const answer = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
+        const answer0 = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
+        const lead0 = targetedPublicLead(prior, message, context.resolvedTurn.semantic_frame.cognitiveObjective);
+        const answer = lead0 ? `${lead0}\n\nSupporting detail: ${answer0}` : answer0;
         return { status: "answered", answer, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
       }
 

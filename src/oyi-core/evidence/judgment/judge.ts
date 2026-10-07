@@ -7,6 +7,8 @@ import { describe, levelOf } from "./dominance";
 import { buildProviderRequest, withProviderDeadline, type JudgmentProvider, type ProviderRanked } from "./provider";
 import { adoptProposal, validateResult, type ValidationContext } from "./validator";
 import { composeJudgmentText, evidenceBasis } from "./compose";
+import { deriveAnswerTarget } from "../../response/answerTarget";
+import { targetedLead } from "../../response/targetedJudgment";
 import type { Candidate, DerivedRanking, JudgmentOutcome, JudgmentResult, RankedItem } from "./types";
 
 const NUMBER_WORDS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5 };
@@ -27,6 +29,8 @@ export type JudgeArgs = {
   previous: DerivedRanking | null; provider: JudgmentProvider | null; providerTimeoutMs?: number; now?: () => number;
   // IQ-6: the user's own, UNVERIFIED claims about candidates. Only the bound provider path may weigh them (as claims); typed judgment ignores them.
   facts?: Array<{ target_id: string | null; target_label: string | null; text: string }>;
+  // IQ-8: answer targeting is on by default; reassessment (which composes its own answer around the judgment) turns it off.
+  targeted?: boolean;
 };
 
 function businessFacts(index: EvidenceIndex): string[] {
@@ -138,7 +142,9 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
   // IQ-5: whatever the validated answer names is the conversational referent (a ranking, a compared pair, or the items needing
   // attention), kept as ONE derived artifact. It never claims an order the judgment did not establish (`ordered` is false for the latter two).
   const artifact = ok && result.status === "JUDGED" ? artifactFor(result, a, basis, now, index) : null;
-  const text = composeJudgmentText(result, a.state);
+  let lead: ReturnType<typeof targetedLead> = null;
+  if (a.targeted !== false) { try { lead = targetedLead(result, a.state, index, deriveAnswerTarget(a.question, { objective: a.objective }), a.question); } catch { lead = null; } }
+  const text = composeJudgmentText(result, a.state, lead);
   return { result, text, ranking_artifact: artifact, validation: { ok, failures: failures.slice(0, 12) }, provider, candidate_count: index.candidates.length,
     evidence_source_count: index.sources.length, latency_ms: Math.max(0, (a.now || Date.now)() - t0) };
 }

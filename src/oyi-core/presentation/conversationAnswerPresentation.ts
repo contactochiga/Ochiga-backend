@@ -569,3 +569,16 @@ export function tableBlockForContract(contract: IntelligenceRequestContract, fac
   }
   return null;
 }
+
+
+// IQ-8: compact structured views of what a read capability found, for answer targeting (list / count / status / yes-no). Same safe labels
+// the tables use; visitor access codes are never part of them.
+export function maintenanceAnswerRows(facts: IntelligenceFact[]) {
+  return { noun: "maintenance requests", singular: "maintenance request", rows: maintenanceRequestRows(facts).map((r) => ({ label: r.title, status: r.status, detail: `${r.priority} priority` })) };
+}
+export function visitorAnswerRows(facts: IntelligenceFact[]) {
+  return { noun: "visitor access records", singular: "visitor access record", rows: visitorAccessRows(facts).map((r) => ({ label: r.visitor, status: r.status, detail: r.purpose === "Not specified" ? undefined : r.purpose })) };
+}
+export function walletAnswerRows(facts: IntelligenceFact[]) {
+  return { noun: "wallet transactions", singular: "wallet transaction", rows: walletTransactionRows(facts).map((r) => ({ label: `${r.description} ${r.amount}`, status: r.status })) };
+}

@@ -55,7 +55,7 @@ export async function runReassessment(a: ReassessArgs): Promise<ReassessOutcome>
   if (planned.state.missing_mandatory.length) return fail("capability", "missing_mandatory_evidence", "MISSING_CAPABILITY", planned.state.missing_mandatory.map(m => String((m as { class?: string }).class ?? m)).join(", "));
   let judged;
   try {
-    judged = await (a.judge || judgeAssessment)({ state: planned.state, objective: old.objective, question: prev.question, surface: a.context.input.surface, previous: null, provider: a.provider === undefined ? providerFromEnv() : a.provider,
+    judged = await (a.judge || judgeAssessment)({ targeted: false, state: planned.state, objective: old.objective, question: prev.question, surface: a.context.input.surface, previous: null, provider: a.provider === undefined ? providerFromEnv() : a.provider,
       facts: facts.filter(f => f.target_status === "bound").map(f => ({ target_id: f.target?.id ?? null, target_label: f.target?.label ?? null, text: f.text })) });
   } catch { return fail("judgment", "judgment_threw"); }
   const next = judged.ranking_artifact;
