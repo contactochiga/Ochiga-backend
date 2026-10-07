@@ -1,0 +1,16 @@
+{
+ "files_scanned": 25,
+ "corpus_prompts": 1163,
+ "counts": {
+  "heldout_reference": 0,
+  "fixture_literal": 0,
+  "corpus_phrase": 0
+ },
+ "total": 0,
+ "violations": {
+  "heldout_reference": [],
+  "fixture_literal": [],
+  "corpus_phrase": []
+ },
+ "note": "IQ-8 static anti-overfit guard (runtime language rules incl. src/oyi-core/response/*): no held-out reference, no fixture literal, no corpus phrase except allow-listed domain vocabulary"
+}

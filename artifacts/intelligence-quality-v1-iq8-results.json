@@ -1,0 +1,278 @@
+{
+ "version": 1,
+ "status": "IQ8_NOT_YET_CERTIFIED",
+ "head": "dfe8648",
+ "candidate_set": {
+  "count": 84,
+  "lead_meets_expected_target": 64,
+  "graded": 83,
+  "rate": 0.771,
+  "by_worker": {
+   "Oma": {
+    "n": 16,
+    "met": 13
+   },
+   "Osa": {
+    "n": 13,
+    "met": 12
+   },
+   "Facility": {
+    "n": 32,
+    "met": 20
+   },
+   "Consumer": {
+    "n": 23,
+    "met": 19
+   }
+  },
+  "not_met": [
+   {
+    "id": "OMA-002:2",
+    "subtype": "PROVIDER_OFF_LIMITATION",
+    "lead": "I can't confirm that from the evidence I have. Supporting evidence: Based on the evidence available, I can tell you what is recorded but not put it in order. 8 "
+   },
+   {
+    "id": "OMA-006:4",
+    "subtype": "MISSING_OWNERSHIP_DATA",
+    "lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 3 development projects read. Ranking these takes comparative judgment "
+   },
+   {
+    "id": "OMA-008:7",
+    "subtype": "UNRESOLVED_ITEMS",
+    "lead": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read"
+   },
+   {
+    "id": "OSA-005:5",
+    "subtype": "DETAILS_LIST",
+    "lead": "Understood. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?"
+   },
+   {
+    "id": "FAC-001:3",
+    "subtype": "WHY_RATHER_THAN",
+    "lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no"
+   },
+   {
+    "id": "FAC-002:4",
+    "subtype": "STILL_FIRST",
+    "lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i"
+   },
+   {
+    "id": "FAC-002:5",
+    "subtype": "WHY_FIRST",
+    "lead": "I haven't ranked or recommended anything yet, so there is no ordering or reasoning of mine to explain. Supporting evidence: This is not an all-clear: it covers "
+   },
+   {
+    "id": "FAC-003:4",
+    "subtype": "COMPARE_NOT_RELIST",
+    "lead": "Based on the evidence available, Wave11 unresolved water issue outranks Wave11 resolved light issue on what is recorded. In order: 1. Wave11 unresolved water is"
+   },
+   {
+    "id": "FAC-004:2",
+    "subtype": "WHICH_STALE",
+    "lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i"
+   },
+   {
+    "id": "FAC-005:2",
+    "subtype": "STATE_QUESTION",
+    "lead": "I found more than one match \u2014 did you mean: Wave11 Expected Visitor; Wave11 Historical Visitor? Please tell me which one."
+   },
+   {
+    "id": "FAC-005:4",
+    "subtype": "STATE_QUESTION",
+    "lead": "2 visitor access records are on file. Access codes are never shared in conversation."
+   },
+   {
+    "id": "FAC-005:5",
+    "subtype": "COMPARE_NOT_RELIST",
+    "lead": "Based on the evidence available, Wave11 unresolved water issue outranks Wave11 resolved light issue on what is recorded. In order: 1. Wave11 unresolved water is"
+   },
+   {
+    "id": "FAC-007:4",
+    "subtype": "CONFIRMATION_STATE_QUESTION",
+    "lead": "I found more than one match \u2014 did you mean: Wave11 unresolved water issue; Wave11 resolved light issue? Please tell me which one."
+   },
+   {
+    "id": "FAC-007:7",
+    "subtype": "UNCERTAINTY_SUMMARY",
+    "lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no"
+   },
+   {
+    "id": "FAC-008:6",
+    "subtype": "WHAT_IS_MISSING",
+    "lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no"
+   },
+   {
+    "id": "FAC-009:2",
+    "subtype": "WHY_NOT",
+    "lead": "I haven't ranked or recommended anything yet, so there is no ordering or reasoning of mine to explain. Supporting evidence: This is not an all-clear: it covers "
+   },
+   {
+    "id": "CON-002:2",
+    "subtype": "CHECK_FIRST",
+    "lead": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or no"
+   },
+   {
+    "id": "CON-002:7",
+    "subtype": "SAFE_CONCLUSION",
+    "lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i"
+   },
+   {
+    "id": "CON-010:2",
+    "subtype": "STATE_FIRST",
+    "lead": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it i"
+   }
+  ],
+  "note": "self-graded predicates over the first ~220 characters; no status regraded, no promotion claimed"
+ },
+ "heldout_shape_suites": {
+  "first_run_overall": {
+   "A": "0.191 baseline (pre-IQ8) -> developed against (contaminated)",
+   "B": "first run 0.800 (after A-driven development); then developed against",
+   "C": "first run 0.639 (FAIL of frozen gate 0.85)",
+   "D": "first run 0.672",
+   "E": "first run 0.672",
+   "F": "first run 0.672"
+  },
+  "final_state_after_iteration": {
+   "A": {
+    "overall": {
+     "n": 68,
+     "pass": 64,
+     "rate": 0.941
+    },
+    "boilerplate_lead": {
+     "n": 0,
+     "rate": 0
+    },
+    "menu_fallback": 0
+   },
+   "B": {
+    "overall": {
+     "n": 60,
+     "pass": 55,
+     "rate": 0.917
+    },
+    "boilerplate_lead": {
+     "n": 2,
+     "rate": 0.033
+    },
+    "menu_fallback": 0
+   },
+   "C": {
+    "overall": {
+     "n": 61,
+     "pass": 51,
+     "rate": 0.836
+    },
+    "boilerplate_lead": {
+     "n": 2,
+     "rate": 0.033
+    },
+    "menu_fallback": 2
+   },
+   "D": {
+    "overall": {
+     "n": 61,
+     "pass": 50,
+     "rate": 0.82
+    },
+    "boilerplate_lead": {
+     "n": 6,
+     "rate": 0.098
+    },
+    "menu_fallback": 1
+   },
+   "E": {
+    "overall": {
+     "n": 61,
+     "pass": 54,
+     "rate": 0.885
+    },
+    "boilerplate_lead": {
+     "n": 2,
+     "rate": 0.033
+    },
+    "menu_fallback": 0
+   },
+   "F": {
+    "overall": {
+     "n": 61,
+     "pass": 40,
+     "rate": 0.656
+    },
+    "boilerplate_lead": {
+     "n": 5,
+     "rate": 0.082
+    },
+    "menu_fallback": 1
+   }
+  },
+  "gate_frozen_before_suite_C": {
+   "overall_min": 0.85,
+   "result_on_first_contact_C": 0.639,
+   "result_on_first_contact_D_E_F": 0.672
+  },
+  "conclusion": "the frozen held-out gate (0.85) was NOT met on first contact by any independently authored fresh suite (C, D, E, F: 0.64-0.67); results above 0.82 are on suites that were then developed against and are contaminated"
+ },
+ "frozen_280": {
+  "before": {
+   "PASS": 69,
+   "FAIL": 206,
+   "BLOCKED": 5
+  },
+  "pass_preserved": "69 of 69",
+  "answers_changed": 111,
+  "changed_by_status": {
+   "FAIL": 90,
+   "PASS": 21
+  },
+  "pass_turns_content_preserved": "20 of 21 (the 21st, OSA-009:3, replaced an irrelevant capability menu with an explicit refusal to bypass boundaries)",
+  "promotions_claimed": 0,
+  "boilerplate": {
+   "boilerplate_style_leads": {
+    "before": 162,
+    "after": 76
+   },
+   "four_paragraph_templates": {
+    "before": 123,
+    "after": 61
+   },
+   "capability_menu_or_unsupported_leads": {
+    "before": 10,
+    "after": 5
+   }
+  }
+ },
+ "remaining_failure_taxonomy_after_iq8": {
+  "ANSWER_TARGET_LEAD_NOW_MET (status unchanged, pending independent envelope review)": 64,
+  "LIVE_PROVIDER_REQUIRED": 17,
+  "INITIATIVE": 41,
+  "ANSWER_TARGETING (lead still not met)": 20,
+  "CONTEXT": 16,
+  "DRAFTING_WORKFLOW": 3,
+  "UNDERSTANDING": 19,
+  "ACTION_JUDGMENT": 8,
+  "ANSWER_TARGETING": 1,
+  "EVALUATOR_MISMATCH": 12,
+  "COMMUNICATION": 3,
+  "EVIDENCE": 1,
+  "MISSING_CAPABILITY": 1
+ },
+ "regression": {
+  "wave11": "132 PASS / 0 FAIL (the former single known FAIL now passes)",
+  "iq1_to_iq7": "all pass; 4 oyi-workflow-* suites fail identically in the IQ-6 baseline",
+  "iq7_dev": "objective 0.983 safety 1.0 fp 0",
+  "iq7b_closure": "objective 1.0 fp 0 safety 1.0",
+  "iq7_objective_parity_changed": 0,
+  "e2e_45": "45/45",
+  "static_guard": 0,
+  "executions": 0
+ },
+ "performance_us": {
+  "derive_target": 16.6,
+  "derive_plus_targeted_lead_p95": 71.2,
+  "derive_plus_rows_p95": 20.1,
+  "extra_provider_calls": 0
+ },
+ "iq7_test_split": "not re-run (both permitted runs were used in IQ-7); parser behaviour for objectives unchanged (parity 0)"
+}
