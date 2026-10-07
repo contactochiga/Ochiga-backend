@@ -2,17 +2,64 @@
  "version": 1,
  "oracle": "artifacts/intelligence-quality-v1-iq7-frozen-parse-before.json",
  "prompts": 280,
- "changed": 49,
- "unchanged": 231,
+ "changed": 45,
+ "unchanged": 235,
  "execution_intent_widened": 0,
  "classification_counts": {
-  "operation_reclassified_no_execution_effect": 12,
-  "objective_newly_recognised": 22,
+  "operation_reclassified_no_execution_effect": 14,
+  "objective_newly_recognised": 21,
   "cancellation_recognised_execution_intent_removed": 3,
-  "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)": 7,
-  "objective_reclassified": 5
+  "execution_intent_removed_(false_positive_on_negation_question_or_hypothetical)": 7
  },
  "note": "Each change is a consequence of structure-based interpretation. None widens execution intent. Answer-level effects are reviewed against the accepted statuses in the frozen-corpus review (iq7-results.json).",
+ "objective_parity_audit": [
+  {
+   "id": "OSA-002:4",
+   "prompt": "What else would make this worth reviewing?",
+   "old": "advise",
+   "iq7_run1": "assess",
+   "cause": "a generic \"worth ... it/this\" evaluative rule outweighed the conditions-for-action reading",
+   "verdict": "old (advise) is correct: the question asks what would justify further action",
+   "fix": "\"worth\" followed by an action gerund or a counterfactual \"what would make\" is advice; \"worth\" + a noun phrase stays assessment"
+  },
+  {
+   "id": "OSA-007:3",
+   "prompt": "I do not know the planning designation.",
+   "old": "assess",
+   "iq7_run1": null,
+   "cause": "declaratives carried no implicit-assessment cue",
+   "verdict": "old (assess) is acceptable: a first-person gap in knowledge is an implicit request to reason about it",
+   "fix": "declarative first-person admission of not knowing, with an object, is an implicit assessment cue"
+  },
+  {
+   "id": "FAC-004:6",
+   "prompt": "What should we verify before replacing anything?",
+   "old": "advise",
+   "iq7_run1": "assess",
+   "cause": "the epistemic verb \"verify\" scored assessment",
+   "verdict": "old (advise) is correct: \"what should we verify\" asks for a course of action",
+   "fix": "a \"should\" + epistemic-act question is advice"
+  },
+  {
+   "id": "FAC-005:6",
+   "prompt": "What should security check rather than assume?",
+   "old": "compare",
+   "iq7_run1": "advise",
+   "cause": "a \"should ... check\" advice reading outscored the contrast marker",
+   "verdict": "old (compare) is arguable (the user contrasts two stances) but not demonstrably unsafe or incorrect, so parity is preserved without waiver",
+   "fix": "a \"rather than\" contrast of alternatives dominates, except behind \"why\" (explanation of a contrast)"
+  },
+  {
+   "id": "FAC-010:4",
+   "prompt": "What can you say estate-wide?",
+   "old": "assess",
+   "iq7_run1": "explain",
+   "cause": "the memory-recall rule treated any \"say\" as recalling an earlier statement",
+   "verdict": "old (assess) is correct: a present-tense modal asks for a judgment, not a recollection",
+   "fix": "memory-recall requires no modal (can/could/would/should/will)"
+  }
+ ],
+ "previously_objective_prompts_changed": 0,
  "changes": [
   {
    "id": "OMA-002:6",
@@ -206,18 +253,15 @@
    "id": "OSA-002:4",
    "prompt": "What else would make this worth reviewing?",
    "changed": [
-    "objective",
     "operation"
    ],
    "before": {
-    "objective": "advise",
     "operation": "compose"
    },
    "after": {
-    "objective": "assess",
     "operation": "inform"
    },
-   "classification": "objective_reclassified",
+   "classification": "operation_reclassified_no_execution_effect",
    "intentional": true,
    "execution_intent_widened": false
   },
@@ -381,18 +425,15 @@
    "id": "OSA-007:3",
    "prompt": "I do not know the planning designation.",
    "changed": [
-    "objective",
     "operation"
    ],
    "before": {
-    "objective": "assess",
     "operation": "reject"
    },
    "after": {
-    "objective": null,
     "operation": "inform"
    },
-   "classification": "objective_reclassified",
+   "classification": "operation_reclassified_no_execution_effect",
    "intentional": true,
    "execution_intent_widened": false
   },
@@ -480,22 +521,6 @@
    "execution_intent_widened": false
   },
   {
-   "id": "FAC-004:4",
-   "prompt": "What about the AC?",
-   "changed": [
-    "objective"
-   ],
-   "before": {
-    "objective": null
-   },
-   "after": {
-    "objective": "retrieve"
-   },
-   "classification": "objective_newly_recognised",
-   "intentional": true,
-   "execution_intent_widened": false
-  },
-  {
    "id": "FAC-004:5",
    "prompt": "Could this be a connection problem?",
    "changed": [
@@ -508,22 +533,6 @@
     "objective": "assess"
    },
    "classification": "objective_newly_recognised",
-   "intentional": true,
-   "execution_intent_widened": false
-  },
-  {
-   "id": "FAC-004:6",
-   "prompt": "What should we verify before replacing anything?",
-   "changed": [
-    "objective"
-   ],
-   "before": {
-    "objective": "advise"
-   },
-   "after": {
-    "objective": "assess"
-   },
-   "classification": "objective_reclassified",
    "intentional": true,
    "execution_intent_widened": false
   },
@@ -556,22 +565,6 @@
     "objective": "retrieve"
    },
    "classification": "objective_newly_recognised",
-   "intentional": true,
-   "execution_intent_widened": false
-  },
-  {
-   "id": "FAC-005:6",
-   "prompt": "What should security check rather than assume?",
-   "changed": [
-    "objective"
-   ],
-   "before": {
-    "objective": "compare"
-   },
-   "after": {
-    "objective": "advise"
-   },
-   "classification": "objective_reclassified",
    "intentional": true,
    "execution_intent_widened": false
   },
@@ -626,22 +619,6 @@
     "objective": "retrieve"
    },
    "classification": "objective_newly_recognised",
-   "intentional": true,
-   "execution_intent_widened": false
-  },
-  {
-   "id": "FAC-010:4",
-   "prompt": "What can you say estate-wide?",
-   "changed": [
-    "objective"
-   ],
-   "before": {
-    "objective": "assess"
-   },
-   "after": {
-    "objective": "explain"
-   },
-   "classification": "objective_reclassified",
    "intentional": true,
    "execution_intent_widened": false
   },

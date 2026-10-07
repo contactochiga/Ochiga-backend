@@ -1,4 +1,4 @@
-import { analyse, isCancellationText, isCapabilityInquiryText, sentencesOf } from "../../interpretation/semanticObjective";
+import { analyse, isCallbackRequest, isHoldDirective, isCancellationText, isCapabilityInquiryText, sentencesOf } from "../../interpretation/semanticObjective";
 import { domainHits } from "../../interpretation/domainVocabulary";
 import type { ArtifactItem, DerivedRanking } from "../judgment/types";
 import { itemsOfNoun, namedItems, parseDerivedReference, primaryGroup } from "../reference/derivedReference";
@@ -44,7 +44,7 @@ export function classifyUpdate(text: string, facts: ConversationFact[] = []): { 
   if (!T.length) return { type: "question", attributed: false };
   // a supposition is never a fact, even when worded as a question about it
   if (hypothetical(u, raw)) return { type: "hypothetical", attributed: att };
-  if (isCancellationText(raw) || isCapabilityInquiryText(raw)) return { type: "question", attributed: false };
+  if (isCancellationText(raw) || isCapabilityInquiryText(raw) || isHoldDirective(raw) || isCallbackRequest(raw)) return { type: "question", attributed: false };
   if (/\b(?:i meant|i mean|talking about|asking about|referring to)\b/.test(raw.toLowerCase()) && !raw.includes("?")) return { type: "correction", attributed: att };
   if (T.some(t => ["ignore", "bypass", "override", "disregard"].includes(t))) return { type: "question", attributed: false };
   const sents = sentencesOf(raw).map(analyse);

@@ -1,0 +1,414 @@
+{
+ "split": "closure",
+ "items": 122,
+ "summary": {
+  "objective": {
+   "n": 122,
+   "correct": 122,
+   "rate": 1
+  },
+  "subject": {
+   "n": 11,
+   "correct": 11,
+   "rate": 1
+  },
+  "fact": {
+   "n": 14,
+   "correct": 14,
+   "rate": 1
+  },
+  "followup": {
+   "n": 33,
+   "correct": 33,
+   "rate": 1
+  },
+  "action": {
+   "n": 31,
+   "correct": 31,
+   "rate": 1
+  },
+  "safety": {
+   "n": 16,
+   "correct": 16,
+   "rate": 1
+  },
+  "not_capability": {
+   "n": 0,
+   "correct": 0,
+   "rate": null
+  },
+  "not_assessment": {
+   "n": 14,
+   "correct": 14,
+   "rate": 1
+  }
+ },
+ "by_class": {
+  "status": {
+   "n": 20,
+   "pass": 20,
+   "rate": 1
+  },
+  "hold": {
+   "n": 18,
+   "pass": 18,
+   "rate": 1
+  },
+  "callback": {
+   "n": 16,
+   "pass": 16,
+   "rate": 1
+  },
+  "elliptical": {
+   "n": 24,
+   "pass": 24,
+   "rate": 1
+  },
+  "fp": {
+   "n": 24,
+   "pass": 24,
+   "rate": 1
+  },
+  "tp": {
+   "n": 20,
+   "pass": 20,
+   "rate": 1
+  }
+ },
+ "by_stratum": {
+  "near": {
+   "objective": {
+    "n": 62,
+    "correct": 62,
+    "rate": 1
+   },
+   "subject": {
+    "n": 6,
+    "correct": 6,
+    "rate": 1
+   },
+   "fact": {
+    "n": 9,
+    "correct": 9,
+    "rate": 1
+   },
+   "followup": {
+    "n": 6,
+    "correct": 6,
+    "rate": 1
+   },
+   "action": {
+    "n": 18,
+    "correct": 18,
+    "rate": 1
+   },
+   "safety": {
+    "n": 9,
+    "correct": 9,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 8,
+    "correct": 8,
+    "rate": 1
+   }
+  },
+  "distant": {
+   "objective": {
+    "n": 22,
+    "correct": 22,
+    "rate": 1
+   },
+   "subject": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "fact": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "followup": {
+    "n": 4,
+    "correct": 4,
+    "rate": 1
+   },
+   "action": {
+    "n": 7,
+    "correct": 7,
+    "rate": 1
+   },
+   "safety": {
+    "n": 4,
+    "correct": 4,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 3,
+    "correct": 3,
+    "rate": 1
+   }
+  },
+  "colloquial": {
+   "objective": {
+    "n": 5,
+    "correct": 5,
+    "rate": 1
+   },
+   "subject": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   },
+   "fact": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   },
+   "followup": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "action": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "safety": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   }
+  },
+  "elliptical": {
+   "objective": {
+    "n": 24,
+    "correct": 24,
+    "rate": 1
+   },
+   "subject": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "fact": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "followup": {
+    "n": 22,
+    "correct": 22,
+    "rate": 1
+   },
+   "action": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "safety": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   }
+  },
+  "adversarial": {
+   "objective": {
+    "n": 9,
+    "correct": 9,
+    "rate": 1
+   },
+   "subject": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "fact": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "followup": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   },
+   "action": {
+    "n": 4,
+    "correct": 4,
+    "rate": 1
+   },
+   "safety": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "not_assessment": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   }
+  }
+ },
+ "by_surface": {
+  "office_internal": {
+   "objective": {
+    "n": 52,
+    "correct": 52,
+    "rate": 1
+   },
+   "subject": {
+    "n": 7,
+    "correct": 7,
+    "rate": 1
+   },
+   "fact": {
+    "n": 7,
+    "correct": 7,
+    "rate": 1
+   },
+   "followup": {
+    "n": 14,
+    "correct": 14,
+    "rate": 1
+   },
+   "action": {
+    "n": 9,
+    "correct": 9,
+    "rate": 1
+   }
+  },
+  "public_corporate": {
+   "objective": {
+    "n": 18,
+    "correct": 18,
+    "rate": 1
+   },
+   "subject": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "fact": {
+    "n": 0,
+    "correct": 0,
+    "rate": null
+   },
+   "followup": {
+    "n": 9,
+    "correct": 9,
+    "rate": 1
+   },
+   "action": {
+    "n": 11,
+    "correct": 11,
+    "rate": 1
+   }
+  },
+  "facility": {
+   "objective": {
+    "n": 23,
+    "correct": 23,
+    "rate": 1
+   },
+   "subject": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "fact": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "followup": {
+    "n": 5,
+    "correct": 5,
+    "rate": 1
+   },
+   "action": {
+    "n": 4,
+    "correct": 4,
+    "rate": 1
+   }
+  },
+  "consumer": {
+   "objective": {
+    "n": 29,
+    "correct": 29,
+    "rate": 1
+   },
+   "subject": {
+    "n": 2,
+    "correct": 2,
+    "rate": 1
+   },
+   "fact": {
+    "n": 5,
+    "correct": 5,
+    "rate": 1
+   },
+   "followup": {
+    "n": 5,
+    "correct": 5,
+    "rate": 1
+   },
+   "action": {
+    "n": 7,
+    "correct": 7,
+    "rate": 1
+   }
+  }
+ },
+ "false_positive_objective": {
+  "n": 60,
+  "false_positive": 0
+ },
+ "action_intent_false_positive": {
+  "n": 16,
+  "false_positive": 0
+ },
+ "capability_false_routing": {
+  "n": 0,
+  "failures": []
+ },
+ "safety_failures": [],
+ "failures": []
+}

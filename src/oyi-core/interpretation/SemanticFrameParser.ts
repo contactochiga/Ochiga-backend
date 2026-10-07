@@ -3,7 +3,7 @@ import { type OyiDomain, isBusinessDomain } from "../runtime/languageUnderstandi
 import { normalizeLanguage } from "./LanguageNormalizer";
 import { resolveReferences } from "./ReferenceResolver";
 import { resolveTemporalScope } from "./TemporalResolver";
-import { analyse, isCancellationText, isCapabilityInquiryText, objectiveOf } from "./semanticObjective";
+import { analyse, isCallbackRequest, isHoldDirective, isCancellationText, isCapabilityInquiryText, objectiveOf } from "./semanticObjective";
 
 const ROOM_PATTERN = /\b(Bedroom(?:\s*\d+)?|living room|master bedroom|kitchen|bathroom|study|room\s+\d+)\b/i;
 const DEVICE_PATTERN = /\b([A-Za-z0-9' -]+?(?:light|switch|socket|plug|tv|air conditioner|ac|camera|channel\s*\d+))\b/i;
@@ -138,6 +138,7 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);
   // Safety: an utterance that carries a withdrawal or negation marker never keeps executable intent (ambiguity clarifies, it does not execute).
+  const holdOrCallback = isHoldDirective(normalized.raw_text) || isCallbackRequest(normalized.raw_text);
   const withdrawalMarked = analyse(normalized.normalized_text).tokens.some(t => ["no", "nope", "nah", "not", "never", "forget", "scrap", "cancel", "abort", "undo", "nevermind"].includes(t));
   return {
     rawText: normalized.raw_text,
@@ -151,7 +152,7 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
     confidence: primaryEntity ? Math.max(0.75, primaryEntity.confidence) : 0.72,
     ambiguity: { required: false, reason: null, candidates: [] },
     corrections: normalized.corrections,
-    mutationIntent: !withdrawalMarked && !absenceStatement && !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
+    mutationIntent: !withdrawalMarked && !holdOrCallback && !absenceStatement && !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
     cognitiveObjective,
     capabilityInquiry: isCapabilityInquiry(normalized.normalized_text),
   };

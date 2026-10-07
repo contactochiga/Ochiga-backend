@@ -5,7 +5,7 @@ import type { CapabilityModule } from "../contracts/capability";
 import type { CompactEvidencePlanState } from "../evidence/planner/types";
 import type { DerivedRanking } from "../evidence/judgment/types";
 import type { ConversationFact } from "../evidence/reassessment/facts";
-import { analyse } from "../interpretation/semanticObjective";
+import { analyse, isCallbackRequest } from "../interpretation/semanticObjective";
 import { domainHits } from "../interpretation/domainVocabulary";
 import type { ReassessmentRecord } from "../evidence/reassessment/reassess";
 import { DERIVED_REFERENCE_CUE } from "../evidence/reference/derivedReference";
@@ -86,6 +86,7 @@ const requirementTokens = (text: string, words: string[]) => analyse(text).token
 export function assessmentContinuation(text: string): boolean {
   if (TOPIC_SWITCH.test(text)) return false;
   if (DERIVED_REFERENCE_CUE.test(text)) return true;
+  if (isCallbackRequest(text)) return true; // a request for contact inside a thread continues that thread
   const raw = String(text ?? "").trim(), u = analyse(raw), T = u.tokens, n = T.length;
   if (!n) return false;
   const lead = /^\s*(?:(?:okay|ok|so|well|and|but|then|now)[,\s]+)*([a-z']+)/i.exec(raw)?.[1]?.toLowerCase() ?? T[0];
