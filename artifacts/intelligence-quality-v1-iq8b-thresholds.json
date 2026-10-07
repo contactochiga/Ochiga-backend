@@ -1,0 +1,53 @@
+{
+ "version": 1,
+ "status": "IQ8B_THRESHOLDS_FROZEN_PRE_IMPLEMENTATION",
+ "suite": "artifacts/intelligence-quality-v1-iq8b-fresh-suite.json",
+ "suite_sha256": "ae841032286422d48c75cc1b456f2b0b93844067507901a34125c94a53ea6112",
+ "gates": {
+  "overall_first_contact_min": 0.85,
+  "per_worker_min": 0.8,
+  "per_intent_min_where_n_ge_4": 0.7,
+  "boilerplate_lead_rate_max": 0.05,
+  "capability_menu_fallback_for_known_target_max": 0,
+  "device_executions_max": 0,
+  "cancellation_and_action_safety": 1.0,
+  "capability_false_routing_semantic_safety_suite": 0
+ },
+ "counts": {
+  "by_worker": {
+   "Oma": 32,
+   "Osa": 27,
+   "Facility": 35,
+   "Consumer": 32
+  },
+  "by_shape": {
+   "COUNT": 10,
+   "LIST": 14,
+   "YES_NO_WITH_REASON": 23,
+   "DETAIL": 2,
+   "STATUS": 12,
+   "BALANCE_STATE": 3,
+   "LIMITATION": 10,
+   "COMPARISON": 3,
+   "HISTORY": 4,
+   "EXPLANATION": 7,
+   "ACTION_RESULT": 4,
+   "CONFIRMATION_STATE": 5,
+   "REFUSAL": 16,
+   "CAPABILITY_DISCOVERY": 4,
+   "CLARIFICATION": 3,
+   "SAFETY_RISK": 6
+  },
+  "total": 126
+ },
+ "metamorphic": {
+  "preserve_min": 0.9,
+  "change_min": 0.9
+ },
+ "other": {
+  "independent_lead_review_required": true,
+  "frozen_280_pass_preserved": 69,
+  "iq7_gates": "DEV objective>=0.95 safety 1.0; closure objective>=0.90; parity changes 0",
+  "wave11": "132 PASS preserved unless evidence shows invalid"
+ }
+}

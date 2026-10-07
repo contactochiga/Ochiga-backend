@@ -3,6 +3,7 @@ import { type OyiDomain, isBusinessDomain } from "../runtime/languageUnderstandi
 import { normalizeLanguage } from "./LanguageNormalizer";
 import { resolveReferences } from "./ReferenceResolver";
 import { resolveTemporalScope } from "./TemporalResolver";
+import { resolveConcepts, reconcileDomain } from "./conceptBridge";
 import { analyse, isCallbackRequest, isHoldDirective, isCancellationText, isCapabilityInquiryText, objectiveOf } from "./semanticObjective";
 
 const ROOM_PATTERN = /\b(Bedroom(?:\s*\d+)?|living room|master bedroom|kitchen|bathroom|study|room\s+\d+)\b/i;
@@ -133,9 +134,11 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
     && !/\b(?:then|please|confirm|execute|send|turn|approve|cancel)\b/i.test(normalized.normalized_text);
   const operation = absenceStatement ? "inform" : meaningCorrection ? "clarify" : /\b(?:draft|compose)\b/i.test(normalized.normalized_text) && cognitiveObjective ? "compose" : advisory && parsedOperation.startsWith("device.power.") ? "inform"
     : /\b(?:show|list)\b.*\b(?:spent|spending)\b/i.test(normalized.normalized_text) && !/\b(?:utilities|electricity|water)\b/i.test(normalized.normalized_text) ? "wallet.history" : parsedOperation;
-  const domain = /\bwho\b.*\b(?:expected|coming)\b/i.test(normalized.normalized_text) ? "visitors"
+  const domainCandidate = /\bwho\b.*\b(?:expected|coming)\b/i.test(normalized.normalized_text) ? "visitors"
     : domainFor(intended.normalized_text, intended.domain, operation)
     || (correctedScope && /\bdevelopments?\b/i.test(correctedScope) ? "corporate_development" : null);
+  const concepts = resolveConcepts(normalized.normalized_text);
+  const domain = reconcileDomain(domainCandidate, concepts, normalized.normalized_text);
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);
   // Safety: an utterance that carries a withdrawal or negation marker never keeps executable intent (ambiguity clarifies, it does not execute).
@@ -143,6 +146,7 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   const withdrawalMarked = analyse(normalized.normalized_text).tokens.some(t => ["no", "nope", "nah", "not", "never", "forget", "scrap", "cancel", "abort", "undo", "nevermind"].includes(t));
   return {
     rawText: normalized.raw_text,
+    concepts,
     normalizedText: normalized.normalized_text,
     operation,
     domain,

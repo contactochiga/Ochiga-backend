@@ -1,0 +1,875 @@
+{
+ "version": 1,
+ "note": "automatic first-pass classification by rule shape; DUPLICATE_SEMANTIC_INTERPRETATION = a regex over raw wording inside a predicate that already has frame.domain / operation / IQ-7 concepts available",
+ "counts": {
+  "capability.supports:REQUIRED_DOMAIN_VOCABULARY": 35,
+  "capability.supports:PHRASE_SHAPED_ROUTING": 14,
+  "capability.supports:DUPLICATE_SEMANTIC_INTERPRETATION": 12,
+  "capability.supports:LEGITIMATE_OPERATION_TOKEN": 4,
+  "classifyDomain:PHRASE_SHAPED_ROUTING": 30,
+  "classifyDomain:DUPLICATE_SEMANTIC_INTERPRETATION": 28
+ },
+ "rules": [
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 95,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => boolean;   collect: (context: CapabilityContext) => Promise<OyiEvidence[]>;   answer: (context: CapabilityContext, evidence: OyiEvidence[]) => Promise<DomainResult>"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 125,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: input.supports,"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 205,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: input.supports || ((frame) => frame.domain === input.domain),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 227,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.capabilityInquiry === true || (!frame.cognitiveObjective && frame.domain === \"global\" && /\\bwhat can you do|help|capabilit/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 243,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame) => ((frame.domain === null || frame.domain === \"global\")"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 276,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"cameras\" || /\\bcameras?\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 297,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: deviceStatusSupports,"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 317,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"devices\" && (frame.operation === \"device.availability\" || /\\boffline|online|available|availability|devices?\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 337,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"devices\" && (frame.operation === \"device.activity\" || /\\bactivity|history|what happened|changed|changes\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 358,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"devices\" && (frame.operation === \"device.failures\" || /\\bfailures?|failed|faults?|offline\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 380,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"devices\" && (frame.operation === \"device.diagnosis\" || /\\bdiagnose|why|investigate\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 399,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"devices\" && (frame.operation === \"device.relationships\" || /\\brelationships?|what controls|scenes?|automations?\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 420,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"devices\" && /\\bcapabilit|what can|controls?|supports?\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 442,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"wallet\" && (frame.operation === \"wallet.history\" || /\\btransactions?|history|wallet\\b/i.test(frame.normalizedText)) && (!/\\bbalance\\b/i.test(frame.normalizedText"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 470,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"wallet\" && /\\bbalance|how much (do i have|is in|left)|current balance\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 494,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"utilities\" && !/\\bforecast\\b/i.test(frame.normalizedText) && (frame.operation === \"utilities.spending\" || /\\bspent|spending|how much|costs?|paid|payment\\b/i.test"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 522,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"utilities\" && (frame.operation === \"utilities.active\" || /\\bwhich utilit(?:y|ies)|utilit(?:y|ies)\\b.*\\bactive|enabled|connected\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 542,
+   "kind": "capability.supports",
+   "cls": "LEGITIMATE_OPERATION_TOKEN",
+   "excerpt": "declaredModule({ key: \"utilities.usage.read\", domain: \"utilities\", operations: [\"utilities.usage\", \"inspect\"], supportedSurfaces: [\"consumer\", \"facility\"], status: \"declared\", permissions: [\"utilities"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 543,
+   "kind": "capability.supports",
+   "cls": "LEGITIMATE_OPERATION_TOKEN",
+   "excerpt": "declaredModule({ key: \"utilities.balance.read\", domain: \"utilities\", operations: [\"utilities.balance\", \"inspect\"], supportedSurfaces: [\"consumer\"], status: \"declared\", permissions: [\"utilities.read\"],"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 544,
+   "kind": "capability.supports",
+   "cls": "LEGITIMATE_OPERATION_TOKEN",
+   "excerpt": "declaredModule({ key: \"utilities.meter.read\", domain: \"utilities\", operations: [\"utilities.meter\", \"inspect\"], supportedSurfaces: [\"consumer\", \"facility\"], status: \"declared\", permissions: [\"utilities"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 553,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"utilities\" && /\\btariff|rate|unit cost|per kwh|price per\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 579,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"utilities\" && /\\bbuy|bought|purchase|purchased|vend|vending|token|last (bought|purchase)\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 604,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"maintenance\" && (frame.operation === \"list\" || frame.operation === \"inspect\" || frame.operation === \"inform\" || /\\bmaintenance|repair|fix|broken\\b/i.test(frame.n"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 631,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"visitors\" && (frame.operation === \"list\" || frame.operation === \"inspect\" || /\\bvisitors?|visited|visiting|guest|access code|pending arrival\\b/i.test(frame.norma"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 658,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"security\" && (frame.operation === \"list\" || frame.operation === \"inspect\" || /\\bsecurity|incident|alert|unresolved|failed access\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 680,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"services\" && (frame.operation === \"list\" || frame.operation === \"inspect\" || /\\bservices?\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 702,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"community\" && (frame.operation === \"list\" || frame.operation === \"inspect\" || /\\bcommunity|announcement|notice|update\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 725,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame) => frame.domain === \"scenes\" && (frame.operation === \"list\" || frame.operation === \"inspect\" || /\\bscenes?\\b/i.test(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 753,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"automations\" && !/\\brun|ran|last run|failed|failure|history\\b/i.test(frame.normalizedText) && (frame.operation === \"list\" || frame.operation === \"inspect\" || /\\b"
+  },
+  {
+   "file": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+   "line": 775,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame) => frame.domain === \"automations\" && /\\brun|ran|last run|history|failed|failure\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 302,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"crm\" && /\\b(?:leads?|prospects?)\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 415,
+   "kind": "capability.supports",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"crm\" && /\\b(?:opportunit\\w*|deals)\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 496,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"office_reports\","
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 561,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"office_development\","
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 641,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"office_financial\","
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 784,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_tasks\" &&       !isTaskMutationMessage(frame.normalizedText) &&       !isTaskListIntent(frame.normalizedText) &&"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 922,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_tasks\" && !isTaskMutationMessage(frame.normalizedText) && isTaskListIntent(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 1079,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"automations\" &&       !isAutomationScheduleReferenceMessage(frame.normalizedText) &&       !isAutomationMutationMessage(frame.normalizedText"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 1229,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"automations\" &&       !isAutomationScheduleReferenceMessage(frame.normalizedText) &&       !isAutomationMutationMessage(frame.normalizedText"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 1342,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_meetings\" &&       !parseMeetingMutationIntent(frame.normalizedText) &&       !isAutomationScheduleReferenceMessage(frame.normalizedT"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 1484,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_meetings\" &&       !parseMeetingMutationIntent(frame.normalizedText) &&       !isAutomationScheduleReferenceMessage(frame.normalizedT"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 1595,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_support\" &&       !parseSupportMutationIntent(frame.normalizedText) &&       !isAutomationScheduleReferenceMessage(frame.normalizedTe"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 1738,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_support\" &&       !parseSupportMutationIntent(frame.normalizedText) &&       !isAutomationScheduleReferenceMessage(frame.normalizedTe"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 1866,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_portfolio\" &&       !isAutomationScheduleReferenceMessage(frame.normalizedText) &&       !parsePortfolioMutationIntent(frame.normaliz"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2007,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_portfolio\" &&       !isAutomationScheduleReferenceMessage(frame.normalizedText) &&       !parsePortfolioMutationIntent(frame.normaliz"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2117,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"corporate_partnerships\" &&       !isAutomationScheduleReferenceMessage(frame.normalizedText) &&       !parsePartnershipMutationIntent(frame."
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2241,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"corporate_partnerships\" &&       !isAutomationScheduleReferenceMessage(frame.normalizedText) &&       !parsePartnershipMutationIntent(frame."
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2343,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_documents\" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isDocumentsListIntent(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2454,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_documents\" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isDocumentsListIntent(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2549,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_content\" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && !isContentListIntent(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2670,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) =>       frame.domain === \"office_content\" && !isAutomationScheduleReferenceMessage(frame.normalizedText) && isContentListIntent(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2794,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"corporate_company\","
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2820,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"corporate_oyi\","
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2847,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"corporate_private\","
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2874,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"corporate_partnerships\","
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2906,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"corporate_development\" && !/\\bochiga\\s+development\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+   "line": 2965,
+   "kind": "capability.supports",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"corporate_development\" && /\\bochiga\\s+development\\b/i.test(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts",
+   "line": 307,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"corporate_opportunity\","
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeActionCapabilityModules.ts",
+   "line": 279,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"office_tasks\" && isTaskMutationMessage(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeActionCapabilityModules.ts",
+   "line": 526,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"office_meetings\" && Boolean(parseMeetingMutationIntent(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeActionCapabilityModules.ts",
+   "line": 693,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"office_support\" && Boolean(parseSupportMutationIntent(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeActionCapabilityModules.ts",
+   "line": 884,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"automations\" && isAutomationMutationMessage(frame.normalizedText),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeActionCapabilityModules.ts",
+   "line": 954,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"office_portfolio\" && Boolean(parsePortfolioMutationIntent(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/OfficeActionCapabilityModules.ts",
+   "line": 1016,
+   "kind": "capability.supports",
+   "cls": "REQUIRED_DOMAIN_VOCABULARY",
+   "excerpt": "supports: (frame: SemanticFrame) => frame.domain === \"corporate_partnerships\" && Boolean(parsePartnershipMutationIntent(frame.normalizedText)),"
+  },
+  {
+   "file": "src/oyi-core/capabilities/DeviceActionCapabilityModules.ts",
+   "line": 707,
+   "kind": "capability.supports",
+   "cls": "LEGITIMATE_OPERATION_TOKEN",
+   "excerpt": "supports: (frame) => frame.domain === \"devices\" && (frame.operation === \"device.power.on\" || frame.operation === \"device.power.off\"),"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 192,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bwhat can you do\\b|\\bhelp\\b|\\bcapabilit/i.test(text)) return \"global\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 210,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bautomat(?:e|es|ed|ing|ion|ions)?\\b/i.test(text)) return \"automations\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 217,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bmeetings?\\b/i.test(text)) return \"office_meetings\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 227,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bsupport\\b/i.test(text)) return \"office_support\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 235,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bportfolio\\b/i.test(text)) return \"office_portfolio\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 241,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(?:documents?|structure)\\b[\\s\\S]{0,40}\\bjv\\b|\\bjv\\b[\\s\\S]{0,40}\\b(?:documents?|structure)\\b/i.test(text)) return \"corporate_opportunity\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 244,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bdocuments?\\b/i.test(text)) return \"office_documents\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 250,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\barticles?\\b|\\bcontent\\b/i.test(text)) return \"office_content\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 255,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\btasks?\\b/i.test(text)) return \"office_tasks\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 275,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bpartner(?:ship)?s?\\s+with\\s+ochiga\\b|\\bhow\\s+can\\s+i\\s+partner\\b|\\bbecome\\s+a\\s+partner\\b|\\bpartnership\\b|\\bpartnerships\\b/i.test(text)) return \"corporate_partnerships\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 276,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(leads?|prospects?|opportunit(?:y|ies)|deals|pipeline|follow(?:ed)?[\\s-]?up on|crm)\\b/i.test(text)) return \"crm\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 277,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(reports?\\s+(?:are\\s+)?(?:awaiting|pending|needing)\\s+approval|approval\\s+queue|pending\\s+approvals?)\\b/i.test(text)) return \"office_reports\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 279,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\breports?\\b[\\s\\S]{0,50}\\b(?:approv\\w*|sign[\\s-]?off)\\b|\\b(?:approv\\w*|sign[\\s-]?off)\\b[\\s\\S]{0,30}\\breports?\\b/i.test(text)) return \"office_reports\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 280,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(our\\s+developments?|development\\s+(?:status|update)|construction\\s+(?:status|progress)|site\\s+progress|units?\\s+sold|happening\\s+across\\s+(?:our\\s+)?developments?)\\b/i.test(text)) return \"offi"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 281,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(financial\\s+position|financially|recurring\\s+revenue|portfolio\\s+financial|financial\\s+performance|financial\\s+attention|cash\\s+position|collections?\\s+(?:this|so\\s+far|for)|behind\\s+on\\s+coll"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 282,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bochiga\\s+private\\b/i.test(text)) return \"corporate_private\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 286,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bwhat\\s+is\\s+oyi\\b|\\btell\\s+me\\s+about\\s+oyi\\b|\\babout\\s+oyi\\b|\\bcan\\s+oyi\\b/i.test(text)) return \"corporate_oyi\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 292,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bochiga\\s+development\\b/i.test(text)) return \"corporate_development\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 293,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\byour\\s+developments?\\b|\\btell\\s+me\\s+about\\s+(?:your\\s+|the\\s+)?developments?\\b|\\bdevelopment\\s+projects?\\b/i.test(text)) return \"corporate_development\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 294,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(?:what|who|where|why|how)\\b[\\s\\S]{0,30}\\bochiga\\b|\\babout\\s+ochiga\\b|\\bwhat\\s+does\\s+the\\s+company\\s+do\\b|\\btell\\s+me\\s+about\\s+(?:the\\s+)?(?:company|firm|business|organi[sz]ation|people)\\b|\\b"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 296,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(?:jv|joint\\s*venture)\\b[\\s\\S]{0,60}\\b(?:work|works|process|involve|involves|require|requires|typically|usually|steps|stages)\\b|\\b(?:how|what)\\b[\\s\\S]{0,30}\\b(?:jv|joint\\s*venture)\\b/i.test(tex"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 304,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(?:i|we|my\\s+(?:family|parents|father|mother)|our\\s+family)\\b[\\s\\S]{0,30}\\b(?:own|owns|have|has|got|inherited|hold|holds|bought|acquired)\\b[\\s\\S]{0,40}\\b(?:land|plots?|propert(?:y|ies)|building"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 306,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(?:land|plots?|propert(?:y|ies)|buildings?|sites?|houses?|estates?|compounds?)\\b[\\s\\S]{0,25}\\b(?:i|we)\\s+(?:own|owns|have|inherited|hold|bought|acquired|got)\\b/i.test(text)) return \"corporate_o"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 308,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(?:land|plots?|propert(?:y|ies)|buildings?|sites?)\\b[\\s\\S]{0,60}\\b(?:develop|build|jv|joint\\s*venture|partner|lease|leasing|sell|redevelop)/i.test(text)) return \"corporate_opportunity\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 310,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(?:team\\s+up|partner|work\\s+together|collaborate|do\\s+a\\s+project)\\b[\\s\\S]{0,20}\\b(?:with|on)\\s+(?:you|ochiga|us)\\b|\\bcan\\s+(?:i|we)\\s+(?:team\\s+up|collaborate)\\b/i.test(text)) return \"corporat"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 312,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(?:do|does|are|where)\\b[\\s\\S]{0,20}\\byou\\b[\\s\\S]{0,25}\\b(?:work|operate|develop|build|serve|cover|focus|based|active)\\b/i.test(text)) return \"corporate_company\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 316,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b\\d[\\d,]*\\s*(?:sqm|square\\s*meters?|hectares?|acres?)\\b|\\b\\d+[\\s-]*units?\\b/i.test(text)) return \"corporate_opportunity\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 319,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(?:considering|thinking\\s+about|open\\s+to|prefer|interested\\s+in)\\s+(?:a\\s+|an\\s+)?(?:jv|joint\\s*venture|lease|leasing|outright\\s+sale|sale|partnership)\\b/i.test(text)) return \"corporate_opport"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 321,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(?:do\\s+not|don'?t)\\s+want\\s+to\\s+sell\\b|\\bnot\\s+(?:for\\s+sale|selling)\\b|\\bnot\\s+interested\\s+in\\s+(?:a\\s+)?sale\\b/i.test(text)) return \"corporate_opportunity\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 326,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bcan\\s+i\\s+partner\\s+with\\s+you\\b/i.test(text)) return \"corporate_opportunity\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 328,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bwhat\\s+(?:would|do)\\s+you\\s+need\\s+from\\s+me\\b|\\bwhat\\s+(?:info(?:rmation)?|details)\\s+do\\s+you\\s+need\\b|\\bwhat\\s+else\\s+do\\s+you\\s+need\\b/i.test(text)) return \"corporate_opportunity\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 333,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(?:interested\\s+in|looking\\s+at|considering)\\s+oyi\\s+for\\b/i.test(text)) return \"corporate_opportunity\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 336,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(?:can|could|would|will)\\s+(?:somebody|someone|anybody|anyone|a\\s+(?:person|human)|the\\s+team|you)\\s+(?:call|ring|phone|reach\\s+out|contact|get\\s+back)\\b|\\brequest\\s+a\\s+call(?:back)?\\b|\\bhave\\"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 337,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\breport\\b[\\s\\S]{0,24}\\b(problem|issue|fault|repair|broken|not working)\\b/i.test(text)) return \"maintenance\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 339,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(?:light|lights|lighting|lamp|door|lock|camera|sensor|ac|heater|fan|generator|lift|pump|gate)\\s+(?:issues?|problems?|faults?|tickets?|complaints?)\\b/i.test(text)) return \"maintenance\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 340,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(report|analytics?|trend|comparison|compare)\\b/i.test(text)) return \"reports\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 341,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bhome|house|everything|what should i check|needs attention|changed today\\b/i.test(text)) return \"home\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 342,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(rooms?|bedroom|living room|kitchen|bathroom|space)\\b/i.test(text)) return \"rooms\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 343,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(scenes?|movie mode|good night|bedtime scene)\\b/i.test(text)) return \"scenes\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 344,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(automations?|routines?|schedules?|every\\s+(?:night|morning|day|weekday)|at\\s+midnight|when i leave|when i arrive|turn .* every night|make .* turn off)\\b/i.test(text)) return \"automations\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 346,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(?:leak|leaks|leaking|leaked|burst|plumb\\w*|blocked\\s+(?:drain|pipe))\\b/i.test(text) && !/\\b(?:bill|usage|consumption|meter|tariff|token)\\b/i.test(text)) return \"maintenance\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 347,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(device|switch|light|socket|plug|tv|ac|air conditioner|camera status|offline devices|hardware|channel|sensors?|thermostats?|gadgets?)\\b/i.test(text)) return \"devices\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 348,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(visitors?|visited|visiting|guests?|passes)\\b/i.test(text)) return \"visitors\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 349,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\b(security|alarm|alert|gate|access denied|unusual access|incident|front door)\\b/i.test(text)) return \"security\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 350,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(access|unlock|lock|door|pin|card|fingerprint)\\b/i.test(text)) return \"access\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 351,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bmaintenance|repair|technician|request|issue|tickets?|overdue\\b/i.test(text)) return \"maintenance\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 352,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bcommunity|notice|management update|building announce(?:d)?|announcement|residents group|tell (?:the )?residents|notify (?:the )?residents|post|comment\\b/i.test(text)) return \"community\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 353,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bmessage|messages|reply|thread|inbox|security message|tell me what|latest message|direct message|dm\\b/i.test(text)) return \"messages\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 354,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\butility|utilities|electricity|water|internet|gas|meter|token|tariff|dues|waste|solar|battery\\b/i.test(text)) return \"utilities\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 355,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bwallet|balance|fund\\b/i.test(text)) return \"wallet\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 356,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\btransaction|receipt|ledger|spending|spent|paid\\b/i.test(text)) return \"transactions\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 357,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bservice|services|cleaning request|cleaning booking|book cleaning|request a technician\\b/i.test(text)) return \"services\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 358,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bscene|scenes\\b/i.test(text)) return \"scenes\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 359,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bautomation|automations|schedule|trigger\\b/i.test(text)) return \"automations\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 360,
+   "kind": "classifyDomain",
+   "cls": "PHRASE_SHAPED_ROUTING",
+   "excerpt": "if (/\\bcamera|cameras|motion|clip|live view|front-door\\b/i.test(text)) return \"cameras\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 361,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bnotification|notifications|alert|alerts\\b/i.test(text)) return \"notifications\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 362,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\bincident|outage|fault|emergency\\b/i.test(text)) return \"incidents\";"
+  },
+  {
+   "file": "src/oyi-core/runtime/languageUnderstanding.ts",
+   "line": 363,
+   "kind": "classifyDomain",
+   "cls": "DUPLICATE_SEMANTIC_INTERPRETATION",
+   "excerpt": "if (/\\b(?:hazards?|hazardous|dangers?|dangerous|unsafe|safety)\\b/i.test(text)) return \"home\";"
+  }
+ ]
+}

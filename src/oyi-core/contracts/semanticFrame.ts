@@ -46,8 +46,11 @@ export type SemanticConstraint = {
   confidence: number;
 };
 
+import type { SemanticConcepts } from "../interpretation/conceptBridge";
 export type SemanticFrame = {
   rawText: string;
+  // IQ-8B: canonical concept view (IQ-7 vocabulary) that routing consumes instead of re-reading the prompt. Optional for older callers.
+  concepts?: SemanticConcepts;
   normalizedText: string;
   operation: SemanticOperation;
   domain: OyiDomain | null;
