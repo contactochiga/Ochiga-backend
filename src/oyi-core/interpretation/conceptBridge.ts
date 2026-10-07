@@ -51,7 +51,9 @@ export function resolveConcepts(text: string): SemanticConcepts {
     : object === "utility" || head === "utilities" ? (has("usage") && !has("spending") ? "usage" : has("spending") ? "spending" : null)
     : has("history") && T.some(t => ["changed", "since", "yesterday", "earlier", "ago"].includes(t)) ? "history" : has("status") ? "status" : null;
   const quantity = T[0] === "how" && ["many", "much"].includes(T[1] ?? "") || (T.includes("number") && T.includes("of")) || T.includes("count") ? "count" : null;
-  const state = T.map(conceptOf).find(Boolean) ?? null;
+  // state concepts in priority order; arrival/departure only count for visitor language ("the deal has gone cold" is not a departure)
+  const found = new Set(T.map(conceptOf).filter(Boolean));
+  const state = (["stale", "overdue", "open", "resolved"] as StateConcept[]).find(c => found.has(c)) ?? (head === "visitors" || object === "visitor" ? (["arrived", "departed"] as StateConcept[]).find(c => found.has(c)) ?? null : null);
   return { domains: hits, head_domain: head, object, facet, quantity, state };
 }
 
