@@ -1,0 +1,9 @@
+{"items":[
+{"id":"OSA-004:4","verdict":"PARTIAL","vs_before":"BETTER","reason":"Now leads by answering whether the approach differs (can't say yet) and keeps Abuja/1,800 sqm, but gives no substantive judgment and the 'what you want from it' reason is vague."},
+{"id":"CON-002:4","verdict":"MEETS_TARGET","vs_before":"BETTER","reason":"Leads with 'No' and names the correct missing source (device observed values incl. temperature) instead of the irrelevant camera state; no invented reading."},
+{"id":"CON-009:1","verdict":"PARTIAL","vs_before":"BETTER","reason":"No longer falsely claims 'no devices' and says inventory could not be loaded, but never states that another resident's home records are not viewable, which is the frozen point."},
+{"id":"OSA-006:2","verdict":"PARTIAL","vs_before":"SAME","reason":"Names both options and says it cannot recommend yet and why, but text is unchanged, has the garbled 'better suits you better', and does not explain the options."},
+{"id":"OMA-007:2","verdict":"MEETS_TARGET","vs_before":"SAME","reason":"States it cannot compare on judgment grounds and gives recorded lead/opportunity counts without ranking; identical to before, though generic to the named Abuja JV vs speculative lead."},
+{"id":"OSA-010:7","verdict":"DOES_NOT_MEET","vs_before":"SAME","reason":"Unchanged; answers what is still needed from the user rather than the two requested parts (what is passed on, what is unverified) and does not treat the callback as a proposal."},
+{"id":"CON-010:5","verdict":"PARTIAL","vs_before":"SAME","reason":"Leads with a list of what cannot be confirmed, but it is generic device/visitor limitations and does not address confirmation for the cancelled kitchen-light action; effectively unchanged."}
+]}

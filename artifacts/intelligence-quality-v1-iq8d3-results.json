@@ -1,0 +1,158 @@
+{
+ "version": 1,
+ "head_start": "773fb98",
+ "status": "IQ8D3_RESULTS (diagnostic; IQ-8 NOT certified)",
+ "diagnostic_126": {
+  "first_contact_ff2b836": {
+   "pass": 61,
+   "rate": 0.484
+  },
+  "iq8d": {
+   "pass": 74
+  },
+  "iq8d2": {
+   "pass": 79,
+   "rate": 0.627
+  },
+  "iq8d3": {
+   "pass": 97,
+   "rate": 0.77
+  },
+  "lost_vs_iq8d2": 0,
+  "note": "diagnostic only; targets/contracts were changed by semantic family after the independent adjudication, then the 126 was re-run; not a certification result"
+ },
+ "buckets_pass_counts": {
+  "CORRECT": {
+   "n": 61,
+   "iq8d2": 61,
+   "iq8d3": 61
+  },
+  "ANSWER_TARGET_DERIVATION_FAILURE": {
+   "n": 16,
+   "iq8d2": 4,
+   "iq8d3": 15
+  },
+  "ROUTING_FAILURE": {
+   "n": 21,
+   "iq8d2": 1,
+   "iq8d3": 1
+  },
+  "CAPABILITY_RESULT_TOO_WEAK": {
+   "n": 2,
+   "iq8d2": 2,
+   "iq8d3": 2
+  },
+  "TARGET_NOT_APPLIED": {
+   "n": 4,
+   "iq8d2": 1,
+   "iq8d3": 3
+  },
+  "AMBIGUOUS_SHOULD_CLARIFY": {
+   "n": 3,
+   "iq8d2": 1,
+   "iq8d3": 1
+  },
+  "CAPABILITY_TEMPLATE_OVERRIDES_TARGET": {
+   "n": 10,
+   "iq8d2": 5,
+   "iq8d3": 9
+  },
+  "MISSING_CAPABILITY": {
+   "n": 2,
+   "iq8d2": 0,
+   "iq8d3": 0
+  },
+  "COMPOSITION_FAILURE": {
+   "n": 5,
+   "iq8d2": 4,
+   "iq8d3": 5
+  },
+  "OTHER": {
+   "n": 2,
+   "iq8d2": 0,
+   "iq8d3": 0
+  }
+ },
+ "remaining_failures_29": {
+  "routing_or_evidence_planning_reserved_for_IQ8E": [
+   "007",
+   "008",
+   "009",
+   "012",
+   "015",
+   "025",
+   "026",
+   "030",
+   "036",
+   "038",
+   "049",
+   "080",
+   "087",
+   "094",
+   "097",
+   "101",
+   "102",
+   "114",
+   "120",
+   "126"
+  ],
+  "routing_adjacent_authority_or_planning": {
+   "105": "resolved-state ask reaches the unsupported fallback on Consumer",
+   "023": "evidence plan read the development project, not the opportunity; honest source-mismatch answer",
+   "070": "devices.status.read denied on Facility surface",
+   "071": "same"
+  },
+  "non_routing": {
+   "115": "device confirmation wording defect (\"turn off on <device>\") in the specialised workflow path; out of scope",
+   "123": "cancel with nothing pending: specialised IQ-1 cancellation path, intentionally unchanged",
+   "029": "correct clarification text; harness not_menu check keys on the capability key business_surface.fallback (harness artefact, harness not edited)",
+   "046": "explanation of an unsupported premise about an organisational decision (needs a premise-denial composition)",
+   "051": "submission state: honest unknown (no handoff receipt in the objective); the diagnostic expects an unverifiable \"No\""
+  }
+ },
+ "frozen_280": {
+  "statuses": {
+   "PASS": 69,
+   "FAIL": 206,
+   "BLOCKED": 5
+  },
+  "audit_failures": 0,
+  "answers_changed_vs_iq7_baseline": 122,
+  "changed_pass_turns": 25,
+  "changed_pass_independent_review": {
+   "PRESERVED": 24,
+   "DEGRADED": 1,
+   "degraded_item": "CON-009:1 (fixed: now states the inventory could not be loaded)"
+  },
+  "self_graded_candidates": {
+   "target_met": 63,
+   "graded": 83,
+   "rate": 0.759
+  }
+ },
+ "wave11": {
+  "harness": "132/132",
+  "structured": "utilities.usage.read: unavailable, evidence_count 0 -> HONEST_LIMITATION"
+ },
+ "workflow_regression": {
+  "control": "3a9956d unmodified Core",
+  "findings": "all four smokes fail on the control; after the IQ-8 multi-gang domain-override fix they fail at the same assertions with the same outputs (only stack-trace paths differ)"
+ },
+ "rereview_of_fixed_items": {
+  "OSA_004_4": "PARTIAL/BETTER",
+  "CON_002_4": "MEETS/BETTER",
+  "CON_009_1": "PARTIAL/BETTER",
+  "OSA_006_2": "PARTIAL/SAME",
+  "OMA_007_2": "MEETS/SAME",
+  "OSA_010_7": "DOES_NOT_MEET/SAME",
+  "CON_010_5": "PARTIAL/SAME"
+ },
+ "performance_ms": {
+  "derive": 0.112,
+  "map": 0.0053,
+  "project": 0.0076,
+  "added_per_turn": 0.013,
+  "provider_calls": 0,
+  "db_queries": 0
+ }
+}
