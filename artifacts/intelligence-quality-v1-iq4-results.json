@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "IQ4_REVIEW",
-  "raw_sha256": "096b700047872d994b53d54f6043ff4edebab664eed57ce9a62a47c222480e86",
+  "raw_sha256": "7de40d03501ef506b5afb646f2d947cbaf6d0b056c4012269b6ea202890e2bca",
   "note": "See header: promotion checks are self-graded; the audit is the certification gate and does not depend on them.",
   "audit": {
     "judged_turns": 143,
@@ -65,8 +65,8 @@
         "PASS": 3
       },
       "after": {
-        "JUDGMENT_REMAINS_FAILED": 28,
-        "UPSTREAM_SUBJECT_GAP": 9,
+        "JUDGMENT_REMAINS_FAILED": 29,
+        "UPSTREAM_SUBJECT_GAP": 8,
         "REFERENCE_CONTINUITY_IQ5": 16,
         "INITIATIVE_LATER": 2,
         "PASS": 17
@@ -74,8 +74,8 @@
     },
     "by_surface": {
       "office_internal": {
-        "JUDGMENT_REMAINS_FAILED": 23,
-        "UPSTREAM_SUBJECT_GAP": 3,
+        "JUDGMENT_REMAINS_FAILED": 24,
+        "UPSTREAM_SUBJECT_GAP": 2,
         "REFERENCE_CONTINUITY_IQ5": 1
       },
       "public_corporate": {
@@ -98,8 +98,8 @@
       }
     },
     "judgment_modes_all_turns": {
-      "bounded_no_provider/BOUNDED": 41,
-      "deterministic/BOUNDED": 38,
+      "bounded_no_provider/BOUNDED": 46,
+      "deterministic/BOUNDED": 33,
       "deterministic/JUDGED": 64
     },
     "judged_turns": 143,
@@ -417,6 +417,7 @@
       "OMA-004:1",
       "OMA-004:2",
       "OMA-005:2",
+      "OMA-005:6",
       "OMA-006:4",
       "OMA-006:5",
       "OMA-007:1",
@@ -453,16 +454,16 @@
     {
       "id": "OMA-001:3",
       "prompt": "Why is the second one more important than the others?",
-      "judgment": "deterministic/BOUNDED",
+      "judgment": "bounded_no_provider/BOUNDED",
       "ranking_artifact": false,
-      "answer": "Based on the evidence available, I found no active item in the part of the records I could read. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. 15 lead/opportunity/project records differ mainly in free-text notes, which I cannot weigh against each other without comparative judgment; I did not rank them. Office evidence is a bounded, supplied view, not the whole pipeline. 8 leads read (1 recorded as qualified, 7 as new). Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list."
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No asses"
     },
     {
       "id": "OMA-001:4",
       "prompt": "The Chairman for that project says financing is already secured.",
-      "judgment": "deterministic/BOUNDED",
+      "judgment": "bounded_no_provider/BOUNDED",
       "ranking_artifact": false,
-      "answer": "Based on the evidence available, I found no active item in the part of the records I could read. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. 15 lead/opportunity/project records differ mainly in free-text notes, which I cannot weigh against each other without comparative judgment; I did not rank them. Office evidence is a bounded, supplied view, not the whole pipeline. 8 leads read (1 recorded as qualified, 7 as new). Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list. Your information is unverified."
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No asses"
     },
     {
       "id": "OMA-001:5",
@@ -733,10 +734,10 @@
       "objective": "explain",
       "retained_status": "FAIL",
       "after_status": "FAIL",
-      "iq4_class": "UPSTREAM_SUBJECT_GAP",
-      "why": "benchmark lists classes the IQ-2 subject never requested: office_financial",
+      "iq4_class": "JUDGMENT_REMAINS_FAILED",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
       "judgment": {
-        "mode": "deterministic",
+        "mode": "bounded_no_provider",
         "status": "BOUNDED",
         "validated": true
       },
@@ -878,9 +879,9 @@
       "retained_status": "FAIL",
       "after_status": "FAIL",
       "iq4_class": "JUDGMENT_REMAINS_FAILED",
-      "why": "a valid, evidence-linked statement was produced but it does not meet this frozen envelope (the answer is not specific to the question asked)",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
       "judgment": {
-        "mode": "deterministic",
+        "mode": "bounded_no_provider",
         "status": "BOUNDED",
         "validated": true
       },
@@ -910,9 +911,9 @@
       "retained_status": "FAIL",
       "after_status": "FAIL",
       "iq4_class": "JUDGMENT_REMAINS_FAILED",
-      "why": "a valid, evidence-linked statement was produced but it does not meet this frozen envelope (the answer is not specific to the question asked)",
+      "why": "comparative judgment on free-text business records needs a configured provider; none is available, so nothing was ranked (honest bounded answer)",
       "judgment": {
-        "mode": "deterministic",
+        "mode": "bounded_no_provider",
         "status": "BOUNDED",
         "validated": true
       },

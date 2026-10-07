@@ -21,9 +21,9 @@
     "performanceMeasured": true
   },
   "judgment_tests": {
-    "total": 56,
+    "total": 57,
     "counts": {
-      "PASS": 56
+      "PASS": 57
     }
   },
   "planner_tests": {
@@ -97,8 +97,8 @@
         "PASS": 3
       },
       "after": {
-        "JUDGMENT_REMAINS_FAILED": 28,
-        "UPSTREAM_SUBJECT_GAP": 9,
+        "JUDGMENT_REMAINS_FAILED": 29,
+        "UPSTREAM_SUBJECT_GAP": 8,
         "REFERENCE_CONTINUITY_IQ5": 16,
         "INITIATIVE_LATER": 2,
         "PASS": 17
@@ -106,8 +106,8 @@
     },
     "by_surface": {
       "office_internal": {
-        "JUDGMENT_REMAINS_FAILED": 23,
-        "UPSTREAM_SUBJECT_GAP": 3,
+        "JUDGMENT_REMAINS_FAILED": 24,
+        "UPSTREAM_SUBJECT_GAP": 2,
         "REFERENCE_CONTINUITY_IQ5": 1
       },
       "public_corporate": {
@@ -130,8 +130,8 @@
       }
     },
     "judgment_modes_all_turns": {
-      "bounded_no_provider/BOUNDED": 41,
-      "deterministic/BOUNDED": 38,
+      "bounded_no_provider/BOUNDED": 46,
+      "deterministic/BOUNDED": 33,
       "deterministic/JUDGED": 64
     },
     "judged_turns": 143,
@@ -449,6 +449,7 @@
       "OMA-004:1",
       "OMA-004:2",
       "OMA-005:2",
+      "OMA-005:6",
       "OMA-006:4",
       "OMA-006:5",
       "OMA-007:1",
@@ -485,16 +486,16 @@
     {
       "id": "OMA-001:3",
       "prompt": "Why is the second one more important than the others?",
-      "judgment": "deterministic/BOUNDED",
+      "judgment": "bounded_no_provider/BOUNDED",
       "ranking_artifact": false,
-      "answer": "Based on the evidence available, I found no active item in the part of the records I could read. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. 15 lead/opportunity/project records differ mainly in free-text notes, which I cannot weigh against each other without comparative judgment; I did not rank them. Office evidence is a bounded, supplied view, not the whole pipeline. 8 leads read (1 recorded as qualified, 7 as new). Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list."
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No asses"
     },
     {
       "id": "OMA-001:4",
       "prompt": "The Chairman for that project says financing is already secured.",
-      "judgment": "deterministic/BOUNDED",
+      "judgment": "bounded_no_provider/BOUNDED",
       "ranking_artifact": false,
-      "answer": "Based on the evidence available, I found no active item in the part of the records I could read. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. 15 lead/opportunity/project records differ mainly in free-text notes, which I cannot weigh against each other without comparative judgment; I did not rank them. Office evidence is a bounded, supplied view, not the whole pipeline. 8 leads read (1 recorded as qualified, 7 as new). Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list. Your information is unverified."
+      "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 8 leads read (1 recorded as qualified, 7 as new); 3 opportunities read (1 recorded as qualified, 1 as new); 3 development projects read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No asses"
     },
     {
       "id": "OMA-001:5",
@@ -529,10 +530,10 @@
         "candidates": 2,
         "judgment_ms": {
           "n": 200,
-          "mean": 0.027,
-          "p50": 0.022,
-          "p95": 0.04,
-          "max": 0.452
+          "mean": 0.026,
+          "p50": 0.021,
+          "p95": 0.034,
+          "max": 0.456
         },
         "response_chars": {
           "n": 200,
@@ -547,10 +548,10 @@
         "candidates": 3,
         "judgment_ms": {
           "n": 200,
-          "mean": 0.022,
+          "mean": 0.021,
           "p50": 0.018,
-          "p95": 0.032,
-          "max": 0.173
+          "p95": 0.033,
+          "max": 0.156
         },
         "response_chars": {
           "n": 200,
@@ -565,10 +566,10 @@
         "candidates": 64,
         "judgment_ms": {
           "n": 200,
-          "mean": 0.174,
-          "p50": 0.164,
-          "p95": 0.237,
-          "max": 0.309
+          "mean": 0.18,
+          "p50": 0.166,
+          "p95": 0.279,
+          "max": 0.635
         },
         "response_chars": {
           "n": 200,
@@ -587,16 +588,16 @@
         "total_judgment_ms": {
           "n": 200,
           "mean": 0.045,
-          "p50": 0.035,
-          "p95": 0.081,
-          "max": 1.112
+          "p50": 0.036,
+          "p95": 0.07,
+          "max": 1.136
         },
         "core_overhead_ms_excluding_provider": {
           "n": 200,
-          "mean": 0.04,
-          "p50": 0.035,
-          "p95": 0.081,
-          "max": 0.133
+          "mean": 0.045,
+          "p50": 0.036,
+          "p95": 0.07,
+          "max": 1.136
         },
         "provider_request_bytes": 774,
         "labels_ranked": 2
@@ -607,17 +608,17 @@
         "candidates": 2,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 51.579,
-          "p50": 51.622,
-          "p95": 52.284,
-          "max": 52.488
+          "mean": 52.128,
+          "p50": 52.279,
+          "p95": 53.091,
+          "max": 53.099
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.619,
-          "p50": 0.643,
-          "p95": 1.119,
-          "max": 1.284
+          "mean": 0.368,
+          "p50": 0.296,
+          "p95": 1.018,
+          "max": 1.091
         },
         "provider_request_bytes": 774,
         "labels_ranked": 2
@@ -628,17 +629,17 @@
         "candidates": 2,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 251.687,
-          "p50": 251.616,
-          "p95": 252.191,
-          "max": 252.192
+          "mean": 252.335,
+          "p50": 252.534,
+          "p95": 253.139,
+          "max": 253.358
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.447,
-          "p50": 0.33,
-          "p95": 1.325,
-          "max": 1.383
+          "mean": 0.535,
+          "p50": 0.534,
+          "p95": 1.319,
+          "max": 1.358
         },
         "provider_request_bytes": 774,
         "labels_ranked": 2
@@ -649,17 +650,17 @@
         "candidates": 3,
         "total_judgment_ms": {
           "n": 200,
-          "mean": 0.086,
-          "p50": 0.063,
-          "p95": 0.228,
-          "max": 0.436
+          "mean": 0.089,
+          "p50": 0.062,
+          "p95": 0.241,
+          "max": 0.435
         },
         "core_overhead_ms_excluding_provider": {
           "n": 200,
-          "mean": 0.086,
-          "p50": 0.063,
-          "p95": 0.228,
-          "max": 0.436
+          "mean": 0.079,
+          "p50": 0.062,
+          "p95": 0.229,
+          "max": 0.435
         },
         "provider_request_bytes": 1071,
         "labels_ranked": 3
@@ -670,17 +671,17 @@
         "candidates": 3,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 51.513,
-          "p50": 51.558,
-          "p95": 52.038,
-          "max": 52.125
+          "mean": 52.088,
+          "p50": 52.259,
+          "p95": 53.106,
+          "max": 53.345
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.473,
-          "p50": 0.558,
-          "p95": 1.076,
-          "max": 1.125
+          "mean": 0.568,
+          "p50": 0.629,
+          "p95": 1.231,
+          "max": 1.316
         },
         "provider_request_bytes": 1071,
         "labels_ranked": 3
@@ -691,17 +692,17 @@
         "candidates": 3,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 251.77,
-          "p50": 251.92,
-          "p95": 252.131,
-          "max": 252.216
+          "mean": 252.42,
+          "p50": 252.608,
+          "p95": 253.129,
+          "max": 253.252
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.49,
-          "p50": 0.515,
-          "p95": 1.089,
-          "max": 1.216
+          "mean": 0.62,
+          "p50": 0.608,
+          "p95": 1.129,
+          "max": 1.499
         },
         "provider_request_bytes": 1071,
         "labels_ranked": 3
@@ -712,17 +713,17 @@
         "candidates": 8,
         "total_judgment_ms": {
           "n": 200,
-          "mean": 0.117,
+          "mean": 0.096,
           "p50": 0.077,
-          "p95": 0.314,
-          "max": 0.836
+          "p95": 0.167,
+          "max": 0.751
         },
         "core_overhead_ms_excluding_provider": {
           "n": 200,
-          "mean": 0.117,
+          "mean": 0.081,
           "p50": 0.077,
-          "p95": 0.314,
-          "max": 0.836
+          "p95": 0.167,
+          "max": 0.751
         },
         "provider_request_bytes": 2576,
         "labels_ranked": 3
@@ -733,17 +734,17 @@
         "candidates": 8,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 51.678,
-          "p50": 51.648,
-          "p95": 52.194,
-          "max": 52.546
+          "mean": 52.275,
+          "p50": 52.471,
+          "p95": 53.052,
+          "max": 53.107
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.598,
-          "p50": 0.584,
-          "p95": 1.496,
-          "max": 1.546
+          "mean": 0.555,
+          "p50": 0.628,
+          "p95": 1.107,
+          "max": 1.2
         },
         "provider_request_bytes": 2576,
         "labels_ranked": 3
@@ -754,17 +755,17 @@
         "candidates": 8,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 251.868,
-          "p50": 251.957,
-          "p95": 252.267,
-          "max": 252.312
+          "mean": 252.16,
+          "p50": 252.287,
+          "p95": 253.271,
+          "max": 253.539
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.788,
-          "p50": 0.909,
-          "p95": 1.267,
-          "max": 1.312
+          "mean": 0.6,
+          "p50": 0.646,
+          "p95": 1.384,
+          "max": 1.539
         },
         "provider_request_bytes": 2576,
         "labels_ranked": 3
@@ -835,10 +836,10 @@
   "source_hashes": {
     "src/oyi-core/context/conversationAssessmentContext.ts": "30917fddbb2209571831b898deeb82c2c10488d632b2b0f52586735eba436705",
     "src/oyi-core/evidence/judgment/compose.ts": "6d56dab2bf890fd2938a7ab858b6bde476e6e42f62d740a1237f586146f6d9c9",
-    "src/oyi-core/evidence/judgment/deterministic.ts": "0189fdbe119eba648ed90b76100fe595818eae483d632351d425619804ab22b3",
+    "src/oyi-core/evidence/judgment/deterministic.ts": "3a0c16be8998487f22ea2041f8947c7451b2ce8e30e8a72a2d0b260566c43493",
     "src/oyi-core/evidence/judgment/dominance.ts": "273a0914d0b1b155281918e55b7f7872989d61ac23dd4cfc9200bdbf7be3e47a",
     "src/oyi-core/evidence/judgment/evidenceIndex.ts": "dd8f98061cffa895b72001d6eaa1797b8b05a1f99fddf1f51a07ab0928221598",
-    "src/oyi-core/evidence/judgment/judge.ts": "b3bfd5b125c16fdaa472dcae2505b99f8222a1c794c8d9183b042d61ff667a5a",
+    "src/oyi-core/evidence/judgment/judge.ts": "e3ecbd4b61989d7f90f6113eeeba254a1e84753fc12f80d3656598a290d2b6be",
     "src/oyi-core/evidence/judgment/provider.ts": "c20b0a8ae2ab227ffff22f6cff783e91132b556f3ca4e2f823ab55392d2d3141",
     "src/oyi-core/evidence/judgment/types.ts": "f3b041184dc966d77da394c8f6b8e6a33341ba7b12aa6cffd60fc95466123c17",
     "src/oyi-core/evidence/judgment/validator.ts": "2dfa975c5739391a3a3ef530f0011c01248876a10c3991c430f846ca78cb674c",
@@ -846,10 +847,10 @@
     "src/oyi-core/orchestration/ConversationOrchestrator.ts": "fb492e09ad0f1508f053bdb6f966bb9b9e956c22aa463b11d05b29b9f80e09d2"
   },
   "raw_hashes": {
-    "/tmp/iq4-v3-iq.json": "096b700047872d994b53d54f6043ff4edebab664eed57ce9a62a47c222480e86",
-    "/tmp/iq4-v3-wave11.json": "99590733a9a1c1dccbc05332e53bf76f77ec78f18cca2a02cfdcf42f48685548",
-    "/tmp/iq4-v3-safety.json": "b23be0b2fb9922e0e2b51fcc8ebe5ce4a9af5a946af455a904b2ea4269611daa",
-    "/tmp/iq4-v3-objective.json": "450e434a3441bcc046a4a9433484e377624cde8525e2db015e3a197735956f76",
-    "/tmp/iq4-v3-regressions.json": "73c5492b78456e092eac02e2df078424413b3b0efbf789ae0bbe5b7e527d12b7"
+    "/tmp/iq4-v4-iq.json": "7de40d03501ef506b5afb646f2d947cbaf6d0b056c4012269b6ea202890e2bca",
+    "/tmp/iq4-v4-wave11.json": "2999ac5ae28e4db5d1044cf0e4587fa82a565e91ed4ec70e151e1d7aa4d16869",
+    "/tmp/iq4-v4-safety.json": "b23be0b2fb9922e0e2b51fcc8ebe5ce4a9af5a946af455a904b2ea4269611daa",
+    "/tmp/iq4-v4-objective.json": "851dd06edead7ffdea9b6e2d2574f0e21bf690898127b73b36d800fafc549b38",
+    "/tmp/iq4-v4-regressions.json": "ccfaa5adc0738d6e65786aadb6a26f14d3ccfee7995058f90dd4efefdef3602f"
   }
 }
