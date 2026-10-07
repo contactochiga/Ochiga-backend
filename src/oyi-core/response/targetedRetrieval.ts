@@ -60,7 +60,7 @@ export function targetedRetrieval(original: string, ar: AnswerRows, target: Answ
   if (intent === "YES_NO_WITH_REASON" && target.yes_no?.kind !== "state") return null;
   const T = analyse(question).tokens, q = new Set(T);
   const quals = [...new Set(T.filter(t => QUAL.has(t)))];
-  // narrow to the rows the question names ("the Abuja JV", "the water issue"), then by qualifiers that actually describe rows
+  // narrow to the rows the question names, then by qualifiers that actually describe rows
   const named = new Set(contentTokens(T).filter(t => !GENERIC.has(t) && !QUAL.has(t)));
   const namedRows = ar.rows.filter(r => nameTokens(r.label).some(t => named.has(t) && !GENERIC.has(t)));
   let rows = namedRows.length && namedRows.length < ar.rows.length ? namedRows : ar.rows;

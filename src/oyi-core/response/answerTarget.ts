@@ -49,7 +49,7 @@ const WET = ["water", "wet", "flooding", "flooded", "leaking", "liquid", "drippi
 export const isHazardText = (text: string) => { const t = analyse(text).tokens; return t.some(x => HAZARD.includes(x)); };
 
 const splitSides = (tokens: string[]): string[][] => {
-  // "the water issue or the light issue" / "A with B" / "A versus B" / "A than B" / "A and B": two content groups
+  // two content groups joined by a comparison marker (or / with / versus / than / against / and)
   const cut = tokens.findIndex((t, i) => i > 0 && ["or", "with", "versus", "vs", "than", "against", "and", "from", "rather"].includes(t));
   if (cut < 0) return [];
   const a = contentTokens(tokens.slice(0, cut)), b = contentTokens(tokens.slice(cut + 1));
@@ -101,7 +101,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   if (objective === "compare") return base("COMPARISON", { compare_terms: splitSides(T.filter(t => !["compare", "comparing", "difference", "differ", "differs", "versus"].includes(t) || t === "versus")), top_n: topN, must_answer: "the comparison itself (which, how they differ), not two independent summaries", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (objective === "prioritize") return base("RANKING", { top_n: topN, must_answer: "the ordering (or why none can be given) first", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (objective === "explain" || lead === "why") return base("EXPLANATION", { must_answer: "the supported reason first", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
-  // where things STAND on a named thing is a status read; explicit list asks ("show / name / which ...") are lists whatever the judgment cue words
+  // asking where something stands is a status read; explicit list asks are lists whatever the judgment cue words
   const standing = u.wh && T.some(t => ["stand", "stands"].includes(t)) && T.some(t => ["where", "how"].includes(t)) && contentTokens(T).filter(t => !["stand", "stands", "things"].includes(t)).length > 0 && !T.includes("things");
   if (standing) return base("STATUS", { must_answer: "the current state of the thing asked about", must_not_substitute: ["capability_menu", "count_for_list"] });
   const judgeWords = T.some(t => ["worry", "worried", "should", "why", "compare", "rank", "matter", "matters", "priority", "important", "urgent", "better", "worse", "safe", "risk", "concern"].includes(t));

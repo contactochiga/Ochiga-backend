@@ -1,0 +1,929 @@
+{
+ "version": 1,
+ "status": "IQ8_HELDOUT_C_FROZEN_AFTER_THRESHOLDS_PRE_RUN",
+ "note": "Authored after the IQ-8 implementation was complete and before it was ever run; run once. Runtime must never read this file (static guard).",
+ "items": [
+  {
+   "id": "IQ8C-001",
+   "s": "facility",
+   "u": "Give me the number of unresolved maintenance items.",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-002",
+   "s": "facility",
+   "u": "How many security events are in the log?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 0
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-003",
+   "s": "consumer",
+   "u": "How many people have access passes on my account?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-004",
+   "s": "office_internal",
+   "u": "Count the open leads for me.",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-005",
+   "s": "office_internal",
+   "u": "How many opportunities are being neglected?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-006",
+   "s": "consumer",
+   "u": "How many appliances have outdated readings?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 4
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-007",
+   "s": "office_internal",
+   "u": "How many pending approvals do I have?",
+   "shape": "COUNT",
+   "kind": "count",
+   "p": {
+    "n": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-008",
+   "s": "office_internal",
+   "u": "Who are the leads that need chasing?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Lead Alpha",
+     "Lead Beta"
+    ],
+    "min": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-009",
+   "s": "office_internal",
+   "u": "Show me the neglected opportunities.",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "VI Development",
+     "Abuja JV"
+    ],
+    "min": 2
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-010",
+   "s": "facility",
+   "u": "Which repair requests have not been closed?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "water issue"
+    ],
+    "min": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-011",
+   "s": "consumer",
+   "u": "Give me the names on my visitor list.",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Expected Visitor",
+     "Historical Visitor"
+    ],
+    "min": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-012",
+   "s": "office_internal",
+   "u": "What reports are sitting in my approval queue?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Portfolio Report"
+    ],
+    "min": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-013",
+   "s": "office_internal",
+   "u": "What is overdue on my to-do list?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "overdue follow-up"
+    ],
+    "min": 1
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-014",
+   "s": "consumer",
+   "u": "List the appliances whose data is out of date.",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Living Light",
+     "AC",
+     "Kitchen Light",
+     "Bedroom Light"
+    ],
+    "min": 3
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-015",
+   "s": "facility",
+   "u": "How are things going with maintenance?",
+   "shape": "STATUS",
+   "kind": "status",
+   "p": {
+    "kw": [
+     "water"
+    ],
+    "also": [
+     "open",
+     "unresolved"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-016",
+   "s": "consumer",
+   "u": "What condition are my appliances in?",
+   "shape": "STATUS",
+   "kind": "status",
+   "p": {
+    "kw": [
+     "stale",
+     "not current",
+     "readings"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-017",
+   "s": "office_internal",
+   "u": "What is the state of the Abuja JV opportunity?",
+   "shape": "STATUS",
+   "kind": "status",
+   "p": {
+    "kw": [
+     "qualification",
+     "8 days",
+     "Abuja JV"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-018",
+   "s": "facility",
+   "u": "What is the status of the security log?",
+   "shape": "STATUS",
+   "kind": "status",
+   "p": {
+    "kw": [
+     "no security",
+     "none",
+     "no open",
+     "no "
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-019",
+   "s": "facility",
+   "u": "Is the water problem sorted?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "water"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-020",
+   "s": "facility",
+   "u": "Is the light matter still live?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "light"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-021",
+   "s": "facility",
+   "u": "Is the water problem still live?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "yes",
+    "kw": [
+     "water"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-022",
+   "s": "facility",
+   "u": "Is the camera feed live at the moment?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "unknown",
+    "kw": [
+     "camera"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-023",
+   "s": "consumer",
+   "u": "Is the data from my devices fresh?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "stale",
+     "not current",
+     "readings"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-024",
+   "s": "facility",
+   "u": "Has security recorded any incident?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "incident"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-025",
+   "s": "office_internal",
+   "u": "Is there a report for me to sign off?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "yes",
+    "kw": [
+     "report"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-026",
+   "s": "office_internal",
+   "u": "Are any of my tasks late?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "yes",
+    "kw": [
+     "overdue",
+     "task"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-027",
+   "s": "facility",
+   "u": "If nothing was logged, does that show everything is fine?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "all-clear",
+     "recorded",
+     "incident",
+     "safe"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-028",
+   "s": "consumer",
+   "u": "Does a lapsed pass tell you the visitor has gone?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "access",
+     "record",
+     "left",
+     "arriv"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-029",
+   "s": "consumer",
+   "u": "Is the visitor already inside?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "unknown",
+    "kw": [
+     "arriv",
+     "access",
+     "record"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-030",
+   "s": "facility",
+   "u": "What is the reason that one ranks first?",
+   "shape": "EXPLANATION",
+   "kind": "why",
+   "p": {
+    "kw": [
+     "open",
+     "high",
+     "priority",
+     "recorded"
+    ]
+   },
+   "seeds": [
+    "Which maintenance issue is most pressing?"
+   ]
+  },
+  {
+   "id": "IQ8C-031",
+   "s": "office_internal",
+   "u": "Walk me through why you picked that.",
+   "shape": "EXPLANATION",
+   "kind": "why",
+   "p": {
+    "kw": [
+     "not ranked",
+     "haven't ranked",
+     "have not ranked",
+     "no ordering",
+     "nothing was ranked",
+     "not put",
+     "did not rank",
+     "not ordered",
+     "haven't",
+     "not picked"
+    ]
+   },
+   "seeds": [
+    "Which opportunity should I back?"
+   ]
+  },
+  {
+   "id": "IQ8C-032",
+   "s": "consumer",
+   "u": "Why is it that you cannot confirm my devices are on?",
+   "shape": "EXPLANATION",
+   "kind": "why",
+   "p": {
+    "kw": [
+     "stale",
+     "readings",
+     "not current"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-033",
+   "s": "facility",
+   "u": "Why does the water leak matter?",
+   "shape": "EXPLANATION",
+   "kind": "why",
+   "p": {
+    "kw": [
+     "open",
+     "high",
+     "unresolved"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-034",
+   "s": "facility",
+   "u": "Which is the bigger problem, the water leak or the light fault?",
+   "shape": "COMPARISON",
+   "kind": "compare",
+   "p": {
+    "names": [
+     "water",
+     "light"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-035",
+   "s": "office_internal",
+   "u": "How does Lead Alpha stack up against Lead Beta?",
+   "shape": "COMPARISON",
+   "kind": "compare",
+   "p": {
+    "names": [
+     "Alpha",
+     "Beta"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-036",
+   "s": "office_internal",
+   "u": "Compare the VI Development with the Abuja JV.",
+   "shape": "COMPARISON",
+   "kind": "compare",
+   "p": {
+    "names": [
+     "Abuja JV",
+     "VI Development"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-037",
+   "s": "facility",
+   "u": "Is there any hazard I need to deal with?",
+   "shape": "SAFETY_RISK",
+   "kind": "risk",
+   "p": {
+    "kw": [
+     "water"
+    ],
+    "hedge": true
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-038",
+   "s": "facility",
+   "u": "There is a smell of smoke coming from the lift shaft.",
+   "shape": "SAFETY_RISK",
+   "kind": "risk",
+   "p": {
+    "kw": [
+     "smoke"
+    ],
+    "unverified": true
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-039",
+   "s": "consumer",
+   "u": "The wall behind the cooker is very hot and smells of burning.",
+   "shape": "SAFETY_RISK",
+   "kind": "risk",
+   "p": {
+    "kw": [
+     "burning",
+     "hot"
+    ],
+    "unverified": true
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-040",
+   "s": "consumer",
+   "u": "Should I be concerned about my home tonight?",
+   "shape": "SAFETY_RISK",
+   "kind": "risk",
+   "p": {
+    "kw": [
+     "camera",
+     "stale",
+     "readings",
+     "cannot",
+     "can't",
+     "security"
+    ],
+    "hedge": true
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-041",
+   "s": "consumer",
+   "u": "Tell me my water usage this month.",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "water",
+     "usage",
+     "consumption"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-042",
+   "s": "facility",
+   "u": "What is the air quality in the basement?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "air",
+     "quality"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-043",
+   "s": "office_internal",
+   "u": "What has moved in the pipeline since the start of the year?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "baseline",
+     "earlier",
+     "snapshot",
+     "history",
+     "previous",
+     "since"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-044",
+   "s": "facility",
+   "u": "Can you show me data for Wing B?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "wing",
+     "scope",
+     "building",
+     "tower"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-045",
+   "s": "facility",
+   "u": "Who among the tenants made the complaint?",
+   "shape": "REFUSAL",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "tenant",
+     "who",
+     "attribut",
+     "identify",
+     "responsible",
+     "name"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-046",
+   "s": "consumer",
+   "u": "Was anything switched because of this chat?",
+   "shape": "ACTION_RESULT",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "chang",
+     "switch",
+     "anything",
+     "device"
+    ]
+   },
+   "seeds": [
+    "Which appliances have outdated readings?"
+   ]
+  },
+  {
+   "id": "IQ8C-047",
+   "s": "facility",
+   "u": "Did you edit anything while we spoke?",
+   "shape": "ACTION_RESULT",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "chang",
+     "alter",
+     "edit",
+     "anything"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-048",
+   "s": "office_internal",
+   "u": "Keep my budget numbers between us.",
+   "shape": "CONFIRMATION_STATE",
+   "kind": "ack",
+   "p": {
+    "kw": [
+     "budget",
+     "numbers",
+     "noted",
+     "between"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-049",
+   "s": "facility",
+   "u": "Don't ever tell me a gate is secure unless a sensor says so.",
+   "shape": "CONFIRMATION_STATE",
+   "kind": "ack",
+   "p": {
+    "kw": [
+     "gate",
+     "sensor",
+     "not",
+     "secure"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-050",
+   "s": "consumer",
+   "u": "Please do not change any settings during this conversation.",
+   "shape": "CONFIRMATION_STATE",
+   "kind": "ack",
+   "p": {
+    "kw": [
+     "settings",
+     "not",
+     "change"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-051",
+   "s": "public_corporate",
+   "u": "Will you guarantee a buyer for my land?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "no",
+    "kw": [
+     "promise",
+     "guarantee",
+     "buyer"
+    ]
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8C-052",
+   "s": "public_corporate",
+   "u": "What information do you still lack?",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "structure",
+     "owner",
+     "title",
+     "expect"
+    ],
+    "min": 1
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8C-053",
+   "s": "public_corporate",
+   "u": "Is what I have given you adequate to start talking?",
+   "shape": "YES_NO_WITH_REASON",
+   "kind": "yesno",
+   "p": {
+    "pol": "yes_or_partial",
+    "kw": [
+     "enough",
+     "first",
+     "still",
+     "need",
+     "look"
+    ]
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8C-054",
+   "s": "public_corporate",
+   "u": "Which suits me best, a sale or a partnership?",
+   "shape": "COMPARISON",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "sale",
+     "partnership",
+     "depends",
+     "yet"
+    ]
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8C-055",
+   "s": "public_corporate",
+   "u": "Read back what you have noted from me.",
+   "shape": "LIST",
+   "kind": "list",
+   "p": {
+    "names": [
+     "Lekki",
+     "1,200"
+    ],
+    "min": 2
+   },
+   "seeds": [
+    "I own land in Lekki.",
+    "It is about 1,200 sqm."
+   ]
+  },
+  {
+   "id": "IQ8C-056",
+   "s": "consumer",
+   "u": "Turn that off.",
+   "shape": "CLARIFICATION",
+   "kind": "clarify",
+   "p": {},
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-057",
+   "s": "consumer",
+   "u": "What kind of things can you help me with?",
+   "shape": "CAPABILITY_DISCOVERY",
+   "kind": "discovery",
+   "p": {},
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-058",
+   "s": "public_corporate",
+   "u": "What can you do for me?",
+   "shape": "CAPABILITY_DISCOVERY",
+   "kind": "discovery",
+   "p": {},
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-059",
+   "s": "office_internal",
+   "u": "Arrange my leads from most to least promising.",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "order",
+     "rank",
+     "comparative"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-060",
+   "s": "office_internal",
+   "u": "Which opportunity should I put my effort into?",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "rank",
+     "comparative",
+     "order",
+     "first"
+    ]
+   },
+   "seeds": []
+  },
+  {
+   "id": "IQ8C-061",
+   "s": "facility",
+   "u": "Summarise the condition of every building on the estate.",
+   "shape": "LIMITATION",
+   "kind": "limit",
+   "p": {
+    "kw": [
+     "maintenance",
+     "security",
+     "only",
+     "cover",
+     "every",
+     "building"
+    ]
+   },
+   "seeds": []
+  }
+ ]
+}
