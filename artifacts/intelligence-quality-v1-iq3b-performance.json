@@ -1,0 +1,442 @@
+{
+  "status": "MEASURED",
+  "environment": "isolated local loopback fixture; real queries; no network; Node single process",
+  "runs_per_scenario": 15,
+  "limits": {
+    "max_sources": 8,
+    "per_source_ms": 1500,
+    "overall_ms": 3000,
+    "max_records_per_source": 50,
+    "max_material_items": 8
+  },
+  "orchestrator_call_sites": 1,
+  "scenarios": [
+    {
+      "scenario": "single_source (consumer maintenance)",
+      "sources_attempted": 1,
+      "plan_status": "MANDATORY_PARTIAL",
+      "queries_per_plan": {
+        "n": 15,
+        "mean": 1,
+        "p50": 1,
+        "p95": 1,
+        "max": 1
+      },
+      "planner_wall_ms": {
+        "n": 15,
+        "mean": 3.32,
+        "p50": 3.37,
+        "p95": 4.16,
+        "max": 4.16
+      },
+      "sum_of_source_latencies_ms": {
+        "n": 15,
+        "mean": 3.07,
+        "p50": 3,
+        "p95": 4,
+        "max": 4
+      },
+      "per_source_latency_ms": {
+        "maintenance.requests.read": {
+          "n": 15,
+          "mean": 3.07,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        }
+      },
+      "reuse": {
+        "queries_first": 1,
+        "queries_reused": 0,
+        "sources_reused": 1,
+        "reuse_wall_ms": 0.22,
+        "first_wall_ms": 3
+      }
+    },
+    {
+      "scenario": "two_sources (consumer maintenance+visitors)",
+      "sources_attempted": 2,
+      "plan_status": "MANDATORY_PARTIAL",
+      "queries_per_plan": {
+        "n": 15,
+        "mean": 2,
+        "p50": 2,
+        "p95": 2,
+        "max": 2
+      },
+      "planner_wall_ms": {
+        "n": 15,
+        "mean": 3.58,
+        "p50": 3.44,
+        "p95": 4.31,
+        "max": 4.31
+      },
+      "sum_of_source_latencies_ms": {
+        "n": 15,
+        "mean": 6.53,
+        "p50": 6,
+        "p95": 8,
+        "max": 8
+      },
+      "per_source_latency_ms": {
+        "maintenance.requests.read": {
+          "n": 15,
+          "mean": 3.4,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        },
+        "visitors.pending.read": {
+          "n": 15,
+          "mean": 3.13,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        }
+      },
+      "reuse": {
+        "queries_first": 2,
+        "queries_reused": 0,
+        "sources_reused": 2,
+        "reuse_wall_ms": 0.1,
+        "first_wall_ms": 3
+      }
+    },
+    {
+      "scenario": "three_sources (consumer devices+maintenance+visitors)",
+      "sources_attempted": 3,
+      "plan_status": "MANDATORY_PARTIAL",
+      "queries_per_plan": {
+        "n": 15,
+        "mean": 4,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "planner_wall_ms": {
+        "n": 15,
+        "mean": 5.33,
+        "p50": 5.18,
+        "p95": 6.31,
+        "max": 6.31
+      },
+      "sum_of_source_latencies_ms": {
+        "n": 15,
+        "mean": 11.4,
+        "p50": 11,
+        "p95": 14,
+        "max": 14
+      },
+      "per_source_latency_ms": {
+        "devices.status.read": {
+          "n": 15,
+          "mean": 5.07,
+          "p50": 5,
+          "p95": 6,
+          "max": 6
+        },
+        "maintenance.requests.read": {
+          "n": 15,
+          "mean": 3.13,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        },
+        "visitors.pending.read": {
+          "n": 15,
+          "mean": 3.2,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        }
+      },
+      "reuse": {
+        "queries_first": 4,
+        "queries_reused": 0,
+        "sources_reused": 3,
+        "reuse_wall_ms": 0.13,
+        "first_wall_ms": 5
+      }
+    },
+    {
+      "scenario": "security_subject_with_companions (consumer security+visitors+devices)",
+      "sources_attempted": 3,
+      "plan_status": "MANDATORY_COMPLETE_ENOUGH",
+      "queries_per_plan": {
+        "n": 15,
+        "mean": 4,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "planner_wall_ms": {
+        "n": 15,
+        "mean": 5.06,
+        "p50": 4.93,
+        "p95": 5.91,
+        "max": 5.91
+      },
+      "sum_of_source_latencies_ms": {
+        "n": 15,
+        "mean": 10.73,
+        "p50": 11,
+        "p95": 14,
+        "max": 14
+      },
+      "per_source_latency_ms": {
+        "security.incidents.read": {
+          "n": 15,
+          "mean": 3.13,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        },
+        "visitors.pending.read": {
+          "n": 15,
+          "mean": 2.67,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        },
+        "devices.status.read": {
+          "n": 15,
+          "mean": 4.93,
+          "p50": 5,
+          "p95": 6,
+          "max": 6
+        }
+      },
+      "reuse": {
+        "queries_first": 4,
+        "queries_reused": 0,
+        "sources_reused": 3,
+        "reuse_wall_ms": 0.12,
+        "first_wall_ms": 5
+      }
+    },
+    {
+      "scenario": "facility_broad (maintenance+security+cameras+visitors)",
+      "sources_attempted": 4,
+      "plan_status": "MANDATORY_PARTIAL",
+      "queries_per_plan": {
+        "n": 15,
+        "mean": 5,
+        "p50": 5,
+        "p95": 5,
+        "max": 5
+      },
+      "planner_wall_ms": {
+        "n": 15,
+        "mean": 5.56,
+        "p50": 5.49,
+        "p95": 6.16,
+        "max": 6.16
+      },
+      "sum_of_source_latencies_ms": {
+        "n": 15,
+        "mean": 15.07,
+        "p50": 14,
+        "p95": 18,
+        "max": 18
+      },
+      "per_source_latency_ms": {
+        "maintenance.requests.read": {
+          "n": 15,
+          "mean": 3.27,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        },
+        "security.incidents.read": {
+          "n": 15,
+          "mean": 3.2,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        },
+        "facility.cameras.read": {
+          "n": 15,
+          "mean": 5.33,
+          "p50": 5,
+          "p95": 6,
+          "max": 6
+        },
+        "visitors.pending.read": {
+          "n": 15,
+          "mean": 3.27,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        }
+      },
+      "reuse": {
+        "queries_first": 5,
+        "queries_reused": 0,
+        "sources_reused": 4,
+        "reuse_wall_ms": 0.28,
+        "first_wall_ms": 6
+      }
+    },
+    {
+      "scenario": "consumer_broad (devices+security+visitors+maintenance+scenes)",
+      "sources_attempted": 5,
+      "plan_status": "MANDATORY_PARTIAL",
+      "queries_per_plan": {
+        "n": 15,
+        "mean": 6,
+        "p50": 6,
+        "p95": 6,
+        "max": 6
+      },
+      "planner_wall_ms": {
+        "n": 15,
+        "mean": 5.73,
+        "p50": 5.69,
+        "p95": 6.21,
+        "max": 6.21
+      },
+      "sum_of_source_latencies_ms": {
+        "n": 15,
+        "mean": 19.73,
+        "p50": 19,
+        "p95": 25,
+        "max": 25
+      },
+      "per_source_latency_ms": {
+        "devices.status.read": {
+          "n": 15,
+          "mean": 5.67,
+          "p50": 6,
+          "p95": 6,
+          "max": 6
+        },
+        "security.incidents.read": {
+          "n": 15,
+          "mean": 3.33,
+          "p50": 3,
+          "p95": 4,
+          "max": 4
+        },
+        "visitors.pending.read": {
+          "n": 15,
+          "mean": 3.6,
+          "p50": 4,
+          "p95": 5,
+          "max": 5
+        },
+        "maintenance.requests.read": {
+          "n": 15,
+          "mean": 3.53,
+          "p50": 3,
+          "p95": 5,
+          "max": 5
+        },
+        "scenes.list.read": {
+          "n": 15,
+          "mean": 3.6,
+          "p50": 3,
+          "p95": 5,
+          "max": 5
+        }
+      },
+      "reuse": {
+        "queries_first": 6,
+        "queries_reused": 0,
+        "sources_reused": 5,
+        "reuse_wall_ms": 0.11,
+        "first_wall_ms": 5
+      }
+    },
+    {
+      "scenario": "largest_bounded_plan (office broad: 8 sources, snapshot)",
+      "sources_attempted": 8,
+      "plan_status": "MANDATORY_PARTIAL",
+      "queries_per_plan": {
+        "n": 15,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "planner_wall_ms": {
+        "n": 15,
+        "mean": 0.43,
+        "p50": 0.34,
+        "p95": 1.22,
+        "max": 1.22
+      },
+      "sum_of_source_latencies_ms": {
+        "n": 15,
+        "mean": 2.73,
+        "p50": 0,
+        "p95": 8,
+        "max": 8
+      },
+      "per_source_latency_ms": {
+        "crm.leads.read": {
+          "n": 15,
+          "mean": 0.4,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "crm.opportunities.read": {
+          "n": 15,
+          "mean": 0.33,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "development.status.read": {
+          "n": 15,
+          "mean": 0.33,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "reports.approvals.read": {
+          "n": 15,
+          "mean": 0.33,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "financial.summary.read": {
+          "n": 15,
+          "mean": 0.33,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "office_tasks.query.read": {
+          "n": 15,
+          "mean": 0.33,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "office_support.query.read": {
+          "n": 15,
+          "mean": 0.33,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "office_meetings.query.read": {
+          "n": 15,
+          "mean": 0.33,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        }
+      },
+      "reuse": {
+        "queries_first": 0,
+        "queries_reused": 0,
+        "sources_reused": 8,
+        "reuse_wall_ms": 0.09,
+        "first_wall_ms": 0
+      }
+    }
+  ]
+}

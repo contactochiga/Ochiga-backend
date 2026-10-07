@@ -6,7 +6,9 @@ import {createRequire} from 'node:module';
 assert.equal(process.env.SUPABASE_URL, 'http://127.0.0.1:55421');
 const require = createRequire(import.meta.url);
 for (const pkg of ['bullmq', 'ioredis']) {const p = require.resolve(pkg); class Inert {on() {return this;} quit() {return Promise.resolve();}} Inert.default = Inert; Inert.Redis = Inert; Inert.Queue = Inert; Inert.Worker = Inert; require.cache[p] = {id: p, filename: p, loaded: true, exports: Inert};}
-globalThis.fetch = async () => {throw Error('PERF_NETWORK_FORBIDDEN');};
+const fetchOriginal = globalThis.fetch;
+// Only the isolated loopback fixture is reachable; any other host fails loudly.
+globalThis.fetch = (input, options) => {const u = new URL(typeof input === 'string' || input instanceof URL ? input : input.url); assert.equal(u.hostname, '127.0.0.1'); assert.equal(u.port, '55421'); return fetchOriginal(input, options);};
 const {ensureRegistered} = await import('../dist/oyi-core/orchestration/ConversationOrchestrator.js');
 const {capabilityRegistry} = await import('../dist/oyi-core/capabilities/CapabilityRegistry.js');
 const {supabaseAdmin: db} = await import('../dist/supabase/supabaseClient.js');
@@ -25,8 +27,9 @@ const stats = a => {const s = [...a].sort((x, y) => x - y); return {n: a.length,
 const N = 15;
 const scenarios = [
   ['single_source (consumer maintenance)', () => [context('consumer', 'resident'), {subject_domains: ['maintenance'], broad: false}]],
-  ['two_sources (consumer maintenance+security)', () => [context('consumer', 'resident'), {subject_domains: ['maintenance', 'security'], broad: false}]],
-  ['three_sources (consumer devices+security+visitors)', () => [context('consumer', 'resident'), {subject_domains: ['devices', 'security', 'visitors'], broad: false}]],
+  ['two_sources (consumer maintenance+visitors)', () => [context('consumer', 'resident'), {subject_domains: ['maintenance', 'visitors'], broad: false}]],
+  ['three_sources (consumer devices+maintenance+visitors)', () => [context('consumer', 'resident'), {subject_domains: ['devices', 'maintenance', 'visitors'], broad: false}]],
+  ['security_subject_with_companions (consumer security+visitors+devices)', () => [context('consumer', 'resident'), {subject_domains: ['security'], broad: false}]],
   ['facility_broad (maintenance+security+cameras+visitors)', () => [context('facility', 'facility_manager'), {}]],
   ['consumer_broad (devices+security+visitors+maintenance+scenes)', () => [context('consumer', 'resident'), {}]],
   ['largest_bounded_plan (office broad: 8 sources, snapshot)', () => [office(), {}]],

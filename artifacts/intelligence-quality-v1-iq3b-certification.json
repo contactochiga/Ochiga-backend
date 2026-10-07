@@ -1,0 +1,596 @@
+{
+  "version": 1,
+  "starting_head": "e00efb499a651a9746a53407e2c8803cab8ad44b",
+  "status": "IQ-3B GOVERNED EVIDENCE PLANNER CERTIFIED — IQ-4 APPROVAL REQUIRED",
+  "gates": {
+    "plannerTestsAllPass": true,
+    "iq3aSourceTests": true,
+    "iq3aBenchmarkTests": true,
+    "iq3aLiveIsolation": true,
+    "iq280Retained": true,
+    "noPassRegressed": true,
+    "persistedAndTraced280": true,
+    "wave11": true,
+    "iq1Adversarial": true,
+    "iq2Objective": true,
+    "regressionMatrix": true,
+    "frozenArtifactsUntouched": true,
+    "noPlannerExecutionDefectInCorpus": true,
+    "performanceWithinLimits": true,
+    "evidencePlannerOnlyOnAssessmentBranch": true
+  },
+  "limits": {
+    "max_sources": 8,
+    "per_source_ms": 1500,
+    "overall_ms": 3000,
+    "max_records_per_source": 50,
+    "max_material_items": 8
+  },
+  "planner_tests": {
+    "total": 48,
+    "counts": {
+      "PASS": 48
+    }
+  },
+  "iq3a_regression": {
+    "source_tests": {
+      "status": "PASS",
+      "tests": 255,
+      "certified_partial": 25
+    },
+    "benchmark_tests": {
+      "status": "PASS",
+      "tests": 129,
+      "matrix_rows": 225
+    },
+    "isolation": {
+      "status": "PASS",
+      "original_sources": 3,
+      "benchmark_required_sources": 6,
+      "synthetic_rows_removed": 10
+    }
+  },
+  "corpus": {
+    "status_retained": {
+      "FAIL": 224,
+      "PASS": 51,
+      "BLOCKED": 5
+    },
+    "answers_changed": 144,
+    "answers_changed_by_previous_status": {
+      "FAIL": 138,
+      "PASS": 4,
+      "BLOCKED": 2
+    },
+    "preserved_pass_turns": [
+      {
+        "id": "OMA-005:3",
+        "previous_review_reason": "Existing PASS reviewed and preserved; no authority or action-execution regression observed.",
+        "check_holds": true
+      },
+      {
+        "id": "CON-002:6",
+        "previous_review_reason": "Existing PASS reviewed and preserved; no authority or action-execution regression observed.",
+        "check_holds": true
+      },
+      {
+        "id": "CON-008:5",
+        "previous_review_reason": "The explicit return restores the corrected Study subject, not wallet evidence; additional physical observations are not claimed.",
+        "check_holds": true
+      },
+      {
+        "id": "CON-008:6",
+        "previous_review_reason": "The room reference correctly identifies Study from conversation, rather than a raw room list or stale wallet result.",
+        "check_holds": true
+      }
+    ],
+    "answers_changed_outside_the_133": [
+      {
+        "id": "OMA-005:3",
+        "previous_status": "PASS",
+        "previous_class": null
+      },
+      {
+        "id": "FAC-004:1",
+        "previous_status": "BLOCKED",
+        "previous_class": "FIXTURE_BLOCKED"
+      },
+      {
+        "id": "FAC-004:2",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "FAC-004:3",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "FAC-004:4",
+        "previous_status": "BLOCKED",
+        "previous_class": "FIXTURE_BLOCKED"
+      },
+      {
+        "id": "FAC-004:5",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "FAC-004:6",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "FAC-004:7",
+        "previous_status": "FAIL",
+        "previous_class": "EVIDENCE_RETRIEVAL"
+      },
+      {
+        "id": "CON-002:6",
+        "previous_status": "PASS",
+        "previous_class": null
+      },
+      {
+        "id": "CON-008:5",
+        "previous_status": "PASS",
+        "previous_class": null
+      },
+      {
+        "id": "CON-008:6",
+        "previous_status": "PASS",
+        "previous_class": null
+      }
+    ]
+  },
+  "evidence_planning_133": {
+    "evidence_outcome": {
+      "PLANNER_PARTIAL_SUCCESS": 101,
+      "PLANNER_SUCCESS": 6,
+      "EVIDENCE_GAP": 10,
+      "MISSING_CAPABILITY_PRODUCT_DEBT": 11,
+      "NO_EVIDENCE_REQUIRED_BY_TURN": 4,
+      "NO_PLAN": 1
+    },
+    "final_class": {
+      "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 32,
+      "REFERENCE_CONTINUITY": 39,
+      "REASSESSMENT": 5,
+      "INITIATIVE": 35,
+      "OTHER": 11,
+      "MISSING_CAPABILITY_PRODUCT_DEBT": 11
+    },
+    "moved_out_of_evidence_planning": 122,
+    "moved_to_judgment_iq4": 32,
+    "strict_measure": {
+      "turns_with_every_benchmark_must_consider_class_gathered_or_disclosed": 72,
+      "turns_with_benchmark_must_consider_classes_not_gathered": 61,
+      "by_class": {
+        "office_documents": 17,
+        "office_development": 6,
+        "office_financial": 3,
+        "corporate_partnerships": 7,
+        "crm": 7,
+        "corporate_development": 4,
+        "maintenance": 4,
+        "cameras": 3,
+        "security": 7,
+        "device_availability": 10,
+        "visitors": 2,
+        "scenes": 4
+      }
+    },
+    "remaining_evidence_planning_failures": [
+      {
+        "id": "OSA-007:3",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "corporate_development:not_requested"
+      },
+      {
+        "id": "OSA-007:5",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "corporate_development:not_requested"
+      },
+      {
+        "id": "OSA-007:6",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "corporate_development:not_requested"
+      },
+      {
+        "id": "OSA-007:7",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "corporate_development:not_requested"
+      },
+      {
+        "id": "FAC-002:2",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "maintenance:not_requested"
+      },
+      {
+        "id": "FAC-002:4",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "cameras:not_requested"
+      },
+      {
+        "id": "FAC-002:5",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "cameras:not_requested"
+      },
+      {
+        "id": "FAC-002:6",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "cameras:not_requested"
+      },
+      {
+        "id": "FAC-002:7",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "maintenance:not_requested"
+      },
+      {
+        "id": "FAC-009:7",
+        "evidence_outcome": "EVIDENCE_GAP",
+        "gap": "proven product debt not surfaced by the plan: device_history (the IQ-2 subject did not request it)"
+      },
+      {
+        "id": "CON-006:7",
+        "evidence_outcome": "NO_PLAN",
+        "gap": "no evidence plan was produced for this turn (an existing certified path answered it)"
+      }
+    ],
+    "by_surface": {
+      "office_internal": {
+        "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 18,
+        "REFERENCE_CONTINUITY": 18,
+        "REASSESSMENT": 4,
+        "INITIATIVE": 15
+      },
+      "public_corporate": {
+        "INITIATIVE": 5,
+        "REFERENCE_CONTINUITY": 1,
+        "OTHER": 4
+      },
+      "facility": {
+        "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 9,
+        "OTHER": 6,
+        "REFERENCE_CONTINUITY": 6,
+        "INITIATIVE": 6,
+        "REASSESSMENT": 1
+      },
+      "consumer": {
+        "NOW_SUFFICIENT_EVIDENCE_BUT_JUDGMENT_FAILS": 5,
+        "REFERENCE_CONTINUITY": 14,
+        "MISSING_CAPABILITY_PRODUCT_DEBT": 11,
+        "INITIATIVE": 9,
+        "OTHER": 1
+      }
+    }
+  },
+  "plan_status": {
+    "MANDATORY_PARTIAL": 109,
+    "MANDATORY_COMPLETE_ENOUGH": 16,
+    "MANDATORY_MISSING_CAPABILITY": 6,
+    "MANDATORY_UNAVAILABLE": 1
+  },
+  "reuse": {
+    "sources_attempted": 174,
+    "sources_reused": 183,
+    "reads_avoided_pct": 51.3
+  },
+  "performance_summary": {
+    "6_8_sources": {
+      "turns": 4,
+      "planner_latency_ms": {
+        "n": 4,
+        "mean": 1,
+        "max": 3,
+        "p95": 3
+      },
+      "turn_latency_ms": {
+        "n": 4,
+        "mean": 76.5,
+        "max": 92,
+        "p95": 92
+      }
+    },
+    "reused_only": {
+      "turns": 66,
+      "planner_latency_ms": {
+        "n": 66,
+        "mean": 0.1,
+        "max": 1,
+        "p95": 1
+      },
+      "turn_latency_ms": {
+        "n": 66,
+        "mean": 74.4,
+        "max": 132,
+        "p95": 96
+      }
+    },
+    "4_5_sources": {
+      "turns": 15,
+      "planner_latency_ms": {
+        "n": 15,
+        "mean": 7.5,
+        "max": 16,
+        "p95": 16
+      },
+      "turn_latency_ms": {
+        "n": 15,
+        "mean": 70.3,
+        "max": 81,
+        "p95": 81
+      }
+    },
+    "3_sources": {
+      "turns": 5,
+      "planner_latency_ms": {
+        "n": 5,
+        "mean": 4.4,
+        "max": 8,
+        "p95": 8
+      },
+      "turn_latency_ms": {
+        "n": 5,
+        "mean": 86.6,
+        "max": 136,
+        "p95": 136
+      }
+    },
+    "2_sources": {
+      "turns": 15,
+      "planner_latency_ms": {
+        "n": 15,
+        "mean": 1.2,
+        "max": 5,
+        "p95": 5
+      },
+      "turn_latency_ms": {
+        "n": 15,
+        "mean": 75.1,
+        "max": 103,
+        "p95": 103
+      }
+    },
+    "1_source": {
+      "turns": 27,
+      "planner_latency_ms": {
+        "n": 27,
+        "mean": 4.2,
+        "max": 8,
+        "p95": 8
+      },
+      "turn_latency_ms": {
+        "n": 27,
+        "mean": 74.4,
+        "max": 113,
+        "p95": 107
+      }
+    }
+  },
+  "oma001": [
+    {
+      "id": "OMA-001:1",
+      "prompt": "I just got into the office. What actually needs my attention today?",
+      "answer": "leads that need attention:\n20 leads out of 39 open.\n\nopportunities that haven't been followed up:\n3 opportunities. 2 haven't had activity in at least two weeks.\n\nreports awaiting approval:\n1 report awaiting approval.\n\ndevelopment project status:\n3 development projects.",
+      "plan_status": null,
+      "attempted": null,
+      "reused": null,
+      "invalidation": null
+    },
+    {
+      "id": "OMA-001:2",
+      "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+      "answer": "I checked the evidence I am permitted to read for this. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read; tasks: 2 (partial view); support cases: 1 (partial view); meetings: 1 (partial view). From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries, tasks, support cases, meetings: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 8,
+      "reused": 0,
+      "invalidation": []
+    },
+    {
+      "id": "OMA-001:3",
+      "prompt": "Why is the second one more important than the others?",
+      "answer": "I am using the evidence I already gathered for this assessment, which is still current. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read. From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 0,
+      "reused": 5,
+      "invalidation": []
+    },
+    {
+      "id": "OMA-001:4",
+      "prompt": "The Chairman for that project says financing is already secured.",
+      "answer": "I checked the evidence I am permitted to read for this. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read. From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything. Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list. Your information is unverified. Which item should it attach to?",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 5,
+      "reused": 0,
+      "invalidation": [
+        "material_fact_changed"
+      ]
+    },
+    {
+      "id": "OMA-001:5",
+      "prompt": "Does that change your priority?",
+      "answer": "I am using the evidence I already gathered for this assessment, which is still current. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read. From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 0,
+      "reused": 5,
+      "invalidation": []
+    },
+    {
+      "id": "OMA-001:6",
+      "prompt": "What can I delegate and what needs my decision?",
+      "answer": "I checked the evidence I am permitted to read, reusing what was already current. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read; tasks: 2 (partial view); support cases: 1 (partial view); meetings: 1 (partial view). From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries, tasks, support cases, meetings: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 3,
+      "reused": 5,
+      "invalidation": []
+    },
+    {
+      "id": "OMA-001:7",
+      "prompt": "Give me the next move, not a menu of things you can do.",
+      "answer": "I am using the evidence I already gathered for this assessment, which is still current. What I found: leads needing attention: 20 (partial view); stale opportunities: 3 (partial view); development projects: 3 (partial view); reports awaiting approval: 1 (partial view); estate financial summaries: none in the part I could read; tasks: 2 (partial view); support cases: 1 (partial view); meetings: 1 (partial view). From this I cannot conclude: The full set behind leads needing attention, stale opportunities, development projects, reports awaiting approval, estate financial summaries, tasks, support cases, meetings: each is a bounded, supplied view, not the whole population. I have gathered this evidence but have not yet drawn conclusions from it or ranked anything.",
+      "plan_status": "MANDATORY_PARTIAL",
+      "attempted": 0,
+      "reused": 8,
+      "invalidation": []
+    }
+  ],
+  "validation": {
+    "wave11": {
+      "PASS": 131,
+      "FAIL": 1
+    },
+    "safety": {
+      "execution_attempts": 0,
+      "results": {
+        "PASS": 10
+      }
+    },
+    "objective": {
+      "status": "PASS",
+      "parser_cases": 44,
+      "turns": 70
+    },
+    "regressions": {
+      "counts": {
+        "PASS": 19,
+        "FAIL": 4
+      },
+      "controls": [
+        {
+          "suite": "oyi-workflow-action-phase-c-reload-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-action-phase-c-multigang-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-action-phase-c-correction-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-durable-continuation-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        }
+      ]
+    }
+  },
+  "files_changed": [
+    "artifacts/intelligence-quality-v1-iq3b-planner-tests.json",
+    "artifacts/intelligence-quality-v1-iq3b-results.json",
+    "docs/INTELLIGENCE_QUALITY_V1_IQ3A.md",
+    "scripts/iq3a-benchmark-source-tests.mjs",
+    "scripts/iq3b-certify.mjs",
+    "scripts/iq3b-performance.mjs",
+    "scripts/iq3b-planner-tests.mjs",
+    "scripts/iq3b-review.mjs",
+    "src/modules/cameras/cameraCurrentStateAuthority.ts",
+    "src/oyi-core/capabilities/CapabilityService.ts",
+    "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+    "src/oyi-core/context/conversationAssessmentContext.ts",
+    "src/oyi-core/context/publicOpportunityObjective.ts",
+    "src/oyi-core/contracts/capability.ts",
+    "src/oyi-core/contracts/evidence.ts",
+    "src/oyi-core/domains/automations/sceneAutomationEvidence.ts",
+    "src/oyi-core/domains/devices/deviceCurrentStateAuthority.ts",
+    "src/oyi-core/domains/devices/deviceEvidence.ts",
+    "src/oyi-core/domains/maintenance/maintenanceEvidence.ts",
+    "src/oyi-core/domains/security/securityEvidence.ts",
+    "src/oyi-core/domains/visitors/visitorEvidence.ts",
+    "src/oyi-core/evidence/PureReadGuard.ts",
+    "src/oyi-core/evidence/ReadOnlyEvidenceDb.ts",
+    "src/oyi-core/evidence/planner/assessmentIntegration.ts",
+    "src/oyi-core/evidence/planner/bundle.ts",
+    "src/oyi-core/evidence/planner/evidenceClasses.ts",
+    "src/oyi-core/evidence/planner/execute.ts",
+    "src/oyi-core/evidence/planner/limits.ts",
+    "src/oyi-core/evidence/planner/planner.ts",
+    "src/oyi-core/evidence/planner/planning.ts",
+    "src/oyi-core/evidence/planner/policy.ts",
+    "src/oyi-core/evidence/planner/readiness.ts",
+    "src/oyi-core/evidence/planner/reuse.ts",
+    "src/oyi-core/evidence/planner/types.ts",
+    "src/oyi-core/evidence/sources/cameraReads.ts",
+    "src/oyi-core/evidence/sources/deviceReads.ts",
+    "src/oyi-core/evidence/sources/publicReads.ts",
+    "src/oyi-core/orchestration/ConversationOrchestrator.ts",
+    "src/services/deviceRuntimeStateService.ts"
+  ],
+  "source_files_changed": [
+    "src/modules/cameras/cameraCurrentStateAuthority.ts",
+    "src/oyi-core/capabilities/CapabilityService.ts",
+    "src/oyi-core/capabilities/ReadCapabilityModules.ts",
+    "src/oyi-core/context/conversationAssessmentContext.ts",
+    "src/oyi-core/context/publicOpportunityObjective.ts",
+    "src/oyi-core/contracts/capability.ts",
+    "src/oyi-core/contracts/evidence.ts",
+    "src/oyi-core/domains/automations/sceneAutomationEvidence.ts",
+    "src/oyi-core/domains/devices/deviceCurrentStateAuthority.ts",
+    "src/oyi-core/domains/devices/deviceEvidence.ts",
+    "src/oyi-core/domains/maintenance/maintenanceEvidence.ts",
+    "src/oyi-core/domains/security/securityEvidence.ts",
+    "src/oyi-core/domains/visitors/visitorEvidence.ts",
+    "src/oyi-core/evidence/PureReadGuard.ts",
+    "src/oyi-core/evidence/ReadOnlyEvidenceDb.ts",
+    "src/oyi-core/evidence/planner/assessmentIntegration.ts",
+    "src/oyi-core/evidence/planner/bundle.ts",
+    "src/oyi-core/evidence/planner/evidenceClasses.ts",
+    "src/oyi-core/evidence/planner/execute.ts",
+    "src/oyi-core/evidence/planner/limits.ts",
+    "src/oyi-core/evidence/planner/planner.ts",
+    "src/oyi-core/evidence/planner/planning.ts",
+    "src/oyi-core/evidence/planner/policy.ts",
+    "src/oyi-core/evidence/planner/readiness.ts",
+    "src/oyi-core/evidence/planner/reuse.ts",
+    "src/oyi-core/evidence/planner/types.ts",
+    "src/oyi-core/evidence/sources/cameraReads.ts",
+    "src/oyi-core/evidence/sources/deviceReads.ts",
+    "src/oyi-core/evidence/sources/publicReads.ts",
+    "src/oyi-core/orchestration/ConversationOrchestrator.ts",
+    "src/services/deviceRuntimeStateService.ts"
+  ],
+  "source_hashes": {
+    "src/modules/cameras/cameraCurrentStateAuthority.ts": "b36fdec9d113cb14acb0ab46c3e6f5abadf5c3a509b624958c9f9236dc688096",
+    "src/oyi-core/capabilities/CapabilityService.ts": "fbe3c5e12a6aef0dd465732bd4333ba5c92c6cd3e06680d6226361062ca66e9c",
+    "src/oyi-core/capabilities/ReadCapabilityModules.ts": "5492e8cd86352be74dd47f4443f0629ff489b7a64edfbbd748753d9b140be6d8",
+    "src/oyi-core/context/conversationAssessmentContext.ts": "9d8a0479cb497b8cdbd77db53cf741f30218d20f364719d98896aaa6f23125eb",
+    "src/oyi-core/context/publicOpportunityObjective.ts": "195a3965aa6357fe7b7e73b89af8c389b2bd43111b710c1e9e5220c3c2a91b30",
+    "src/oyi-core/contracts/capability.ts": "9d2281edc908c63aece2afa487d7d05f97b7dca103a757e68cbcf31e128af0ce",
+    "src/oyi-core/contracts/evidence.ts": "842f6741366726987e9512022ff6665d65e03de10eb2f9bbc956e15ae0174210",
+    "src/oyi-core/domains/automations/sceneAutomationEvidence.ts": "1f279b8aad9ff0c8da3e88efe68d2777476e1a4fee4f99788128b63b1d746078",
+    "src/oyi-core/domains/devices/deviceCurrentStateAuthority.ts": "3200ac300a1936af99433d438bbcb2dd6ad3d236a27ec5783c6f3de3def59353",
+    "src/oyi-core/domains/devices/deviceEvidence.ts": "b8110803f5a2dcf38445b512fda8d9450e1a231204d0f76d5666dc5f2f31e58c",
+    "src/oyi-core/domains/maintenance/maintenanceEvidence.ts": "80caf4c2fc959a53db955fcd6c471c4787bc18c51ab250aa2885a58b719dbc33",
+    "src/oyi-core/domains/security/securityEvidence.ts": "92102d32fe926ed8095ab651d198f5d33bc9d0ee4bc69a9df76c8c8d587f5941",
+    "src/oyi-core/domains/visitors/visitorEvidence.ts": "cce0d3f2e623b7520b7dc6f53dc0fbec0eacf2d2c7f50c8c5001fce7ac319a13",
+    "src/oyi-core/evidence/PureReadGuard.ts": "474b2865d611b83ddf6ab04330c21e0e491b28bb442dcb849d32505704f39520",
+    "src/oyi-core/evidence/ReadOnlyEvidenceDb.ts": "bdfb967252fd917557ba9b323dacf56897a7aff28d715303f571eeeded7ecdbb",
+    "src/oyi-core/evidence/planner/assessmentIntegration.ts": "2c476b7140d395e34581a8283c39730b46d69af010676a8f30b0128a9e60d529",
+    "src/oyi-core/evidence/planner/bundle.ts": "73d68c9b97ba49477e209cb0605dcb2fcffeee38991a03795551e5c3a55782c7",
+    "src/oyi-core/evidence/planner/evidenceClasses.ts": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16",
+    "src/oyi-core/evidence/planner/execute.ts": "dbb87e2f068a29005ecaf48213e9c9720dcbae6cf804c849dbe02e85d8a7424f",
+    "src/oyi-core/evidence/planner/limits.ts": "e5ee45cd66486ad305d22d6bab426fd821e04e5ad1e575d3b0fe2a3c7a8b4d31",
+    "src/oyi-core/evidence/planner/planner.ts": "7b2d69cb7cb7c0e944a6e4c00e603e6302259baa86417f1bb80f464a32bf4c20",
+    "src/oyi-core/evidence/planner/planning.ts": "ba7e358b2d1dfc16a4c9d9ab4ec3bfb3874a2362b0dcbcd15cddaf67f7fdf087",
+    "src/oyi-core/evidence/planner/policy.ts": "2e6768bd390babdef65f0aa1b621ee94e37b08f9cc7191692c187ec6b4c22709",
+    "src/oyi-core/evidence/planner/readiness.ts": "6e4ffdc0723ccc5cd13c6a89e5818779ca576c7c7cf8c6d108134c8818563210",
+    "src/oyi-core/evidence/planner/reuse.ts": "6c6a8654574a855ad36c2028fd8b5796a2fc1fb03bcff16f45fe357ef5018129",
+    "src/oyi-core/evidence/planner/types.ts": "45486195803b7bb770d53b4a0244c37e3b133e0eb07f758de1212beaed0f1b4c",
+    "src/oyi-core/evidence/sources/cameraReads.ts": "48775e1231e975b31b63abe611a763af0a6f9404cb26b34725219a50e12812ae",
+    "src/oyi-core/evidence/sources/deviceReads.ts": "7be28bf188c08c56df0489ed7469efa6f86e52b614c3d40b5832eb59d9aab635",
+    "src/oyi-core/evidence/sources/publicReads.ts": "e99c3dc71c8b1dfe1734c9f79b1fbb0ccdb17d8d2b285f4f181a038b98b35bb7",
+    "src/oyi-core/orchestration/ConversationOrchestrator.ts": "6ca17a3960c1ac21f89139f2ca71e65c0cc504cf55cd20d13b498c9dae97c20c",
+    "src/services/deviceRuntimeStateService.ts": "f951cbd56b07ce16125b8508c12a1f5a5b5dbcc19212e7d109231c410ad59a96"
+  },
+  "raw_hashes": {
+    "/tmp/iq3b-v3-iq.json": "bf4b713bd0d170d10d347d3bf7ac6661b0191730cf6a30f70a38f310d7a56ed8",
+    "/tmp/iq3b-v3-wave11.json": "0155170405da0ca0f6ab4b8e9cc2ed4fa7402feefae034858c8f4cd0325d843b",
+    "/tmp/iq3b-v3-safety.json": "d27414dff240ee3d9d712d06ff058b05836458a4e8a2ad4fa52d7d7ef099ec20",
+    "/tmp/iq3b-v3-objective.json": "a872cc18226a944ce33b2d95c35519142adc34d77214bbd059ac253959775ff9",
+    "/tmp/iq3b-v3-regressions.json": "0d68112e53703df9445d4d398087d52427b803292b5489a3b429902ab07faaf0"
+  }
+}
