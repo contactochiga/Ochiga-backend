@@ -1,0 +1,232 @@
+{
+ "version": 1,
+ "status": "IQ9A2_DIAGNOSIS_FROZEN_BEFORE_RUNTIME_CHANGE",
+ "head": "ad752f4",
+ "source": "iq9a-dev post-remediation run (post7) and its canonical traces",
+ "areas": [
+  "multi-turn continuity",
+  "compound requests and cancellation",
+  "hazard plus action",
+  "public callback and handoff"
+ ],
+ "tally": {
+  "Incorrect action-mode selection": 9,
+  "Response-composition failure": 9,
+  "Interpretation failure": 14,
+  "Missing capability": 2,
+  "Reference-resolution failure": 8
+ },
+ "additional_finding": "device clarification continuation inherits the PENDING workflow direction (on) when the new message states \"off\" without a verb (wrong-direction proposal).",
+ "items": [
+  {
+   "id": "IQ9A-114",
+   "owner_class": "Incorrect action-mode selection",
+   "why": "mixed turn: the hazard precaution is given but the question \"has anyone been told\" is not answered"
+  },
+  {
+   "id": "IQ9A-115",
+   "owner_class": "Response-composition failure",
+   "why": "unverified assurance refused correctly; the answer omits what is recorded"
+  },
+  {
+   "id": "IQ9A-117",
+   "owner_class": "Incorrect action-mode selection",
+   "why": "compound: log it + tell me it is confirmed; both parts mishandled"
+  },
+  {
+   "id": "IQ9A-118",
+   "owner_class": "Incorrect action-mode selection",
+   "why": "mixed turn: hazard handler answers and drops the camera question"
+  },
+  {
+   "id": "IQ9A-120",
+   "owner_class": "Response-composition failure",
+   "why": "assurance refusal correct; omits the recorded burst-pipe context"
+  },
+  {
+   "id": "IQ9A-122",
+   "owner_class": "Interpretation failure",
+   "why": "Office reassurance request reaches the maintenance out-of-scope fallback before the refusal"
+  },
+  {
+   "id": "IQ9A-124",
+   "owner_class": "Missing capability",
+   "why": "public safety rumour about Ochiga estates: no incident source; assessment template claims the opportunity \"could not be read\""
+  },
+  {
+   "id": "IQ9A-125",
+   "owner_class": "Response-composition failure",
+   "why": "camera question after a report answered by the generic assessment template; residents have no camera access"
+  },
+  {
+   "id": "IQ9A-126",
+   "owner_class": "Incorrect action-mode selection",
+   "why": "hazard + action: \"AC is sparking, switch it off now\" becomes an ordinary device proposal with no hazard acknowledgement; stale-workflow state handling also unsafe"
+  },
+  {
+   "id": "IQ9A-128",
+   "owner_class": "Response-composition failure",
+   "why": "urgent-attention question answered by the menu-fallback listing without urgency framing"
+  },
+  {
+   "id": "IQ9A-129",
+   "owner_class": "Response-composition failure",
+   "why": "cancellation is right; the answer omits that the device state is unknown from stale readings"
+  },
+  {
+   "id": "IQ9A-131",
+   "owner_class": "Incorrect action-mode selection",
+   "why": "compound: withdraw the AC request and do the kitchen one; the proposal also took the stale workflow direction (on) instead of the stated \"off\"; the turn then falls to a read"
+  },
+  {
+   "id": "IQ9A-134",
+   "owner_class": "Interpretation failure",
+   "why": "\"hold on, don't send it\" is a hold/withdrawal of a request that never executed, not handled; falls to a read"
+  },
+  {
+   "id": "IQ9A-135",
+   "owner_class": "Incorrect action-mode selection",
+   "why": "compound: withdrawal plus a status question; only the question is answered"
+  },
+  {
+   "id": "IQ9A-137",
+   "owner_class": "Interpretation failure",
+   "why": "\"never mind the generators, switch them back on again later\" is read as a standing constraint; a withdrawal plus a future request"
+  },
+  {
+   "id": "IQ9A-138",
+   "owner_class": "Interpretation failure",
+   "why": "\"scrap the email\" is not a recognised withdrawal verb"
+  },
+  {
+   "id": "IQ9A-139",
+   "owner_class": "Incorrect action-mode selection",
+   "why": "compound: withdrawal plus a field question; routed to the assessment template"
+  },
+  {
+   "id": "IQ9A-140",
+   "owner_class": "Reference-resolution failure",
+   "why": "follow-up \"current balance\" after a figures constraint loses the financial-summary context and hits the Office out-of-scope wallet fallback"
+  },
+  {
+   "id": "IQ9A-142",
+   "owner_class": "Incorrect action-mode selection",
+   "why": "compound: withdrawal of a callback plus \"keep what I told you\"; only the recall is answered"
+  },
+  {
+   "id": "IQ9A-143",
+   "owner_class": "Interpretation failure",
+   "why": "a stored contact constraint (never by phone) is not available to the later call request, and \"arrange a call\" reaches the menu fallback"
+  },
+  {
+   "id": "IQ9A-145",
+   "owner_class": "Reference-resolution failure",
+   "why": "ordinal resolved to the right record, but the follow-up question (how urgent) is not a supported field, so only the status is returned"
+  },
+  {
+   "id": "IQ9A-146",
+   "owner_class": "Interpretation failure",
+   "why": "\"theirs\" (pronoun for another party) is not read as another-person scope, so the refused scope request is not carried to the follow-up; falls to the unsupported fallback instead of the scope refusal"
+  },
+  {
+   "id": "IQ9A-147",
+   "owner_class": "Response-composition failure",
+   "why": "ordinal resolved correctly but the answer uses the internal reference label (W11-TOPUP) and omits money direction; the field \"in or out\" is not supported"
+  },
+  {
+   "id": "IQ9A-148",
+   "owner_class": "Reference-resolution failure",
+   "why": "elliptical \"same for X place\" has no domain; neighbour scope is known but the unsupported fallback answers instead of the scope refusal"
+  },
+  {
+   "id": "IQ9A-149",
+   "owner_class": "Reference-resolution failure",
+   "why": "\"the other one\" is not a supported follow-up reference"
+  },
+  {
+   "id": "IQ9A-151",
+   "owner_class": "Reference-resolution failure",
+   "why": "\"which is the active one\" is not a supported follow-up attribute"
+  },
+  {
+   "id": "IQ9A-153",
+   "owner_class": "Reference-resolution failure",
+   "why": "ordinal follow-up about a derived assessment list is answered by the generic assessment template instead of the referent record's own recorded age"
+  },
+  {
+   "id": "IQ9A-155",
+   "owner_class": "Missing capability",
+   "why": "units-sold has no source; the follow-up should state the limitation for the already-resolved project, the answer re-lists the project"
+  },
+  {
+   "id": "IQ9A-156",
+   "owner_class": "Reference-resolution failure",
+   "why": "the communication handler resolves \"the first one\" against the staff directory instead of the preceding result set"
+  },
+  {
+   "id": "IQ9A-157",
+   "owner_class": "Interpretation failure",
+   "why": "\"what do you have on that one so far\" is not read as held-fact recall, so the acknowledgement template wins"
+  },
+  {
+   "id": "IQ9A-158",
+   "owner_class": "Interpretation failure",
+   "why": "a refusal-worthy request without the words \"your/internal\" (list the weights) reaches the menu fallback; the earlier refusal context is not used"
+  },
+  {
+   "id": "IQ9A-159",
+   "owner_class": "Interpretation failure",
+   "why": "\"has all that been passed to your team\" is not recognised as a handoff-state question (passive \"passed\", subject \"all that\")"
+  },
+  {
+   "id": "IQ9A-160",
+   "owner_class": "Reference-resolution failure",
+   "why": "\"what about the other one\" is not a supported follow-up reference"
+  },
+  {
+   "id": "IQ9A-084",
+   "owner_class": "Interpretation failure",
+   "why": "a question about the handoff capability itself reaches the menu fallback"
+  },
+  {
+   "id": "IQ9A-087",
+   "owner_class": "Response-composition failure",
+   "why": "open-items question answered by the assessment template"
+  },
+  {
+   "id": "IQ9A-090",
+   "owner_class": "Interpretation failure",
+   "why": "\"they've been told right? how long til they call\" exceeds the outcome-question length bound"
+  },
+  {
+   "id": "IQ9A-091",
+   "owner_class": "Response-composition failure",
+   "why": "record exists; the answer does not say whether anyone is working on it"
+  },
+  {
+   "id": "IQ9A-092",
+   "owner_class": "Incorrect action-mode selection",
+   "why": "compound conversation: new information then a handoff-state question; second part correct, composition incomplete"
+  },
+  {
+   "id": "IQ9A-095",
+   "owner_class": "Response-composition failure",
+   "why": "owner field is recorded for the stale opportunities but the assessment template answers"
+  },
+  {
+   "id": "IQ9A-096",
+   "owner_class": "Interpretation failure",
+   "why": "the Osa module uses its own narrow callback regex (\"call me back\" not matched) instead of the shared target callback; the request is acknowledged as a fact update"
+  },
+  {
+   "id": "IQ9A-082",
+   "owner_class": "Interpretation failure",
+   "why": "same narrow callback detector in the Osa module"
+  },
+  {
+   "id": "IQ9A-083",
+   "owner_class": "Interpretation failure",
+   "why": "same narrow callback detector in the Osa module"
+  }
+ ]
+}
