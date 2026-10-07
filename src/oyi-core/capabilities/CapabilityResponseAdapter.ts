@@ -3,71 +3,31 @@ import type { CanonicalConversationResponse, CanonicalTruth, IntelligenceFact } 
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
-import { deriveAnswerTarget } from "../response/answerTarget";
-import { rowsFromBlocks, targetedOverview, targetedRetrieval, type AnswerRows, type OverviewView } from "../response/targetedRetrieval";
+import { mapResultEnvelope } from "../response/envelopeMappers";
+import { responseContract } from "../response/resultEnvelope";
+import { projectResponse } from "../response/projector";
 import { isGenericUnsupportedAnswer, limitationAnswer } from "../response/limitationTarget";
 
-// IQ-8: plain read capabilities describe what they read as compact rows; Core shapes the lead (list / count / status / yes-no) around the question.
-const ROW_NOUNS: Record<string, { noun: string; singular: string; population?: string }> = {
-  "crm.leads.read": { noun: "leads", singular: "lead", population: "needing attention" },
-  "crm.opportunities.read": { noun: "opportunities", singular: "opportunity", population: "that have gone stale" },
-  "reports.approvals.read": { noun: "reports awaiting approval", singular: "report awaiting approval" },
-  "development.status.read": { noun: "development projects", singular: "development project" },
-  "office_tasks.read": { noun: "tasks", singular: "task" },
-  "office_tasks.query.read": { noun: "tasks", singular: "task" },
-};
+// IQ-8D: read capabilities return structured truth; the ONE AnswerTarget carried on the semantic frame decides the shape. Core maps the result into
+// a ResultEnvelope (mapResultEnvelope) and projects it (projectResponse). The capability's own prose stays as supporting detail and as the fallback.
 function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capabilityKey: string): DomainResult {
   try {
     const frame = context.resolvedTurn?.semantic_frame;
-    if (!frame || !frame.rawText) return result;
-    // a generic "no capability" answer is replaced by the specific limitation for what was asked (never a menu, never a guessed state)
-    if ((result.status === "unsupported" || result.status === "unavailable") && isGenericUnsupportedAnswer(String(result.answer || ""))) {
-      const t = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
+    const t = frame?.answerTarget;
+    if (!frame || !frame.rawText || !t) return result;
+    const genericDenied = result.status === "permission_restricted" && /^You are not authorised to use that Oyi capability from this surface or scope\.$/.test(String(result.answer || "").trim());
+    const genericLimit = (result.status === "unsupported" || result.status === "unavailable") && isGenericUnsupportedAnswer(String(result.answer || ""));
+    if (genericLimit || genericDenied) {
       if (t.response_intent === "CAPABILITY_DISCOVERY") return result;
-      return { ...result, answer: limitationAnswer(t, frame.rawText), metadata: { ...(result.metadata || {}), answer_target: t.response_intent, limitation_targeted: true } };
-    }
-    if (result.status === "permission_restricted" && /^You are not authorised to use that Oyi capability from this surface or scope\.$/.test(String(result.answer || "").trim())) {
-      const t = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
-      return { ...result, answer: `I can't do that for you here: you are not authorised to use it from this surface or scope (“${frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120)}”).`, metadata: { ...(result.metadata || {}), answer_target: t.response_intent, limitation_targeted: true } };
+      const answer = genericDenied ? `I can't do that for you here: you are not authorised to use it from this surface or scope (“${frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120)}”).` : limitationAnswer(t, frame.rawText);
+      return { ...result, answer, metadata: { ...(result.metadata || {}), answer_target: t.response_intent, limitation_targeted: true } };
     }
     if (result.status !== "answered" && result.status !== "empty") return result;
-    const tgt0 = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
-    // "how much did I use" asks for consumption; a spending record is money, not usage
-    if (capabilityKey === "utilities.spending.read" && /\b(?:use|used|burn|burnt|consum\w*|usage|kwh|units)\b/i.test(frame.rawText) && !/\b(?:spend|spent|cost|paid|pay|bill|bills|price)\b/i.test(frame.rawText))
-      return { ...result, answer: `I can't tell you how much you used: I can see what you spent, but consumption (usage) readings are not available yet.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "LIMITATION", limitation_targeted: true } };
-    if (tgt0.response_intent === "REFUSAL") return { ...result, answer: limitationAnswer(tgt0, frame.rawText), metadata: { ...(result.metadata || {}), answer_target: "REFUSAL", limitation_targeted: true } };
-    if (tgt0.response_intent === "YES_NO_WITH_REASON" && (tgt0.yes_no?.kind === "state" || tgt0.yes_no?.kind === "capability")) {
-      const T0 = frame.rawText.toLowerCase();
-      if (capabilityKey === "facility.cameras.read" && /unknown current video state/.test(result.answer)) return { ...result, answer: `I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
-      if (capabilityKey === "visitors.pending.read" && /\b(?:arriv\w*|turned up|shown up|here|inside|already in|premises|on site|onsite|present|left|departed|gone|came|come|home)\b/.test(T0)) return { ...result, answer: `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
-    }
-    if (tgt0.response_intent === "YES_NO_WITH_REASON" && tgt0.yes_no?.kind === "inference" && (result.status === "answered" || result.status === "empty"))
-      return { ...result, answer: `No — that does not establish it: what I can read only covers what is recorded, and a record showing nothing is not an all-clear.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: "YES_NO_WITH_REASON" } };
-    if ((tgt0.response_intent === "RANKING" || tgt0.response_intent === "COMPARISON") && ROW_NOUNS[capabilityKey] && (result.status === "answered" || result.status === "empty")) {
-      // the capability already lists what needs attention: say so first, then be plain that it cannot order or choose between them
-      const nz = ROW_NOUNS[capabilityKey], blk = (result.blocks || []).find((b) => b.type === "record_list" || b.type === "table");
-      const fb = rowsFromBlocks(result.blocks, nz.noun, nz.singular);
-      const listing = fb ? targetedRetrieval(result.answer, { ...fb, population: nz.population ?? fb.population ?? null, total: typeof blk?.total_count === "number" ? (blk.total_count as number) : null }, { ...tgt0, response_intent: "LIST" }, frame.rawText) : null;
-      return { ...result, answer: `${listing ? `${listing.split("\n\nSupporting detail:")[0]}\n\n` : ""}I can't put them in order or pick one: that takes comparative judgment on their recorded notes, which I don't have here.\n\nSupporting detail: ${result.answer}`, metadata: { ...(result.metadata || {}), answer_target: tgt0.response_intent, limitation_targeted: true } };
-    }
-    const overview = result.metadata?.overview_view as OverviewView | undefined;
-    if (overview) {
-      const ot = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
-      const shapedOverview = targetedOverview(result.answer, overview, ot, frame.rawText);
-      return shapedOverview ? { ...result, answer: shapedOverview, metadata: { ...(result.metadata || {}), answer_target: ot.response_intent } } : result;
-    }
-    let rows = (result.metadata?.answer_rows as AnswerRows | undefined) ?? null;
-    if (!rows) {
-      const blockTitle = String((result.blocks || []).find((b) => b.type === "record_list" || b.type === "table")?.title ?? "").toLowerCase();
-      const n = ROW_NOUNS[capabilityKey] ?? (blockTitle ? { noun: blockTitle, singular: blockTitle.replace(/ies$/, "y").replace(/s$/, "") } : null); if (!n) return result;
-      const fromBlocks = rowsFromBlocks(result.blocks, n.noun, n.singular);
-      const block = (result.blocks || []).find((b) => b.type === "record_list" || b.type === "table") as Record<string, unknown> | undefined;
-      rows = fromBlocks ? { ...fromBlocks, population: n.population ?? fromBlocks.population ?? null, total: typeof block?.total_count === "number" ? (block.total_count as number) : null, truncated: Boolean(block?.truncated) } : null;
-    }
-    if (!rows) return result;
-    const target = deriveAnswerTarget(frame.rawText, { objective: frame.cognitiveObjective });
-    const shaped = targetedRetrieval(result.answer, rows, target, frame.rawText);
-    return shaped ? { ...result, answer: shaped, metadata: { ...(result.metadata || {}), answer_target: target.response_intent } } : result;
+    const envelope = mapResultEnvelope(capabilityKey, result, { capability_status: "enabled" });
+    const p = envelope ? projectResponse(t, envelope, { asked: frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120) }) : null;
+    if (!envelope || !p) return result;
+    const answer = [p.primary, ...p.supporting.filter(x => x && x !== p.primary).map(x => `Supporting detail: ${x}`)].join("\n\n");
+    return { ...result, answer, metadata: { ...(result.metadata || {}), answer_target: t.response_intent, projection_shape: p.shape, response_contract: responseContract(envelope) } };
   } catch { return result; }
 }
 

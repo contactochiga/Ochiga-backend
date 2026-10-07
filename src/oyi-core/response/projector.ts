@@ -1,0 +1,170 @@
+import { contentTokens, type AnswerTarget } from "./answerTarget";
+import { analyse } from "../interpretation/semanticObjective";
+import { conceptOf } from "../interpretation/conceptLexicon";
+import type { EnvelopeRecord, ResultEnvelope } from "./resultEnvelope";
+import { limitationAnswer } from "./limitationTarget";
+
+// IQ-8D canonical response projector. It consumes ONE carried AnswerTarget and ONE ResultEnvelope and returns the primary answer, separated from
+// supporting detail. Small typed projections by response intent; no reasoning, ranking, judging, querying or authority. It never parses prose and
+// never re-derives the target: the only text it receives from the user is `asked`, quoted back verbatim in limitation sentences.
+
+export type Projection = { shape: string; primary: string; supporting: string[] };
+const norm = (s: string) => s.toLowerCase();
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+const stem = (w: string) => w.replace(/(?:ing|ed|es|s)$/, "");
+const GENERIC = new Set(["issue", "issues", "request", "requests", "item", "items", "problem", "ticket", "tickets", "lead", "leads", "report", "reports", "task", "tasks", "record", "records", "visitor", "visitors", "device", "devices", "transaction", "transactions", "opportunity", "opportunities", "project", "projects", "incident", "incidents", "access", "list", "names", "name", "estate", "home", "need", "needs", "attention", "waiting", "approval", "approve", "stand", "tell", "give", "display", "details", "guest", "guests", "pass", "passes", "deal", "deals", "prospect", "prospects", "job", "jobs", "event", "events", "document", "documents", "gadget", "gadgets", "appliance", "appliances", "sensor", "sensors"]);
+const OPPOSITE: Record<string, string> = { closed: "open", resolved: "open", fixed: "open", completed: "open", done: "open", open: "resolved", active: "inactive", current: "expired", stale: "fresh", overdue: "on time" };
+
+const wordsOf = (r: EnvelopeRecord) => analyse(r.label).tokens.filter(t => !/^wave\d*$/.test(t));
+function scopeTokens(e: ResultEnvelope) { return new Set(contentTokens(analyse(`${e.subject.noun} ${e.subject.singular} ${e.subject.object_class ?? ""} ${e.subject.domain ?? ""}`).tokens)); }
+function matches(r: EnvelopeRecord, q: string): boolean {
+  const st = norm(r.status ?? ""), hay = norm(`${r.status ?? ""} ${r.detail ?? ""} ${r.fields ? Object.values(r.fields).join(" ") : ""}`);
+  if (q === "open") return !/\b(?:resolved|closed|completed|cancelled|canceled|expired|done|inactive)\b/.test(st) && (r.state ? r.state === "open" || r.state === "overdue" || r.state === "stale" : true);
+  if (q === "resolved") return r.state === "resolved" || /\b(?:resolved|closed|completed|done)\b/.test(st);
+  if (q === "stale") return r.state === "stale" || /\b(?:stale|expired|outdated|old)\b/.test(hay);
+  if (q === "overdue") return r.state === "overdue" || /\boverdue|\blate\b/.test(hay);
+  return hay.includes(stem(q));
+}
+const canon = (t: string) => { const c = conceptOf(t); return c === "open" || c === "resolved" || c === "stale" || c === "overdue" ? c : t; };
+function qualifiers(t: AnswerTarget, e: ResultEnvelope) {
+  const neg = new Set(t.negated_qualifiers.map(canon));
+  const all = [...new Set(t.qualifier_tokens.map(canon))].map(q => (neg.has(q) ? (OPPOSITE[q] ?? q) : q));
+  const pop = norm(e.subject.population ?? "");
+  const inPopulation = all.filter(q => pop && pop.includes(stem(q)));
+  return { all, inPopulation };
+}
+const label = (r: EnvelopeRecord) => `${r.label}${r.status ? ` (${r.status}${r.detail ? `; ${r.detail}` : ""})` : r.detail ? ` (${r.detail})` : ""}`;
+const list = (rs: EnvelopeRecord[], max = 8) => rs.slice(0, max).map(label).join(", ") + (rs.length > max ? `, and ${rs.length - max} more` : "");
+
+function narrow(t: AnswerTarget, e: ResultEnvelope) {
+  const all = e.records || [], scope = scopeTokens(e);
+  const names = new Set(t.subject_tokens.filter(w => !GENERIC.has(w) && !scope.has(w)));
+  const named = all.filter(r => wordsOf(r).some(w => names.has(w) && !GENERIC.has(w)));
+  let rows = named.length && named.length < all.length ? named : all;
+  const q = qualifiers(t, e);
+  const applicable = q.all.filter(x => rows.some(r => matches(r, x)) && !q.inPopulation.includes(x));
+  if (applicable.length) rows = rows.filter(r => applicable.every(x => matches(r, x)));
+  const unmatched = q.all.filter(x => !applicable.includes(x) && !q.inPopulation.includes(x));
+  return { rows, named, applicable, inPopulation: q.inPopulation, unmatched, all, asked: q.all };
+}
+
+function limitationText(e: ResultEnvelope, asked: string, t: AnswerTarget): string {
+  const k = e.limitations?.[0];
+  if (e.availability === "denied" || k?.kind === "AUTHORITY_DENIED") return `I can't do that for you here: you are not authorised to use it from this surface or scope${asked ? ` (“${asked}”)` : ""}.`;
+  if (k?.kind === "MISSING_CAPABILITY" || e.capability_status === "declared") return `I can't tell you that: ${k?.label ?? e.subject.noun} ${k?.label ? "are" : "is"} not available yet, so I would only be guessing.`;
+  return limitationAnswer(t, asked);
+}
+const noRecords = (e: ResultEnvelope, scoped: string) => `There are no ${scoped}${e.subject.noun} in what I read.`;
+
+export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string }): Projection | null {
+  const sup = (...xs: string[]) => xs.filter(Boolean);
+  const done = (shape: string, primary: string, ...more: string[]): Projection => ({ shape, primary, supporting: sup(...more) });
+  const legacy = e.legacy_prose;
+  const intent = t.response_intent;
+  if (intent === "CAPABILITY_DISCOVERY" || intent === "CONFIRMATION_STATE" || intent === "ACTION_RESULT" || intent === "CLARIFICATION") return null; // specialized owners
+  if (intent === "REFUSAL") return done("REFUSAL", limitationAnswer(t, ctx.asked));
+  // 1. availability / limitation first: a capability that did not answer is projected as the specific limitation, never as an answer
+  if (e.availability === "denied" || e.availability === "unsupported" || e.availability === "unavailable") return done("LIMITATION", limitationText(e, ctx.asked, t));
+  // 2. held (public) facts
+  if (e.held_facts) return projectHeld(t, e, ctx);
+  // 3. facet the capability cannot provide (consumption from a spending source, an earlier point in time from a current-only source)
+  if (t.facet === "usage" && !e.subject.facets.includes("usage")) return done("LIMITATION", `I can't tell you how much you used: I can see what was spent, but consumption (usage) readings are not available yet.`, legacy);
+  if (t.past_reference && !e.subject.facets.includes("history") && (intent === "STATUS" || intent === "LIST" || intent === "COUNT" || intent === "DIRECT_ANSWER" || e.value))
+    return done("HISTORY", `I can only give the current ${e.value ? "value" : e.subject.noun}, not an earlier one: I have no earlier snapshot to compare with.`, legacy);
+  // 4. value (balance / totals)
+  if (e.value && (intent === "STATUS" || intent === "DIRECT_ANSWER" || intent === "LIST" || intent === "COUNT" || intent === "SUMMARY" || intent === "ASSESSMENT")) {
+    const v = e.value; return done("VALUE", `${cap(v.label ?? "Balance")}: ${v.currency} ${Number(v.amount).toLocaleString("en-NG")}${v.as_of ? ` (as of ${v.as_of})` : ""}${v.frozen ? ". This wallet is currently frozen" : ""}.`, legacy);
+  }
+  if (e.hints?.aggregate_only && !e.records?.length && !e.value && (intent === "STATUS" || intent === "DIRECT_ANSWER" || intent === "LIST" || intent === "COUNT" || intent === "SUMMARY")) return done("LIMITATION", `I can't give you that figure: ${lower(legacy)}`);
+  if (t.facet === "balance" && !e.subject.facets.includes("balance") && !e.value && e.subject.object_class === "wallet") return null; // wrong source for the facet: left to routing (IQ-8E)
+  if (intent === "YES_NO_WITH_REASON" && (t.yes_no?.kind === "state" || t.yes_no?.kind === "capability")) {
+    if (e.subject.object_class === "camera" && e.limitations?.some(l => l.kind === "UNOBSERVED")) return done("YES_NO", `I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.`, legacy);
+    if (e.hints?.permission_only && t.state_concept && (t.state_concept === "arrived" || t.state_concept === "departed")) return done("YES_NO", `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.`, legacy);
+  }
+  if (!e.records) return null;
+  const n = narrow(t, e), rows = n.rows, noun = e.subject.noun, one = e.subject.singular;
+  const askedN = (c: number) => `${c} ${c === 1 ? one : noun}`;
+  const trunc = e.truncated || (e.total_count != null && !e.total_qualifier && e.total_count > (e.count ?? 0));
+  // a qualifier no record carries and the capability's own sentence already addresses stays with that sentence
+  if (n.unmatched.some(x => norm(legacy).includes(stem(x))) && !n.applicable.length && (intent === "LIST" || intent === "COUNT" || intent === "STATUS")) return null;
+  const support = sup(legacy);
+  switch (intent) {
+    case "COUNT": {
+      const useTotal = e.total_count != null && e.total_qualifier === "open" && n.asked.includes("open") && !n.applicable.includes("open");
+      const c = useTotal ? e.total_count! : rows.length;
+      const qual = [...n.applicable, ...n.inPopulation].join(" and ");
+      if (c === 0) { const zq = [qual, ...(e.records!.length ? [] : n.unmatched)].filter(Boolean).join(" and "); return done("COUNT", noRecords(e, zq ? `${zq} ` : ""), ...support); }
+      if (useTotal) return done("COUNT", `There ${c === 1 ? "is" : "are"} ${c} open ${c === 1 ? one : noun}; ${rows.length} of them ${rows.length === 1 ? "needs" : "need"} attention.`, ...support);
+      return done("COUNT", `There ${c === 1 ? "is" : "are"} ${trunc ? "at least " : ""}${c} ${qual ? qual + " " : ""}${c === 1 ? one : noun}${e.subject.population && !n.applicable.length && !n.inPopulation.length ? ` ${e.subject.population}` : ""}.`, ...support);
+    }
+    case "LIST": {
+      if (!e.records.length) return null; // an empty read keeps the capability's own (possibly unavailable-inventory) wording
+      if (!rows.length) return done("LIST", `None of the ${noun} I read match that.`, ...support);
+      const head = cap(e.subject.population ? `${noun} ${e.subject.population}` : noun);
+      const note = n.unmatched.length && !n.applicable.length ? ` I could not filter by "${n.unmatched.join(", ")}" from the records I read, so this is the full list.` : "";
+      return done("LIST", `${head}${n.applicable.length ? ` (${n.applicable.join(", ")})` : ""}: ${list(rows)}.${trunc ? ` This is a truncated view${e.total_count != null ? ` (${e.total_count} in total)` : ""}.` : ""}${note}`, ...support);
+    }
+    case "STATUS": case "DIRECT_ANSWER": case "SUMMARY": {
+      if (!e.records.length) return done("STATUS", `There are no ${noun} on record in what I read — that is what the records show, not proof that nothing is wrong.`, ...support);
+      if (n.named.length === 1) { const r = n.named[0]; const extra = r.fields ? Object.entries(r.fields).filter(([k, v]) => v !== null && v !== "" && !["name", "title", "id", "status", "stage", "reason"].includes(k)).slice(0, 3).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`) : []; return done("DETAIL", `${r.label}: ${r.status ?? "recorded"}${r.detail ? `; ${r.detail}` : ""}${extra.length ? ` (${extra.join(", ")})` : ""}.`, ...support); }
+      if (intent !== "STATUS") return null;
+      const by = new Map<string, EnvelopeRecord[]>(); for (const r of rows) by.set(norm(r.status || "recorded"), [...(by.get(norm(r.status || "recorded")) || []), r]);
+      const parts = [...by].map(([s, rs]) => `${rs.length} ${s}${rs.length <= 3 ? ` (${rs.map(r => r.label).join(", ")})` : ""}`);
+      const fresh = e.limitations?.some(l => l.kind === "STALE") ? " The readings behind this are stale, so they show no current condition." : "";
+      return done("STATUS", `${cap(askedN(rows.length))} on record: ${parts.join("; ")}.${fresh}`, ...support);
+    }
+    case "YES_NO_WITH_REASON": {
+      const kind = t.yes_no?.kind;
+      if (kind === "inference") return done("YES_NO", `No — that does not establish it: what I can read only covers what is recorded, and a record showing nothing is not an all-clear.`, ...support);
+      if (kind !== "state" && kind !== "capability") return null;
+      if (n.named.length === 1 && (t.state_concept === "open" || t.state_concept === "resolved")) {
+        const r = n.named[0], closed = r.state === "resolved" || /resolved|closed|completed|done/i.test(r.status || ""), yes = t.state_concept === "resolved" ? closed : !closed;
+        return done("YES_NO", `${yes ? "Yes" : "No"} — ${r.label} is ${closed ? "resolved" : "still open"}${r.detail ? ` (${r.detail})` : ""}.`, ...support);
+      }
+      if (kind === "capability") return null;
+      return done("YES_NO", rows.length ? `Yes — ${askedN(rows.length)}${n.applicable.length ? ` ${n.applicable.join(" and ")}` : ""}: ${list(rows, 4)}.` : `No — I found no ${n.applicable.length ? n.applicable.join(" and ") + " " : ""}${noun} in what I read.`, ...support);
+    }
+    case "EXPLANATION": {
+      if (n.named.length === 1) { const r = n.named[0]; if (r.detail || r.status) return done("EXPLANATION", `${r.label} is ${r.status ?? "on record"}${r.detail ? `: ${r.detail}` : ""}.`, ...support); }
+      return null;
+    }
+    case "RANKING": case "COMPARISON": case "ADVICE": case "NEXT_STEP": {
+      if (!e.hints?.requires_judgment) return null;
+      return done("RANKING", `${rows.length ? `${cap(e.subject.population ? `${noun} ${e.subject.population}` : noun)}: ${list(rows)}.\n\n` : ""}I can't put them in order or pick one: that takes comparative judgment on their recorded notes, which I don't have here.`, ...support);
+    }
+    case "SAFETY_RISK": {
+      if (e.subject.domain !== "facility") return null;
+      const m = (e.records || []).filter(r => r.fields?.kind === "maintenance request"), inc = (e.records || []).filter(r => r.fields?.kind === "security incident");
+      const scope = e.limitations?.some(l => l.kind === "UNAVAILABLE") ? "Some evidence is unavailable, so this is not a complete verdict." : "This covers maintenance and security records only, so I cannot rule out anything else.";
+      return done("SAFETY_RISK", `${inc.length ? `${inc.length} open security incident${inc.length === 1 ? "" : "s"}: ${inc.slice(0, 3).map(r => r.label).join(", ")}.` : "No security incident is open in the records I read."}${m.length ? ` The open maintenance item${m.length === 1 ? "" : "s"} that could matter for safety: ${list(m, 5)}.` : " No open maintenance request is recorded."} ${scope}`, ...support);
+    }
+    default: return null;
+  }
+}
+
+const nice = (k: string) => k.replace(/_/g, " ");
+const joinList = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+function projectHeld(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string }): Projection | null {
+  const h = e.held_facts!, modelled = h.missing !== null, missing = h.missing ?? [];
+  const done = (shape: string, primary: string): Projection => ({ shape, primary, supporting: [e.legacy_prose].filter(Boolean) });
+  if (!t.is_question) return null;
+  const knownText = Object.entries(h.known).map(([a, b]) => `${nice(a)}: ${b}`).join("; ");
+  if (t.ask_facet === "commitment") return done("YES_NO", t.response_intent === "ADVICE" || t.response_intent === "NEXT_STEP" ? "I can't commit Ochiga or advise you to sign anything; that is for you and the team after a proper review." : "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.");
+  if (t.ask_facet === "sufficiency" && modelled) return done("YES_NO", missing.length ? `Not yet — for a first look I would still need: ${joinList(missing.map(nice))}.` : "Yes — that is everything we typically need to take a first look.");
+  if (t.fact_keys.length && (t.response_intent === "YES_NO_WITH_REASON" || t.response_intent === "STATUS" || t.response_intent === "DIRECT_ANSWER" || t.response_intent === "LIST" || t.response_intent === "EXPLANATION")) {
+    const have = t.fact_keys.filter(k => h.known[k]), lack = t.fact_keys.filter(k => !h.known[k]);
+    if (t.response_intent === "YES_NO_WITH_REASON") return done("YES_NO", have.length ? `Yes — you have told me ${have.map(k => `${nice(k)}: ${h.known[k]}`).join("; ")}.` : `No — you haven't told me ${joinList(lack.map(nice))} yet.`);
+    return done("RECALL", have.length ? `${have.map(k => `${cap(nice(k))}: ${h.known[k]}`).join("; ")}.` : `You haven't told me ${joinList(lack.map(nice))} yet.`);
+  }
+  if (t.ask_facet === "missing" && modelled) return done("LIST", missing.length ? `What I still need from you: ${joinList(missing.map(nice))}.` : "I don't need anything further for a first look.");
+  if (t.ask_facet === "recall" || (t.response_intent === "SUMMARY")) return done("RECALL", Object.keys(h.known).length ? `So far you have told me: ${knownText}.` : "You haven't given me any opportunity details yet.");
+  if (t.response_intent === "RANKING") return modelled && missing.length ? done("RANKING", `The most important thing I still need is ${nice(missing[0])}.`) : null;
+  if (t.response_intent === "COMPARISON") {
+    if (t.subject_tokens.includes("versus") || (t.subject_tokens.includes("know") && t.subject_tokens.some(w => ["check", "need", "missing", "unknown"].includes(w)))) return done("LIST", `What I know: ${knownText || "very little so far"}. What still needs checking: ${modelled && missing.length ? joinList(missing.map(nice)) : "nothing further for a first look"}.`);
+    const sides = t.compare_terms.map(g => g.join(" ")).filter(Boolean);
+    return done("LIMITATION", `I can't say which of ${sides.length === 2 ? `${sides[0]} or ${sides[1]}` : "those"} suits you better yet: that depends on what you want from the property${modelled && missing.length ? ` and on ${joinList(missing.slice(0, 2).map(nice))}, which I don't have` : ""}.`);
+  }
+  if ((t.response_intent === "ADVICE" || t.response_intent === "NEXT_STEP") && modelled && missing.length) return done("ADVICE", `The first thing that would help is ${joinList(missing.slice(0, 2).map(nice))}.`);
+  void ctx; return null;
+}

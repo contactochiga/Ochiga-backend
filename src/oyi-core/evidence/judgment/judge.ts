@@ -7,7 +7,7 @@ import { describe, levelOf } from "./dominance";
 import { buildProviderRequest, withProviderDeadline, type JudgmentProvider, type ProviderRanked } from "./provider";
 import { adoptProposal, validateResult, type ValidationContext } from "./validator";
 import { composeJudgmentText, evidenceBasis } from "./compose";
-import { deriveAnswerTarget } from "../../response/answerTarget";
+import type { AnswerTarget } from "../../response/answerTarget";
 import { targetedLead } from "../../response/targetedJudgment";
 import type { Candidate, DerivedRanking, JudgmentOutcome, JudgmentResult, RankedItem } from "./types";
 
@@ -31,6 +31,8 @@ export type JudgeArgs = {
   facts?: Array<{ target_id: string | null; target_label: string | null; text: string }>;
   // IQ-8: answer targeting is on by default; reassessment (which composes its own answer around the judgment) turns it off.
   targeted?: boolean;
+  // IQ-8D: the ONE answer target carried on the semantic frame; the judge never derives its own.
+  answerTarget?: AnswerTarget;
   // IQ-8: the user's own unverified statements in this conversation (text only), used to answer "does that prove / is that confirmed" truthfully.
   userReports?: string[];
 };
@@ -145,7 +147,7 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
   // attention), kept as ONE derived artifact. It never claims an order the judgment did not establish (`ordered` is false for the latter two).
   const artifact = ok && result.status === "JUDGED" ? artifactFor(result, a, basis, now, index) : null;
   let lead: ReturnType<typeof targetedLead> = null;
-  if (a.targeted !== false) { try { lead = targetedLead(result, a.state, index, deriveAnswerTarget(a.question, { activeAssessment: true }), a.question, { hadPrevious: Boolean(a.previous), userReports: a.userReports || [] }); } catch { lead = null; } }
+  if (a.targeted !== false && a.answerTarget) { try { lead = targetedLead(result, a.state, index, a.answerTarget!, a.question, { hadPrevious: Boolean(a.previous), userReports: a.userReports || [] }); } catch { lead = null; } }
   const text = composeJudgmentText(result, a.state, lead);
   return { result, text, ranking_artifact: artifact, validation: { ok, failures: failures.slice(0, 12) }, provider, candidate_count: index.candidates.length,
     evidence_source_count: index.sources.length, latency_ms: Math.max(0, (a.now || Date.now)() - t0) };

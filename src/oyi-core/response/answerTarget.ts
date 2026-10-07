@@ -1,5 +1,7 @@
 import { analyse, sentencesOf, isCancellationText, isCapabilityInquiryText, isCallbackRequest, isHoldDirective, objectiveOf, type Utterance } from "../interpretation/semanticObjective";
 import { domainHits } from "../interpretation/domainVocabulary";
+import { resolveConcepts, type Facet, type ObjectClass } from "../interpretation/conceptBridge";
+import { conceptOf, type StateConcept } from "../interpretation/conceptLexicon";
 
 // IQ-8 answer targeting. IQ-2/IQ-7 own UNDERSTANDING (the cognitive objective); this module derives only the SHAPE the answer must lead
 // with. It is a pure, cheap function of the turn's wording and the objective already derived (no provider, no storage, no phrase list):
@@ -26,7 +28,21 @@ export type AnswerTarget = {
   confirmation_kind?: "cancel" | "hold" | "callback" | "constraint";
   refusal_kind?: "authority" | "attribution";
   must_not_substitute: string[];       // what the lead must NOT be: "capability_menu", "count_for_list", "list_for_count", "evidence_readiness", "state_for_answer"
+  // IQ-8D: the asked-about aspect, taken once from the IQ-7 concept view so downstream layers never re-read the wording
+  object: ObjectClass | null;          // what kind of record is asked about
+  facet: Facet;                        // balance | transactions | spending | usage | history | status
+  state_concept: StateConcept | null;  // open / resolved / stale / overdue / arrived / departed
+  negated_qualifiers: string[];        // qualifiers asked for in the negative ("not closed"): the projector inverts them
+  ask_facet: "recall" | "missing" | "sufficiency" | "commitment" | null; // what a question about HELD (public) facts wants: what was shared / what is missing / enough? / any promise?
+  fact_keys: string[];                 // held-fact keys the question names (structure, size, location, terms, title, owner, type)
+  past_reference: boolean;             // the question is about an earlier point in time ("last week", "yesterday")
+  refinements?: string[];              // typed refinements applied after derivation (never silent)
 };
+
+/** The only way a downstream layer may change a carried target: an explicit, recorded refinement. */
+export function refineAnswerTarget(t: AnswerTarget, reason: string, patch: Partial<Pick<AnswerTarget, "response_intent" | "yes_no" | "qualifier_tokens" | "refusal_kind" | "confirmation_kind">>): AnswerTarget {
+  return { ...t, ...patch, refinements: [...(t.refinements || []), reason] };
+}
 
 const STOP = new Set(["the", "a", "an", "of", "to", "in", "on", "at", "for", "from", "by", "with", "about", "and", "or", "is", "are", "was", "were", "be", "been", "am", "do", "does", "did", "can", "could", "would", "will", "should", "shall", "may", "might", "has", "have", "had", "me", "my", "i", "we", "you", "your", "our", "us", "it", "its", "this", "that", "these", "those", "there", "here", "any", "some", "all", "what", "which", "who", "whom", "whose", "why", "how", "when", "where", "than", "then", "so", "not", "no", "yes", "please", "just", "also", "now", "today", "currently", "actually", "really", "still", "yet", "already", "right", "give", "tell", "show", "list", "display", "name", "bring", "pull", "get", "see", "let", "know", "need", "want", "like"]);
 export const contentTokens = (tokens: string[]) => tokens.filter(t => !STOP.has(t) && t.length > 1);
@@ -67,12 +83,29 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const objective = opts.objective !== undefined ? opts.objective : objectiveOf(text, { activeAssessment: opts.activeAssessment });
   const content = contentTokens(T), qualifiers = T.filter(t => STATUS_WORDS.includes(t));
   const hazard = T.some(t => HAZARD.includes(t)), riskAsk = T.some(t => RISK_ASK.includes(t));
-  const base = (intent: ResponseIntent, over: Partial<AnswerTarget> = {}): AnswerTarget => ({ response_intent: intent, subject_tokens: content.filter(t => !STATUS_WORDS.includes(t)), top_n: null, quantity: null, yes_no: null, compare_terms: [], qualifier_tokens: qualifiers,
+  const cpt = resolveConcepts(text);
+  const FACT_KEY: Array<[string, string[]]> = [["commercial_terms", ["terms", "price", "pricing", "offer"]], ["structure_offered", ["structure", "lease", "sale", "jv", "venture", "partnership", "sell", "selling"]], ["land_size", ["size", "big", "sqm", "hectares", "acres", "area"]], ["location", ["where", "location", "located", "area", "city"]], ["title_document_status", ["title", "document", "documents", "papers"]], ["landowner_expectation", ["owner", "owners", "ownership", "expectation", "expect", "expects"]], ["opportunity_type", ["type", "land", "building", "plot"]]];
+  const tk = T.filter(t => !STOP.has(t));
+  const fact_keys = FACT_KEY.filter(([, ws]) => ws.some(w => tk.includes(w))).map(([k]) => k);
+  const COMMIT_ASK = ["promise", "promises", "guarantee", "guarantees", "assure", "assurance", "assured", "ensure", "commit", "committing", "committed", "definitely", "firm", "certain", "confirm", "sign", "signing", "accept", "enter", "bind"];
+  const futureOutcome = T.some(t => ["going", "gonna", "will", "would"].includes(t)) && T.some(t => ["approved", "approve", "buy", "accept", "accepted", "take", "purchase", "sign", "reject", "rejected"].includes(t));
+  const ask_facet: AnswerTarget["ask_facet"] = futureOutcome ? "commitment" : T.some(t => COMMIT_ASK.includes(t)) && T.some(t => ["approve", "approved", "sale", "buy", "buyer", "price", "decision", "deal", "outcome", "return", "project", "week", "today", "back", "commit", "committing", "committed", "promise", "guarantee", "fetch", "worth", "value", "offer"].includes(t) || COMMIT_ASK.includes(t)) ? "commitment"
+    : T.some(t => ["enough", "sufficient", "adequate", "ready", "complete"].includes(t)) ? "sufficiency"
+    : T.some(t => ["lack", "lacking", "missing", "need", "still", "else", "further"].includes(t)) || (T.includes("more") && T.some(t => ["know", "need", "want", "tell"].includes(t))) ? "missing"
+    : T.some(t => ["told", "shared", "given", "noted", "recorded", "captured", "supplied", "provided", "mentioned", "stated", "said", "gave", "held", "reflect", "recap", "remind", "summarise", "summarize"].includes(t)) ? "recall" : null;
+  const past_reference = cpt.facet === "history" || (T.includes("last") && T.some(t => ["week", "month", "year", "night", "quarter"].includes(t))) || T.includes("ago") || T.includes("previously");
+  const stateTok = (t: string) => STATUS_WORDS.includes(t) || ["open", "resolved", "stale", "overdue"].includes(conceptOf(t) ?? "");
+  const qualifiersAll = T.filter(stateTok);
+  const negQual = qualifiersAll.filter(q => { const i = T.indexOf(q); return i > 0 && ["not", "never", "isn", "hasn", "haven", "no"].includes(T[i - 1]); });
+  const base = (intent: ResponseIntent, over: Partial<AnswerTarget> = {}): AnswerTarget => ({ object: cpt.object, facet: cpt.facet, state_concept: cpt.state, response_intent: intent, subject_tokens: content.filter(t => !stateTok(t)), negated_qualifiers: negQual, ask_facet, fact_keys, past_reference, top_n: null, quantity: null, yes_no: null, compare_terms: [], qualifier_tokens: qualifiersAll,
     safety_relevant: hazard || riskAsk, is_question: u.q || u.wh || u.auxLead || u.imperative, must_answer: "", supporting_context_allowed: true, must_not_substitute: ["capability_menu"], ...over });
 
   if (isCapabilityInquiryText(text)) return base("CAPABILITY_DISCOVERY", { must_answer: "what Oyi can help with", must_not_substitute: [] });
   const standingMarker = T.some(t => ["while", "during", "whenever", "until", "always", "ever", "never", "rest", "session", "anyone", "anybody", "nobody"].includes(t)) || T.slice(0, 3).join(" ") === "from now on";
   if (isCancellationText(text) && standingMarker && T.length > 5 && !isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  // a negative imperative about disclosing ("don't share / pass on / tell ...", optionally closed by a tag like "ok?") is a standing constraint, not a cancellation
+  const tagClose = /[,\s](?:ok|okay|right|alright|yeah|yes)\s*\?\s*$/i.test(text);
+  if (u.negImperative && T.some(t => ["share", "pass", "tell", "send", "give", "disclose", "reveal", "forward", "show", "expose", "publish"].includes(t)) && !u.wh && (!u.q || tagClose) && !isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", is_question: false, must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (isCancellationText(text) || isHoldDirective(text) || isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: isCallbackRequest(text) ? "callback" : isHoldDirective(text) ? "hold" : "cancel", must_answer: "what is now in force (nothing is executed)", must_not_substitute: ["capability_menu", "evidence_readiness"] });
   // a standing constraint on how Oyi behaves ("don't claim / share / invent ...", "from now on ...", "do not turn anything on or off")
   // a tag question ("... so we are fine, right?") asks for confirmation of the statement before it

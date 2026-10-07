@@ -4,9 +4,9 @@ export type StateConcept = "open" | "resolved" | "stale" | "overdue" | "arrived"
 const SETS: Record<StateConcept, string[]> = {
   open: ["open", "active", "unresolved", "outstanding", "pending", "ongoing", "live", "happening", "continuing", "persisting", "unfinished", "unsettled", "unaddressed", "unclosed"],
   resolved: ["resolved", "fixed", "closed", "done", "completed", "repaired", "finished", "solved", "sorted", "dealt", "handled", "settled", "addressed", "cleared", "remedied", "mended", "concluded"],
-  stale: ["stale", "old", "outdated", "dated", "cold", "quiet", "dormant", "neglected", "untouched", "idle", "forgotten", "lapsed", "unattended", "inactive"],
+  stale: ["stale", "old", "outdated", "dated", "cold", "quiet", "dormant", "neglected", "untouched", "idle", "forgotten", "lapsed", "unattended", "inactive", "expired"],
   overdue: ["overdue", "late", "behind", "slipped", "delayed", "lagging", "pastdue"],
-  arrived: ["arrive", "arrived", "arrives", "arriving", "turned", "shown", "inside", "premises", "onsite", "present", "here", "entered", "checked"],
+  arrived: ["arrive", "arrived", "arrives", "arriving", "turned", "shown", "inside", "premises", "onsite", "present", "here", "entered", "checked", "come", "came", "comes", "coming", "showed", "turn", "turns"],
   departed: ["left", "gone", "departed", "exited", "leaving", "away"],
 };
 const INDEX = new Map<string, StateConcept>();

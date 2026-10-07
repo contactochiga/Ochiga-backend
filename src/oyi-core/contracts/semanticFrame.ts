@@ -47,10 +47,14 @@ export type SemanticConstraint = {
 };
 
 import type { SemanticConcepts } from "../interpretation/conceptBridge";
+import type { AnswerTarget } from "../response/answerTarget";
 export type SemanticFrame = {
   rawText: string;
   // IQ-8B: canonical concept view (IQ-7 vocabulary) that routing consumes instead of re-reading the prompt. Optional for older callers.
   concepts?: SemanticConcepts;
+  // IQ-8D: the ONE canonical answer target for this turn, derived once after interpretation and carried to every downstream layer. Ephemeral,
+  // non-authoritative, never persisted. A layer that must change it uses refineAnswerTarget (recorded), never a second derivation.
+  answerTarget?: AnswerTarget;
   normalizedText: string;
   operation: SemanticOperation;
   domain: OyiDomain | null;

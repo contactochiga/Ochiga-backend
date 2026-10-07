@@ -27,8 +27,8 @@ const OBJECT_STEMS: Array<[ObjectClass, string[]]> = [
 ];
 const match = (t: string, s: string) => (s.endsWith("*") ? t.startsWith(s.slice(0, -1)) : t === s);
 const FACET_TOKENS: Record<Exclude<Facet, null>, string[]> = {
-  balance: ["balance", "left", "remaining", "sitting", "funds"],
-  transactions: ["transaction", "transactions", "history", "statement", "ledger", "went", "payments", "purchases", "activity"],
+  balance: ["balance", "bal", "left", "remaining", "sitting", "funds", "available", "inside"],
+  transactions: ["transaction", "transactions", "history", "statement", "ledger", "went", "gone", "through", "payments", "purchases", "activity"],
   spending: ["spent", "spend", "spending", "cost", "costs", "paid", "bill", "bills", "price", "expenses"],
   usage: ["usage", "used", "use", "consumption", "consumed", "kwh", "burn", "burnt", "units"],
   history: ["since", "yesterday", "earlier", "previously", "before", "ago", "changed", "history"],
@@ -47,7 +47,7 @@ export function resolveConcepts(text: string): SemanticConcepts {
   for (let k = 0; k + 1 < objectAt.length; k++) if (objectAt[k + 1].i === objectAt[k].i + 1 && objectAt[k + 1].c === "maintenance_request") object = "maintenance_request";
   void hit;
   const has = (c: Exclude<Facet, null>) => T.some(t => FACET_TOKENS[c].includes(t));
-  const facet: Facet = object === "wallet" || T.includes("wallet") ? (has("transactions") || (has("spending") && !has("balance")) ? "transactions" : has("balance") ? "balance" : null)
+  const facet: Facet = object === "wallet" || T.includes("wallet") ? (has("transactions") || (has("spending") && !has("balance")) ? "transactions" : has("balance") || (T.includes("wallet") && T.includes("in") && !has("spending")) ? "balance" : null)
     : object === "utility" || head === "utilities" ? (has("usage") && !has("spending") ? "usage" : has("spending") ? "spending" : null)
     : has("history") && T.some(t => ["changed", "since", "yesterday", "earlier", "ago"].includes(t)) ? "history" : has("status") ? "status" : null;
   const quantity = T[0] === "how" && ["many", "much"].includes(T[1] ?? "") || (T.includes("number") && T.includes("of")) || T.includes("count") ? "count" : null;

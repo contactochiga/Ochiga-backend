@@ -282,7 +282,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         const unavailable = facts.filter((fact) => text(recordOf(fact.value).overall) === "unavailable");
         const unknown = facts.filter((fact) => text(recordOf(fact.value).overall) === "unknown");
         const detail = facts.map((fact) => fact.statement.trim()).join(" ");
-        return { status: facts.length ? "answered" : "empty", answer: `${facts.length} accessible camera${facts.length === 1 ? " is" : "s are"} registered. ${unavailable.length} have a recent failed acquisition; ${unknown.length} have unknown current video state. Neither status proves physical disconnection.${detail ? ` ${detail}` : ""}`, presentation_policy: resultPresentation("list") };
+        return { status: facts.length ? "answered" : "empty", answer: `${facts.length} accessible camera${facts.length === 1 ? " is" : "s are"} registered. ${unavailable.length} have a recent failed acquisition; ${unknown.length} have unknown current video state. Neither status proves physical disconnection.${detail ? ` ${detail}` : ""}`, presentation_policy: resultPresentation("list"), metadata: { result_facts: { state_facts: { unobserved: unknown.length + unavailable.length } } } };
       },
       primary: "list",
     }),
@@ -478,7 +478,8 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         if (facts.some((fact) => fact.truth_state === "unavailable")) {
           return { status: "unavailable", answer: "Wallet balance evidence is unavailable right now. I did not treat that as a zero balance.", presentation_policy: resultPresentation("text") };
         }
-        return { status: facts.length ? "answered" : "empty", answer: buildWalletBalanceAnswer(facts), presentation_policy: resultPresentation("text") };
+        const wv = facts.length ? recordOf(facts[0].value) : null;
+        return { status: facts.length ? "answered" : "empty", answer: buildWalletBalanceAnswer(facts), presentation_policy: resultPresentation("text"), metadata: wv ? { result_facts: { value: { amount: Number(wv.balance || 0), currency: text(wv.currency) || "NGN", label: "Wallet balance", frozen: Boolean(wv.is_frozen) } } } : undefined };
       },
     }),
     readModule({

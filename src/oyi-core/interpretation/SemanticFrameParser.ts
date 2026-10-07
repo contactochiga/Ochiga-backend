@@ -4,6 +4,7 @@ import { normalizeLanguage } from "./LanguageNormalizer";
 import { resolveReferences } from "./ReferenceResolver";
 import { resolveTemporalScope } from "./TemporalResolver";
 import { resolveConcepts, reconcileDomain } from "./conceptBridge";
+import { deriveAnswerTarget } from "../response/answerTarget";
 import { analyse, isCallbackRequest, isHoldDirective, isCancellationText, isCapabilityInquiryText, objectiveOf } from "./semanticObjective";
 
 const ROOM_PATTERN = /\b(Bedroom(?:\s*\d+)?|living room|master bedroom|kitchen|bathroom|study|room\s+\d+)\b/i;
@@ -160,5 +161,7 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
     mutationIntent: !withdrawalMarked && !holdOrCallback && !absenceStatement && !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
     cognitiveObjective,
     capabilityInquiry: isCapabilityInquiry(normalized.normalized_text),
+    // IQ-8D: derived ONCE, here, and carried on the frame; no downstream layer derives it again
+    answerTarget: deriveAnswerTarget(normalized.raw_text, { objective: cognitiveObjective, activeAssessment: opts.activeAssessment }),
   };
 }

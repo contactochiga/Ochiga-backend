@@ -19,8 +19,9 @@
 // with a simpler generic requirements composer, proving the mechanism
 // itself generalizes, not just its JV vocabulary.
 import type { CapabilityModule, CapabilityContext } from "../contracts/capability";
-import { deriveAnswerTarget } from "../response/answerTarget";
-import { publicLead } from "../response/targetedPublic";
+import { projectResponse } from "../response/projector";
+import { heldFactsEnvelope } from "../response/envelopeMappers";
+import type { AnswerTarget } from "../response/answerTarget";
 import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
 import { publicOpportunityOutcome } from "../evidence/sources/publicReads";
@@ -267,12 +268,13 @@ async function composeCallbackAnswer(context: CapabilityContext, objective: Publ
 }
 
 // IQ-8: the lead of an assessment-style answer comes from what was asked; the existing qualification text follows as supporting detail.
-function targetedPublicLead(objective: PublicOpportunityObjective, message: string, cognitive: string | null | undefined): string | null {
+function targetedPublicLead(objective: PublicOpportunityObjective, target: AnswerTarget | undefined): string | null {
   try {
+    if (!target) return null;
     const jv = objective.objective_type === "development_partnership";
     const assessment = assessJvOpportunity(jvEvidenceFromKnownFacts(objective.known_facts));
     const missing = jv ? assessment.missing_information.filter((field) => !NOT_YET_USEFUL_TO_ASK.has(field)) : null;
-    return publicLead(deriveAnswerTarget(message, { objective: cognitive }), message, { known: objective.known_facts, missing, constraints: objective.constraints });
+    return projectResponse(target, heldFactsEnvelope({ known: objective.known_facts, missing, constraints: objective.constraints }), { asked: "" })?.primary ?? null;
   } catch { return null; }
 }
 
@@ -355,7 +357,7 @@ export function publicOpportunityReadModule(): CapabilityModule {
       if (prior && (isAssessmentObjective(context.resolvedTurn.semantic_frame.cognitiveObjective) || context.resolvedTurn.semantic_frame.cognitiveObjective === "summarize")) {
         const requirements = prior.objective_type === "development_partnership"
           ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
-        const lead = targetedPublicLead(prior, message, context.resolvedTurn.semantic_frame.cognitiveObjective);
+        const lead = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget);
         return { status: "answered", answer: `${lead ? `${lead}\n\nSupporting detail: ` : ""}Based on what you've told me, not independent verification: ${requirements} This is preliminary qualification, not a commitment by Ochiga to proceed.`,
           presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
       }
@@ -369,14 +371,14 @@ export function publicOpportunityReadModule(): CapabilityModule {
           };
         }
         const answer0 = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
-        const lead0 = targetedPublicLead(prior, message, context.resolvedTurn.semantic_frame.cognitiveObjective);
+        const lead0 = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget);
         const answer = lead0 ? `${lead0}\n\nSupporting detail: ${answer0}` : answer0;
         return { status: "answered", answer, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
       }
 
       // IQ-8: a QUESTION about what is held / needed / possible is answered as such, never acknowledged as if it were a new fact.
       if (prior) {
-        const asked = targetedPublicLead(prior, message, context.resolvedTurn.semantic_frame.cognitiveObjective);
+        const asked = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget);
         if (asked) {
           const supporting = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
           return { status: "answered", answer: `${asked}\n\nSupporting detail: ${supporting}`, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
