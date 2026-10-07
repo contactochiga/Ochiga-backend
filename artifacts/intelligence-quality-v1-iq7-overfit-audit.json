@@ -4,7 +4,7 @@
  "base": "912fa850ede01e5c42f331bc7c096fa9610956ff",
  "rule_literals": {
   "before": 639,
-  "after": 654
+  "after": 659
  },
  "before": {
   "GENERAL_SEMANTIC_TOKEN": 599,
@@ -13,7 +13,7 @@
   "FIXTURE_SPECIFIC": 2
  },
  "after": {
-  "GENERAL_SEMANTIC_TOKEN": 632,
+  "GENERAL_SEMANTIC_TOKEN": 637,
   "LEGITIMATE_DOMAIN_TERM": 22
  },
  "flagged_rules_removed_or_rewritten": 20,

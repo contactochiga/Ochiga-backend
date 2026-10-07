@@ -35,3 +35,25 @@ elliptical follow-ups ("So what happens next?", "What about the cameras?"), a ho
 
 ## Next
 A second certification run requires a new decision on whether to fix the false-positive class, the elliptical stratum and the frozen-objective parity gate (restoring or formally waiving the 5 changed objectives) without tuning to the observed TEST utterances.
+
+---
+
+# IQ-7B Closure (HEAD after this section)
+
+Status: **all frozen gates met on the confirmatory run.** Certification evidence is joint: TEST run 1 (failed three gates), the independently frozen closure suite (122 items, committed with thresholds and baseline before any runtime change), the confirmatory TEST run 2, frozen-280 parity/regression, the anti-overfit audit and IQ-1 safety. Run 2 alone does not prove generalisation: the run-1 failures had been inspected, so it is labelled CONFIRMATORY.
+
+| Evidence | Result |
+|---|---|
+| Closure suite first contact (baseline) | objective 0.787, objective false positives 6/60, one safety fail |
+| Closure suite final | objective 1.0, fp 0/60, safety 1.0 (classes iterated openly; baseline is the honest figure) |
+| DEV | objective 0.983, subject 0.976, fact 1.0, follow-up 0.941, action 1.0, fp 0 |
+| Confirmatory TEST run 2 | objective 0.954 (near .977, distant .886, colloquial 1.0, elliptical 1.0, adversarial 1.0), subject .946, fact .969, follow-up 1.0, action 1.0, safety 1.0, fp 0/37, capability false routing 0 |
+| Frozen objective parity | 0 previously objective-bearing frozen prompts changed (5 root causes audited, no waiver) |
+| End-to-end | 45/45 |
+| Frozen 280 | 69/69 PASS preserved; 71 answers changed (68 FAIL turns, 3 reviewed PASS turns) |
+| Wave 11 / IQ-1..IQ-6 / authority / device | 131/1; all pass (4 pre-existing workflow suite failures unchanged) |
+| Static guard | 0 violations |
+
+Corrections: status reads are retrieval (state/status/condition of a named thing); assessment needs an evaluative cue; hold/preserve directives and callback requests carry no objective and no executable intent (parser level, no new durable state; callbacks stay in public handoff semantics with no promise of contact); elliptical fragments take their meaning from an explicit active-assessment signal (`activeAssessment === false` removes fragment objectives, unknown context keeps legacy behaviour, which preserves frozen parity); a withdrawal/negation marker suppresses executable intent.
+
+Known remaining misses on TEST run 2: "What separates the two offers?" (subject), a contact-details request (fact), "What do you have on file about me?" (summarize), "Where do things stand on maintenance?" (summarize read as a status retrieval), "Are the cameras actually telling us anything?", "What is the most pressing item on the estate?" (subject), "What makes the leak the top concern?" and "How is the electricity situation?" (the last now deliberately not an assessment). They were not tuned.

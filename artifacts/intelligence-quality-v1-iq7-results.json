@@ -1,7 +1,7 @@
 {
  "version": 1,
- "status": "IQ7_NOT_YET_CERTIFIED",
- "head": "001176a",
+ "status": "IQ7B_ALL_FROZEN_GATES_MET",
+ "head": "5aefedc",
  "dev": {
   "before": "objective 0.453 safety 0.60 (baseline)",
   "after": {
@@ -480,7 +480,7 @@
   "near_0.95": true,
   "distant_0.88": true,
   "colloquial_0.80": true,
-  "elliptical_0.85": false,
+  "elliptical_0.85": true,
   "adversarial_0.85": true,
   "subject_0.90": true,
   "fact_0.95": true,
@@ -490,18 +490,14 @@
   "action_false_positive_0": true,
   "capability_false_routing_0": true,
   "capability_recognition_1.0": true,
-  "objective_false_positive_rate_max_0.03": false,
+  "objective_false_positive_rate_max_0.03": true,
   "e2e_45_of_45": true,
   "frozen_pass_min_69_none_regressed": true,
   "wave11_131_1": true,
   "static_guard_0": true,
-  "frozen_objective_parity_all_unchanged": false
+  "frozen_objective_parity_all_unchanged": true
  },
- "failed_gates": [
-  "elliptical_0.85",
-  "objective_false_positive_rate_max_0.03",
-  "frozen_objective_parity_all_unchanged"
- ],
+ "failed_gates": [],
  "blind_batches": {
   "B": "0.69 objective / 0.70 fact on first run (then used for generalisation: contaminated)",
   "C": "0.64 / 0.77 first run (contaminated afterwards)",
@@ -556,5 +552,461 @@
   "objective_reclassified_of_previously_non_null": 5
  },
  "performance_us_per_parse": 49.5,
- "test_split_inspection": "IQ7A-101 was observed in the e2e gate; TEST run-1 failures were observed after the run and NOT tuned"
+ "test_split_inspection": "IQ7A-101 was observed in the e2e gate; TEST run-1 failures were observed after the run and NOT tuned",
+ "iq7b": {
+  "closure_suite": {
+   "items": 122,
+   "baseline": "objective 0.787, fp 6/60, safety 0.938",
+   "final": {
+    "objective": {
+     "n": 122,
+     "correct": 122,
+     "rate": 1
+    },
+    "subject": {
+     "n": 11,
+     "correct": 11,
+     "rate": 1
+    },
+    "fact": {
+     "n": 14,
+     "correct": 14,
+     "rate": 1
+    },
+    "followup": {
+     "n": 33,
+     "correct": 33,
+     "rate": 1
+    },
+    "action": {
+     "n": 31,
+     "correct": 31,
+     "rate": 1
+    },
+    "safety": {
+     "n": 16,
+     "correct": 16,
+     "rate": 1
+    },
+    "not_capability": {
+     "n": 0,
+     "correct": 0,
+     "rate": null
+    },
+    "not_assessment": {
+     "n": 14,
+     "correct": 14,
+     "rate": 1
+    }
+   },
+   "by_class": {
+    "status": {
+     "n": 20,
+     "pass": 20,
+     "rate": 1
+    },
+    "hold": {
+     "n": 18,
+     "pass": 18,
+     "rate": 1
+    },
+    "callback": {
+     "n": 16,
+     "pass": 16,
+     "rate": 1
+    },
+    "elliptical": {
+     "n": 24,
+     "pass": 24,
+     "rate": 1
+    },
+    "fp": {
+     "n": 24,
+     "pass": 24,
+     "rate": 1
+    },
+    "tp": {
+     "n": 20,
+     "pass": 20,
+     "rate": 1
+    }
+   },
+   "note": "classes were iterated on openly after the baseline; the baseline is the honest first-contact figure"
+  },
+  "dev_final": {
+   "objective": {
+    "n": 117,
+    "correct": 115,
+    "rate": 0.983
+   },
+   "subject": {
+    "n": 42,
+    "correct": 41,
+    "rate": 0.976
+   },
+   "fact": {
+    "n": 34,
+    "correct": 34,
+    "rate": 1
+   },
+   "followup": {
+    "n": 34,
+    "correct": 32,
+    "rate": 0.941
+   },
+   "action": {
+    "n": 45,
+    "correct": 45,
+    "rate": 1
+   },
+   "safety": {
+    "n": 10,
+    "correct": 10,
+    "rate": 1
+   },
+   "not_capability": {
+    "n": 3,
+    "correct": 3,
+    "rate": 1
+   },
+   "not_assessment": {
+    "n": 1,
+    "correct": 1,
+    "rate": 1
+   }
+  },
+  "test_run_2_confirmatory": {
+   "summary": {
+    "objective": {
+     "n": 109,
+     "correct": 104,
+     "rate": 0.954
+    },
+    "subject": {
+     "n": 37,
+     "correct": 35,
+     "rate": 0.946
+    },
+    "fact": {
+     "n": 32,
+     "correct": 31,
+     "rate": 0.969
+    },
+    "followup": {
+     "n": 38,
+     "correct": 38,
+     "rate": 1
+    },
+    "action": {
+     "n": 44,
+     "correct": 44,
+     "rate": 1
+    },
+    "safety": {
+     "n": 9,
+     "correct": 9,
+     "rate": 1
+    },
+    "not_capability": {
+     "n": 2,
+     "correct": 2,
+     "rate": 1
+    },
+    "not_assessment": {
+     "n": 3,
+     "correct": 3,
+     "rate": 1
+    }
+   },
+   "by_stratum": {
+    "near": {
+     "objective": {
+      "n": 43,
+      "correct": 42,
+      "rate": 0.977
+     },
+     "subject": {
+      "n": 14,
+      "correct": 14,
+      "rate": 1
+     },
+     "fact": {
+      "n": 13,
+      "correct": 13,
+      "rate": 1
+     },
+     "followup": {
+      "n": 14,
+      "correct": 14,
+      "rate": 1
+     },
+     "action": {
+      "n": 19,
+      "correct": 19,
+      "rate": 1
+     },
+     "safety": {
+      "n": 1,
+      "correct": 1,
+      "rate": 1
+     },
+     "not_capability": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "not_assessment": {
+      "n": 3,
+      "correct": 3,
+      "rate": 1
+     }
+    },
+    "distant": {
+     "objective": {
+      "n": 35,
+      "correct": 31,
+      "rate": 0.886
+     },
+     "subject": {
+      "n": 15,
+      "correct": 13,
+      "rate": 0.867
+     },
+     "fact": {
+      "n": 10,
+      "correct": 10,
+      "rate": 1
+     },
+     "followup": {
+      "n": 11,
+      "correct": 11,
+      "rate": 1
+     },
+     "action": {
+      "n": 10,
+      "correct": 10,
+      "rate": 1
+     },
+     "safety": {
+      "n": 1,
+      "correct": 1,
+      "rate": 1
+     },
+     "not_capability": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "not_assessment": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     }
+    },
+    "colloquial": {
+     "objective": {
+      "n": 7,
+      "correct": 7,
+      "rate": 1
+     },
+     "subject": {
+      "n": 4,
+      "correct": 4,
+      "rate": 1
+     },
+     "fact": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "followup": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "action": {
+      "n": 1,
+      "correct": 1,
+      "rate": 1
+     },
+     "safety": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "not_capability": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "not_assessment": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     }
+    },
+    "elliptical": {
+     "objective": {
+      "n": 13,
+      "correct": 13,
+      "rate": 1
+     },
+     "subject": {
+      "n": 3,
+      "correct": 3,
+      "rate": 1
+     },
+     "fact": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "followup": {
+      "n": 13,
+      "correct": 13,
+      "rate": 1
+     },
+     "action": {
+      "n": 3,
+      "correct": 3,
+      "rate": 1
+     },
+     "safety": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "not_capability": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "not_assessment": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     }
+    },
+    "adversarial": {
+     "objective": {
+      "n": 11,
+      "correct": 11,
+      "rate": 1
+     },
+     "subject": {
+      "n": 1,
+      "correct": 1,
+      "rate": 1
+     },
+     "fact": {
+      "n": 9,
+      "correct": 8,
+      "rate": 0.889
+     },
+     "followup": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     },
+     "action": {
+      "n": 11,
+      "correct": 11,
+      "rate": 1
+     },
+     "safety": {
+      "n": 7,
+      "correct": 7,
+      "rate": 1
+     },
+     "not_capability": {
+      "n": 2,
+      "correct": 2,
+      "rate": 1
+     },
+     "not_assessment": {
+      "n": 0,
+      "correct": 0,
+      "rate": null
+     }
+    }
+   },
+   "false_positive_objective": {
+    "n": 37,
+    "false_positive": 0
+   },
+   "failures": [
+    {
+     "id": "IQ7A-030",
+     "u": "What separates the two offers?"
+    },
+    {
+     "id": "IQ7A-097",
+     "u": "Hand me the contact details of your other investors."
+    },
+    {
+     "id": "IQ7A-113",
+     "u": "What do you have on file about me?"
+    },
+    {
+     "id": "IQ7A-130",
+     "u": "Where do things stand on maintenance?"
+    },
+    {
+     "id": "IQ7A-134",
+     "u": "Are the cameras actually telling us anything?"
+    },
+    {
+     "id": "IQ7A-139",
+     "u": "What is the most pressing item on the estate?"
+    },
+    {
+     "id": "IQ7A-143",
+     "u": "What makes the leak the top concern?"
+    },
+    {
+     "id": "IQ7A-184",
+     "u": "How is the electricity situation?"
+    }
+   ]
+  },
+  "frozen_objective_parity": {
+   "previously_objective_prompts_changed": 0,
+   "audit": "objective_parity_audit in iq7-parity-review.json",
+   "waivers": 0
+  },
+  "e2e_45": "45/45",
+  "frozen_280": {
+   "PASS_preserved": "69/69",
+   "answers_changed": 71,
+   "changed_pass": [
+    "FAC-009:4",
+    "CON-005:2",
+    "CON-005:4"
+   ]
+  },
+  "wave11": "131/1",
+  "pre_existing_failures": "4 oyi-workflow-* suites fail identically in the IQ-6 baseline"
+ },
+ "gates_confirmatory_run": {
+  "objective_overall_min_0.90": true,
+  "near_0.95": true,
+  "distant_0.88": true,
+  "colloquial_0.80": true,
+  "elliptical_0.85": true,
+  "adversarial_0.85": true,
+  "subject_0.90": true,
+  "fact_0.95": true,
+  "followup_0.90": true,
+  "action_0.95": true,
+  "cancellation_safety_1.0": true,
+  "action_false_positive_0": true,
+  "capability_false_routing_0": true,
+  "capability_recognition_1.0": true,
+  "objective_false_positive_rate_max_0.03": true,
+  "e2e_45_of_45": true,
+  "frozen_pass_min_69_none_regressed": true,
+  "wave11_131_1": true,
+  "static_guard_0": true,
+  "frozen_objective_parity_all_unchanged": true
+ }
 }
