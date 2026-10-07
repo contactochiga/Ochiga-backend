@@ -43,6 +43,7 @@ export function classifyUpdate(text: string, facts: ConversationFact[] = []): { 
   if (hypothetical(u, raw)) return { type: "hypothetical", attributed: att };
   if (isCancellationText(raw) || isCapabilityInquiryText(raw)) return { type: "question", attributed: false };
   if (/\b(?:i meant|i mean|talking about|asking about|referring to)\b/.test(raw.toLowerCase()) && !raw.includes("?")) return { type: "correction", attributed: att };
+  if (T.some(t => ["ignore", "bypass", "override", "disregard"].includes(t))) return { type: "question", attributed: false };
   const sents = sentencesOf(raw).map(analyse);
   if (sents.length > 1 && sents.some(x => !x.declarative)) return { type: "question", attributed: false };
   if (!u.declarative) return { type: "question", attributed: false };

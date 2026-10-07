@@ -70,7 +70,7 @@ type Score = Record<CognitiveObjective, number>;
 const ORDER: CognitiveObjective[] = ["reassess", "explain", "compare", "prioritize", "summarize", "assess", "advise", "retrieve"];
 const COMPARATIVE = ["better", "worse", "safer", "riskier", "stronger", "weaker", "cheaper", "smarter", "wiser", "faster", "slower", "bigger", "larger", "smaller", "warmer", "colder", "hotter", "cooler", "higher", "lower", "greater", "easier", "harder", "closer", "likelier", "more", "less"];
 const SUPERLATIVE = ["most", "best", "biggest", "worst", "top", "highest", "greatest", "key", "main", "major", "pressing", "urgent*", "critical", "crucial", "hardest", "largest", "first"];
-const EVALUATIVE = ["okay", "ok", "fine", "alright", "healthy", "solid", "serious", "dodgy", "wrong", "problem*", "trouble*", "exposed", "vulnerab*", "stable", "sound", "genuine", "legit", "viable", "attractive", "credible", "realistic", "reliable", "secure*", "safe*", "dangerous", "risky", "unsafe", "worrying", "concerning", "suspicious", "odd", "unusual", "strange", "broken"];
+const EVALUATIVE = ["okay", "ok", "fine", "alright", "healthy", "solid", "serious", "dodgy", "wrong", "problem*", "trouble*", "exposed", "vulnerab*", "stable", "sound", "genuine", "legit", "viable", "attractive", "credible", "realistic", "reliable", "secure*", "safe*", "dangerous", "risky", "unsafe", "worrying", "concerning", "suspicious", "odd", "strong", "good", "great", "worthwhile", "promising", "sensible", "reasonable", "decent", "bad", "weak", "poor", "wise", "unusual", "strange", "broken"];
 const STATE_PRED = ["locked", "unlocked", "open", "closed", "online", "offline", "arrived", "left", "set", "armed", "disarmed", "done", "finished", "ready", "running", "working", "present", "home", "back"];
 const EPISTEMIC = ["know", "known", "unknown", "verify", "verified", "confirm*", "observe*", "observed", "evidence", "conclude", "baseline", "certain", "prove", "proof", "unresolved", "missing", "stale", "unverified", "uncertain*", "sure"];
 const SUMMARY = ["summar*", "recap", "rundown", "overview", "headline", "gist", "tldr", "briefing", "snapshot", "handover", "debrief"];
@@ -93,7 +93,7 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (whyAt >= 0 && (whyAt <= 3 || whyAt >= n - 2)) s.explain += 4;
   if (lead === "why") s.explain += 4;
   if (lead === "explain") s.explain += 3;
-  if (u.wh && has(u, "we", "i", "you") && has(u, "discuss*", "talk*", "refer*", "meant", "mean", "said", "say", "asked", "ask", "mentioned", "correct*", "told", "decid*", "agree*", "chose", "choose")) s.explain += 4;
+  if (u.wh && has(u, "we", "i", "you") && !has(u, "recently", "yesterday", "last", "ago", "week", "weeks", "month", "months", "days", "previous*", "discussed", "talked", "spoke") && has(u, "discuss*", "talk*", "refer*", "meant", "mean", "said", "say", "asked", "ask", "mentioned", "correct*", "told", "decid*", "agree*", "chose", "choose")) s.explain += 4;
   if (lead === "how" && T[1] === "come") s.explain += 4;
   if (has(u, "explain*", "justif*", "rationale", "reasoning", "logic")) s.explain += 3;
   if (u.wh && has(u, "driving", "behind", "makes", "made") && !has(u, "sense")) s.explain += 3;
@@ -110,6 +110,8 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   const judgNoun = has(u, "priority", "priorities", "recommendation", "view", "plan", "order", "answer", "assessment", "picture", "conclusion", "things", "anything", "explanation", "reasoning", "decision", "ranking", "mind", "stance", "what");
   if (changeV && retro && !has(u, "reasoning", "view", "recommendation", "priority", "assessment", "plan", "explanation")) s.compare += 4;
   else if (changeV && !evidenceChange) s.reassess += 3 + (judgNoun ? 1 : 0);
+  if (has(u, "still") && has(u, "you", "we") && has(u, "priorit*", "stand", "recommend*", "pursue", "choose", "think", "say", "agree", "back")) s.reassess += 4;
+  if (["given", "knowing", "considering"].includes(lead)) s.reassess += 4;
   if (has(u, "still") && (has(u, "priority", "first", "top", "pick", "rank*", "same", "stand", "recommend*", "view", "answer", "plan", "valid", "hold", "best", "favourite", "favorite") || n <= 2)) s.reassess += 4;
   else if (has(u, "still") && has(u, ...EVALUATIVE, "open", "true")) s.assess += 3;
   if (has(u, "same") && has(u, "answer", "order", "plan", "conclusion", "result", "recommendation", "priority", "view", "thing")) s.reassess += 4;
@@ -135,6 +137,7 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (u.wh && has(u, "block*", "blocker*", "blocking")) s.prioritize += 3;
   if (ask && has(u, "chase", "tackle", "face", "handle", "attack", "target", "look", "start", "begin", "address") && has(u, "which", "what") && has(u, "first", "hardest", "most", "next", "top", "best")) s.prioritize += 5;
   if (has(u, "most") && u.wh) s.prioritize += 2;
+  if (has(u, "choose", "pick", "select") && (has(u, "which", "what")) && (has(u, "you", "i", "we"))) s.prioritize += 5;
   if (has(u, "matter", "matters") && has(u, "most")) s.prioritize += 4;
   else if (has(u, "matter", "matters") && u.wh) s.assess += 3;
   if (has(u, "worth") && has(u, "pursuing", "time", "chasing", "focus", "effort", "my", "our")) s.prioritize += 3;
@@ -189,7 +192,7 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   // ---- assessment
   if (has(u, "worr*", "concern*", "risk*", "danger*", "nervous", "anxious", "afraid") && (!u.imperative || u.negImperative === false && has(u, "should", "about"))) s.assess += 3;
   if (has(u, ...EVALUATIVE) && (u.q || u.wh || u.auxLead)) s.assess += 3;
-  if (has(u, "anything", "something") && has(u, "wrong", "off", "odd", "unusual", "strange", "dodgy", "worrying", "concerning", "dangerous", "risky", "spoiling", "kicking", "slipping", "hiding", "worry", "problem", "issue", "need", "should", "ought", "must", "sort", "check", "dodgy")) s.assess += 4;
+  if (has(u, "anything", "something") && has(u, "important", "urgent", "new", "interesting", "wrong", "off", "odd", "unusual", "strange", "dodgy", "worrying", "concerning", "dangerous", "risky", "spoiling", "kicking", "slipping", "hiding", "worry", "problem", "issue", "need", "should", "ought", "must", "sort", "check", "dodgy")) s.assess += 4;
   if (lead === "how" && has(u, "healthy", "bad", "serious", "solid", "safe", "good", "strong", "risky", "exposed", "well", "secure", "stable")) s.assess += 4;
   if (has(u, "attention") && !has(u, "first")) s.assess += 3;
   if (has(u, "neglect*", "slipping", "drifting", "behind") && (has(u, "we", "are", "anything") || u.wh)) s.assess += 3;
@@ -199,6 +202,9 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (u.wh && has(u, "can", "could") && has(u, "you") && has(u, "tell", "say", "know", "confirm", "verify", "conclude", "see")) s.assess += 4;
   {const k = T.findIndex(t => STATE_PRED.includes(t)); if (u.auxLead && k >= 0 && T.slice(k + 1).every(t => ["now", "yet", "already", "right", "today", "again", "really", "or", "not"].includes(t)) && !has(u, "show", "list")) s.assess += 3;}
   if (has(u, "trust*", "reliab*", "credib*") && ask) s.assess += 3;
+  if (has(u, "think", "view", "opinion", "thoughts", "verdict", "take", "reckon", "feel") && has(u, "you", "your") && (u.wh || u.q)) s.assess += 4;
+  if (has(u, "worth") && has(u, "it", "this", "that", "doing") && !has(u, "pursuing", "time", "chasing")) s.assess += 3;
+  if (has(u, "care") && has(u, "about") && (has(u, "should", "do", "i", "we"))) s.assess += 4;
   if (has(u, "looking", "look", "looks") && has(u, "ok", "okay", "fine", "good", "alright", "right", "off", "dodgy")) s.assess += 3;
   if (has(u, "on") && has(u, "track")) s.assess += 3;
   if (has(u, "assess", "evaluate", "audit", "review") && (u.imperative || u.request)) s.assess += 3;
