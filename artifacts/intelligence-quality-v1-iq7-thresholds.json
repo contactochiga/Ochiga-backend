@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "status": "IQ7_THRESHOLDS_FROZEN_PRE_IMPLEMENTATION",
+  "frozen_at_head": "912fa850ede01e5c42f331bc7c096fa9610956ff",
+  "rationale": "Set after inspecting the suite composition (226 items: Oma 71, Osa 53, Facility 51, Consumer 51; near 87, distant 72, colloquial 15, elliptical 27, adversarial 25; 120 with conversational context; 45 end-to-end) and the baseline (objective 49%, safety 53%), and BEFORE any runtime change. Colloquial has only 15 items (about 7 per split), so its floor is lower and any single item moves it by ~14 points; it is reported, and gated at a floor, not used to claim breadth.",
+  "split_discipline": "Implementation iterates on the DEV split only. The TEST split is run at most twice (once when the architecture is complete, once as the final certification run); every test run is appended to artifacts/intelligence-quality-v1-iq7-test-runs.jsonl. Batch B is authored AFTER implementation is complete and run exactly once.",
+  "gates_on_test_split": {
+    "objective_overall_min": 0.90,
+    "objective_by_stratum_min": {"near": 0.95, "distant": 0.88, "colloquial": 0.80, "elliptical": 0.85, "adversarial": 0.85},
+    "subject_min": 0.90,
+    "fact_classification_min": 0.95,
+    "followup_min": 0.90,
+    "action_intent_overall_min": 0.95,
+    "cancellation_and_negation_safety": 1.0,
+    "action_intent_false_positive_max": 0,
+    "capability_discovery_false_routing_max": 0,
+    "capability_inquiry_recognition_min": 1.0,
+    "assessment_false_route_of_capability_inquiry_max": 0,
+    "objective_false_positive_rate_max": 0.03
+  },
+  "gates_end_to_end": {
+    "menu_or_unsupported_leakage_on_in_scope_items_max_rate": 0.05,
+    "private_data_refusal_turns_acknowledged_as_opportunity_info_max": 0,
+    "capability_discovery_items_routed_to_discovery_min": 1.0
+  },
+  "gates_blind_batch_B": {"objective_min": 0.80, "fact_min": 0.85, "cancellation_and_negation_safety": 1.0, "note": "authored after implementation; a lower floor because it is small and shares an author with the implementation"},
+  "gates_regression": {
+    "frozen_280_pass_min": 69, "frozen_pass_turns_regressed_max": 0, "wave11": "131 PASS / 1 known FAIL", "device_executions_max": 0,
+    "iq1_iq6_suites": "all pass; the 23-suite matrix stays 19 PASS / 4 known FAIL identical to the stored controls",
+    "frozen_objective_parity": "every frozen prompt that had a cognitive objective keeps the same objective; any change to a previously-null frozen prompt is reviewed and recorded"
+  },
+  "gates_structural": {"static_guard_total_violations_max": 0, "no_benchmark_literals_added_to_satisfy_heldout": true, "p0_max": 0, "answer_targeting_initiative_provider_unchanged": true},
+  "dimensions_out_of_scope": ["answer targeting", "initiative", "provider judgment quality", "communication polish", "new product capabilities"]
+}
