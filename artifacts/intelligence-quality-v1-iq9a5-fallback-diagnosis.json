@@ -42,7 +42,7 @@
    "observed_answer": "I can't answer that: there is no enabled evidence source on this surface that could answer \u201cok then just mine\u201d yet, so I would only be guessing.",
    "available_evidence": "Elliptical scope reset after a refused cross-resident ask; no read capability can claim a turn with no subject. Nothing to resolve without R4.",
    "why_normal_path_bypassed": "Turn has no domain/object, so capability matching returns no candidate and the orchestrator terminal fallback fires before any targeted handling.",
-   "class_number": 2,
+   "class_number": 3,
    "classification": "requires_clarification",
    "required_behaviour": "Ask one specific clarification; no menu, no invented referent."
   },
