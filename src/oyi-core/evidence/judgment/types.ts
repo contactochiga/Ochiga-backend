@@ -97,6 +97,9 @@ export type DerivedRanking = {
   focus?: number | null;
   parked?: boolean;
   stale?: { reason: "material_fact" | "evidence_changed"; at: string } | null;
+  // IQ-6: after a successful reassessment the replaced artifact is kept as the single historical one; the new one records where it came from.
+  historical?: { superseded_by: string; at: string; reason: "material_fact" | "correction" } | null;
+  reassessed_from?: string | null;
 };
 
 export type JudgmentOutcome = {

@@ -23,6 +23,7 @@ export type DerivedReference = {
   noun: string | null;             // the type noun the user used ("lead", "priority", "issue" ...)
   explicitArtifact: boolean;       // the wording itself names the derived artifact ("priority", "ranking", "top", "those priorities")
   numeric: boolean;                // "#2", "number 2", "2nd"
+  historical: boolean;             // asks about the EARLIER assessment ("before", "earlier", "originally")
   now: boolean;                    // asks for the CURRENT state ("now", "currently", "today")
   any: boolean;                    // the turn carries a derived-reference cue at all
 };
@@ -62,7 +63,8 @@ export function parseDerivedReference(text: string): DerivedReference {
     : /\b(?:tell\s+me\s+more|more\s+about|what\s+about|detail|explain|go\s+back)\b|\bwhat\s+is\b/.test(t) ? "detail" : "unspecified";
   const now = /\b(?:now|currently|right\s+now|today|at\s+the\s+moment|latest|these\s+days)\b/.test(t);
   const any = DERIVED_REFERENCE_CUE.test(text) || other || ret || topN !== null || demonstrative || (plural && /\b(?:wait|first|matter)\b/.test(t));
-  return { intent, positions, fromEnd, topN, other, ret, demonstrative, plural, noun, explicitArtifact, numeric: new RegExp(`#\\s*\\d|number\\s*(?:\\d|${CARD_RE})\\b|no\\.?\\s*\\d|\\b\\d(?:st|nd|rd|th)\\b`).test(t), now, any };
+  const historical = /\b(?:before|earlier|previously|originally|at first|prior|used to be|first time)\b|\bwas\b.*\bthere\b/.test(t);
+  return { historical, intent, positions, fromEnd, topN, other, ret, demonstrative, plural, noun, explicitArtifact, numeric: new RegExp(`#\\s*\\d|number\\s*(?:\\d|${CARD_RE})\\b|no\\.?\\s*\\d|\\b\\d(?:st|nd|rd|th)\\b`).test(t), now, any };
 }
 function singular(n: string) { return n.replace(/ies$/, "y").replace(/s$/, ""); }
 
@@ -75,6 +77,7 @@ const NOUN_MATCH: Record<string, (i: ArtifactItem) => boolean> = {
 };
 const GENERIC = new Set(["item", "thing", "one", "priority", "ranking", "rank", "ranked"]);
 
+export const itemsOfNoun = (a: DerivedRanking, noun: string): ArtifactItem[] => a.items.filter(NOUN_MATCH[noun] || (() => false));
 export type RawSetFacts = { created_at: string; domain: string | null; object_nouns: string[] } | null;
 export type ReferenceEnv = { artifact: DerivedRanking; now: number; raw: RawSetFacts; scopeOk: boolean; authorityOk: boolean };
 
@@ -203,7 +206,7 @@ function basisLine(a: DerivedRanking): string {
   const partial = (a.limitations || []).some(l => /partial|bounded|only what/i.test(l)) || (a.uncertainties || []).length > 0;
   return `This rests only on the evidence recorded when I produced it${partial ? ", which was partial or not fully current" : ""}; I have not looked at the records again.`;
 }
-const stalePrefix = (a: DerivedRanking) => a.stale ? ` This was produced before you told me something that may change it, and I have not reassessed it, so treat it as the earlier assessment, not the current one.` : "";
+const stalePrefix = (a: DerivedRanking) => a.historical ? " This is the earlier assessment, kept so I can explain it; a reassessment has since replaced it." : a.stale ? ` This was produced before you told me something that may change it, and I have not reassessed it, so treat it as the earlier assessment, not the current one.` : "";
 const place = (a: DerivedRanking, i: ArtifactItem) => isOrdered(a) ? `number ${i.rank} in the order I gave` : (a.artifact_type === "comparison" ? `${i.rank === 1 ? "the first" : "the second"} of the pair I compared (I did not rank them)` : `item ${i.rank} of those I listed (a listing, not a priority order)`);
 
 function explainOne(a: DerivedRanking, i: ArtifactItem, intent: ReferenceIntent): string {

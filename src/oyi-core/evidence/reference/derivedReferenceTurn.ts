@@ -1,6 +1,9 @@
 import { ASSESSMENT_TTL_MS, isAssessmentInformation, type ConversationAssessmentContext } from "../../context/conversationAssessmentContext";
+import { EVIDENCE_CLASSES } from "../planner/evidenceClasses";
 import type { DerivedRanking } from "../judgment/types";
 import { assertsPromiseOrAction } from "../judgment/validator";
+import { addFact, activeFacts, affectedClasses, bindFact, classifyUpdate, makeFact, type ConversationFact } from "../reassessment/facts";
+import { composeNotReassessed } from "../reassessment/reassess";
 import { composeNonResolution, composeReferenceAnswer, isExpired, namedItems, parseDerivedReference, resolveDerivedReference, type RawSetFacts } from "./derivedReference";
 
 // The nouns a raw result set of a given domain answers to. Used only to decide whether "the second lead" names a raw list.
@@ -18,47 +21,104 @@ export function informationConcernsArtifact(text: string, art: DerivedRanking): 
   const t = tokens(text);
   return art.items.some(i => [...tokens(i.ref.label || "")].some(w => t.has(w)));
 }
+// The evidence classes an artifact's items came from (via the sources they were read from).
+export const artifactClasses = (a: DerivedRanking): string[] => Object.values(EVIDENCE_CLASSES).filter(c => c.sources.some(s => (a.source_keys || []).includes(s))).map(c => c.id);
+const REASSESS_ASK = /\b(?:does|do|would|will|did|has|have)\b[^?]*\b(?:chang\w*|affect\w*|alter\w*|matter\w*)\b[^?]*\b(?:priorit\w*|recommend\w*|view|order|ranking|assessment|explanation|conclusion|picture|anything)\b|\bwhat changed\b|\bre-?assess\b|\bstill (?:come|rank|matter)/i;
 
 export type DerivedTurnArgs = {
-  text: string; previous: ConversationAssessmentContext | null; surface: string; now: number; raw: RawSetFacts;
+  text: string; previous: ConversationAssessmentContext | null; surface: string; now: number; raw: RawSetFacts; objective?: string | null;
   scopeBinding: string; authorised: (sourceKeys: string[]) => boolean;
 };
 export type DerivedTurnResult =
   | { handled: false; why: string }
   | { handled: true; outcome: string; answer: string; assessment: ConversationAssessmentContext };
 
-// Material information that arrives while a derived artifact is active does not delete it: the artifact is marked stale (needs
-// reassessment) and the earlier assessment stays explainable as history. Nothing is recomputed here.
+const kindOf = (a: DerivedRanking) => ((a.artifact_type ?? "ranking") === "ranking" ? "ordering" : "assessment");
+const claim = (t: string) => `“${t.replace(/[.!\s]+$/, "").slice(0, 160)}”`;
+
+// Material information that arrives while a derived artifact is active does not delete it. It is classified (IQ-2's "is this
+// information" predicate plus a type), bound to the candidate it is about, stored as a USER-SUPPLIED, UNVERIFIED fact, and only the
+// affected artifact is marked stale. Nothing is recomputed here: a reassessment is a separate, explicit step.
 export function handleDerivedReferenceTurn(a: DerivedTurnArgs): DerivedTurnResult {
-  const prev = a.previous; const art = prev?.derived_ranking;
-  if (!prev || !art || prev.surface !== a.surface) return { handled: false, why: "no_artifact" };
-  const touch = (artifact: DerivedRanking, extra: Partial<ConversationAssessmentContext> = {}): ConversationAssessmentContext => ({
-    ...prev, ...extra, suspended: false, status: "assessment_pending", derived_ranking: { ...artifact, updated_at: new Date(a.now).toISOString() },
-    updated_at: new Date(a.now).toISOString(), expires_at: new Date(a.now + ASSESSMENT_TTL_MS).toISOString() });
+  const prev = a.previous; if (!prev || prev.surface !== a.surface) return { handled: false, why: "no_assessment" };
+  const stamp = new Date(a.now).toISOString(), facts = prev.facts || [];
+  const touch = (extra: Partial<ConversationAssessmentContext> = {}): ConversationAssessmentContext => ({
+    ...prev, ...extra, suspended: false, status: "assessment_pending", updated_at: stamp, expires_at: new Date(a.now + ASSESSMENT_TTL_MS).toISOString() });
+  const asksReassess = a.objective === "reassess" || REASSESS_ASK.test(a.text);
+  let info = classifyUpdate(a.text, facts);
+  // A bare pointer ("the second one") is a reference, not a detail.
+  if (info.type === "non_material_detail" && parseDerivedReference(a.text).any) info = { type: "question", attributed: false };
+  const art0 = prev.derived_ranking || null;
+
+  // ---- no derived artifact: only honest statements about that, never a manufactured ordering ----
+  if (!art0) {
+    if (!prev.evidence_plan) return { handled: false, why: "no_artifact" };
+    if (asksReassess && !isAssessmentInformation(a.text)) return { handled: true, outcome: "reassess_no_prior_ordering", answer: composeNotReassessed("no_prior", null, activeFacts(facts)), assessment: touch() };
+    if (["material_new_fact", "unverified_claim"].includes(info.type) && !/\b(?:actually|i meant|i mean)\b/i.test(a.text)) {
+      const fact = makeFact(a.text, info, { status: "none", items: [], how: "no_artifact" }, facts, a.now);
+      return { handled: true, outcome: "fact_recorded_no_ordering", assessment: touch({ facts: addFact(facts, fact), pending_information: a.text.slice(0, 1000) }),
+        answer: `I have noted that as your own statement ${claim(a.text)}; I have not verified it and it is not confirmed evidence. There is no ordering for it to attach to or change: I have not ranked anything, so I am not recalculating anything.` };
+    }
+    return { handled: false, why: "no_artifact" };
+  }
+
+  const art = art0;
   const surfaceOk = (art.surface ?? a.surface) === a.surface;
   const scopeOk = surfaceOk && (art.scope_binding === undefined || art.scope_binding === a.scopeBinding);
   const authorityOk = a.authorised(art.source_keys || []);
+  const live = scopeOk && authorityOk && !isExpired(art, a.now);
+  const kind = kindOf(art);
 
-  if (isAssessmentInformation(a.text) && !art.parked && scopeOk && authorityOk && !isExpired(art, a.now) && informationConcernsArtifact(a.text, art)) {
-    const stale: DerivedRanking = art.stale ? art : { ...art, stale: { reason: "material_fact", at: new Date(a.now).toISOString() } };
-    const kind = (art.artifact_type ?? "ranking") === "ranking" ? "ordering" : "assessment";
-    const t = tokens(a.text);
-    const matched = [...namedItems(a.text, art), ...art.items.filter(i => [...tokens(i.ref.label || "")].some(w => t.has(w)))].filter((i, n, all) => all.findIndex(x => x.ref.id === i.ref.id && x.ref.label === i.ref.label) === n).slice(0, 2);
-    const about = matched.length ? ` I am treating it as being about ${matched.map(i => i.ref.label || "that item").join(" and ")}.` : "";
-    const recorded = matched.length ? `${matched.length === 1 ? "That item keeps" : "Those items keep"} the status it is recorded with until the record itself is updated` : "What is recorded keeps its recorded status until the records themselves are updated";
-    return { handled: true, outcome: "material_fact_marked_stale", assessment: touch(stale, { pending_information: a.text.slice(0, 1000) }),
-      answer: `I have noted that as your own statement; I have not verified it and it is not confirmed evidence.${about} It does not change any record by itself: ${recorded[0].toLowerCase()}${recorded.slice(1)}. The ${kind} I gave earlier was made before it, and it may change that ${kind}. I have not reassessed it, so I will not treat the earlier ${kind} as current. I can still tell you why the items were set out as they were at the time.` };
+  // ---- a statement of information about the active assessment ----
+  if (live && !art.parked && info.type !== "question") {
+    const concerns = informationConcernsArtifact(a.text, art);
+    if (info.type === "hypothetical") return { handled: true, outcome: "hypothetical_not_applied", assessment: touch(), answer: `I am treating that as a hypothetical, not as a fact, so I have not stored it and the ${kind} I gave stands. If it were true it could bear on the items; tell me if it is actually the case.` };
+    if (info.type === "opinion") return { handled: true, outcome: "opinion_noted", assessment: touch(), answer: `Noted as your preference or view. It is not evidence about the items, so the ${kind} I gave stands.` };
+    if (info.type === "confirmation") return { handled: true, outcome: "confirmation_noted", assessment: touch(), answer: `That matches what I already hold, so nothing changes. It is still your own statement, not something I have verified.` };
+    const binding = bindFact(a.text, art);
+    const classes = affectedClasses(a.text), artClasses = artifactClasses(art);
+    const bears = binding.status === "bound" || classes.some(c => artClasses.includes(c)) || (concerns && classes.length > 0);
+    if (info.type === "non_material_detail" || !bears) {
+      return { handled: true, outcome: "non_material_noted", assessment: touch(), answer: `Noted. As far as I can tell it does not bear on the items in the ${kind} I gave, so I have not changed or marked anything.` };
+    }
+    if (binding.status === "ambiguous") {
+      const fact = makeFact(a.text, info, binding, facts, a.now);
+      return { handled: true, outcome: "fact_target_ambiguous", assessment: touch({ facts: addFact(facts, fact) }),
+        answer: `I have noted that as your own unverified statement, but I am not sure which item it concerns: ${binding.items.map(i => i.ref.label || "that item").join(" or ")}? I have not attached it to any of them and have not changed the ${kind}.` };
+    }
+    const fact = makeFact(a.text, info, binding, facts, a.now);
+    const prior = fact.corrects ? facts.find(f => f.id === fact.corrects) : null;
+    const stale: DerivedRanking = art.stale ? art : { ...art, stale: { reason: "material_fact", at: stamp } };
+    const about = binding.status === "bound" ? ` I am treating it as being about ${binding.items[0].ref.label || "that item"}.` : ` It does not name a specific item, so I have kept it with the ${kind} as a whole.`;
+    const lead = prior ? `I have replaced your earlier statement ${claim(prior.text)} with this one, and I no longer treat the earlier one as current.` : `I have noted that as your own statement ${claim(a.text)}; I have not verified it and it is not confirmed evidence.`;
+    const recorded = binding.status === "bound" ? `${binding.items[0].ref.label || "That item"} keeps the status it is recorded with until the record itself is updated` : "what is recorded keeps its recorded status until the records themselves are updated";
+    return { handled: true, outcome: prior ? "correction_supersedes_fact" : "material_fact_marked_stale", assessment: touch({ facts: addFact(facts, fact), pending_information: a.text.slice(0, 1000), derived_ranking: stale }),
+      answer: `${lead}${about} It does not change any record by itself: ${recorded}. The ${kind} I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier ${kind} as current. Asking whether it changes the ${kind} reassesses only the evidence it could affect.` };
   }
-  const res = resolveDerivedReference(a.text, { artifact: art, now: a.now, raw: a.raw, scopeOk, authorityOk });
+
+  // A statement of fact is never resolved as a reference: if it could not be applied above (parked, expired, other scope), leave it to the normal flow.
+  if (info.type !== "question" && !asksReassess) return { handled: false, why: "fact_not_applied" };
+  // ---- reassessment request / a "now" question about a stale artifact ----
+  const wantsHistory = parseDerivedReference(a.text).historical && prev.derived_history && !isExpired(prev.derived_history, a.now);
+  if (!wantsHistory && live && !art.parked && asksReassess && !isAssessmentInformation(a.text)) {
+    if (art.stale || activeFacts(facts).length) return { handled: false, why: "reassess_requested" };
+    return { handled: true, outcome: "reassess_nothing_new", assessment: touch(), answer: `Nothing new has been added since I gave that ${kind}, so there is nothing to reassess: it stands, as of when I gave it.` };
+  }
+
+  // ---- reference resolution (IQ-5), against the current artifact or, on a historical cue, the one it replaced ----
+  const target = wantsHistory ? prev.derived_history! : art;
+  const tScope = (target.surface ?? a.surface) === a.surface && (target.scope_binding === undefined || target.scope_binding === a.scopeBinding);
+  const res = resolveDerivedReference(a.text, { artifact: target, now: a.now, raw: a.raw, scopeOk: tScope, authorityOk });
   if (res.status === "none" || res.status === "defer_raw") return { handled: false, why: res.status === "none" ? "no_reference" : res.reason };
+  if (res.status === "unavailable" && res.reason === "stale_current" && !wantsHistory) return { handled: false, why: "reassess_requested" };
   if (res.status !== "resolved") {
-    const answer = composeNonResolution(res, art);
-    // An expired or unauthorised artifact is never used again: it is dropped from state. Others stay as they were.
+    const answer = composeNonResolution(res, target);
     const drop = res.status === "unavailable" && ["expired", "authority", "scope"].includes(res.reason);
-    return { handled: true, outcome: `derived_reference_${res.status === "unavailable" ? res.reason : res.status}`, answer, assessment: drop ? { ...touch(art), derived_ranking: null } : touch({ ...art, updated_at: art.updated_at }) };
+    return { handled: true, outcome: `derived_reference_${res.status === "unavailable" ? res.reason : res.status}`, answer, assessment: drop ? touch({ derived_ranking: wantsHistory ? art : null, derived_history: wantsHistory ? null : prev.derived_history ?? null }) : touch() };
   }
-  let answer = composeReferenceAnswer(art, res, a.text);
+  let answer = composeReferenceAnswer(target, res, a.text);
   if (assertsPromiseOrAction(answer)) answer = "I have that item in the earlier assessment, but its recorded text contains wording I cannot safely repeat, so I am not restating it.";
+  if (wantsHistory) return { handled: true, outcome: `historical_reference_${res.how}`, answer, assessment: touch() };
   const focus = res.items.length === 1 ? res.items[0].rank : res.how === "other_of_pair" ? res.items[0].rank : art.focus ?? null;
-  return { handled: true, outcome: `derived_reference_${res.how}`, answer, assessment: touch({ ...art, focus, parked: false }) };
+  return { handled: true, outcome: `derived_reference_${res.how}`, answer, assessment: touch({ derived_ranking: { ...art, updated_at: stamp, focus, parked: false } }) };
 }

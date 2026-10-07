@@ -1,0 +1,149 @@
+// IQ-6 reassessment tests (pure and state-level; derived from the IQ-4/IQ-5 harness header).
+// IQ-4 bounded-judgment tests. Judgment is exercised over compact evidence-plan states: some hand-built to isolate one property,
+// some produced by the real planner against a fault-injected loopback fixture client for the cross-surface/privacy cases.
+// The provider is a scripted STUB: these tests prove Core's validation, fallback and artifact discipline, not model quality.
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+assert.equal(process.env.SUPABASE_URL, 'http://127.0.0.1:55421');
+const require = createRequire(import.meta.url);
+for (const pkg of ['bullmq', 'ioredis']) {const p = require.resolve(pkg); class Inert {on() {return this;} quit() {return Promise.resolve();}} Inert.default = Inert; Inert.Redis = Inert; Inert.Queue = Inert; Inert.Worker = Inert; require.cache[p] = {id: p, filename: p, loaded: true, exports: Inert};}
+globalThis.fetch = async () => {throw Error('JUDGMENT_TEST_NETWORK_FORBIDDEN');};
+const {ensureRegistered} = await import('../dist/oyi-core/orchestration/ConversationOrchestrator.js');
+const {capabilityRegistry} = await import('../dist/oyi-core/capabilities/CapabilityRegistry.js');
+const {supabaseAdmin: db} = await import('../dist/supabase/supabaseClient.js');
+const {judgeAssessment, requestedTopN} = await import('../dist/oyi-core/evidence/judgment/judge.js');
+const ref = await import('../dist/oyi-core/evidence/reference/derivedReference.js');
+const turn = await import('../dist/oyi-core/evidence/reference/derivedReferenceTurn.js');
+const F = await import('../dist/oyi-core/evidence/reassessment/facts.js');
+const R = await import('../dist/oyi-core/evidence/reassessment/reassess.js');
+const I = await import('../dist/oyi-core/evidence/reassessment/integration.js');
+const {decideReuse} = await import('../dist/oyi-core/evidence/planner/reuse.js');
+const {buildEvidenceIndex} = await import('../dist/oyi-core/evidence/judgment/evidenceIndex.js');
+const {buildProviderRequest, providerFromEnv, PROVIDER_SYSTEM_PROMPT, redactForProvider} = await import('../dist/oyi-core/evidence/judgment/provider.js');
+const {assertsPromiseOrAction, ungroundedTokens, corpusFor} = await import('../dist/oyi-core/evidence/judgment/validator.js');
+const {tiering, compare} = await import('../dist/oyi-core/evidence/judgment/dominance.js');
+const {planAndGatherEvidence} = await import('../dist/oyi-core/evidence/planner/planner.js');
+const {defaultAssessmentSubject} = await import('../dist/oyi-core/context/conversationAssessmentContext.js');
+const {PURE_READ_FORBIDDEN_IMPORTS} = await import('../dist/oyi-core/evidence/PureReadGuard.js');
+ensureRegistered();
+
+const results = [];
+const check = async (id, fn) => {try {await fn(); results.push({id, status: 'PASS'});} catch (error) {error.message = `${id}: ${error.message}`; throw error;}};
+const iso = ms => new Date(ms).toISOString();
+const NOW = Date.now();
+
+// ---- hand-built plan states ----------------------------------------------------------------
+const contrib = (source_key, evidence_class, material, o = {}) => ({source_key, evidence_class, necessity: 'mandatory', status: 'available_partial', availability: 'available', completeness: 'partial', freshness: 'current', scope_class: 'consumer_home', lifecycle: {active: 0, historical: 0, unknown: 0}, record_count: material.length, unobserved: 0, source_total: null, truncated: false, degraded: [], refs: material.map((m, i) => ({t: evidence_class, id: `${evidence_class}-${i + 1}`, l: m.label || null})), material, provenance: [], gathered_at: iso(NOW), fresh_until: iso(NOW + 600000), latency_ms: 1, ...o});
+const state = (contributions, o = {}) => ({v: 1, plan_id: 'iq3b-test-plan', gathered_at: iso(NOW), expires_at: iso(NOW + 600000), scope_key: 'scope-1', subject_key: 'subject-1', input_fingerprint: null, material_hash: null, objective: 'assess', surface: 'facility', status: 'MANDATORY_PARTIAL',
+  classes: contributions.map(c => ({class: c.evidence_class, necessity: c.necessity, status: 'MANDATORY_PARTIAL', sources: [c.source_key], reason: null})), contributions, missing_mandatory: [], optional_unavailable: [], cannot_conclude: [], requested_not_honoured: [], limits: {}, stats: {}, invalidation: [], ...o});
+const maint = (rows, o = {}) => contrib('maintenance.requests.read', 'maintenance', rows, {freshness: 'current', ...o});
+const WATER = {label: 'Water leak in plant room', title: 'Water leak in plant room', status: 'open', category: 'plumbing', priority: 'high'};
+const LIGHT = {label: 'Corridor light replaced', title: 'Corridor light replaced', status: 'resolved', category: 'electrical', priority: 'low'};
+const PAINT = {label: 'Repaint lobby wall', title: 'Repaint lobby wall', status: 'open', category: 'cosmetic', priority: 'low'};
+const DOOR = {label: 'Gate lock jammed', title: 'Gate lock jammed', status: 'open', category: 'security', priority: 'high'};
+const LEAD_QUAL = {label: 'Abuja JV lead', status: 'qualified', reason: 'Owner consent and survey supplied; meeting tomorrow'};
+const LEAD_BIG = {label: 'Large speculative prospect', status: 'new', reason: 'Largest claimed value but no feasibility evidence or owner mandate'};
+const LEAD_OLD = {label: 'Old cosmetic inquiry', status: 'new', reason: 'Overdue 60 days; small; low value', days_since_activity: 60};
+const crm = rows => contrib('crm.leads.read', 'crm', rows, {scope_class: 'office_permissioned_snapshot'});
+const officeState = (rows, o = {}) => state([crm(rows)], {surface: 'office_internal', ...o});
+const judge = (st, o = {}) => judgeAssessment({state: st, objective: 'assess', question: 'q', surface: st.surface, previous: null, provider: null, now: () => NOW, ...o});
+const stub = (fn, name = 'stub') => ({name, judge: async (req, opts) => fn(req, opts)});
+const cidOf = (st, label) => buildEvidenceIndex(st, NOW).candidates.find(c => c.ref.label === label)?.cid;
+const goodProposal = (st, labels, extra = {}) => ({status: 'ranked', ranking: labels.map((l, i) => ({cid: cidOf(st, l), rank: i + 1, rationale: `${l} is supported by what is recorded`, supporting: [], counter: [], uncertainties: []})), conclusion: 'the order reflects recorded qualification and evidence', uncertainties: ['feasibility is not independently verified'], clarification: null, ...extra});
+// ---- fixtures for derived artifacts ------------------------------------------------------------
+const MED1 = {label: 'Lobby camera offline note', title: 'Lobby camera offline note', status: 'open', category: 'security', priority: 'medium'};
+const MED2 = {label: 'Car park lighting', title: 'Car park lighting', status: 'open', category: 'electrical', priority: 'medium'};
+const FIVE = state([maint([WATER, DOOR, MED1, MED2, PAINT, LIGHT])]);
+const BINDING = 'binding-1';
+const mk = async (st, o = {}) => { const r = await judge(st, o); assert(r.ranking_artifact, `an artifact was expected: ${r.text}`); return {...r.ranking_artifact, scope_binding: BINDING}; };
+const prior = (art, o = {}) => ({objective: 'prioritize', surface: art.surface || 'facility', domain: null, question: 'q', status: 'assessment_pending', suspended: false, subject_domains: ['maintenance'], created_at: iso(NOW), updated_at: iso(NOW), expires_at: iso(NOW + 1800000), evidence_plan: null, derived_ranking: art, ...o});
+const ask = (art, text, o = {}) => turn.handleDerivedReferenceTurn({text, previous: prior(art, o.prev || {}), surface: art.surface || 'facility', now: o.now ?? NOW + 1000, raw: o.raw ?? null, scopeBinding: o.binding ?? BINDING, authorised: o.authorised ?? (() => true)});
+const handled = (r, msg) => {assert(r.handled, msg || `expected handled, got ${JSON.stringify(r)}`); return r;};
+const rank = (art, n) => art.items.find(i => i.group === 'ranked' && i.rank === n);
+const biz3 = () => officeState([LEAD_QUAL, LEAD_BIG, LEAD_OLD]);
+const providerArt = async () => { const st = biz3(); const o = await judge(st, {objective: 'prioritize', question: 'Which three things can move us forward?', provider: stub(() => goodProposal(st, ['Abuja JV lead', 'Large speculative prospect', 'Old cosmetic inquiry']))}); assert(o.ranking_artifact && o.result.mode === 'provider', o.text); return {...o.ranking_artifact, scope_binding: BINDING}; };
+
+const proj = (label, status = 'active') => ({label, title: label, status, stage: status});
+const dev = rows => contrib('development.status.read', 'office_development', rows, {scope_class: 'office_permissioned_snapshot'});
+const officeMixed = (o = {}) => state([crm([LEAD_QUAL, LEAD_BIG]), dev([proj('Project A', 'planning'), proj('Project B', 'planning')])], {surface: 'office_internal', ...o});
+// A scripted provider that weighs a user-supplied, UNVERIFIED claim as a claim: it moves the claimed item first and nothing else.
+const claimAware = () => ({name: 'scripted', judge: async req => {const claimed = req.candidates.find(c => c.signals.some(s => /^user_supplied_unverified/.test(s.text))); const order = [...req.candidates].sort((a, b) => (a === claimed ? -1 : b === claimed ? 1 : 0)); const n = req.requested_top_n || 3;
+  return {status: 'ranked', ranking: order.slice(0, n).map((c, i) => ({cid: c.cid, rank: i + 1, rationale: c === claimed ? 'it carries a claim of secured financing which is not verified' : 'it is supported by its recorded stage and notes', supporting: [], counter: [], uncertainties: []})), conclusion: 'the order reflects recorded stage and the unverified financing claim', uncertainties: ['the financing claim is not verified'], clarification: null};}});
+const plain = () => ({name: 'plain', judge: async req => {const n = req.requested_top_n || 3; return {status: 'ranked', ranking: req.candidates.slice(0, n).map((c, i) => ({cid: c.cid, rank: i + 1, rationale: 'it is supported by its recorded stage and notes', supporting: [], counter: [], uncertainties: []})), conclusion: 'the order reflects recorded stage', uncertainties: [], clarification: null};}});
+const art0 = async (st, provider, o = {}) => {const r = await judge(st, {objective: 'prioritize', question: 'Which four things can move us forward?', provider, ...o}); assert(r.ranking_artifact, r.text); return {...r.ranking_artifact, scope_binding: BINDING, source_keys: r.ranking_artifact.source_keys};};
+const prev0 = (art, o = {}) => ({objective: 'prioritize', surface: art.surface || 'office_internal', domain: null, question: 'Which four things can move us forward?', status: 'assessment_pending', suspended: false, subject_domains: ['crm'], created_at: iso(NOW), updated_at: iso(NOW), expires_at: iso(NOW + 1800000), evidence_plan: null, derived_ranking: art, facts: [], ...o});
+const say = (prev, text, o = {}) => turn.handleDerivedReferenceTurn({text, previous: prev, surface: prev.surface, now: o.now ?? NOW + 1000, raw: null, scopeBinding: BINDING, authorised: o.authorised ?? (() => true), objective: o.objective ?? null});
+const ctx = {input: {surface: 'office_internal'}};
+const reassess = (prev, o = {}) => I.runReassessment({context: ctx, resolvedTurn: {}, previous: prev, text: 'Does that change your priority?', provider: o.provider ?? null, scopeBinding: BINDING, authorised: o.authorised ?? (() => true), now: NOW + 5000,
+  gather: o.gather ?? (async () => ({applicable: true, state: o.state || officeMixed({plan_id: 'iq3b-new', stats: {sources_attempted: 2, sources_reused: 6}}), plan: {}, reused_all: false})), judge: o.judge});
+
+// ================= fact types =====================================================================
+await check('iq6:fact-types-are-sorted-with-the-iq2-information-predicate', async () => {const C = t => F.classifyUpdate(t, []).type;
+  assert.equal(C('The Chairman says financing for Project B is secured.'), 'unverified_claim'); assert.equal(C('Financing for Project B is secured.'), 'material_new_fact'); assert.equal(C('Actually it is 900 sqm, not 1,200.'), 'correction');
+  assert.equal(C('Is financing secured?'), 'question'); assert.equal(C('Suppose financing is secured.'), 'hypothetical'); assert.equal(C('I think the first one looks better.'), 'opinion'); assert.equal(C('Yes, confirmed.'), 'confirmation'); assert.equal(C('The weather is nice today.'), 'non_material_detail');
+  const known = [{id: 'f1', text: 'Financing for Project B is secured.', superseded_by: null}]; assert.equal(F.classifyUpdate('Financing for Project B is secured.', known).type, 'confirmation');});
+await check('iq6:every-fact-stays-user-supplied-and-unverified', async () => {const f = F.makeFact('The Chairman says financing for Project B is secured.', F.classifyUpdate('The Chairman says financing for Project B is secured.'), {status: 'none', items: [], how: 'x'}, [], NOW); assert.equal(f.status, 'user_supplied_unverified'); assert.equal(f.attributed, true);});
+// ================= target binding ===================================================================
+await check('iq6:fact-attaches-to-the-named-project-not-to-rank-one', async () => {const a = await art0(officeMixed(), plain()); const b = F.bindFact('The Chairman says financing for Project B is secured.', a); assert.equal(b.status, 'bound'); assert.equal(b.items[0].ref.label, 'Project B'); assert.notEqual(b.items[0].rank, 1);
+  const r = say(prev0(a), 'The Chairman says financing for Project B is secured.'); assert(r.handled); const stale = r.assessment.facts.at(-1); assert.equal(stale.target.label, 'Project B'); assert.equal(r.assessment.derived_ranking.stale.reason, 'material_fact'); assert(/Project B/.test(r.answer) && !/Project A/.test(r.answer));});
+await check('iq6:single-salient-project-binds-and-several-clarify', async () => {const one = await art0(state([crm([LEAD_QUAL, LEAD_BIG]), dev([proj('Project A', 'planning')])], {surface: 'office_internal'}), plain()); assert.equal(F.bindFact('The Chairman for that project says financing is secured.', one).items[0].ref.label, 'Project A');
+  const two = await art0(officeMixed(), plain()); const amb = F.bindFact('The Chairman for that project says financing is secured.', two); assert.equal(amb.status, 'ambiguous'); const r = say(prev0(two), 'The Chairman for that project says financing is secured.'); assert.equal(r.outcome, 'fact_target_ambiguous'); assert(/Project A or Project B/.test(r.answer)); assert(!r.assessment.derived_ranking.stale, 'nothing is marked on a guess'); assert.equal(r.assessment.facts.at(-1).target_status, 'ambiguous');});
+// ================= corrections / unverified ============================================================
+await check('iq6:correction-supersedes-the-old-fact-and-keeps-provenance', async () => {const a = await art0(officeMixed(), plain()); let p = prev0(a); const r1 = say(p, 'The Chairman says financing for Project B is secured.'); p = r1.assessment; const r2 = say(p, 'Actually the Chairman says financing for Project B is not secured, it is still pending.'); assert.equal(r2.outcome, 'correction_supersedes_fact'); const facts = r2.assessment.facts; assert.equal(F.activeFacts(facts).length, 1); assert.equal(facts[0].superseded_by, facts[1].id); assert(/replaced your earlier statement/.test(r2.answer) && /no longer treat the earlier one as current/.test(r2.answer));});
+await check('iq6:unverified-claim-is-never-presented-as-verified', async () => {const a = await art0(officeMixed(), plain()); const r = say(prev0(a), 'The Chairman says financing for Project B is secured.'); assert(/I have not verified it/.test(r.answer)); assert(!/is verified|confirmed that financing/.test(r.answer)); assert(!assertsPromiseOrAction(r.answer));});
+// ================= materiality =============================================================================
+await check('iq6:non-material-hypothetical-and-opinion-do-not-invalidate', async () => {const a = await art0(officeMixed(), plain()); const p = prev0(a); for (const [t, outcome] of [['The weather is nice today.', 'non_material_noted'], ['Suppose financing for Project B is secured.', 'hypothetical_not_applied'], ['I think Project A looks nicer.', 'opinion_noted'], ['Yes, confirmed.', 'confirmation_noted']]) {const r = say(p, t); assert.equal(r.outcome, outcome, t); assert(!r.assessment.derived_ranking.stale, t); assert.equal((r.assessment.facts || []).length, 0, `${t}: nothing is stored as a fact`);}});
+await check('iq6:a-fact-about-an-unrelated-domain-does-not-invalidate-the-ranking', async () => {const a = await art0(officeMixed(), plain()); const r = say(prev0(a), 'The camera in the lobby is offline.'); assert.equal(r.outcome, 'non_material_noted'); assert(!r.assessment.derived_ranking.stale);});
+await check('iq6:parked-artifact-is-not-touched-by-new-facts', async () => {const a = {...await art0(officeMixed(), plain()), parked: true}; assert.equal(say(prev0(a), 'The Chairman says financing for Project B is secured.').handled, false);});
+// ================= evidence reuse ====================================================================================
+await check('iq6:planner-reuses-unaffected-classes-and-refreshes-only-affected', async () => {
+  const mkC = (key, cls) => ({source_key: key, evidence_class: cls, availability: 'available', scope_class: 'office_permissioned_snapshot', fresh_until: iso(NOW + 600000), refs: [], material: []});
+  const prev = {v: 1, surface: 'office_internal', scope_key: 's', subject_key: 'k', material_hash: 'h0', input_fingerprint: null, contributions: [mkC('crm.leads.read', 'crm'), mkC('development.status.read', 'office_development'), mkC('financial.summary.read', 'office_financial'), mkC('reports.approvals.read', 'office_reports')]};
+  const steps = prev.contributions.map(c => ({source_key: c.source_key, class: c.evidence_class, scope_class: c.scope_class}));
+  const base = {previous: prev, steps, scope_key: 's', subject_key: 'k', input_fingerprint: null, material_hash: 'h1', refresh: false, now: NOW, authorised: () => true};
+  const all = decideReuse(base); assert.equal(all.reusable.size, 0, 'IQ-3B default: a changed material fact invalidates everything');
+  const some = decideReuse({...base, affected_classes: ['office_financial', 'office_development']}); assert.deepEqual([...some.reusable.keys()].sort(), ['crm.leads.read', 'reports.approvals.read']); assert(some.invalidation.includes('affected_class:office_financial'));
+  const none = decideReuse({...base, affected_classes: []}); assert.equal(none.reusable.size, 4, 'a fact that affects no class refreshes nothing');
+  const expired = decideReuse({...base, affected_classes: [], now: NOW + 700000}); assert.equal(expired.reusable.size, 0, 'expired evidence is refreshed regardless');});
+// ================= reassessment ===================================================================================
+await check('iq6:material-fact-changes-the-ranking-and-history-is-kept', async () => {
+  const st0 = officeMixed(); const a = await art0(st0, claimAware()); const order0 = a.items.filter(i => i.group === 'ranked').map(i => i.ref.label); assert.notEqual(order0[0], 'Project B');
+  let p = prev0(a); p = say(p, 'The Chairman says financing for Project B is secured.').assessment; assert(p.derived_ranking.stale);
+  const r = await reassess(p, {provider: claimAware(), state: officeMixed({plan_id: 'iq3b-new', stats: {sources_attempted: 2, sources_reused: 6}})});
+  assert.equal(r.record.change_class, 'CHANGED_ORDER'); assert.equal(r.record.ranking_changed, true); const now = r.assessment.derived_ranking, old = r.assessment.derived_history;
+  assert.equal(now.items.find(i => i.group === 'ranked' && i.rank === 1).ref.label, 'Project B'); assert.equal(now.stale, null); assert.equal(now.reassessed_from, a.ranking_id); assert.equal(old.ranking_id, a.ranking_id); assert(old.historical && old.historical.superseded_by === now.ranking_id);
+  assert.equal(r.record.sources_reused, 6); assert.equal(r.record.sources_refreshed, 2); assert(/not verified/.test(r.answer) && /changes the order/.test(r.answer) && /Before:/.test(r.answer)); assert(!assertsPromiseOrAction(r.answer));
+  assert(r.record.changed_factors.length > 0);});
+await check('iq6:material-fact-that-does-not-change-the-ranking-says-unchanged', async () => {const a = await art0(officeMixed(), plain()); let p = say(prev0(a), 'The Chairman says financing for Project B is secured.').assessment; const r = await reassess(p, {provider: plain()}); assert.equal(r.record.change_class, 'UNCHANGED'); assert.equal(r.record.ranking_changed, false); assert(/does not change the ordering/.test(r.answer)); assert.equal(r.assessment.derived_ranking.stale, null); assert(r.assessment.derived_history);});
+await check('iq6:old-ranking-is-historical-and-new-is-current-through-reference-resolution', async () => {const a = await art0(officeMixed(), claimAware()); let p = say(prev0(a), 'The Chairman says financing for Project B is secured.').assessment; const r = await reassess(p, {provider: claimAware()}); const q = r.assessment;
+  const oldFirst = a.items.find(i => i.group === 'ranked' && i.rank === 1).ref.label; const hist = say(q, `Why was ${oldFirst} first before?`); assert(hist.handled && hist.answer.includes(oldFirst) && /earlier assessment, kept so I can explain it/.test(hist.answer), hist.answer);
+  const cur = say(q, 'What is number one now?'); assert(cur.handled && cur.answer.includes('Project B') && !/earlier assessment/.test(cur.answer), cur.answer); const second = say(q, 'Why was number two there?'); assert(second.handled && /earlier assessment/.test(second.answer));});
+await check('iq6:history-is-bounded-to-one-prior-artifact', async () => {const a = await art0(officeMixed(), claimAware()); let p = say(prev0(a), 'The Chairman says financing for Project B is secured.').assessment; let r = await reassess(p, {provider: claimAware()}); const firstRank = r.assessment.derived_ranking.ranking_id;
+  p = say(r.assessment, 'Actually the Chairman says financing for Project B is secured but only conditionally.').assessment; r = await reassess(p, {provider: claimAware()}); assert.equal(r.assessment.derived_history.ranking_id, firstRank); assert(!r.assessment.derived_history.derived_history, 'no chain of older artifacts accumulates');});
+await check('iq6:failed-reassessment-never-corrupts-the-previous-state', async () => {const a = await art0(officeMixed(), plain()); const p = say(prev0(a), 'The Chairman says financing for Project B is secured.').assessment;
+  const cases = {'evidence read throws': {gather: async () => {throw Error('boom');}}, 'planner not applicable': {gather: async () => ({applicable: false, state: officeMixed(), plan: {}, reused_all: false})},
+    'provider timeout': {provider: {name: 't', judge: () => new Promise(() => {})}, judgeTimeout: true}, 'provider malformed': {provider: {name: 'm', judge: async () => 'not json'}}, 'provider rejects': {provider: {name: 'r', judge: async () => {throw Error('down');}}}, 'no provider': {provider: null},
+    'missing capability': {state: officeMixed({missing_mandatory: [{class: 'office_financial', reason: 'no_certified_source'}], plan_id: 'x', stats: {}})}};
+  for (const [name, o] of Object.entries(cases)) {const opts = {...o}; if (o.judgeTimeout) opts.judge = args => judgeAssessment({...args, providerTimeoutMs: 30}); const r = await reassess(p, opts);
+    assert(['INSUFFICIENT_TO_REASSESS', 'MISSING_CAPABILITY'].includes(r.record.change_class), `${name}: ${r.record.change_class}`); assert.equal(r.assessment.derived_ranking.ranking_id, a.ranking_id, `${name}: the previous artifact is kept`); assert(r.assessment.derived_ranking.stale, `${name}: and stays stale`); assert(!r.assessment.derived_history, `${name}: no history written`);
+    assert(/can't safely recalculate/.test(r.answer) && /still marked as not current/.test(r.answer), `${name}: ${r.answer}`); assert(!/capabilit|what i can do/i.test(r.answer)); assert(r.record.failure, name);}
+  const cap = await reassess(p, {state: cases['missing capability'].state}); assert.equal(cap.record.change_class, 'MISSING_CAPABILITY');});
+await check('iq6:authority-revoked-drops-the-artifact-and-exposes-nothing', async () => {const a = await art0(officeMixed(), plain()); const p = say(prev0(a), 'The Chairman says financing for Project B is secured.').assessment; const r = await reassess(p, {authorised: () => false}); assert.equal(r.assessment.derived_ranking, null); assert(!a.items.some(i => i.ref.label !== 'Project B' && r.answer.includes(i.ref.label || '#')), 'no item the user did not name is repeated'); assert(/access that evidence depends on has changed/.test(r.answer));});
+await check('iq6:typed-evidence-refresh-changes-judgment-but-an-unverified-claim-alone-does-not', async () => {
+  const typed = rows => state([maint(rows)]); const before = typed([WATER, DOOR]); const a = await art0(before, null, {question: 'Which two first?'}); const claimOnly = say(prev0(a, {surface: 'facility'}), 'The water leak is fixed now.'); assert(claimOnly.handled && claimOnly.assessment.derived_ranking.stale);
+  const same = await reassess(claimOnly.assessment, {state: typed([WATER, DOOR]).constructor === Object ? {...typed([WATER, DOOR]), plan_id: 'p2', stats: {sources_attempted: 1, sources_reused: 0}} : null}); assert.equal(same.record.change_class, 'UNCHANGED', 'the records still show it open: a claim is not evidence'); assert(/records I can read/.test(same.answer) || /does not change/.test(same.answer));
+  const fixed = await reassess(claimOnly.assessment, {state: {...typed([{...WATER, status: 'resolved'}, DOOR]), plan_id: 'p3', stats: {sources_attempted: 1, sources_reused: 0}}}); assert.notEqual(fixed.record.change_class, 'UNCHANGED', 'the record changed: the judgment follows the evidence'); assert(fixed.assessment.derived_history);});
+await check('iq6:no-prior-ranking-no-reassessment-no-manufactured-ordering', async () => {const noArt = {...prev0({}), derived_ranking: null, evidence_plan: {status: 'MANDATORY_PARTIAL', plan_id: 'p'}}; const ask = say(noArt, 'Does that change your priority?', {objective: 'reassess'}); assert.equal(ask.outcome, 'reassess_no_prior_ordering'); assert(/no earlier ordering to change/.test(ask.answer)); assert(!ask.assessment.derived_ranking);
+  const fact = say(noArt, 'The Chairman for that project says financing is already secured.'); assert.equal(fact.outcome, 'fact_recorded_no_ordering'); assert.equal(fact.assessment.facts.length, 1); assert.equal(fact.assessment.facts[0].target_status, 'none'); assert(/not ranked anything/.test(fact.answer) || /I have not ranked anything/.test(fact.answer));});
+await check('iq6:reassess-with-nothing-new-says-so-and-does-not-force-a-change', async () => {const a = await art0(officeMixed(), plain()); const r = say(prev0(a), 'Does that change your priority?', {objective: 'reassess'}); assert.equal(r.outcome, 'reassess_nothing_new'); assert(/nothing to reassess/.test(r.answer));});
+await check('iq6:a-now-question-on-a-stale-artifact-requests-reassessment-not-a-stale-answer', async () => {const a = await art0(officeMixed(), plain()); const p = say(prev0(a), 'The Chairman says financing for Project B is secured.').assessment; const r = say(p, "What's number one now?"); assert.equal(r.handled, false); assert.equal(r.why, 'reassess_requested');});
+await check('iq6:reassessment-record-is-structural-only', async () => {const a = await art0(officeMixed(), claimAware()); const p = say(prev0(a), 'The Chairman says financing for Project B is secured.').assessment; const r = await reassess(p, {provider: claimAware()}); const json = JSON.stringify(r.record); assert(!/Chairman says|is secured/i.test(json), 'no fact text in the record'); assert(r.record.unverified_fact_ids.length === 1 && r.record.v === 1 && r.record.at);});
+await check('iq6:provider-request-labels-the-claim-as-unverified-and-redacts-it', async () => {let seen = null; const st = officeMixed(); const a = await art0(st, plain()); const probe = {name: 'probe', judge: async req => {seen = req; return plain().judge(req);}}; const f = [{target_id: null, target_label: 'Project B', text: 'The Chairman (chair@ochiga.com, +234 801 234 5678) says financing is secured.'}];
+  await judge(st, {objective: 'prioritize', question: 'Which three things first?', provider: probe, facts: f}); const sig = seen.candidates.flatMap(c => c.signals).find(s => /^user_supplied_unverified/.test(s.text)); assert(sig, 'the claim reached the provider as a labelled signal'); assert(!/chair@|801/.test(sig.text), 'PII is redacted'); assert(/user_supplied_unverified/.test(JSON.stringify(seen)) && /never describe it as verified/.test(PROVIDER_SYSTEM_PROMPT));});
+await check('iq6:reassessment-modules-add-no-tool-or-write-path', async () => {for (const f of ['src/oyi-core/evidence/reassessment/facts.ts', 'src/oyi-core/evidence/reassessment/reassess.ts']) {const src = fs.readFileSync(f, 'utf8'); assert(!/supabase|fetch\(|capabilityService|executeDevice|workflow/i.test(src), f);} const integ = fs.readFileSync('src/oyi-core/evidence/reassessment/integration.ts', 'utf8'); assert(!/supabase|fetch\(|executeDevice|workflowService|\.insert\(|\.update\(/.test(integ));});
+
+const counts = results.reduce((a, r) => (a[r.status] = (a[r.status] || 0) + 1, a), {});
+fs.writeFileSync('artifacts/intelligence-quality-v1-iq6-reassessment-tests.json', JSON.stringify({status: 'PASS', test_mode: 'Pure and state-level: scripted provider stubs and fake evidence gathering around the REAL judgment, reuse planner, fact classifier and reassessment code (validation/discipline, not model quality); no database, no network', results, counts}, null, 2) + '\n');
+console.log(JSON.stringify({status: 'PASS', tests: results.length, counts}));

@@ -4,6 +4,8 @@ import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CapabilityModule } from "../contracts/capability";
 import type { CompactEvidencePlanState } from "../evidence/planner/types";
 import type { DerivedRanking } from "../evidence/judgment/types";
+import type { ConversationFact } from "../evidence/reassessment/facts";
+import type { ReassessmentRecord } from "../evidence/reassessment/reassess";
 import { DERIVED_REFERENCE_CUE } from "../evidence/reference/derivedReference";
 
 // Ephemeral conversational state, persisted ONLY by canonical conversation
@@ -37,6 +39,11 @@ export type ConversationAssessmentContext = {
   // record of the last judgment. Concise evidence-linked rationale only; no reasoning chain is ever stored.
   derived_ranking?: DerivedRanking | null;
   judgment?: { assessment_id: string; mode: string; status: string; validated: boolean; judged_at: string } | null;
+  // IQ-6: user-supplied conversational facts (all UNVERIFIED), the single historical artifact kept after a reassessment, and the compact
+  // record of the last reassessment. No raw evidence, no reasoning.
+  facts?: ConversationFact[];
+  derived_history?: DerivedRanking | null;
+  reassessment?: ReassessmentRecord | null;
   created_at: string;
   updated_at: string;
   expires_at: string;
@@ -174,7 +181,7 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
   if (!isAssessmentObjective(frame.cognitiveObjective) && !followUp) {
     const art = old?.derived_ranking;
     return old && art && Date.parse(art.expires_at) > now
-      ? { ...old, suspended: true, target_ref: null, result_set_id: null, material_information: null, pending_information: null, evidence_plan: null, judgment: null, derived_ranking: { ...art, parked: true }, updated_at: new Date(now).toISOString() }
+      ? { ...old, suspended: true, target_ref: null, result_set_id: null, material_information: null, pending_information: null, evidence_plan: null, judgment: null, derived_ranking: { ...art, parked: true }, derived_history: old.derived_history ?? null, updated_at: new Date(now).toISOString() }
       : null;
   }
   const correction = /\b(?:i mean|i meant|instead|forget|actually.*\bnot\b)\b/i.test(frame.rawText);
@@ -196,6 +203,7 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
   const subjectChanged = Boolean(old && JSON.stringify(nextSubjects) !== JSON.stringify(old.subject_domains));
   const replaceCandidates = correction || subjectChanged || !retain || (!anaphoric && ["prioritize", "compare"].includes(frame.cognitiveObjective || ""));
   const stamp = new Date(now).toISOString();
+  const carriedHistory = old?.derived_history && Date.parse(old.derived_history.expires_at) > now ? old.derived_history : null;
   const carriedArtifact = old?.derived_ranking && Date.parse(old.derived_ranking.expires_at) > now ? old.derived_ranking : null;
   return {
     objective: frame.cognitiveObjective && isAssessmentObjective(frame.cognitiveObjective) ? frame.cognitiveObjective : old!.objective,
@@ -224,6 +232,9 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
     // pointer after a switch is clarified, never silently bound to it. It carries its own expiry, never the assessment's.
     derived_ranking: carriedArtifact ? { ...carriedArtifact, parked: Boolean(carriedArtifact.parked || !retain || correction || subjectChanged) } : null,
     judgment: retain && !correction ? old.judgment ?? null : null,
+    facts: retain && !subjectChanged ? old.facts ?? [] : [],
+    derived_history: carriedHistory ? { ...carriedHistory, historical: carriedHistory.historical ?? null } : null,
+    reassessment: retain && !correction ? old.reassessment ?? null : null,
     created_at: retain ? old.created_at : stamp,
     updated_at: stamp,
     expires_at: new Date(now + ASSESSMENT_TTL_MS).toISOString(),

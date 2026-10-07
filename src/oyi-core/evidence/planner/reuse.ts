@@ -11,7 +11,7 @@ export type ReuseDecision = { reusable: Map<string, Contribution>; invalidation:
 
 export function decideReuse(args: {
   previous: CompactEvidencePlanState | null | undefined; steps: PlanStep[]; scope_key: string; subject_key: string; input_fingerprint: string | null;
-  material_hash: string | null; refresh: boolean; now: number; authorised: (sourceKey: string) => boolean;
+  material_hash: string | null; refresh: boolean; affected_classes?: string[] | null; now: number; authorised: (sourceKey: string) => boolean;
 }): ReuseDecision {
   const reusable = new Map<string, Contribution>(); const invalidation: string[] = [];
   const prev = args.previous;
@@ -19,12 +19,16 @@ export function decideReuse(args: {
   if (prev.surface !== undefined && prev.scope_key !== args.scope_key) { invalidation.push("scope_change"); return { reusable, invalidation }; }
   if (prev.subject_key !== args.subject_key) { invalidation.push("subject_change"); return { reusable, invalidation }; }
   if (args.refresh) { invalidation.push("explicit_refresh"); return { reusable, invalidation }; }
-  if ((prev.material_hash || null) !== (args.material_hash || null)) { invalidation.push("material_fact_changed"); return { reusable, invalidation }; }
+  // IQ-6: a changed material fact invalidates ONLY the evidence classes it can affect when the caller says which those are; unaffected
+  // fresh evidence is reused. Without that information (the IQ-3B default) it still invalidates everything.
+  const materialChanged = (prev.material_hash || null) !== (args.material_hash || null);
+  if (materialChanged) { invalidation.push("material_fact_changed"); if (!args.affected_classes) return { reusable, invalidation }; }
   if ((prev.input_fingerprint || null) !== (args.input_fingerprint || null)) { invalidation.push("supplied_snapshot_changed"); return { reusable, invalidation }; }
   for (const step of args.steps) {
     const c = prev.contributions.find(x => x.source_key === step.source_key && x.evidence_class === step.class && x.scope_class === step.scope_class);
     if (!c) continue;
     // A failed, denied or timed-out read is retried, never reused as if it were evidence.
+    if (materialChanged && args.affected_classes!.includes(step.class)) { invalidation.push(`affected_class:${step.class}`); continue; }
     if (c.availability !== "available") { invalidation.push(`retry_${c.availability}:${c.source_key}`); continue; }
     if (Date.parse(c.fresh_until) <= args.now) { invalidation.push(`source_freshness_expired:${c.source_key}`); continue; }
     // Authority is re-checked at reuse time; permission is never cached beyond the governed turn.

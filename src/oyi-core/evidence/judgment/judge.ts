@@ -25,6 +25,8 @@ const RANKING_OBJECTIVES = new Set(["prioritize", "compare"]);
 export type JudgeArgs = {
   state: CompactEvidencePlanState; objective: string; question: string; surface: string;
   previous: DerivedRanking | null; provider: JudgmentProvider | null; providerTimeoutMs?: number; now?: () => number;
+  // IQ-6: the user's own, UNVERIFIED claims about candidates. Only the bound provider path may weigh them (as claims); typed judgment ignores them.
+  facts?: Array<{ target_id: string | null; target_label: string | null; text: string }>;
 };
 
 function businessFacts(index: EvidenceIndex): string[] {
@@ -77,7 +79,8 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
   const typed = index.candidates.filter(c => !c.needs_comparative_judgment);
   const partial = a.state.contributions.some(c => c.completeness === "partial" || c.truncated || c.unobserved > 0);
   const wantsRanking = RANKING_OBJECTIVES.has(a.objective) || topN !== null;
-  const vctx = (eligible: Candidate[], extra: string[] = []): ValidationContext => ({ index, eligible, topN, rankingAllowed, partial, question: a.question, planMissing: missing, alsoAssessmentIds: extra });
+  const factCids = (a.facts || []).flatMap(f => index.candidates.filter(c => (f.target_id && c.ref.id === f.target_id) || (!f.target_id && f.target_label && c.ref.label === f.target_label)).map(c => ({ cid: c.cid, text: f.text })));
+  const vctx = (eligible: Candidate[], extra: string[] = []): ValidationContext => ({ index, eligible, topN, rankingAllowed, partial, question: [a.question, ...(a.facts || []).map(f => f.text)].join(" "), planMissing: missing, alsoAssessmentIds: extra });
   let provider = { attempted: false, name: null as string | null, latency_ms: null as number | null, failure_class: null as string | null };
   let result: JudgmentResult; let basis: DerivedRanking["basis"] = "deterministic"; let failures: string[] = []; // diagnostics, including a rejected provider proposal
   let finalFailures: string[] = []; // validity of the result actually shown
@@ -93,7 +96,7 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
     const proceed = rankingAllowed && a.provider;
     if (proceed) {
       provider = { attempted: true, name: a.provider!.name, latency_ms: null, failure_class: null };
-      const request = buildProviderRequest({ index, candidates: business, objective: a.objective, surface: a.surface, question: a.question, topN, limits: [...a.state.cannot_conclude, ...ctx.uncertainties] });
+      const request = buildProviderRequest({ index, candidates: business, objective: a.objective, surface: a.surface, question: a.question, topN, limits: [...a.state.cannot_conclude, ...ctx.uncertainties], facts: factCids });
       const pt0 = Date.now(); const raw = await withProviderDeadline(() => a.provider!.judge(request, { timeoutMs: a.providerTimeoutMs ?? JUDGMENT_PROVIDER_TIMEOUT_MS }), a.providerTimeoutMs ?? JUDGMENT_PROVIDER_TIMEOUT_MS);
       provider.latency_ms = Date.now() - pt0;
       if (!raw.ok) { provider.failure_class = raw.failure; failures = [`provider ${raw.failure}`]; result = bounded(a, index, ctx, business, "fallback_after_rejection"); }

@@ -27,6 +27,8 @@ export type PlannerRequest = {
   building_label: string | null;
   raw_text: string;
   material_text: string | null;
+  // IQ-6: evidence classes a changed material fact can affect; everything else fresh is reused. Omitted = IQ-3B behaviour.
+  affected_classes?: string[] | null;
   previous: CompactEvidencePlanState | null | undefined;
   limits?: PlannerLimits;
   deps?: ExecutionDeps & { now?: () => number; registry?: PlanningInput["registry"]; canUse?: PlanningInput["canUse"] };
@@ -51,7 +53,7 @@ export async function planAndGatherEvidence(r: PlannerRequest): Promise<PlannerR
   const canUse = r.deps?.canUse || capabilityService.canUse.bind(capabilityService);
   const reuse = decideReuse({
     previous: r.previous, steps: plan.steps, scope_key: scopeKeyFor(planning), subject_key: subjectKeyFor(planning), input_fingerprint, material_hash,
-    refresh: REFRESH_REQUEST.test(r.raw_text), now, authorised: key => canUse(key, { actor: r.actor, oisContext: r.oisContext, surface: r.input.surface as any, scope: { estate_id: planning.request_scope.estate_id, building_id: null, home_id: planning.request_scope.home_id, room_id: null } }).allowed,
+    refresh: REFRESH_REQUEST.test(r.raw_text), affected_classes: r.affected_classes ?? null, now, authorised: key => canUse(key, { actor: r.actor, oisContext: r.oisContext, surface: r.input.surface as any, scope: { estate_id: planning.request_scope.estate_id, building_id: null, home_id: planning.request_scope.home_id, room_id: null } }).allowed,
   });
   const toRun = plan.steps.filter(s => !reuse.reusable.has(s.source_key));
   const room_id = r.room.status === "resolved" ? r.room.room_id : null;

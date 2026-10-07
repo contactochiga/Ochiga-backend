@@ -24,9 +24,9 @@ const keep = (name, turns) => {transcripts[name] = turns.map(t => ({prompt: t.pr
 const check = async (id, fn) => {try {await fn(); results.push({id, status: 'PASS'});} catch (error) {error.message = `${id}: ${error.message}`; throw error;}};
 
 const converse = async (surface, role, prompts, {thread = null, actorOverride = null} = {}) => {
-  const actor = actorOverride || actorFor(role, surface); let t = thread; const turns = [];
+  const actor = actorOverride || actorFor(role, surface); let t = thread; const turns = []; const snap = surface === 'office_internal' ? officeSnapshot() : null;
   for (const prompt of prompts) {
-    const input = {message: prompt, surface, thread_id: t, estate_id: actor?.estate_id, home_id: actor?.home_id, context: {request_id: randomUUID(), ...(surface === 'office_internal' ? {operational_snapshot: officeSnapshot()} : {})}};
+    const input = {message: prompt, surface, thread_id: t, estate_id: actor?.estate_id, home_id: actor?.home_id, context: {request_id: randomUUID(), ...(surface === 'office_internal' ? {operational_snapshot: snap} : {})}};
     const r = await conversationOrchestrator.run({actor, oisContext: oisContext(actor, surface), input}); t = r.thread_id;
     assert.equal(r.persistence_saved, true); assert.notEqual(r.execution.current_turn_execution, true, 'no reference turn executes anything');
     const q = await db.from('oyi_conversation_threads').select('metadata').eq('id', t).single(); assert(!q.error);

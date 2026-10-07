@@ -26,17 +26,18 @@ export const PROVIDER_SYSTEM_PROMPT = [
   "If the evidence cannot justify a ranking, return status \"insufficient\" or \"clarify\" instead of guessing.",
   "Do not recommend or claim any action, send, call, approval, commitment, promise or guarantee. Do not claim to have checked everything.",
   "Qualified, evidenced, near-deadline or blocking items can outrank larger unqualified or merely older ones. Do not rank by age or claimed size alone.",
+  "A signal beginning \"user_supplied_unverified\" is the user's own claim, not verified evidence: weigh it as a claim and never describe it as verified or confirmed.",
 ].join(" ");
 
 // Redact what must never leave: contact details, links, long digit runs. Ids are not sent at all (cids only).
 const PII = [[/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]"], [/https?:\/\/\S+/g, "[link]"], [/(?:\+?\d[\s().-]?){7,}/g, "[number]"]] as const;
 export const redactForProvider = (s: string, max = 120) => PII.reduce((t, [re, to]) => t.replace(re, to), s).slice(0, max);
 
-export function buildProviderRequest(i: { index: EvidenceIndex; candidates: Candidate[]; objective: string; surface: string; question: string; topN: number | null; limits: string[] }): ProviderRequest {
+export function buildProviderRequest(i: { index: EvidenceIndex; candidates: Candidate[]; objective: string; surface: string; question: string; topN: number | null; limits: string[]; facts?: Array<{ cid: string; text: string }> }): ProviderRequest {
   return {
     schema_version: 1, objective: i.objective, surface: i.surface, question: redactForProvider(i.question, 300), requested_top_n: i.topN,
     candidates: i.candidates.map(c => ({ cid: c.cid, kind: c.kind, factors: c.factors.map(f => ({ dimension: f.dimension, level: f.level, eref: f.eref })),
-      signals: [...c.signals.map(s => ({ eref: s.eref, text: redactForProvider(s.text) })), ...(c.ref.label && !c.signals.some(s => s.text === c.ref.label) ? [{ eref: c.evidence[0], text: redactForProvider(c.ref.label) }] : [])].slice(0, 4) })),
+      signals: [...c.signals.map(s => ({ eref: s.eref, text: redactForProvider(s.text) })), ...(c.ref.label && !c.signals.some(s => s.text === c.ref.label) ? [{ eref: c.evidence[0], text: redactForProvider(c.ref.label) }] : []), ...(i.facts || []).filter(f => f.cid === c.cid).map(f => ({ eref: c.evidence[0], text: `user_supplied_unverified: ${redactForProvider(f.text, 200)}` }))].slice(0, 5) })),
     evidence_limits: i.limits.slice(0, 6).map(l => redactForProvider(l, 160)),
   };
 }

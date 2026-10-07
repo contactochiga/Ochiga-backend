@@ -24,6 +24,8 @@ export async function gatherAssessmentEvidence(args: {
   tracer?: ConversationTracer | null;
   limits?: PlannerLimits;
   deps?: ExecutionDeps;
+  affected_classes?: string[] | null;
+  material_text?: string | null;
 }): Promise<PlannerResult> {
   const { context, assessment } = args;
   const surface = context.input.surface;
@@ -43,7 +45,8 @@ export async function gatherAssessmentEvidence(args: {
     actor: context.actor, oisContext: context.oisContext, input: context.input, resolvedTurn: args.resolvedTurn,
     objective: assessment.objective, subject_domains: subjects, subject_label: label, target_id: assessment.target_ref?.canonical_id || null,
     broad: sameSet(subjects, defaultAssessmentSubject(surface)), room, building_label: buildingLabel, raw_text: args.rawText,
-    material_text: [assessment.material_information?.text, assessment.pending_information].filter(Boolean).join("|") || null,
+    affected_classes: args.affected_classes ?? null,
+    material_text: args.material_text ?? ([assessment.material_information?.text, assessment.pending_information].filter(Boolean).join("|") || null),
     previous: assessment.evidence_plan, limits: args.limits, deps: args.deps,
   });
   result.state = enforceStateSize(result.state);

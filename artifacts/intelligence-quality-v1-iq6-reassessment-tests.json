@@ -1,0 +1,101 @@
+{
+  "status": "PASS",
+  "test_mode": "Pure and state-level: scripted provider stubs and fake evidence gathering around the REAL judgment, reuse planner, fact classifier and reassessment code (validation/discipline, not model quality); no database, no network",
+  "results": [
+    {
+      "id": "iq6:fact-types-are-sorted-with-the-iq2-information-predicate",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:every-fact-stays-user-supplied-and-unverified",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:fact-attaches-to-the-named-project-not-to-rank-one",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:single-salient-project-binds-and-several-clarify",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:correction-supersedes-the-old-fact-and-keeps-provenance",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:unverified-claim-is-never-presented-as-verified",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:non-material-hypothetical-and-opinion-do-not-invalidate",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:a-fact-about-an-unrelated-domain-does-not-invalidate-the-ranking",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:parked-artifact-is-not-touched-by-new-facts",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:planner-reuses-unaffected-classes-and-refreshes-only-affected",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:material-fact-changes-the-ranking-and-history-is-kept",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:material-fact-that-does-not-change-the-ranking-says-unchanged",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:old-ranking-is-historical-and-new-is-current-through-reference-resolution",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:history-is-bounded-to-one-prior-artifact",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:failed-reassessment-never-corrupts-the-previous-state",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:authority-revoked-drops-the-artifact-and-exposes-nothing",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:typed-evidence-refresh-changes-judgment-but-an-unverified-claim-alone-does-not",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:no-prior-ranking-no-reassessment-no-manufactured-ordering",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:reassess-with-nothing-new-says-so-and-does-not-force-a-change",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:a-now-question-on-a-stale-artifact-requests-reassessment-not-a-stale-answer",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:reassessment-record-is-structural-only",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:provider-request-labels-the-claim-as-unverified-and-redacts-it",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:reassessment-modules-add-no-tool-or-write-path",
+      "status": "PASS"
+    }
+  ],
+  "counts": {
+    "PASS": 23
+  }
+}
