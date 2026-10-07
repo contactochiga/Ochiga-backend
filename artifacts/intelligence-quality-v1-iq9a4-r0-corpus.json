@@ -1,0 +1,197 @@
+{
+ "version": 1,
+ "status": "IQ9A4_R0_SYNTHETIC_DEV_CASES",
+ "note": "New synthetic cases; not copies of sealed IQ-8F requests.",
+ "items": [
+  {
+   "id": "R0-01",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "How many of my visitor passes are valid right now?",
+   "kind": "defect:visitor_count",
+   "note": ""
+  },
+  {
+   "id": "R0-02",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Do I have any visitor pass that is currently active?",
+   "kind": "defect:visitor_count",
+   "note": ""
+  },
+  {
+   "id": "R0-03",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Which visitor passes are on my account and what status is each recorded as?",
+   "kind": "positive:visitor_status",
+   "note": ""
+  },
+  {
+   "id": "R0-04",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Has anyone started working on my water issue?",
+   "kind": "defect:attention_claim",
+   "note": ""
+  },
+  {
+   "id": "R0-05",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Is somebody dealing with my water problem at the moment?",
+   "kind": "defect:attention_claim",
+   "note": ""
+  },
+  {
+   "id": "R0-06",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Is my water issue still open?",
+   "kind": "positive:record_state",
+   "note": ""
+  },
+  {
+   "id": "R0-07",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What maintenance requests are recorded for my home?",
+   "kind": "positive:record_list",
+   "note": ""
+  },
+  {
+   "id": "R0-08",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the Living Light."
+   ],
+   "utterance": "Scrap that, but switch off the Bedroom Light",
+   "kind": "defect:compound_text",
+   "note": ""
+  },
+  {
+   "id": "R0-09",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Switch off the Bedroom Light",
+   "kind": "positive:proposal",
+   "note": ""
+  },
+  {
+   "id": "R0-10",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the Living Light."
+   ],
+   "utterance": "Scrap that, I will do it myself",
+   "kind": "positive:withdrawal_statement",
+   "note": ""
+  },
+  {
+   "id": "R0-11",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the Bedroom Light."
+   ],
+   "utterance": "yes confirm please",
+   "kind": "defect:confirm_text",
+   "note": ""
+  },
+  {
+   "id": "R0-12",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the Bedroom Light.",
+    "Cancel that"
+   ],
+   "utterance": "yes confirm",
+   "kind": "defect:confirm_text_after_cancel",
+   "note": ""
+  },
+  {
+   "id": "R0-13",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the Bedroom Light."
+   ],
+   "utterance": "Cancel that",
+   "kind": "positive:cancel",
+   "note": ""
+  },
+  {
+   "id": "R0-14",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Do not share the financial figures outside this conversation.",
+   "kind": "defect:constraint_disclosure",
+   "note": ""
+  },
+  {
+   "id": "R0-15",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Never reveal the portfolio revenue to people outside this chat.",
+   "kind": "defect:constraint_disclosure",
+   "note": ""
+  },
+  {
+   "id": "R0-16",
+   "surface": "office_internal",
+   "seeds": [
+    "Do not share the financial figures outside this conversation."
+   ],
+   "utterance": "What are the portfolio totals for balance and revenue?",
+   "kind": "positive:authorized_finance_question",
+   "note": ""
+  },
+  {
+   "id": "R0-17",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "What are the portfolio totals for balance and revenue?",
+   "kind": "positive:authorized_finance_question",
+   "note": ""
+  },
+  {
+   "id": "R0-18",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Do not share my wallet balance outside this conversation.",
+   "kind": "positive:constraint_ack",
+   "note": ""
+  },
+  {
+   "id": "R0-19",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease."
+   ],
+   "utterance": "Please have someone call me back.",
+   "kind": "defect:handoff_loopback",
+   "note": "loopback has no Office service: only the unavailable branch is reachable end to end"
+  },
+  {
+   "id": "R0-20",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "My cousin has a pass, so he must have arrived by now, right?",
+   "kind": "defect:visitor_count",
+   "note": "planner path"
+  },
+  {
+   "id": "R0-21",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Is anyone on my pass list still valid today?",
+   "kind": "defect:visitor_count"
+  },
+  {
+   "id": "R0-22",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Is there a record of my water issue being looked at?",
+   "kind": "defect:attention_claim",
+   "note": "IQ-9A3 audit item 091 wording (dev suite)"
+  }
+ ]
+}
