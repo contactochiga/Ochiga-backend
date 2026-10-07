@@ -2,7 +2,7 @@
   "status": "PASS",
   "test_mode": "Real collectors and CapabilityService.readEvidence with deterministic query/provider/network fault injection on the local loopback fixture client; no production target; no real network",
   "counts": {
-    "PASS": 127
+    "PASS": 129
   },
   "results": [
     {
@@ -434,15 +434,23 @@
       "status": "PASS"
     },
     {
-      "id": "pure-read:db-writes-and-rpc-refused-and-surface-as-error",
+      "id": "pure-read:evidence-db-exposes-select-only-no-write-verbs-no-rpc",
       "status": "PASS"
     },
     {
-      "id": "pure-read:writes-outside-a-pure-read-are-unchanged",
+      "id": "pure-read:a-source-that-tries-to-write-through-its-dependency-fails-closed",
       "status": "PASS"
     },
     {
-      "id": "pure-read:guard-covers-every-durable-state-class",
+      "id": "pure-read:no-global-patching-the-ordinary-client-is-untouched",
+      "status": "PASS"
+    },
+    {
+      "id": "evidence-db:injected-read-only-db-is-the-only-database-path-of-every-db-backed-source",
+      "status": "PASS"
+    },
+    {
+      "id": "pure-read:parallel-reads-do-not-share-state",
       "status": "PASS"
     },
     {

@@ -38,7 +38,7 @@
         "assessment_status": "evidence_gathered",
         "artifact_type": null,
         "stale": false,
-        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); Wave11 support case (open/active, recorded priority medium); Wave11 JV review (open/active, no priority or severity recorded) (listed, not ra"
+        "answer": "I can't put these in order: ordering these records takes comparative judgment on their recorded notes, which is not available right now.\n\nSupporting evidence: What is recorded: 2 leads needing attention; 2 stale opportunities; 1 development projects; 1 reports awaiting approval. Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed "
       },
       {
         "prompt": "Why is the second one more important than the others?",
@@ -89,7 +89,7 @@
         "assessment_status": "derived_reference",
         "artifact_type": "ranking",
         "stale": false,
-        "answer": "Using your statement “The Chairman says financing for Wave11 Abuja JV is secured” (your own statement, which I have not verified), it changes the order. The assessment of Wave11 Abuja JV now reads: it carries a claim of secured financing which is not verified. What changed: Wave11 Abuja JV: the recorded reason changed; Wave11 Lead Beta: the recorded reason changed. Before: 1. Wave11 Lead Beta; 2. Wave11 Abuja JV; 3. Wave11 Lead Alpha. I re-read 4 sources and reused 4 unchanged ones. Current assessment: Based on the evidence available, the order reflects recorded qualification and any unverified claim In order: 1. Wave11 Abuja JV: it carries a claim of secured financing which is not verified "
+        "answer": "Yes — it changes the order. Using your statement “The Chairman says financing for Wave11 Abuja JV is secured” (your own statement, which I have not verified), it changes the order. The assessment of Wave11 Abuja JV now reads: it carries a claim of secured financing which is not verified. What changed: Wave11 Abuja JV: the recorded reason changed; Wave11 Lead Beta: the recorded reason changed. Before: 1. Wave11 Lead Beta; 2. Wave11 Abuja JV; 3. Wave11 Lead Alpha. I re-read 4 sources and reused 4 unchanged ones. Current assessment: Based on the evidence available, the order reflects recorded qualification and any unverified claim In order: 1. Wave11 Abuja JV: it carries a claim of secured fina"
       },
       {
         "prompt": "What is number one now?",
@@ -119,7 +119,7 @@
         "assessment_status": "evidence_gathered",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
+        "answer": "Yes — Wave11 unresolved water issue is the only open item, so it is first.\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
       },
       {
         "prompt": "The water issue has been resolved now.",
@@ -133,7 +133,7 @@
         "assessment_status": "derived_reference",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/"
+        "answer": "No — it does not change the assessment on the evidence I can read. Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or"
       }
     ],
     "facility_record_changed": [
@@ -142,7 +142,7 @@
         "assessment_status": "evidence_gathered",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
+        "answer": "Yes — Wave11 unresolved water issue is the only open item, so it is first.\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
       },
       {
         "prompt": "The water issue has been resolved now.",
@@ -156,7 +156,7 @@
         "assessment_status": "derived_reference",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it changes the conclusion. The records I can read for Wave11 unresolved water issue show: resolved or past, recorded priority high. What changed: Wave11 unresolved water issue is no longer among the items considered. Before: 1. Wave11 unresolved water issue. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, nothing active was found among the items I could read; what is resolved is not a current concern. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Not a current conc"
+        "answer": "Yes — it changes the conclusion. Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it changes the conclusion. The records I can read for Wave11 unresolved water issue show: resolved or past, recorded priority high. What changed: Wave11 unresolved water issue is no longer among the items considered. Before: 1. Wave11 unresolved water issue. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, nothing active was found among the items I could read; what is resolved is not a current concern. This is not an all-clear: it covers only what I could read and observe, and part of it is partial o"
       }
     ],
     "consumer": [
@@ -179,7 +179,7 @@
         "assessment_status": "derived_reference",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Using your statement “The water leak is repaired now” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active,"
+        "answer": "No — it does not change the assessment on the evidence I can read. This is an unverified report that could be safety-relevant; I cannot confirm it from current evidence. Using your statement “The water leak is repaired now” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This"
       },
       {
         "prompt": "Actually the water leak is not repaired, the plumber has not come.",
@@ -193,7 +193,7 @@
         "assessment_status": "derived_reference",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Using your statement “Actually the water leak is not repaired, the plumber has not come” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 u"
+        "answer": "No — it does not change the assessment on the evidence I can read. Using your statement “Actually the water leak is not repaired, the plumber has not come” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 2 sources and reused 3 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe,"
       }
     ],
     "osa": [

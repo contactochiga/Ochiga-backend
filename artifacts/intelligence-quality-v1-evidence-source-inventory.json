@@ -56,24 +56,7 @@
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "SUPPLIED_CONTEXT_OBJECT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "automations.suggest",
@@ -125,66 +108,7 @@
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "NO_COLLECTION",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "context.memory.recall",
@@ -228,31 +152,7 @@
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "GOVERNED_MEMORY",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "global.capabilities.read",
@@ -293,11 +193,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -313,101 +213,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "NO_COLLECTION",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "unscoped",
-          "scope_class": "public_corporate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "thread",
-          "scope_class": "public_thread",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "facility.overview.read",
@@ -453,15 +259,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           },
           {
             "path": "src/oyi-core/persistence/canonicalConversationPersistence.ts",
             "sha256": "2470e158633062852ca5b0be52e0c527eb3b23e6aa7336135ae9d8ea302a5a56"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -513,45 +323,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "OPERATIONAL_COMPOSITE",
-      "surface_scope_certification": [
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "facility.cameras.read",
@@ -574,7 +346,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/evidence/sources/cameraReads.ts",
-      "source_sha256": "73de33d13593bbd7b06a783386a7d374f5c168fcf2d35987ccbef18a6559d4c9",
+      "source_sha256": "48775e1231e975b31b63abe611a763af0a6f9404cb26b34725219a50e12812ae",
       "query": "facility_cameras (limit 100) then canonical camera current-state authority",
       "requested_scope": "Facility verified estate only; building, home, room and Consumer rejected",
       "effective_scope": "Same estate; camera access policy filters per camera",
@@ -598,11 +370,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/evidence/sources/cameraReads.ts",
-            "sha256": "73de33d13593bbd7b06a783386a7d374f5c168fcf2d35987ccbef18a6559d4c9"
+            "sha256": "48775e1231e975b31b63abe611a763af0a6f9404cb26b34725219a50e12812ae"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -617,45 +397,7 @@
       "certified_scopes": [
         "facility_estate"
       ],
-      "evidence_read_kind": "estate_scope",
-      "collector_family": "CURRENT_STATE",
-      "surface_scope_certification": [
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "estate_scope"
     },
     {
       "collector_id": "devices.status.read",
@@ -679,7 +421,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/evidence/sources/deviceReads.ts",
-      "source_sha256": "8f31791b07c7444103524db8d9e303c356065af6eee5b51409e4e3dceff2e5a6",
+      "source_sha256": "7be28bf188c08c56df0489ed7469efa6f86e52b614c3d40b5832eb59d9aab635",
       "query": "devices (limit 100) + rooms names + device_states cache-first hydration",
       "requested_scope": "Consumer verified home, optionally one membership-verified room; Facility rejected (home-only source)",
       "effective_scope": "Same home (and room), enforced in the query",
@@ -704,7 +446,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [],
@@ -715,66 +465,7 @@
         "consumer_home",
         "consumer_room"
       ],
-      "evidence_read_kind": "home_scope",
-      "collector_family": "CURRENT_STATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "home_scope"
     },
     {
       "collector_id": "devices.availability.read",
@@ -798,7 +489,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/evidence/sources/deviceReads.ts",
-      "source_sha256": "8f31791b07c7444103524db8d9e303c356065af6eee5b51409e4e3dceff2e5a6",
+      "source_sha256": "7be28bf188c08c56df0489ed7469efa6f86e52b614c3d40b5832eb59d9aab635",
       "query": "visitor_access",
       "requested_scope": "Consumer verified estate/home; Facility verified estate; building/room rejected",
       "effective_scope": "Same as admitted scope; Facility home restriction rejected",
@@ -823,11 +514,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -848,66 +547,7 @@
         "consumer_home",
         "consumer_room"
       ],
-      "evidence_read_kind": "home_scope",
-      "collector_family": "CURRENT_STATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "home_scope"
     },
     {
       "collector_id": "devices.activity.read",
@@ -931,7 +571,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/evidence/sources/deviceReads.ts",
-      "source_sha256": "8f31791b07c7444103524db8d9e303c356065af6eee5b51409e4e3dceff2e5a6",
+      "source_sha256": "7be28bf188c08c56df0489ed7469efa6f86e52b614c3d40b5832eb59d9aab635",
       "query": "ai_execution_ledger (limit 25) for the verified home since the declared window (default 6h)",
       "requested_scope": "Consumer verified home only; room, Facility and exact-object rejected",
       "effective_scope": "Same home, enforced in the query",
@@ -955,11 +595,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -979,66 +623,7 @@
       "certified_scopes": [
         "consumer_home"
       ],
-      "evidence_read_kind": "home_scope",
-      "collector_family": "EXECUTION_AUDIT_HISTORY",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "home_scope"
     },
     {
       "collector_id": "devices.failures.read",
@@ -1062,7 +647,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/evidence/sources/deviceReads.ts",
-      "source_sha256": "8f31791b07c7444103524db8d9e303c356065af6eee5b51409e4e3dceff2e5a6",
+      "source_sha256": "7be28bf188c08c56df0489ed7469efa6f86e52b614c3d40b5832eb59d9aab635",
       "query": "Same bounded ledger read; failure facts only",
       "requested_scope": "Consumer verified home only",
       "effective_scope": "Same home, enforced in the query",
@@ -1086,11 +671,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -1110,66 +699,7 @@
       "certified_scopes": [
         "consumer_home"
       ],
-      "evidence_read_kind": "home_scope",
-      "collector_family": "EXECUTION_AUDIT_HISTORY",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "home_scope"
     },
     {
       "collector_id": "devices.diagnosis.read",
@@ -1215,11 +745,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -1235,66 +765,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "EXECUTION_AUDIT_HISTORY",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "devices.relationships.read",
@@ -1340,11 +811,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -1360,66 +831,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "CURRENT_STATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "devices.capabilities.read",
@@ -1465,72 +877,13 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           }
         ],
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "CURRENT_STATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "wallet.transactions.read",
@@ -1575,19 +928,27 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/CapabilityResponseAdapter.ts",
-            "sha256": "10fb148b7f11fc0a2eea7d1c0f68c6a4363a766f4a77de6e91df3202d6ea04ad"
+            "sha256": "e8fe1a3da151dab92ebf29f251180468ead6b05794f2cb1d8eb1c026a876de63"
           },
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/domains/wallet/walletEvidence.ts",
             "sha256": "8ce7025cc8822140d554adc74652a7409d21d8b3ffd21d47744fb6bbe6dbb7f8"
           },
           {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -1627,31 +988,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "TRANSACTION_HISTORY",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "wallet.balance.read",
@@ -1696,11 +1033,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/domains/wallet/walletEvidence.ts",
             "sha256": "8ce7025cc8822140d554adc74652a7409d21d8b3ffd21d47744fb6bbe6dbb7f8"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -1732,31 +1077,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "BOUNDED_COLLECTION",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "utilities.spending.read",
@@ -1802,15 +1123,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/CapabilityResponseAdapter.ts",
-            "sha256": "10fb148b7f11fc0a2eea7d1c0f68c6a4363a766f4a77de6e91df3202d6ea04ad"
+            "sha256": "e8fe1a3da151dab92ebf29f251180468ead6b05794f2cb1d8eb1c026a876de63"
           },
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -1826,31 +1151,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "TRANSACTION_HISTORY",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "utilities.active.read",
@@ -1896,11 +1197,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -1916,66 +1221,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "OPERATIONAL_COMPOSITE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "utilities.usage.read",
@@ -2016,71 +1262,17 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "utilities.balance.read",
@@ -2120,36 +1312,13 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           }
         ],
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "utilities.meter.read",
@@ -2190,71 +1359,13 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           }
         ],
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "utilities.tariff.read",
@@ -2300,72 +1411,17 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           }
         ],
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "BOUNDED_COLLECTION",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "utilities.purchases.read",
@@ -2411,37 +1467,17 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "TRANSACTION_HISTORY",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "maintenance.requests.read",
@@ -2465,7 +1501,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/domains/maintenance/maintenanceEvidence.ts",
-      "source_sha256": "1a0ceee039dd7a2e93c7312d8908469d6023241a6b690bf68a0f168776ae26ad",
+      "source_sha256": "80caf4c2fc959a53db955fcd6c471c4787bc18c51ab250aa2885a58b719dbc33",
       "query": "maintenance_requests",
       "requested_scope": "Consumer verified estate/home; Facility verified estate; building/room rejected",
       "effective_scope": "Same as admitted scope; Facility home restriction rejected",
@@ -2486,15 +1522,23 @@
       "cancellation": "Not supported by these collectors; underlying read may finish",
       "audit_complete": true,
       "implementation_inspection": {
-        "collector_body": "async (context) => {\n                const facts = await (0, maintenanceEvidence_1.loadMaintenanceRequestFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact_2.evidenceFromFact);\n            }",
+        "collector_body": "async (context) => {\n                const facts = await (0, maintenanceEvidence_1.loadMaintenanceRequestFacts)(context.input, context.oisContext, requestContract(context), context.evidence_db);\n                return facts.map(evidenceFromFact_2.evidenceFromFact);\n            }",
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/domains/maintenance/maintenanceEvidence.ts",
-            "sha256": "1a0ceee039dd7a2e93c7312d8908469d6023241a6b690bf68a0f168776ae26ad"
+            "sha256": "80caf4c2fc959a53db955fcd6c471c4787bc18c51ab250aa2885a58b719dbc33"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -2515,65 +1559,7 @@
         "consumer_home",
         "facility_estate"
       ],
-      "evidence_read_kind": "operational_scope",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "operational_scope"
     },
     {
       "collector_id": "visitors.pending.read",
@@ -2597,7 +1583,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/domains/visitors/visitorEvidence.ts",
-      "source_sha256": "eb14e86c850ee98e7ef6b0771cff2eb549884e1d16e63fbdcb348c53bce4b6ac",
+      "source_sha256": "cce0d3f2e623b7520b7dc6f53dc0fbec0eacf2d2c7f50c8c5001fce7ac319a13",
       "query": "visitor_access",
       "requested_scope": "Consumer verified estate/home; Facility verified estate; building/room rejected",
       "effective_scope": "Same as admitted scope; Facility home restriction rejected",
@@ -2618,15 +1604,27 @@
       "cancellation": "Not supported by these collectors; underlying read may finish",
       "audit_complete": true,
       "implementation_inspection": {
-        "collector_body": "async (context) => {\n                const facts = await (0, visitorEvidence_1.loadVisitorAccessFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact_2.evidenceFromFact);\n            }",
+        "collector_body": "async (context) => {\n                const facts = await (0, visitorEvidence_1.loadVisitorAccessFacts)(context.input, context.oisContext, requestContract(context), context.evidence_db);\n                return facts.map(evidenceFromFact_2.evidenceFromFact);\n            }",
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/domains/visitors/visitorEvidence.ts",
-            "sha256": "eb14e86c850ee98e7ef6b0771cff2eb549884e1d16e63fbdcb348c53bce4b6ac"
+            "sha256": "cce0d3f2e623b7520b7dc6f53dc0fbec0eacf2d2c7f50c8c5001fce7ac319a13"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/bundle.ts",
+            "sha256": "080fc7a02935bceebdbb4595190b222f812af6fd038c2dabf0f8f249389657db"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -2647,65 +1645,7 @@
         "consumer_home",
         "facility_estate"
       ],
-      "evidence_read_kind": "operational_scope",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "operational_scope"
     },
     {
       "collector_id": "security.incidents.read",
@@ -2729,7 +1669,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/domains/security/securityEvidence.ts",
-      "source_sha256": "a6cc5e466db486e688a2f610782a2de8a86a0095df295f8638211b551a5b1a9e",
+      "source_sha256": "92102d32fe926ed8095ab651d198f5d33bc9d0ee4bc69a9df76c8c8d587f5941",
       "query": "facility_incidents",
       "requested_scope": "Consumer verified estate/home; Facility verified estate; building/room rejected",
       "effective_scope": "Same as admitted scope; Facility home restriction rejected",
@@ -2750,15 +1690,23 @@
       "cancellation": "Not supported by these collectors; underlying read may finish",
       "audit_complete": true,
       "implementation_inspection": {
-        "collector_body": "async (context) => {\n                const facts = await (0, securityEvidence_1.loadSecurityIncidentFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact_2.evidenceFromFact);\n            }",
+        "collector_body": "async (context) => {\n                const facts = await (0, securityEvidence_1.loadSecurityIncidentFacts)(context.input, context.oisContext, requestContract(context), context.evidence_db);\n                return facts.map(evidenceFromFact_2.evidenceFromFact);\n            }",
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/domains/security/securityEvidence.ts",
-            "sha256": "a6cc5e466db486e688a2f610782a2de8a86a0095df295f8638211b551a5b1a9e"
+            "sha256": "92102d32fe926ed8095ab651d198f5d33bc9d0ee4bc69a9df76c8c8d587f5941"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -2779,65 +1727,7 @@
         "consumer_home",
         "facility_estate"
       ],
-      "evidence_read_kind": "operational_scope",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "operational_scope"
     },
     {
       "collector_id": "services.active.read",
@@ -2882,37 +1772,13 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           }
         ],
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "OPERATIONAL_COMPOSITE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "community.latest.read",
@@ -2958,7 +1824,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/domains/community/communityEvidence.ts",
@@ -2982,66 +1848,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "BOUNDED_COLLECTION",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "messages.unread.read",
@@ -3081,36 +1888,13 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           }
         ],
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "scenes.list.read",
@@ -3133,7 +1917,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/domains/automations/sceneAutomationEvidence.ts",
-      "source_sha256": "46d706dbc1c318698e1e4685f4b76e3f95e54f0a9493235a46dab36bc83c12bd",
+      "source_sha256": "1f279b8aad9ff0c8da3e88efe68d2777476e1a4fee4f99788128b63b1d746078",
       "query": "consumer_scenes (limit 50)",
       "requested_scope": "Consumer verified home; room, Facility and public rejected",
       "effective_scope": "Same home, enforced in the query",
@@ -3153,15 +1937,19 @@
       "cancellation": "Not supported by these collectors; underlying read may finish",
       "audit_complete": true,
       "implementation_inspection": {
-        "collector_body": "async (context) => {\n                const facts = await (0, sceneAutomationEvidence_1.loadSceneFacts)(context.input, context.oisContext, requestContract(context));\n                return facts.map(evidenceFromFact_2.evidenceFromFact);\n            }",
+        "collector_body": "async (context) => {\n                const facts = await (0, sceneAutomationEvidence_1.loadSceneFacts)(context.input, context.oisContext, requestContract(context), context.evidence_db);\n                return facts.map(evidenceFromFact_2.evidenceFromFact);\n            }",
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/domains/automations/sceneAutomationEvidence.ts",
-            "sha256": "46d706dbc1c318698e1e4685f4b76e3f95e54f0a9493235a46dab36bc83c12bd"
+            "sha256": "1f279b8aad9ff0c8da3e88efe68d2777476e1a4fee4f99788128b63b1d746078"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           }
         ],
         "query_indicators": [
@@ -3197,31 +1985,7 @@
       "certified_scopes": [
         "consumer_home"
       ],
-      "evidence_read_kind": "home_scope",
-      "collector_family": "BOUNDED_COLLECTION",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "home_scope"
     },
     {
       "collector_id": "automations.list.read",
@@ -3266,15 +2030,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/domains/automations/sceneAutomationEvidence.ts",
-            "sha256": "46d706dbc1c318698e1e4685f4b76e3f95e54f0a9493235a46dab36bc83c12bd"
+            "sha256": "1f279b8aad9ff0c8da3e88efe68d2777476e1a4fee4f99788128b63b1d746078"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -3314,31 +2078,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "BOUNDED_COLLECTION",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "automations.runs.read",
@@ -3383,11 +2123,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           },
           {
             "path": "src/oyi-core/domains/automations/sceneAutomationEvidence.ts",
-            "sha256": "46d706dbc1c318698e1e4685f4b76e3f95e54f0a9493235a46dab36bc83c12bd"
+            "sha256": "1f279b8aad9ff0c8da3e88efe68d2777476e1a4fee4f99788128b63b1d746078"
           }
         ],
         "query_indicators": [
@@ -3419,31 +2159,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "TRANSACTION_HISTORY",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "reports.period_summary.read",
@@ -3482,71 +2198,13 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
-            "sha256": "a5bcc46cf93887443d41e9a0e9845ee9060f06a119eee7012091667a5c62ec0a"
+            "sha256": "29f01474a03fe2b50fe2695d84d4687d42707018daf7d0503ed880420563d4a1"
           }
         ],
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_OTHER",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "home.summary.read",
@@ -3604,7 +2262,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           },
           {
             "path": "src/oyi-core/persistence/canonicalConversationPersistence.ts",
@@ -3668,31 +2326,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "HOME_ROOM_AGGREGATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "home.attention.read",
@@ -3762,31 +2396,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "HOME_ROOM_AGGREGATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "home.activity.read",
@@ -3856,31 +2466,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "HOME_ROOM_AGGREGATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "room.status.read",
@@ -3943,31 +2529,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "HOME_ROOM_AGGREGATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "room.attention.read",
@@ -4030,31 +2592,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "HOME_ROOM_AGGREGATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "room.activity.read",
@@ -4117,31 +2655,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "HOME_ROOM_AGGREGATE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "rooms.inventory.read",
@@ -4203,66 +2717,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "BOUNDED_COLLECTION",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "estate",
-          "scope_class": "facility_estate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "building",
-          "scope_class": "facility_building",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "home",
-          "scope_class": "facility_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "room",
-          "scope_class": "facility_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "facility",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "anomalies.read",
@@ -4316,7 +2771,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -4332,31 +2787,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "PERSISTING_INTELLIGENCE_COMPOSITE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "predictions.read",
@@ -4412,31 +2843,7 @@
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "PERSISTING_INTELLIGENCE_COMPOSITE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "forecasts.read",
@@ -4492,31 +2899,7 @@
         "query_indicators": [],
         "bound_indicators": [],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "PERSISTING_INTELLIGENCE_COMPOSITE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "recommendations.read",
@@ -4570,7 +2953,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -4586,31 +2969,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "PERSISTING_INTELLIGENCE_COMPOSITE",
-      "surface_scope_certification": [
-        {
-          "surface": "consumer",
-          "scope": "home",
-          "scope_class": "consumer_home",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "room",
-          "scope_class": "consumer_room",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "consumer",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "crm.leads.read",
@@ -4628,7 +2987,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -4652,11 +3011,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -4676,23 +3043,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "crm.opportunities.read",
@@ -4710,7 +3061,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -4734,11 +3085,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -4758,23 +3117,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "reports.approvals.read",
@@ -4792,7 +3135,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -4816,11 +3159,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -4840,23 +3191,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "development.status.read",
@@ -4874,7 +3209,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -4898,11 +3233,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -4922,23 +3265,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "financial.summary.read",
@@ -4956,7 +3283,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -4980,11 +3307,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -5004,23 +3339,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "office_tasks.read",
@@ -5060,11 +3379,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -5080,24 +3399,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "SUPPLIED_CONTEXT_OBJECT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "office_tasks.query.read",
@@ -5115,7 +3417,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -5139,7 +3441,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [],
@@ -5149,24 +3459,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "collector_family": "OFFICE_SUPPLIED_SNAPSHOT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "office_automations.read",
@@ -5206,11 +3499,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -5226,24 +3519,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "SUPPLIED_CONTEXT_OBJECT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "office_automations.query.read",
@@ -5261,7 +3537,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -5285,7 +3561,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           }
         ],
         "query_indicators": [],
@@ -5295,24 +3575,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "collector_family": "OFFICE_SUPPLIED_SNAPSHOT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "office_meetings.read",
@@ -5352,11 +3615,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -5372,24 +3635,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "SUPPLIED_CONTEXT_OBJECT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "office_meetings.query.read",
@@ -5407,7 +3653,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -5431,7 +3677,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [],
@@ -5441,24 +3695,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "collector_family": "OFFICE_SUPPLIED_SNAPSHOT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "office_support.read",
@@ -5498,11 +3735,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -5518,24 +3755,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "SUPPLIED_CONTEXT_OBJECT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "office_support.query.read",
@@ -5553,7 +3773,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -5577,7 +3797,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [],
@@ -5587,24 +3815,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "collector_family": "OFFICE_SUPPLIED_SNAPSHOT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "office_portfolio.read",
@@ -5644,11 +3855,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -5664,24 +3875,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "SUPPLIED_CONTEXT_OBJECT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "office_portfolio.query.read",
@@ -5699,7 +3893,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -5723,7 +3917,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [],
@@ -5733,24 +3935,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "collector_family": "OFFICE_SUPPLIED_SNAPSHOT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "office_partnerships.read",
@@ -5790,11 +3975,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -5810,24 +3995,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "SUPPLIED_CONTEXT_OBJECT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "office_partnerships.query.read",
@@ -5845,7 +4013,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -5869,7 +4037,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           }
         ],
         "query_indicators": [],
@@ -5879,24 +4051,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "collector_family": "OFFICE_SUPPLIED_SNAPSHOT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "office_documents.read",
@@ -5936,11 +4091,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -5956,24 +4111,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "SUPPLIED_CONTEXT_OBJECT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "office_documents.query.read",
@@ -5991,7 +4129,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -6015,7 +4153,15 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [],
@@ -6025,24 +4171,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "collector_family": "OFFICE_SUPPLIED_SNAPSHOT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "office_content.read",
@@ -6082,11 +4211,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -6102,24 +4231,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "SUPPLIED_CONTEXT_OBJECT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "office_content.query.read",
@@ -6137,7 +4249,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef",
+      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -6161,7 +4273,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           }
         ],
         "query_indicators": [],
@@ -6171,24 +4287,7 @@
       "certified_scopes": [
         "office_permissioned_snapshot"
       ],
-      "evidence_read_kind": "office_snapshot",
-      "collector_family": "OFFICE_SUPPLIED_SNAPSHOT",
-      "surface_scope_certification": [
-        {
-          "surface": "office_internal",
-          "scope": "unscoped",
-          "scope_class": "office_permissioned_snapshot",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "office_internal",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "office_snapshot"
     },
     {
       "collector_id": "corporate.company.read",
@@ -6226,11 +4325,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -6246,31 +4345,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "PUBLIC_KNOWLEDGE_LOOKUP",
-      "surface_scope_certification": [
-        {
-          "surface": "public_corporate",
-          "scope": "unscoped",
-          "scope_class": "public_corporate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "thread",
-          "scope_class": "public_thread",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "corporate.development.read",
@@ -6286,7 +4361,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/evidence/sources/publicReads.ts",
-      "source_sha256": "ff62b4483a0bb2d3036805475cf59260810e84cb73ca7e5540eb1e4a42429fa3",
+      "source_sha256": "e99c3dc71c8b1dfe1734c9f79b1fbb0ccdb17d8d2b285f4f181a038b98b35bb7",
       "query": "Public Sanity CDN development project listing (GET, no credentials)",
       "requested_scope": "Public surface only",
       "effective_scope": "Public dataset",
@@ -6310,15 +4385,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
           },
           {
             "path": "src/oyi-core/evidence/sources/publicReads.ts",
-            "sha256": "ff62b4483a0bb2d3036805475cf59260810e84cb73ca7e5540eb1e4a42429fa3"
+            "sha256": "e99c3dc71c8b1dfe1734c9f79b1fbb0ccdb17d8d2b285f4f181a038b98b35bb7"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -6338,31 +4417,7 @@
       "certified_scopes": [
         "public_corporate"
       ],
-      "evidence_read_kind": "public_source",
-      "collector_family": "BOUNDED_COLLECTION",
-      "surface_scope_certification": [
-        {
-          "surface": "public_corporate",
-          "scope": "unscoped",
-          "scope_class": "public_corporate",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "thread",
-          "scope_class": "public_thread",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "public_source"
     },
     {
       "collector_id": "corporate.development.identity.read",
@@ -6400,11 +4455,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -6420,31 +4475,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "PUBLIC_KNOWLEDGE_LOOKUP",
-      "surface_scope_certification": [
-        {
-          "surface": "public_corporate",
-          "scope": "unscoped",
-          "scope_class": "public_corporate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "thread",
-          "scope_class": "public_thread",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "corporate.oyi.read",
@@ -6482,11 +4513,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -6502,31 +4533,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "PUBLIC_KNOWLEDGE_LOOKUP",
-      "surface_scope_certification": [
-        {
-          "surface": "public_corporate",
-          "scope": "unscoped",
-          "scope_class": "public_corporate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "thread",
-          "scope_class": "public_thread",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "corporate.private.read",
@@ -6564,11 +4571,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -6584,31 +4591,7 @@
           }
         ],
         "note": "Mechanically derived implementation/source indicators; whole-module indicators are not claims that every listed query belongs to this collector. Uncertified sources remain uncallable."
-      },
-      "collector_family": "PUBLIC_KNOWLEDGE_LOOKUP",
-      "surface_scope_certification": [
-        {
-          "surface": "public_corporate",
-          "scope": "unscoped",
-          "scope_class": "public_corporate",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "thread",
-          "scope_class": "public_thread",
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_COMPLETENESS",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      }
     },
     {
       "collector_id": "corporate.partnerships.read",
@@ -6624,7 +4607,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/evidence/sources/publicReads.ts",
-      "source_sha256": "ff62b4483a0bb2d3036805475cf59260810e84cb73ca7e5540eb1e4a42429fa3",
+      "source_sha256": "e99c3dc71c8b1dfe1734c9f79b1fbb0ccdb17d8d2b285f4f181a038b98b35bb7",
       "query": "Governed knowledge item backend:corporate-partnerships via deterministic canonical-key lookup",
       "requested_scope": "Public Osa/Oma surface only; no estate/home/thread scope",
       "effective_scope": "PUBLIC audience ceiling, agent oma",
@@ -6648,11 +4631,19 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "410e75041b9606b27ce6354c71cb489623baf136031c31687887633bbe9a16ef"
+            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/readiness.ts",
+            "sha256": "6e4ffdc0723ccc5cd13c6a89e5818779ca576c7c7cf8c6d108134c8818563210"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
           }
         ],
         "query_indicators": [
@@ -6673,31 +4664,7 @@
       "certified_scopes": [
         "public_corporate"
       ],
-      "evidence_read_kind": "public_source",
-      "collector_family": "PUBLIC_KNOWLEDGE_LOOKUP",
-      "surface_scope_certification": [
-        {
-          "surface": "public_corporate",
-          "scope": "unscoped",
-          "scope_class": "public_corporate",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "thread",
-          "scope_class": "public_thread",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "public_source"
     },
     {
       "collector_id": "corporate.opportunity.read",
@@ -6713,7 +4680,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/evidence/sources/publicReads.ts",
-      "source_sha256": "ff62b4483a0bb2d3036805475cf59260810e84cb73ca7e5540eb1e4a42429fa3",
+      "source_sha256": "e99c3dc71c8b1dfe1734c9f79b1fbb0ccdb17d8d2b285f4f181a038b98b35bb7",
       "query": "oyi_conversation_threads.metadata.public_opportunity_objective for the caller-owned public thread",
       "requested_scope": "Public thread owned by the caller (user_id and surface proven); no estate/home scope",
       "effective_scope": "One public thread",
@@ -6737,15 +4704,35 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts",
-            "sha256": "3327cfd527e2fc18263ea5f151f786819f05964dcbd69be02c014a6ecf1054d1"
+            "sha256": "b8aec6823c18a2540db4919e278ba041e8ceb0302da998baf8134db5faeceba9"
+          },
+          {
+            "path": "src/oyi-core/evidence/judgment/evidenceIndex.ts",
+            "sha256": "dd8f98061cffa895b72001d6eaa1797b8b05a1f99fddf1f51a07ab0928221598"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/bundle.ts",
+            "sha256": "080fc7a02935bceebdbb4595190b222f812af6fd038c2dabf0f8f249389657db"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
+            "sha256": "998ba625bf398375ffd9b24abaedc417d28f0177be2fb55a2adbbbe810e72e16"
+          },
+          {
+            "path": "src/oyi-core/evidence/planner/readiness.ts",
+            "sha256": "6e4ffdc0723ccc5cd13c6a89e5818779ca576c7c7cf8c6d108134c8818563210"
           },
           {
             "path": "src/oyi-core/evidence/sources/publicReads.ts",
-            "sha256": "ff62b4483a0bb2d3036805475cf59260810e84cb73ca7e5540eb1e4a42429fa3"
+            "sha256": "e99c3dc71c8b1dfe1734c9f79b1fbb0ccdb17d8d2b285f4f181a038b98b35bb7"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "4bf8024beddfdeaa267e58eefc6b09f366509a7f12fa365910457c77189435b8"
+            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+          },
+          {
+            "path": "src/oyi-core/response/envelopeMappers.ts",
+            "sha256": "1b0bd1e95b704624408de8cd8c56a6f95a578705f56410974777ea4c96423921"
           }
         ],
         "query_indicators": [
@@ -6765,31 +4752,7 @@
       "certified_scopes": [
         "public_thread"
       ],
-      "evidence_read_kind": "public_thread",
-      "collector_family": "PUBLIC_THREAD_OBJECTIVE",
-      "surface_scope_certification": [
-        {
-          "surface": "public_corporate",
-          "scope": "unscoped",
-          "scope_class": "public_corporate",
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "thread",
-          "scope_class": "public_thread",
-          "state": "CERTIFIED_PARTIAL",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        },
-        {
-          "surface": "public_corporate",
-          "scope": "exact_object",
-          "scope_class": null,
-          "state": "NOT_ELIGIBLE_SCOPE",
-          "authority": "Existing canUse plus verified actor/OIS required; row is not a permission grant"
-        }
-      ]
+      "evidence_read_kind": "public_thread"
     }
   ]
 }

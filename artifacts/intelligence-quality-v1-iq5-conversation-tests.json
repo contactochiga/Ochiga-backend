@@ -54,7 +54,7 @@
         "assessment_status": "evidence_gathered",
         "artifact_type": null,
         "stale": false,
-        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); Wave11 support case (open/active, recorded priority medium); Wave11 JV review (open/active, no priority or severity recorded) (listed, not ra"
+        "answer": "I can't put these in order: ordering these records takes comparative judgment on their recorded notes, which is not available right now.\n\nSupporting evidence: What is recorded: 2 leads needing attention; 2 stale opportunities; 1 development projects; 1 reports awaiting approval. Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed "
       },
       {
         "prompt": "Why is the second one more important than the others?",
@@ -65,10 +65,10 @@
       },
       {
         "prompt": "The Chairman for that project says financing is already secured.",
-        "assessment_status": "evidence_gathered",
+        "assessment_status": "derived_reference",
         "artifact_type": null,
         "stale": false,
-        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assess"
+        "answer": "I have noted that as your own statement “The Chairman for that project says financing is already secured”; I have not verified it and it is not confirmed evidence. There is no ordering for it to attach to or change: I have not ranked anything, so I am not recalculating anything."
       },
       {
         "prompt": "What's number one now?",
@@ -105,21 +105,21 @@
         "assessment_status": "derived_reference",
         "artifact_type": "ranking",
         "stale": true,
-        "answer": "I have noted that as your own statement; I have not verified it and it is not confirmed evidence. It does not change any record by itself: what is recorded keeps its recorded status until the records themselves are updated. The ordering I gave earlier was made before it, and it may change that ordering. I have not reassessed it, so I will not treat the earlier ordering as current. I can still tell you why the items were set out as they were at the time."
+        "answer": "I have noted that as your own statement “The Chairman for that project says financing is already secured”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 Abuja JV. It does not change any record by itself: Wave11 Abuja JV keeps the status it is recorded with until the record itself is updated. The ordering I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier ordering as current. Asking whether it changes the ordering reassesses only the evidence it could affect."
       },
       {
         "prompt": "What's number one now?",
         "assessment_status": "derived_reference",
         "artifact_type": "ranking",
-        "stale": true,
-        "answer": "I cannot say what comes first now. The ordering I gave was made before you told me something that may change it, and I have not reassessed it. I can still explain why items were ordered as they were at the time."
+        "stale": false,
+        "answer": "No — it does not change the ordering on the evidence I can read. Using your statement “The Chairman for that project says financing is already secured” (your own statement, which I have not verified), it does not change the ordering. If that statement is correct it could bear on Wave11 Abuja JV; I cannot confirm it from what I can read, so I have not changed the ordering on it. The assessment of Wave11 Abuja JV now reads: it is supported by its recorded stage and notes. I re-read 3 sources and reused 5 unchanged ones. Current assessment: Based on the evidence available, the order reflects recorded qualification and stage In order: 1. Wave11 Lead Beta: it is recorded as qualified with supplie"
       },
       {
         "prompt": "Why was number two there?",
         "assessment_status": "derived_reference",
         "artifact_type": "ranking",
-        "stale": true,
-        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: feasibility is not independently verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again. This was produced before you told me something"
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: feasibility is not independently verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again. This is the earlier assessment, kept so I can "
       }
     ],
     "facility": [
@@ -128,7 +128,7 @@
         "assessment_status": "evidence_gathered",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
+        "answer": "Yes — Wave11 unresolved water issue is the only open item, so it is first.\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
       },
       {
         "prompt": "Why the first one?",
@@ -156,7 +156,7 @@
         "assessment_status": "evidence_gathered",
         "artifact_type": "assessment_set",
         "stale": false,
-        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current. A building label is not a verified building scope; estate-wide records cannot establish that narrower view."
+        "answer": "I can't confirm that from the evidence I have.\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current. A building label is not a verified building scope; estate-wide records cannot establish that narrower view."
       }
     ],
     "consumer": [
@@ -211,13 +211,13 @@
         "prompt": "Which concern matters more?",
         "artifact_type": null,
         "stale": false,
-        "answer": "I can tell you about what Ochiga does, Ochiga's current developments, what Ochiga Development does, what Oyi is, Ochiga Private, partnering with Ochiga, a land, development or partnership opportunity you'd like to discuss. Ask me about any of these."
+        "answer": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Lekki; structure offered: JV. To move this forward, it would help to know: land size, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed."
       },
       {
         "prompt": "What about the ownership issue?",
         "artifact_type": null,
         "stale": false,
-        "answer": "This surface doesn't manage maintenance requests — that's tracked under Facility/Consumer, not here."
+        "answer": "You haven't told me landowner expectation yet.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Lekki; structure offered: JV. To move this forward, it would help to know: land size, landowner expectation, commercial terms."
       }
     ]
   }

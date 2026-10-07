@@ -110,6 +110,7 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
     if (e.subject.object_class === "camera" && e.limitations?.some(l => l.kind === "UNOBSERVED")) return done("YES_NO", `I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.`, legacy);
     if (e.hints?.permission_only && t.state_concept && (t.state_concept === "arrived" || t.state_concept === "departed")) return done("YES_NO", `I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.`, legacy);
   }
+  if (!e.records && e.hints?.requires_judgment && (intent === "RANKING" || intent === "COMPARISON")) return done("LIMITATION", "I can't put them in order or pick one: that takes comparative judgment on their recorded notes, which I don't have here.", legacy);
   if (!e.records) return null;
   const n = narrow(t, e), rows = n.rows, noun = e.subject.noun, one = e.subject.singular;
   const askedN = (c: number) => `${c} ${c === 1 ? one : noun}`;
@@ -130,10 +131,10 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
       if (!rows.length) return done("LIST", `None of the ${noun} I read match that.`, ...support);
       const head = cap(e.subject.population ? `${noun} ${e.subject.population}` : noun);
       const note = n.unmatched.length && !n.applicable.length ? ` I could not filter by "${n.unmatched.join(", ")}" from the records I read, so this is the full list.` : "";
-      return done("LIST", `${head}${n.applicable.length ? ` (${n.applicable.join(", ")})` : ""}: ${list(rows)}.${trunc ? ` This is a truncated view${e.total_count != null ? ` (${e.total_count} in total)` : ""}.` : ""}${note}`, ...support);
+      return done("LIST", `${head}${n.applicable.length ? ` (${n.applicable.join(", ")})` : ""}: ${list(rows)}.${trunc ? ` This is a truncated view${e.total_count != null ? ` (${e.total_count} in total)` : ""}.` : ""}${e.limitations?.some(l => l.kind === "STALE") ? " These readings are stale, so none of them shows a current condition (including whether anything is offline)." : ""}${note}`, ...support);
     }
     case "STATUS": {
-      if (!e.records.length) return done("STATUS", `There are no ${noun} on record in what I read — that is what the records show, not proof that nothing is wrong.`, ...support);
+      if (!e.records.length) return done("STATUS", `I do not see any ${noun} on record in what I read — that is what the records show, not proof that nothing is wrong.`, ...support);
       if (n.named.length === 1) { const r = n.named[0]; const extra = r.fields ? Object.entries(r.fields).filter(([k, v]) => v !== null && v !== "" && !["name", "title", "id", "status", "stage", "reason"].includes(k)).slice(0, 3).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`) : []; return done("DETAIL", `${r.label}: ${r.status ?? "recorded"}${r.detail ? `; ${r.detail}` : ""}${r.age_days != null ? `; ${r.age_days} days since its last recorded activity` : ""}${extra.length ? ` (${extra.join(", ")})` : ""}.`, ...support); }
       const by = new Map<string, EnvelopeRecord[]>(); for (const r of rows) by.set(norm(r.status || "recorded"), [...(by.get(norm(r.status || "recorded")) || []), r]);
       const parts = [...by].map(([s, rs]) => `${rs.length} ${s}${rs.length <= 3 ? ` (${rs.map(r => r.label).join(", ")})` : ""}`);

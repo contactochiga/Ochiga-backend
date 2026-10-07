@@ -178,7 +178,7 @@
       "status": "PASS"
     },
     {
-      "id": "judgment:no-ranking-artifact-for-a-non-ranking-question",
+      "id": "judgment:no-ranking-for-a-non-ranking-question",
       "status": "PASS"
     },
     {

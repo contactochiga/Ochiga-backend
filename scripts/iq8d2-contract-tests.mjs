@@ -64,6 +64,9 @@ ok('guarantee', () => {const qs = ['List my open requests', 'How many are open?'
   for (const e of [env({subject: {domain: 'x', object_class: null, noun: 'items', singular: 'item', facets: ['list']}, records: recs, count: 2}), env({subject: {domain: 'x', object_class: null, noun: 'items', singular: 'item', facets: ['list']}, records: [], count: 0, availability: 'empty'})])
     for (const q of qs) {const t = T(q); if (projectionRequired(t, e)) assert.ok(projectResponse(t, e, {asked: q, raw: q}), `required but not projected: ${q}`);}});
 ok('specialised-exempt', () => {for (const q of ['What can you do?', 'Did you switch the AC off for me earlier?']) assert.equal(projectionRequired(T(q), env({records: [], count: 0})), false, q); assert.equal(projectionRequired(T('turn off the kitchen light'), env({})), false);});
+// regression guards found by the wave 11 diff: a cancellation of a pending thing is not a constraint; judgment-required rankings without records stay limitations
+ok('cancel-not-constraint', () => {assert.equal(T("Actually, don't send it.").confirmation_kind, 'cancel'); assert.equal(T('Actually do not send it.').confirmation_kind, 'cancel'); assert.equal(T("Please don't share my wallet balance with any visitor.").confirmation_kind, 'constraint');});
+ok('ranking-needs-judgment-no-records', () => {const e = env({capability_key: 'crm.leads.read', hints: {requires_judgment: true}, legacy_prose: 'start with A'}); const p = P('Which ones need attention first?', e); assert.equal(p.shape, 'LIMITATION'); assert.match(p.primary, /can't put them in order/);});
 // every frozen class is covered
 ok('matrix-coverage', () => {const missing = Object.keys(matrix.classes).filter(c => !covered.has(c)); assert.deepEqual(missing, []);});
 console.log(JSON.stringify({status: 'PASS', tests: n}));
