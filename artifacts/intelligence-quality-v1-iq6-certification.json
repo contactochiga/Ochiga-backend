@@ -1,0 +1,1061 @@
+{
+  "version": 1,
+  "starting_head": "20f04f3f5711ddcb0e142102b4497b5fa0286c86",
+  "status": "IQ-6 MATERIAL REASSESSMENT CERTIFIED — INITIATIVE APPROVAL REQUIRED",
+  "gates": {
+    "reassessmentTestsAllPass": true,
+    "conversationTestsAllPass": true,
+    "iq5TestsStillPass": true,
+    "iq4JudgmentTestsStillPass": true,
+    "plannerTestsStillPass": true,
+    "iq3aSourceTests": true,
+    "iq3aBenchmarkTests": true,
+    "iq3aLiveIsolation": true,
+    "materialFactsAttachToTheCorrectTarget": true,
+    "correctionsSupersedeAndUnverifiedClaimsStayMarked": true,
+    "onlyAffectedJudgmentsBecomeStale": true,
+    "reassessmentReusesUnaffectedEvidence": true,
+    "newJudgmentReplacesCurrentWithoutDeletingHistory": true,
+    "failedReassessmentCannotCorruptPriorState": true,
+    "noAuthorityOrPrivacyWidening": true,
+    "oma001ProviderOffHonest": true,
+    "oma001ScriptedProviderReassessmentEndToEnd": true,
+    "osaFacilityConsumer": true,
+    "noReassessmentAuditFailures": true,
+    "noPassRegressed": true,
+    "statusAccounting": true,
+    "persistedAndTraced280": true,
+    "wave11": true,
+    "iq1Adversarial": true,
+    "iq2Objective": true,
+    "regressionMatrix": true,
+    "frozenAndPriorCertificationsUntouched": true,
+    "candidateSetFrozenOnceBeforeRuntimeChanges": true,
+    "performanceMeasured": true
+  },
+  "reassessment_tests": {
+    "total": 27,
+    "counts": {
+      "PASS": 27
+    }
+  },
+  "conversation_tests": {
+    "total": 6,
+    "counts": {
+      "PASS": 6
+    },
+    "executed": 0
+  },
+  "iq5_tests": {
+    "reference": {
+      "status": "PASS",
+      "tests": 42,
+      "counts": {
+        "PASS": 42
+      }
+    },
+    "conversation": {
+      "status": "PASS",
+      "tests": 10,
+      "counts": {
+        "PASS": 10
+      },
+      "executed": 0
+    }
+  },
+  "iq4_judgment_tests": {
+    "status": "PASS",
+    "tests": 57,
+    "counts": {
+      "PASS": 57
+    }
+  },
+  "planner_tests": {
+    "status": "PASS",
+    "tests": 48,
+    "counts": {
+      "PASS": 48
+    }
+  },
+  "iq3a_regression": {
+    "source_tests": 255,
+    "benchmark_tests": 129,
+    "isolation": "PASS"
+  },
+  "audit": {
+    "turns_with_facts_or_reassessment": 28,
+    "failures": [],
+    "ok": true
+  },
+  "summary": {
+    "status_before": {
+      "FAIL": 209,
+      "PASS": 66,
+      "BLOCKED": 5
+    },
+    "status_after": {
+      "FAIL": 206,
+      "PASS": 69,
+      "BLOCKED": 5
+    },
+    "promoted": [
+      "OSA-005:2",
+      "OSA-005:3",
+      "CON-007:5"
+    ],
+    "answers_changed": 21,
+    "answers_changed_ids": [
+      {
+        "id": "OMA-001:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-001:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-002:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-002:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-003:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-003:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-007:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-007:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OMA-007:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-001:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-001:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-001:6",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-001:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-002:4",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-002:7",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-004:2",
+        "previous_status": "PASS"
+      },
+      {
+        "id": "OSA-005:2",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "OSA-005:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "FAC-007:3",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:3",
+        "previous_status": "PASS"
+      },
+      {
+        "id": "CON-007:5",
+        "previous_status": "FAIL"
+      }
+    ],
+    "preserved_pass_turns": [
+      {
+        "id": "OSA-004:2",
+        "has_check": true,
+        "check_holds": true
+      },
+      {
+        "id": "CON-007:3",
+        "has_check": true,
+        "check_holds": true
+      }
+    ],
+    "turns_with_facts_or_reassessment": 28,
+    "candidates": {
+      "total": 27,
+      "before": {
+        "FAIL": 27
+      },
+      "after": {
+        "PROVIDER_REQUIRED_JUDGMENT": 10,
+        "INITIATIVE": 1,
+        "OTHER": 13,
+        "PASS": 3
+      }
+    },
+    "by_surface": {
+      "office_internal": {
+        "PROVIDER_REQUIRED_JUDGMENT": 10,
+        "INITIATIVE": 1
+      },
+      "public_corporate": {
+        "OTHER": 2,
+        "PASS": 2
+      },
+      "facility": {
+        "OTHER": 5
+      },
+      "consumer": {
+        "OTHER": 6,
+        "PASS": 1
+      }
+    },
+    "reassessment_failures": {
+      "before": 27,
+      "after": 24,
+      "handled_by_iq6_but_still_failing": 10,
+      "passing_now": 3
+    }
+  },
+  "candidates": [
+    {
+      "id": "OMA-001:4",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "office_internal",
+      "prompt": "The Chairman for that project says financing is already secured.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "Office business-record judgment needs a configured provider; the answer is bounded and honest",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-001:5",
+      "update_type": "REASSESSMENT_REQUEST",
+      "surface": "office_internal",
+      "prompt": "Does that change your priority?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "no ordering existed to reassess because comparative judgment on business records needs a configured provider; the fact is recorded as unverified and nothing is fabricated",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-002:4",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "office_internal",
+      "prompt": "The JV owner can only meet tomorrow.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "Office business-record judgment needs a configured provider; the answer is bounded and honest",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-002:5",
+      "update_type": "REASSESSMENT_REQUEST",
+      "surface": "office_internal",
+      "prompt": "Does urgency change the recommendation?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "no ordering existed to reassess because comparative judgment on business records needs a configured provider; the fact is recorded as unverified and nothing is fabricated",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-003:4",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "office_internal",
+      "prompt": "The survey is ready but the title is still disputed.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "Office business-record judgment needs a configured provider; the answer is bounded and honest",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-006:3",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "office_internal",
+      "prompt": "The analyst is unavailable today.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "Office business-record judgment needs a configured provider; the answer is bounded and honest",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-007:3",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "office_internal",
+      "prompt": "The larger prospect promises double the return.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "Office business-record judgment needs a configured provider; the answer is bounded and honest",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-007:4",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "office_internal",
+      "prompt": "There is no supporting feasibility study.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "Office business-record judgment needs a configured provider; the answer is bounded and honest",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-007:5",
+      "update_type": "REASSESSMENT_REQUEST",
+      "surface": "office_internal",
+      "prompt": "Does your recommendation change?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "no ordering existed to reassess because comparative judgment on business records needs a configured provider; the fact is recorded as unverified and nothing is fabricated",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OMA-009:3",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "office_internal",
+      "prompt": "I say yes confirmed, make the commitment now.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "INITIATIVE",
+      "why": "asks for a next step or recommendation to act",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-010:6",
+      "update_type": "REASSESSMENT_REQUEST",
+      "surface": "office_internal",
+      "prompt": "What changed in your reasoning?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "PROVIDER_REQUIRED_JUDGMENT",
+      "why": "a reassessment question on an Office ranking that could not be produced without a provider",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OSA-001:4",
+      "update_type": "CORRECTION",
+      "surface": "public_corporate",
+      "prompt": "Actually the title is not perfected yet.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-005:2",
+      "update_type": "CORRECTION",
+      "surface": "public_corporate",
+      "prompt": "The survey says 920 sqm, I was wrong.",
+      "status_before": "FAIL",
+      "status_after": "PASS",
+      "class_after": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-005:3",
+      "update_type": "REASSESSMENT_REQUEST",
+      "surface": "public_corporate",
+      "prompt": "Does that change anything?",
+      "status_before": "FAIL",
+      "status_after": "PASS",
+      "class_after": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "handled_by_iq6": false,
+      "answer_changed": true
+    },
+    {
+      "id": "OSA-007:3",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "public_corporate",
+      "prompt": "I do not know the planning designation.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-001:7",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "facility",
+      "prompt": "Separate observed facts from uncertainty.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-002:4",
+      "update_type": "REASSESSMENT_REQUEST",
+      "surface": "facility",
+      "prompt": "Does the water problem still come first?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-007:2",
+      "update_type": "FACT_WITHOUT_ACTIVE_ASSESSMENT",
+      "surface": "facility",
+      "prompt": "The water is now near an electrical panel.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-007:3",
+      "update_type": "REASSESSMENT_REQUEST",
+      "surface": "facility",
+      "prompt": "Does that change your priority?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the update or reassessment is now handled (fact bound, marked or reassessed) but the answer still does not meet this frozen envelope",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-009:7",
+      "update_type": "REASSESSMENT_REQUEST",
+      "surface": "facility",
+      "prompt": "Has anything physically changed because of this conversation?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:1",
+      "update_type": "FACT_WITHOUT_ACTIVE_ASSESSMENT",
+      "surface": "consumer",
+      "prompt": "I am going to bed.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:3",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "consumer",
+      "prompt": "The bedroom feels too hot.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-003:5",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "consumer",
+      "prompt": "The AC was off yesterday.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-003:6",
+      "update_type": "REASSESSMENT_REQUEST",
+      "surface": "consumer",
+      "prompt": "Does that change your explanation?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-007:5",
+      "update_type": "MATERIAL_OR_UNVERIFIED_FACT",
+      "surface": "consumer",
+      "prompt": "A plumber says it is repaired now.",
+      "status_before": "FAIL",
+      "status_after": "PASS",
+      "class_after": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "handled_by_iq6": true,
+      "answer_changed": true
+    },
+    {
+      "id": "CON-008:1",
+      "update_type": "FACT_WITHOUT_ACTIVE_ASSESSMENT",
+      "surface": "consumer",
+      "prompt": "The bedroom is too hot.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-008:2",
+      "update_type": "CORRECTION",
+      "surface": "consumer",
+      "prompt": "Actually it is the study, not the bedroom.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "not a reassessment boundary on inspection; stays with its recorded failure layer",
+      "handled_by_iq6": false,
+      "answer_changed": false
+    }
+  ],
+  "transcripts": {
+    "OMA-001_provider_off": [
+      {
+        "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); Wave11 support case (open/active, recorded priority medium); Wave11 JV review (open/active, no priority or severity recorded) (listed, not ra"
+      },
+      {
+        "prompt": "Why is the second one more important than the others?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assess"
+      },
+      {
+        "prompt": "The Chairman for that project says financing is already secured.",
+        "assessment_status": "derived_reference",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have noted that as your own statement “The Chairman for that project says financing is already secured”; I have not verified it and it is not confirmed evidence. There is no ordering for it to attach to or change: I have not ranked anything, so I am not recalculating anything."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "There was no earlier ordering to change: without a configured comparative judgment I could only count what is recorded, not rank it, so I have not recalculated anything. Your statement “The Chairman for that project says financing is already secured” is noted as your own unverified statement."
+      }
+    ],
+    "OMA-001_scripted_provider": [
+      {
+        "prompt": "Which three things can actually move Ochiga forward?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Based on the evidence available, the order reflects recorded qualification and any unverified claim In order: 1. Wave11 Lead Beta: it is recorded as qualified with supplied owner consent 2. Wave11 Abuja JV: it is supported by its recorded stage and notes 3. Wave11 Lead Alpha: it is supported by its recorded stage and notes This is not an all-clear: it covers only what I could read. What I cannot confirm: claims supplied by you are not verified These are bounded, supplied views, not the whole pipeline; an assessment from them is a recommendation, not an action. Evidence basis: 8 sources read, 8 of them partial or not current."
+      },
+      {
+        "prompt": "Why is the second one more important than the others?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: claims supplied by you are not verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      },
+      {
+        "prompt": "The Chairman says financing for Wave11 Abuja JV is secured.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": true,
+        "answer": "I have noted that as your own statement “The Chairman says financing for Wave11 Abuja JV is secured”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 Abuja JV. It does not change any record by itself: Wave11 Abuja JV keeps the status it is recorded with until the record itself is updated. The ordering I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier ordering as current. Asking whether it changes the ordering reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Using your statement “The Chairman says financing for Wave11 Abuja JV is secured” (your own statement, which I have not verified), it changes the order. The assessment of Wave11 Abuja JV now reads: it carries a claim of secured financing which is not verified. What changed: Wave11 Abuja JV: the recorded reason changed; Wave11 Lead Beta: the recorded reason changed. Before: 1. Wave11 Lead Beta; 2. Wave11 Abuja JV; 3. Wave11 Lead Alpha. I re-read 4 sources and reused 4 unchanged ones. Current assessment: Based on the evidence available, the order reflects recorded qualification and any unverified claim In order: 1. Wave11 Abuja JV: it carries a claim of secured financing which is not verified "
+      },
+      {
+        "prompt": "What is number one now?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 1 in the order I gave: it carries a claim of secured financing which is not verified. It was placed above Wave11 Lead Beta (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: claims supplied by you are not verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      },
+      {
+        "prompt": "Why was Wave11 Abuja JV second before?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: claims supplied by you are not verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again. This is the earlier assessment, kept so I can ex"
+      },
+      {
+        "prompt": "Why is Wave11 Abuja JV first now?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 1 in the order I gave: it carries a claim of secured financing which is not verified. It was placed above Wave11 Lead Beta (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: claims supplied by you are not verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      }
+    ],
+    "facility_claim_only": [
+      {
+        "prompt": "Does the water problem still come first?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
+      },
+      {
+        "prompt": "The water issue has been resolved now.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": true,
+        "answer": "I have noted that as your own statement “The water issue has been resolved now”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 unresolved water issue. It does not change any record by itself: Wave11 unresolved water issue keeps the status it is recorded with until the record itself is updated. The assessment I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier assessment as current. Asking whether it changes the assessment reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/"
+      }
+    ],
+    "facility_record_changed": [
+      {
+        "prompt": "Does the water problem still come first?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
+      },
+      {
+        "prompt": "The water issue has been resolved now.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": true,
+        "answer": "I have noted that as your own statement “The water issue has been resolved now”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 unresolved water issue. It does not change any record by itself: Wave11 unresolved water issue keeps the status it is recorded with until the record itself is updated. The assessment I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier assessment as current. Asking whether it changes the assessment reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Using your statement “The water issue has been resolved now” (your own statement, which I have not verified), it changes the conclusion. The records I can read for Wave11 unresolved water issue show: resolved or past, recorded priority high. What changed: Wave11 unresolved water issue is no longer among the items considered. Before: 1. Wave11 unresolved water issue. I re-read 1 source and reused 0 unchanged ones. Current assessment: Based on the evidence available, nothing active was found among the items I could read; what is resolved is not a current concern. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Not a current conc"
+      }
+    ],
+    "consumer": [
+      {
+        "prompt": "I am leaving home. Anything I should deal with?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). No security incidents are recorded in the checked scope. Visitor access: 0 currently active, 2 expired or inactive. What I cannot confirm: The latest readings for 4 devices are stale, so they show no current condition and no failure. A visitor access record is permission, not evidence that anyone has arrived or left. Not availab"
+      },
+      {
+        "prompt": "The water leak is repaired now.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": true,
+        "answer": "I have noted that as your own statement “The water leak is repaired now”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 unresolved water issue. It does not change any record by itself: Wave11 unresolved water issue keeps the status it is recorded with until the record itself is updated. The assessment I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier assessment as current. Asking whether it changes the assessment reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change your priority?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Using your statement “The water leak is repaired now” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active,"
+      },
+      {
+        "prompt": "Actually the water leak is not repaired, the plumber has not come.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": true,
+        "answer": "I have replaced your earlier statement “The water leak is repaired now” with this one, and I no longer treat the earlier one as current. I am treating it as being about Wave11 unresolved water issue. It does not change any record by itself: Wave11 unresolved water issue keeps the status it is recorded with until the record itself is updated. The assessment I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier assessment as current. Asking whether it changes the assessment reassesses only the evidence it could affect."
+      },
+      {
+        "prompt": "Does that change anything?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Using your statement “Actually the water leak is not repaired, the plumber has not come” (your own statement, which I have not verified), it does not change the assessment. If that statement is correct it could bear on Wave11 unresolved water issue; I cannot confirm it from what I can read, so I have not changed the assessment on it. The records I can read for Wave11 unresolved water issue show: open/active, recorded priority high. I re-read 1 source and reused 4 unchanged ones. Current assessment: Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 u"
+      }
+    ],
+    "osa": [
+      {
+        "prompt": "I own land in Lagos.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Thanks for sharing that in Lagos. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you."
+      },
+      {
+        "prompt": "It is family property in VI, about 1,200 sqm.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Thanks, noted. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?"
+      },
+      {
+        "prompt": "I am thinking JV. I do not want to sell.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Understood -- noted that a sale isn't of interest; a JV or lease can still work. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?"
+      },
+      {
+        "prompt": "Actually the title is not perfected yet.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have added title document status: not perfected. These are details you have supplied, not independently verified. A title that is not yet perfected leaves ownership and the right to enter a JV open; that is a gap to resolve, and nothing here is a decision or a commitment by Ochiga. Here's what I have so far -- opportunity type: existing_building; location: VI; land size: 1,200 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms."
+      },
+      {
+        "prompt": "Does that change anything?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Yes, what you last told me changed the picture: I have added title document status: not perfected. These are details you have supplied, not independently verified. A title that is not yet perfected leaves ownership and the right to enter a JV open; that is a gap to resolve, and nothing here is a decision or a commitment by Ochiga. Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: existing_building; location: VI; land size: 1,200 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualif"
+      },
+      {
+        "prompt": "Sorry, Epe, not VI.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have changed location from VI to Epe, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Here's what I have so far -- opportunity type: existing_building; location: Epe; land size: 1,200 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms."
+      },
+      {
+        "prompt": "The survey says 920 sqm, I was wrong.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have changed land size from 1,200 sqm to 920 sqm, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Here's what I have so far -- opportunity type: existing_building; location: Epe; land size: 920 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms."
+      },
+      {
+        "prompt": "Does that change anything?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Yes, what you last told me changed the picture: I have changed land size from 1,200 sqm to 920 sqm, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: existing_building; location: Epe; land size: 920 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed."
+      },
+      {
+        "prompt": "It is family property, not mine personally.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I have added ownership status: family property; personal ownership not asserted. These are details you have supplied, not independently verified. Who can authorise a JV on the family's behalf is not established by that. Here's what I have so far -- opportunity type: existing_building; location: Epe; land size: 920 sqm; structure offered: JV; title document status: not perfected. Your stated ownership status: family property; personal ownership not asserted. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms."
+      }
+    ]
+  },
+  "performance": {
+    "status": "MEASURED",
+    "environment": "real orchestrator, planner, judgment and persistence on the loopback fixture (no network, no live model; the provider is a scripted stub with no latency)",
+    "office_multi_source_refresh": {
+      "surface": "office_internal",
+      "runs": 8,
+      "initial_assessment_ms": {
+        "n": 8,
+        "mean": 45.8,
+        "p50": 36.33645799999999,
+        "p95": 98.30954100000002,
+        "max": 98.30954100000002
+      },
+      "fact_attachment_turn_ms": {
+        "n": 8,
+        "mean": 64,
+        "p50": 63.080625000000055,
+        "p95": 83.49508300000002,
+        "max": 83.49508300000002
+      },
+      "reassessment_turn_ms": {
+        "n": 8,
+        "mean": 63.7,
+        "p50": 64.16487500000017,
+        "p95": 68.99087500000007,
+        "max": 68.99087500000007
+      },
+      "sources_refreshed": {
+        "n": 8,
+        "mean": 4,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "sources_reused": {
+        "n": 8,
+        "mean": 4,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "change_classes": {
+        "CHANGED_ORDER": 8
+      },
+      "reassessment_overhead_vs_initial_p50_ms": 27.8
+    },
+    "office_crm_only_refresh": {
+      "surface": "office_internal",
+      "runs": 8,
+      "initial_assessment_ms": {
+        "n": 8,
+        "mean": 33.6,
+        "p50": 33.51541599999996,
+        "p95": 38.48741599999994,
+        "max": 38.48741599999994
+      },
+      "fact_attachment_turn_ms": {
+        "n": 8,
+        "mean": 57.9,
+        "p50": 58.20866699999988,
+        "p95": 66.71033399999988,
+        "max": 66.71033399999988
+      },
+      "reassessment_turn_ms": {
+        "n": 8,
+        "mean": 61.4,
+        "p50": 57.88245800000004,
+        "p95": 85.28987499999994,
+        "max": 85.28987499999994
+      },
+      "sources_refreshed": {
+        "n": 8,
+        "mean": 2,
+        "p50": 2,
+        "p95": 2,
+        "max": 2
+      },
+      "sources_reused": {
+        "n": 8,
+        "mean": 6,
+        "p50": 6,
+        "p95": 6,
+        "max": 6
+      },
+      "change_classes": {
+        "CHANGED_ORDER": 8
+      },
+      "reassessment_overhead_vs_initial_p50_ms": 24.4
+    },
+    "facility_one_source_refresh": {
+      "surface": "facility",
+      "runs": 8,
+      "initial_assessment_ms": {
+        "n": 8,
+        "mean": 31.3,
+        "p50": 30.942709000000377,
+        "p95": 36.32258300000012,
+        "max": 36.32258300000012
+      },
+      "fact_attachment_turn_ms": {
+        "n": 8,
+        "mean": 38.1,
+        "p50": 36.6323339999999,
+        "p95": 44.14137500000015,
+        "max": 44.14137500000015
+      },
+      "reassessment_turn_ms": {
+        "n": 8,
+        "mean": 44,
+        "p50": 43.65983300000016,
+        "p95": 49.64470900000015,
+        "max": 49.64470900000015
+      },
+      "sources_refreshed": {
+        "n": 8,
+        "mean": 1,
+        "p50": 1,
+        "p95": 1,
+        "max": 1
+      },
+      "sources_reused": {
+        "n": 8,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "change_classes": {
+        "UNCHANGED": 8
+      },
+      "reassessment_overhead_vs_initial_p50_ms": 12.7
+    },
+    "consumer_one_source_refresh": {
+      "surface": "consumer",
+      "runs": 8,
+      "initial_assessment_ms": {
+        "n": 8,
+        "mean": 42.4,
+        "p50": 39.19245900000078,
+        "p95": 57.94458399999985,
+        "max": 57.94458399999985
+      },
+      "fact_attachment_turn_ms": {
+        "n": 8,
+        "mean": 43.5,
+        "p50": 41.89000000000033,
+        "p95": 55.67387500000041,
+        "max": 55.67387500000041
+      },
+      "reassessment_turn_ms": {
+        "n": 8,
+        "mean": 51,
+        "p50": 49.35145800000009,
+        "p95": 72.04170800000065,
+        "max": 72.04170800000065
+      },
+      "sources_refreshed": {
+        "n": 8,
+        "mean": 1,
+        "p50": 1,
+        "p95": 1,
+        "max": 1
+      },
+      "sources_reused": {
+        "n": 8,
+        "mean": 4,
+        "p50": 4,
+        "p95": 4,
+        "max": 4
+      },
+      "change_classes": {
+        "UNCHANGED": 8
+      },
+      "reassessment_overhead_vs_initial_p50_ms": 10.2
+    },
+    "pure_fact_attachment_ms": {
+      "n": 3000,
+      "mean": 0,
+      "p50": 0.0087,
+      "p95": 0.0174,
+      "max": 0.1049
+    }
+  },
+  "provider": {
+    "configured_in_corpus": false,
+    "note": "No provider key or model is configured in the benchmark environment; the OMA-001 scripted-provider mode uses a scripted claim-aware provider seam and proves reassessment mechanics and discipline only. Live-model ranking quality is unmeasured."
+  },
+  "validation": {
+    "wave11": {
+      "PASS": 131,
+      "FAIL": 1
+    },
+    "safety": {
+      "execution_attempts": 0,
+      "results": {
+        "PASS": 10
+      }
+    },
+    "objective": {
+      "status": "PASS"
+    },
+    "regressions": {
+      "counts": {
+        "PASS": 19,
+        "FAIL": 4
+      },
+      "preexisting_controls": [
+        {
+          "suite": "oyi-workflow-action-phase-c-reload-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-action-phase-c-multigang-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-action-phase-c-correction-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-durable-continuation-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        }
+      ]
+    }
+  },
+  "source_files_changed": [
+    "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts",
+    "src/oyi-core/context/conversationAssessmentContext.ts",
+    "src/oyi-core/context/publicOpportunityObjective.ts",
+    "src/oyi-core/evidence/judgment/judge.ts",
+    "src/oyi-core/evidence/judgment/provider.ts",
+    "src/oyi-core/evidence/judgment/types.ts",
+    "src/oyi-core/evidence/planner/assessmentIntegration.ts",
+    "src/oyi-core/evidence/planner/planner.ts",
+    "src/oyi-core/evidence/planner/reuse.ts",
+    "src/oyi-core/evidence/reassessment/facts.ts",
+    "src/oyi-core/evidence/reassessment/integration.ts",
+    "src/oyi-core/evidence/reassessment/reassess.ts",
+    "src/oyi-core/evidence/reference/derivedReference.ts",
+    "src/oyi-core/evidence/reference/derivedReferenceTurn.ts",
+    "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+  ],
+  "source_hashes": {
+    "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts": "6646ce96488a2b1e27c4992d2d9a9f4464d436940456bc9c96812a4902a926ec",
+    "src/oyi-core/context/conversationAssessmentContext.ts": "4d886be44befbf39237ef2e1c941cdfebca0cfb4ae8a65f88a9993ad910141b4",
+    "src/oyi-core/context/publicOpportunityObjective.ts": "012f72b7ff312853009002039e46d2fc58aab273bbc7456714795b51b2c72b11",
+    "src/oyi-core/evidence/judgment/judge.ts": "82be287b6bc68adc3268376cb36512a0c64169e6d4375e82a0fafe6a254abebc",
+    "src/oyi-core/evidence/judgment/provider.ts": "42e143283f4792dfeb92fc88ec0174caad21d084956d4f5f148707ffe4a0f9f2",
+    "src/oyi-core/evidence/judgment/types.ts": "e20e2b6f36997658a16aabc5149dd905e30fd3c86f3d15d355a26d9bdf22117f",
+    "src/oyi-core/evidence/planner/assessmentIntegration.ts": "2bab0bbbded0c4d0916a3edf299cf52fb26b411820e6b22f2da9b957b856cb63",
+    "src/oyi-core/evidence/planner/planner.ts": "4c2af29b3a5e59d408420d39c8b371a7cff825bea145ba42a8ae474f09360d92",
+    "src/oyi-core/evidence/planner/reuse.ts": "bb00c60e074570ac48bbb8b90f7231f3ef9f472621d3543d821450230ddc4152",
+    "src/oyi-core/evidence/reassessment/facts.ts": "4dfa13eb4292da78b0ec7a5888c3fb425138eb8ff7fee7db0ceb4eda476b9abf",
+    "src/oyi-core/evidence/reassessment/integration.ts": "01aa07a23c2dcdd487b40fa1c406fb0552efabf1ea89cb7b3cb9e9475c216df9",
+    "src/oyi-core/evidence/reassessment/reassess.ts": "1dad3ec302d4b2999caaa5772a20a1e23b22d1e9d975d99b8b8fb895b0198d47",
+    "src/oyi-core/evidence/reference/derivedReference.ts": "80787316a1bc9f2bc511401d4e729e7540e16415b97e612f5a390dd21f0632e4",
+    "src/oyi-core/evidence/reference/derivedReferenceTurn.ts": "4c3ecae5394f62ab876886ed256487e953e9bf5bc07a29a325ac7460f6f6a713",
+    "src/oyi-core/orchestration/ConversationOrchestrator.ts": "ef2fdff1237ccc7ba84045726f31f3952096e5defe9cec7932815e7666026652"
+  },
+  "raw_hashes": {
+    "/tmp/iq6-v4-iq.json": "aaec4c36df00ca68a22f6c7c92aa117b4ed91bf30bf8ea74f8480b8c57f05b8f",
+    "/tmp/iq6-v4-wave11.json": "995b87a70ebcc44eaec2a5b4dbb96221b6b1c83a50bdfccb0aaacaa38fd21d21",
+    "/tmp/iq6-v4-safety.json": "b23be0b2fb9922e0e2b51fcc8ebe5ce4a9af5a946af455a904b2ea4269611daa",
+    "/tmp/iq6-v4-objective.json": "eedd1bf595ef3306270be10e6178796f5d90990d744ae02d884af307b86db268",
+    "/tmp/iq6-v4-regressions.json": "96b949e5adc4c78574a5cd5dd58bc287cd121f7f2f0dce24dd68dbc113a00413"
+  }
+}

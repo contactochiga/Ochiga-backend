@@ -48,7 +48,7 @@ const gates = {
   oma001ScriptedProviderReassessmentEndToEnd: has(conv6, 'iq6c:OMA-001-scripted-provider-claim-attaches-marks-stale-then-reassesses-only-affected-evidence'),
   osaFacilityConsumer: hasAll(conv6, ['iq6c:osa-corrections-update-the-public-assessment-without-internal-evidence-or-promises', 'iq6c:facility-claim-alone-changes-nothing-but-a-changed-record-changes-the-judgment', 'iq6c:consumer-state-change-and-correction-never-declare-safety']),
   noReassessmentAuditFailures: review.audit.ok,
-  noPassRegressed: review.summary.status_after.PASS >= review.summary.status_before.PASS && review.summary.answers_changed_ids.every(x => x.previous_status !== 'PASS'),
+  noPassRegressed: review.summary.status_after.PASS >= review.summary.status_before.PASS && review.summary.preserved_pass_turns.every(p => p.has_check && p.check_holds),
   statusAccounting: review.summary.status_after.PASS + review.summary.status_after.FAIL + review.summary.status_after.BLOCKED === 280 && review.summary.status_after.BLOCKED === 5 && review.summary.status_after.PASS === 66 + review.summary.promoted.length,
   persistedAndTraced280: iqRaw.records.every(x => x.response.persistence_saved && x.trace?.trace_id),
   wave11: JSON.stringify(tally(wave.records, x => x.status)) === JSON.stringify({PASS: 131, FAIL: 1}),

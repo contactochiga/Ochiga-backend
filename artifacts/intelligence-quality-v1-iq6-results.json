@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "IQ6_REVIEW",
-  "raw_sha256": "a909b3cc207619845047d84b2ab4684a69c105032e3d30804f34f70cd5eea4d6",
+  "raw_sha256": "aaec4c36df00ca68a22f6c7c92aa117b4ed91bf30bf8ea74f8480b8c57f05b8f",
   "baseline_sha256": "1b67c6b4cb56ae53bf2448515849d9d0bbcdcfc04ac92c5a3a329aa268c9c197",
   "note": "Promotion checks are self-graded; the audit is the certification gate. Candidate classes for non-PASS turns come from frozen rules over the prompt/surface and what IQ-6 did, not from a regrade.",
   "audit": {
