@@ -168,7 +168,7 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
         const c = named[0], askedSrc = SOURCE_BY_NOUN.find(([re]) => T.some(t => re.test(t)));
         const askedTok = askedSrc ? T.find(t => askedSrc[0].test(t)) : null;
         if (askedSrc && !String(c.source_key || "").includes(askedSrc[1])) return { lead: sentence(`I have no ${askedTok} record under that name — the only record I read is ${c.ref.label} (${SOURCE_NOUN[c.source_key] || c.source_key}: ${describe(c).join(", ")}), so I can't say why it counts that way`), support: [] };
-        return { lead: sentence(`${c.ref.label} is on the list because of what is recorded: ${describe(c).join(", ")}${c.signals[0] && !describe(c).includes(c.signals[0].text) ? ` (${c.signals[0].text})` : ""}`), support: [`I can't weigh how serious that is: ${lower(limitNote)}`] };
+        return { lead: sentence(`${c.ref.label} is on the list because of what is recorded: ${describe(c).join(", ")}${c.signals[0] && !describe(c).includes(c.signals[0].text) && !/days since/.test(c.signals[0].text) ? ` (${c.signals[0].text})` : ""}${c.signals.find(x => /days since/.test(x.text)) ? `; ${c.signals.find(x => /days since/.test(x.text))!.text}` : ""}`), support: [`I can't weigh how serious that is: ${lower(limitNote)}`] };
       }
       const pick = named.length ? named : index.candidates.filter(c => levelOf(c, "lifecycle") === "active").slice(0, 1);
       if (pick.length === 1 && !pick[0].needs_comparative_judgment) { const c = pick[0]; return { lead: sentence(`${c.ref.label || "That item"} matters because ${withFacts(c).replace(/^.*? is recorded as /, "it is recorded as ")}`), support: [] }; }

@@ -73,7 +73,7 @@ export function buildEvidenceIndex(state: CompactEvidencePlanState, now = Date.n
       const typed = TYPED_OPERATIONAL.has(k.evidence_class);
       const signals = SIGNAL_FIELDS.map(f => ({ f, v: text(m[f]) })).filter(x => x.v && x.f !== "name" && x.f !== "title").map(x => ({ eref, text: x.v.slice(0, 120) }));
       candidates.push({ cid: `c${++c}`, kind, evidence_class: k.evidence_class, source_key: k.source_key, ref: { t: ref.t, id: ref.id, label: label || ref.l }, evidence: [eref, sref],
-        factors: factorsFor(m, eref, k.evidence_class, now), signals: typed ? [] : signals.filter((x, i, a) => a.findIndex(y => y.text === x.text) === i), needs_comparative_judgment: !typed });
+        factors: factorsFor(m, eref, k.evidence_class, now), signals: typed ? [] : [...signals, ...(num(m.days_since_activity) !== null ? [{ eref, text: `${num(m.days_since_activity)} days since last recorded activity` }] : [])].filter((x, i, a) => a.findIndex(y => y.text === x.text) === i), needs_comparative_judgment: !typed });
     });
   }
   return { entries, candidates, sources, assessment_id: state.plan_id };

@@ -40,7 +40,7 @@ export function denialAnswer(reason: string | null | undefined, asked: string, a
   // the established denial sentence is kept verbatim (it is the product's safe-denial contract); the reason follows it
   const base = `I can't do that for you here: you are not authorised to use it from this surface or scope${q}`;
   if (reason === "home_scope_required" || reason === "room_scope_required") return act
-    ? `${base} — it needs a specific home or room in scope, and this view has no estate-wide control. Nothing was changed.`
+    ? `${base} — it needs a specific home or room in scope, and this view has no estate-wide control. Nothing has been changed.`
     : `${base} — it needs a specific home or room in scope, and this view has no estate-wide read for it.`;
   if (reason === "estate_scope_required") return `${base} — it needs an estate in scope.`;
   if (reason === "surface_not_supported" || reason === "public_corporate_surface_cannot_use_operational_capability") return `${base} — that isn't available from this surface.`;
