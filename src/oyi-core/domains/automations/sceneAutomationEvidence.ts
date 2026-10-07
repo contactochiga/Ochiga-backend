@@ -1,3 +1,4 @@
+import type { EvidenceDb } from "../../evidence/ReadOnlyEvidenceDb";
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import type { OisContext } from "../../../types/oisContext";
@@ -191,13 +192,14 @@ export async function loadSceneFacts(
   input: CanonicalConversationRequest,
   oisContext: OisContext | null | undefined,
   contract: IntelligenceRequestContract,
+  db: EvidenceDb = supabaseAdmin as unknown as EvidenceDb,
 ): Promise<IntelligenceFact[]> {
   const scope = currentScope(input, oisContext);
   const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
   if (isFacilitySurface ? !scope.estate_id : !scope.home_id) return [];
   const diagnosticBase = { capability_key: "scenes.list.read", surface: input.surface, estate_id: scope.estate_id, home_id: scope.home_id };
   try {
-    let query = supabaseAdmin.from("consumer_scenes").select("id,estate_id,home_id,name,actions,enabled,updated_at").order("updated_at", { ascending: false }).limit(50);
+    let query = db.from("consumer_scenes").select("id,estate_id,home_id,name,actions,enabled,updated_at").order("updated_at", { ascending: false }).limit(50);
     query = isFacilitySurface ? query.eq("estate_id", scope.estate_id) : query.eq("home_id", scope.home_id);
     const { data, error } = await query;
     if (error) throw error;

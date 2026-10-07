@@ -1,3 +1,4 @@
+import type { EvidenceDb } from "../../evidence/ReadOnlyEvidenceDb";
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import type { OisContext } from "../../../types/oisContext";
@@ -125,6 +126,7 @@ export async function loadMaintenanceRequestFacts(
   input: CanonicalConversationRequest,
   oisContext: OisContext | null | undefined,
   contract: IntelligenceRequestContract,
+  db: EvidenceDb = supabaseAdmin as unknown as EvidenceDb,
 ): Promise<IntelligenceFact[]> {
   const scope = currentScope(input, oisContext);
   const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
@@ -146,7 +148,7 @@ export async function loadMaintenanceRequestFacts(
     // silently losing every submitted category/priority value). category
     // and priority are now selected for real; resident_id is left out
     // since maintenanceFromRow never reads it.
-    let query = supabaseAdmin
+    let query = db
       .from("maintenance_requests")
       .select("id,estate_id,home_id,room_id,user_id,title,description,category,priority,status,assigned_to,created_at,updated_at")
       .order("created_at", { ascending: false })

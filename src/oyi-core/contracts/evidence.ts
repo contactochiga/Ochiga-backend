@@ -97,7 +97,7 @@ export type EvidenceReadOutcome = {
   record_count: number;
   source_total: number | null;
   lifecycle: Array<{ evidence_id: string; relevance: "active" | "historical" | "unknown" }>;
-  error_class: "source_unavailable" | "source_error" | "deadline_exceeded" | "pure_read_violation" | null;
+  error_class: "source_unavailable" | "source_error" | "deadline_exceeded" | null;
   // Sub-sources (history, enrichment) that failed while the read still produced
   // a result. A mandatory sub-source failure is an error; an optional one makes
   // the result partial. Absent means no sub-source degraded.

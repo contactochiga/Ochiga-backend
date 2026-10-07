@@ -602,7 +602,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       evidenceRequirements: [readRequirement("maintenance", "maintenance_request")],
       supports: (frame) => frame.domain === "maintenance" && (frame.operation === "list" || frame.operation === "inspect" || frame.operation === "inform" || /\bmaintenance|repair|fix|broken\b/i.test(frame.normalizedText)),
       collect: async (context) => {
-        const facts = await loadMaintenanceRequestFacts(context.input, context.oisContext, requestContract(context));
+        const facts = await loadMaintenanceRequestFacts(context.input, context.oisContext, requestContract(context), context.evidence_db);
         return facts.map(evidenceFromFact);
       },
       answer: (context, evidence) => {
@@ -629,7 +629,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       evidenceRequirements: [readRequirement("visitors", "visitor_access")],
       supports: (frame) => frame.domain === "visitors" && (frame.operation === "list" || frame.operation === "inspect" || /\bvisitors?|visited|visiting|guest|access code|pending arrival\b/i.test(frame.normalizedText)),
       collect: async (context) => {
-        const facts = await loadVisitorAccessFacts(context.input, context.oisContext, requestContract(context));
+        const facts = await loadVisitorAccessFacts(context.input, context.oisContext, requestContract(context), context.evidence_db);
         return facts.map(evidenceFromFact);
       },
       answer: (context, evidence) => {
@@ -656,7 +656,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       evidenceRequirements: [readRequirement("security", "security_incident")],
       supports: (frame) => frame.domain === "security" && (frame.operation === "list" || frame.operation === "inspect" || /\bsecurity|incident|alert|unresolved|failed access\b/i.test(frame.normalizedText)),
       collect: async (context) => {
-        const facts = await loadSecurityIncidentFacts(context.input, context.oisContext, requestContract(context));
+        const facts = await loadSecurityIncidentFacts(context.input, context.oisContext, requestContract(context), context.evidence_db);
         return facts.map(evidenceFromFact);
       },
       answer: (context, evidence) => {
@@ -723,7 +723,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       evidenceRequirements: [readRequirement("scenes", "route_contract")],
       supports: (frame) => frame.domain === "scenes" && (frame.operation === "list" || frame.operation === "inspect" || /\bscenes?\b/i.test(frame.normalizedText)),
       collect: async (context) => {
-        const facts = await loadSceneFacts(context.input, context.oisContext, requestContract(context));
+        const facts = await loadSceneFacts(context.input, context.oisContext, requestContract(context), context.evidence_db);
         return facts.map(evidenceFromFact);
       },
       certifiedSource: { module: "src/oyi-core/domains/automations/sceneAutomationEvidence.ts", kind: "home_scope", scopes: ["consumer_home"], population: "all_scenes_in_verified_home_limit_50" },

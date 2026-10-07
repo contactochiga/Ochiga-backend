@@ -111,10 +111,10 @@ export type PublicOpportunityObjectiveRead =
   | { status: "not_owned" }
   | { status: "error" };
 
-export async function readPublicOpportunityObjective(threadId: string | null | undefined, actorId: string | null | undefined): Promise<PublicOpportunityObjectiveRead> {
+export async function readPublicOpportunityObjective(threadId: string | null | undefined, actorId: string | null | undefined, db: { from: (table: string) => { select: (...a: any[]) => any } } = supabaseAdmin as any): Promise<PublicOpportunityObjectiveRead> {
   if (!threadId || !actorId) return { status: "thread_not_found" };
   try {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await db
       .from("oyi_conversation_threads")
       .select("metadata,surface,user_id")
       .eq("id", threadId)

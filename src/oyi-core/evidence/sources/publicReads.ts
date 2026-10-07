@@ -121,7 +121,7 @@ export async function publicOpportunityOutcome(context: CapabilityContext, scope
     population: "unexpired_caller_supplied_opportunity_objective_of_owned_public_thread", complete: true, truncated: false,
     freshness: "current" as const, records: [] as OyiEvidence[],
   };
-  const read = await readPublicOpportunityObjective(text(context.input.thread_id), context.actor?.id);
+  const read = await readPublicOpportunityObjective(text(context.input.thread_id), context.actor?.id, context.evidence_db as any);
   if (read.status === "error") return evidenceReadOutcome({ ...base, availability: "error", complete: false });
   if (read.status === "not_owned") return evidenceReadOutcome({ ...base, authority: "denied", query_executed: false });
   if (read.status === "thread_not_found") return evidenceReadOutcome({ ...base, scope: "insufficient", query_executed: false });

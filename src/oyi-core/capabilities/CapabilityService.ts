@@ -7,8 +7,7 @@ import type { OyiSurface } from "../../services/oyiUnifiedIntelligenceService";
 import type { CapabilityContext, CapabilityModule, CapabilityRolloutStatus } from "../contracts/capability";
 import type { OyiEvidence, EvidenceReadOutcome, EvidenceScopeClass } from "../contracts/evidence";
 import { evidenceReadOutcome, withinEvidenceDeadline } from "../evidence/EvidenceReadOutcome";
-import { runPureRead } from "../evidence/PureReadGuard";
-import { supabaseAdmin } from "../../supabase/supabaseClient";
+import { readOnlyEvidenceDb } from "../evidence/ReadOnlyEvidenceDb";
 import { actorHasFacilityReadScope } from "../../intelligence-core/permissionEngine";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { capabilityRegistry } from "./CapabilityRegistry";
@@ -299,19 +298,10 @@ export class CapabilityService {
       if (admitted.includes("public_thread") && !text(context.input.thread_id)) return evidenceReadOutcome({ ...base, scope: "insufficient" });
       scopeClass = admitted.includes("public_thread") ? "public_thread" : "public_corporate";
     } else return evidenceReadOutcome({ ...base, authority: "denied" });
-    // PURE READ: collection runs with durable-write and RPC verbs refused. A
-    // violation is an error outcome, never a partial result.
-    let violations: string[] = [];
-    const read = await withinEvidenceDeadline(async () => {
-      const run = await runPureRead(supabaseAdmin as any, () => module.evidence_read!.collect(context, scope));
-      violations = run.violations;
-      if ("error" in run) throw run.error;
-      return run.value as EvidenceReadOutcome;
-    }, timeoutMs);
-    if (violations.length) {
-      logger.error("oyi_evidence_read_pure_read_violation", { capability_key: key, violations });
-      return { ...evidenceReadOutcome({ ...base, query_executed: true, availability: "error" }), error_class: "pure_read_violation" };
-    }
+    // PURE READ by construction: the source receives a read-only database dependency (no write verbs, no RPC)
+    // and nothing global is patched. A test may inject its own via context.evidence_db.
+    const evidenceContext: CapabilityContext = { ...context, evidence_db: context.evidence_db ?? readOnlyEvidenceDb() };
+    const read = await withinEvidenceDeadline(() => module.evidence_read!.collect(evidenceContext, scope), timeoutMs);
     if (read.status !== "completed") return evidenceReadOutcome({ ...base, query_executed: true, availability: read.status });
     const privacy = this.assertEvidenceAllowed(module, read.value.records, { actor: context.actor, oisContext: verified, surface: context.input.surface, scope });
     return privacy.allowed ? read.value : evidenceReadOutcome({ ...base, query_executed: true, authority: "denied" });

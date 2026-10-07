@@ -58,12 +58,18 @@ function unavailableState(deviceId: string, reason: string): DeviceCurrentState 
 // via deviceRuntimeStateService.hydrateMany's existing .in("device_id", ids) query), never a
 // live provider poll -- callers that need N devices' current state get O(1) provider calls, not
 // O(N) (Section 25/30).
-export async function resolveDeviceCurrentStates(devices: Array<Record<string, unknown>>): Promise<Map<string, DeviceCurrentState>> {
+export async function resolveDeviceCurrentStates(devices: Array<Record<string, unknown>>, db?: { from: (table: string) => { select: (...a: any[]) => any } }): Promise<Map<string, DeviceCurrentState>> {
   const now = Date.now();
   const result = new Map<string, DeviceCurrentState>();
   const withIds = devices.filter((device) => device?.id).map(deviceCurrentStateInput);
   if (!withIds.length) return result;
-  await deviceRuntimeStateService.hydrateMany(withIds);
+  // The planner passes its read-only evidence db so hydration reads through it; ordinary callers use the
+  // service default. The runtime cache is the canonical current-state authority and is only ever read here.
+  await deviceRuntimeStateService.hydrateMany(withIds, db ? async (ids: string[]) => {
+    const { data, error } = await db.from("device_states").select("device_id,status,last_seen,updated_at").in("device_id", ids);
+    if (error) throw error;
+    return data || [];
+  } : undefined);
   for (const device of withIds) {
     const deviceId = String(device.id);
     const snapshot = deviceRuntimeStateService.get(deviceId);

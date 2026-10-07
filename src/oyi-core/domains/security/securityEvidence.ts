@@ -1,3 +1,4 @@
+import type { EvidenceDb } from "../../evidence/ReadOnlyEvidenceDb";
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import type { OisContext } from "../../../types/oisContext";
@@ -103,13 +104,14 @@ export async function loadSecurityIncidentFacts(
   input: CanonicalConversationRequest,
   oisContext: OisContext | null | undefined,
   contract: IntelligenceRequestContract,
+  db: EvidenceDb = supabaseAdmin as unknown as EvidenceDb,
 ): Promise<IntelligenceFact[]> {
   const scope = currentScope(input, oisContext);
   const isFacilitySurface = input.surface === "facility" && actorHasFacilityReadScope(oisContext?.role);
   if (isFacilitySurface ? !scope.estate_id : (!scope.estate_id || !scope.home_id)) return [];
   const diagnosticBase = { capability_key: "security.incidents.read", surface: input.surface, estate_id: scope.estate_id, home_id: scope.home_id };
   try {
-    let query = supabaseAdmin
+    let query = db
       .from("facility_incidents")
       .select("id,estate_id,home_id,room_id,title,incident_type,severity,status,location,opened_at,acknowledged_at,resolved_at,closed_at,updated_at")
       .eq("estate_id", scope.estate_id)

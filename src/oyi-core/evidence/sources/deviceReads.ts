@@ -52,7 +52,7 @@ export function deviceInventoryRead(key: string) {
       ? `registered_devices_in_verified_room_of_verified_home_limit_${DEVICE_INVENTORY_ROW_LIMIT}`
       : `registered_devices_in_verified_home_limit_${DEVICE_INVENTORY_ROW_LIMIT}`;
     const base = deviceReadBase(key, scope, population);
-    const read = await readHomeDeviceInventory(input, context.oisContext);
+    const read = await readHomeDeviceInventory(input, context.oisContext, context.evidence_db);
     if (read.reason === "home_scope_missing") return evidenceReadOutcome({ ...base, scope: "insufficient", query_executed: false });
     if (read.reason === "room_not_in_home") return evidenceReadOutcome({ ...base, scope: "insufficient" });
     if (read.availability !== "available") return evidenceReadOutcome({ ...base, availability: read.availability });
@@ -76,7 +76,7 @@ export function deviceHistoryRead(key: string, select: (facts: IntelligenceFact[
   return async (context: CapabilityContext, scope: EvidenceReadScope): Promise<EvidenceReadOutcome> => {
     const input = { ...context.input, estate_id: scope.estate_id, home_id: scope.home_id, room_id: undefined, recent_executions: undefined } as any;
     const contract = requestContract({ ...context, input } as CapabilityContext);
-    const read = await readRecentDeviceChanges(input, context.oisContext, contract, null, { audit: false });
+    const read = await readRecentDeviceChanges(input, context.oisContext, contract, null, { audit: false }, context.evidence_db);
     const base = deviceReadBase(key, scope, `resident_visible_device_command_executions_in_execution_ledger_for_verified_home_since_${read.window_from}_limit_${DEVICE_LEDGER_ROW_LIMIT}`);
     const facts = select(dedupeIntelligenceFacts(read.facts));
     // Past events are history, not a live observation: keep their timestamps but never

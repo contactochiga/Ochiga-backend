@@ -3,7 +3,7 @@ import type { CapabilityContext } from "../../contracts/capability";
 import type { EvidenceReadOutcome, EvidenceReadScope, OyiEvidence } from "../../contracts/evidence";
 import type { IntelligenceFact } from "../../contracts/canonicalConversation";
 import { evidenceReadOutcome } from "../EvidenceReadOutcome";
-import { supabaseAdmin } from "../../../supabase/supabaseClient";
+import { ordinaryEvidenceDb } from "../ReadOnlyEvidenceDb";
 import { cameraAccessActor, canAccessCamera } from "../../../modules/cameras/cameraAccess.policy";
 import { resolveCameraCurrentStates } from "../../../modules/cameras/cameraCurrentStateAuthority";
 import { cameraStateExplanation } from "../../../modules/cameras/cameraCurrentStatePresentation";
@@ -28,17 +28,18 @@ type FacilityCameraRead =
 // cameras may be missing: truncated, never complete. Unknown video state stays unknown;
 // it is never offline.
 async function readFacilityCameras(context: CapabilityContext): Promise<FacilityCameraRead> {
+  const db = context.evidence_db ?? ordinaryEvidenceDb();
   const estateId = text(context.oisContext?.estate_id || context.actor?.estate_id);
   if (!estateId || !context.actor?.id) return { availability: "unavailable", reason: "estate_scope_missing" };
   const accessActor = cameraAccessActor(context.actor, { estate_id: estateId, home_id: null });
   try {
-    const { data, error } = await supabaseAdmin.from("facility_cameras")
+    const { data, error } = await db.from("facility_cameras")
       .select("id,estate_id,home_id,privacy_scope,metadata,name,location")
       .eq("estate_id", estateId).limit(CAMERA_ROW_LIMIT);
     if (error) throw error;
     const rows = (data || []) as any[];
     const authorised = rows.filter((row: any) => canAccessCamera(row, accessActor).ok);
-    const states = await resolveCameraCurrentStates(estateId, authorised.map((row: any) => row.id), accessActor);
+    const states = await resolveCameraCurrentStates(estateId, authorised.map((row: any) => row.id), accessActor, {}, db);
     const names = new Map(authorised.map((row: any) => [String(row.id), text(row.name) || "Camera"]));
     const facts = states.map((state) => ({
       fact_id: `camera-current-state:${state.cameraId}`,

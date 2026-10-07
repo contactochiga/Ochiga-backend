@@ -16,6 +16,7 @@ const {capabilityRegistry} = await import('../dist/oyi-core/capabilities/Capabil
 const {capabilityService} = await import('../dist/oyi-core/capabilities/CapabilityService.js');
 const {supabaseAdmin: db} = await import('../dist/supabase/supabaseClient.js');
 const guard = await import('../dist/oyi-core/evidence/PureReadGuard.js');
+const {readOnlyEvidenceDb} = await import('../dist/oyi-core/evidence/ReadOnlyEvidenceDb.js');
 const {resolveIntentContract} = await import('../dist/oyi-core/runtime/canonicalTurnResolution.js');
 const {corporateKnowledgeOutcome} = await import('../dist/oyi-core/evidence/sources/publicReads.js');
 const {HOME_CONTRIBUTORS} = await import('../dist/oyi-core/domains/roomHome/homeContributors.js');
@@ -214,24 +215,43 @@ await check('osa:public-cannot-read-any-private-or-operational-source', async ()
   const r = await read('crm.leads.read', forged); assert.equal(r.status, 'authority_denied'); assert(!JSON.stringify(r).includes('PRIVATE LEAD'));
 });
 
-// ================= PURE READ GUARD =======================================================
-await check('pure-read:db-writes-and-rpc-refused-and-surface-as-error', async () => {
+// ================= PURE READ (structural) ==================================================
+await check('pure-read:evidence-db-exposes-select-only-no-write-verbs-no-rpc', async () => {
+  const ro = readOnlyEvidenceDb(db); assert(Object.isFrozen(ro)); assert.equal(ro.rpc, undefined); assert.equal(ro.storage, undefined);
+  for (const t of ['consumer_goals', 'oyi_decisions', 'oyi_recommendations', 'oyi_awareness', 'oyi_workflows', 'oyi_communications', 'oyi_action_proposals', 'device_commands', 'oyi_memory', 'oyi_learning_candidates']) {
+    const table = ro.from(t); assert(Object.isFrozen(table)); assert.deepEqual(Object.keys(table), ['select'], t);
+    for (const verb of ['insert', 'update', 'upsert', 'delete']) assert.equal(table[verb], undefined, `${t}.${verb} must not exist`);
+  }
+  assert.deepEqual(writes, []);
+});
+await check('pure-read:a-source-that-tries-to-write-through-its-dependency-fails-closed', async () => {
   const mod = capabilityRegistry.get(SC), original = mod.evidence_read.collect;
   try {
     for (const verb of ['insert', 'update', 'upsert', 'delete']) {
-      mod.evidence_read.collect = async () => {await db.from('consumer_goals')[verb]({x: 1}); throw Error('write reached the database layer');};
-      writes = []; const r = await read(SC, resident()); assert.equal(r.status, 'error', verb); assert.equal(r.error_class, 'pure_read_violation', verb); assert.deepEqual(writes, [], `${verb} must not reach the database`); notZero(r);
+      mod.evidence_read.collect = async ctx => {await ctx.evidence_db.from('consumer_goals')[verb]({x: 1}); return null;};
+      writes = []; const r = await read(SC, resident()); assert.equal(r.status, 'error', verb); assert.deepEqual(writes, [], `${verb} cannot reach the database`); notZero(r);
     }
-    mod.evidence_read.collect = async () => {await db.rpc('create_decision', {}); throw Error('rpc reached');};
-    writes = []; const r = await read(SC, resident()); assert.equal(r.error_class, 'pure_read_violation'); assert.deepEqual(writes, []);
+    mod.evidence_read.collect = async ctx => {await ctx.evidence_db.rpc('create_decision', {}); return null;};
+    writes = []; const r = await read(SC, resident()); assert.equal(r.status, 'error'); assert.deepEqual(writes, []);
   } finally {mod.evidence_read.collect = original;}
 });
-await check('pure-read:writes-outside-a-pure-read-are-unchanged', async () => {guard.guardSupabaseClient(db); writes = []; await db.from('anything').insert({x: 1}); assert.deepEqual(writes, ['anything.insert']);});
-await check('pure-read:guard-covers-every-durable-state-class', async () => {
-  // Every durable Oyi state write is a database write; each category must be refused.
-  for (const t of ['consumer_goals', 'oyi_decisions', 'oyi_recommendations', 'oyi_awareness', 'oyi_workflows', 'oyi_communications', 'oyi_action_proposals', 'device_commands', 'oyi_memory', 'oyi_learning_candidates']) {
-    const out = await guard.runPureRead(db, async () => {await db.from(t).insert({}); return 'wrote';}); assert.equal(out.value, null); assert(out.violations.includes(`${t}.insert`), t);
-  }
+await check('pure-read:no-global-patching-the-ordinary-client-is-untouched', async () => {
+  const before = db.from; await read(SC, resident()); await read('devices.status.read', resident()); assert.equal(db.from, before, 'readEvidence must not replace the shared client');
+  writes = []; await db.from('anything').insert({x: 1}); assert.deepEqual(writes, ['anything.insert'], 'ordinary writes still work');
+});
+await check('evidence-db:injected-read-only-db-is-the-only-database-path-of-every-db-backed-source', async () => {
+  // The module-level client is made to fail loudly; every DB-backed certified source must read through the injected dependency.
+  const injected = []; const fake = {from: t => ({select: () => {injected.push(t); const b = {eq() {return b;}, in() {return b;}, gte() {return b;}, order() {return b;}, is() {return b;}, limit() {return b;}, maybeSingle() {return Promise.resolve({data: null, error: null});}, then(res) {return Promise.resolve({data: [], error: null}).then(res);}}; return b;}})};
+  const original = db.from; db.from = () => {throw Error('GLOBAL_CLIENT_FORBIDDEN');};
+  try {
+    const cases = [['devices.status.read', resident()], ['devices.availability.read', resident()], ['devices.activity.read', resident()], ['devices.failures.read', resident()], ['scenes.list.read', resident()], ['maintenance.requests.read', resident()], ['security.incidents.read', resident()], ['visitors.pending.read', resident()], ['facility.cameras.read', facility()], ['corporate.opportunity.read', publicCtx('50000000-0000-4000-8000-000000000001')]];
+    for (const [key, ctx] of cases) {injected.length = 0; const r = await read(key, {...ctx, evidence_db: readOnlyEvidenceDb(fake)}); assert(injected.length > 0, `${key} did not read through the injected dependency`); assert.notEqual(r.error_class, 'source_error', `${key} reached the forbidden global client: ${r.status}`);}
+  } finally {db.from = original;}
+});
+await check('pure-read:parallel-reads-do-not-share-state', async () => {
+  const mk = rows => ({from: t => ({select: () => {const b = {eq() {return b;}, in() {return b;}, gte() {return b;}, order() {return b;}, limit() {return b;}, then(res) {return Promise.resolve({data: t === 'consumer_scenes' ? rows : [], error: null}).then(res);}}; return b;}})});
+  const [a, b] = await Promise.all([read(SC, {...resident(), evidence_db: readOnlyEvidenceDb(mk([scene(1, {name: 'ONLY-A'})]))}), read(SC, {...resident(), evidence_db: readOnlyEvidenceDb(mk([scene(2, {name: 'ONLY-B'})]))})]);
+  assert(JSON.stringify(a).includes('ONLY-A') && !JSON.stringify(a).includes('ONLY-B')); assert(JSON.stringify(b).includes('ONLY-B') && !JSON.stringify(b).includes('ONLY-A'));
 });
 await check('pure-read:persisting-intelligence-collectors-not-planner-eligible', async () => {
   for (const key of ['anomalies.read', 'predictions.read', 'forecasts.read', 'recommendations.read']) {

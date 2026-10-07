@@ -1,3 +1,4 @@
+import type { EvidenceDb } from "../../evidence/ReadOnlyEvidenceDb";
 import { supabaseAdmin } from "../../../supabase/supabaseClient";
 import { logger } from "../../../observability/logger";
 import type { OisContext } from "../../../types/oisContext";
@@ -130,6 +131,7 @@ export async function loadVisitorAccessFacts(
   input: CanonicalConversationRequest,
   oisContext: OisContext | null | undefined,
   contract: IntelligenceRequestContract,
+  db: EvidenceDb = supabaseAdmin as unknown as EvidenceDb,
 ): Promise<IntelligenceFact[]> {
   const scope = currentScope(input, oisContext);
   // Wave 6 Slice 1B -- surface alone must never widen a home-scoped read to
@@ -144,7 +146,7 @@ export async function loadVisitorAccessFacts(
     temporal_mode: contract.temporal_scope.mode,
   };
   try {
-    let query = supabaseAdmin
+    let query = db
       .from("visitor_access")
       // visitor_access has no updated_at contract. Its authoritative
       // freshness marker is created_at; selecting an imagined column turns

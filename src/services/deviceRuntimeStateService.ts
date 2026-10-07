@@ -442,10 +442,10 @@ export class DeviceRuntimeStateService {
     return hydration;
   }
 
-  async hydrateMany(devices: Array<Record<string, any>>) {
+  async hydrateMany(devices: Array<Record<string, any>>, loadSnapshots?: (deviceIds: string[]) => Promise<any[]>) {
     const missing = devices.filter((device) => device?.id && !this.cache.has(String(device.id)));
     if (!missing.length) return;
-    const rows = await this.loadSnapshotRows(missing.map((device) => String(device.id)));
+    const rows = await (loadSnapshots || this.loadSnapshotRows)(missing.map((device) => String(device.id)));
     const deviceMap = new Map(missing.map((device) => [String(device.id), device]));
     for (const row of rows) {
       const device = deviceMap.get(String(row?.device_id || ""));

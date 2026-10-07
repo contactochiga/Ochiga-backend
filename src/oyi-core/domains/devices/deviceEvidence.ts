@@ -15,6 +15,7 @@ import type {
 import type { OisContext } from "../../../types/oisContext";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 import type { EvidenceDegradedSource } from "../../contracts/evidence";
+import type { EvidenceDb } from "../../evidence/ReadOnlyEvidenceDb";
 
 export function runtimeEvidenceForDevice(input: {
   device: Record<string, unknown>;
@@ -252,7 +253,7 @@ function inventoryFailure(reason: DeviceInventoryRead["reason"], availability: "
   return { facts: [], availability, reason, row_limit: DEVICE_INVENTORY_ROW_LIMIT, source_rows: sourceRows, truncated: false, room_filter: roomFilter, degraded: [] };
 }
 
-export async function readHomeDeviceInventory(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined): Promise<DeviceInventoryRead> {
+export async function readHomeDeviceInventory(input: CanonicalConversationRequest, oisContext: OisContext | null | undefined, db: EvidenceDb = supabaseAdmin as unknown as EvidenceDb): Promise<DeviceInventoryRead> {
   const scope = conversationScope(input, oisContext);
   if (!scope.home_id) return inventoryFailure("home_scope_missing", "unavailable", "none");
   const roomFilter: DeviceInventoryRead["room_filter"] = scope.room_id ? "query" : "none";
@@ -260,7 +261,7 @@ export async function readHomeDeviceInventory(input: CanonicalConversationReques
   try {
     // Room scope is pushed into the query: filtering after the row limit could miss
     // valid room devices in a large home and then report a false empty room.
-    let query = supabaseAdmin
+    let query = db
       .from("devices")
       .select(deviceCurrentStateSelect("name,estate_id,home_id,room_id,last_seen_at,updated_at"))
       .eq("home_id", scope.home_id);
@@ -270,13 +271,13 @@ export async function readHomeDeviceInventory(input: CanonicalConversationReques
     const rows = (devices || []) as any[];
     // A room with no device rows is only an empty room if it belongs to this home.
     if (scope.room_id && !rows.length) {
-      const room = await supabaseAdmin.from("rooms").select("id").eq("id", scope.room_id).eq("home_id", scope.home_id).limit(1);
+      const room = await db.from("rooms").select("id").eq("id", scope.room_id).eq("home_id", scope.home_id).limit(1);
       if (room.error) return inventoryFailure("room_membership_unverified", "error", roomFilter);
       if (!room.data?.length) return inventoryFailure("room_not_in_home", "unavailable", roomFilter);
     }
     const roomIds = Array.from(new Set(rows.map((device: any) => text(device.room_id)).filter(Boolean)));
     const rooms = roomIds.length
-      ? await supabaseAdmin.from("rooms").select("id,name").in("id", roomIds)
+      ? await db.from("rooms").select("id,name").in("id", roomIds)
       : { data: [], error: null };
     if (rooms.error) {
       logger.warn("conversation_home_room_names_load_failed", { error: rooms.error, home_id: scope.home_id });
@@ -285,7 +286,7 @@ export async function readHomeDeviceInventory(input: CanonicalConversationReques
     const roomById = new Map((rooms.data || []).map((row: any) => [String(row.id), cleanLabel(row.name, "")]));
     // Current-state authority: cache-first, batched single-query hydration from persisted
     // device_states when uncached, never a live provider poll (Wave 6 Slice 13).
-    const currentStateByDevice = await resolveDeviceCurrentStates(rows);
+    const currentStateByDevice = await resolveDeviceCurrentStates(rows, db);
     const facts = rows.map((device: any): IntelligenceFact => {
         const current = currentStateByDevice.get(String(device.id)) || null;
         const availability = current?.availability || "unknown";
@@ -376,6 +377,7 @@ export async function readRecentDeviceChanges(
   contract: IntelligenceRequestContract,
   object: OperationalObject | null,
   options: { audit?: boolean } = {},
+  db: EvidenceDb = supabaseAdmin as unknown as EvidenceDb,
 ): Promise<DeviceChangeRead> {
   const scope = conversationScope(input, oisContext);
   const degraded: EvidenceDegradedSource[] = [];
@@ -387,7 +389,7 @@ export async function readRecentDeviceChanges(
   const facts: IntelligenceFact[] = [];
   const executionSelect = "id,device_id,home_id,estate_id,action,execution_status,result_summary,requested_at,completed_at,error_message,metadata,verified,verification_method";
   try {
-    let q = supabaseAdmin.from("ai_execution_ledger").select(executionSelect).gte("requested_at", fromIso).order("requested_at", { ascending: false }).limit(DEVICE_LEDGER_ROW_LIMIT);
+    let q = db.from("ai_execution_ledger").select(executionSelect).gte("requested_at", fromIso).order("requested_at", { ascending: false }).limit(DEVICE_LEDGER_ROW_LIMIT);
     if (object?.canonical_id && (object.object_type === "device" || object.object_type === "device_channel")) q = q.eq("device_id", object.object_type === "device_channel" ? object.parent_id || object.canonical_id.split(":")[0] : object.canonical_id);
     else if (scope.home_id) q = q.eq("home_id", scope.home_id);
     else if (scope.estate_id) q = q.eq("estate_id", scope.estate_id);
@@ -396,7 +398,7 @@ export async function readRecentDeviceChanges(
     ledgerRows = Array.isArray(data) ? data.length : 0;
     const executionDeviceIds = Array.from(new Set((Array.isArray(data) ? data : []).map((row: any) => text(row.device_id)).filter(Boolean)));
     const executionDevices = executionDeviceIds.length
-      ? await supabaseAdmin.from("devices").select("id,name,room_id,category,type,metadata").in("id", executionDeviceIds)
+      ? await db.from("devices").select("id,name,room_id,category,type,metadata").in("id", executionDeviceIds)
       : { data: [], error: null };
     if (executionDevices.error) {
       logger.warn("conversation_recent_changes_device_names_load_failed", { error: executionDevices.error, home_id: scope.home_id });
@@ -404,7 +406,7 @@ export async function readRecentDeviceChanges(
     }
     const executionRoomIds = Array.from(new Set((executionDevices.data || []).map((row: any) => text(row.room_id)).filter(Boolean)));
     const executionRooms = executionRoomIds.length
-      ? await supabaseAdmin.from("rooms").select("id,name").in("id", executionRoomIds)
+      ? await db.from("rooms").select("id,name").in("id", executionRoomIds)
       : { data: [], error: null };
     if (executionRooms.error) {
       logger.warn("conversation_recent_changes_room_names_load_failed", { error: executionRooms.error, home_id: scope.home_id });
@@ -468,7 +470,7 @@ export async function readRecentDeviceChanges(
   }
   if (options.audit !== false) {
   try {
-      let q = supabaseAdmin.from("audit_events").select("id,action,resource_type,resource_id,estate_id,metadata,status,created_at").gte("created_at", fromIso).order("created_at", { ascending: false }).limit(DEVICE_AUDIT_ROW_LIMIT);
+      let q = db.from("audit_events").select("id,action,resource_type,resource_id,estate_id,metadata,status,created_at").gte("created_at", fromIso).order("created_at", { ascending: false }).limit(DEVICE_AUDIT_ROW_LIMIT);
       if (scope.estate_id) q = q.eq("estate_id", scope.estate_id);
       const { data, error } = await q;
       if (error) throw error;

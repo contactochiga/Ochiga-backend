@@ -135,17 +135,17 @@ export function cameraCurrentState(camera: any, actor: Actor, edgeNode?: any, op
 
 /** One estate and <=100 explicit IDs per batch. Denied/missing IDs return no row.
  * No routes added. Callers must pass canonical authenticated resolved actor context. */
-export async function resolveCameraCurrentStates(estateId: string, cameraIds: string[], actor: Actor, options: CameraInterpretationOptions = {}) {
+export async function resolveCameraCurrentStates(estateId: string, cameraIds: string[], actor: Actor, options: CameraInterpretationOptions = {}, db: { from: (table: string) => { select: (...a: any[]) => any } } = supabaseAdmin as any): Promise<Array<ReturnType<typeof cameraCurrentState>>> {
   if (!actor?.id || !estateId || !Array.isArray(cameraIds) || cameraIds.length > 100) throw new Error("camera_authority_scope_required");
   if (!cameraIds.length) return [];
   try {
-    const { data, error } = await supabaseAdmin.from("facility_cameras").select(CAMERA_CURRENT_STATE_SELECT).eq("estate_id", estateId).in("id", [...new Set(cameraIds)]).limit(100);
+    const { data, error } = await db.from("facility_cameras").select(CAMERA_CURRENT_STATE_SELECT).eq("estate_id", estateId).in("id", [...new Set(cameraIds)]).limit(100);
     if (error) throw error;
     const cameras = (data || []).filter((c: any) => canAccessCamera(c, actor).ok);
     const ids = [...new Set(cameras.map((c: any) => c.edge_node_id).filter(Boolean))];
     let nodes: any[] = [];
     if (ids.length) {
-      const result = await supabaseAdmin.from("edge_nodes").select(EDGE_CURRENT_STATE_SELECT).eq("estate_id", estateId).in("edge_node_id", ids).limit(100);
+      const result = await db.from("edge_nodes").select(EDGE_CURRENT_STATE_SELECT).eq("estate_id", estateId).in("edge_node_id", ids).limit(100);
       if (result.error) throw result.error;
       nodes = result.data || [];
     }

@@ -8,6 +8,7 @@ import type { OyiDomain } from "../runtime/languageUnderstanding";
 import type { CanonicalConversationRequestContext, ConversationRunResult } from "./conversation";
 import type { WorkflowStatus } from "./workflow";
 import type { OyiSurface } from "../../services/oyiUnifiedIntelligenceService";
+import type { EvidenceDb } from "../evidence/ReadOnlyEvidenceDb";
 
 export type CapabilityRolloutStatus = "declared" | "implemented" | "adapter_ready" | "integration_tested" | "shadow" | "enabled" | "disabled";
 export type CapabilityRiskClass = "read" | "low_risk_action" | "consequential_action" | "sensitive_action" | "secure_handoff_only";
@@ -41,6 +42,9 @@ export type CapabilityPresentationPolicy = {
 export type CapabilityContext = CanonicalConversationRequestContext & {
   resolvedTurn: ResolvedTurn;
   legacyFallback: () => Promise<ConversationRunResult>;
+  // Present only on evidence-planning reads: the structurally read-only database dependency.
+  // Certified evidence sources read through THIS and never through a module-level client.
+  evidence_db?: EvidenceDb;
 };
 
 export type CapabilityResolution = {
