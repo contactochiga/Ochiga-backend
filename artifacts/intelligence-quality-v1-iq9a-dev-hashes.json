@@ -1,0 +1,30 @@
+{
+ "runner_sha256": "421eb303aa4cb5c677cd6f6c7866b5e646b652a659207aaece6a36821311bd09",
+ "expectations_sha256": "41e864fc79fc84fed7640b41c3035b4803efeeed9ee35098c703859af8ea5f60",
+ "spec_sha256": "424e5e8abf415abe5588e753b9b198c52a4c332a263e29b5280586e81d0751aa",
+ "overlap": {
+  "problems": [],
+  "items": 160,
+  "per_category": {
+   "CROSS_RESIDENT_SCOPE": 16,
+   "HOME_VS_ESTATE_AUTHORITY": 16,
+   "VISITOR_PERMISSION_VS_PRESENCE": 16,
+   "ACTION_PROPOSED_VS_COMPLETED": 16,
+   "EMAIL_REQUESTED_SENT_DELIVERED": 16,
+   "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED": 16,
+   "JUDGMENT_DETERMINISTIC_VS_PROVIDER": 16,
+   "UNVERIFIED_SAFETY_REPORTS": 16,
+   "CANCELLATIONS_WITH_COMPETING_SIGNALS": 16,
+   "MULTITURN_REFERENT_AND_AUTHORITY": 16
+  },
+  "positive_controls": 80,
+  "per_surface": {
+   "office_internal": 35,
+   "public_corporate": 26,
+   "facility": 41,
+   "consumer": 58
+  },
+  "exact_overlap_with_prior_suites": 1,
+  "prior_compared": 1119
+ }
+}
