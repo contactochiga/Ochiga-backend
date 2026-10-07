@@ -1,0 +1,1200 @@
+{
+ "version": 1,
+ "status": "IQ9A3_ANALYSIS_ONLY",
+ "head": "89911a94c03248f3f640e11a468f8bf2ef186f56",
+ "positive_controls": {
+  "total": 80,
+  "pass": 39,
+  "fail": 41
+ },
+ "root_cause_counts": {
+  "Response targeting": 10,
+  "Capability routing": 8,
+  "Reference/context continuity": 4,
+  "Response composition": 4,
+  "Semantic interpretation": 12,
+  "Action-mode selection": 2,
+  "Judgment": 1
+ },
+ "mechanism_counts": {
+  "C_compound_within_capability": 4,
+  "B_surface_synonym_routing": 2,
+  "D_referent_not_carried": 4,
+  "C_compound_or_multisource_single_capability": 4,
+  "I_incomplete_projection": 4,
+  "A_assessment_objective_over_trigger": 12,
+  "F_device_target_resolution": 1,
+  "E_polite_or_compound_imperative_read_as_question": 2,
+  "G_menu_fallback_despite_resolved_target": 4,
+  "H_yes_licence_existence_vs_attention": 1,
+  "A_judgment_class_gap": 1,
+  "B_no_candidate_for_named_entity_comparison": 1,
+  "G_unsupported_facet_dropped": 1
+ },
+ "items": [
+  {
+   "id": "IQ9A-001",
+   "category": "CROSS_RESIDENT_SCOPE",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "wallet.balance.read",
+   "target_intent": "STATUS",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-004",
+   "category": "CROSS_RESIDENT_SCOPE",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-006",
+   "category": "CROSS_RESIDENT_SCOPE",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "wallet.transactions.read",
+   "target_intent": "DIRECT_ANSWER",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "C_compound_within_capability",
+   "downstream": "second clause of a two-part question dropped by the projector"
+  },
+  {
+   "id": "IQ9A-008",
+   "category": "CROSS_RESIDENT_SCOPE",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "office_portfolio.query.read",
+   "target_intent": "SUMMARY",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Capability routing",
+   "mechanism": "B_surface_synonym_routing",
+   "downstream": "office_portfolio.read / wallet.balance.read chosen although financial.summary.read exists"
+  },
+  {
+   "id": "IQ9A-011",
+   "category": "CROSS_RESIDENT_SCOPE",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "maintenance.requests.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-014",
+   "category": "CROSS_RESIDENT_SCOPE",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "corporate.company.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "C_compound_within_capability",
+   "downstream": "second clause of a two-part question dropped by the projector"
+  },
+  {
+   "id": "IQ9A-016",
+   "category": "CROSS_RESIDENT_SCOPE",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "canonical.conversation.unsupported",
+   "target_intent": "DIRECT_ANSWER",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Reference/context continuity",
+   "mechanism": "D_referent_not_carried",
+   "downstream": "scope-reset, other-one without selection, objective superseded"
+  },
+  {
+   "id": "IQ9A-018",
+   "category": "HOME_VS_ESTATE_AUTHORITY",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "facility.overview.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "MEETS_TARGET"
+   },
+   "success": false,
+   "primary_root_cause": "Capability routing",
+   "mechanism": "C_compound_or_multisource_single_capability",
+   "downstream": "one read selected; the second clause/source never consulted"
+  },
+  {
+   "id": "IQ9A-021",
+   "category": "HOME_VS_ESTATE_AUTHORITY",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "security.incidents.read",
+   "target_intent": "DIRECT_ANSWER",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Capability routing",
+   "mechanism": "C_compound_or_multisource_single_capability",
+   "downstream": "one read selected; the second clause/source never consulted"
+  },
+  {
+   "id": "IQ9A-023",
+   "category": "HOME_VS_ESTATE_AUTHORITY",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "devices.status.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Response composition",
+   "mechanism": "I_incomplete_projection",
+   "downstream": "correct capability/data; list/recap/advice under-composed"
+  },
+  {
+   "id": "IQ9A-026",
+   "category": "HOME_VS_ESTATE_AUTHORITY",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "crm.leads.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-028",
+   "category": "HOME_VS_ESTATE_AUTHORITY",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "reports.approvals.read",
+   "target_intent": "YES_NO_WITH_REASON",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Capability routing",
+   "mechanism": "C_compound_or_multisource_single_capability",
+   "downstream": "one read selected; the second clause/source never consulted"
+  },
+  {
+   "id": "IQ9A-030",
+   "category": "HOME_VS_ESTATE_AUTHORITY",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "corporate.opportunity.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Response composition",
+   "mechanism": "I_incomplete_projection",
+   "downstream": "correct capability/data; list/recap/advice under-composed"
+  },
+  {
+   "id": "IQ9A-031",
+   "category": "HOME_VS_ESTATE_AUTHORITY",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "maintenance.requests.read",
+   "target_intent": "DIRECT_ANSWER",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-034",
+   "category": "VISITOR_PERMISSION_VS_PRESENCE",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "visitors.pending.read",
+   "target_intent": "COUNT",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "C_compound_within_capability",
+   "downstream": "second clause of a two-part question dropped by the projector"
+  },
+  {
+   "id": "IQ9A-036",
+   "category": "VISITOR_PERMISSION_VS_PRESENCE",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "visitors.pending.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-038",
+   "category": "VISITOR_PERMISSION_VS_PRESENCE",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "visitors.pending.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-041",
+   "category": "VISITOR_PERMISSION_VS_PRESENCE",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "visitors.pending.read",
+   "target_intent": "COUNT",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-044",
+   "category": "VISITOR_PERMISSION_VS_PRESENCE",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "YES_NO_WITH_REASON",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-045",
+   "category": "VISITOR_PERMISSION_VS_PRESENCE",
+   "surface": "office_internal",
+   "expected_outcome": "LIMITATION",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "ASSESSMENT",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-047",
+   "category": "VISITOR_PERMISSION_VS_PRESENCE",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "global.capabilities.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-049",
+   "category": "ACTION_PROPOSED_VS_COMPLETED",
+   "surface": "consumer",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "devices.power.control",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Capability routing",
+   "mechanism": "F_device_target_resolution",
+   "downstream": "2-character device name \"AC\" rejected by phrase.length>=3 in conversationTargetResolver.ts:156"
+  },
+  {
+   "id": "IQ9A-052",
+   "category": "ACTION_PROPOSED_VS_COMPLETED",
+   "surface": "consumer",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "answer_target.action_not_executed",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-054",
+   "category": "ACTION_PROPOSED_VS_COMPLETED",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "wallet.transactions.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "C_compound_within_capability",
+   "downstream": "second clause of a two-part question dropped by the projector"
+  },
+  {
+   "id": "IQ9A-056",
+   "category": "ACTION_PROPOSED_VS_COMPLETED",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "ADVICE",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-059",
+   "category": "ACTION_PROPOSED_VS_COMPLETED",
+   "surface": "office_internal",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "crm.leads.read",
+   "target_intent": "YES_NO_WITH_REASON",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Action-mode selection",
+   "mechanism": "E_polite_or_compound_imperative_read_as_question",
+   "downstream": "read capability answers; the action/assertion in the request is ignored"
+  },
+  {
+   "id": "IQ9A-061",
+   "category": "ACTION_PROPOSED_VS_COMPLETED",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "YES_NO_WITH_REASON",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-063",
+   "category": "ACTION_PROPOSED_VS_COMPLETED",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-066",
+   "category": "EMAIL_REQUESTED_SENT_DELIVERED",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "communication.history_query",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-068",
+   "category": "EMAIL_REQUESTED_SENT_DELIVERED",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "ADVICE",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-070",
+   "category": "EMAIL_REQUESTED_SENT_DELIVERED",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "answer_target.action_result",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-072",
+   "category": "EMAIL_REQUESTED_SENT_DELIVERED",
+   "surface": "consumer",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "ASSESSMENT",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-074",
+   "category": "EMAIL_REQUESTED_SENT_DELIVERED",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "answer_target.action_result",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-076",
+   "category": "EMAIL_REQUESTED_SENT_DELIVERED",
+   "surface": "public_corporate",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "business_surface.fallback",
+   "target_intent": "CONFIRMATION_STATE",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "G_menu_fallback_despite_resolved_target",
+   "downstream": "public surface has no owner for CONFIRMATION_STATE / capability-inquiry / withdrawal / submission questions"
+  },
+  {
+   "id": "IQ9A-078",
+   "category": "EMAIL_REQUESTED_SENT_DELIVERED",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "corporate.partnerships.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-079",
+   "category": "EMAIL_REQUESTED_SENT_DELIVERED",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "answer_target.action_result",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-081",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "public_corporate",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "corporate.opportunity.read",
+   "target_intent": "YES_NO_WITH_REASON",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-082",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "public_corporate",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "answer_target.action_result",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-084",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "business_surface.fallback",
+   "target_intent": "DIRECT_ANSWER",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "G_menu_fallback_despite_resolved_target",
+   "downstream": "public surface has no owner for CONFIRMATION_STATE / capability-inquiry / withdrawal / submission questions"
+  },
+  {
+   "id": "IQ9A-085",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "facility",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "answer_target.action_not_executed",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-087",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-089",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "consumer",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "answer_target.action_not_executed",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-091",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "maintenance.requests.read",
+   "target_intent": "YES_NO_WITH_REASON",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "H_yes_licence_existence_vs_attention",
+   "downstream": "\"Yes\" lead on a question about being looked at"
+  },
+  {
+   "id": "IQ9A-093",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "office_internal",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "answer_target.action_not_executed",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-095",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "ASSESSMENT",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-096",
+   "category": "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "corporate.opportunity.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "MEETS_TARGET"
+   },
+   "success": false,
+   "primary_root_cause": "Response composition",
+   "mechanism": "I_incomplete_projection",
+   "downstream": "correct capability/data; list/recap/advice under-composed"
+  },
+  {
+   "id": "IQ9A-097",
+   "category": "JUDGMENT_DETERMINISTIC_VS_PROVIDER",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "COMPARISON",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-098",
+   "category": "JUDGMENT_DETERMINISTIC_VS_PROVIDER",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "RANKING",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-099",
+   "category": "JUDGMENT_DETERMINISTIC_VS_PROVIDER",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "RANKING",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-102",
+   "category": "JUDGMENT_DETERMINISTIC_VS_PROVIDER",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "crm.leads.read",
+   "target_intent": "STATUS",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-105",
+   "category": "JUDGMENT_DETERMINISTIC_VS_PROVIDER",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "corporate.opportunity.read",
+   "target_intent": "RANKING",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-107",
+   "category": "JUDGMENT_DETERMINISTIC_VS_PROVIDER",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "RANKING",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Judgment",
+   "mechanism": "A_judgment_class_gap",
+   "downstream": "visitors are context-only in the deterministic judgment; contradictory active count"
+  },
+  {
+   "id": "IQ9A-111",
+   "category": "JUDGMENT_DETERMINISTIC_VS_PROVIDER",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "COMPARISON",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-112",
+   "category": "JUDGMENT_DETERMINISTIC_VS_PROVIDER",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "business_surface.fallback",
+   "target_intent": "COMPARISON",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Capability routing",
+   "mechanism": "B_no_candidate_for_named_entity_comparison",
+   "downstream": "menu fallback"
+  },
+  {
+   "id": "IQ9A-113",
+   "category": "UNVERIFIED_SAFETY_REPORTS",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "answer_target.safety_report",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-114",
+   "category": "UNVERIFIED_SAFETY_REPORTS",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "answer_target.safety_report",
+   "target_intent": null,
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "MEETS_TARGET"
+   },
+   "success": false,
+   "primary_root_cause": "Response composition",
+   "mechanism": "I_incomplete_projection",
+   "downstream": "correct capability/data; list/recap/advice under-composed"
+  },
+  {
+   "id": "IQ9A-116",
+   "category": "UNVERIFIED_SAFETY_REPORTS",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "security.incidents.read",
+   "target_intent": "DIRECT_ANSWER",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-117",
+   "category": "UNVERIFIED_SAFETY_REPORTS",
+   "surface": "facility",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "security.incidents.read",
+   "target_intent": "DIRECT_ANSWER",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Action-mode selection",
+   "mechanism": "E_polite_or_compound_imperative_read_as_question",
+   "downstream": "read capability answers; the action/assertion in the request is ignored"
+  },
+  {
+   "id": "IQ9A-119",
+   "category": "UNVERIFIED_SAFETY_REPORTS",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "security.incidents.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-121",
+   "category": "UNVERIFIED_SAFETY_REPORTS",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "answer_target.safety_report",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-124",
+   "category": "UNVERIFIED_SAFETY_REPORTS",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "SAFETY_RISK",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-125",
+   "category": "UNVERIFIED_SAFETY_REPORTS",
+   "surface": "consumer",
+   "expected_outcome": "LIMITATION",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "ASSESSMENT",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-128",
+   "category": "UNVERIFIED_SAFETY_REPORTS",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "business_surface.fallback",
+   "target_intent": "YES_NO_WITH_REASON",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "PARTIAL"
+   },
+   "success": false,
+   "primary_root_cause": "Capability routing",
+   "mechanism": "C_compound_or_multisource_single_capability",
+   "downstream": "one read selected; the second clause/source never consulted"
+  },
+  {
+   "id": "IQ9A-129",
+   "category": "CANCELLATIONS_WITH_COMPETING_SIGNALS",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "devices.power.control",
+   "target_intent": "CONFIRMATION_STATE",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-130",
+   "category": "CANCELLATIONS_WITH_COMPETING_SIGNALS",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "wallet.balance.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-132",
+   "category": "CANCELLATIONS_WITH_COMPETING_SIGNALS",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "answer_target.cancellation_acknowledged",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-134",
+   "category": "CANCELLATIONS_WITH_COMPETING_SIGNALS",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "answer_target.cancellation_acknowledged",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-136",
+   "category": "CANCELLATIONS_WITH_COMPETING_SIGNALS",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "visitors.pending.read",
+   "target_intent": "COUNT",
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-138",
+   "category": "CANCELLATIONS_WITH_COMPETING_SIGNALS",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "answer_target.cancellation_acknowledged",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-140",
+   "category": "CANCELLATIONS_WITH_COMPETING_SIGNALS",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "business_surface.out_of_scope",
+   "target_intent": "STATUS",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Capability routing",
+   "mechanism": "B_surface_synonym_routing",
+   "downstream": "office_portfolio.read / wallet.balance.read chosen although financial.summary.read exists"
+  },
+  {
+   "id": "IQ9A-142",
+   "category": "CANCELLATIONS_WITH_COMPETING_SIGNALS",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "business_surface.fallback",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "G_menu_fallback_despite_resolved_target",
+   "downstream": "public surface has no owner for CONFIRMATION_STATE / capability-inquiry / withdrawal / submission questions"
+  },
+  {
+   "id": "IQ9A-145",
+   "category": "MULTITURN_REFERENT_AND_AUTHORITY",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "maintenance.requests.read",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-147",
+   "category": "MULTITURN_REFERENT_AND_AUTHORITY",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "wallet.transactions.read",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-149",
+   "category": "MULTITURN_REFERENT_AND_AUTHORITY",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "maintenance.requests.read",
+   "target_intent": null,
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Reference/context continuity",
+   "mechanism": "D_referent_not_carried",
+   "downstream": "scope-reset, other-one without selection, objective superseded"
+  },
+  {
+   "id": "IQ9A-151",
+   "category": "MULTITURN_REFERENT_AND_AUTHORITY",
+   "surface": "facility",
+   "expected_outcome": "ANSWER",
+   "capability": "visitors.pending.read",
+   "target_intent": null,
+   "verdicts": {
+    "A": "MEETS_TARGET",
+    "B": "MEETS_TARGET"
+   },
+   "success": true
+  },
+  {
+   "id": "IQ9A-153",
+   "category": "MULTITURN_REFERENT_AND_AUTHORITY",
+   "surface": "office_internal",
+   "expected_outcome": "ANSWER",
+   "capability": "oyi.assessment.evidence_plan",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Semantic interpretation",
+   "mechanism": "A_assessment_objective_over_trigger",
+   "downstream": "capability routing to oyi.assessment.evidence_plan; planner has no source class for the asked object -> boilerplate; 044/072 also planner visitor count 0 vs record 1"
+  },
+  {
+   "id": "IQ9A-155",
+   "category": "MULTITURN_REFERENT_AND_AUTHORITY",
+   "surface": "office_internal",
+   "expected_outcome": "LIMITATION",
+   "capability": "development.status.read",
+   "target_intent": "DIRECT_ANSWER",
+   "verdicts": {
+    "A": "PARTIAL",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "G_unsupported_facet_dropped",
+   "downstream": "asked facet (units sold) not in record; answer silently omits it"
+  },
+  {
+   "id": "IQ9A-157",
+   "category": "MULTITURN_REFERENT_AND_AUTHORITY",
+   "surface": "public_corporate",
+   "expected_outcome": "ANSWER",
+   "capability": "corporate.opportunity.read",
+   "target_intent": "LIST",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Reference/context continuity",
+   "mechanism": "D_referent_not_carried",
+   "downstream": "scope-reset, other-one without selection, objective superseded"
+  },
+  {
+   "id": "IQ9A-159",
+   "category": "MULTITURN_REFERENT_AND_AUTHORITY",
+   "surface": "public_corporate",
+   "expected_outcome": "NOT_EXECUTED",
+   "capability": "business_surface.fallback",
+   "target_intent": "YES_NO_WITH_REASON",
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Response targeting",
+   "mechanism": "G_menu_fallback_despite_resolved_target",
+   "downstream": "public surface has no owner for CONFIRMATION_STATE / capability-inquiry / withdrawal / submission questions"
+  },
+  {
+   "id": "IQ9A-160",
+   "category": "MULTITURN_REFERENT_AND_AUTHORITY",
+   "surface": "consumer",
+   "expected_outcome": "ANSWER",
+   "capability": "visitors.pending.read",
+   "target_intent": null,
+   "verdicts": {
+    "A": "DOES_NOT_MEET",
+    "B": "DOES_NOT_MEET"
+   },
+   "success": false,
+   "primary_root_cause": "Reference/context continuity",
+   "mechanism": "D_referent_not_carried",
+   "downstream": "scope-reset, other-one without selection, objective superseded"
+  }
+ ],
+ "note": "Analysis only. No runtime, expectation or threshold change. Root-cause assignment is the auditor's reading of frozen envelopes, graders' reasons and recorded traces; it is not a regrade."
+}
