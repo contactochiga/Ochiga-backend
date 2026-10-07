@@ -1,0 +1,276 @@
+{
+ "version": 1,
+ "status": "IQ8D3_PHASE_A_ADJUDICATION_FROZEN_PRE_RUNTIME_CHANGE",
+ "head": "773fb98",
+ "method": "Third independent subagent adjudicated from a packet with the FROZEN iq2c evaluation envelopes (must_notice/acceptable/unacceptable/must_not_invent), expected targets, before/after answers and both reviews; no source access. Criteria were not altered. Author (not independent) analysis of the two named cases is included separately.",
+ "comparability_finding": "The earlier independent review judged the IQ-8B lead text; the latest review compared against the IQ-7 frozen baseline text and was given only the answer shape, not the frozen envelope. Two items (OMA-001:1, OSA-006:2) are therefore not comparable (INADEQUATE_EVIDENCE). Eleven are the same answer content judged more strictly (INTERPRETATION_DIFFERENCE). One is a genuine regression.",
+ "summary": {
+  "downgraded": {
+   "total": 14,
+   "GENUINE_REGRESSION": 1,
+   "INTERPRETATION_DIFFERENCE": 11,
+   "INADEQUATE_EVIDENCE": 2
+  },
+  "does_not_meet_owner": {
+   "COMPOSITION_TEMPLATE": 2,
+   "TARGET_DERIVATION": 2,
+   "ROUTING": 1
+  },
+  "changed_frozen_pass": {
+   "PRESERVED": 24,
+   "DEGRADED": 1
+  }
+ },
+ "author_analysis": {
+  "OSA-004:4": "GENUINE REGRESSION introduced by IQ-8D: the old publicLead had an explicit approach/different branch; the projector port lost it and the COMPARISON held-fact branch assumes two named sides, so it answers \"which of those suits you better\". Owner: held-fact comparison projection (target has no two compare sides -> it is a difference question). Fix class: shared contract (comparison with <2 named sides).",
+  "CON-002:4": "Not a new regression versus IQ-8B (the camera-as-reason flaw was already PARTIAL in the prior review). Owner: judgment limitation selection (targetedJudgment picks the FIRST not-available item instead of the one that matches the asked facet; temperature is in the device observed-values item). Fix class: select the limitation by overlap with the ask.",
+  "CON-009:1": "DEGRADED: an empty device read whose capability said it could not load the inventory is projected as \"There are no devices in what I read\". Owner: envelope lacks an unavailable signal for an empty read; fix at the capability result (structured), not by parsing prose."
+ },
+ "adjudication": {
+  "downgraded": [
+   {
+    "id": "OMA-001:1",
+    "own_verdict": "PARTIAL",
+    "classification": "INADEQUATE_EVIDENCE",
+    "reason": "Before answer was counts only, so a prior MEETS citing 'leads named first' cannot have judged this text; after names leads (incl. routine ones) and is better."
+   },
+   {
+    "id": "OMA-004:7",
+    "own_verdict": "MEETS_TARGET",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Opens by saying nothing was ranked/recommended, which is the target; reviewers differ on whether it 'explains'."
+   },
+   {
+    "id": "OMA-007:1",
+    "own_verdict": "MEETS_TARGET",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Names the pair, states the comparison limit and gives each one's recorded facts; latest reviewer read the facts as contradicting the refusal."
+   },
+   {
+    "id": "OMA-007:2",
+    "own_verdict": "PARTIAL",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "States the limit but gives no recorded viability facts; identical to before, reviewers differ on PARTIAL vs DOES_NOT_MEET."
+   },
+   {
+    "id": "OMA-010:4",
+    "own_verdict": "MEETS_TARGET",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Says first that nothing was ordered, exactly the target; latest reviewer wanted a 'why'."
+   },
+   {
+    "id": "OMA-010:6",
+    "own_verdict": "MEETS_TARGET",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Says first that nothing was ranked so no reasoning changed; support line '0 records' is odd but unchanged."
+   },
+   {
+    "id": "OSA-004:4",
+    "own_verdict": "DOES_NOT_MEET",
+    "classification": "GENUINE_REGRESSION",
+    "reason": "After rewrites the question as 'which suits you better', a non sequitur to whether the approach differs; before at least did not mis-state the ask."
+   },
+   {
+    "id": "OSA-004:6",
+    "own_verdict": "PARTIAL",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Opening gives only the to-check half; known facts are in the supporting detail, which equals the before text."
+   },
+   {
+    "id": "OSA-006:2",
+    "own_verdict": "PARTIAL",
+    "classification": "INADEQUATE_EVIDENCE",
+    "reason": "Before never named lease or JV so prior MEETS cannot match that text; after names both and declines to recommend, though wording is garbled."
+   },
+   {
+    "id": "FAC-007:2",
+    "own_verdict": "MEETS_TARGET",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Leads with the unverified safety report and says it cannot be confirmed (the target); no precaution step but not required by target."
+   },
+   {
+    "id": "FAC-008:5",
+    "own_verdict": "MEETS_TARGET",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Leads with known open items, scope limit follows in supporting detail; same content as before."
+   },
+   {
+    "id": "FAC-010:4",
+    "own_verdict": "MEETS_TARGET",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Leads with estate-wide facts, scope limit in supporting detail; same content as before."
+   },
+   {
+    "id": "CON-002:4",
+    "own_verdict": "PARTIAL",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Correct 'No' but cites camera state as the reason; the prior reviewer already flagged the same flaw as PARTIAL, latest as DOES_NOT_MEET. Temperature limitation is in the support."
+   },
+   {
+    "id": "CON-010:5",
+    "own_verdict": "DOES_NOT_MEET",
+    "classification": "INTERPRETATION_DIFFERENCE",
+    "reason": "Lists unconfirmable facts, not what would need confirmation; unchanged from before, only severity label differs."
+   }
+  ],
+  "does_not_meet": [
+   {
+    "id": "OMA-007:2",
+    "what_is_wrong": "Generic refusal with no named items or recorded viability facts (consent/survey vs no feasibility evidence) although the facts were available a turn earlier.",
+    "owner": "COMPOSITION_TEMPLATE",
+    "reason": "A generic limit sentence wrote the answer and dropped the recorded facts the target requires."
+   },
+   {
+    "id": "OSA-004:4",
+    "what_is_wrong": "Answers 'which option suits you better' instead of whether the approach differs given the corrected Abuja location.",
+    "owner": "TARGET_DERIVATION",
+    "reason": "The ask was mis-shaped into a recommendation-choice target."
+   },
+   {
+    "id": "OSA-010:7",
+    "what_is_wrong": "Lists what is still needed from the user rather than what would be passed on and what is unverified; ignores callback proposal status.",
+    "owner": "TARGET_DERIVATION",
+    "reason": "The two-part handoff/verification target was replaced by a still-needed-fields target."
+   },
+   {
+    "id": "CON-002:4",
+    "what_is_wrong": "Says No but gives camera state as the reason instead of that temperature/observed device values are unavailable.",
+    "owner": "COMPOSITION_TEMPLATE",
+    "reason": "A generic 'I don't have that - X not available' template took the first unavailable item rather than the one relevant to temperature."
+   },
+   {
+    "id": "CON-010:5",
+    "what_is_wrong": "Lists what cannot be confirmed instead of which actions (e.g. turning the light off) would require confirmation, and that nothing executes or the proposal was cancelled.",
+    "owner": "ROUTING",
+    "reason": "The ask was routed to a status/evidence read instead of the action-confirmation/proposal state."
+   }
+  ],
+  "changed_frozen_pass": [
+   {
+    "id": "OMA-005:1",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "OSA-004:7",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "OSA-009:3",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-002:2",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-003:1",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-003:3",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-006:1",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-006:4",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-007:1",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-008:1",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-008:3",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-008:4",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "FAC-010:6",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-001:3",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-004:2",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-004:3",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-004:6",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-005:1",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-006:2",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-007:1",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-007:2",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-008:7",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-009:2",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-009:5",
+    "status": "PRESERVED",
+    "reason": "Meaning, evidence caveats and boundary statements survive (lead plus supporting detail)."
+   },
+   {
+    "id": "CON-009:1",
+    "status": "DEGRADED",
+    "reason": "Lead changes 'could not load an authorised inventory' into 'There are no devices in what I read', a mild overclaim; the original caveat survives only in supporting detail."
+   }
+  ]
+ }
+}
