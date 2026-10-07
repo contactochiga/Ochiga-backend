@@ -2,6 +2,7 @@ import type { CognitiveObjective, SemanticFrame } from "../contracts/semanticFra
 import type { CanonicalConversationRequest } from "../contracts/canonicalConversation";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CapabilityModule } from "../contracts/capability";
+import type { CompactEvidencePlanState } from "../evidence/planner/types";
 
 // Ephemeral conversational state, persisted ONLY by canonical conversation
 // persistence. It contains neither evidence nor an execution directive.
@@ -27,6 +28,9 @@ export type ConversationAssessmentContext = {
   // Only an already-selected, same-scope result may bind an assertion.
   target_ref?: { canonical_id: string; object_type: string; label: string } | null;
   material_information?: { text: string; target_id: string; source: "user_assertion" } | null;
+  // IQ-3B: the compact governed evidence-plan state for THIS assessment (counts, safe refs, a small
+  // allowlisted projection). Never raw evidence. Carried across follow-ups and invalidated by the planner.
+  evidence_plan?: CompactEvidencePlanState | null;
   created_at: string;
   updated_at: string;
   expires_at: string;
@@ -89,6 +93,7 @@ export function assessmentSubjectDomains(frame: SemanticFrame, surface: string):
   return [];
 }
 
+export function defaultAssessmentSubject(surface: string): string[] { return defaultSubject(surface); }
 function defaultSubject(surface: string): string[] {
   if (surface === "office_internal") return ["crm", "office_development", "office_reports", "office_financial"];
   if (surface === "public_corporate") return ["corporate_opportunity"];
@@ -112,13 +117,7 @@ export function assessmentSubjectLabel(state: ConversationAssessmentContext): st
   return state.subject_label ? `${domains} (${state.subject_label}, as described by you)` : domains;
 }
 
-export function assessmentEvidenceAnswer(state: ConversationAssessmentContext, frame: SemanticFrame): string {
-  const subject = assessmentSubjectLabel(state);
-  const requirements = (state.missing_evidence_domains?.length ? state.missing_evidence_domains : state.required_evidence_domains) || [];
-  const names = assessmentSubjectLabel({ ...state, subject_domains: requirements, subject_label: null });
-  const job = ({assess:"assess",prioritize:"prioritize",compare:"compare",explain:"explain",advise:"recommend a next step for",reassess:"reassess",summarize:"summarize",retrieve:"inspect"})[frame.cognitiveObjective || state.objective];
-  const need = requirements.length ? `The evidence requirement is current ${names} evidence within your permitted scope.`
-    : "There is no eligible read-evidence contract for that subject in this scope; I cannot claim access to it.";
+export function assessmentCaveats(state: ConversationAssessmentContext, frame: SemanticFrame): string {
   const references = /\b(?:second|third|other one|that project)\b/i.test(frame.rawText) && !state.target_ref
     ? " Which item do you mean? No assessed or ranked target has been established, so I won't substitute an older list." : "";
   const roomReference = /\bwhich room\b.*\bdiscuss/i.test(frame.rawText) && !state.subject_label
@@ -138,7 +137,18 @@ export function assessmentEvidenceAnswer(state: ConversationAssessmentContext, f
     : purpose === "counterfactual" ? " This asks which evidence could change the assessment, not whether a change has already occurred. It requires evidence that resolves the current blocker or uncertainty; no changed recommendation is asserted."
     : "";
   const comparison = frame.cognitiveObjective === "compare" && /\b(?:compare|stronger|other one)\b/i.test(frame.rawText) && !state.target_ref ? " The subject categories are retained, but no compared candidate set is established. Which items should be compared?" : "";
-  return `To ${job} ${subject}, ${need.charAt(0).toLowerCase()+need.slice(1)} I have not loaded additional sources or established a new recommendation.${specific}${comparison}${references}${roomReference}${claim}${historical}${scope}${policy}${attribution}`;
+  return `${specific}${comparison}${references}${roomReference}${claim}${historical}${scope}${policy}${attribution}`;
+}
+
+export function assessmentEvidenceAnswer(state: ConversationAssessmentContext, frame: SemanticFrame): string {
+  const subject = assessmentSubjectLabel(state);
+  const requirements = (state.missing_evidence_domains?.length ? state.missing_evidence_domains : state.required_evidence_domains) || [];
+  const names = assessmentSubjectLabel({ ...state, subject_domains: requirements, subject_label: null });
+  const job = ({assess:"assess",prioritize:"prioritize",compare:"compare",explain:"explain",advise:"recommend a next step for",reassess:"reassess",summarize:"summarize",retrieve:"inspect"})[frame.cognitiveObjective || state.objective];
+  const need = requirements.length ? `The evidence requirement is current ${names} evidence within your permitted scope.`
+    : "There is no eligible read-evidence contract for that subject in this scope; I cannot claim access to it.";
+  const caveats = assessmentCaveats(state, frame);
+  return `To ${job} ${subject}, ${need.charAt(0).toLowerCase()+need.slice(1)} I have not loaded additional sources or established a new recommendation.${caveats}`;
 }
 
 export function isAssessmentInformation(text: string): boolean {
@@ -195,6 +205,7 @@ export function nextConversationAssessment(previous: ConversationAssessmentConte
     pending_information: retain && !correction && isAssessmentInformation(frame.rawText) ? frame.rawText.slice(0, 1000)
       : retain && !correction && (!subjectChanged || answeringPending) ? old.pending_information || null : null,
     material_information: retain && !correction && !subjectChanged ? old.material_information : null,
+    evidence_plan: retain && !correction ? old.evidence_plan ?? null : null,
     created_at: retain ? old.created_at : stamp,
     updated_at: stamp,
     expires_at: new Date(now + ASSESSMENT_TTL_MS).toISOString(),

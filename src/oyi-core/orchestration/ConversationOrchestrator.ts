@@ -3,7 +3,10 @@ import type { CanonicalTruth, ConversationBuilderKey } from "../contracts/canoni
 import type { DomainResult } from "../contracts/domainResult";
 import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/SemanticFrameParser";
-import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective, isAssessmentInformation, assessmentContinuation, assessmentSubjectDomains, assessmentEvidenceRequirements, assessmentEvidenceAnswer, ASSESSMENT_TTL_MS } from "../context/conversationAssessmentContext";
+import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective, isAssessmentInformation, assessmentContinuation, assessmentSubjectDomains, assessmentEvidenceRequirements, assessmentEvidenceAnswer, assessmentCaveats, ASSESSMENT_TTL_MS } from "../context/conversationAssessmentContext";
+import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
+import { composeEvidenceReadiness } from "../evidence/planner/readiness";
+import type { PlannerResult } from "../evidence/planner/planner";
 import { loadPublicOpportunityObjective, correctedPublicFacts } from "../context/publicOpportunityObjective";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
@@ -3168,6 +3171,23 @@ function unavailableInsideFallback(): Promise<ConversationRunResult> {
 // honestly; it cannot manufacture a second interpretation/authority path.
 // The callback remains in the capability contract while individual legacy
 // adapters are retired, but it is deliberately a governed terminal response.
+// IQ-3B: a terminal response for an assessment whose governed evidence was gathered. Same response adapter as every
+// other capability result; the evidence itself is NOT attached (only compact plan state lives in the assessment context).
+async function assessmentEvidenceResponse(
+  context: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn },
+  answer: string,
+  status: "answered" | "unavailable",
+  planStatus: string,
+): Promise<ConversationRunResult> {
+  const capability: CapabilityModule = {
+    key: "oyi.assessment.evidence_plan", domain: "global", rolloutStatus: "enabled", supported_surfaces: [context.input.surface],
+    supports: () => true, resolve: async () => ({ supported: true, reason: null }), collectEvidence: async () => [],
+  };
+  const result: DomainResult = { status, answer, presentation_policy: resultPresentation("text"),
+    metadata: { assessment_evidence_plan_status: planStatus, fallback_owner: "assessment_evidence_planner", legacy_fallback_used: false } };
+  return capabilityDomainResultToConversationResponse({ context: { ...context, legacyFallback: unavailableInsideFallback }, capability, result, evidence: [] });
+}
+
 async function canonicalUnavailableFallback(
   context: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn },
   reason: string,
@@ -3763,13 +3783,28 @@ export class ConversationOrchestrator {
         // Acknowledging an objective grants no evidence access. Do not turn a
         // lexical match to an unrelated restricted capability into a claim
         // that the user's assessment question itself is forbidden.
-        const answer = assessmentEvidenceAnswer(assessment, frame);
-        let response = await canonicalUnavailableFallback({ ...context, resolvedTurn }, "assessment_evidence_needed", { status: "unavailable", answer });
+        // IQ-3B: gather the governed, certified, authorised evidence for this assessment (deterministic plan,
+        // pure reads, bounded fan-out, reuse). The planner states evidence readiness; it does not judge or rank.
+        let planned: PlannerResult | null = null;
+        if (boolFlag("OYI_EVIDENCE_PLANNER_ENABLED", true)) {
+          planned = await gatherAssessmentEvidence({ context, resolvedTurn, rawText: frame.rawText, assessment, tracer }).catch((error) => {
+            logger.warn("oyi_assessment_evidence_plan_failed", { request_id: tracer.requestId, error: error instanceof Error ? error.message : String(error) });
+            return null;
+          });
+        }
+        const gathered = Boolean(planned?.applicable);
+        if (gathered) assessment = { ...assessment, evidence_plan: planned!.state };
+        const answer = gathered ? `${composeEvidenceReadiness(planned!.state)}${assessmentCaveats(assessment, frame)}` : assessmentEvidenceAnswer(assessment, frame);
+        const anyUsable = Boolean(planned?.state.contributions.some(c => c.availability === "available"));
+        let response = gathered
+          ? await assessmentEvidenceResponse({ ...context, resolvedTurn }, answer, anyUsable ? "answered" : "unavailable", planned!.state.status)
+          : await canonicalUnavailableFallback({ ...context, resolvedTurn }, "assessment_evidence_needed", { status: "unavailable", answer });
         response.execution = { ...response.execution, cognitive_objective: frame.cognitiveObjective || assessment.objective,
-          assessment_status: "evidence_needed", current_turn_execution: false,
+          assessment_status: gathered ? "evidence_gathered" : "evidence_needed", current_turn_execution: false,
+          ...(gathered ? { evidence_plan_status: planned!.state.status, evidence_plan_id: planned!.state.plan_id } : {}),
           assessment_context: assessment,
-          orchestrator_v2: { semantic_frame: frame, resolved_turn: resolvedTurn, resolution_outcome: "intentionally_unsupported", capability_key: null } };
-        tracer.stage("canonical_terminal_response", { cognitive_objective: assessment.objective, domain: assessment.domain, evidence_count: 0, outcome: "assessment_pending", reason: "assessment_evidence_needed" });
+          orchestrator_v2: { semantic_frame: frame, resolved_turn: resolvedTurn, resolution_outcome: gathered ? "assessment_evidence_planned" : "intentionally_unsupported", capability_key: null } };
+        tracer.stage("canonical_terminal_response", { cognitive_objective: assessment.objective, domain: assessment.domain, evidence_count: planned ? planned.state.contributions.reduce((n, c) => n + c.record_count, 0) : 0, outcome: "assessment_pending", reason: gathered ? "assessment_evidence_gathered" : "assessment_evidence_needed" });
         response = await persistTerminalConversationResponse(context, response, response.truth, resolvedTurn, "assessment_evidence_needed");
         tracer.finish({ thread_id: response.thread_id, response_state: response.persistence_saved ? "returned" : "unsaved" });
         return response;
