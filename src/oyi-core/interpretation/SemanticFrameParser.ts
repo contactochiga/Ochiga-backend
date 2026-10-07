@@ -81,7 +81,7 @@ function domainFor(text: string, normalizedDomain: OyiDomain | null, operation: 
   // domains, nothing here should be allowed to override it.
   if (isBusinessDomain(normalizedDomain)) return normalizedDomain;
   // an operation inferred from a generic word ("status", "position") never overrides a domain the text names explicitly, unless a device is named
-  if (operation.startsWith("device.") && (!normalizedDomain || /\b(?:devices?|lights?|switch(?:es)?|sockets?|plugs?|tv|ac|air conditioner|thermostats?|sensors?|locks?|channel\s*\d+|heater|fan)\b/i.test(text))) return "devices";
+  if (operation.startsWith("device.") && (!normalizedDomain || operation.startsWith("device.power") || /\b(?:devices?|lights?|switch(?:es)?|sockets?|plugs?|tv|ac|air conditioner|thermostats?|sensors?|locks?|channel\s*\d+|heater|fan)\b/i.test(text))) return "devices";
   if (operation.startsWith("wallet.")) return "wallet";
   if (operation.startsWith("utilities.")) return "utilities";
   if (/\b(devices?|light|switch|socket|plug|tv|air conditioner|ac|channel\s*\d+)\b/i.test(text)) return "devices";
