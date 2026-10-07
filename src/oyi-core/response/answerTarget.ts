@@ -11,13 +11,13 @@ export type ResponseIntent =
   | "LIST" | "COUNT" | "STATUS" | "SUMMARY" | "DIRECT_ANSWER" | "ASSESSMENT" | "RANKING" | "COMPARISON" | "EXPLANATION" | "YES_NO_WITH_REASON"
   | "ADVICE" | "CLARIFICATION" | "REFUSAL" | "LIMITATION" | "CONFIRMATION_STATE" | "ACTION_RESULT" | "NEXT_STEP" | "SAFETY_RISK" | "CAPABILITY_DISCOVERY";
 
-export type YesNoKind = "state" | "inference" | "capability" | "change" | "action_result" | "advice";
+export type YesNoKind = "state" | "inference" | "capability" | "change" | "action_result" | "advice" | "fact" | "submission";
 
 export type AnswerTarget = {
   response_intent: ResponseIntent;
   subject_tokens: string[];            // content words naming what the question is about
   top_n: number | null;                // an explicit "top three" / "first two"
-  quantity: "count" | "list" | null;
+  quantity: "count" | "list" | "sum" | "value" | null; // count of records / the records / a total amount / a current value
   yes_no: { kind: YesNoKind } | null;
   compare_terms: string[][];           // the named sides of a comparison, as content-token groups
   qualifier_tokens: string[];          // status/filter words ("open", "stale", "qualified", "overdue" ...)
@@ -33,14 +33,17 @@ export type AnswerTarget = {
   facet: Facet;                        // balance | transactions | spending | usage | history | status
   state_concept: StateConcept | null;  // open / resolved / stale / overdue / arrived / departed
   negated_qualifiers: string[];        // qualifiers asked for in the negative ("not closed"): the projector inverts them
-  ask_facet: "recall" | "missing" | "sufficiency" | "commitment" | null; // what a question about HELD (public) facts wants: what was shared / what is missing / enough? / any promise?
+  flow: "out" | "in" | null;           // direction of money a sum asks about (went out / came in); null = unspecified
+  clarify_reason?: "unresolved_reference" | "ambiguous_target" | "missing_selection" | null;
+  constraint_kind?: "disclosure" | "channel" | "commitment" | "other";
+  ask_facet: "recall" | "missing" | "sufficiency" | "commitment" | "submission" | null; // what a question about HELD (public) facts wants: what was shared / what is missing / enough? / any promise?
   fact_keys: string[];                 // held-fact keys the question names (structure, size, location, terms, title, owner, type)
   past_reference: boolean;             // the question is about an earlier point in time ("last week", "yesterday")
   refinements?: string[];              // typed refinements applied after derivation (never silent)
 };
 
 /** The only way a downstream layer may change a carried target: an explicit, recorded refinement. */
-export function refineAnswerTarget(t: AnswerTarget, reason: string, patch: Partial<Pick<AnswerTarget, "response_intent" | "yes_no" | "qualifier_tokens" | "refusal_kind" | "confirmation_kind">>): AnswerTarget {
+export function refineAnswerTarget(t: AnswerTarget, reason: string, patch: Partial<Pick<AnswerTarget, "response_intent" | "yes_no" | "qualifier_tokens" | "refusal_kind" | "confirmation_kind" | "clarify_reason">>): AnswerTarget {
   return { ...t, ...patch, refinements: [...(t.refinements || []), reason] };
 }
 
@@ -64,6 +67,7 @@ export function isHazardReport(text: string): boolean {
 const WET = ["water", "wet", "flooding", "flooded", "leaking", "liquid", "dripping", "damp"], ELECTRIC = ["socket", "sockets", "outlet", "outlets", "panel", "wiring", "wire", "wires", "cable", "cables", "plug", "fuse", "breaker", "electrical", "electric"];
 export const isHazardText = (text: string) => { const t = analyse(text).tokens; return t.some(x => HAZARD.includes(x)); };
 
+const constraintKind = (T: string[], channel: boolean): NonNullable<AnswerTarget["constraint_kind"]> => channel ? "channel" : T.some(t => ["promise", "promises", "guarantee", "commit", "assure", "pledge"].includes(t)) ? "commitment" : T.some(t => ["share", "pass", "tell", "send", "give", "disclose", "reveal", "forward", "show", "expose", "publish"].includes(t)) ? "disclosure" : "other";
 const splitSides = (tokens: string[]): string[][] => {
   // two content groups joined by a comparison marker (or / with / versus / than / against / and)
   const cut = tokens.findIndex((t, i) => i > 0 && ["or", "with", "versus", "vs", "than", "against", "and", "from", "rather"].includes(t));
@@ -72,7 +76,7 @@ const splitSides = (tokens: string[]): string[][] => {
   return a.length && b.length ? [a, b] : [];
 };
 
-export function deriveAnswerTarget(text: string, opts: { objective?: string | null; activeAssessment?: boolean } = {}): AnswerTarget {
+export function deriveAnswerTarget(text: string, opts: { objective?: string | null; activeAssessment?: boolean; ambiguity?: { required: boolean; reason: string | null }; pronounRef?: boolean } = {}): AnswerTarget {
   // a turn that opens with context ("I just got into the office. What needs my attention?") is shaped by its last question or directive
   // a leading condition ("if nothing was logged, does that ...?") frames the question that follows it
   const cond = /^\s*(?:if|when|once|assuming|given|because|since|as)\b[^,]{3,80},\s*(.+\?\s*)$/i.exec(text);
@@ -84,7 +88,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const content = contentTokens(T), qualifiers = T.filter(t => STATUS_WORDS.includes(t));
   const hazard = T.some(t => HAZARD.includes(t)), riskAsk = T.some(t => RISK_ASK.includes(t));
   const cpt = resolveConcepts(text);
-  const FACT_KEY: Array<[string, string[]]> = [["commercial_terms", ["terms", "price", "pricing", "offer"]], ["structure_offered", ["structure", "lease", "sale", "jv", "venture", "partnership", "sell", "selling"]], ["land_size", ["size", "big", "sqm", "hectares", "acres", "area"]], ["location", ["where", "location", "located", "area", "city"]], ["title_document_status", ["title", "document", "documents", "papers"]], ["landowner_expectation", ["owner", "owners", "ownership", "expectation", "expect", "expects"]], ["opportunity_type", ["type", "land", "building", "plot"]]];
+  const FACT_KEY: Array<[string, string[]]> = [["commercial_terms", ["terms", "price", "pricing", "offer"]], ["structure_offered", ["structure", "lease", "sale", "jv", "venture", "partnership", "sell", "selling"]], ["land_size", ["size", "big", "sqm", "hectares", "acres", "area"]], ["location", ["where", "location", "located", "area", "city"]], ["title_document_status", ["title", "document", "documents", "papers"]], ["landowner_expectation", ["owner", "owners", "ownership", "expectation", "expect", "expects"]], ["opportunity_type", ["type", "kind"]]];
   const tk = T.filter(t => !STOP.has(t));
   const fact_keys = FACT_KEY.filter(([, ws]) => ws.some(w => tk.includes(w))).map(([k]) => k);
   const COMMIT_ASK = ["promise", "promises", "guarantee", "guarantees", "assure", "assurance", "assured", "ensure", "commit", "committing", "committed", "definitely", "firm", "certain", "confirm", "sign", "signing", "accept", "enter", "bind"];
@@ -97,15 +101,23 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const stateTok = (t: string) => STATUS_WORDS.includes(t) || ["open", "resolved", "stale", "overdue"].includes(conceptOf(t) ?? "");
   const qualifiersAll = T.filter(stateTok);
   const negQual = qualifiersAll.filter(q => { const i = T.indexOf(q); return i > 0 && ["not", "never", "isn", "hasn", "haven", "no"].includes(T[i - 1]); });
-  const base = (intent: ResponseIntent, over: Partial<AnswerTarget> = {}): AnswerTarget => ({ object: cpt.object, facet: cpt.facet, state_concept: cpt.state, response_intent: intent, subject_tokens: content.filter(t => !stateTok(t)), negated_qualifiers: negQual, ask_facet, fact_keys, past_reference, top_n: null, quantity: null, yes_no: null, compare_terms: [], qualifier_tokens: qualifiersAll,
+  const MONEY = ["money", "amount", "total", "spent", "spend", "spending", "paid", "pay", "cost", "costs", "funds", "cash", "naira", "income", "revenue", "balance", "worth"];
+  const OUT = ["spent", "spend", "spending", "paid", "pay", "debit", "debited", "withdrew", "withdrawn", "outflow", "out", "cost", "costs", "gone"], IN = ["received", "receive", "funded", "funding", "deposit", "deposited", "credited", "credit", "income", "earned", "came", "inflow"];
+  const flow: AnswerTarget["flow"] = T.some(t => OUT.includes(t)) ? "out" : T.some(t => IN.includes(t)) ? "in" : null;
+  const moneyish = T.some(t => MONEY.includes(t)) || ["transactions", "spending", "balance"].includes(cpt.facet as string);
+  const submitAsk = (u.auxLead || u.wh || u.q) && T.some(t => ["submitted", "submit", "forwarded", "forward", "escalated", "handed", "passed", "sent"].includes(t)) && (T.includes("you") || T.some(t => ["team", "ochiga", "office", "staff"].includes(t))) && T.some(t => ["details", "information", "info", "enquiry", "inquiry", "application", "request", "proposal", "opportunity", "it", "them"].includes(t));
+  const base = (intent: ResponseIntent, over: Partial<AnswerTarget> = {}): AnswerTarget => ({ object: cpt.object, facet: cpt.facet, state_concept: cpt.state, response_intent: intent, subject_tokens: content.filter(t => !stateTok(t)), negated_qualifiers: negQual, ask_facet: submitAsk ? "submission" : ask_facet, flow, fact_keys, past_reference, top_n: null, quantity: cpt.facet === "balance" ? "value" : null, yes_no: null, compare_terms: [], qualifier_tokens: qualifiersAll,
     safety_relevant: hazard || riskAsk, is_question: u.q || u.wh || u.auxLead || u.imperative, must_answer: "", supporting_context_allowed: true, must_not_substitute: ["capability_menu"], ...over });
 
+  if (opts.ambiguity?.required) return base("CLARIFICATION", { clarify_reason: "ambiguous_target", must_answer: "ask which one is meant", must_not_substitute: ["capability_menu", "evidence_readiness", "nothing_pending"] });
   if (isCapabilityInquiryText(text)) return base("CAPABILITY_DISCOVERY", { must_answer: "what Oyi can help with", must_not_substitute: [] });
   const standingMarker = T.some(t => ["while", "during", "whenever", "until", "always", "ever", "never", "rest", "session", "anyone", "anybody", "nobody"].includes(t)) || T.slice(0, 3).join(" ") === "from now on";
+  const onlyChannel = /^\s*(?:please\s+)?(?:only|just)\s+(?:contact|call|email|message|text|reach|whatsapp|ping)\b/i.test(text);
+  if (onlyChannel && !u.q && !u.wh) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", constraint_kind: "channel", is_question: false, must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer", "callback"] });
   if (isCancellationText(text) && standingMarker && T.length > 5 && !isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // a negative imperative about disclosing ("don't share / pass on / tell ...", optionally closed by a tag like "ok?") is a standing constraint, not a cancellation
   const tagClose = /[,\s](?:ok|okay|right|alright|yeah|yes)\s*\?\s*$/i.test(text);
-  if (u.negImperative && T.some(t => ["share", "pass", "tell", "send", "give", "disclose", "reveal", "forward", "show", "expose", "publish"].includes(t)) && !u.wh && (!u.q || tagClose) && !isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", is_question: false, must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  if (u.negImperative && T.some(t => ["share", "pass", "tell", "send", "give", "disclose", "reveal", "forward", "show", "expose", "publish"].includes(t)) && !u.wh && (!u.q || tagClose) && !isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", constraint_kind: constraintKind(T, false), is_question: false, must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (isCancellationText(text) || isHoldDirective(text) || isCallbackRequest(text)) return base("CONFIRMATION_STATE", { confirmation_kind: isCallbackRequest(text) ? "callback" : isHoldDirective(text) ? "hold" : "cancel", must_answer: "what is now in force (nothing is executed)", must_not_substitute: ["capability_menu", "evidence_readiness"] });
   // a standing constraint on how Oyi behaves ("don't claim / share / invent ...", "from now on ...", "do not turn anything on or off")
   // a tag question ("... so we are fine, right?") asks for confirmation of the statement before it
@@ -114,11 +126,20 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const neg = u.negImperative || (T[0] === "no" && /ing$/.test(T[1] ?? "")) || (/^(?:from now on|going forward|please do not|please don t)/.test(T.join(" ")) && T.includes("not"));
   const fromNow = T.slice(0, 3).join(" ") === "from now on";
   const confidentiality = T[0] === "keep" && T.some(t => ["between", "private", "confidential", "secret", "yourself"].includes(t));
-  if ((neg || fromNow || confidentiality) && !u.q && !u.wh && !/\b(?:just|only|instead)\b/i.test(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  if ((neg || fromNow || confidentiality) && !u.q && !u.wh && !/\b(?:just|only|instead)\b/i.test(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "constraint", constraint_kind: constraintKind(T, false), must_answer: "acknowledge the constraint and state it is in force", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
 
   // how many / how much / the number of / count of
   const howMany = T.findIndex((t, i) => t === "how" && ["many", "much"].includes(T[i + 1] ?? "")) >= 0;
   const countAsk = howMany || lead === "count" || (u.imperative && T.slice(0, 3).includes("count")) || (lead === "how" && ["many", "much"].includes(T[1] ?? "")) || (T.includes("number") && T.includes("of") && (u.wh || u.q || u.imperative)) || (T.includes("count") && T.includes("of")) || (u.wh && T.includes("total"));
+  // a bare directive whose only object is a pronoun ("do it again", "update it"): nothing says what it refers to, so the ask is a clarification
+  const FILLER = new Set(["do", "does", "did", "it", "that", "this", "them", "again", "update", "redo", "repeat", "undo", "please", "now", "turn", "switch", "set", "on", "off", "change", "same", "one", "more", "once", "back", "go", "ahead", "just", "then", "like", "before", "as", "earlier", "previous", "last", "time", "so", "ok", "okay"]);
+  if (opts.pronounRef && !u.q && !u.wh && T.length <= 6 && contentTokens(T).filter(t => !FILLER.has(t)).length === 0) return base("CLARIFICATION", { clarify_reason: "unresolved_reference", is_question: true, must_answer: "ask which one is meant", must_not_substitute: ["capability_menu", "evidence_readiness", "nothing_pending"] });
+  const muchAsk = T.some((t, i) => t === "how" && T[i + 1] === "much");
+  if ((muchAsk || (u.wh && T.includes("total"))) && moneyish && cpt.facet !== "usage") {
+    if (cpt.facet === "balance") return base("STATUS", { quantity: "value", must_answer: "the current value", must_not_substitute: ["capability_menu", "list_for_count", "count_for_value"] });
+    return base("DIRECT_ANSWER", { quantity: "sum", must_answer: "the total amount (not a count of records)", must_not_substitute: ["capability_menu", "count_for_sum", "list_for_sum"] });
+  }
+  if (submitAsk) return base("YES_NO_WITH_REASON", { yes_no: { kind: "submission" }, must_answer: "what is known about whether anything was handed over", must_not_substitute: ["capability_menu", "acknowledgement", "promise"] });
   if (countAsk) return base("COUNT", { quantity: "count", must_answer: "the number first", must_not_substitute: ["capability_menu", "list_for_count", "evidence_readiness"] });
 
   // did/have you <done something>? -> truth about actions taken in this conversation
@@ -126,7 +147,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   if (youDid && !/\b(?:prove|mean)\b/.test(T.join(" "))) return base("ACTION_RESULT", { yes_no: { kind: "action_result" }, must_answer: "whether anything was actually changed (yes/no first)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
 
   // an action with only a pronoun for its object ("turn that off") cannot be carried out until it is clear what is meant
-  if (u.imperative && ["turn", "switch", "set", "lock", "unlock", "open", "close", "start", "stop", "shut", "power", "kill", "disable", "enable", "activate", "deactivate", "dim", "boost"].includes(lead) && T.some(t => ["that", "this", "those", "them"].includes(t)) && contentTokens(T).filter(t => !["turn", "switch", "set", "lock", "unlock", "open", "close", "start", "stop", "shut", "power", "kill", "disable", "enable", "activate", "deactivate", "dim", "boost", "on", "off", "up", "down", "that", "this", "those", "them"].includes(t)).length === 0 && !T.includes("it")) return base("CLARIFICATION", { must_answer: "ask which one is meant", must_not_substitute: ["capability_menu", "evidence_readiness"] });
+  if (u.imperative && ["turn", "switch", "set", "lock", "unlock", "open", "close", "start", "stop", "shut", "power", "kill", "disable", "enable", "activate", "deactivate", "dim", "boost"].includes(lead) && T.some(t => ["that", "this", "those", "them"].includes(t)) && contentTokens(T).filter(t => !["turn", "switch", "set", "lock", "unlock", "open", "close", "start", "stop", "shut", "power", "kill", "disable", "enable", "activate", "deactivate", "dim", "boost", "on", "off", "up", "down", "that", "this", "those", "them"].includes(t)).length === 0 && !T.includes("it")) return base("CLARIFICATION", { clarify_reason: "unresolved_reference", must_answer: "ask which one is meant", must_not_substitute: ["capability_menu", "evidence_readiness"] });
   // an instruction to ignore a boundary, or to treat the user as someone they are not, is declined whatever role is claimed
   if (T.some(t => ["ignore", "bypass", "override", "disregard", "pretend", "impersonate", "circumvent"].includes(t)) && T.some(t => ["privacy", "boundary", "boundaries", "permission", "permissions", "rule", "rules", "authority", "restriction", "restrictions", "policy", "owner", "admin", "manager", "role", "security", "limits"].includes(t)))
     return base("REFUSAL", { refusal_kind: "authority", must_answer: "decline to bypass a privacy/permission boundary, whatever role is claimed", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
@@ -175,7 +196,8 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
 
   // yes/no questions (subject-auxiliary inversion)
   if (u.auxLead && !u.imperative) {
-    const kind: YesNoKind = T.some(t => INFERENCE.includes(t)) ? "inference"
+    const kind: YesNoKind = fact_keys.length && T.some(t => ["i", "my", "me", "mine", "ve"].includes(t)) && T.some(t => ["told", "say", "said", "ask", "asked", "mention", "mentioned", "gave", "give", "shared", "provided", "wanted", "want", "stated", "offered", "tell"].includes(t)) ? "fact"
+      : T.some(t => INFERENCE.includes(t)) ? "inference"
       : (["can", "could"].includes(lead) && T[1] === "you") || (lead === "do" && T[1] === "you" && T.some(t => ["know", "have", "see", "verify", "access"].includes(t))) || (lead === "are" && T[1] === "you") ? "capability"
       : T.includes("change") || T.includes("changes") || T.includes("changed") || (T.includes("still") && objective === "reassess") ? "change"
       : ["should", "would", "shall"].includes(lead) ? "advice" : "state";

@@ -5,7 +5,7 @@ import type { DomainResult } from "../contracts/domainResult";
 import type { OyiEvidence } from "../contracts/evidence";
 import { mapResultEnvelope } from "../response/envelopeMappers";
 import { responseContract } from "../response/resultEnvelope";
-import { projectResponse } from "../response/projector";
+import { projectResponse, projectionRequired } from "../response/projector";
 import { isGenericUnsupportedAnswer, limitationAnswer } from "../response/limitationTarget";
 
 // IQ-8D: read capabilities return structured truth; the ONE AnswerTarget carried on the semantic frame decides the shape. Core maps the result into
@@ -24,7 +24,9 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     }
     if (result.status !== "answered" && result.status !== "empty") return result;
     const envelope = mapResultEnvelope(capabilityKey, result, { capability_status: "enabled" });
-    const p = envelope ? projectResponse(t, envelope, { asked: frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120) }) : null;
+    const p = envelope ? projectResponse(t, envelope, { asked: frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120), raw: frame.rawText }) : null;
+    // target-application guarantee: a valid target + an envelope that supports it must reach the projector's answer; a miss is recorded, never silent
+    if (envelope && !p && projectionRequired(t, envelope)) return { ...result, metadata: { ...(result.metadata || {}), projection_contract_violation: true, response_contract: responseContract(envelope) } };
     if (!envelope || !p) return result;
     const answer = [p.primary, ...p.supporting.filter(x => x && x !== p.primary).map(x => `Supporting detail: ${x}`)].join("\n\n");
     return { ...result, answer, metadata: { ...(result.metadata || {}), answer_target: t.response_intent, projection_shape: p.shape, response_contract: responseContract(envelope) } };

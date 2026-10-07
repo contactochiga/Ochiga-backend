@@ -30,7 +30,7 @@ const REGISTRY: Record<string, Family> = {
   "utilities.usage.read": F("utilities", "utility", "utility usage", "utility usage", ["usage"]),
   "facility.cameras.read": F("cameras", "camera", "cameras", "camera", ["status"]),
   "facility.overview.read": F("facility", null, "open items", "open item", ["status", "list"]),
-  "financial.summary.read": F("office_financial", null, "estate financial summaries", "estate financial summary", ["status", "balance"], { aggregate_only: true }),
+  "financial.summary.read": F("office_financial", null, "estate financial summaries", "estate financial summary", ["status", "balance"]),
   "corporate.opportunity.read": F("corporate_opportunity", null, "details you have shared", "detail you have shared", ["recall", "status"]),
 };
 const clean = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
@@ -66,6 +66,9 @@ export function mapResultEnvelope(key: string, result: DomainResult, ctx: { capa
   let records: EnvelopeRecord[] | undefined = rows ? rows.map(r => ({ label: clean(r.label), status: r.status ?? null, state: stateOfStatus(r.status), detail: r.detail ?? null })) : recordsFromBlock(block);
   const facts = (meta.result_facts || {}) as Record<string, any>;
   if (!records && Array.isArray(facts.records)) records = facts.records as EnvelopeRecord[];
+  // structured per-record facts a capability already holds (activity age ...), merged by record id; never derived from prose
+  const extras = (facts.record_extras || {}) as Record<string, { age_days?: number | null }>;
+  if (records) records = records.map(r => (r.id && extras[r.id] ? { ...r, age_days: extras[r.id].age_days ?? null } : r));
   const ov = meta.overview_view as { maintenance: Array<{ label: string; status: string; priority?: string }>; incidents: Array<{ label: string; status: string }>; unavailable: string[] } | undefined;
   if (ov) records = [...ov.maintenance.map(m => ({ label: m.label, status: m.status, state: stateOfStatus(m.status) ?? "open" as const, detail: m.priority ? `${m.priority} priority` : null, fields: { kind: "maintenance request" } })), ...ov.incidents.map(i => ({ label: i.label, status: i.status, state: "open" as const, fields: { kind: "security incident" } }))];
   const limitations: Limitation[] = [];
@@ -85,8 +88,9 @@ export function mapResultEnvelope(key: string, result: DomainResult, ctx: { capa
     ...(block?.truncated ? { truncated: true } : {}),
     ...(facts.value ? { value: facts.value } : {}), ...(stateFacts ? { state_facts: stateFacts } : {}),
     ...(limitations.length ? { limitations } : {}),
+    ...(Array.isArray(facts.measures) && facts.measures.length ? { measures: facts.measures } : {}),
     ...(facts.held_facts ? { held_facts: facts.held_facts } : {}),
-    ...(meta.workflow_id || meta.action_id ? { actions: { workflow_id: meta.workflow_id ?? null, action_id: meta.action_id ?? null } } : {}),
+    ...(meta.workflow_id || meta.action_id || facts.submission ? { actions: { workflow_id: meta.workflow_id ?? null, action_id: meta.action_id ?? null, ...(facts.submission ? { submission: facts.submission } : {}) } } : {}),
     hints: { ...(fam?.permission_only ? { permission_only: true } : {}), ...(fam?.requires_judgment ? { requires_judgment: true } : {}), ...(fam?.aggregate_only ? { aggregate_only: true } : {}) },
     legacy_prose: clean(result.answer),
   };
@@ -94,8 +98,8 @@ export function mapResultEnvelope(key: string, result: DomainResult, ctx: { capa
 }
 
 /** Osa/public: what the caller has supplied and what the existing completeness logic says is missing, as held facts (no capability call). */
-export function heldFactsEnvelope(h: { known: Record<string, string>; missing: string[] | null; constraints: string[] }): ResultEnvelope {
+export function heldFactsEnvelope(h: { known: Record<string, string>; missing: string[] | null; constraints: string[]; submission?: "submitted" | "not_submitted" | "unknown" }): ResultEnvelope {
   return { v: 1, capability_key: "corporate.opportunity", availability: "answered", capability_status: "enabled", truth_state: "observed",
     subject: { domain: "corporate", object_class: "opportunity", noun: "opportunity details", singular: "opportunity detail", facets: ["recall", "missing"] },
-    held_facts: { known: h.known, missing: h.missing, constraints: h.constraints }, legacy_prose: "" };
+    held_facts: { known: h.known, missing: h.missing, constraints: h.constraints }, actions: { submission: h.submission ?? "unknown" }, legacy_prose: "" };
 }

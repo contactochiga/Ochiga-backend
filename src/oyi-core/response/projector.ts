@@ -2,7 +2,8 @@ import { contentTokens, type AnswerTarget } from "./answerTarget";
 import { analyse } from "../interpretation/semanticObjective";
 import { conceptOf } from "../interpretation/conceptLexicon";
 import type { EnvelopeRecord, ResultEnvelope } from "./resultEnvelope";
-import { limitationAnswer } from "./limitationTarget";
+import { clarificationQuestion, limitationAnswer } from "./limitationTarget";
+import { acknowledgeConstraint } from "./constraintAck";
 
 // IQ-8D canonical response projector. It consumes ONE carried AnswerTarget and ONE ResultEnvelope and returns the primary answer, separated from
 // supporting detail. Small typed projections by response intent; no reasoning, ranking, judging, querying or authority. It never parses prose and
@@ -57,12 +58,37 @@ function limitationText(e: ResultEnvelope, asked: string, t: AnswerTarget): stri
 }
 const noRecords = (e: ResultEnvelope, scoped: string) => `There are no ${scoped}${e.subject.noun} in what I read.`;
 
-export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string }): Projection | null {
+/** Is the canonical projector obliged to answer this (valid target + an envelope that supports it)? Specialised owners are exempt. */
+export function projectionRequired(t: AnswerTarget, e: ResultEnvelope): boolean {
+  if (!(e.availability === "answered" || e.availability === "empty") || !e.records || e.held_facts) return false;
+  return ["LIST", "COUNT", "STATUS", "DIRECT_ANSWER", "SUMMARY"].includes(t.response_intent) && !t.refusal_kind && !t.confirmation_kind;
+}
+
+function pickMeasures(t: AnswerTarget, e: ResultEnvelope) {
+  const ms = e.measures || [];
+  const dir = t.flow ? ms.filter(m => m.direction === t.flow) : [];
+  if (dir.length) return dir;
+  const toks = new Set([...t.subject_tokens, ...t.qualifier_tokens].map(stem));
+  const hit = ms.filter(m => analyse(m.label).tokens.some(w => toks.has(stem(w)) && !GENERIC.has(w)));
+  return hit.length ? hit : ms;
+}
+const money = (cur: string, n: number) => `${cur} ${Number(n).toLocaleString("en-NG")}`;
+function measureText(e: ResultEnvelope, ms: NonNullable<ResultEnvelope["measures"]>): string {
+  return ms.map(m => {
+    const partial = m.partial ? " (the read hit its limit, so this may not cover everything)" : "";
+    if (m.direction && m.n !== undefined) return m.n === 0 && !m.amount ? `Nothing ${m.direction === "out" ? "went out" : "came in"} in what I read.` : `${money(m.currency, m.amount)} ${m.direction === "out" ? "went out" : "came in"} across ${m.n} ${m.n === 1 ? e.subject.singular : e.subject.noun}${partial}.`;
+    return `${cap(m.label)}: ${money(m.currency, m.amount)}${partial}.`;
+  }).join(" ");
+}
+
+export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; raw?: string }): Projection | null {
   const sup = (...xs: string[]) => xs.filter(Boolean);
   const done = (shape: string, primary: string, ...more: string[]): Projection => ({ shape, primary, supporting: sup(...more) });
   const legacy = e.legacy_prose;
   const intent = t.response_intent;
-  if (intent === "CAPABILITY_DISCOVERY" || intent === "CONFIRMATION_STATE" || intent === "ACTION_RESULT" || intent === "CLARIFICATION") return null; // specialized owners
+  if (t.confirmation_kind === "constraint") return done("CONSTRAINT", acknowledgeConstraint(ctx.raw ?? ctx.asked));
+  if (intent === "CLARIFICATION") return done("CLARIFICATION", clarificationQuestion(t));
+  if (intent === "CAPABILITY_DISCOVERY" || intent === "CONFIRMATION_STATE" || intent === "ACTION_RESULT") return null; // specialized owners
   if (intent === "REFUSAL") return done("REFUSAL", limitationAnswer(t, ctx.asked));
   // 1. availability / limitation first: a capability that did not answer is projected as the specific limitation, never as an answer
   if (e.availability === "denied" || e.availability === "unsupported" || e.availability === "unavailable") return done("LIMITATION", limitationText(e, ctx.asked, t));
@@ -72,11 +98,13 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
   if (t.facet === "usage" && !e.subject.facets.includes("usage")) return done("LIMITATION", `I can't tell you how much you used: I can see what was spent, but consumption (usage) readings are not available yet.`, legacy);
   if (t.past_reference && !e.subject.facets.includes("history") && (intent === "STATUS" || intent === "LIST" || intent === "COUNT" || intent === "DIRECT_ANSWER" || e.value))
     return done("HISTORY", `I can only give the current ${e.value ? "value" : e.subject.noun}, not an earlier one: I have no earlier snapshot to compare with.`, legacy);
-  // 4. value (balance / totals)
-  if (e.value && (intent === "STATUS" || intent === "DIRECT_ANSWER" || intent === "LIST" || intent === "COUNT" || intent === "SUMMARY" || intent === "ASSESSMENT")) {
+  // 4. named amounts the capability computed (totals / aggregates), independent of whether any records exist
+  if (e.measures?.length && (t.quantity === "sum" || t.quantity === "value" || !e.records?.length)) return done("AGGREGATE_VALUE", measureText(e, pickMeasures(t, e)), legacy);
+  if (t.quantity === "sum") return done("LIMITATION", `I can't give you a total amount for ${e.subject.noun}: what I read lists individual entries but no total, and I won't add up partial information.`, legacy);
+  // 5. current value (balance)
+  if (e.value && (t.quantity === "value" || ["STATUS", "DIRECT_ANSWER", "LIST", "COUNT", "SUMMARY", "ASSESSMENT"].includes(intent))) {
     const v = e.value; return done("VALUE", `${cap(v.label ?? "Balance")}: ${v.currency} ${Number(v.amount).toLocaleString("en-NG")}${v.as_of ? ` (as of ${v.as_of})` : ""}${v.frozen ? ". This wallet is currently frozen" : ""}.`, legacy);
   }
-  if (e.hints?.aggregate_only && !e.records?.length && !e.value && (intent === "STATUS" || intent === "DIRECT_ANSWER" || intent === "LIST" || intent === "COUNT" || intent === "SUMMARY")) return done("LIMITATION", `I can't give you that figure: ${lower(legacy)}`);
   if (t.facet === "balance" && !e.subject.facets.includes("balance") && !e.value && e.subject.object_class === "wallet") return null; // wrong source for the facet: left to routing (IQ-8E)
   if (intent === "YES_NO_WITH_REASON" && (t.yes_no?.kind === "state" || t.yes_no?.kind === "capability")) {
     if (e.subject.object_class === "camera" && e.limitations?.some(l => l.kind === "UNOBSERVED")) return done("YES_NO", `I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.`, legacy);
@@ -86,10 +114,9 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
   const n = narrow(t, e), rows = n.rows, noun = e.subject.noun, one = e.subject.singular;
   const askedN = (c: number) => `${c} ${c === 1 ? one : noun}`;
   const trunc = e.truncated || (e.total_count != null && !e.total_qualifier && e.total_count > (e.count ?? 0));
-  // a qualifier no record carries and the capability's own sentence already addresses stays with that sentence
-  if (n.unmatched.some(x => norm(legacy).includes(stem(x))) && !n.applicable.length && (intent === "LIST" || intent === "COUNT" || intent === "STATUS")) return null;
   const support = sup(legacy);
-  switch (intent) {
+  const eff = intent === "DIRECT_ANSWER" || intent === "SUMMARY" ? (n.named.length === 1 ? "STATUS" : "LIST") : intent;
+  switch (eff) {
     case "COUNT": {
       const useTotal = e.total_count != null && e.total_qualifier === "open" && n.asked.includes("open") && !n.applicable.includes("open");
       const c = useTotal ? e.total_count! : rows.length;
@@ -100,15 +127,15 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
     }
     case "LIST": {
       if (!e.records.length) return null; // an empty read keeps the capability's own (possibly unavailable-inventory) wording
+      if (!e.records.length) return done("LIST", `${cap(noRecords(e, ""))}`, ...support);
       if (!rows.length) return done("LIST", `None of the ${noun} I read match that.`, ...support);
       const head = cap(e.subject.population ? `${noun} ${e.subject.population}` : noun);
       const note = n.unmatched.length && !n.applicable.length ? ` I could not filter by "${n.unmatched.join(", ")}" from the records I read, so this is the full list.` : "";
       return done("LIST", `${head}${n.applicable.length ? ` (${n.applicable.join(", ")})` : ""}: ${list(rows)}.${trunc ? ` This is a truncated view${e.total_count != null ? ` (${e.total_count} in total)` : ""}.` : ""}${note}`, ...support);
     }
-    case "STATUS": case "DIRECT_ANSWER": case "SUMMARY": {
+    case "STATUS": {
       if (!e.records.length) return done("STATUS", `There are no ${noun} on record in what I read — that is what the records show, not proof that nothing is wrong.`, ...support);
-      if (n.named.length === 1) { const r = n.named[0]; const extra = r.fields ? Object.entries(r.fields).filter(([k, v]) => v !== null && v !== "" && !["name", "title", "id", "status", "stage", "reason"].includes(k)).slice(0, 3).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`) : []; return done("DETAIL", `${r.label}: ${r.status ?? "recorded"}${r.detail ? `; ${r.detail}` : ""}${extra.length ? ` (${extra.join(", ")})` : ""}.`, ...support); }
-      if (intent !== "STATUS") return null;
+      if (n.named.length === 1) { const r = n.named[0]; const extra = r.fields ? Object.entries(r.fields).filter(([k, v]) => v !== null && v !== "" && !["name", "title", "id", "status", "stage", "reason"].includes(k)).slice(0, 3).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`) : []; return done("DETAIL", `${r.label}: ${r.status ?? "recorded"}${r.detail ? `; ${r.detail}` : ""}${r.age_days != null ? `; ${r.age_days} days since its last recorded activity` : ""}${extra.length ? ` (${extra.join(", ")})` : ""}.`, ...support); }
       const by = new Map<string, EnvelopeRecord[]>(); for (const r of rows) by.set(norm(r.status || "recorded"), [...(by.get(norm(r.status || "recorded")) || []), r]);
       const parts = [...by].map(([s, rs]) => `${rs.length} ${s}${rs.length <= 3 ? ` (${rs.map(r => r.label).join(", ")})` : ""}`);
       const fresh = e.limitations?.some(l => l.kind === "STALE") ? " The readings behind this are stale, so they show no current condition." : "";
@@ -126,8 +153,8 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
       return done("YES_NO", rows.length ? `Yes — ${askedN(rows.length)}${n.applicable.length ? ` ${n.applicable.join(" and ")}` : ""}: ${list(rows, 4)}.` : `No — I found no ${n.applicable.length ? n.applicable.join(" and ") + " " : ""}${noun} in what I read.`, ...support);
     }
     case "EXPLANATION": {
-      if (n.named.length === 1) { const r = n.named[0]; if (r.detail || r.status) return done("EXPLANATION", `${r.label} is ${r.status ?? "on record"}${r.detail ? `: ${r.detail}` : ""}.`, ...support); }
-      return null;
+      if (n.named.length === 1) { const r = n.named[0]; if (r.detail || r.status) return done("EXPLANATION", `${r.label} is ${r.status ?? "on record"}${r.detail ? `: ${r.detail}` : ""}${r.age_days != null ? `; ${r.age_days} days since its last recorded activity` : ""}.`, ...support); }
+      return done("LIMITATION", `I can't give a reason for that from these records: they show each ${one} and its recorded status, but not why.`, ...support);
     }
     case "RANKING": case "COMPARISON": case "ADVICE": case "NEXT_STEP": {
       if (!e.hints?.requires_judgment) return null;
@@ -149,12 +176,16 @@ function projectHeld(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string })
   const h = e.held_facts!, modelled = h.missing !== null, missing = h.missing ?? [];
   const done = (shape: string, primary: string): Projection => ({ shape, primary, supporting: [e.legacy_prose].filter(Boolean) });
   if (!t.is_question) return null;
+  if (t.ask_facet === "submission" || t.yes_no?.kind === "submission") {
+    const st = e.actions?.submission ?? "unknown";
+    return done("SUBMISSION_STATE", st === "submitted" ? "Yes — what you told me has been handed to the team." : st === "not_submitted" ? "No — nothing has been submitted to the team yet." : "I can't confirm that: I have no handoff receipt for this conversation, so I can't say your details have reached the team. I'm only holding what you've told me here.");
+  }
   const knownText = Object.entries(h.known).map(([a, b]) => `${nice(a)}: ${b}`).join("; ");
   if (t.ask_facet === "commitment") return done("YES_NO", t.response_intent === "ADVICE" || t.response_intent === "NEXT_STEP" ? "I can't commit Ochiga or advise you to sign anything; that is for you and the team after a proper review." : "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.");
   if (t.ask_facet === "sufficiency" && modelled) return done("YES_NO", missing.length ? `Not yet — for a first look I would still need: ${joinList(missing.map(nice))}.` : "Yes — that is everything we typically need to take a first look.");
   if (t.fact_keys.length && (t.response_intent === "YES_NO_WITH_REASON" || t.response_intent === "STATUS" || t.response_intent === "DIRECT_ANSWER" || t.response_intent === "LIST" || t.response_intent === "EXPLANATION")) {
     const have = t.fact_keys.filter(k => h.known[k]), lack = t.fact_keys.filter(k => !h.known[k]);
-    if (t.response_intent === "YES_NO_WITH_REASON") return done("YES_NO", have.length ? `Yes — you have told me ${have.map(k => `${nice(k)}: ${h.known[k]}`).join("; ")}.` : `No — you haven't told me ${joinList(lack.map(nice))} yet.`);
+    if (t.response_intent === "YES_NO_WITH_REASON" || t.yes_no?.kind === "fact") return done("YES_NO", have.length ? `Yes — you have told me ${have.map(k => `${nice(k)}: ${h.known[k]}`).join("; ")}.` : `No — you haven't told me ${joinList(lack.map(nice))} yet.`);
     return done("RECALL", have.length ? `${have.map(k => `${cap(nice(k))}: ${h.known[k]}`).join("; ")}.` : `You haven't told me ${joinList(lack.map(nice))} yet.`);
   }
   if (t.ask_facet === "missing" && modelled) return done("LIST", missing.length ? `What I still need from you: ${joinList(missing.map(nice))}.` : "I don't need anything further for a first look.");

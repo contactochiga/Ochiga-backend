@@ -41,6 +41,15 @@ function text(value: unknown) {
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
+// Totals the capability itself computes from the transaction facts it holds (money out = debits, money in = credits). `partial` when the read hit its limit.
+function walletMeasures(facts: IntelligenceFact[]) {
+  const tx = facts.filter((f) => f.fact_type === "wallet_transaction");
+  if (!tx.length) return [];
+  let out = 0, inn = 0, nOut = 0, nIn = 0, currency = "NGN";
+  for (const f of tx) { const v = recordOf(f.value), amt = Math.abs(Number(v.amount || 0)), dir = text(v.direction).toLowerCase(); currency = text(v.currency) || currency; if (dir === "debit") { out += amt; nOut++; } else if (dir === "credit") { inn += amt; nIn++; } }
+  const partial = tx.length >= 100;
+  return [{ key: "wallet_out", label: "money out (debits)", amount: out, currency, direction: "out", n: nOut, partial }, { key: "wallet_in", label: "money in (credits)", amount: inn, currency, direction: "in", n: nIn, partial }];
+}
 
 export { evidenceFromFact, factsFromEvidence } from "../evidence/sources/evidenceFromFact";
 import { evidenceFromFact, factsFromEvidence } from "../evidence/sources/evidenceFromFact";
@@ -456,7 +465,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         }
         const contract = requestContract(context);
         const block = tableBlockForContract(contract, facts, presentationFactPredicates);
-        return { status: facts.length ? "answered" : "empty", answer: buildWalletHistoryAnswer(facts), blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table"), metadata: { answer_rows: walletAnswerRows(facts) } };
+        return { status: facts.length ? "answered" : "empty", answer: buildWalletHistoryAnswer(facts), blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table"), metadata: { answer_rows: walletAnswerRows(facts), result_facts: { measures: walletMeasures(facts) } } };
       },
       primary: "table",
     }),

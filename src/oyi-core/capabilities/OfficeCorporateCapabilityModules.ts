@@ -474,7 +474,7 @@ function crmOpportunitiesReadModule(): CapabilityModule {
           },
         ],
         presentation_policy: resultPresentation("list"),
-        metadata: { total_open: totalOpen },
+        metadata: { total_open: totalOpen, result_facts: { record_extras: Object.fromEntries(items.map((o) => [o.id, { age_days: o.days_since_activity ?? null }])) } },
       };
     },
     primary: "list",
@@ -666,10 +666,20 @@ function financialSummaryReadModule(): CapabilityModule {
         return unavailableResult("I don't have a current read on the financial position for this session — the financial snapshot wasn't attached to this request, or this account isn't permitted to view it.");
       }
       const portfolio = financial.portfolio;
-      if (!portfolio || !financial.estates.length) {
+      if (!portfolio) {
         return { status: "empty", answer: "No estate financial records are available right now.", presentation_policy: resultPresentation("text") };
       }
       const fmt = (value: number) => `${portfolio.currency} ${Number(value || 0).toLocaleString("en-NG")}`;
+      // IQ-8D2: portfolio totals and the per-estate list are independent truths; an empty estate list never erases valid totals.
+      const measures = [
+        { key: "current_balance", label: "current balance", amount: Number(portfolio.current_balance_total || 0), currency: portfolio.currency },
+        { key: "revenue_period", label: "period revenue", amount: Number(portfolio.revenue_period_total || 0), currency: portfolio.currency },
+        { key: "utility_sales_period", label: "utility sales", amount: Number(portfolio.utility_sales_period_total || 0), currency: portfolio.currency },
+        { key: "service_charge_period", label: "service charges", amount: Number(portfolio.service_charge_period_total || 0), currency: portfolio.currency },
+      ];
+      if (!financial.estates.length) {
+        return { status: "answered", answer: `Portfolio totals: current balance ${fmt(portfolio.current_balance_total)}, period revenue ${fmt(portfolio.revenue_period_total)} (utility sales ${fmt(portfolio.utility_sales_period_total)}, service charges ${fmt(portfolio.service_charge_period_total)}). No per-estate breakdown is available right now.`, presentation_policy: resultPresentation("text"), metadata: { portfolio, period_start: financial.period_start, period_end: financial.period_end, result_facts: { measures } } };
+      }
       // Aggregate insight only -- the per-estate breakdown the old bullet
       // dump repeated here already lives in the record_list table below.
       const summary =
@@ -713,7 +723,7 @@ function financialSummaryReadModule(): CapabilityModule {
           },
         ],
         presentation_policy: resultPresentation("list"),
-        metadata: { portfolio, period_start: financial.period_start, period_end: financial.period_end },
+        metadata: { portfolio, period_start: financial.period_start, period_end: financial.period_end, result_facts: { measures } },
       };
     },
     primary: "list",

@@ -8,7 +8,7 @@ export type Availability = "answered" | "empty" | "unavailable" | "unsupported" 
 export type CapabilityStatus = "enabled" | "declared";
 export type LimitationKind = "UNAVAILABLE" | "MISSING_CAPABILITY" | "UNSUPPORTED_SCOPE" | "INSUFFICIENT_SCOPE" | "PARTIAL" | "PROVIDER_REQUIRED" | "AUTHORITY_DENIED" | "AMBIGUOUS" | "STALE" | "UNOBSERVED";
 export type Limitation = { kind: LimitationKind; label?: string };
-export type EnvelopeRecord = { id?: string | null; label: string; status?: string | null; state?: StateConcept | null; detail?: string | null; time?: string | null; fields?: Record<string, string | number | boolean | null> };
+export type EnvelopeRecord = { id?: string | null; label: string; status?: string | null; state?: StateConcept | null; detail?: string | null; time?: string | null; age_days?: number | null; fields?: Record<string, string | number | boolean | null> };
 
 export type ResultEnvelope = {
   v: 1;
@@ -27,9 +27,11 @@ export type ResultEnvelope = {
   scope?: { label?: string | null };
   limitations?: Limitation[];
   provenance?: { sources: string[] };
+  // named amounts the capability itself computed (an aggregate over its records, a portfolio total). Independent of `records`: an empty record list never erases a total.
+  measures?: Array<{ key: string; label: string; amount: number; currency: string; direction?: "out" | "in" | null; n?: number; partial?: boolean }>;
   held_facts?: { known: Record<string, string>; missing: string[] | null; constraints: string[]; objective_type?: string };
-  actions?: { workflow_id?: string | null; action_id?: string | null };
-  hints?: { permission_only?: boolean; requires_judgment?: boolean; is_selection_only?: boolean; aggregate_only?: boolean };
+  actions?: { workflow_id?: string | null; action_id?: string | null; submission?: "submitted" | "not_submitted" | "unknown" };
+  hints?: { permission_only?: boolean; requires_judgment?: boolean; is_selection_only?: boolean; aggregate_only?: boolean; ambiguity?: string };
   legacy_prose: string;                        // the capability's own sentence: supporting detail / fallback, never parsed
 };
 

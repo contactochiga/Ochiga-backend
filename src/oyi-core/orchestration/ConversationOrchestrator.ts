@@ -8,6 +8,7 @@ import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegrat
 import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
 import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
 import { isHazardReport } from "../response/answerTarget";
+import { clarificationQuestion } from "../response/limitationTarget";
 import { actionTruthLead, threadActionTruth } from "../response/actionTruth";
 import { acknowledgeConstraint } from "../response/constraintAck";
 import { parseDerivedReference, scopeBinding } from "../evidence/reference/derivedReference";
@@ -3317,7 +3318,9 @@ async function buildBusinessSurfaceFallbackResponse(
   const listing = capabilityService
     .listForActor({ actor: baseContext.actor, oisContext: baseContext.oisContext, surface })
     .filter((item) => item.key !== "global.capabilities.read");
-  const isOverviewQuery = surface === "office_internal" && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
+  // IQ-8D2: a path that already knows the reference is unresolved asks the specific question (never an overview or a capability menu)
+  const clarifying = frame.answerTarget?.response_intent === "CLARIFICATION";
+  const isOverviewQuery = !clarifying && surface === "office_internal" && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
 
   let sections: Array<{ key: string; result: DomainResult; evidence: OyiEvidence[] }> = [];
   if (isOverviewQuery) {
@@ -3327,7 +3330,9 @@ async function buildBusinessSurfaceFallbackResponse(
 
   let answer: string;
   let blocks: Array<Record<string, unknown>> = [];
-  if (sections.length) {
+  if (clarifying) {
+    answer = clarificationQuestion(frame.answerTarget!);
+  } else if (sections.length) {
     answer = sections.map((section) => `${BUSINESS_CAPABILITY_LABELS[section.key] || section.key}:\n${section.result.answer}`).join("\n\n");
     blocks = sections.flatMap((section) => section.result.blocks || []);
   } else if (listing.length) {
@@ -3349,7 +3354,7 @@ async function buildBusinessSurfaceFallbackResponse(
     collectEvidence: async () => [],
   };
   const result: DomainResult = {
-    status: sections.length || listing.length ? "answered" : "unsupported",
+    status: clarifying || sections.length || listing.length ? "answered" : "unsupported",
     answer,
     blocks,
     presentation_policy: resultPresentation(sections.length ? "list" : "text"),

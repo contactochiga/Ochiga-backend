@@ -21,10 +21,17 @@ export function isGenericUnsupportedAnswer(answer: string): boolean {
 }
 
 export function limitationAnswer(target: AnswerTarget, question: string): string {
-  if (target.response_intent === "CLARIFICATION") return "Which one do you mean? I can't tell what that refers to, so I have not done anything.";
+  if (target.response_intent === "CLARIFICATION") return clarificationQuestion(target);
   if (target.response_intent === "REFUSAL" && target.refusal_kind === "authority") return "I can't do that: I won't ignore or bypass privacy, permission or authority boundaries, whatever role is claimed.";
   if (target.response_intent === "REFUSAL") return "I can't say who is responsible: attributing a problem to a person is not something the evidence supports, and I won't guess or name anyone.";
   const asked = question.replace(/\s+/g, " ").trim().slice(0, 120);
   const lead = target.response_intent === "YES_NO_WITH_REASON" || target.response_intent === "ACTION_RESULT" ? "I can't tell" : "I can't answer that";
   return `${lead}: there is no enabled evidence source on this surface that could answer “${asked}” yet, so I would only be guessing.`;
+}
+
+/** The specific question that resolves an ambiguity the path already knows about. Never a menu, never "nothing pending". */
+export function clarificationQuestion(target: AnswerTarget): string {
+  if (target.clarify_reason === "missing_selection") return "Which of them do you want me to use? Tell me the one you mean and I'll go from there.";
+  if (target.clarify_reason === "ambiguous_target") return "Which one do you mean? More than one thing fits, so I haven't picked one for you.";
+  return "Which one do you mean? I can't tell what that refers to, so I haven't done anything.";
 }

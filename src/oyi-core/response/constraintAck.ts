@@ -9,8 +9,10 @@ export function acknowledgeConstraint(raw: string): string {
   const text = raw.replace(/\s+/g, " ").trim().replace(/[.!]+$/, "");
   const m = LEAD.exec(text);
   const rest = m ? text.slice(m[0].length) : "";
-  const tail = "Nothing I do here sends, shares or changes anything unless you ask and confirm it.";
+  const tail = "This holds for this conversation only; nothing I do here sends, shares or changes anything unless you ask and confirm it.";
   if (m && rest) return `Understood — I won't ${flip(rest)}. ${tail}`;
+  const only = /^\s*(?:please\s+)?(?:only|just)\s+(contact|call|email|message|text|reach|whatsapp|ping)\s+(.+)$/i.exec(text);
+  if (only) { const rest = only[2].replace(/^me\b\s*/i, ""); return /^me\b/i.test(only[2]) ? `Understood — I'll only ${only[1].toLowerCase()} you ${flip(rest)}. ${tail}` : `Understood — noted for this conversation: only ${only[1].toLowerCase()} ${flip(only[2])}. ${tail}`; }
   const keep = /^\s*(?:please\s+)?keep\s+(.+)$/i.exec(text);
   if (keep) return `Understood — I'll treat ${flip(keep[1])} as confidential. ${tail}`;
   return `Understood — noted for this conversation: “${text.slice(0, 200)}”. ${tail}`;

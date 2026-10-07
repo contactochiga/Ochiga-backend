@@ -162,6 +162,6 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
     cognitiveObjective,
     capabilityInquiry: isCapabilityInquiry(normalized.normalized_text),
     // IQ-8D: derived ONCE, here, and carried on the frame; no downstream layer derives it again
-    answerTarget: deriveAnswerTarget(normalized.raw_text, { objective: cognitiveObjective, activeAssessment: opts.activeAssessment }),
+    answerTarget: deriveAnswerTarget(normalized.raw_text, { objective: cognitiveObjective, activeAssessment: opts.activeAssessment, ambiguity: { required: false, reason: null }, pronounRef: resolveReferences(normalized.normalized_text).some((r) => r.kind === "pronoun") }),
   };
 }
