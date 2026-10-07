@@ -30,7 +30,7 @@ let frozenBeforeRuntime = false; try {execFileSync('git', ['merge-base', '--is-a
 const s = review.summary;
 const src = execFileSync('git', ['diff', START, '--name-only', '--', 'src'], {encoding: 'utf8'}).trim().split('\n').filter(Boolean);
 const gates = {
-  judgmentTestsAllPass: judgment.status === 'PASS' && judgment.results.every(x => x.status === 'PASS') && judgment.results.length >= 56,
+  judgmentTestsAllPass: judgment.status === 'PASS' && judgment.results.every(x => x.status === 'PASS') && judgment.results.length >= 57,
   plannerTestsAllPass: planner.status === 'PASS' && planner.results.length >= 48 && planner.results.every(x => x.status === 'PASS'),
   iq3aSourceTests: cert.status === 'PASS' && cert.tests >= 255, iq3aBenchmarkTests: bench.status === 'PASS' && bench.tests >= 129, iq3aLiveIsolation: iso.status === 'PASS',
   noUnsupportedJudgmentAnywhere: review.audit.ok && review.audit.judged_turns >= 100,

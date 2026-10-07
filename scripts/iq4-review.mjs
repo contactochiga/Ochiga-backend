@@ -38,6 +38,9 @@ for (const x of judged) {
   if (noAction.test(x.answer) || STILL.test(x.answer)) fail(x.id, 'answer claims an action or says it still needs to check');
   if (/\b(?:all clear|everything is (?:fine|ok|secure|safe)|nothing to worry about)\b/i.test(x.answer.replace(/not an all-clear/gi, ''))) fail(x.id, 'answer contains an all-clear');
   if (/capabilit(?:y|ies) (?:catalog|list)|what i can do/i.test(x.answer)) fail(x.id, 'capability advertising');
+  // "found no active item" is a claim about the records read: it may never be said while any candidate-bearing source returned records.
+  const candidateRecords = (x.plan?.contributions || []).filter(c => ['crm', 'office_development', 'office_reports', 'office_tasks', 'office_support', 'office_meetings', 'maintenance', 'security'].includes(c.evidence_class) && c.availability === 'available').reduce((n, c) => n + c.record_count, 0);
+  if (/found no active item/.test(x.answer) && candidateRecords > 0) fail(x.id, `says it found no active item although ${candidateRecords} candidate record(s) were read`);
   const art = x.ac.derived_ranking;
   if (art) {
     if (x.plan && art.assessment_id !== x.plan.plan_id && x.ac.judgment.mode !== 'deterministic') fail(x.id, 'ranking artifact not derived from this bundle');

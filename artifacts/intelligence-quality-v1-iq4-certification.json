@@ -135,7 +135,7 @@
       "deterministic/JUDGED": 64
     },
     "judged_turns": 143,
-    "ranking_artifacts_created": 9,
+    "ranking_artifacts_created": 4,
     "answers_changed": 144,
     "answers_changed_by_previous_status": {
       "FAIL": 138,
@@ -529,10 +529,10 @@
         "candidates": 2,
         "judgment_ms": {
           "n": 200,
-          "mean": 0.026,
-          "p50": 0.021,
-          "p95": 0.034,
-          "max": 0.394
+          "mean": 0.027,
+          "p50": 0.022,
+          "p95": 0.04,
+          "max": 0.452
         },
         "response_chars": {
           "n": 200,
@@ -549,8 +549,8 @@
           "n": 200,
           "mean": 0.022,
           "p50": 0.018,
-          "p95": 0.034,
-          "max": 0.158
+          "p95": 0.032,
+          "max": 0.173
         },
         "response_chars": {
           "n": 200,
@@ -565,10 +565,10 @@
         "candidates": 64,
         "judgment_ms": {
           "n": 200,
-          "mean": 0.177,
-          "p50": 0.165,
-          "p95": 0.254,
-          "max": 0.636
+          "mean": 0.174,
+          "p50": 0.164,
+          "p95": 0.237,
+          "max": 0.309
         },
         "response_chars": {
           "n": 200,
@@ -586,17 +586,17 @@
         "candidates": 2,
         "total_judgment_ms": {
           "n": 200,
-          "mean": 0.046,
+          "mean": 0.045,
           "p50": 0.035,
-          "p95": 0.078,
-          "max": 1.12
+          "p95": 0.081,
+          "max": 1.112
         },
         "core_overhead_ms_excluding_provider": {
           "n": 200,
-          "mean": 0.046,
+          "mean": 0.04,
           "p50": 0.035,
-          "p95": 0.078,
-          "max": 1.12
+          "p95": 0.081,
+          "max": 0.133
         },
         "provider_request_bytes": 774,
         "labels_ranked": 2
@@ -607,17 +607,17 @@
         "candidates": 2,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 52.291,
-          "p50": 52.678,
-          "p95": 53.172,
-          "max": 53.237
+          "mean": 51.579,
+          "p50": 51.622,
+          "p95": 52.284,
+          "max": 52.488
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.571,
-          "p50": 0.735,
-          "p95": 1.282,
-          "max": 1.288
+          "mean": 0.619,
+          "p50": 0.643,
+          "p95": 1.119,
+          "max": 1.284
         },
         "provider_request_bytes": 774,
         "labels_ranked": 2
@@ -628,17 +628,17 @@
         "candidates": 2,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 252.332,
-          "p50": 252.535,
-          "p95": 253.159,
-          "max": 253.183
+          "mean": 251.687,
+          "p50": 251.616,
+          "p95": 252.191,
+          "max": 252.192
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.532,
-          "p50": 0.559,
-          "p95": 1.06,
-          "max": 1.347
+          "mean": 0.447,
+          "p50": 0.33,
+          "p95": 1.325,
+          "max": 1.383
         },
         "provider_request_bytes": 774,
         "labels_ranked": 2
@@ -649,17 +649,17 @@
         "candidates": 3,
         "total_judgment_ms": {
           "n": 200,
-          "mean": 0.094,
+          "mean": 0.086,
           "p50": 0.063,
-          "p95": 0.218,
-          "max": 0.495
+          "p95": 0.228,
+          "max": 0.436
         },
         "core_overhead_ms_excluding_provider": {
           "n": 200,
-          "mean": 0.094,
+          "mean": 0.086,
           "p50": 0.063,
-          "p95": 0.218,
-          "max": 0.495
+          "p95": 0.228,
+          "max": 0.436
         },
         "provider_request_bytes": 1071,
         "labels_ranked": 3
@@ -670,17 +670,17 @@
         "candidates": 3,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 52.411,
-          "p50": 52.516,
-          "p95": 53.139,
-          "max": 53.231
+          "mean": 51.513,
+          "p50": 51.558,
+          "p95": 52.038,
+          "max": 52.125
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.491,
-          "p50": 0.516,
-          "p95": 1.15,
-          "max": 1.169
+          "mean": 0.473,
+          "p50": 0.558,
+          "p95": 1.076,
+          "max": 1.125
         },
         "provider_request_bytes": 1071,
         "labels_ranked": 3
@@ -691,17 +691,17 @@
         "candidates": 3,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 252.31,
-          "p50": 252.535,
-          "p95": 253.144,
-          "max": 253.335
+          "mean": 251.77,
+          "p50": 251.92,
+          "p95": 252.131,
+          "max": 252.216
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.71,
-          "p50": 0.788,
-          "p95": 1.136,
-          "max": 1.144
+          "mean": 0.49,
+          "p50": 0.515,
+          "p95": 1.089,
+          "max": 1.216
         },
         "provider_request_bytes": 1071,
         "labels_ranked": 3
@@ -712,17 +712,17 @@
         "candidates": 8,
         "total_judgment_ms": {
           "n": 200,
-          "mean": 0.121,
+          "mean": 0.117,
           "p50": 0.077,
-          "p95": 0.395,
-          "max": 0.561
+          "p95": 0.314,
+          "max": 0.836
         },
         "core_overhead_ms_excluding_provider": {
           "n": 200,
-          "mean": 0.111,
-          "p50": 0.076,
-          "p95": 0.394,
-          "max": 0.561
+          "mean": 0.117,
+          "p50": 0.077,
+          "p95": 0.314,
+          "max": 0.836
         },
         "provider_request_bytes": 2576,
         "labels_ranked": 3
@@ -733,17 +733,17 @@
         "candidates": 8,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 51.865,
-          "p50": 52.175,
-          "p95": 52.969,
-          "max": 53.112
+          "mean": 51.678,
+          "p50": 51.648,
+          "p95": 52.194,
+          "max": 52.546
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.385,
-          "p50": 0.531,
-          "p95": 1.112,
-          "max": 1.175
+          "mean": 0.598,
+          "p50": 0.584,
+          "p95": 1.496,
+          "max": 1.546
         },
         "provider_request_bytes": 2576,
         "labels_ranked": 3
@@ -754,17 +754,17 @@
         "candidates": 8,
         "total_judgment_ms": {
           "n": 25,
-          "mean": 252.152,
-          "p50": 252.187,
-          "p95": 253.36,
-          "max": 253.47
+          "mean": 251.868,
+          "p50": 251.957,
+          "p95": 252.267,
+          "max": 252.312
         },
         "core_overhead_ms_excluding_provider": {
           "n": 25,
-          "mean": 0.632,
-          "p50": 0.752,
-          "p95": 1.41,
-          "max": 1.416
+          "mean": 0.788,
+          "p50": 0.909,
+          "p95": 1.267,
+          "max": 1.312
         },
         "provider_request_bytes": 2576,
         "labels_ranked": 3
@@ -838,7 +838,7 @@
     "src/oyi-core/evidence/judgment/deterministic.ts": "0189fdbe119eba648ed90b76100fe595818eae483d632351d425619804ab22b3",
     "src/oyi-core/evidence/judgment/dominance.ts": "273a0914d0b1b155281918e55b7f7872989d61ac23dd4cfc9200bdbf7be3e47a",
     "src/oyi-core/evidence/judgment/evidenceIndex.ts": "dd8f98061cffa895b72001d6eaa1797b8b05a1f99fddf1f51a07ab0928221598",
-    "src/oyi-core/evidence/judgment/judge.ts": "430fa5c23efc8ad83c27d9abe227b24b81b57f07b405073a01e87c38a83423fe",
+    "src/oyi-core/evidence/judgment/judge.ts": "b3bfd5b125c16fdaa472dcae2505b99f8222a1c794c8d9183b042d61ff667a5a",
     "src/oyi-core/evidence/judgment/provider.ts": "c20b0a8ae2ab227ffff22f6cff783e91132b556f3ca4e2f823ab55392d2d3141",
     "src/oyi-core/evidence/judgment/types.ts": "f3b041184dc966d77da394c8f6b8e6a33341ba7b12aa6cffd60fc95466123c17",
     "src/oyi-core/evidence/judgment/validator.ts": "2dfa975c5739391a3a3ef530f0011c01248876a10c3991c430f846ca78cb674c",
@@ -846,10 +846,10 @@
     "src/oyi-core/orchestration/ConversationOrchestrator.ts": "fb492e09ad0f1508f053bdb6f966bb9b9e956c22aa463b11d05b29b9f80e09d2"
   },
   "raw_hashes": {
-    "/tmp/iq4-v2-iq.json": "6620439934f6d62a1ab4ea42bb8d83f3d3b702515f6909e26391c3105a0fd7ad",
-    "/tmp/iq4-v2-wave11.json": "910dda2e57dc90fa85942642607cbb241f0d83d30de4f14549e4edb258cabeda",
-    "/tmp/iq4-v2-safety.json": "b23be0b2fb9922e0e2b51fcc8ebe5ce4a9af5a946af455a904b2ea4269611daa",
-    "/tmp/iq4-v2-objective.json": "b5140e8b7084a16ca087e7e86acb385d988bc81cf091e43e0bbda42b97a59ab0",
-    "/tmp/iq4-v2-regressions.json": "6ea6a0d5510e2d0b53b187bc4753625498dcfe669c05e9b51619a3053c576695"
+    "/tmp/iq4-v3-iq.json": "096b700047872d994b53d54f6043ff4edebab664eed57ce9a62a47c222480e86",
+    "/tmp/iq4-v3-wave11.json": "99590733a9a1c1dccbc05332e53bf76f77ec78f18cca2a02cfdcf42f48685548",
+    "/tmp/iq4-v3-safety.json": "b23be0b2fb9922e0e2b51fcc8ebe5ce4a9af5a946af455a904b2ea4269611daa",
+    "/tmp/iq4-v3-objective.json": "450e434a3441bcc046a4a9433484e377624cde8525e2db015e3a197735956f76",
+    "/tmp/iq4-v3-regressions.json": "73c5492b78456e092eac02e2df078424413b3b0efbf789ae0bbe5b7e527d12b7"
   }
 }

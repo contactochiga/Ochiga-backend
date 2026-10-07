@@ -70,7 +70,7 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
   if (a.objective === "explain" && reusable) {
     result = explainFrom(reusable, index);
     finalFailures = validateResult(result, vctx(typed, [reusable.assessment_id])); failures = finalFailures;
-  } else if (business.length && a.objective !== "explain") {
+  } else if (business.length) { // includes an explain with nothing earlier to explain: it must not fall through to a "nothing found" conclusion
     const ctx = contextStatements(index, a.state);
     // A typed ordering is never allowed to answer for a set it cannot fully compare: the whole eligible set goes to comparative
     // judgment, or nothing is ranked.
@@ -136,10 +136,11 @@ function minimal(a: JudgeArgs, index: EvidenceIndex): JudgmentResult {
 
 function bounded(a: JudgeArgs, index: EvidenceIndex, ctx: { facts: string[]; uncertainties: string[] }, business: Candidate[], mode: JudgmentResult["mode"]): JudgmentResult {
   const facts = businessFacts(index);
+  const noOrdering = a.objective === "explain" ? ["I have not ordered these yet, so there is no earlier ordering to explain."] : [];
   const why = mode === "fallback_after_rejection" ? "A comparative judgment could not be produced safely, so I am not ranking these." : "Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them.";
   return { v: 1, assessment_id: index.assessment_id, objective: a.objective, mode, status: "BOUNDED", candidates: [], ranking: null, tied_groups: [],
     conclusion: facts.length ? `Based on the evidence available, I can tell you what is recorded but not put it in order. ${facts.join("; ")}.` : "Based on the evidence available, there is not enough to give a justified conclusion.",
-    rationale: [why, "I will not guess an order from age or claimed size alone.", "This covers only what I could read.", ...typedFacts(index)], uncertainties: ctx.uncertainties, limitations: business.length ? ["These are bounded, supplied views, not the whole pipeline."] : [], clarification: null, evidence_refs: [] };
+    rationale: [...noOrdering, why, "I will not guess an order from age or claimed size alone.", "This covers only what I could read.", ...typedFacts(index)], uncertainties: ctx.uncertainties, limitations: business.length ? ["These are bounded, supplied views, not the whole pipeline."] : [], clarification: null, evidence_refs: [] };
 }
 
 export { evidenceBasis };

@@ -92,7 +92,7 @@ export function judgeDeterministic(i: JudgeInput): JudgmentResult {
     const checkedIssueSources = state.classes.some(c => c.class !== "corporate_opportunity" && CANDIDATE_KIND[c.class] && ["MANDATORY_COMPLETE_ENOUGH", "MANDATORY_PARTIAL", "OPTIONAL_GATHERED"].includes(c.status));
     conclusion = live.length ? `Based on the evidence available, ${live.length} item${live.length === 1 ? " needs" : "s need"} attention.`
       : typed.length ? "Based on the evidence available, nothing active was found among the items I could read; what is resolved is not a current concern."
-      : checkedIssueSources ? "Based on the evidence available, I found no active item in the part of the records I could read."
+      : checkedIssueSources && !business.length ? "Based on the evidence available, I found no active item in the part of the records I could read."
       : "Based on the evidence available, this is what is known and what is not.";
   }
   const operational = state.surface !== "public_corporate";

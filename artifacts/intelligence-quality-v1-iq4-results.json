@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "IQ4_REVIEW",
-  "raw_sha256": "6620439934f6d62a1ab4ea42bb8d83f3d3b702515f6909e26391c3105a0fd7ad",
+  "raw_sha256": "096b700047872d994b53d54f6043ff4edebab664eed57ce9a62a47c222480e86",
   "note": "See header: promotion checks are self-graded; the audit is the certification gate and does not depend on them.",
   "audit": {
     "judged_turns": 143,
@@ -103,7 +103,7 @@
       "deterministic/JUDGED": 64
     },
     "judged_turns": 143,
-    "ranking_artifacts_created": 9,
+    "ranking_artifacts_created": 4,
     "answers_changed": 144,
     "answers_changed_by_previous_status": {
       "FAIL": 138,
@@ -1092,7 +1092,7 @@
         "status": "JUDGED",
         "validated": true
       },
-      "ranking_artifact": true,
+      "ranking_artifact": false,
       "exact_ranking_required": false
     },
     {
@@ -1124,7 +1124,7 @@
         "status": "JUDGED",
         "validated": true
       },
-      "ranking_artifact": true,
+      "ranking_artifact": false,
       "exact_ranking_required": false
     },
     {
@@ -1140,7 +1140,7 @@
         "status": "JUDGED",
         "validated": true
       },
-      "ranking_artifact": true,
+      "ranking_artifact": false,
       "exact_ranking_required": false
     },
     {
@@ -1156,7 +1156,7 @@
         "status": "JUDGED",
         "validated": true
       },
-      "ranking_artifact": true,
+      "ranking_artifact": false,
       "exact_ranking_required": true
     },
     {

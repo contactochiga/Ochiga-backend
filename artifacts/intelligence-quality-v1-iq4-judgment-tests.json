@@ -2,7 +2,7 @@
   "status": "PASS",
   "test_mode": "Scripted provider stub (validation/fallback/artifact discipline, not model quality); hand-built and planner-produced evidence states; fault-injected loopback fixture client; no production target; no network",
   "counts": {
-    "PASS": 56
+    "PASS": 57
   },
   "results": [
     {
@@ -159,6 +159,10 @@
     },
     {
       "id": "judgment:ranking-eligibility-resolved-never-above-active",
+      "status": "PASS"
+    },
+    {
+      "id": "judgment:explain-with-uncomparable-records-and-no-earlier-ordering-never-says-nothing-found",
       "status": "PASS"
     },
     {
