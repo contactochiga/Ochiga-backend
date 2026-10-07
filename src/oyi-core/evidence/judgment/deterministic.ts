@@ -1,3 +1,4 @@
+import { visitorPassState } from "../../domains/visitors/visitorPassState";
 import type { CompactEvidencePlanState } from "../planner/types";
 import { SOURCE_NOUN, entryFor } from "../planner/evidenceClasses";
 import { missingDetail } from "../planner/bundle";
@@ -20,9 +21,12 @@ export function contextStatements(index: EvidenceIndex, state: CompactEvidencePl
     if (k.evidence_class === "security") {
       facts.push(k.record_count === 0 ? (k.completeness === "zero_proven" ? "no security incidents are recorded in the checked scope" : "no security incidents appeared in the part I could read") : `${k.record_count} security incident record${k.record_count === 1 ? "" : "s"} in the checked scope`);
     } else if (k.evidence_class === "visitors") {
-      const active = k.material.filter(m => String(m.status).toLowerCase() === "active" && !(Date.parse(String(m.expires_at)) <= Date.now())).length;
-      const expired = k.record_count - active;
-      facts.push(`visitor access: ${active} currently active, ${Math.max(0, expired)} expired or inactive`);
+      // one shared definition of a pass's state (visitorPassState): a pass recorded active whose expiry has passed is neither counted as active nor as expired
+      const states = k.material.map(m => visitorPassState({ status: m.status, expires_at: m.expires_at }));
+      const active = states.filter(x => x === "active").length, conflict = states.filter(x => x === "active_past_expiry").length;
+      const other = Math.max(0, k.record_count - active - conflict);
+      facts.push(`visitor access: ${active} currently active${conflict ? `, ${conflict} recorded active but past ${conflict === 1 ? "its" : "their"} recorded expiry (validity not confirmed)` : ""}, ${other} expired, inactive or not recorded as active`);
+      if (k.material.length < k.record_count) uncertainties.push("Not every visitor access record was readable, so the count above may be incomplete.");
       uncertainties.push("A visitor access record is permission, not evidence that anyone has arrived or left.");
     } else if (k.evidence_class === "cameras") {
       if (k.unobserved) uncertainties.push(`Camera state is unobservable for ${k.unobserved} camera${k.unobserved === 1 ? "" : "s"}: that is neither an outage nor normal operation.`);

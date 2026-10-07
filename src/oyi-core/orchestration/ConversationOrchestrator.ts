@@ -7,6 +7,7 @@ import { loadConversationAssessment, nextConversationAssessment, isAssessmentObj
 import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
 import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
 import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
+import { responseMove } from "../interpretation/semanticObjective";
 import { hasWithdrawalVerb, hazardReportIn, isHazardText, splitCompoundWithdrawal } from "../response/answerTarget";
 import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
 import { capabilityEnabled } from "../capabilities/CapabilityRollout";
@@ -3444,12 +3445,13 @@ export class ConversationOrchestrator {
         }
         traceHolder.tracer = null;
         const second = await this.runTurn({ ...context, input: { ...context.input, message: compound.remainder, thread_id: (first as any).thread_id || context.input.thread_id } }, traceHolder);
-        // The new request is a separate governed intent: it is only presented when it produced its own proposal or a real answer;
-        // otherwise it is left to be asked for separately (nothing is inherited from the cancelled action).
-        const proposed = Boolean((second as any).requires_confirmation || (second as any).workflow_id || (second as any).execution?.requires_confirmation);
-        const combined = proposed || /\?\s*$/.test(compound.remainder)
-          ? `${first.answer}\n\nSeparately — ${second.answer}`
-          : `${first.answer}\n\nYour other request (“${compound.remainder.slice(0, 120)}”) is separate and not started. Tell me the exact device or item and the action, and I'll prepare it for your confirmation.`;
+        // The new request is a separate governed intent. Its own result is shown whenever it produced a pending state (a proposal awaiting
+        // approval, or a draft awaiting clarification) or is a question; typed fields only (requiresConfirmation, confirmations, execution.workflow_id).
+        const awaitingApproval = second.requiresConfirmation === true || (second.confirmations?.length ?? 0) > 0;
+        const pendingDraft = Boolean((second.execution as Record<string, unknown> | undefined)?.workflow_id);
+        const combined = awaitingApproval || pendingDraft || /\?\s*$/.test(compound.remainder)
+          ? `${first.answer}\n\nSeparately — ${second.answer}${awaitingApproval ? " This is a new proposal awaiting your approval; it has not been done, and the cancelled request was not carried over." : ""}`
+          : `${first.answer}\n\nYour other request (“${compound.remainder.slice(0, 120)}”) is separate and has not been started or proposed. Tell me the exact device or item and the action, and I'll prepare it for your confirmation.`;
         (second as any).answer = (second as any).reply = (second as any).message = (second as any).summary = combined;
         finalize(second, null);
         return second;
@@ -3630,6 +3632,23 @@ export class ConversationOrchestrator {
           return response;
         }
       }
+    }
+    // IQ-9A4: an approval-sounding message that is not one of the exact confirmation forms (for example "yes confirm please") is never read as a new
+    // command, and never falls to the unsupported fallback. It is answered with what is actually pending and how the canonical confirmation works.
+    // It confirms nothing and executes nothing; cancellation stays terminal.
+    if (!isConfirmationText(context.input.message) && !isCancellationText(context.input.message)
+      && responseMove(String(context.input.message ?? "")) === "approve"
+      && /\b(?:confirm|confirmed|approve|approved|proceed|go ahead|do it|execute)\b/i.test(String(context.input.message ?? ""))) {
+      const status = String(activeWorkflow?.status || "");
+      const guidance = activeWorkflow && (status === "awaiting_approval" || status === "ready_for_review")
+        ? "Your request is waiting for your approval, and nothing has been sent or changed. I can't treat that wording as the approval itself: to approve it, reply with just “yes” or “confirm”, or use the confirmation shown with the request. To drop it, say cancel."
+        : activeWorkflow && !["cancelled", "completed", "failed", "expired", "superseded", "answered", "empty", "unavailable", "unsupported", "permission_restricted"].includes(status)
+          ? "Your earlier request isn't ready for approval yet, and nothing has been sent or changed. Answer my last question so I can finish preparing it, or say cancel."
+          : "Nothing is waiting for your confirmation, so nothing was done. A cancelled or finished request can't be revived by a later “yes” — tell me what you'd like and, if it is something I can propose, I'll prepare it for your approval.";
+      const capability = syntheticOfficeActionCapability("answer_target.confirmation_guidance", "global");
+      const guided = await respondFromOfficeActionResult(context, resolvedTurn, capability, { status: "answered", answer: guidance, presentation_policy: resultPresentation("text"), metadata: { confirmation_guidance: true, pending_workflow_status: status || null } });
+      tracer.finish({ thread_id: guided.thread_id || null, response_state: guided.persistence_saved === false ? "unsaved" : "returned" });
+      return guided;
     }
     // Wave 11 Consumer burn-down -- a bare "Do that." / "Do that every
     // Friday." with NO active device workflow to bind to (the block

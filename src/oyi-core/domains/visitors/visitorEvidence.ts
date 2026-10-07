@@ -10,6 +10,8 @@ import type {
 } from "../../contracts/canonicalConversation";
 import type { IntelligenceRequestContract } from "../../interpretation/conversationIntentRouting";
 
+import { visitorAccessStatus, visitorPassState, visitorPassLabel } from "./visitorPassState";
+export { visitorAccessStatus, visitorPassState, visitorPassLabel };
 function text(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -36,13 +38,6 @@ export function visitorRecordsFromContext(
   return source.map(recordOf);
 }
 
-export function visitorAccessStatus(value: unknown) {
-  const raw = text(value).toLowerCase();
-  if (/expired|revoked|denied|cancelled|cancelled/i.test(raw)) return "inactive";
-  if (/arrived|entered|checked_in|active|approved|valid/i.test(raw)) return "active";
-  if (/pending|waiting|requested/i.test(raw)) return "pending";
-  return raw || "unknown";
-}
 
 export function redactAccessCredentialForConversation(value: unknown) {
   const raw = text(value);
@@ -91,7 +86,8 @@ function unavailableVisitorFact(input: {
 
 function visitorFromRow(row: Record<string, unknown>, scope: ReturnType<typeof currentScope>): IntelligenceFact {
   const name = text(row.visitor_name) || "Visitor";
-  const status = visitorAccessStatus(row.status);
+  const passState = visitorPassState({ status: row.status, expires_at: row.expires_at });
+  const status = passState === "active_past_expiry" ? visitorPassLabel(passState) : visitorAccessStatus(row.status);
   return {
     fact_id: `visitor-access:${row.id}`,
     domain: "visitors",
@@ -103,6 +99,7 @@ function visitorFromRow(row: Record<string, unknown>, scope: ReturnType<typeof c
       visitor_name: name,
       purpose: text(row.purpose) || null,
       status,
+      pass_state: passState,
       // Never carry the raw access code into conversation evidence —
       // redacted at the source, matching redactAccessCredentialForConversation.
       access_code: redactAccessCredentialForConversation(row.access_code),

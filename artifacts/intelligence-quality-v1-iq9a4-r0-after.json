@@ -1,0 +1,730 @@
+{
+ "generated_at": "2026-10-07T23:47:34.373Z",
+ "corpus": "artifacts/intelligence-quality-v1-iq9a4-r0-corpus.json",
+ "duration_ms": 1711,
+ "executed_device_commands": 0,
+ "records": [
+  {
+   "id": "R0-01",
+   "answer": "2 visitor access records on record. I can't confirm that any is currently valid. 1 is recorded as active but its recorded expiry time has passed (Wave11 Expected Visitor), so its validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "COUNT",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "How many of my visitor passes are valid right now?",
+     "answer": "2 visitor access records on record. I can't confirm that any is currently valid. 1 is recorded as active but its recorded expiry time has passed (Wave11 Expected Visitor), so its validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0,
+   "debug_keys": {
+    "r": [
+     "id",
+     "thread_id",
+     "intent",
+     "understood",
+     "summary",
+     "answer",
+     "reply",
+     "message",
+     "display_mode",
+     "truth",
+     "operational_object",
+     "context",
+     "execution",
+     "cards",
+     "sources",
+     "suggested_actions",
+     "presentation_policy",
+     "confirmations",
+     "warnings",
+     "persistence_saved",
+     "source",
+     "safe_mode",
+     "approvalRequired",
+     "requiresConfirmation",
+     "facts",
+     "capability_key",
+     "result_set"
+    ],
+    "ex": [
+     "status",
+     "current_turn_execution",
+     "capability_key",
+     "capability_result",
+     "workflow_id",
+     "action_id",
+     "workflow",
+     "failure_stage",
+     "safe_error_code",
+     "orchestrator_v2"
+    ],
+    "md": []
+   }
+  },
+  {
+   "id": "R0-02",
+   "answer": "2 visitor access records on record. I can't confirm that any is currently valid. 1 is recorded as active but its recorded expiry time has passed (Wave11 Expected Visitor), so its validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Do I have any visitor pass that is currently active?",
+     "answer": "2 visitor access records on record. I can't confirm that any is currently valid. 1 is recorded as active but its recorded expiry time has passed (Wave11 Expected Visitor), so its validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-03",
+   "answer": "Visitor access records: Wave11 Expected Visitor (active, past its recorded expiry; fixture meeting), Wave11 Historical Visitor (inactive; fixture history).\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Which visitor passes are on my account and what status is each recorded as?",
+     "answer": "Visitor access records: Wave11 Expected Visitor (active, past its recorded expiry; fixture meeting), Wave11 Historical Visitor (inactive; fixture history).\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-04",
+   "answer": "I can't tell: there is no enabled evidence source on this surface that could answer “Has anyone started working on my water issue?” yet, so I would only be guessing.",
+   "capability": "canonical.conversation.unsupported",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unsupported",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "no_match",
+   "turns": [
+    {
+     "prompt": "Has anyone started working on my water issue?",
+     "answer": "I can't tell: there is no enabled evidence source on this surface that could answer “Has anyone started working on my water issue?” yet, so I would only be guessing.",
+     "capability": "canonical.conversation.unsupported"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-05",
+   "answer": "I can't confirm that from the evidence I have.\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "Is somebody dealing with my water problem at the moment?",
+     "answer": "I can't confirm that from the evidence I have.\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-06",
+   "answer": "Yes — Wave11 unresolved water issue is recorded as open (recorded priority high).\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "Is my water issue still open?",
+     "answer": "Yes — Wave11 unresolved water issue is recorded as open (recorded priority high).\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-07",
+   "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What maintenance requests are recorded for my home?",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-08",
+   "answer": "Cancelled. I did not send that device command.\n\nSeparately — Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet. This is a new proposal awaiting your approval; it has not been done, and the cancelled request was not carried over.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "5c323dea-6523-4401-9a6f-1c9e69ffd498",
+   "action_id": "078c8b10-4844-490a-88a8-398a425ff703",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light.",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Scrap that, but switch off the Bedroom Light",
+     "answer": "Cancelled. I did not send that device command.\n\nSeparately — Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet. This is a new proposal awaiting your approval; it has not been done, and the cancelled request was not carried over.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-09",
+   "answer": "Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "63109bb8-e43e-4be6-9514-5853ec8f6517",
+   "action_id": "f14b6600-6eef-430e-bdb9-4b3a28fea8e0",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Switch off the Bedroom Light",
+     "answer": "Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-10",
+   "answer": "Cancelled. I did not send that device command. Nothing else has been started from the rest of your message; tell me when you want it handled.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "c7a952b1-e03f-4dad-b553-09d14c2c76ce",
+   "action_id": "a319af00-473e-469c-bacb-53fa1dcc7c3d",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "CONFIRMATION_STATE",
+   "target_confirmation": "cancel",
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light.",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Scrap that, I will do it myself",
+     "answer": "Cancelled. I did not send that device command. Nothing else has been started from the rest of your message; tell me when you want it handled.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-11",
+   "answer": "Your request is waiting for your approval, and nothing has been sent or changed. I can't treat that wording as the approval itself: to approve it, reply with just “yes” or “confirm”, or use the confirmation shown with the request. To drop it, say cancel.",
+   "capability": "answer_target.confirmation_guidance",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Bedroom Light.",
+     "answer": "Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "yes confirm please",
+     "answer": "Your request is waiting for your approval, and nothing has been sent or changed. I can't treat that wording as the approval itself: to approve it, reply with just “yes” or “confirm”, or use the confirmation shown with the request. To drop it, say cancel.",
+     "capability": "answer_target.confirmation_guidance"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-12",
+   "answer": "Nothing is waiting for your confirmation, so nothing was done. A cancelled or finished request can't be revived by a later “yes” — tell me what you'd like and, if it is something I can propose, I'll prepare it for your approval.",
+   "capability": "answer_target.confirmation_guidance",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Bedroom Light.",
+     "answer": "Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Cancel that",
+     "answer": "Cancelled. I did not send that device command.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "yes confirm",
+     "answer": "Nothing is waiting for your confirmation, so nothing was done. A cancelled or finished request can't be revived by a later “yes” — tell me what you'd like and, if it is something I can propose, I'll prepare it for your approval.",
+     "capability": "answer_target.confirmation_guidance"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-13",
+   "answer": "Cancelled. I did not send that device command.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "4f4666f9-9a7d-493f-a11d-1c07d24f4604",
+   "action_id": "c7e5e3d1-d81e-4d7f-9c97-e6da84a995b5",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "CONFIRMATION_STATE",
+   "target_confirmation": "cancel",
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Bedroom Light.",
+     "answer": "Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Cancel that",
+     "answer": "Cancelled. I did not send that device command.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-14",
+   "answer": "Understood — I won't share the financial figures outside this conversation. This holds for this conversation only; nothing I do here sends, shares or changes anything unless you ask and confirm it.",
+   "capability": "answer_target.constraint_acknowledged",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Do not share the financial figures outside this conversation.",
+     "answer": "Understood — I won't share the financial figures outside this conversation. This holds for this conversation only; nothing I do here sends, shares or changes anything unless you ask and confirm it.",
+     "capability": "answer_target.constraint_acknowledged"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-15",
+   "answer": "Understood — I won't reveal the portfolio revenue to people outside this chat. This holds for this conversation only; nothing I do here sends, shares or changes anything unless you ask and confirm it.",
+   "capability": "answer_target.constraint_acknowledged",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Never reveal the portfolio revenue to people outside this chat.",
+     "answer": "Understood — I won't reveal the portfolio revenue to people outside this chat. This holds for this conversation only; nothing I do here sends, shares or changes anything unless you ask and confirm it.",
+     "capability": "answer_target.constraint_acknowledged"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-16",
+   "answer": "Current balance: NGN 12,500. Period revenue: NGN 15,000.\n\nSupporting detail: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+   "capability": "financial.summary.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Do not share the financial figures outside this conversation.",
+     "answer": "Understood — I won't share the financial figures outside this conversation. This holds for this conversation only; nothing I do here sends, shares or changes anything unless you ask and confirm it.",
+     "capability": "answer_target.constraint_acknowledged"
+    },
+    {
+     "prompt": "What are the portfolio totals for balance and revenue?",
+     "answer": "Current balance: NGN 12,500. Period revenue: NGN 15,000.\n\nSupporting detail: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+     "capability": "financial.summary.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-17",
+   "answer": "Current balance: NGN 12,500. Period revenue: NGN 15,000.\n\nSupporting detail: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+   "capability": "financial.summary.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What are the portfolio totals for balance and revenue?",
+     "answer": "Current balance: NGN 12,500. Period revenue: NGN 15,000.\n\nSupporting detail: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+     "capability": "financial.summary.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-18",
+   "answer": "Understood — I won't share your wallet balance outside this conversation. This holds for this conversation only; nothing I do here sends, shares or changes anything unless you ask and confirm it.",
+   "capability": "answer_target.constraint_acknowledged",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Do not share my wallet balance outside this conversation.",
+     "answer": "Understood — I won't share your wallet balance outside this conversation. This holds for this conversation only; nothing I do here sends, shares or changes anything unless you ask and confirm it.",
+     "capability": "answer_target.constraint_acknowledged"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-19",
+   "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unavailable",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Please have someone call me back.",
+     "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-20",
+   "answer": "Visitor access records: Wave11 Expected Visitor (active, past its recorded expiry; fixture meeting), Wave11 Historical Visitor (inactive; fixture history).\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "DIRECT_ANSWER",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "My cousin has a pass, so he must have arrived by now, right?",
+     "answer": "Visitor access records: Wave11 Expected Visitor (active, past its recorded expiry; fixture meeting), Wave11 Historical Visitor (inactive; fixture history).\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-21",
+   "answer": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Visitor access: 0 currently active, 1 recorded active but past its recorded expiry (validity not confirmed), 1 expired, inactive or not recorded as active. What I cannot confirm: A visitor access record is permission, not evidence that anyone has arrived or left. Evidence basis: 1 source read, 1 of them partial or not current.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "Is anyone on my pass list still valid today?",
+     "answer": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Visitor access: 0 currently active, 1 recorded active but past its recorded expiry (validity not confirmed), 1 expired, inactive or not recorded as active. What I cannot confirm: A visitor access record is permission, not evidence that anyone has arrived or left. Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R0-22",
+   "answer": "I can't confirm that anyone is working on it. What is recorded: Wave11 unresolved water issue (open; high priority). A recorded maintenance request doesn't show that anyone has picked it up, and these records carry no acknowledgement or assignment — so whether it is being looked at is unknown, not a no.\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Is there a record of my water issue being looked at?",
+     "answer": "I can't confirm that anyone is working on it. What is recorded: Wave11 unresolved water issue (open; high priority). A recorded maintenance request doesn't show that anyone has picked it up, and these records carry no acknowledgement or assignment — so whether it is being looked at is unknown, not a no.\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  }
+ ]
+}

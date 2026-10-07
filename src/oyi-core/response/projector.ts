@@ -21,6 +21,8 @@ const wordsOf = (r: EnvelopeRecord) => analyse(r.label).tokens.filter(t => !/^wa
 function scopeTokens(e: ResultEnvelope) { return new Set(contentTokens(analyse(`${e.subject.noun} ${e.subject.singular} ${e.subject.object_class ?? ""} ${e.subject.domain ?? ""}`).tokens)); }
 function matches(r: EnvelopeRecord, q: string): boolean {
   const st = norm(r.status ?? ""), hay = norm(`${r.status ?? ""} ${r.detail ?? ""} ${r.fields ? Object.values(r.fields).join(" ") : ""}`);
+  // IQ-9A4: a pass recorded active whose recorded expiry has passed is not "active" for a validity question (see visitorPassState)
+  if (/^(?:active|valid|current|open)$/.test(q) && /past its recorded expiry/.test(st)) return false;
   if (q === "open") return !/\b(?:resolved|closed|completed|cancelled|canceled|expired|done|inactive)\b/.test(st) && (r.state ? r.state === "open" || r.state === "overdue" || r.state === "stale" : true);
   if (q === "resolved") return r.state === "resolved" || /\b(?:resolved|closed|completed|done)\b/.test(st);
   if (q === "stale") return r.state === "stale" || /\b(?:stale|expired|outdated|old)\b/.test(hay);
@@ -122,6 +124,12 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
   const trunc = e.truncated || (e.total_count != null && !e.total_qualifier && e.total_count > (e.count ?? 0));
   const support = sup(legacy);
   const eff = intent === "DIRECT_ANSWER" || intent === "SUMMARY" || (intent === "LIST" && !t.top_n) ? (n.named.length === 1 ? "STATUS" : intent === "LIST" ? "LIST" : "LIST") : intent;
+  // IQ-9A4: an expiry conflict is never presented as a confirmed active pass, nor as "none active": the conflict is stated.
+  const expiryConflicts = (e.records || []).filter(r => /past its recorded expiry/i.test(r.status || ""));
+  if (expiryConflicts.length && (n.asked.some(q => /^(?:active|valid|current)$/.test(q)) || (e.hints?.permission_only && /\b(?:valid|active|current(?:ly)?|usable|in\s+date)\b/i.test(ctx.raw || ""))) && ["COUNT", "YES_NO_WITH_REASON", "LIST"].includes(eff)) {
+    const confirmed = (e.records || []).filter(r => matches(r, "active") && !/inactive/i.test(r.status || ""));
+    return done(eff === "LIST" ? "LIST" : eff === "COUNT" ? "COUNT" : "YES_NO", `${(e.records || []).length} ${(e.records || []).length === 1 ? one : noun} on record. ${confirmed.length ? `${confirmed.length} ${confirmed.length === 1 ? one : noun} ${confirmed.length === 1 ? "is" : "are"} confirmed active (${confirmed.map(r => r.label).join(", ")}). ` : "I can't confirm that any is currently valid. "}${expiryConflicts.length} ${expiryConflicts.length === 1 ? "is" : "are"} recorded as active but ${expiryConflicts.length === 1 ? "its" : "their"} recorded expiry time has passed (${expiryConflicts.map(r => r.label).join(", ")}), so ${expiryConflicts.length === 1 ? "its" : "their"} validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.`, ...support);
+  }
   switch (eff) {
     case "COUNT": {
       const useTotal = e.total_count != null && e.total_qualifier === "open" && n.asked.includes("open") && !n.applicable.includes("open");
@@ -155,6 +163,13 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
         return done("YES_NO", `${yes ? "Yes" : "No"} — ${r.label} is ${closed ? "resolved" : "still open"}${r.detail ? ` (${r.detail})` : ""}.`, ...support);
       }
       if (kind === "capability") return null;
+      // IQ-9A4: a YES that someone is attending to / working on / handling a record needs a record that says so (progress status, acknowledgement or
+      // assignment). The existence of the request licenses nothing about attendance; unknown stays unknown.
+      if (/\b(?:looked\s+(?:at|into|after)|looking\s+(?:at|into|after)|attend(?:ed|ing)\s+to|working\s+on|worked\s+on|dealt\s+with|dealing\s+with|being\s+(?:handled|addressed|actioned|fixed|seen\s+to)|(?:started|begun)\s+(?:work(?:ing)?|on)|taken\s+care\s+of|picked\s+up|acknowledged|assigned\s+to)\b/i.test(ctx.raw || "")) {
+        const attended = rows.filter(r => /\b(?:in[ _]progress|acknowledged|assigned|dispatched|attending|started)\b/i.test(`${r.status ?? ""} ${r.detail ?? ""}`) || Boolean(r.fields && (r.fields as Record<string, unknown>).assigned_to));
+        if (attended.length) return done("YES_NO", `Yes — recorded as in progress or assigned: ${list(attended, 4)}.`, ...support);
+        return done("LIMITATION", `I can't confirm that anyone is working on ${rows.length === 1 ? "it" : "them"}. ${rows.length ? `What is recorded: ${list(rows, 4)}. ` : ""}A recorded ${one} doesn't show that anyone has picked it up, and these records carry no acknowledgement or assignment — so whether it is being looked at is unknown, not a no.`, ...support);
+      }
       // IQ-9A truth licence: a YES must be licensed by the records. Presence of unrelated records licenses nothing, and a permission-only record
       // (visitor access) never licenses a claim about presence, arrival, departure or location.
       const licensed = t.existential || n.applicable.length > 0 || n.named.length > 0 || (t.state_concept && ["open", "resolved", "stale", "overdue"].includes(t.state_concept));

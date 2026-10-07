@@ -1,0 +1,179 @@
+{
+ "verdicts": [
+  {
+   "id": "FAC-001:3",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-001:4",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-001:5",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-005:1",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-005:5",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-005:6",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-005:7",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-006:4",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-007:2",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-007:3",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-007:6",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-007:7",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-009:5",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-010:3",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-010:5",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "FAC-010:7",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-001:1",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-001:2",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-001:3",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-001:5",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-002:1",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-002:2",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-002:3",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-002:4",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-004:2",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-004:4",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-004:5",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-004:6",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-006:1",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-006:2",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-006:3",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-006:5",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-006:6",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  },
+  {
+   "id": "CON-009:7",
+   "verdict": "PRESERVED",
+   "reason": "Zero-record case; only wording of inactive category changed, envelope unaffected"
+  },
+  {
+   "id": "CON-010:5",
+   "verdict": "IMPROVED",
+   "reason": "Only change flags Expected Visitor as active but past recorded expiry, matching fixture; rest identical and envelope intact"
+  }
+ ]
+}

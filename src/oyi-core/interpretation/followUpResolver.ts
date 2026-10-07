@@ -235,7 +235,7 @@ function resolveAttribute(resultSet: ResultSetContext, attribute: string): Follo
     resolved: ["resolved", "closed", "completed", "done"],
   };
   const wanted = statusSynonyms[attribute] || [attribute];
-  const matches = refs.filter((ref) => ref.status && wanted.includes(ref.status));
+  const matches = refs.filter((ref) => ref.status && (wanted.includes(ref.status) || (attribute === "active" && /^active\b/.test(ref.status) && !/^inactive/.test(ref.status))));
   if (!matches.length) return { status: "unresolved" };
   if (matches.length === 1) return { status: "resolved", ref: matches[0] };
   return { status: "ambiguous", candidates: matches };

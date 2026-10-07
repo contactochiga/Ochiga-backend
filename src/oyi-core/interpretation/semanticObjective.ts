@@ -378,6 +378,10 @@ export function isCancellationSentence(u: Utterance): boolean {
   if (u.negImperative) {
     const verb = T.find((t, i) => i > 0 && !["not", "ever", "just", "to", "even", "again", "need", "bother"].includes(t) ) ?? "bother";
     if (COGNITIVE_ACT.has(verb) && !/\bsend|contact|call|ring\b/.test(text)) return false;
+    // IQ-9A4: "do not share/disclose/reveal <something specific>" is a standing disclosure constraint, not the withdrawal of an action. Only a bare
+    // pronoun object ("don't share it") can withdraw a pending share.
+    const vi = T.indexOf(verb, 1);
+    if (["share", "disclose", "reveal", "expose", "leak", "publish", "divulge", "broadcast"].includes(verb) && vi >= 0 && T.length > vi + 1 && !["it", "that", "this", "them", "those", "these"].includes(T[vi + 1])) return false;
     return true;
   }
   if (first === "hold" && T[1] === "on" && T.length > 2) return isCancellationSentence(analyse(T.slice(2).join(" ")));

@@ -37,7 +37,7 @@ import {
   type PublicOpportunityType,
 } from "../context/publicOpportunityObjective";
 import { assessJvOpportunity, type JvEvidence } from "../domains/development/developmentJv";
-import { requestOfficeHandoff } from "../ingress/officeHandoffBridge";
+import { requestOfficeHandoff, type OfficeHandoffRequestInput, type OfficeHandoffRequestResult } from "../ingress/officeHandoffBridge";
 
 const publicEvidence: OyiEvidence["privacy_class"] = "public";
 
@@ -240,33 +240,50 @@ function composeGenericRequirementsAnswer(objective: PublicOpportunityObjective)
   return `Here's what I have so far -- ${known}.${constraintsText} If there's anything specific you'd like us to know before someone follows up, feel free to share it -- otherwise I can arrange for someone to reach out.`;
 }
 
-async function composeCallbackAnswer(context: CapabilityContext, objective: PublicOpportunityObjective | null): Promise<{ status: "answered" | "unavailable"; answer: string; metadata: Record<string, unknown> }> {
+// IQ-9A4: the stages a callback/handoff can reach, each claimed only on the evidence it needs.
+//   requested -> attempted -> (accepted_receipt_recorded | rejected | unavailable | attempted_no_receipt) -> contact_completed (only if the Office receipt itself says so)
+export type HandoffStage = "accepted_receipt_recorded" | "rejected" | "unavailable" | "attempted_no_receipt" | "contact_completed";
+const COMPLETED_STATUS = /^(?:completed|contacted|contact_completed|called|done)$/i;
+export function classifyHandoff(result: OfficeHandoffRequestResult): HandoffStage {
+  if (!result.ok) return /^(?:office_rejected|office_http_4\d\d|rejected|invalid|forbidden|unauthori[sz]ed)/i.test(result.reason) || /reject/i.test(result.reason) ? "rejected" : "unavailable";
+  if (/failed|rejected|cancelled/i.test(`${result.status} ${result.routing_status}`)) return "rejected";
+  if (!result.handoff_id) return "attempted_no_receipt";
+  return COMPLETED_STATUS.test(String(result.status || "").trim()) ? "contact_completed" : "accepted_receipt_recorded";
+}
+
+export async function composeCallbackAnswer(context: CapabilityContext, objective: PublicOpportunityObjective | null, requester: (input: OfficeHandoffRequestInput) => Promise<OfficeHandoffRequestResult> = requestOfficeHandoff): Promise<{ status: "answered" | "unavailable"; answer: string; metadata: Record<string, unknown> }> {
   const summary = objective
     ? `Public opportunity inquiry (${objective.objective_type}): ${Object.entries(objective.known_facts).map(([key, value]) => `${key}=${value}`).join(", ") || "no details yet"}${objective.constraints.length ? `; constraints: ${objective.constraints.join(", ")}` : ""}`
     : "Public inquiry requesting a callback with no prior details captured in this conversation.";
   const leadId = text(context.input.thread_id) || context.resolvedTurn.request_id;
-  const result = await requestOfficeHandoff({
+  const result = await requester({
     lead_id: leadId,
     business_unit: objective?.objective_type === "development_partnership" ? "development" : "general",
     requested_capability: "callback_request",
     reason: summary,
     priority: "normal",
   });
-  // Acceptance is not a booked call or a guarantee of future contact. Even a
-  // successful transport needs an acknowledged handoff receipt.
-  const accepted = result.ok && Boolean(result.handoff_id) && !/failed|rejected|cancelled/i.test(`${result.status} ${result.routing_status}`);
-  const answer = accepted
-    ? "The team has received your callback request. A call has not been booked or confirmed, and no one has contacted you yet." + (objective && Object.keys(objective.known_facts).length ? " What you've told me so far was included with the request." : "")
-    : "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact."
-      + (objective ? " Your opportunity details remain in this conversation; you don't need to start again." : "");
+  const stage = classifyHandoff(result);
+  const accepted = stage === "accepted_receipt_recorded" || stage === "contact_completed";
+  const kept = objective ? " Your opportunity details remain in this conversation; you don't need to start again." : "";
+  const retry = " You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact.";
+  const answer = stage === "contact_completed"
+    ? "The team's record shows this callback as completed. I can only report that because the team's own record says so; I haven't spoken to anyone."
+    : stage === "accepted_receipt_recorded"
+      ? "The team has received your callback request. A call has not been booked or confirmed, and no one has contacted you yet." + (objective && Object.keys(objective.known_facts).length ? " What you've told me so far was included with the request." : "")
+      : stage === "rejected"
+        ? "The team's system did not accept your callback request, so no callback is arranged and no callback is confirmed." + retry + kept
+        : stage === "attempted_no_receipt"
+          ? "I sent your callback request but did not get a receipt back, so I can't say the team has it and no callback is confirmed." + retry + kept
+          : "I couldn't pass your callback request to the team, so no callback is confirmed." + retry + kept;
   return { status: accepted ? "answered" : "unavailable", answer, metadata: {
     office_handoff_requested: true, office_handoff_ok: accepted,
-    office_handoff_status: accepted ? "accepted" : "unavailable",
+    office_handoff_status: accepted ? "accepted" : stage,
     office_handoff_id: result.ok ? result.handoff_id || null : null,
     office_handoff_retryable: !accepted,
-    // requested by the visitor -> attempted -> accepted with a receipt; contact is never completed by this step
-    handoff_stage: accepted ? "accepted_receipt_recorded" : "attempted_not_accepted",
-    contact_completed: false,
+    // requested by the visitor -> attempted -> receipt; "contact_completed" only when the Office receipt itself reports completion
+    handoff_stage: stage,
+    contact_completed: stage === "contact_completed",
   } };
 }
 
