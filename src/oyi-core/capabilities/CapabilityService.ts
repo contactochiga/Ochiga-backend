@@ -131,6 +131,15 @@ function privacyAllowed(module: CapabilityModule, evidence: OyiEvidence[], conte
   return null;
 }
 
+// IQ-9A: the requested SUBJECT scope is resolved before a private capability runs. A resident may only see their own home; a request for another
+// person, a neighbour, other homes or the estate as a whole is denied here (never answered with the actor's own data), whatever role is claimed in chat.
+function requestedScopeConflict(module: CapabilityModule, frame: SemanticFrame, surface: OyiSurface): string | null {
+  const scope = frame.answerTarget?.subject_scope;
+  if (surface !== "consumer" || !scope || scope === "own") return null;
+  if (module.key.startsWith("global.") || module.domain === "global") return null;
+  return "requested_scope_not_authorized";
+}
+
 function capabilityMatchScore(module: CapabilityModule, frame: SemanticFrame) {
   if (!module.supports(frame)) return 0;
   if ((module.operations || []).includes(frame.operation)) return 100;
@@ -205,7 +214,9 @@ export class CapabilityService {
       operationalMetrics.increment("oyi_capability_resolution_total", { outcome: "unsupported", reason: "capability_not_registered" });
       return { capability: null, matched_capability: null, rollout_status: "not_registered", authority: null, resolution_outcome: "no_match", legacy_fallback_reason: "capability_not_registered" };
     }
-    const authority = this.canUse(candidate.key, { actor: context.actor, oisContext: context.oisContext, surface, scope });
+    let authority = this.canUse(candidate.key, { actor: context.actor, oisContext: context.oisContext, surface, scope });
+    const scopeConflict = requestedScopeConflict(candidate, frame, surface);
+    if (scopeConflict) authority = { ...authority, allowed: false, reason: scopeConflict };
     logger.info("oyi_capability_authority_decided", {
       request_id: context.resolvedTurn.request_id,
       correlation_id: context.resolvedTurn.correlation_id,

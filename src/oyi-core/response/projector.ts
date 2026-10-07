@@ -155,6 +155,11 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
         return done("YES_NO", `${yes ? "Yes" : "No"} — ${r.label} is ${closed ? "resolved" : "still open"}${r.detail ? ` (${r.detail})` : ""}.`, ...support);
       }
       if (kind === "capability") return null;
+      // IQ-9A truth licence: a YES must be licensed by the records. Presence of unrelated records licenses nothing, and a permission-only record
+      // (visitor access) never licenses a claim about presence, arrival, departure or location.
+      const licensed = t.existential || n.applicable.length > 0 || n.named.length > 0 || (t.state_concept && ["open", "resolved", "stale", "overdue"].includes(t.state_concept));
+      if (e.hints?.permission_only && !(n.applicable.length > 0 || (t.state_concept && ["open", "resolved", "stale", "overdue"].includes(t.state_concept)) || t.existential)) return done("YES_NO", `I can't confirm that from visitor access records: they show permission (active or inactive), not whether anyone has arrived, is here, has left or needs action.`, ...support);
+      if (!licensed) return done("LIMITATION", `I can't confirm that from these records: they show the ${noun} and their recorded status, but nothing that answers what you asked.`, ...support);
       return done("YES_NO", rows.length ? `Yes — ${askedN(rows.length)}${n.applicable.length ? ` ${n.applicable.join(" and ")}` : ""}: ${list(rows, 4)}.` : `No — I found no ${n.applicable.length ? n.applicable.join(" and ") + " " : ""}${noun} in what I read.`, ...support);
     }
     case "EXPLANATION": {

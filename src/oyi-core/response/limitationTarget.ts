@@ -22,6 +22,7 @@ export function isGenericUnsupportedAnswer(answer: string): boolean {
 
 export function limitationAnswer(target: AnswerTarget, question: string): string {
   if (target.response_intent === "CLARIFICATION") return clarificationQuestion(target);
+  if (target.response_intent === "REFUSAL" && target.refusal_kind === "unverified_assurance") return "I can't tell you that: I have no evidence it is true, and saying so could leave you or others unprotected. I can tell you what is recorded, and I can't verify the rest.";
   if (target.response_intent === "REFUSAL" && target.refusal_kind === "internal") return "I can't share how Ochiga assesses opportunities internally: scoring rules and criteria aren't something I disclose, whatever role is claimed.";
   if (target.response_intent === "REFUSAL" && target.refusal_kind === "commitment") return "I can't give you a figure or a price: any valuation or offer is made by Ochiga's team after a proper review, and I can't commit Ochiga to one.";
   if (target.response_intent === "REFUSAL" && target.refusal_kind === "authority") return "I can't do that: I won't ignore or bypass privacy, permission or authority boundaries, whatever role is claimed.";
@@ -42,6 +43,7 @@ export function denialAnswer(reason: string | null | undefined, asked: string, a
   if (reason === "home_scope_required" || reason === "room_scope_required") return act
     ? `${base} — it needs a specific home or room in scope, and this view has no estate-wide control. Nothing has been changed.`
     : `${base} — it needs a specific home or room in scope, and this view has no estate-wide read for it.`;
+  if (reason === "requested_scope_not_authorized") return `${base} — I can only show information for your own home; another resident's, a neighbour's or estate-wide details aren't available to you here, whatever role is claimed.`;
   if (reason === "estate_scope_required") return `${base} — it needs an estate in scope.`;
   if (reason === "surface_not_supported" || reason === "public_corporate_surface_cannot_use_operational_capability") return `${base} — that isn't available from this surface.`;
   if (reason === "missing_permission") return `${base} — your role doesn't have the permission it needs.`;

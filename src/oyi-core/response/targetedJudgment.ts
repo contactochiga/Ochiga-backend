@@ -191,7 +191,7 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
         const ordered = tiering([a, b]);
         if (ordered[0].tier === ordered[1].tier) return { lead: sentence(`${a.ref.label} and ${b.ref.label} are equal on what is recorded (${describe(a).join(", ")} versus ${describe(b).join(", ")}); the evidence gives no basis to separate them`), support: [] };
         const [w, l] = [ordered[0].candidate, ordered[1].candidate];
-        return { lead: sentence(`${w.ref.label} comes ahead of ${l.ref.label}: it is ${describe(w).join(", ")}, while ${l.ref.label} is ${describe(l).join(", ")}`), support: [] };
+        return { lead: sentence(`${w.ref.label} comes ahead of ${l.ref.label} on recorded status and priority: it is ${describe(w).join(", ")}, while ${l.ref.label} is ${describe(l).join(", ")}. That orders what is recorded; it is not a judgment of which is worse or matters more`), support: [] };
       }
       if (sides.length === 2 && (sides[0].length === 0) !== (sides[1].length === 0)) {
         const found = (sides[0].length ? sides[0] : sides[1])[0], missingSide = (sides[0].length ? target.compare_terms[1] : target.compare_terms[0]).join(" ");

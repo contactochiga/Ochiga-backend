@@ -197,7 +197,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -263,7 +263,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/persistence/canonicalConversationPersistence.ts",
@@ -522,7 +522,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
@@ -603,7 +603,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -679,7 +679,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -749,7 +749,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -815,7 +815,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -928,7 +928,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/CapabilityResponseAdapter.ts",
-            "sha256": "e8fe1a3da151dab92ebf29f251180468ead6b05794f2cb1d8eb1c026a876de63"
+            "sha256": "238fd5a7d7963a9b56401e757263eaf25452548f206351e5bbae7ed37efe27e5"
           },
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
@@ -944,7 +944,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
@@ -1123,7 +1123,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/CapabilityResponseAdapter.ts",
-            "sha256": "e8fe1a3da151dab92ebf29f251180468ead6b05794f2cb1d8eb1c026a876de63"
+            "sha256": "238fd5a7d7963a9b56401e757263eaf25452548f206351e5bbae7ed37efe27e5"
           },
           {
             "path": "src/oyi-core/capabilities/ReadCapabilityModules.ts",
@@ -1131,7 +1131,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
@@ -1205,7 +1205,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -2038,7 +2038,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -2262,7 +2262,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/persistence/canonicalConversationPersistence.ts",
@@ -2771,7 +2771,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -2953,7 +2953,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -2987,7 +2987,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3011,7 +3011,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3019,7 +3019,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
@@ -3061,7 +3061,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3085,7 +3085,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3093,7 +3093,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
@@ -3135,7 +3135,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3159,7 +3159,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3167,7 +3167,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
@@ -3209,7 +3209,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3233,7 +3233,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3241,7 +3241,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
@@ -3283,7 +3283,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3307,7 +3307,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3315,7 +3315,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",
@@ -3379,11 +3379,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -3417,7 +3417,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3441,7 +3441,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3499,11 +3499,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -3537,7 +3537,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3561,7 +3561,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3615,11 +3615,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -3653,7 +3653,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3677,7 +3677,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3735,11 +3735,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -3773,7 +3773,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3797,7 +3797,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3855,11 +3855,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -3893,7 +3893,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -3917,7 +3917,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -3975,11 +3975,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -4013,7 +4013,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -4037,7 +4037,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -4091,11 +4091,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -4129,7 +4129,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -4153,7 +4153,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -4211,11 +4211,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -4249,7 +4249,7 @@
       "planner_eligible": true,
       "planner_block_reason": null,
       "source_module": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-      "source_sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3",
+      "source_sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6",
       "query": "supplied operational_snapshot; no DB query",
       "requested_scope": "Verified Office actor, permission-gated supplied snapshot only",
       "effective_scope": "Same supplied Office snapshot; operational scope requests rejected",
@@ -4273,7 +4273,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -4325,11 +4325,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -4385,7 +4385,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -4397,7 +4397,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -4455,11 +4455,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -4513,11 +4513,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -4571,11 +4571,11 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -4631,7 +4631,7 @@
         "origins": [
           {
             "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
-            "sha256": "564fe2127a313a123f3a48a9089cb7042124b0ca04f3bf71068e14473892fbc3"
+            "sha256": "992ffdc193eed3a56618157f829ccef8a4dca7e62692fa249a95b4068328aef6"
           },
           {
             "path": "src/oyi-core/evidence/planner/evidenceClasses.ts",
@@ -4643,7 +4643,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           }
         ],
         "query_indicators": [
@@ -4708,7 +4708,7 @@
           },
           {
             "path": "src/oyi-core/evidence/judgment/evidenceIndex.ts",
-            "sha256": "dd8f98061cffa895b72001d6eaa1797b8b05a1f99fddf1f51a07ab0928221598"
+            "sha256": "5b5653d9509f6c7e3a07915c2b4b42cd0476dde863b24805b2715217229ad18c"
           },
           {
             "path": "src/oyi-core/evidence/planner/bundle.ts",
@@ -4728,7 +4728,7 @@
           },
           {
             "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
-            "sha256": "ee93a12fd58d5e868837ed2bec734d5f45b57639d413f4c550e8dec8950d697b"
+            "sha256": "e34eebef73f163a819f4d14f22834170ee78e39c62670f29cde3296e663f7b97"
           },
           {
             "path": "src/oyi-core/response/envelopeMappers.ts",

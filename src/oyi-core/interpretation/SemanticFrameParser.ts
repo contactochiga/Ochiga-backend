@@ -142,7 +142,7 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
     || (correctedScope && /\bdevelopments?\b/i.test(correctedScope) ? "corporate_development" : null);
   const concepts = resolveConcepts(normalized.normalized_text);
   // the concept view (consumption vs spending) decides a utilities operation the lexical regexes could not tell apart
-  const operationFinal: SemanticOperation = operation.startsWith("utilities.") && concepts.facet === "usage" ? "utilities.usage" : operation;
+  const operationFinal0: SemanticOperation = operation.startsWith("utilities.") && concepts.facet === "usage" ? "utilities.usage" : operation;
   const domain = reconcileDomain(domainCandidate, concepts, normalized.normalized_text);
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);
@@ -152,6 +152,8 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   // IQ-8D3: the ONE answer target is derived here, before the frame is assembled, so the frame's own mutation intent can honour it: a past-tense
   // question about what was done ("did you switch it off?") asks for the truth of an action, it is never a command to perform it.
   const answerTarget = deriveAnswerTarget(normalized.raw_text, { objective: cognitiveObjective, activeAssessment: opts.activeAssessment, surface: opts.surface, ambiguity: { required: false, reason: null }, pronounRef: resolveReferences(normalized.normalized_text).some((r) => r.kind === "pronoun") });
+  // a past-tense question about what was done ("did you switch it off?") never keeps a command operation: it must not select a control capability
+  const operationFinal: SemanticOperation = answerTarget.response_intent === "ACTION_RESULT" && /^(?:device\.power|approve|reject|compose)/.test(operationFinal0) ? "inform" : operationFinal0;
   return {
     rawText: normalized.raw_text,
     concepts,

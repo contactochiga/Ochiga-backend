@@ -7,10 +7,10 @@ import { loadConversationAssessment, nextConversationAssessment, isAssessmentObj
 import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
 import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
 import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
-import { isHazardReport } from "../response/answerTarget";
+import { hasWithdrawalVerb, hazardReportIn } from "../response/answerTarget";
 import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
 import { capabilityEnabled } from "../capabilities/CapabilityRollout";
-import { actionTruthLead, threadActionTruth } from "../response/actionTruth";
+import { actionTruthLead, communicationTruthLead, threadActionTruth } from "../response/actionTruth";
 import { acknowledgeConstraint } from "../response/constraintAck";
 import { parseDerivedReference, scopeBinding } from "../evidence/reference/derivedReference";
 import { runReassessment } from "../evidence/reassessment/integration";
@@ -3606,15 +3606,16 @@ export class ConversationOrchestrator {
     // public turns are checked only AFTER pending governed proposals and communications have had their chance, so a veto is never mistaken for a constraint.
     const tryAnswerTargeted = async (): Promise<ConversationRunResult | null> => {
     // IQ-8E: an imperative ACTION request that no governed action capability claims is never answered by a read; it is stated plainly as not done.
-    const actionUnclaimed = Boolean(resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "action")
+    const actionUnclaimed = Boolean(resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "action" || (resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "callback" && context.input.surface !== "public_corporate"))
       && !capabilityRegistry.all().some((m) => m.risk_class && m.risk_class !== "read" && capabilityEnabled(m) && m.supports(resolvedTurn.semantic_frame));
     if (!activeWorkflow && (!resolvedTurn.semantic_frame.mutationIntent || actionUnclaimed)) {
       const sf = resolvedTurn.semantic_frame, earlyTarget = sf.answerTarget!;
       let direct: string | null = null, key = "";
       if (actionUnclaimed) { direct = `I haven't done that: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 160)}” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.`; key = "answer_target.action_not_executed"; }
       else if (earlyTarget.confirmation_kind === "constraint") { direct = acknowledgeConstraint(sf.rawText); key = "answer_target.constraint_acknowledged"; }
-      else if (!earlyAssessment && isHazardReport(sf.rawText) && ["facility", "consumer"].includes(context.input.surface)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action.`; key = "answer_target.safety_report"; }
-      else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = actionTruthLead(await threadActionTruth(context.input.thread_id)); key = "answer_target.action_result"; }
+      else if (!earlyAssessment && hazardReportIn(sf.rawText)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action. If anyone may be in danger, contact emergency services or estate security directly now.`; key = "answer_target.safety_report"; }
+      else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = earlyTarget.action_domain === "communication" ? communicationTruthLead(await threadActionTruth(context.input.thread_id), Boolean(earlyTarget.future_event)) : actionTruthLead(await threadActionTruth(context.input.thread_id)); key = "answer_target.action_result"; }
+      else if (earlyTarget.confirmation_kind === "cancel" && !activeWorkflow && hasWithdrawalVerb(sf.rawText)) { direct = earlyTarget.constraint_withdrawal ? "Understood — I've dropped that rule for this conversation." : "Understood — nothing is pending to cancel, and nothing was sent, changed or paid."; key = "answer_target.cancellation_acknowledged"; }
       if (direct) {
         const capability = syntheticOfficeActionCapability(key, "global");
         const directResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, { status: "answered", answer: direct, presentation_policy: resultPresentation("text"), metadata: { answer_target: earlyTarget.response_intent } });
